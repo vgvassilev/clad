@@ -1,47 +1,25 @@
-Index: clang-interpreter/CMakeLists.txt
+Index: tools/CMakeLists.txt
 ===================================================================
---- clang-interpreter/CMakeLists.txt	(revision 182931)
-+++ clang-interpreter/CMakeLists.txt	(working copy)
-@@ -24,6 +24,7 @@
-   clangFrontend
-   clangSerialization
-   clangDriver
-+  llvmIRReader
-   clangCodeGen
-   clangSema
-   clangStaticAnalyzerFrontend
-Index: clang-interpreter/Makefile
+--- tools/CMakeLists.txt	(revision 182931)
++++ tools/CMakeLists.txt	(working copy)
+@@ -58,6 +58,7 @@
+   endif()
+ endif()
+ 
++add_llvm_external_project(autodiff)
+ add_llvm_external_project(clang)
+ add_llvm_external_project(lld)
+ add_llvm_external_project(lldb)
+Index: tools/Makefile
 ===================================================================
---- clang-interpreter/Makefile	(revision 182931)
-+++ clang-interpreter/Makefile	(working copy)
-@@ -17,7 +17,8 @@
+--- tools/Makefile	(revision 182931)
++++ tools/Makefile	(working copy)
+@@ -21,7 +21,7 @@
  
- LINK_COMPONENTS := jit interpreter nativecodegen bitreader bitwriter ipo \
- 	linker selectiondag asmparser instrumentation
--USEDLIBS = clangFrontend.a clangSerialization.a clangDriver.a clangCodeGen.a \
-+USEDLIBS = clangFrontend.a clangSerialization.a clangDriver.a llvmIRReader.a \
-+           clangCodeGen.a \
-            clangParse.a clangSema.a clangStaticAnalyzerFrontend.a \
-            clangStaticAnalyzerCheckers.a clangStaticAnalyzerCore.a \
-            clangAnalysis.a clangRewriteCore.a clangRewriteFrontend.a \
-Index: CMakeLists.txt
-===================================================================
---- CMakeLists.txt	(revision 182931)
-+++ CMakeLists.txt	(working copy)
-@@ -5,3 +5,4 @@
- add_subdirectory(analyzer-plugin)
- add_subdirectory(clang-interpreter)
- add_subdirectory(PrintFunctionNames)
-+add_subdirectory(autodiff)
-Index: Makefile
-===================================================================
---- Makefile	(revision 182931)
-+++ Makefile	(working copy)
-@@ -9,6 +9,6 @@
+ # Build LLDB if present. Note LLDB must be built last as it depends on the
+ # wider LLVM infrastructure (including Clang).
+-OPTIONAL_DIRS := lldb
++OPTIONAL_DIRS := lldb, autodiff
  
- CLANG_LEVEL := ..
- 
--PARALLEL_DIRS := analyzer-plugin clang-interpreter PrintFunctionNames
-+PARALLEL_DIRS := analyzer-plugin clang-interpreter PrintFunctionNames autodiff
- 
- include $(CLANG_LEVEL)/Makefile
+ # NOTE: The tools are organized into five groups of four consisting of one
+ # large and three small executables. This is done to minimize memory load
