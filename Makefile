@@ -14,7 +14,7 @@ ifndef AUTODIFF_LEVEL
 
 IS_TOP_LEVEL := 1
 AUTODIFF_LEVEL := .
-DIRS := include lib docs
+DIRS := include lib docs tools
 
 PARALLEL_DIRS :=
 

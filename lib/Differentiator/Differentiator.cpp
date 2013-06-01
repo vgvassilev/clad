@@ -1,3 +1,11 @@
+//--------------------------------------------------------------------*- C++ -*-
+// AutoDiff - the C++ Clang-based Automatic Differentiator
+// version: $Id$
+// author:  Vassil Vassilev <vvasilev-at-cern.ch>
+//------------------------------------------------------------------------------
+
+#include "autodiff/Differentiator/Differentiator.h"
+
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -67,3 +75,4 @@ namespace {
 // register the PluginASTAction in the registry.
 static FrontendPluginRegistry::Add<Action<FunctionDeclarationFinder> >
 X("print-f-g", "prints source code statements in which f or g is referenced from diff");
+
