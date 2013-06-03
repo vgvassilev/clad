@@ -27,8 +27,16 @@ public:
 //
 // This will be useful in fucture when we are ready to support partial diff.
 //
+
+// Note here that best would be to annotate with, eg:
+//  __attribute__((annotate("This is our diff that must differentiate"))) {
+// However, GCC doesn't support the annotate attribute on a function definition
+// and clang's version on MacOS chokes up (with clang's trunk everything seems 
+// ok 03.06.2013)
+
 template<typename F, typename... Args, typename... A>
-DerivedFunction<F> diff(F (*f)(Args...), A&&... a) {  
+DerivedFunction<F> diff(F (*f)(Args...), A&&... a) {
+  
   //return f(a...);
   return DerivedFunction<F>();
 }
