@@ -7,6 +7,7 @@
 #include "autodiff/Differentiator/DerivativeBuilder.h"
 
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -17,9 +18,9 @@ using namespace clang;
 namespace {
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
-    llvm::SmallVector<const FunctionDecl*, 4> m_FunctionsToDiff;
+    llvm::SmallVector<FunctionDecl*, 4> m_FunctionsToDiff;
   public:
-    llvm::SmallVector<const FunctionDecl*, 4>& getFunctionsToDiff() {
+    llvm::SmallVector<FunctionDecl*, 4>& getFunctionsToDiff() {
       return m_FunctionsToDiff;
     }
 
@@ -38,10 +39,10 @@ namespace {
         //        if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
         if (FD->getName() == "diff")
           // We know that is *our* diff function.
-          if (const ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0)))
-            if (const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+          if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0)))
+            if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
               assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
-              m_FunctionsToDiff.push_back(cast<const FunctionDecl>(DRE->getDecl()));
+              m_FunctionsToDiff.push_back(cast<FunctionDecl>(DRE->getDecl()));
             }
       }
       return true;     // return false to abort visiting.
@@ -60,12 +61,14 @@ namespace plugin {
       for (DeclGroupRef::iterator I = DGR.begin(), E = DGR.end(); I != E; ++I)
         if (FunctionDecl* FD = dyn_cast<FunctionDecl>(*I))
           m_Collector.collectFunctionsToDiff(FD);
-      llvm::SmallVector<const FunctionDecl*, 4>& functionsToDerive 
+      llvm::SmallVector<FunctionDecl*, 4>& functionsToDerive 
         = m_Collector.getFunctionsToDiff();
       for (size_t i = 0, e = functionsToDerive.size(); i < e; ++i) {
         const FunctionDecl* Derivative 
           = m_DerivativeBuilder.Derive(functionsToDerive[i]);
-        Derivative->dump();
+        //Derivative->dumpColor();
+        Derivative->print(llvm::outs(), 
+                          Derivative->getASTContext().getPrintingPolicy());
       }
       return true;
     }
