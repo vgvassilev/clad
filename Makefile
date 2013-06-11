@@ -55,7 +55,7 @@ endif
 #   http://gcc.gnu.org/PR41838
 #
 # We can revisit this when LLVM/Autodiff support it.
-CXX.Flags += -fno-strict-aliasing
+CXX.Flags += -fno-strict-aliasing -std=c++0x 
 
 ###
 # Autodiff Top Level specific stuff.
