@@ -55,7 +55,12 @@ endif
 #   http://gcc.gnu.org/PR41838
 #
 # We can revisit this when LLVM/Autodiff support it.
-CXX.Flags += -fno-strict-aliasing -std=c++0x 
+CXX.Flags += -fno-strict-aliasing
+
+# clang on MacOS is not ready yet to turn the c++11 support.
+ifeq ($(CC),"gcc")
+CXX.Flags += -std=c++0x
+endif
 
 ###
 # Autodiff Top Level specific stuff.
