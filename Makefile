@@ -58,7 +58,7 @@ endif
 CXX.Flags += -fno-strict-aliasing
 
 # clang on MacOS is not ready yet to turn the c++11 support.
-ifeq ($(CC),"gcc")
+ifeq ($(CXX),g++)
 CXX.Flags += -std=c++0x
 endif
 
