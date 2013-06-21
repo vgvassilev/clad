@@ -29,9 +29,9 @@ include $(CLANG_LEVEL)/../../Makefile.config
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
 
 USEDLIBS := autodiffDifferentiator.a \
-	    clangSerialization.a clangFrontend.a clangDriver.a clangParse.a \
-	    clangSema.a clangAST.a clangLex.a clangAnalysis.a clangEdit.a \
-	    clangBasic.a
+	    clangSerialization.a LLVMOption.a clangFrontend.a clangDriver.a \
+            clangParse.a clangSema.a clangAST.a clangLex.a clangAnalysis.a \
+	    clangEdit.a clangBasic.a
 
 
 

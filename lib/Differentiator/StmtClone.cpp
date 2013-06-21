@@ -59,7 +59,7 @@ DEFINE_CREATE_EXPR(CXXConstCastExpr, (Ctx, Node->getType(), Node->getValueKind()
 DEFINE_CREATE_EXPR(CXXConstructExpr, (Ctx, Node->getType(), Node->getLocation(), Node->getConstructor(), Node->isElidable(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->requiresZeroInitialization(), Node->getConstructionKind(), Node->getParenRange()))
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getTypeInfoAsWritten(), Node->getTypeBeginLoc(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getRParenLoc()))
 DEFINE_CLONE_EXPR(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getTypeSourceInfo(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->requiresZeroInitialization()))
-DEFINE_CLONE_EXPR(MaterializeTemporaryExpr, (Node->getType(), Clone(Node->GetTemporaryExpr()), Node->isBoundToLvalueReference())) 
+DEFINE_CLONE_EXPR(MaterializeTemporaryExpr, (Node->getType(), Clone(Node->GetTemporaryExpr()), Node->isBoundToLvalueReference(), Node->getExtendingDecl())) 
 DEFINE_CLONE_EXPR(CompoundAssignOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(),
                                            Node->getValueKind(), Node->getObjectKind(), Node->getComputationLHSType(), Node->getComputationResultType(), Node->getOperatorLoc(), Node->isFPContractable()))
 DEFINE_CLONE_EXPR(ConditionalOperator, (Clone(Node->getCond()), Node->getQuestionLoc(), Clone(Node->getLHS()), Node->getColonLoc(), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
