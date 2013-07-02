@@ -52,6 +52,10 @@ namespace {
 
 namespace autodiff {
 namespace plugin {
+
+    static bool fPrintSourceFn,  fPrintSourceAst,
+                fPrintDerivedFn, fPrintDerivedAst = false;
+                
   class AutoDiffPlugin : public ASTConsumer {
   private:
     DiffCollector m_Collector;
@@ -64,13 +68,32 @@ namespace plugin {
       llvm::SmallVector<FunctionDecl*, 4>& functionsToDerive 
         = m_Collector.getFunctionsToDiff();
       for (size_t i = 0, e = functionsToDerive.size(); i < e; ++i) {
-        const FunctionDecl* Derivative 
-          = m_DerivativeBuilder.Derive(functionsToDerive[i]);
-        //Derivative->dumpColor();
-        Derivative->print(llvm::outs(), 
-                          Derivative->getASTContext().getPrintingPolicy());
-      }
-      return true;
+        // if enabled, print source code of the original functions
+          if (fPrintSourceFn) {
+            functionsToDerive[i]->print(llvm::outs(),
+                                        functionsToDerive[i]->getASTContext().getPrintingPolicy());
+          }
+          // if enabled, print ASTs of the original functions
+          if (fPrintSourceAst) {
+            functionsToDerive[i]->dumpColor();
+          }
+          
+          // derive the collected functions
+          const FunctionDecl* Derivative
+            = m_DerivativeBuilder.Derive(functionsToDerive[i]);
+          
+          // if enabled, print source code of the derived functions
+          if (fPrintDerivedFn) {
+            Derivative->print(llvm::outs(),
+                              Derivative->getASTContext().getPrintingPolicy());
+          }
+          // if enabled, print ASTs of the derived functions
+          if (fPrintDerivedAst) {
+            Derivative->dumpColor();
+          }
+        }
+        return true;
+
     }
   };
   
@@ -86,7 +109,26 @@ namespace plugin {
     
     bool ParseArgs(const CompilerInstance &CI,
                    const std::vector<std::string>& args) {
-      return true;
+      for (unsigned i = 0, e = args.size(); i != e; ++i) {
+          
+          if (args[i] == "-fprint-source-fn") {
+            fPrintSourceFn = true;
+          }
+          else if (args[i] == "-fprint-source-fn-ast") {
+            fPrintSourceAst = true;
+          }
+          else if (args[i] == "-fprint-derived-fn") {
+            fPrintDerivedFn = true;
+          }
+          else if (args[i] == "-fprint-derived-fn-ast") {
+            fPrintDerivedAst = true;
+          }
+          else {
+            llvm::outs() << "plugin ad: Error: invalid option " << args[i] << "\n";
+          }
+        }
+        
+        return true;
     }
   };
 } // end namespace plugin
@@ -95,5 +137,5 @@ namespace plugin {
 using namespace autodiff::plugin;
 // register the PluginASTAction in the registry.
 static FrontendPluginRegistry::Add<Action<AutoDiffPlugin> >
-X("print-f-g", "prints source code statements in which f or g is referenced from diff");
+X("ad", "prints source code statements in which f or g is referenced from diff");
 
