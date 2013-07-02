@@ -113,4 +113,12 @@ namespace autodiff {
     return NodeContext(BinOp);
   }
 
+  NodeContext 
+  DerivativeBuilder::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* OpCall) {
+    // This operator gets emitted when there is a binary operation containing
+    // overloaded operators. Eg. x+y, where operator+ is overloaded.
+    assert(0 && "We don't support overloaded operators yet!");
+    return NodeContext(OpCall);
+  }
+
 } // end namespace autodiff

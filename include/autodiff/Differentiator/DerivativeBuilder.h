@@ -13,6 +13,7 @@
 
 namespace clang {
   class ASTContext;
+  class CXXOperatorCallExpr;
   class DeclRefExpr;
   class FunctionDecl;
   class Stmt;
@@ -67,6 +68,7 @@ namespace autodiff {
     NodeContext VisitCompoundStmt(clang::CompoundStmt* CS);
     NodeContext VisitReturnStmt(clang::ReturnStmt* RS);
     NodeContext VisitBinaryOperator(clang::BinaryOperator* BinOp);
+    NodeContext VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr* OpCall);
     //clang::Stmt* VisitDeclRefExpr(clang::DeclRefExpr* DRE);
   };
 
