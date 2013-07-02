@@ -53,8 +53,8 @@ namespace {
 namespace autodiff {
 namespace plugin {
 
-    static bool fPrintSourceFn,  fPrintSourceAst,
-                fPrintDerivedFn, fPrintDerivedAst = false;
+    bool fPrintSourceFn,  fPrintSourceAst,
+         fPrintDerivedFn, fPrintDerivedAst = false;
                 
   class AutoDiffPlugin : public ASTConsumer {
   private:
