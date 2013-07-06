@@ -1,4 +1,4 @@
-// RUN: %autodiff %s -I%S/../../include -fsyntax-only 2>&1
+// RUN: %autodiff %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
 // XFAIL:*
 #include "autodiff/Differentiator/Differentiator.h"
 
@@ -75,5 +75,8 @@ int g(long y) {
 int main () {
   int x = 4;
   diff(f, x);
+  diff(f1, x);
+  diff(f2, x);
+  diff(g, x);
   return 0;
 }
