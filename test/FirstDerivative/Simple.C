@@ -9,20 +9,6 @@ int f(int x) {
   return x*x + x - x*x*x*x;
 }
 
-int g(long y) {
-  if (y)
-    return 1;
-  else
-    return 2;
-}
-
-float g1(int x, float y) {
-  printf("This is g.\n");
-  if (x)
-    return y;
-  else
-    return y*y;
-}
 
 int main () {
   //int x = 4;
