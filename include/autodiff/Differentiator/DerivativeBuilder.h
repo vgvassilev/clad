@@ -44,18 +44,18 @@ namespace autodiff {
       return llvm::cast<clang::Expr>(m_Stmt);
     }
   };
-
-  class DerivativeBuilder 
-    : public clang::StmtVisitor<DerivativeBuilder, NodeContext> {
-
+  
+  class DerivativeBuilder
+  : public clang::StmtVisitor<DerivativeBuilder, NodeContext> {
+    
   private:
     clang::ASTContext* m_Context;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
-
+    
   public:
     DerivativeBuilder();
     ~DerivativeBuilder();
-
+    
     ///\brief Produces the first derivative of a given function.
     ///
     ///\param[in] FD - the function that will be differentiated.
@@ -63,15 +63,16 @@ namespace autodiff {
     ///\returns The differentiated function.
     ///
     const clang::FunctionDecl* Derive(clang::FunctionDecl* FD);
-
+    
     NodeContext VisitStmt(clang::Stmt* S);
     NodeContext VisitCompoundStmt(clang::CompoundStmt* CS);
     NodeContext VisitReturnStmt(clang::ReturnStmt* RS);
     NodeContext VisitBinaryOperator(clang::BinaryOperator* BinOp);
     NodeContext VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr* OpCall);
-    //clang::Stmt* VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    NodeContext VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    NodeContext VisitParenExpr(clang::ParenExpr* PE);
   };
-
+  
 } // end namespace autodiff
 
 #endif // AUTODIFF_DERIVATIVE_BUILDER_H
