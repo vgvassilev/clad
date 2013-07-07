@@ -107,37 +107,61 @@ namespace autodiff {
   }
   
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
-    // Visit RHS and LHS
-    BinOp->setRHS(Visit(BinOp->getRHS()).getExpr());
-    BinOp->setLHS(Visit(BinOp->getLHS()).getExpr());
+    Expr* rhs = BinOp->getRHS();
+    Expr* lhs = BinOp->getLHS();
     
-    if (BinOp->isMultiplicativeOp()) {
-      Expr* rhs = BinOp->getRHS();
-      Expr* lhs = BinOp->getLHS();
-      DeclRefExpr* rhsDRE = 0;
-      DeclRefExpr* lhsDRE = 0;
-      if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(rhs->IgnoreImpCasts()))
-        rhsDRE = DRE;
+    Expr* lhs_derived = cast<Expr>((Visit(lhs->IgnoreImpCasts())).getStmt());
+    Expr* rhs_derived = cast<Expr>((Visit(rhs->IgnoreImpCasts())).getStmt());
+    
+    if (BinOp->getOpcodeStr() == "*" || BinOp->getOpcodeStr() == "/") {
+      SourceLocation noLoc;
+      QualType qType = BinOp->getType();
+      ExprValueKind VK = BinOp->getValueKind();
+      ExprObjectKind OK = BinOp->getObjectKind();
+      bool fpContractable = BinOp->isFPContractable();
       
-      if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(lhs->IgnoreImpCasts()))
-        lhsDRE = DRE;
+      BinaryOperator* newBO_Mul_left
+      = new (*m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
+                                        qType, VK, OK, noLoc, fpContractable);
+      BinaryOperator* newBO_Mul_Right
+      = new (*m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
+                                        qType, VK, OK, noLoc, fpContractable);
       
-      if (lhsDRE && rhsDRE && lhsDRE->getDecl() == rhsDRE->getDecl()) {
-        llvm::APInt two(m_Context->getIntWidth(m_Context->IntTy), /*value*/2);
-        SourceLocation noLoc;
-        IntegerLiteral* constant2 = IntegerLiteral::Create(*m_Context, two,
-                                                           m_Context->IntTy,
-                                                           noLoc);
-        BinaryOperator* newBinOp
-        = new (*m_Context) BinaryOperator(constant2, rhs, BinOp->getOpcode(),
-                                          BinOp->getType(),
-                                          BinOp->getValueKind(),
-                                          BinOp->getObjectKind(),
-                                          noLoc,
-                                          BinOp->isFPContractable());
-        NodeContext nc = NodeContext(newBinOp);
-        return nc;
+      SourceLocation L, R;
+      if (BinOp->getOpcodeStr() == "*") {
+        BinaryOperator* newBO_Add
+        = new (*m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Add,
+                                          qType, VK, OK, noLoc, fpContractable);
+        // enforce precedence for addition
+        ParenExpr* PE = new (*m_Context) ParenExpr(L, R, newBO_Add);
+        return NodeContext(PE);
       }
+      else {
+        BinaryOperator* newBO_Sub
+        = new (*m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Sub,
+                                          qType, VK, OK, noLoc, fpContractable);
+        BinaryOperator* newBO_Mul_denom
+        = new (*m_Context) BinaryOperator(rhs, rhs, BO_Mul,
+                                          qType, VK, OK, noLoc, fpContractable);
+        SourceLocation L, R;
+        ParenExpr* PE_lhs = new (*m_Context) ParenExpr(L, R, newBO_Sub);
+        ParenExpr* PE_rhs = new (*m_Context) ParenExpr(L, R, newBO_Mul_denom);
+        
+        BinaryOperator* newBO_Div
+        = new (*m_Context) BinaryOperator(PE_lhs, PE_rhs, BO_Div,
+                                          qType, VK, OK, noLoc, fpContractable);
+        return NodeContext(newBO_Div);
+      }
+    }
+    
+    if (BinOp->getOpcodeStr() == "+" || BinOp->getOpcodeStr() == "-") {
+      SourceLocation L, R;
+      
+      BinOp->setLHS(lhs_derived);
+      // enforce precedence for substraction
+      BinOp->setRHS(new (*m_Context) ParenExpr(L, R, rhs_derived));
+      
+      return NodeContext(BinOp);
     }
     
     return NodeContext(BinOp);
