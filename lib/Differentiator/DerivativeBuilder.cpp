@@ -113,7 +113,8 @@ namespace autodiff {
     Expr* lhs_derived = cast<Expr>((Visit(lhs->IgnoreImpCasts())).getStmt());
     Expr* rhs_derived = cast<Expr>((Visit(rhs->IgnoreImpCasts())).getStmt());
     
-    if (BinOp->getOpcodeStr() == "*" || BinOp->getOpcodeStr() == "/") {
+    BinaryOperatorKind opCode = BinOp->getOpcode();
+    if (opCode == BO_Mul || opCode == BO_Div) {
       SourceLocation noLoc;
       QualType qType = BinOp->getType();
       ExprValueKind VK = BinOp->getValueKind();
@@ -128,7 +129,7 @@ namespace autodiff {
                                         qType, VK, OK, noLoc, fpContractable);
       
       SourceLocation L, R;
-      if (BinOp->getOpcodeStr() == "*") {
+      if (opCode == BO_Mul) {
         BinaryOperator* newBO_Add
         = new (*m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Add,
                                           qType, VK, OK, noLoc, fpContractable);
@@ -154,7 +155,7 @@ namespace autodiff {
       }
     }
     
-    if (BinOp->getOpcodeStr() == "+" || BinOp->getOpcodeStr() == "-") {
+    if (opCode == BO_Add || opCode == BO_Sub) {
       SourceLocation L, R;
       
       BinOp->setLHS(lhs_derived);

@@ -53,8 +53,8 @@ namespace {
 namespace autodiff {
   namespace plugin {
     
-    bool fPrintSourceFn,  fPrintSourceAst,
-         fPrintDerivedFn, fPrintDerivedAst = false;
+    bool fPrintSourceFn = false,  fPrintSourceAst = false,
+         fPrintDerivedFn = false, fPrintDerivedAst = false;
     // index of current function to derive in functionsToDerive
     int lastE = 0;
     
