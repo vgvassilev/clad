@@ -97,7 +97,6 @@ namespace autodiff {
                                                          noLoc);
       return NodeContext(constant1);
     }
-    // TODO: a case in which the expression is a function call
     else {
       llvm::APInt zero(m_Context->getIntWidth(m_Context->IntTy), /*value*/0);
       IntegerLiteral* constant0 = IntegerLiteral::Create(*m_Context, zero,
@@ -114,6 +113,40 @@ namespace autodiff {
                                                        m_Context->IntTy,
                                                        noLoc);
     return NodeContext(constant0);
+  }
+  
+  NodeContext DerivativeBuilder::VisitCallExpr(CallExpr* CE) {
+    // TODO: take arguments of the function into account
+    CallExpr* retCE = m_NodeCloner->Clone(CE);
+    Expr* retCallee = retCE->getCallee()->IgnoreImpCasts();
+    
+    if (DeclRefExpr* DRE = cast<DeclRefExpr>(retCallee)) {
+      IdentifierInfo* II
+      = &m_Context->Idents.get(DRE->getDecl()->getNameAsString() + "_derived");
+      DeclarationName name(II);
+      //      DRE->getDecl()->setDeclName(name);
+      
+      
+      //      SourceLocation noLoc;
+      //      DeclarationNameInfo DNI = DRE->getNameInfo();
+      //      DNI.setName(name);
+      //      DeclRefExpr* newDRE = DeclRefExpr::Create(*m_Context,DRE->getQualifierLoc(),
+      //                                                noLoc, DRE->getDecl(),
+      //                                                DRE->refersToEnclosingLocal(), &DNI,
+      //                                                DRE->getType(), DRE->getValueKind(),
+      //                                                DRE->getFoundDecl(), DRE->getExplicitTemplateArgs());
+      
+      // take the function to derive from the source
+      FunctionDecl* FD = CE->getDirectCallee();
+      const FunctionDecl* derivedFD = Derive(FD);
+      
+      // TODO: actually store fn_derived somewhere so it could be used
+      clang::LangOptions LangOpts;
+      LangOpts.CPlusPlus = true;
+      clang::PrintingPolicy Policy(LangOpts);
+      derivedFD->print(llvm::outs(), Policy);
+    }
+    return NodeContext(retCE);
   }
   
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
