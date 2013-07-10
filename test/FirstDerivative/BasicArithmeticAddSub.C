@@ -1,0 +1,94 @@
+// RUN: %autodiff %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+
+#include "autodiff/Differentiator/Differentiator.h"
+
+extern "C" int printf(const char* fmt, ...);
+
+int a_1(int x) {
+  int y = 4;
+  return y + y; // == 0
+}
+// CHECK: int a_1_derived(int x) {
+// CHECK-NEXT: int y = 4;
+// CHECK-NEXT: return 0 + (0);
+// CHECK-NEXT: }
+
+int a_2(int x) {
+  return 1 + 1; // == 0
+}
+// CHECK: int a_2_derived(int x) {
+// CHECK-NEXT: return 0 + (0);
+// CHECK-NEXT: }
+
+int a_3(int x) {
+  return x + x; // == 2
+}
+// CHECK: int a_3_derived(int x) {
+// CHECK-NEXT: return 1 + (1);
+// CHECK-NEXT: }
+
+int a_4(int x) {
+  int y = 4;
+  return x + y + x + 3 + x; // == 3
+}
+// CHECK: int a_4_derived(int x) {
+// CHECK-NEXT: int y = 4;
+// CHECK-NEXT: return 1 + (0) + (1) + (0) + (1);
+// CHECK-NEXT: }
+
+int s_1(int x) {
+  int y = 4;
+  return y - y; // == 0
+}
+// CHECK: int s_1_derived(int x) {
+// CHECK-NEXT: int y = 4;
+// CHECK-NEXT: return 0 - (0);
+// CHECK-NEXT: }
+
+int s_2(int x) {
+  return 1 - 1; // == 0
+}
+// CHECK: int s_2_derived(int x) {
+// CHECK-NEXT: return 0 - (0);
+// CHECK-NEXT: }
+
+int s_3(int x) {
+  return x - x; // == 2
+}
+// CHECK: int s_3_derived(int x) {
+// CHECK-NEXT: return 1 - (1);
+// CHECK-NEXT: }
+
+int s_4(int x) {
+  int y = 4;
+  return x - y - x - 3 - x; // == 3
+}
+// CHECK: int s_4_derived(int x) {
+// CHECK-NEXT: int y = 4;
+// CHECK-NEXT: return 1 - (0) - (1) - (0) - (1);
+// CHECK-NEXT: }
+
+int as_1(int x) {
+  int y = 4;
+  return x + x - x + y - y + 3 - 3; // == 3
+}
+// CHECK: int as_1_derived(int x) {
+// CHECK-NEXT: int y = 4;
+// CHECK-NEXT: return 1 + (1) - (1) + (0) - (0) + (0) - (0);
+// CHECK-NEXT: }
+
+int main () {
+  int x = 4;
+  diff(a_1, x);
+  diff(a_2, x);
+  diff(a_3, x);
+  diff(a_4, x);
+  
+  diff(s_1, x);
+  diff(s_2, x);
+  diff(s_3, x);
+  diff(s_4, x);
+  
+  diff(as_1, x);
+  return 0;
+}

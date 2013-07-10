@@ -73,7 +73,8 @@ namespace autodiff {
   
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
     ReturnStmt* retStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal = cast<Expr>(Visit(retStmt->getRetValue()).getStmt());
+    Expr* retVal =
+    cast<Expr>(Visit(retStmt->getRetValue()->IgnoreImpCasts()).getStmt());
     retStmt->setRetValue(retVal);
     return NodeContext(retStmt);
   }
@@ -104,6 +105,15 @@ namespace autodiff {
                                                          noLoc);
       return NodeContext(constant0);
     }
+  }
+  
+  NodeContext DerivativeBuilder::VisitIntegerLiteral(IntegerLiteral* IL) {
+    SourceLocation noLoc;
+    llvm::APInt zero(m_Context->getIntWidth(m_Context->IntTy), /*value*/0);
+    IntegerLiteral* constant0 = IntegerLiteral::Create(*m_Context, zero,
+                                                       m_Context->IntTy,
+                                                       noLoc);
+    return NodeContext(constant0);
   }
   
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {

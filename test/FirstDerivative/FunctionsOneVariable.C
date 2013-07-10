@@ -10,7 +10,7 @@ int f_simple(int x) {
 }
 // CHECK: int f_simple_derived(int x) {
 // CHECK-NEXT: printf("This is f(x).\n");
-// CHECK-NEXT: return 2 * x;
+// CHECK-NEXT: return (1 * x + x * 1);
 // CHECK-NEXT: }
 
 int main () {
