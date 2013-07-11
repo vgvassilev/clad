@@ -12,7 +12,7 @@ int f(int x) {
     return -x*x;
   return x*x;
 }
-// CHECK: int f_derived(int x) {
+// CHECK: int f_derived_x(int x) {
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   return -2 * x;
 // CHECK-NEXT: return 2 * x;
@@ -25,7 +25,7 @@ int f1(int x) {
   else
     return x*x;
 }
-// CHECK: int f1_derived(int x) {
+// CHECK: int f1_derived_x(int x) {
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   return -2 * x;
 // CHECK-NEXT: else
@@ -40,7 +40,7 @@ int f2(int x) {
     result = x*x;
   return result;
 }
-// CHECK: int f2_derived(int x) {
+// CHECK: int f2_derived_x(int x) {
 // CHECK-NEXT: int result = 0;
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   result = -2 * x;
@@ -60,7 +60,7 @@ int g(long y) {
   else
     return 2;
 }
-// CHECK: int g_derived(long x) {
+// CHECK: int g_derived_x(long x) {
 // CHECK-NEXT: if (y)
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: else
@@ -68,15 +68,15 @@ int g(long y) {
 // CHECK-NEXT: }
 
 // Or even better:
-// CHECK: int g_derived(long x) {
+// CHECK: int g_derived_x(long x) {
 // CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
 int main () {
   int x = 4;
-  diff(f, x);
-  diff(f1, x);
-  diff(f2, x);
-  diff(g, x);
+  diff(f, 1);
+  diff(f1, 1);
+  diff(f2, 1);
+  diff(g, 1);
   return 0;
 }

@@ -16,8 +16,13 @@ namespace autodiff {
   DerivativeBuilder::DerivativeBuilder() {}
   DerivativeBuilder::~DerivativeBuilder() {}
   
-  const FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD) {
+  ParmVarDecl* independentVar;
+  
+  const FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
+                                                ParmVarDecl* argVar) {
     assert(FD && "Must not be null.");
+    independentVar = argVar;
+    
     m_Context = &FD->getASTContext();
     if (!m_NodeCloner) {
       m_NodeCloner.reset(new utils::StmtClone(*m_Context));
@@ -26,7 +31,8 @@ namespace autodiff {
     
     SourceLocation noLoc;
     IdentifierInfo* II
-    = &m_Context->Idents.get(FD->getNameAsString() + "_derived");
+    = &m_Context->Idents.get(FD->getNameAsString() + "_derived_" +
+                             independentVar->getNameAsString());
     DeclarationName name(II);
     FunctionDecl* derivedFD
     = FunctionDecl::Create(*m_Context, FD->getDeclContext(), noLoc, noLoc,
@@ -90,7 +96,8 @@ namespace autodiff {
   NodeContext DerivativeBuilder::VisitDeclRefExpr(DeclRefExpr* DRE) {
     DeclRefExpr* cloneDRE = m_NodeCloner->Clone(DRE);
     SourceLocation noLoc;
-    if (cloneDRE->getDecl()->getNameAsString() == "x") {
+    if (cloneDRE->getDecl()->getNameAsString() ==
+        independentVar->getNameAsString()) {
       llvm::APInt one(m_Context->getIntWidth(m_Context->IntTy), /*value*/1);
       IntegerLiteral* constant1 = IntegerLiteral::Create(*m_Context, one,
                                                          m_Context->IntTy,
@@ -122,7 +129,8 @@ namespace autodiff {
     
     if (DeclRefExpr* DRE = cast<DeclRefExpr>(retCallee)) {
       IdentifierInfo* II
-      = &m_Context->Idents.get(DRE->getDecl()->getNameAsString() + "_derived");
+      = &m_Context->Idents.get(DRE->getDecl()->getNameAsString() + "_derived_" +
+                               independentVar->getNameAsString());
       DeclarationName name(II);
       //      DRE->getDecl()->setDeclName(name);
       
@@ -138,7 +146,7 @@ namespace autodiff {
       
       // take the function to derive from the source
       FunctionDecl* FD = CE->getDirectCallee();
-      const FunctionDecl* derivedFD = Derive(FD);
+      const FunctionDecl* derivedFD = Derive(FD, independentVar);
       
       // TODO: actually store fn_derived somewhere so it could be used
       clang::LangOptions LangOpts;

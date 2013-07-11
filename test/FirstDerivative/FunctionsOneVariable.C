@@ -4,32 +4,19 @@
 
 extern "C" int printf(const char* fmt, ...);
 
-int ffffffff(int x) {
-  int y =3;
-  return x + y + x + 3 + x;
-}
-
 int f_simple(int x) {
-  //  printf("This is f(x).\n");
-  float y, z = 2*(x+9);
-  ffffffff(3);
-  ffffffff(4);
-  return 3*x*x;
+//  printf("This is f(x).\n");
+  return x*x;
 }
-// CHECK: int f_simple_derived(int x) {
-// CHECK-NEXT: printf("This is f(x).\n");
-// CHECK-NEXT: return 2 * x;
+// CHECK: int f_simple_derived_x(int x) {
+// CHECK-NEXT: return (1 * x + x * 1);
 // CHECK-NEXT: }
 
 int main () {
-  int z,x = 4*5;
+  int x = 4;
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
-  //  diff(f_simple, 1);
-  diff(f_simple, x);
-  //  diff(f_simple, x);
-  //  diff(ffffffff, x);
-  // diff(ffffffff, x);
+  diff(f_simple, 1);
   
   //long y = 2;
   //diff(g, y);
