@@ -5,7 +5,7 @@
 extern "C" int printf(const char* fmt, ...);
 
 int f_simple(int x) {
-//  printf("This is f(x).\n");
+  //  printf("This is f(x).\n");
   return x*x;
 }
 // CHECK: int f_simple_derived_x(int x) {
@@ -16,7 +16,7 @@ int main () {
   int x = 4;
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
-  diff(f_simple, 1);
+  diff(f_simple, x);
   
   //long y = 2;
   //diff(g, y);

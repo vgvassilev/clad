@@ -63,7 +63,7 @@ namespace autodiff {
     ///\returns The differentiated function.
     ///
     const clang::FunctionDecl* Derive(clang::FunctionDecl* FD,
-                                      clang::ParmVarDecl* argVar);    
+                                      clang::ValueDecl* argVar);    
     NodeContext VisitStmt(clang::Stmt* S);
     NodeContext VisitCompoundStmt(clang::CompoundStmt* CS);
     NodeContext VisitReturnStmt(clang::ReturnStmt* RS);

@@ -16,10 +16,10 @@ namespace autodiff {
   DerivativeBuilder::DerivativeBuilder() {}
   DerivativeBuilder::~DerivativeBuilder() {}
   
-  ParmVarDecl* independentVar;
+  ValueDecl* independentVar;
   
   const FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
-                                                ParmVarDecl* argVar) {
+                                                ValueDecl* argVar) {
     assert(FD && "Must not be null.");
     independentVar = argVar;
     

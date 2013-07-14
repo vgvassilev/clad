@@ -50,9 +50,9 @@ namespace autodiff {
   namespace plugin {
     
     bool fPrintSourceFn = false,  fPrintSourceAst = false,
-         fPrintDerivedFn = false, fPrintDerivedAst = false;
+    fPrintDerivedFn = false, fPrintDerivedAst = false;
     // index of current function to derive in functionsToDerive
-    int lastIndex = 0;
+    size_t lastIndex = 0;
     
     class AutoDiffPlugin : public ASTConsumer {
     private:
@@ -89,6 +89,8 @@ namespace autodiff {
                 functionToDerive->dumpColor();
               }
               
+              ValueDecl* argVar = 0;
+              
               const MaterializeTemporaryExpr* MTE;
               if (const Expr* argExpr =
                   diffCallExprs[i]->getArg(1)->findMaterializedTemporary(MTE)) {
@@ -98,31 +100,34 @@ namespace autodiff {
                   const uint64_t* argIndex =argLiteral->getValue().getRawData();
                   const uint64_t argNum = functionToDerive->getNumParams();
                   
-                  if (*argIndex > argNum || *argIndex < 1) {
+                  if (*argIndex > argNum || *argIndex < 1)
                     llvm::outs() << "plugin ad: Error: invalid argument index "
                     << *argIndex << " among " << argNum << " argument(s)\n";
-                  }
-                  else {
-                    ParmVarDecl* argVar
-                    = functionToDerive->getParamDecl(*argIndex - 1);
-                    
-                    // derive the collected functions
-                    const FunctionDecl* Derivative
-                    = m_DerivativeBuilder.Derive(functionToDerive, argVar);
-                    
-                    // if enabled, print source code of the derived functions
-                    if (fPrintDerivedFn) {
-                      Derivative->print(llvm::outs(), Policy);
-                    }
-                    // if enabled, print ASTs of the derived functions
-                    if (fPrintDerivedAst) {
-                      Derivative->dumpColor();
-                    }
-                  }
+                  else
+                    if (ValueDecl* VD = dyn_cast<ValueDecl>
+                        (functionToDerive->getParamDecl(*argIndex - 1)))
+                      argVar = VD;
                 }
-                else {
+                else if (DeclRefExpr* argDecl
+                         = dyn_cast<DeclRefExpr>(diffCallExprs[i]->getArg(1)))
+                  argVar = argDecl->getDecl();
+                else
                   llvm::outs() << "plugin ad: Error: "
                   << "expected positions of independent variables\n";
+              }
+              
+              if (argVar != 0) {
+                // derive the collected functions
+                const FunctionDecl* Derivative
+                = m_DerivativeBuilder.Derive(functionToDerive, argVar);
+                
+                // if enabled, print source code of the derived functions
+                if (fPrintDerivedFn) {
+                  Derivative->print(llvm::outs(), Policy);
+                }
+                // if enabled, print ASTs of the derived functions
+                if (fPrintDerivedAst) {
+                  Derivative->dumpColor();
                 }
               }
             }
@@ -130,7 +135,6 @@ namespace autodiff {
           lastIndex = i + 1;
         }
         return true;
-        
       }
     };
     
@@ -175,5 +179,5 @@ namespace autodiff {
 using namespace autodiff::plugin;
 // register the PluginASTAction in the registry.
 static FrontendPluginRegistry::Add<Action<AutoDiffPlugin> >
-X("ad", "prints source code statements in which f or g is referenced from diff");
+X("ad","prints source code statements in which f or g is referenced from diff");
 
