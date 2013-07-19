@@ -184,4 +184,4 @@ namespace autodiff {
 using namespace autodiff::plugin;
 // register the PluginASTAction in the registry.
 static FrontendPluginRegistry::Add<Action<AutoDiffPlugin> >
-X("ad","prints source code statements in which f or g is referenced from diff");
+X("ad","Produces derivatives or arbitrary functions");
