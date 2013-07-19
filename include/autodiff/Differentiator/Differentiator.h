@@ -4,7 +4,8 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-
+#ifndef AUTODIFF_DIFFERENTIATOR
+#define AUTODIFF_DIFFERENTIATOR
 // We might want to consider using one of C++11 features of std. For now I am 
 // sceptical, because they enforce extra conventions that we don't need. Moreover
 // by 1.05.2013 it seems that they are not supported on MacOS.
@@ -14,11 +15,22 @@
 //void diff(std::function f) {
 //void diff(std::mem_fn f) {
 
-template<typename T>
-class DerivedFunction {
-private:
+#include "BuiltinDerivatives.h"
+
+template<typename ReturnResult, typename... ArgsTypes>
+class Function {
 public:
-  T eval();
+  using FunctionType = ReturnResult (*)(ArgsTypes...);
+private:
+  FunctionType m_Function;
+public:
+  template<typename... Args>
+  Function differentiate(Args&&... args);
+
+  template<typename... Args>
+  ReturnResult execute(Args&&... args) {
+    return m_Function(args...);
+  }
 };
 
 // This is the function which will be instantiated with the concrete arguments
@@ -35,8 +47,9 @@ public:
 // ok 03.06.2013)
 
 template<typename F, typename... Args, typename... A>
-DerivedFunction<F> diff(F (*f)(Args...), A&&... a) {
+Function<F> diff(F (*f)(Args...), A&&... a) {
   
   //return f(a...);
-  return DerivedFunction<F>();
+  return Function<F>();
 }
+#endif // AUTODIFF_DIFFERENTIATOR

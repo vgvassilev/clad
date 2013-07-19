@@ -12,6 +12,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
+#include "clang/Sema/Sema.h"
 
 using namespace clang;
 
@@ -24,8 +25,8 @@ namespace {
       return m_DiffCalls;
     }
     
-    void collectFunctionsToDiff(FunctionDecl* FD) {
-      TraverseDecl(FD);
+    void collectFunctionsToDiff(TranslationUnitDecl* TUD) {
+      TraverseDecl(TUD);
     }
     
     bool VisitCallExpr(CallExpr* E) {
@@ -53,19 +54,26 @@ namespace autodiff {
     fPrintDerivedFn = false, fPrintDerivedAst = false;
     // index of current function to derive in functionsToDerive
     size_t lastIndex = 0;
-    
+
     class AutoDiffPlugin : public ASTConsumer {
     private:
       DiffCollector m_Collector;
-      DerivativeBuilder m_DerivativeBuilder;
+      clang::CompilerInstance& m_CI;
+      llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
     public:
-      virtual bool HandleTopLevelDecl(DeclGroupRef DGR) {
-        for (DeclGroupRef::iterator I = DGR.begin(), E = DGR.end(); I != E; ++I)
-          if (FunctionDecl* FD = dyn_cast<FunctionDecl>(*I))
-            m_Collector.collectFunctionsToDiff(FD);
+      AutoDiffPlugin(CompilerInstance& CI) : m_CI(CI) { }
+
+      virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
         
+      }
+
+      virtual void HandleTranslationUnit(clang::ASTContext& C) {
+        if (!m_DerivativeBuilder)
+          m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
+
+        m_Collector.collectFunctionsToDiff(C.getTranslationUnitDecl());
         llvm::SmallVector<CallExpr*, 4>& diffCallExprs
-        = m_Collector.getDiffCalls();
+          = m_Collector.getDiffCalls();
         
         //set up printing policy
         clang::LangOptions LangOpts;
@@ -119,7 +127,7 @@ namespace autodiff {
               if (argVar != 0) {
                 // derive the collected functions
                 const FunctionDecl* Derivative
-                = m_DerivativeBuilder.Derive(functionToDerive, argVar);
+                  = m_DerivativeBuilder->Derive(functionToDerive, argVar);
                 
                 // if enabled, print source code of the derived functions
                 if (fPrintDerivedFn) {
@@ -134,18 +142,15 @@ namespace autodiff {
           }
           lastIndex = i + 1;
         }
-        return true;
       }
     };
-    
-    
+
     template<typename ConsumerType>
     class Action : public PluginASTAction {
-      
     protected:
-      ASTConsumer *CreateASTConsumer(CompilerInstance &CI,
+      ASTConsumer *CreateASTConsumer(CompilerInstance& CI,
                                      llvm::StringRef InFile) {
-        return new ConsumerType();
+        return new ConsumerType(CI);
       }
       
       bool ParseArgs(const CompilerInstance &CI,
@@ -180,4 +185,3 @@ using namespace autodiff::plugin;
 // register the PluginASTAction in the registry.
 static FrontendPluginRegistry::Add<Action<AutoDiffPlugin> >
 X("ad","prints source code statements in which f or g is referenced from diff");
-

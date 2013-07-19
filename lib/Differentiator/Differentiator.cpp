@@ -12,6 +12,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace clang;
 
 namespace {
@@ -28,12 +29,12 @@ namespace {
     bool TraverseCallExpr(CallExpr *E) {
       if (FunctionDecl *FD = E->getDirectCallee()) {
         if (FD->getName() == "diff") {
-          std::string argName = getStringHelper(E->getArg(0));					  
-          if (argName == "g" || argName == "f") {						  
+          std::string argName = getStringHelper(E->getArg(0));
+          if (argName == "g" || argName == "f") {
             //print the expression of interest
-            llvm::errs() << getStringHelper(E) << ";\n";						  
+            llvm::errs() << getStringHelper(E) << ";\n";  
           }
-        }				  
+        }
       }
       
       return true;	  

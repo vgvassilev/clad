@@ -9,13 +9,27 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/Lookup.h"
 
 using namespace clang;
 
 namespace autodiff {
-  DerivativeBuilder::DerivativeBuilder() {}
+  DerivativeBuilder::DerivativeBuilder(clang::Sema& S) 
+    : m_Sema(S), m_Context(S.getASTContext()) {
+    m_NodeCloner.reset(new utils::StmtClone(m_Context));
+    // Find the builtin derivatives namespace
+    DeclarationName Name = &m_Context.Idents.get("custom_derivatives");
+    LookupResult R(m_Sema, Name, SourceLocation(), Sema::LookupNamespaceName,
+                   Sema::ForRedeclaration);
+    m_Sema.LookupQualifiedName(R, m_Context.getTranslationUnitDecl(),
+                               /*allowBuiltinCreation*/ false);
+    assert(!R.empty() && "Cannot find builtin derivatives!");
+    m_BuiltinDerivativesNSD = cast<NamespaceDecl>(R.getFoundDecl());
+  }
+
   DerivativeBuilder::~DerivativeBuilder() {}
-  
+
   ValueDecl* independentVar;
   
   const FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
@@ -23,19 +37,18 @@ namespace autodiff {
     assert(FD && "Must not be null.");
     independentVar = argVar;
     
-    m_Context = &FD->getASTContext();
     if (!m_NodeCloner) {
-      m_NodeCloner.reset(new utils::StmtClone(*m_Context));
+      m_NodeCloner.reset(new utils::StmtClone(m_Context));
     }
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
     
     SourceLocation noLoc;
     IdentifierInfo* II
-    = &m_Context->Idents.get(FD->getNameAsString() + "_derived_" +
+      = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
                              independentVar->getNameAsString());
     DeclarationName name(II);
     FunctionDecl* derivedFD
-    = FunctionDecl::Create(*m_Context, FD->getDeclContext(), noLoc, noLoc,
+    = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc, noLoc,
                            name, FD->getType(), FD->getTypeSourceInfo(),
                            FD->getStorageClass(),
                            /*default*/
@@ -48,7 +61,7 @@ namespace autodiff {
     ParmVarDecl* PVD = 0;
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
-      newPVD = ParmVarDecl::Create(*m_Context, derivedFD, noLoc, noLoc,
+      newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
@@ -56,7 +69,7 @@ namespace autodiff {
       params.push_back(newPVD);
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef
-    = llvm::makeArrayRef(params.data(), params.size());
+      = llvm::makeArrayRef(params.data(), params.size());
     derivedFD->setParams(paramsRef);
     derivedFD->setBody(derivativeBody);
     return derivedFD;
@@ -74,7 +87,7 @@ namespace autodiff {
     
     llvm::ArrayRef<Stmt*> stmtsRef(stmts.data(), stmts.size());
     SourceLocation noLoc;
-    return new (*m_Context) CompoundStmt(*m_Context, stmtsRef, noLoc, noLoc);
+    return new (m_Context) CompoundStmt(m_Context, stmtsRef, noLoc, noLoc);
   }
   
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
@@ -98,16 +111,16 @@ namespace autodiff {
     SourceLocation noLoc;
     if (cloneDRE->getDecl()->getNameAsString() ==
         independentVar->getNameAsString()) {
-      llvm::APInt one(m_Context->getIntWidth(m_Context->IntTy), /*value*/1);
-      IntegerLiteral* constant1 = IntegerLiteral::Create(*m_Context, one,
-                                                         m_Context->IntTy,
+      llvm::APInt one(m_Context.getIntWidth(m_Context.IntTy), /*value*/1);
+      IntegerLiteral* constant1 = IntegerLiteral::Create(m_Context, one,
+                                                         m_Context.IntTy,
                                                          noLoc);
       return NodeContext(constant1);
     }
     else {
-      llvm::APInt zero(m_Context->getIntWidth(m_Context->IntTy), /*value*/0);
-      IntegerLiteral* constant0 = IntegerLiteral::Create(*m_Context, zero,
-                                                         m_Context->IntTy,
+      llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
+      IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
+                                                         m_Context.IntTy,
                                                          noLoc);
       return NodeContext(constant0);
     }
@@ -115,21 +128,52 @@ namespace autodiff {
   
   NodeContext DerivativeBuilder::VisitIntegerLiteral(IntegerLiteral* IL) {
     SourceLocation noLoc;
-    llvm::APInt zero(m_Context->getIntWidth(m_Context->IntTy), /*value*/0);
-    IntegerLiteral* constant0 = IntegerLiteral::Create(*m_Context, zero,
-                                                       m_Context->IntTy,
+    llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
+    IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
+                                                       m_Context.IntTy,
                                                        noLoc);
     return NodeContext(constant0);
   }
   
   NodeContext DerivativeBuilder::VisitCallExpr(CallExpr* CE) {
+    // Find the builtin derivatives namespace
+    LookupResult R(m_Sema, CE->getDirectCallee()->getNameInfo(),
+                   Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
+                               /*allowBuiltinCreation*/ false);
+    if (!R.empty()) {
+      assert(R.isSingleResult() && "Not implemented yet.");
+      // TODO: Handle the case when there are overloads. Eg.:
+      // float std::sin(float)
+      // double std::sin(double)...
+
+      CXXScopeSpec CSS;
+      Expr* UnresolvedLookup
+        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
+
+      SourceLocation NoSLoc;
+      Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
+      llvm::SmallVector<Expr*, 4> CallArgs;
+      for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
+        CallArgs.push_back(m_NodeCloner->Clone(CE->getArg(i)));
+      }
+
+      Expr* Result = m_Sema.ActOnCallExpr(S, UnresolvedLookup, NoSLoc,
+                                          CallArgs, NoSLoc).take();
+
+      return NodeContext(Result);
+    }
+
     // TODO: take arguments of the function into account
     CallExpr* retCE = m_NodeCloner->Clone(CE);
+    return NodeContext(retCE);
+
+    // FIXME: Revisit here.
     Expr* retCallee = retCE->getCallee()->IgnoreImpCasts();
     
     if (DeclRefExpr* DRE = cast<DeclRefExpr>(retCallee)) {
       IdentifierInfo* II
-      = &m_Context->Idents.get(DRE->getDecl()->getNameAsString() + "_derived_" +
+      = &m_Context.Idents.get(DRE->getDecl()->getNameAsString() + "_derived_" +
                                independentVar->getNameAsString());
       DeclarationName name(II);
       //      DRE->getDecl()->setDeclName(name);
@@ -173,35 +217,36 @@ namespace autodiff {
       bool fpContractable = BinOp->isFPContractable();
       
       BinaryOperator* newBO_Mul_left
-      = new (*m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
-                                        qType, VK, OK, noLoc, fpContractable);
+      = new (m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
+                                       qType, VK, OK, noLoc, fpContractable);
       BinaryOperator* newBO_Mul_Right
-      = new (*m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
-                                        qType, VK, OK, noLoc, fpContractable);
+      = new (m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
+                                       qType, VK, OK, noLoc, fpContractable);
       
       SourceLocation L, R;
       if (opCode == BO_Mul) {
         BinaryOperator* newBO_Add
-        = new (*m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Add,
-                                          qType, VK, OK, noLoc, fpContractable);
+          = new (m_Context) BinaryOperator(newBO_Mul_left, newBO_Mul_Right,
+                                           BO_Add, qType, VK, OK, noLoc, 
+                                           fpContractable);
         // enforce precedence for addition
-        ParenExpr* PE = new (*m_Context) ParenExpr(L, R, newBO_Add);
+        ParenExpr* PE = new (m_Context) ParenExpr(L, R, newBO_Add);
         return NodeContext(PE);
       }
       else {
         BinaryOperator* newBO_Sub
-        = new (*m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Sub,
-                                          qType, VK, OK, noLoc, fpContractable);
+          = new (m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Sub,
+                                         qType, VK, OK, noLoc, fpContractable);
         BinaryOperator* newBO_Mul_denom
-        = new (*m_Context) BinaryOperator(rhs, rhs, BO_Mul,
-                                          qType, VK, OK, noLoc, fpContractable);
+          = new (m_Context) BinaryOperator(rhs, rhs, BO_Mul,
+                                           qType, VK, OK, noLoc, fpContractable);
         SourceLocation L, R;
-        ParenExpr* PE_lhs = new (*m_Context) ParenExpr(L, R, newBO_Sub);
-        ParenExpr* PE_rhs = new (*m_Context) ParenExpr(L, R, newBO_Mul_denom);
+        ParenExpr* PE_lhs = new (m_Context) ParenExpr(L, R, newBO_Sub);
+        ParenExpr* PE_rhs = new (m_Context) ParenExpr(L, R, newBO_Mul_denom);
         
         BinaryOperator* newBO_Div
-        = new (*m_Context) BinaryOperator(PE_lhs, PE_rhs, BO_Div,
-                                          qType, VK, OK, noLoc, fpContractable);
+        = new (m_Context) BinaryOperator(PE_lhs, PE_rhs, BO_Div,
+                                         qType, VK, OK, noLoc, fpContractable);
         return NodeContext(newBO_Div);
       }
     }
@@ -211,7 +256,7 @@ namespace autodiff {
       
       BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
-      BinOp->setRHS(new (*m_Context) ParenExpr(L, R, rhs_derived));
+      BinOp->setRHS(new (m_Context) ParenExpr(L, R, rhs_derived));
       
       return NodeContext(BinOp);
     }
@@ -225,6 +270,5 @@ namespace autodiff {
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
     assert(0 && "We don't support overloaded operators yet!");
     return NodeContext(OpCall);
-  }
-  
+  }  
 } // end namespace autodiff

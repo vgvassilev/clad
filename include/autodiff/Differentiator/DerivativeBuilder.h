@@ -16,6 +16,8 @@ namespace clang {
   class CXXOperatorCallExpr;
   class DeclRefExpr;
   class FunctionDecl;
+  class NamespaceDecl;
+  class Sema;
   class Stmt;
 }
 namespace autodiff {
@@ -44,18 +46,20 @@ namespace autodiff {
       return llvm::cast<clang::Expr>(m_Stmt);
     }
   };
-  
+
   class DerivativeBuilder
-  : public clang::StmtVisitor<DerivativeBuilder, NodeContext> {
+    : public clang::StmtVisitor<DerivativeBuilder, NodeContext> {
     
   private:
-    clang::ASTContext* m_Context;
+    clang::Sema& m_Sema;
+    clang::ASTContext& m_Context;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
-    
+    clang::NamespaceDecl* m_BuiltinDerivativesNSD;
+
   public:
-    DerivativeBuilder();
+    DerivativeBuilder(clang::Sema& S);
     ~DerivativeBuilder();
-    
+
     ///\brief Produces the first derivative of a given function.
     ///
     ///\param[in] FD - the function that will be differentiated.
