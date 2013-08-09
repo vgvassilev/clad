@@ -55,6 +55,8 @@ namespace autodiff {
     clang::ASTContext& m_Context;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
+    clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
+                            llvm::SmallVector<clang::Expr*, 4> CallArgs);
 
   public:
     DerivativeBuilder(clang::Sema& S);
@@ -66,7 +68,7 @@ namespace autodiff {
     ///
     ///\returns The differentiated function.
     ///
-    const clang::FunctionDecl* Derive(clang::FunctionDecl* FD,
+    clang::FunctionDecl* Derive(clang::FunctionDecl* FD,
                                       clang::ValueDecl* argVar);    
     NodeContext VisitStmt(clang::Stmt* S);
     NodeContext VisitCompoundStmt(clang::CompoundStmt* CS);

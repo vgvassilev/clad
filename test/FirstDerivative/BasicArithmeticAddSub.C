@@ -53,7 +53,7 @@ int s_2(int x) {
 // CHECK-NEXT: }
 
 int s_3(int x) {
-  return x - x; // == 2
+  return x - x; // == 0
 }
 // CHECK: int s_3_derived_x(int x) {
 // CHECK-NEXT: return 1 - (1);
@@ -61,7 +61,7 @@ int s_3(int x) {
 
 int s_4(int x) {
   int y = 4;
-  return x - y - x - 3 - x; // == 3
+  return x - y - x - 3 - x; // == -1
 }
 // CHECK: int s_4_derived_x(int x) {
 // CHECK-NEXT: int y = 4;
@@ -70,7 +70,7 @@ int s_4(int x) {
 
 int as_1(int x) {
   int y = 4;
-  return x + x - x + y - y + 3 - 3; // == 3
+  return x + x - x + y - y + 3 - 3; // == 1
 }
 // CHECK: int as_1_derived_x(int x) {
 // CHECK-NEXT: int y = 4;

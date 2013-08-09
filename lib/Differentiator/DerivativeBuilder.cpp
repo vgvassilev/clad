@@ -11,6 +11,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/SemaInternal.h"
 
 using namespace clang;
 
@@ -32,7 +33,7 @@ namespace autodiff {
 
   ValueDecl* independentVar;
   
-  const FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
+  FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
                                                 ValueDecl* argVar) {
     assert(FD && "Must not be null.");
     independentVar = argVar;
@@ -135,70 +136,90 @@ namespace autodiff {
     return NodeContext(constant0);
   }
   
+  Expr* DerivativeBuilder::findOverloadedDefinition
+  (DeclarationNameInfo DNI, llvm::SmallVector<Expr*, 4> CallArgs) {
+    LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
+                               /*allowBuiltinCreation*/ false);
+    Expr* OverloadedFn = 0;
+    if (!R.empty()) {
+      CXXScopeSpec CSS;
+      Expr* UnresolvedLookup
+      = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
+
+      llvm::MutableArrayRef<Expr*> ARargs
+      = llvm::MutableArrayRef<Expr*>(CallArgs);
+            
+      SourceLocation Loc;
+      Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
+      OverloadedFn = m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc,
+                                          ARargs, Loc).take();
+    }
+    return OverloadedFn;
+  }
+  
   NodeContext DerivativeBuilder::VisitCallExpr(CallExpr* CE) {
-    // Find the builtin derivatives namespace
+    // Find the built-in derivatives namespace
+    IdentifierInfo* II
+    = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
+                            "_derived_" + independentVar->getNameAsString());
+    DeclarationName name(II);
+    SourceLocation DeclLoc;
+    DeclarationNameInfo DNInfo(name, DeclLoc);
+    
+    llvm::SmallVector<Expr*, 4> CallArgs;
+    for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
+      CallArgs.push_back(m_NodeCloner->Clone(CE->getArg(i)->IgnoreImpCasts()));
+    }
+    
+    Expr* OverloadedDerivedFn = findOverloadedDefinition(DNInfo, CallArgs);
+    if (OverloadedDerivedFn) {
+      return NodeContext(OverloadedDerivedFn);
+    }
+    
+    // Look for a declaration of a function to differentiate
+    // in the derivatives namespace
     LookupResult R(m_Sema, CE->getDirectCallee()->getNameInfo(),
                    Sema::LookupOrdinaryName);
     m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
-                               /*allowBuiltinCreation*/ false);
-    if (!R.empty()) {
-      assert(R.isSingleResult() && "Not implemented yet.");
-      // TODO: Handle the case when there are overloads. Eg.:
-      // float std::sin(float)
-      // double std::sin(double)...
-
-      CXXScopeSpec CSS;
-      Expr* UnresolvedLookup
-        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
-
-      SourceLocation NoSLoc;
-      Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
-      llvm::SmallVector<Expr*, 4> CallArgs;
-      for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
-        CallArgs.push_back(m_NodeCloner->Clone(CE->getArg(i)));
-      }
-
-      Expr* Result = m_Sema.ActOnCallExpr(S, UnresolvedLookup, NoSLoc,
-                                          CallArgs, NoSLoc).take();
-
-      return NodeContext(Result);
-    }
-
-    // TODO: take arguments of the function into account
-    CallExpr* retCE = m_NodeCloner->Clone(CE);
-    return NodeContext(retCE);
-
-    // FIXME: Revisit here.
-    Expr* retCallee = retCE->getCallee()->IgnoreImpCasts();
+                               /*allowBuiltinCreation*/ false);    
+    Expr* OverloadedFnInFile
+    = findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(), CallArgs);
     
-    if (DeclRefExpr* DRE = cast<DeclRefExpr>(retCallee)) {
-      IdentifierInfo* II
-      = &m_Context.Idents.get(DRE->getDecl()->getNameAsString() + "_derived_" +
-                               independentVar->getNameAsString());
-      DeclarationName name(II);
-      //      DRE->getDecl()->setDeclName(name);
-      
-      
-      //      SourceLocation noLoc;
-      //      DeclarationNameInfo DNI = DRE->getNameInfo();
-      //      DNI.setName(name);
-      //      DeclRefExpr* newDRE = DeclRefExpr::Create(*m_Context,DRE->getQualifierLoc(),
-      //                                                noLoc, DRE->getDecl(),
-      //                                                DRE->refersToEnclosingLocal(), &DNI,
-      //                                                DRE->getType(), DRE->getValueKind(),
-      //                                                DRE->getFoundDecl(), DRE->getExplicitTemplateArgs());
-      
-      // take the function to derive from the source
+    if (OverloadedFnInFile) {
+      // Take the function to derive from the source
       FunctionDecl* FD = CE->getDirectCallee();
-      const FunctionDecl* derivedFD = Derive(FD, independentVar);
+      // Get the definition if any
+      FunctionDecl* mostRecentFD = FD->getMostRecentDecl();
+      while (mostRecentFD && !mostRecentFD->isThisDeclarationADefinition()) {
+        mostRecentFD = mostRecentFD->getPreviousDecl();
+      }
+      if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
+        // TODO: PRINT ERROR
+        SourceLocation IdentifierLoc;
+        m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
+        << FD->getNameAsString();
+        return NodeContext(CE);
+      }
       
-      // TODO: actually store fn_derived somewhere so it could be used
-      clang::LangOptions LangOpts;
-      LangOpts.CPlusPlus = true;
-      clang::PrintingPolicy Policy(LangOpts);
-      derivedFD->print(llvm::outs(), Policy);
+      FunctionDecl* derivedFD = Derive(mostRecentFD, independentVar);
+//      derivedFD->dumpColor();
+      // Update function name in the source
+      R.clear();
+      R.addDecl(derivedFD);
+      CXXScopeSpec CSS;
+      Expr* ResolvedLookup
+      = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
+      CallExpr* retCE = m_NodeCloner->Clone(CE);
+      retCE->setCallee(ResolvedLookup);
+      return NodeContext(retCE);
     }
-    return NodeContext(retCE);
+    
+    //Function was not derived - issue a warning
+    SourceLocation IdentifierLoc;
+    m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
+    << CE->getDirectCallee()->getNameAsString();
+    return NodeContext(CE);
   }
   
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {

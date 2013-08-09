@@ -126,7 +126,7 @@ namespace autodiff {
               
               if (argVar != 0) {
                 // derive the collected functions
-                const FunctionDecl* Derivative
+                FunctionDecl* Derivative
                   = m_DerivativeBuilder->Derive(functionToDerive, argVar);
                 
                 // if enabled, print source code of the derived functions
