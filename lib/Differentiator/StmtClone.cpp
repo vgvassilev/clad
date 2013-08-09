@@ -66,7 +66,7 @@ DEFINE_CLONE_EXPR(ConditionalOperator, (Clone(Node->getCond()), Node->getQuestio
 DEFINE_CLONE_EXPR(AddrLabelExpr, (Node->getAmpAmpLoc(), Node->getLabelLoc(), Node->getLabel(), Node->getType()))
 DEFINE_CLONE_EXPR(StmtExpr, (Clone(Node->getSubStmt()), Node->getType(), Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_EXPR(BinaryTypeTraitExpr, (Node->getSourceRange().getBegin(), Node->getTrait(), Node->getLhsTypeSourceInfo(), Node->getRhsTypeSourceInfo(), Node->getValue(), Node->getSourceRange().getEnd(), Node->getType()))
-DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRParenLoc(), Node->isTypeDependent(), Node->isValueDependent()))
+DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRParenLoc(), Node->isConditionTrue(), Node->isTypeDependent(), Node->isValueDependent()))
 DEFINE_CLONE_EXPR(GNUNullExpr, (Node->getType(), Node->getTokenLocation()))
 DEFINE_CLONE_EXPR(VAArgExpr, (Node->getBuiltinLoc(), Clone(Node->getSubExpr()), Node->getWrittenTypeInfo(), Node->getRParenLoc(), Node->getType()))
 DEFINE_CLONE_EXPR(ImplicitValueInitExpr, (Node->getType()))
