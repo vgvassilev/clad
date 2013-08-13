@@ -1,9 +1,9 @@
-// RUN: %autodiff %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %autodiff %s -I%S/../../include -fsyntax-only -verify 2>&1 | FileCheck %s
 
 #include "autodiff/Differentiator/Differentiator.h"
 
-int printf(const char* fmt, ...);
-int no_body(int x);
+int printf(const char* fmt, ...); // expected-warning {{function printf was not differentiated because it is not declared in namespace custom_derivatives}}
+int no_body(int x); // expected-error {{attempted differention of function no_body, which does not have a definition}}
 int custom_fn(int x);
 int custom_fn(float x);
 int custom_fn();
@@ -38,7 +38,7 @@ int overloaded(float x) {
 
 int overloaded() {
   return 3;
-}
+} // expected-warning {{function overloaded was not differentiated because it is not declared in namespace custom_derivatives}}
 
 float test_1(int x) {
   return overloaded(x) + custom_fn(x);

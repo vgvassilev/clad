@@ -57,6 +57,8 @@ namespace autodiff {
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVector<clang::Expr*, 4> CallArgs);
+    bool supressDiagnostics(clang::Expr* UnresolvedLookup,
+                            llvm::MutableArrayRef<clang::Expr*> ARargs);
 
   public:
     DerivativeBuilder(clang::Sema& S);

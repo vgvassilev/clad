@@ -11,6 +11,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Overload.h"
 #include "clang/Sema/SemaInternal.h"
 
 using namespace clang;
@@ -136,6 +137,42 @@ namespace autodiff {
     return NodeContext(constant0);
   }
   
+  // This method is derived from the source code of both buildOverloadedCallSet()
+  // in SemaOverload.cpp and ActOnCallExpr() in SemaExpr.cpp, with the goal to
+  // prevent unwanted diagnostic error messages from appearing in the output.
+  bool DerivativeBuilder::supressDiagnostics(Expr* UnresolvedLookup,
+                                             llvm::MutableArrayRef<Expr*> ARargs) {
+    if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
+      OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
+      
+      if (!find.HasFormOfMemberPointer) {
+        OverloadExpr *ovl = find.Expression;
+        
+        if (isa<UnresolvedLookupExpr>(ovl)) {
+          ExprResult result;
+          SourceLocation Loc;
+          OverloadCandidateSet CandidateSet(Loc);
+          Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
+          UnresolvedLookupExpr *ULE = cast<UnresolvedLookupExpr>(ovl);
+          // populate CandidateSet
+          m_Sema.buildOverloadedCallSet(S, UnresolvedLookup, ULE, ARargs, Loc,
+                                        &CandidateSet, &result);
+          
+          OverloadCandidateSet::iterator Best;
+          OverloadingResult OverloadResult =
+          CandidateSet.BestViableFunction(m_Sema,
+                                          UnresolvedLookup->getLocStart(), Best);
+          // if the overloading result was not success (success == 0),
+          // return null pointer to suppress the sema diagnotic output
+          if (OverloadResult) {
+            return 1;
+          }
+        }
+      }
+    }
+    return 0;
+  }
+  
   Expr* DerivativeBuilder::findOverloadedDefinition
   (DeclarationNameInfo DNI, llvm::SmallVector<Expr*, 4> CallArgs) {
     LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
@@ -152,6 +189,11 @@ namespace autodiff {
             
       SourceLocation Loc;
       Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
+      
+      if (supressDiagnostics(UnresolvedLookup, ARargs)) {
+        return 0;
+      }
+      
       OverloadedFn = m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc,
                                           ARargs, Loc).take();
     }
@@ -195,8 +237,7 @@ namespace autodiff {
         mostRecentFD = mostRecentFD->getPreviousDecl();
       }
       if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
-        // TODO: PRINT ERROR
-        SourceLocation IdentifierLoc;
+        SourceLocation IdentifierLoc = FD->getLocEnd();
         m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
         << FD->getNameAsString();
         return NodeContext(CE);
@@ -216,7 +257,7 @@ namespace autodiff {
     }
     
     //Function was not derived - issue a warning
-    SourceLocation IdentifierLoc;
+    SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
     m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
     << CE->getDirectCallee()->getNameAsString();
     return NodeContext(CE);
