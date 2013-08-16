@@ -128,6 +128,8 @@ namespace autodiff {
                 // derive the collected functions
                 FunctionDecl* Derivative
                   = m_DerivativeBuilder->Derive(functionToDerive, argVar);
+                DeclGroupRef DGR(Derivative);
+                m_CI.getASTConsumer().HandleTopLevelDecl(DGR);
                 
                 // if enabled, print source code of the derived functions
                 if (fPrintDerivedFn) {
