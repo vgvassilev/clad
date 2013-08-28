@@ -9,6 +9,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Lookup.h"
@@ -285,31 +286,36 @@ namespace autodiff {
   }
   
   Expr* DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
-    if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(InSubtree)) {
-      if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+    class Updater : public RecursiveASTVisitor<Updater> {
+    private:
+      Sema& m_Sema; // We don't own.
+      utils::StmtClone* m_NodeCloner; // We don't own.
+      Scope* m_CurScope; // We don't own.
+    public:
+      Updater(Sema& SemaRef, utils::StmtClone* C, Scope* S) 
+        : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S) {}
+      bool VisitDeclRefExpr(DeclRefExpr* DRE) {
         DeclarationNameInfo DNI = DRE->getNameInfo();
         
         LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
-        m_Sema.LookupName(R, m_CurScope.get(), /*allowBuiltinCreation*/ false);
+        m_Sema.LookupName(R, m_CurScope, /*allowBuiltinCreation*/ false);
         
         if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
-          DeclRefExpr* clonedDRE = m_NodeCloner->Clone(DRE);
-          
-          SourceLocation Loc;
-          m_Sema.MarkDeclRefReferenced(clonedDRE);
-          
-          //llvm::outs() << "BEFORE CLONEDRE IS \n";
-          //clonedDRE->dumpColor();
-          clonedDRE->setDecl(VD);
-          //llvm::outs() << "============================================= \n";
-          //llvm::outs() << "AFTER CLONEDRE IS \n";
-          //clonedDRE->dumpColor();
-                    
-          ICE->setSubExpr(clonedDRE);
+          // FIXME: This is the right way to go in principe, however there is no
+          // properly built decl context.
+          //DeclContext* DC = static_cast<DeclContext*>(m_CurScope->getEntity())
+          //Sema::ContextRAII PushCtxRAII(m_Sema, DC);
+          // m_Sema.MarkDeclRefReferenced(clonedDRE);
+
+          DRE->setDecl(VD);
+          VD->setReferenced();
+          VD->setUsed();
         }
-        return dyn_cast<Expr>(ICE);
+        return true;
       }
-    }
+    };
+    Updater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
+    up.TraverseStmt(InSubtree);
     return InSubtree;
   }
   
