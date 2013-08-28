@@ -21,7 +21,8 @@ int f_4(int x) {
 int main () {
   int x = 4;
   diff(f_1, 1);
-  //diff(f_2, 1);
-  //diff(f_3, 1);
-  //diff(f_4, 1);
+  diff(f_2, 1);
+  diff(f_3, 1);
+  diff(f_4, 1);
+  return 0;
 }

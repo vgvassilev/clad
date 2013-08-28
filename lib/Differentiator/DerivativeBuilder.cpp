@@ -382,6 +382,21 @@ namespace autodiff {
     return NodeContext(BinOp);
   }
   
+  NodeContext DerivativeBuilder::VisitDeclStmt(DeclStmt* DS) {
+    DeclStmt* clonedDS = m_NodeCloner->Clone(DS);
+    // Iterate through the declaration(s) contained in DS.
+    for (DeclStmt::decl_iterator I = clonedDS->decl_begin(),
+         E = clonedDS->decl_end(); I != E; ++I) {
+      if (VarDecl* VD = dyn_cast<VarDecl>(*I)) {
+        m_CurScope->AddDecl(VD);
+        //TODO: clean the idResolver chain!!!!!
+        if (VD->getIdentifier())
+          m_Sema.IdResolver.AddDecl(VD);
+      }
+    }
+    return NodeContext(clonedDS);
+  }
+  
   NodeContext
   DerivativeBuilder::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* OpCall) {
     // This operator gets emitted when there is a binary operation containing

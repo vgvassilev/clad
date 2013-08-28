@@ -84,6 +84,7 @@ namespace autodiff {
     NodeContext VisitParenExpr(clang::ParenExpr* PE);
     NodeContext VisitIntegerLiteral(clang::IntegerLiteral* IL);
     NodeContext VisitCallExpr(clang::CallExpr* CE);
+    NodeContext VisitDeclStmt(clang::DeclStmt* DS);
   };
   
 } // end namespace autodiff
