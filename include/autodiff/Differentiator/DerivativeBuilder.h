@@ -17,6 +17,7 @@ namespace clang {
   class DeclRefExpr;
   class FunctionDecl;
   class NamespaceDecl;
+  class Scope;
   class Sema;
   class Stmt;
 }
@@ -53,11 +54,13 @@ namespace autodiff {
   private:
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
+    llvm::OwningPtr<clang::Scope> m_CurScope;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
+    clang::Expr* updateReferencesOf(clang::Expr* InSubtree);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVector<clang::Expr*, 4> CallArgs);
-    bool supressDiagnostics(clang::Expr* UnresolvedLookup,
+    bool overloadExists(clang::Expr* UnresolvedLookup,
                             llvm::MutableArrayRef<clang::Expr*> ARargs);
 
   public:

@@ -10,6 +10,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/Scope.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/SemaInternal.h"
@@ -32,6 +33,7 @@ namespace autodiff {
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
+  static FunctionDecl* derivedFD;
   ValueDecl* independentVar;
   
   FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
@@ -42,15 +44,14 @@ namespace autodiff {
     if (!m_NodeCloner) {
       m_NodeCloner.reset(new utils::StmtClone(m_Context));
     }
-    Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
     
     SourceLocation noLoc;
     IdentifierInfo* II
       = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
                              independentVar->getNameAsString());
     DeclarationName name(II);
-    FunctionDecl* derivedFD
-    = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc, noLoc,
+    derivedFD
+      = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc, noLoc,
                            name, FD->getType(), FD->getTypeSourceInfo(),
                            FD->getStorageClass(),
                            /*default*/
@@ -58,9 +59,16 @@ namespace autodiff {
                            FD->hasWrittenPrototype(),
                            FD->isConstexpr()
                            );
+    // We will use the m_CurScope to do the needed lookups.
+    m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
+                               m_Sema.getDiagnostics()));
+    m_CurScope->setEntity(derivedFD);
+    //m_Sema.PushFunctionScope();
+    
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
+    // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
       newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
@@ -69,11 +77,24 @@ namespace autodiff {
                                    PVD->getStorageClass(),
                                    m_NodeCloner->Clone(PVD->getDefaultArg()));
       params.push_back(newPVD);
+      // Add the args in the scope and id chain so that they could be found
+      m_CurScope->AddDecl(newPVD);
+      if (newPVD->getIdentifier())
+        m_Sema.IdResolver.AddDecl(newPVD);
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
     derivedFD->setParams(paramsRef);
+    Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
     derivedFD->setBody(derivativeBody);
+    
+    // Cleanup the IdResolver chain.
+    for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
+        E = derivedFD->param_end(); I != E; ++I) {
+      if ((*I)->getIdentifier())
+        m_Sema.IdResolver.RemoveDecl(*I);
+    }
+    
     return derivedFD;
   }
   
@@ -93,11 +114,11 @@ namespace autodiff {
   }
   
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
-    ReturnStmt* retStmt = m_NodeCloner->Clone(RS);
+    ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
     Expr* retVal =
-    cast<Expr>(Visit(retStmt->getRetValue()->IgnoreImpCasts()).getStmt());
-    retStmt->setRetValue(retVal);
-    return NodeContext(retStmt);
+    cast<Expr>(Visit(clonedStmt->getRetValue()->IgnoreImpCasts()).getStmt());
+    clonedStmt->setRetValue(retVal);
+    return NodeContext(clonedStmt);
   }
   
   NodeContext DerivativeBuilder::VisitParenExpr(ParenExpr* PE) {
@@ -109,9 +130,9 @@ namespace autodiff {
   }
   
   NodeContext DerivativeBuilder::VisitDeclRefExpr(DeclRefExpr* DRE) {
-    DeclRefExpr* cloneDRE = m_NodeCloner->Clone(DRE);
+    DeclRefExpr* clonedDRE = m_NodeCloner->Clone(DRE);
     SourceLocation noLoc;
-    if (cloneDRE->getDecl()->getNameAsString() ==
+    if (clonedDRE->getDecl()->getNameAsString() ==
         independentVar->getNameAsString()) {
       llvm::APInt one(m_Context.getIntWidth(m_Context.IntTy), /*value*/1);
       IntegerLiteral* constant1 = IntegerLiteral::Create(m_Context, one,
@@ -140,7 +161,7 @@ namespace autodiff {
   // This method is derived from the source code of both buildOverloadedCallSet()
   // in SemaOverload.cpp and ActOnCallExpr() in SemaExpr.cpp, with the goal to
   // prevent unwanted diagnostic error messages from appearing in the output.
-  bool DerivativeBuilder::supressDiagnostics(Expr* UnresolvedLookup,
+  bool DerivativeBuilder::overloadExists(Expr* UnresolvedLookup,
                                              llvm::MutableArrayRef<Expr*> ARargs) {
     if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
       OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
@@ -165,12 +186,12 @@ namespace autodiff {
           // if the overloading result was not success (success == 0),
           // return null pointer to suppress the sema diagnotic output
           if (OverloadResult) {
-            return 1;
+            return true;
           }
         }
       }
     }
-    return 0;
+    return false;
   }
   
   Expr* DerivativeBuilder::findOverloadedDefinition
@@ -190,7 +211,7 @@ namespace autodiff {
       SourceLocation Loc;
       Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
       
-      if (supressDiagnostics(UnresolvedLookup, ARargs)) {
+      if (overloadExists(UnresolvedLookup, ARargs)) {
         return 0;
       }
       
@@ -263,9 +284,38 @@ namespace autodiff {
     return NodeContext(CE);
   }
   
+  Expr* DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
+    if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(InSubtree)) {
+      if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+        DeclarationNameInfo DNI = DRE->getNameInfo();
+        
+        LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
+        m_Sema.LookupName(R, m_CurScope.get(), /*allowBuiltinCreation*/ false);
+        
+        if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
+          DeclRefExpr* clonedDRE = m_NodeCloner->Clone(DRE);
+          
+          SourceLocation Loc;
+          m_Sema.MarkDeclRefReferenced(clonedDRE);
+          
+          //llvm::outs() << "BEFORE CLONEDRE IS \n";
+          //clonedDRE->dumpColor();
+          clonedDRE->setDecl(VD);
+          //llvm::outs() << "============================================= \n";
+          //llvm::outs() << "AFTER CLONEDRE IS \n";
+          //clonedDRE->dumpColor();
+                    
+          ICE->setSubExpr(clonedDRE);
+        }
+        return dyn_cast<Expr>(ICE);
+      }
+    }
+    return InSubtree;
+  }
+  
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
-    Expr* rhs = BinOp->getRHS();
-    Expr* lhs = BinOp->getLHS();
+    Expr* rhs = updateReferencesOf(BinOp->getRHS());
+    Expr* lhs = updateReferencesOf(BinOp->getLHS());
     
     Expr* lhs_derived = cast<Expr>((Visit(lhs->IgnoreImpCasts())).getStmt());
     Expr* rhs_derived = cast<Expr>((Visit(rhs->IgnoreImpCasts())).getStmt());
