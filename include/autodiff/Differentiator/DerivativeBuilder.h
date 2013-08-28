@@ -54,6 +54,8 @@ namespace autodiff {
   private:
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
+    clang::FunctionDecl* derivedFD;
+    clang::ValueDecl* independentVar;
     llvm::OwningPtr<clang::Scope> m_CurScope;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
