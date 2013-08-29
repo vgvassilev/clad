@@ -25,8 +25,9 @@ namespace {
       return m_DiffCalls;
     }
     
-    void collectFunctionsToDiff(TranslationUnitDecl* TUD) {
-      TraverseDecl(TUD);
+    void collectFunctionsToDiff(DeclGroupRef DGR) {
+      assert(DGR.isSingleDecl() && "Not handled.");
+      TraverseDecl(DGR.getSingleDecl());
     }
     
     bool VisitCallExpr(CallExpr* E) {
@@ -60,18 +61,24 @@ namespace autodiff {
       DiffCollector m_Collector;
       clang::CompilerInstance& m_CI;
       llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
+      clang::FunctionDecl* m_CurDerivative;
     public:
-      AutoDiffPlugin(CompilerInstance& CI) : m_CI(CI) { }
+      AutoDiffPlugin(CompilerInstance& CI) : m_CI(CI), m_CurDerivative(0) { }
 
       virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
         
       }
 
-      virtual void HandleTranslationUnit(clang::ASTContext& C) {
+      virtual bool HandleTopLevelDecl(DeclGroupRef DGR) {
         if (!m_DerivativeBuilder)
           m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
 
-        m_Collector.collectFunctionsToDiff(C.getTranslationUnitDecl());
+        // Check if this is called recursively and if it is abort, because we
+        // don't want CodeGen to see that decl twice.
+        if (m_CurDerivative == *DGR.begin())
+          return false;
+
+        m_Collector.collectFunctionsToDiff(DGR);
         llvm::SmallVector<CallExpr*, 4>& diffCallExprs
           = m_Collector.getDiffCalls();
         
@@ -81,6 +88,7 @@ namespace autodiff {
         clang::PrintingPolicy Policy(LangOpts);
         
         for (size_t i = lastIndex, e = diffCallExprs.size(); i < e; ++i) {
+          FunctionDecl* Derivative = 0;
           if (ImplicitCastExpr* ICE
               = dyn_cast<ImplicitCastExpr>(diffCallExprs[i]->getArg(0))) {
             if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
@@ -126,10 +134,8 @@ namespace autodiff {
               
               if (argVar != 0) {
                 // derive the collected functions
-                FunctionDecl* Derivative
+                Derivative
                   = m_DerivativeBuilder->Derive(functionToDerive, argVar);
-                DeclGroupRef DGR(Derivative);
-                m_CI.getASTConsumer().HandleTopLevelDecl(DGR);
                 
                 // if enabled, print source code of the derived functions
                 if (fPrintDerivedFn) {
@@ -143,7 +149,13 @@ namespace autodiff {
             }
           }
           lastIndex = i + 1;
+          if (Derivative)
+            m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
         }
+        return true; // Happiness
+      }
+
+      virtual void HandleTranslationUnit(clang::ASTContext& C) {
       }
     };
 
