@@ -34,8 +34,7 @@ namespace autodiff {
 
   DerivativeBuilder::~DerivativeBuilder() {}
   
-  FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD,
-                                                ValueDecl* argVar) {
+  FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar) {
     assert(FD && "Must not be null.");
     independentVar = argVar;
     
@@ -48,20 +47,19 @@ namespace autodiff {
       = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
                              independentVar->getNameAsString());
     DeclarationName name(II);
-    derivedFD
-      = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc, noLoc,
-                           name, FD->getType(), FD->getTypeSourceInfo(),
-                           FD->getStorageClass(),
-                           /*default*/
-                           FD->isInlineSpecified(),
-                           FD->hasWrittenPrototype(),
-                           FD->isConstexpr()
-                           );
+    derivedFD = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc, 
+                                     noLoc, name, FD->getType(), 
+                                     FD->getTypeSourceInfo(),
+                                     FD->getStorageClass(),
+                                     /*default*/
+                                     FD->isInlineSpecified(),
+                                     FD->hasWrittenPrototype(),
+                                     FD->isConstexpr()
+                                     );
     // We will use the m_CurScope to do the needed lookups.
     m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
                                m_Sema.getDiagnostics()));
     m_CurScope->setEntity(derivedFD);
-    //m_Sema.PushFunctionScope();
     
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
