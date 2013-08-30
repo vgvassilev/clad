@@ -149,8 +149,11 @@ namespace autodiff {
             }
           }
           lastIndex = i + 1;
-          if (Derivative)
+          if (Derivative) {
+            m_CurDerivative = Derivative;
             m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+            m_CurDerivative = 0;
+          }
         }
         return true; // Happiness
       }
