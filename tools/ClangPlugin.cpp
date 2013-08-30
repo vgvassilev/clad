@@ -26,8 +26,8 @@ namespace {
     }
     
     void collectFunctionsToDiff(DeclGroupRef DGR) {
-      assert(DGR.isSingleDecl() && "Not handled.");
-      TraverseDecl(DGR.getSingleDecl());
+      if (DGR.isSingleDecl())
+        TraverseDecl(DGR.getSingleDecl());
     }
     
     bool VisitCallExpr(CallExpr* E) {
@@ -39,7 +39,7 @@ namespace {
         // everything seems ok 03.06.2013)
         
         //        if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
-        if (FD->getName() == "diff")
+        if (FD->getNameAsString() == "diff")
           // We know that is *our* diff function.
           m_DiffCalls.push_back(E);
       }
