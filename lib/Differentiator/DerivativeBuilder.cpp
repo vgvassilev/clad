@@ -310,6 +310,9 @@ namespace autodiff {
         m_Sema.LookupName(R, m_CurScope, /*allowBuiltinCreation*/ false);
         
         if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
+          // FIXME: Handle the case when there are overloads found. Update
+          // it with the best match.
+          // 
           // FIXME: This is the right way to go in principe, however there is no
           // properly built decl context.
           //DeclContext* DC = static_cast<DeclContext*>(m_CurScope->getEntity())
