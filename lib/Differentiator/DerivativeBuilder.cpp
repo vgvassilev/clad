@@ -85,9 +85,10 @@ namespace autodiff {
                                    m_NodeCloner->Clone(PVD->getDefaultArg()));
       params.push_back(newPVD);
       // Add the args in the scope and id chain so that they could be found.
-      m_CurScope->AddDecl(newPVD);
-      if (newPVD->getIdentifier())
+      if (newPVD->getIdentifier()) {
+        m_CurScope->AddDecl(newPVD);
         m_Sema.IdResolver.AddDecl(newPVD);
+      }
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
@@ -102,8 +103,11 @@ namespace autodiff {
     // Cleanup the IdResolver chain.
     for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
         E = derivedFD->param_end(); I != E; ++I) {
-      if ((*I)->getIdentifier())
-        m_Sema.IdResolver.RemoveDecl(*I);
+      if ((*I)->getIdentifier()) {
+        m_CurScope->RemoveDecl(*I);
+        //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
+      }
+      
     }
     
     return derivedFD;
