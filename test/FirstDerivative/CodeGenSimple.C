@@ -2,7 +2,7 @@
 // RUN: ./CodeGenSimple.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "autodiff/Differentiator/Differentiator.h"
-extern "C" int printf(const char* fmt, ...);
+extern "C" int printf(const char* fmt, ...);//expected-warning{{function printf was not differentiated because it is not declared in namespace custom_derivatives}}
 int f_1(int x) {
    printf("I am being run!\n");
    return x * x;
