@@ -29,23 +29,39 @@ namespace autodiff {
 
 namespace autodiff {
   class NodeContext {
-  public:
   private:
-    clang::Stmt* m_Stmt;
-  private:
+    typedef llvm::SmallVector<clang::Stmt*, 2> Statements;
+    Statements m_Stmts;
     NodeContext() {};
   public:
-    NodeContext(clang::Stmt* s) : m_Stmt(s) {}
-    clang::Stmt* getStmt() { return m_Stmt; }
-    const clang::Stmt* getStmt() const { return m_Stmt; }
+    NodeContext(clang::Stmt* s) { m_Stmts.push_back(s); }
+    
+    NodeContext(clang::Stmt* s0, clang::Stmt* s1) {
+      m_Stmts.push_back(s0);
+      m_Stmts.push_back(s1);
+    }
+    
+    //NodeContext(llvm::ArrayRef) : m_Stmt(s) {}
+    
+    bool isSingleStmt() const { return m_Stmts.size() == 1; }
+    
+    clang::Stmt* getStmt() {
+      assert(isSingleStmt() && "Cannot get multiple stmts.");
+      return m_Stmts.front();
+    }
+    
+    const clang::Stmt* getStmt() const { return getStmt(); }
+    
+    const Statements& getStmts() const { return m_Stmts; }
+    
+    clang::CompoundStmt* wrapInCompoundStmt(clang::ASTContext& C) const;
+        
     clang::Expr* getExpr() {
-      assert(llvm::isa<clang::Expr>(m_Stmt) && "Must be an expression.");
-      return llvm::cast<clang::Expr>(m_Stmt);
+      assert(llvm::isa<clang::Expr>(getStmt()) && "Must be an expression.");
+      return llvm::cast<clang::Expr>(getStmt());
     }
-    const clang::Expr* getExpr() const {
-      assert(llvm::isa<clang::Expr>(m_Stmt) && "Must be an expression.");
-      return llvm::cast<clang::Expr>(m_Stmt);
-    }
+    
+    const clang::Expr* getExpr() const { return getExpr(); }
   };
 
   class DerivativeBuilder

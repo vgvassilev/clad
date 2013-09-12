@@ -19,7 +19,15 @@
 using namespace clang;
 
 namespace autodiff {
-  DerivativeBuilder::DerivativeBuilder(clang::Sema& S) 
+  CompoundStmt* NodeContext::wrapInCompoundStmt(clang::ASTContext& C) const {
+    assert(!isSingleStmt() && "Must be more than 1");
+    llvm::ArrayRef<Stmt*> stmts
+    = llvm::makeArrayRef(m_Stmts.data(), m_Stmts.size());
+    clang::SourceLocation noLoc;
+    return new (C) clang::CompoundStmt(C, stmts, noLoc, noLoc);
+  }
+  
+  DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
     : m_Sema(S), m_Context(S.getASTContext()) {
     m_NodeCloner.reset(new utils::StmtClone(m_Context));
     // Find the builtin derivatives namespace
@@ -30,6 +38,9 @@ namespace autodiff {
                                /*allowBuiltinCreation*/ false);
     assert(!R.empty() && "Cannot find builtin derivatives!");
     m_BuiltinDerivativesNSD = cast<NamespaceDecl>(R.getFoundDecl());
+    // Initialize pointers.
+    derivedFD = 0;
+    independentVar = 0;
   }
 
   DerivativeBuilder::~DerivativeBuilder() {}
