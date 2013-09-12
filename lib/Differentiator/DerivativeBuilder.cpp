@@ -315,8 +315,6 @@ namespace autodiff {
           // 
           // FIXME: This is the right way to go in principe, however there is no
           // properly built decl context.
-          //DeclContext* DC = static_cast<DeclContext*>(m_CurScope->getEntity())
-          //Sema::ContextRAII PushCtxRAII(m_Sema, DC);
           // m_Sema.MarkDeclRefReferenced(clonedDRE);
 
           DRE->setDecl(VD);
