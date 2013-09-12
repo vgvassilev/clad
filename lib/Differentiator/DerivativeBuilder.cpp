@@ -67,14 +67,14 @@ namespace autodiff {
                                      FD->hasWrittenPrototype(),
                                      FD->isConstexpr()
                                      );
-    // We will use the m_CurScope to do the needed lookups.
-    m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
-                               m_Sema.getDiagnostics()));
-    m_CurScope->setEntity(derivedFD);
-    
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
+
+    // We will use the m_CurScope to do the needed lookups.
+    m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
+                               m_Sema.getDiagnostics()));
+
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
@@ -92,9 +92,16 @@ namespace autodiff {
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
     derivedFD->setParams(paramsRef);
+    derivedFD->setBody(0);
+
+    // Doing also m_CurScope->setEntity(derivedFD);
+    m_Sema.PushDeclContext(m_CurScope.get(), derivedFD);
+    
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
     derivedFD->setBody(derivativeBody);
-    
+
+    m_Sema.PopDeclContext();
+
     // Cleanup the IdResolver chain.
     for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
         E = derivedFD->param_end(); I != E; ++I) {
