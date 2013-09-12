@@ -94,14 +94,11 @@ namespace autodiff {
     derivedFD->setParams(paramsRef);
     derivedFD->setBody(0);
 
-    // Doing also m_CurScope->setEntity(derivedFD);
-    m_Sema.PushDeclContext(m_CurScope.get(), derivedFD);
-    
+    // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
+    Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
+
     derivedFD->setBody(derivativeBody);
-
-    m_Sema.PopDeclContext();
-
     // Cleanup the IdResolver chain.
     for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
         E = derivedFD->param_end(); I != E; ++I) {
@@ -273,7 +270,6 @@ namespace autodiff {
         << FD->getNameAsString();
         return NodeContext(CE);
       }
-      
       FunctionDecl* derivedFD = Derive(mostRecentFD, independentVar);
 //      derivedFD->dumpColor();
       // Update function name in the source.
@@ -304,6 +300,11 @@ namespace autodiff {
       Updater(Sema& SemaRef, utils::StmtClone* C, Scope* S) 
         : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S) {}
       bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+        // If the declaration's decl context encloses the derivative's decl
+        // context we must not update anything.
+        if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
+          return true;
+        }
         DeclarationNameInfo DNI = DRE->getNameInfo();
         
         LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
