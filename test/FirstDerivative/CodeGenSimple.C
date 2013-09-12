@@ -1,12 +1,14 @@
-// RUN: %autodiff %s -I%S/../../include -oCodeGenSimple.out 2>&1 | FileCheck %s
+// RUN: %autodiff %s -I%S/../../include -oCodeGenSimple.out -Xclang -verify 2>&1 | FileCheck %s
 // RUN: ./CodeGenSimple.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "autodiff/Differentiator/Differentiator.h"
-
+extern "C" int printf(const char* fmt, ...);
 int f_1(int x) {
-  return x * x;
+   printf("I am being run!\n");
+   return x * x;
 }
 // CHECK: int f_1_derived_x(int x) {
+// CHECK-NEXT: printf("I am being run!\n");
 // CHECK-NEXT: return (1 * x + x * 1);
 // CHECK-NEXT: }
 
