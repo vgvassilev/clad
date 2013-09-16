@@ -1,4 +1,4 @@
-// RUN: %autodiff %s -I%S/../../include -fsyntax-only -verify 2>&1 | FileCheck %s
+// RUN: %autodiff %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
 #include "autodiff/Differentiator/Differentiator.h"
 
