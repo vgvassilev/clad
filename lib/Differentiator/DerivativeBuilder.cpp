@@ -324,7 +324,7 @@ namespace autodiff {
 
           DRE->setDecl(VD);
           VD->setReferenced();
-          VD->setUsed();
+          VD->setIsUsed();
         }
         return true;
       }
