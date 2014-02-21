@@ -4,7 +4,6 @@ techniques to numerically evaluate the derivative of a function specified by a
 computer program. Automatic differentiation is an alternative technique to 
 Symbolic differentiation and Numerical differentiation (the method of finite 
 differences) that yields exact derivatives even of complicated functions.
-
 The goal of the presented plugin is to extend the Cling functionality in order 
 to make it possible for the tool to differentiate non-trivial functions and 
 find partial derivatives for trivial cases. Our implementation approach is to 
