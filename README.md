@@ -21,6 +21,7 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
 
 2. Building from source
 
+```
     svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
     cd src/tools
     svn checkout http://llvm.org/svn/llvm-project/cfe/trunk clang
@@ -32,6 +33,7 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
     cd obj
     ../src/configure --prefix=../inst
     make && make install
+```
 
 3. Usage
   After a successful build libAutoDiff.so or libAutoDiff.dylib will be created
