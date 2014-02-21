@@ -20,17 +20,18 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
  for code transformation, but also serves as a basis for the plugin.
 
 2. Building from source
-  svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
-  cd src/tools
-  svn checkout http://llvm.org/svn/llvm-project/cfe/trunk clang
-  git clone https://github.com/vgvassilev/clad.git clad
-  cd ../
-  cat patches tools/clad/patches/*.diff | patch -p0
-  cd ../
-  mkdir obj inst
-  cd obj
-  ../src/configure --prefix=../inst
-  make && make install
+
+   svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
+   cd src/tools
+   svn checkout http://llvm.org/svn/llvm-project/cfe/trunk clang
+   git clone https://github.com/vgvassilev/clad.git clad
+   cd ../
+   cat patches tools/clad/patches/*.diff | patch -p0
+   cd ../
+   mkdir obj inst
+   cd obj
+   ../src/configure --prefix=../inst
+   make && make install
 
 3. Usage
   After a successful build libAutoDiff.so or libAutoDiff.dylib will be created
