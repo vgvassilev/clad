@@ -1,3 +1,8 @@
+0. What is clad
+clad is a C++ plugin for clang that implements automatic differentiation of 
+user-defined functions by employing the chain rule in forward mode, coupled with
+source code transformation and AST constant fold.
+
 1. Description
 In mathematics and computer algebra, automatic differentiation (AD) is a set of 
 techniques to numerically evaluate the derivative of a function specified by a 
@@ -14,20 +19,24 @@ global analysis. This elegant but laborious process is greatly aided by
 Cling (http://cern.ch/cling) which does not only provide the necessary facilities
  for code transformation, but also serves as a basis for the plugin.
 
+2. Building from source
+  svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
+  cd src/tools
+  svn checkout http://llvm.org/svn/llvm-project/cfe/trunk clang
+  git clone https://github.com/vgvassilev/clad.git clad
+  cd ../
+  cat patches tools/clad/patches/*.diff | patch -p0
+  cd ../
+  mkdir obj inst
+  cd obj
+  ../src/configure --prefix=../inst
+  make && make install
 
-This is an example of how clang's AST can be used to synthesize automatically
-derivatives of arbitrary C/C++ functions.
+3. Usage
+  After a successful build libAutoDiff.so or libAutoDiff.dylib will be created
+in llvm's lib (inst/lib) directory. One can attach the plugin to clang invocation
+like this:
 
-Build the plugin by running `make` in this directory.
+ clang -cc1 -x c++ -std=c++11 -load libAutoDiff.dylib -plugin clad -plugin-arg-clad -fprint-folded-fn -plugin-arg-clad -fprint-folded-fn-ast SourceFile.cpp
 
-Once the plugin is built, you can run it using:
---
-Linux:
-$ clang -cc1 -load ../../Debug+Asserts/lib/libAutoDiff.so -plugin print-fns some-input-file.c
-$ clang -cc1 -load ../../Debug+Asserts/lib/libAutoDiff.so -plugin print-fns -plugin-arg-print-fns help -plugin-arg-print-fns --example-argument some-input-file.c
-$ clang -cc1 -load ../../Debug+Asserts/lib/libAutoDiff.so -plugin print-fns -plugin-arg-print-fns -an-error some-input-file.c
-
-Mac:
-$ clang -cc1 -load ../../Debug+Asserts/lib/libAutoDiff.dylib -plugin print-fns some-input-file.c
-$ clang -cc1 -load ../../Debug+Asserts/lib/libAutoDiff.dylib -plugin print-fns -plugin-arg-print-fns help -plugin-arg-print-fns --example-argument some-input-file.c
-$ clang -cc1 -load ../../Debug+Asserts/lib/libAutoDiff.dylib -plugin print-fns -plugin-arg-print-fns -an-error some-input-file.c
+For more details see: http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf
