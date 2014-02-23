@@ -6,7 +6,7 @@ Index: tools/CMakeLists.txt
    endif()
  endif()
  
-+add_llvm_external_project(autodiff)
++add_llvm_external_project(clad)
  add_llvm_external_project(clang)
  add_llvm_external_project(lld)
  add_llvm_external_project(lldb)
@@ -19,7 +19,7 @@ Index: tools/Makefile
  # Build LLDB if present. Note LLDB must be built last as it depends on the
  # wider LLVM infrastructure (including Clang).
 -OPTIONAL_DIRS := lldb
-+OPTIONAL_DIRS := lldb, autodiff
++OPTIONAL_DIRS := lldb, clad
  
  # NOTE: The tools are organized into five groups of four consisting of one
  # large and three small executables. This is done to minimize memory load
