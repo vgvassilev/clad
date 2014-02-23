@@ -293,8 +293,8 @@ namespace clad {
     << CE->getDirectCallee()->getNameAsString();
     return NodeContext(CE);
   }
-  
-  Expr* DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
+
+  namespace {
     class Updater : public RecursiveASTVisitor<Updater> {
     private:
       Sema& m_Sema; // We don't own.
@@ -310,7 +310,7 @@ namespace clad {
           return true;
         }
         DeclarationNameInfo DNI = DRE->getNameInfo();
-        
+
         LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
         m_Sema.LookupName(R, m_CurScope, /*allowBuiltinCreation*/ false);
         
@@ -329,6 +329,9 @@ namespace clad {
         return true;
       }
     };
+  } // end anon namespace
+  
+  Expr* DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
     Updater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
     up.TraverseStmt(InSubtree);
     return InSubtree;
