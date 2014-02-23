@@ -9,12 +9,12 @@ set( LLVM_LINK_COMPONENTS
 )
 
 #set(LLVM_USED_LIBS
-#  autodiffWhatever
+#  cladWhatever
 #)
 
 
-add_autodiff_library(autodiffDifferentiator
-  AutoDiff.cpp
+add_clad_library(cladDifferentiator
+  clad.cpp
   )
 
 #add_dependencies(clangDriver ClangAttrList ClangDiagnosticDriver

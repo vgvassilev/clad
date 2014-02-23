@@ -7,14 +7,14 @@
 # 
 ##===----------------------------------------------------------------------===##
 
-AUTODIFF_LEVEL := ..
+CLAD_LEVEL := ..
 PROJ_OBJ_DIR = .
 
-include $(AUTODIFF_LEVEL)/Makefile
+include $(CLAD_LEVEL)/Makefile
 
 DOXYGEN = doxygen
 
-PROJ_docsdir := $(PROJ_docsdir)/autodiff
+PROJ_docsdir := $(PROJ_docsdir)/clad
 
 HTML       := $(wildcard $(PROJ_SRC_DIR)/doxygen/html/*.html) \
               $(wildcard $(PROJ_SRC_DIR)/*.css)
@@ -87,7 +87,7 @@ gen-doxygen-cfg:
 	$(Echo) $(PROJ_OBJ_DIR)/doxygen.cfg
 	cat $(PROJ_SRC_DIR)/doxygen.cfg.in | sed \
 	  -e 's,@docs_srcdir@,'$(PROJ_SRC_DIR)",g" \
-	  -e 's,@autodiff_srcdir@,'$(call realpath, $(PROJ_SRC_DIR)/$(AUTODIFF_LEVEL))",g" \
+	  -e 's,@clad_srcdir@,'$(call realpath, $(PROJ_SRC_DIR)/$(CLAD_LEVEL))",g" \
 	  -e 's/@DOT@/dot/g' \
 	  -e 's/@PACKAGE_VERSION@/mainline/' \
 	  -e 's/@docs_builddir@/./g' > $(PROJ_OBJ_DIR)/doxygen.cfg

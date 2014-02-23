@@ -1,17 +1,17 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
-#include "autodiff/Differentiator/StmtClone.h"
+#include "clad/Differentiator/StmtClone.h"
 #include "llvm/ADT/SmallVector.h"
 
 using namespace clang;
 
-namespace autodiff {
+namespace clad {
 namespace utils {
 
 #define DEFINE_CLONE_STMT(CLASS, CTORARGS)    \
@@ -303,4 +303,4 @@ Stmt* StmtClone::VisitStmt(Stmt*) {
 
 //--------------------------------------------------------- 
   } // end namespace utils
-} // end namespace autodiff
+} // end namespace clad

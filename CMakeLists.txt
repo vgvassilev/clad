@@ -1,36 +1,36 @@
-# If we are not building as a part of LLVM, build Autodiff as an
+# If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
-  project(Autodiff)
+  project(clad)
   cmake_minimum_required(VERSION 2.8)
   find_package(Subversion)
 
-  set(AUTODIFF_PATH_TO_LLVM_SOURCE "" CACHE PATH
+  set(CLAD_PATH_TO_LLVM_SOURCE "" CACHE PATH
     "Path to LLVM source code. Not necessary if using an installed LLVM.")
-  set(AUTODIFF_PATH_TO_LLVM_BUILD "" CACHE PATH
+  set(CLAD_PATH_TO_LLVM_BUILD "" CACHE PATH
     "Path to the directory where LLVM was built or installed.")
 
-  if( AUTODIFF_PATH_TO_LLVM_SOURCE )
-    if( NOT EXISTS "${AUTODIFF_PATH_TO_LLVM_SOURCE}/cmake/config-ix.cmake" )
-      message(FATAL_ERROR "Please set AUTODIFF_PATH_TO_LLVM_SOURCE to the root directory of LLVM source code.")
+  if( CLAD_PATH_TO_LLVM_SOURCE )
+    if( NOT EXISTS "${CLAD_PATH_TO_LLVM_SOURCE}/cmake/config-ix.cmake" )
+      message(FATAL_ERROR "Please set CLAD_PATH_TO_LLVM_SOURCE to the root directory of LLVM source code.")
     else()
-      get_filename_component(LLVM_MAIN_SRC_DIR ${AUTODIFF_PATH_TO_LLVM_SOURCE}
+      get_filename_component(LLVM_MAIN_SRC_DIR ${CLAD_PATH_TO_LLVM_SOURCE}
 	ABSOLUTE)
       list(APPEND CMAKE_MODULE_PATH "${LLVM_MAIN_SRC_DIR}/cmake/modules")
     endif()
   endif()
 
-  if( NOT EXISTS "${AUTODIFF_PATH_TO_LLVM_BUILD}/bin/llvm-tblgen${CMAKE_EXECUTABLE_SUFFIX}" )
-    message(FATAL_ERROR "Please set AUTODIFF_PATH_TO_LLVM_BUILD to a directory containing a LLVM build.")
+  if( NOT EXISTS "${CLAD_PATH_TO_LLVM_BUILD}/bin/llvm-tblgen${CMAKE_EXECUTABLE_SUFFIX}" )
+    message(FATAL_ERROR "Please set CLAD_PATH_TO_LLVM_BUILD to a directory containing a LLVM build.")
   endif()
 
-  list(APPEND CMAKE_MODULE_PATH "${AUTODIFF_PATH_TO_LLVM_BUILD}/share/llvm/cmake")
+  list(APPEND CMAKE_MODULE_PATH "${CLAD_PATH_TO_LLVM_BUILD}/share/llvm/cmake")
 
-  get_filename_component(PATH_TO_LLVM_BUILD ${AUTODIFF_PATH_TO_LLVM_BUILD}
+  get_filename_component(PATH_TO_LLVM_BUILD ${CLAD_PATH_TO_LLVM_BUILD}
     ABSOLUTE)
 
   include(AddLLVM)
-  include("${AUTODIFF_PATH_TO_LLVM_BUILD}/share/llvm/cmake/LLVMConfig.cmake")
+  include("${CLAD_PATH_TO_LLVM_BUILD}/share/llvm/cmake/LLVMConfig.cmake")
   include(HandleLLVMOptions)
 
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
@@ -48,14 +48,14 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
   set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
 
-  set( AUTODIFF_BUILT_STANDALONE 1 )
+  set( CLAD_BUILT_STANDALONE 1 )
 endif()
 
 set(C_INCLUDE_DIRS "" CACHE STRING
-  "Colon separated list of directories autodiff will search for headers.")
+  "Colon separated list of directories clad will search for headers.")
 
-set(AUTODIFF_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(AUTODIFF_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(CLAD_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(CLAD_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR AND NOT MSVC_IDE )
   message(FATAL_ERROR "In-source builds are not allowed. CMake would overwrite "
@@ -76,15 +76,15 @@ endif ()
 
 include(LLVMParseArguments)
 
-macro(add_autodiff_library name)
+macro(add_clad_library name)
   llvm_process_sources(srcs ${ARGN})
   if(MSVC_IDE OR XCODE)
     string( REGEX MATCHALL "/[^/]+" split_path ${CMAKE_CURRENT_SOURCE_DIR})
     list( GET split_path -1 dir)
     file( GLOB_RECURSE headers
-      ../../include/autodiff${dir}/*.h
-      ../../include/autodiff${dir}/*.td
-      ../../include/autodiff${dir}/*.def)
+      ../../include/clad${dir}/*.h
+      ../../include/clad${dir}/*.td
+      ../../include/clad${dir}/*.def)
     set(srcs ${srcs} ${headers})
   endif(MSVC_IDE OR XCODE)
   if (MODULE)
@@ -115,13 +115,13 @@ macro(add_autodiff_library name)
   install(TARGETS ${name}
     LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
     ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX})
-  set_target_properties(${name} PROPERTIES FOLDER "Autodiff libraries")
-endmacro(add_autodiff_library)
+  set_target_properties(${name} PROPERTIES FOLDER "clad libraries")
+endmacro(add_clad_library)
 
-macro(add_autodiff_executable name)
+macro(add_clad_executable name)
   add_llvm_executable( ${name} ${ARGN} )
-  set_target_properties(${name} PROPERTIES FOLDER "Autodiff executables")
-endmacro(add_autodiff_executable)
+  set_target_properties(${name} PROPERTIES FOLDER "clad executables")
+endmacro(add_clad_executable)
 
 include_directories(BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}/../clang/include
@@ -149,8 +149,8 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
   )
 
 add_definitions( -D_GNU_SOURCE
-  -DAUTODIFF_SRCDIR_INCL="${AUTODIFF_SOURCE_DIR}/include"
-  -DAUTODIFF_INSTDIR_INCL="${AUTODIFF_BINARY_DIR}/include" )
+  -DCLAD_SRCDIR_INCL="${CLAD_SOURCE_DIR}/include"
+  -DCLAD_INSTDIR_INCL="${CLAD_BINARY_DIR}/include" )
 
 add_subdirectory(lib)
 add_subdirectory(tools)
@@ -160,9 +160,9 @@ add_subdirectory(tools)
 
 # Workaround for MSVS10 to avoid the Dialog Hell
 # FIXME: This could be removed with future version of CMake.
-if( AUTODIFF_BUILT_STANDALONE AND MSVC_VERSION EQUAL 1600 )
-  set(AUTODIFF_SLN_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/Autodiff.sln")
-  if( EXISTS "${AUTODIFF_SLN_FILENAME}" )
-    file(APPEND "${AUTODIFF_SLN_FILENAME}" "\n# This should be regenerated!\n")
+if( CLAD_BUILT_STANDALONE AND MSVC_VERSION EQUAL 1600 )
+  set(CLAD_SLN_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/clad.sln")
+  if( EXISTS "${CLAD_SLN_FILENAME}" )
+    file(APPEND "${CLAD_SLN_FILENAME}" "\n# This should be regenerated!\n")
   endif()
 endif()

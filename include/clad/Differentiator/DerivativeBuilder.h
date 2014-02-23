@@ -1,11 +1,11 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id: ClangPlugin.cpp 7 2013-06-01 22:48:03Z v.g.vassilev@gmail.com $
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#ifndef AUTODIFF_DERIVATIVE_BUILDER_H
-#define AUTODIFF_DERIVATIVE_BUILDER_H
+#ifndef CLAD_DERIVATIVE_BUILDER_H
+#define CLAD_DERIVATIVE_BUILDER_H
 
 #include "clang/AST/StmtVisitor.h"
 
@@ -21,13 +21,13 @@ namespace clang {
   class Sema;
   class Stmt;
 }
-namespace autodiff {
+namespace clad {
   namespace utils {
     class StmtClone;
   }
 }
 
-namespace autodiff {
+namespace clad {
   class NodeContext {
   private:
     typedef llvm::SmallVector<clang::Stmt*, 2> Statements;
@@ -105,6 +105,6 @@ namespace autodiff {
     NodeContext VisitDeclStmt(clang::DeclStmt* DS);
   };
   
-} // end namespace autodiff
+} // end namespace clad
 
-#endif // AUTODIFF_DERIVATIVE_BUILDER_H
+#endif // CLAD_DERIVATIVE_BUILDER_H

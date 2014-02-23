@@ -1,13 +1,13 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
-#ifndef AUTODIFF_UTILS_STMTCLONE_H
-#define AUTODIFF_UTILS_STMTCLONE_H
+#ifndef CLAD_UTILS_STMTCLONE_H
+#define CLAD_UTILS_STMTCLONE_H
 
 #include "clang/AST/StmtVisitor.h"
 
@@ -18,7 +18,7 @@ namespace clang {
   class ValueDecl;
 }
 
-namespace autodiff {
+namespace clad {
 namespace utils {
 
   struct StmtCloneMapping;
@@ -134,4 +134,4 @@ namespace utils {
 } // namespace ASTProcessing
 } // namespace clang
 
-#endif  //AUTODIFF_UTILS_STMTCLONE_H
+#endif  //CLAD_UTILS_STMTCLONE_H

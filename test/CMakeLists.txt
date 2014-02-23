@@ -1,4 +1,4 @@
-set(AUTODIFF_TEST_DIRECTORIES
+set(CLAD_TEST_DIRECTORIES
   "FirstDerivative"
   )
 
@@ -7,8 +7,8 @@ set(LLVM_BINARY_DIR "${LLVM_BINARY_DIR}")
 set(LLVM_BUILD_MODE "%(build_mode)s")
 set(LLVM_TOOLS_DIR "${LLVM_TOOLS_BINARY_DIR}/%(build_config)s")
 set(LLVM_LIBS_DIR "${LLVM_BINARY_DIR}/lib/%(build_config)s")
-set(AUTODIFF_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
-set(AUTODIFF_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/..")
+set(CLAD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
+set(CLAD_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/..")
 if(BUILD_SHARED_LIBS)
   set(ENABLE_SHARED 1)
 else()
@@ -37,32 +37,32 @@ if(PYTHONINTERP_FOUND)
   endif()
 
   if( PATH_TO_LLVM_BUILD )
-    set(AUTODIFF_TEST_EXTRA_ARGS "--path=${AUTODIFF_BINARY_DIR}/bin/${CMAKE_CFG_INTDIR}")
+    set(CLAD_TEST_EXTRA_ARGS "--path=${CLAD_BINARY_DIR}/bin/${CMAKE_CFG_INTDIR}")
   endif()
 
-  option(AUTODIFF_TEST_USE_VG "Run Autodiff tests under Valgrind" OFF)
-  if(AUTODIFF_TEST_USE_VG)
-    set(AUTODIFF_TEST_EXTRA_ARGS ${AUTODIFF_TEST_EXTRA_ARGS} "--vg")
+  option(CLAD_TEST_USE_VG "Run clad tests under Valgrind" OFF)
+  if(CLAD_TEST_USE_VG)
+    set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg")
   endif ()
 
-  set(LIT_ARGS "${AUTODIFF_TEST_EXTRA_ARGS} ${LLVM_LIT_ARGS}")
+  set(LIT_ARGS "${CLAD_TEST_EXTRA_ARGS} ${LLVM_LIT_ARGS}")
   separate_arguments(LIT_ARGS)
 
-  add_custom_target(autodiff-test.deps)
-  set_target_properties(autodiff-test.deps PROPERTIES FOLDER "Autodiff tests")
+  add_custom_target(clad-test.deps)
+  set_target_properties(clad-test.deps PROPERTIES FOLDER "clad tests")
 
-  add_custom_target(autodiff-test
+  add_custom_target(clad-test
     COMMAND ${PYTHON_EXECUTABLE}
                 ${LIT}
                 --param claig_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
-                --param autodiff_unit_site_config=${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg
+                --param clad_unit_site_config=${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg
                 --param build_config=${CMAKE_CFG_INTDIR}
                 --param build_mode=${RUNTIME_BUILD_MODE}
                 ${LIT_ARGS}
                 ${CMAKE_CURRENT_BINARY_DIR}
-                COMMENT "Running Autodiff regression tests")
+                COMMENT "Running clad regression tests")
 
-#  if( NOT AUTODIFF_BUILT_STANDALONE )
+#  if( NOT CLAD_BUILT_STANDALONE )
 #    add_custom_target(check-all
 #      COMMAND ${PYTHON_EXECUTABLE}
 #                ${LIT}
@@ -71,21 +71,21 @@ if(PYTHONINTERP_FOUND)
 #                ${LIT_ARGS}
 #                ${LLVM_BINARY_DIR}/test
 #                ${CMAKE_CURRENT_BINARY_DIR}
-#                COMMENT "Running Autodiff and LLVM regression tests")
-#    add_dependencies(check-all autodiff-test.deps)
+#                COMMENT "Running clad and LLVM regression tests")
+#    add_dependencies(check-all clad-test.deps)
 #    if ( LLVM_INCLUDE_TESTS )
-#      add_dependencies(autodiff-test.deps ClangUnitTests)
+#      add_dependencies(clad-test.deps ClangUnitTests)
 #      add_dependencies(check-all check.deps)
 #    endif ( LLVM_INCLUDE_TESTS )
-#    add_dependencies(autodiff-test.deps
+#    add_dependencies(clad-test.deps
 #                     llvm-dis llc opt
 #                     FileCheck count not
 #                     )
 #  endif()
 
-  add_dependencies(autodiff-test autodiff-test.deps)
-  add_dependencies(autodiff-test.deps
-                 autodiff autodiff-headers c-index-test diagtool arcmt-test c-arcmt-test
+  add_dependencies(clad-test clad-test.deps)
+  add_dependencies(clad-test.deps
+                 clad clad-headers c-index-test diagtool arcmt-test c-arcmt-test
                  )
 
 endif()

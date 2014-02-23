@@ -1,6 +1,6 @@
 This file is a partial list of people who have contributed to the Automatic 
 Differentiation project. If you have contributed a patch or made some other 
-contribution to AutoDiff, please submit a patch to this file to add yourself, 
+contribution to clad, please submit a patch to this file to add yourself, 
 and it will be done!
 
 The list is sorted by surname and formatted to allow easy grepping and
@@ -11,7 +11,7 @@ beautification by scripts.  The fields are: name (N), email (E), web-address
 N: Alexander Penev
 E: alexander_penev [at] yahoo.com; apenev [at] uni-plovdiv.bg
 W: http://www.alexander-penev.info
-D: Founder, provider of much wisdom, and motivator for Autodiff
+D: Founder, provider of much wisdom, and motivator for clad
 
 N: Lorenzo Moneta
 E: lorenzo.moneta [at] cern.ch

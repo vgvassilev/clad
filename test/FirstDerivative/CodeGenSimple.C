@@ -1,7 +1,7 @@
-// RUN: %autodiff %s -I%S/../../include -oCodeGenSimple.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %clad %s -I%S/../../include -oCodeGenSimple.out -Xclang -verify 2>&1 | FileCheck %s
 // RUN: ./CodeGenSimple.out | FileCheck -check-prefix=CHECK-EXEC %s
 
-#include "autodiff/Differentiator/Differentiator.h"
+#include "clad/Differentiator/Differentiator.h"
 extern "C" int printf(const char* fmt, ...);//expected-warning{{function printf was not differentiated because it is not declared in namespace custom_derivatives}}
 int f_1(int x) {
    printf("I am being run!\n");

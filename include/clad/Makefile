@@ -1,13 +1,13 @@
-AUTODIFF_LEVEL := ../..
+CLAD_LEVEL := ../..
 
-include $(AUTODIFF_LEVEL)/Makefile
+include $(CLAD_LEVEL)/Makefile
 
 install-local::
-	$(Echo) Installing Autodiff include files
+	$(Echo) Installing clad include files
 	$(Verb) $(MKDIR) $(DESTDIR)$(PROJ_includedir)
-	$(Verb) if test -d "$(PROJ_SRC_ROOT)/tools/autodiff/include/autodiff" ; then \
-	  cd $(PROJ_SRC_ROOT)/tools/autodiff/include && \
-	  for  hdr in `find autodiff -type f '!' '(' -name '*~' \
+	$(Verb) if test -d "$(PROJ_SRC_ROOT)/tools/clad/include/clad" ; then \
+	  cd $(PROJ_SRC_ROOT)/tools/clad/include && \
+	  for  hdr in `find clad -type f '!' '(' -name '*~' \
 	      -o -name '.#*' -o -name '*.in' -o -name '*.txt' \
 	      -o -name 'Makefile' -o -name '*.td' -o -name '*.orig' ')' -print \
               | grep -v CVS | grep -v .svn | grep -v .dir` ; do \
@@ -20,9 +20,9 @@ install-local::
 	  done ; \
 	fi
 ifneq ($(PROJ_SRC_ROOT),$(PROJ_OBJ_ROOT))
-	$(Verb) if test -d "$(PROJ_OBJ_ROOT)/tools/autodiff/include/autodiff" ; then \
-	  cd $(PROJ_OBJ_ROOT)/tools/autodiff/include && \
-	  for hdr in `find autodiff -type f '!' '(' -name 'Makefile' ')' -print \
+	$(Verb) if test -d "$(PROJ_OBJ_ROOT)/tools/clad/include/clad" ; then \
+	  cd $(PROJ_OBJ_ROOT)/tools/clad/include && \
+	  for hdr in `find clad -type f '!' '(' -name 'Makefile' ')' -print \
             | grep -v CVS | grep -v .tmp | grep -v .dir` ; do \
 	    $(DataInstall) $$hdr $(DESTDIR)$(PROJ_includedir)/$$hdr ; \
 	  done ; \

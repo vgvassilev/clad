@@ -1,4 +1,4 @@
-AUTODIFF_LEVEL := ..
-DIRS := autodiff
+CLAD_LEVEL := ..
+DIRS := clad
 
-include $(AUTODIFF_LEVEL)/Makefile
+include $(CLAD_LEVEL)/Makefile

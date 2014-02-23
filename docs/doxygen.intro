@@ -1,15 +1,15 @@
-/// @mainpage autodiff
+/// @mainpage clad
 ///
 /// @section main_intro Introduction
-/// Welcome to the autodiff project.
+/// Welcome to the clad project.
 ///
 /// This documentation describes the @b internal software that makes 
-/// up autodiff, not the @b external use of autodiff. There are no instructions
-/// here on how to use autodiff, only the APIs that make up the software. For 
+/// up clad, not the @b external use of clad. There are no instructions
+/// here on how to use clad, only the APIs that make up the software. For 
 /// usage instructions, please see the programmer's guide or reference 
 /// manual.
 ///
 /// @section main_caveat Caveat 
 /// This documentation is generated directly from the source code with doxygen. 
-/// Since autodiff is constantly under active development, what you're about to
+/// Since clad is constantly under active development, what you're about to
 /// read is out of date!

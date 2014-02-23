@@ -1,6 +1,6 @@
-// RUN: %autodiff %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %clad %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
 // XFAIL:*
-#include "autodiff/Differentiator/Differentiator.h"
+#include "clad/Differentiator/Differentiator.h"
 
 // f(x) = | +x*x, x >= 0
 //        | -x*x, x < 0

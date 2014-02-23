@@ -23,27 +23,27 @@ endif
 endif
 
 # Make sure any extra test suites can find the main site config.
-LIT_ARGS := --param autodiff_site_config=$(PROJ_OBJ_DIR)/lit.site.cfg
+LIT_ARGS := --param clad_site_config=$(PROJ_OBJ_DIR)/lit.site.cfg
 
 ifdef VG
   LIT_ARGS += "--vg"
 endif
 
 all:: lit.site.cfg
-	@ echo '--- Running autodiff tests for $(TARGET_TRIPLE) ---'
+	@ echo '--- Running clad tests for $(TARGET_TRIPLE) ---'
 	@ $(PYTHON) $(LLVM_SRC_ROOT)/utils/lit/lit.py \
 	  $(LIT_ARGS) $(TESTARGS) $(TESTDIRS)
 
 FORCE:
 
 lit.site.cfg: FORCE
-	@echo "Making Autodiff 'lit.site.cfg' file..."
+	@echo "Making clad 'lit.site.cfg' file..."
 	@sed -e "s#@LLVM_SOURCE_DIR@#$(LLVM_SRC_ROOT)#g" \
 	     -e "s#@LLVM_BINARY_DIR@#$(LLVM_OBJ_ROOT)#g" \
 	     -e "s#@LLVM_TOOLS_DIR@#$(ToolDir)#g" \
 	     -e "s#@LLVM_LIBS_DIR@#$(LibDir)#g" \
-	     -e "s#@AUTODIFF_SOURCE_DIR@#$(PROJ_SRC_DIR)/..#g" \
-	     -e "s#@AUTODIFF_BINARY_DIR@#$(PROJ_OBJ_DIR)/..#g" \
+	     -e "s#@CLAD_SOURCE_DIR@#$(PROJ_SRC_DIR)/..#g" \
+	     -e "s#@CLAD_BINARY_DIR@#$(PROJ_OBJ_DIR)/..#g" \
 	     -e "s#@TARGET_TRIPLE@#$(TARGET_TRIPLE)#g" \
 	     -e "s#@TARGET_SHLIBEXT@#$(SHLIBEXT)#g" \
 	     $(PROJ_SRC_DIR)/lit.site.cfg.in > $@

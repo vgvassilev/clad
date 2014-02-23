@@ -1,10 +1,10 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#include "autodiff/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -48,7 +48,7 @@ namespace {
   };
 } // end namespace
 
-namespace autodiff {
+namespace clad {
   namespace plugin {
     
     bool fPrintSourceFn = false,  fPrintSourceAst = false,
@@ -56,14 +56,14 @@ namespace autodiff {
     // index of current function to derive in functionsToDerive
     size_t lastIndex = 0;
 
-    class AutoDiffPlugin : public ASTConsumer {
+    class CladPlugin : public ASTConsumer {
     private:
       DiffCollector m_Collector;
       clang::CompilerInstance& m_CI;
       llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
       clang::FunctionDecl* m_CurDerivative;
     public:
-      AutoDiffPlugin(CompilerInstance& CI) : m_CI(CI), m_CurDerivative(0) { }
+      CladPlugin(CompilerInstance& CI) : m_CI(CI), m_CurDerivative(0) { }
 
       virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
         
@@ -196,9 +196,9 @@ namespace autodiff {
       }
     };
   } // end namespace plugin
-} // end namespace autodiff
+} // end namespace clad
 
-using namespace autodiff::plugin;
+using namespace clad::plugin;
 // register the PluginASTAction in the registry.
-static FrontendPluginRegistry::Add<Action<AutoDiffPlugin> >
-X("ad","Produces derivatives or arbitrary functions");
+static FrontendPluginRegistry::Add<Action<CladPlugin> >
+X("clad","Produces derivatives or arbitrary functions");

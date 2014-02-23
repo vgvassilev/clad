@@ -1,11 +1,11 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#ifndef AUTODIFF_BUILTIN_DERIVATIVES
-#define AUTODIFF_BUILTIN_DERIVATIVES
+#ifndef CLAD_BUILTIN_DERIVATIVES
+#define CLAD_BUILTIN_DERIVATIVES
 
 //#include <cmath> TODO: libc++ and clang on MacOS is not ready yet.
 
@@ -34,4 +34,4 @@ namespace custom_derivatives {
   }
 } // end namespace builtin_derivatives
 
-#endif //AUTODIFF_BUILTIN_DERIVATIVES
+#endif //CLAD_BUILTIN_DERIVATIVES

@@ -35,9 +35,9 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
     make && make install
 ```
 4. Usage  
-  After a successful build libAutoDiff.so or libAutoDiff.dylib will be created
+  After a successful build libclad.so or libclad.dylib will be created
 in llvm's lib (inst/lib) directory. One can attach the plugin to clang invocation
 like this:
 
- clang -cc1 -x c++ -std=c++11 -load libAutoDiff.dylib -plugin clad -plugin-arg-clad -fprint-folded-fn -plugin-arg-clad -fprint-folded-fn-ast SourceFile.cpp  
+ clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -fprint-folded-fn -plugin-arg-clad -fprint-folded-fn-ast SourceFile.cpp  
 For more details see: http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf

@@ -1,11 +1,11 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id: ClangPlugin.cpp 7 2013-06-01 22:48:03Z v.g.vassilev@gmail.com $
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#include "autodiff/Differentiator/DerivativeBuilder.h"
-#include "autodiff/Differentiator/StmtClone.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -18,7 +18,7 @@
 
 using namespace clang;
 
-namespace autodiff {
+namespace clad {
   CompoundStmt* NodeContext::wrapInCompoundStmt(clang::ASTContext& C) const {
     assert(!isSingleStmt() && "Must be more than 1");
     llvm::ArrayRef<Stmt*> stmts
@@ -419,4 +419,4 @@ namespace autodiff {
     assert(0 && "We don't support overloaded operators yet!");
     return NodeContext(OpCall);
   }  
-} // end namespace autodiff
+} // end namespace clad

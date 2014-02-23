@@ -7,20 +7,20 @@
 #
 ##===----------------------------------------------------------------------===##
 
-AUTODIFF_LEVEL := ..
+CLAD_LEVEL := ..
 CLANG_LEVEL := ../../clang
-LIBRARYNAME := AutoDiff
+LIBRARYNAME := clad
 
-EXPORTED_SYMBOL_FILE = $(PROJ_SRC_DIR)/AutoDiff.exports
+EXPORTED_SYMBOL_FILE = $(PROJ_SRC_DIR)/clad.exports
 
 LINK_LIBS_IN_SHARED = 1
 #LOADABLE_MODULE := 1
 SHARED_LIBRARY = 1
 
-# Set common Autodiff build flags.
-CPP.Flags += -I$(PROJ_SRC_DIR)/$(AUTODIFF_LEVEL)/include -I$(PROJ_OBJ_DIR)/$(AUTODIFF_LEVEL)/include
-ifdef AUTODIFF_VENDOR
-CPP.Flags += -DAUTODIFF_VENDOR='"$(AUTODIFF_VENDOR) "'
+# Set common clad build flags.
+CPP.Flags += -I$(PROJ_SRC_DIR)/$(CLAD_LEVEL)/include -I$(PROJ_OBJ_DIR)/$(CLAD_LEVEL)/include
+ifdef CLAD_VENDOR
+CPP.Flags += -DCLAD_VENDOR='"$(CLAD_VENDOR) "'
 endif
 
 
@@ -28,7 +28,7 @@ include $(CLANG_LEVEL)/../../Makefile.config
 
 LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
 
-USEDLIBS := autodiffDifferentiator.a \
+USEDLIBS := cladDifferentiator.a \
 	    clangSerialization.a LLVMOption.a clangFrontend.a clangDriver.a \
             clangParse.a clangSema.a clangAST.a clangLex.a clangAnalysis.a \
 	    clangEdit.a clangBasic.a

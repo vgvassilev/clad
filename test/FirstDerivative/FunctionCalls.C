@@ -1,6 +1,6 @@
-// RUN: %autodiff %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %clad %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
-#include "autodiff/Differentiator/Differentiator.h"
+#include "clad/Differentiator/Differentiator.h"
 
 int printf(const char* fmt, ...); // expected-warning {{function printf was not differentiated because it is not declared in namespace custom_derivatives}}
 int no_body(int x); // expected-error {{attempted differention of function no_body, which does not have a definition}}

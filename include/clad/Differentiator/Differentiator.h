@@ -1,11 +1,11 @@
 //--------------------------------------------------------------------*- C++ -*-
-// AutoDiff - the C++ Clang-based Automatic Differentiator
+// clad - the C++ Clang-based Automatic Differentiator
 // version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#ifndef AUTODIFF_DIFFERENTIATOR
-#define AUTODIFF_DIFFERENTIATOR
+#ifndef CLAD_DIFFERENTIATOR
+#define CLAD_DIFFERENTIATOR
 // We might want to consider using one of C++11 features of std. For now I am 
 // sceptical, because they enforce extra conventions that we don't need. Moreover
 // by 1.05.2013 it seems that they are not supported on MacOS.
@@ -84,4 +84,4 @@ template<typename F, typename... Args, typename... A>
 Function<F, Args...> diff(F (*f)(Args...), A&&... a) {
   return Function<F, Args...>(f);
 }
-#endif // AUTODIFF_DIFFERENTIATOR
+#endif // CLAD_DIFFERENTIATOR

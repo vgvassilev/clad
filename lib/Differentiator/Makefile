@@ -1,4 +1,4 @@
-##===- autodiff/lib/Differentiator/Makefile-----------------*- Makefile -*-===##
+##===------clad/lib/Differentiator/Makefile-----------------*- Makefile -*-===##
 # 
 #                     The LLVM Compiler Infrastructure
 #
@@ -11,8 +11,8 @@
 #
 ##===----------------------------------------------------------------------===##
 
-AUTODIFF_LEVEL = ../..
-LIBRARYNAME := autodiffDifferentiator
+CLAD_LEVEL = ../..
+LIBRARYNAME := cladDifferentiator
 BUILD_ARCHIVE = 1
 CXXFLAGS = -fno-rtti
 
@@ -21,8 +21,8 @@ CPPFLAGS += -I$(PROJ_SRC_DIR)/../../include -I$(PROJ_SRC_DIR)/../../../clang/inc
 -I$(PROJ_SRC_DIR)/../../../clang/lib -I$(PROJ_OBJ_DIR)/../../include \
 -I$(PROJ_OBJ_DIR)/../../../clang/include \
 '-DCLANG_SYS_HEADERS="-I$(PROJ_SRC_DIR)../../../clang/lib/Headers"' \
-'-DAUTODIFF_INSTDIR_INCL="$(DESTDIR)$(PROJ_includedir)"' \
-'-DAUTODIFF_SRCDIR_INCL="$(LLVM_SRC_ROOT)/tools/autodiff/include"'
+'-DCLAD_INSTDIR_INCL="$(DESTDIR)$(PROJ_includedir)"' \
+'-DCLAD_SRCDIR_INCL="$(LLVM_SRC_ROOT)/tools/clad/include"'
 
-include $(AUTODIFF_LEVEL)/Makefile
+include $(CLAD_LEVEL)/Makefile
 
