@@ -7,6 +7,7 @@
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
 #include "clad/Differentiator/StmtClone.h"
+
 #include "llvm/ADT/SmallVector.h"
 
 using namespace clang;
@@ -65,7 +66,6 @@ DEFINE_CLONE_EXPR(CompoundAssignOperator, (Clone(Node->getLHS()), Clone(Node->ge
 DEFINE_CLONE_EXPR(ConditionalOperator, (Clone(Node->getCond()), Node->getQuestionLoc(), Clone(Node->getLHS()), Node->getColonLoc(), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
 DEFINE_CLONE_EXPR(AddrLabelExpr, (Node->getAmpAmpLoc(), Node->getLabelLoc(), Node->getLabel(), Node->getType()))
 DEFINE_CLONE_EXPR(StmtExpr, (Clone(Node->getSubStmt()), Node->getType(), Node->getLParenLoc(), Node->getRParenLoc()))
-DEFINE_CLONE_EXPR(BinaryTypeTraitExpr, (Node->getSourceRange().getBegin(), Node->getTrait(), Node->getLhsTypeSourceInfo(), Node->getRhsTypeSourceInfo(), Node->getValue(), Node->getSourceRange().getEnd(), Node->getType()))
 DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRParenLoc(), Node->isConditionTrue(), Node->isTypeDependent(), Node->isValueDependent()))
 DEFINE_CLONE_EXPR(GNUNullExpr, (Node->getType(), Node->getTokenLocation()))
 DEFINE_CLONE_EXPR(VAArgExpr, (Node->getBuiltinLoc(), Clone(Node->getSubExpr()), Node->getWrittenTypeInfo(), Node->getRParenLoc(), Node->getType()))
