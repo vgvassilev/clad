@@ -107,7 +107,6 @@ namespace utils {
     DECLARE_CLONE_FN(CXXConstructExpr)
     DECLARE_CLONE_FN(CXXTemporaryObjectExpr)
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
-    DECLARE_CLONE_FN(BinaryTypeTraitExpr)
     
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
