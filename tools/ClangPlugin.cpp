@@ -94,7 +94,7 @@ namespace clad {
             if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
               assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
               FunctionDecl* functionToDerive
-              = cast<FunctionDecl>(DRE->getDecl());
+                = cast<FunctionDecl>(DRE->getDecl());
               
               // if enabled, print source code of the original functions
               if (fPrintSourceFn) {
