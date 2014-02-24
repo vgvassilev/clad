@@ -117,7 +117,7 @@ namespace clad {
                   const uint64_t argNum = functionToDerive->getNumParams();
                   
                   if (*argIndex > argNum || *argIndex < 1)
-                    llvm::outs() << "plugin ad: Error: invalid argument index "
+                    llvm::outs() << "clad: Error: invalid argument index "
                     << *argIndex << " among " << argNum << " argument(s)\n";
                   else
                     if (ValueDecl* VD = dyn_cast<ValueDecl>
@@ -128,7 +128,7 @@ namespace clad {
                          = dyn_cast<DeclRefExpr>(diffCallExprs[i]->getArg(1)))
                   argVar = argDecl->getDecl();
                 else
-                  llvm::outs() << "plugin ad: Error: "
+                  llvm::outs() << "clad: Error: "
                   << "expected positions of independent variables\n";
                 //}
               
@@ -187,7 +187,7 @@ namespace clad {
             fPrintDerivedAst = true;
           }
           else {
-            llvm::outs() << "plugin ad: Error: invalid option "
+            llvm::outs() << "clad: Error: invalid option "
             << args[i] << "\n";
           }
         }
