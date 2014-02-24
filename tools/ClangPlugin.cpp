@@ -108,10 +108,10 @@ namespace clad {
               ValueDecl* argVar = 0;
               
               //const MaterializeTemporaryExpr* MTE;
-              //if (const Expr* argExpr =
-              //    diffCallExprs[i]->getArg(1)->findMaterializedTemporary(MTE)) {
-                if (const IntegerLiteral* argLiteral =
-                    dyn_cast<IntegerLiteral>(diffCallExprs[i]->getArg(1))) {
+              if (const MaterializeTemporaryExpr* tmpExpr
+                  = dyn_cast<MaterializeTemporaryExpr>(diffCallExprs[i]->getArg(1))) {
+                if (IntegerLiteral* argLiteral
+                    = dyn_cast<IntegerLiteral>(tmpExpr->GetTemporaryExpr())) {
                   
                   const uint64_t* argIndex =argLiteral->getValue().getRawData();
                   const uint64_t argNum = functionToDerive->getNumParams();
@@ -130,7 +130,7 @@ namespace clad {
                 else
                   llvm::outs() << "clad: Error: "
                   << "expected positions of independent variables\n";
-                //}
+              }
               
               if (argVar != 0) {
                 // derive the collected functions

@@ -141,7 +141,6 @@ namespace clad {
     Expr* retVal = cast<Expr>(Visit(clonedPE->getSubExpr()).getStmt());
     clonedPE->setSubExpr(retVal);
     return NodeContext(clonedPE);
-    
   }
   
   NodeContext DerivativeBuilder::VisitDeclRefExpr(DeclRefExpr* DRE) {
