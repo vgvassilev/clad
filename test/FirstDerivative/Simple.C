@@ -1,4 +1,4 @@
-// RUN: %clad %s -I%S/../../include -fsyntax-only 2>&1
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1
 
 #include "clad/Differentiator/Differentiator.h"
 
