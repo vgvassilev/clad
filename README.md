@@ -20,7 +20,6 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
  for code transformation, but also serves as a basis for the plugin.
 
 3. Building from source  
-
 ```
     svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
     cd src/tools
@@ -34,10 +33,34 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
     ../src/configure --prefix=../inst
     make && make install
 ```
+
 4. Usage  
-  After a successful build libclad.so or libclad.dylib will be created
+After a successful build libclad.so or libclad.dylib will be created
 in llvm's lib (inst/lib) directory. One can attach the plugin to clang invocation
 like this:
 
  clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -fprint-folded-fn -plugin-arg-clad -fprint-folded-fn-ast SourceFile.cpp  
 For more details see: http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf
+
+
+2. Founders  
+Founder of the project is Vassil Vassilev as part of his research interests and vision. He holds the exclusive copyright and other related rights, described in Copyright.txt.
+
+3. Contributors  
+We have quite a few contributors, whose contribution is described briefly in
+Credits.txt. If you don't find your name among the list of contributors, please
+contact us!
+
+4. License  
+clad is an open source project, licensed by GNU LESSER GENERAL PUBLIC 
+LICENSE (see License.txt). If there is module with different that LGPL license
+it will be explicitly stated in the License.txt in the module's source code 
+folder. 
+  Please see License.txt for further information.
+
+5. How to Contribute  
+As stated in 2. clad is an open source project. Like most of the open 
+source projects we constantly lack of manpower and contributions of any sort are
+very welcome. The best starting point is to download the source code and start
+playing with it. There are a lot of tests showing implicitly the available 
+functionality.
