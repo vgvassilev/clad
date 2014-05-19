@@ -47,7 +47,18 @@ namespace clad {
   
   FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar) {
     assert(FD && "Must not be null.");
-    independentVar = argVar;
+#ifndef NDEBUG
+    bool notInArgs = true;
+    for (unsigned i = 0; i < FD->getNumParams(); ++i)
+      if (argVar == FD->getParamDecl(i)) {
+        notInArgs = false;
+        break;
+      }
+    assert(!notInArgs && "Must pass in a param of the FD.");
+#endif
+
+    SourceLocation noLoc;
+    independentVar = argVar; // FIXME: Use only one var.
     
     if (!m_NodeCloner) {
       m_NodeCloner.reset(new utils::StmtClone(m_Context));
