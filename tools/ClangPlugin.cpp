@@ -113,38 +113,33 @@ namespace clad {
                 if (IntegerLiteral* argLiteral
                     = dyn_cast<IntegerLiteral>(tmpExpr->GetTemporaryExpr())) {
                   
-                  const uint64_t* argIndex =argLiteral->getValue().getRawData();
+                  const uint64_t argIndex
+                    = *argLiteral->getValue().getRawData();
                   const uint64_t argNum = functionToDerive->getNumParams();
-                  
-                  if (*argIndex > argNum || *argIndex < 1)
+                  if (argIndex > argNum || argIndex < 1) {
                     llvm::outs() << "clad: Error: invalid argument index "
-                    << *argIndex << " among " << argNum << " argument(s)\n";
-                  else
-                    if (ValueDecl* VD = dyn_cast<ValueDecl>
-                        (functionToDerive->getParamDecl(*argIndex - 1)))
-                      argVar = VD;
+                    << argIndex << " among " << argNum << " argument(s)\n";
+                    return false;
+                  }
+                  argVar = functionToDerive->getParamDecl(argIndex - 1);
                 }
-                else if (DeclRefExpr* argDecl
-                         = dyn_cast<DeclRefExpr>(diffCallExprs[i]->getArg(1)))
-                  argVar = argDecl->getDecl();
-                else
-                  llvm::outs() << "clad: Error: "
-                  << "expected positions of independent variables\n";
+              }
+              if (!argVar) {
+                // Print out error msg and exit.
+                return false; 
               }
               
-              if (argVar != 0) {
-                // derive the collected functions
-                Derivative
-                  = m_DerivativeBuilder->Derive(functionToDerive, argVar);
-                
-                // if enabled, print source code of the derived functions
-                if (fPrintDerivedFn) {
-                  Derivative->print(llvm::outs(), Policy);
-                }
-                // if enabled, print ASTs of the derived functions
-                if (fPrintDerivedAst) {
-                  Derivative->dumpColor();
-                }
+              // derive the collected functions
+              Derivative
+                = m_DerivativeBuilder->Derive(functionToDerive, argVar);
+              
+              // if enabled, print source code of the derived functions
+              if (fPrintDerivedFn) {
+                Derivative->print(llvm::outs(), Policy);
+              }
+              // if enabled, print ASTs of the derived functions
+              if (fPrintDerivedAst) {
+                Derivative->dumpColor();
               }
             }
           }
