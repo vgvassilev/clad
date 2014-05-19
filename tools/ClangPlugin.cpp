@@ -124,21 +124,11 @@ namespace clad {
                   argVar = functionToDerive->getParamDecl(argIndex - 1);
                 }
               }
+              if (!argVar) {
+                // Print out error msg and exit.
+                return false; 
               }
               
-              if (argVar != 0) {
-                // derive the collected functions
-                Derivative
-                  = m_DerivativeBuilder->Derive(functionToDerive, argVar);
-                
-                // if enabled, print source code of the derived functions
-                if (fPrintDerivedFn) {
-                  Derivative->print(llvm::outs(), Policy);
-                }
-                // if enabled, print ASTs of the derived functions
-                if (fPrintDerivedAst) {
-                  Derivative->dumpColor();
-                }
               // derive the collected functions
               Derivative
                 = m_DerivativeBuilder->Derive(functionToDerive, argVar);
