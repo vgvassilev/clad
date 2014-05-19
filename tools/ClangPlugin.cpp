@@ -123,12 +123,7 @@ namespace clad {
                   }
                   argVar = functionToDerive->getParamDecl(argIndex - 1);
                 }
-                else if (DeclRefExpr* argDecl
-                         = dyn_cast<DeclRefExpr>(diffCallExprs[i]->getArg(1)))
-                  argVar = argDecl->getDecl();
-                else
-                  llvm::outs() << "clad: Error: "
-                  << "expected positions of independent variables\n";
+              }
               }
               
               if (argVar != 0) {
@@ -144,6 +139,17 @@ namespace clad {
                 if (fPrintDerivedAst) {
                   Derivative->dumpColor();
                 }
+              // derive the collected functions
+              Derivative
+                = m_DerivativeBuilder->Derive(functionToDerive, argVar);
+              
+              // if enabled, print source code of the derived functions
+              if (fPrintDerivedFn) {
+                Derivative->print(llvm::outs(), Policy);
+              }
+              // if enabled, print ASTs of the derived functions
+              if (fPrintDerivedAst) {
+                Derivative->dumpColor();
               }
             }
           }
