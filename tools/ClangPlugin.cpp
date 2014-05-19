@@ -113,16 +113,15 @@ namespace clad {
                 if (IntegerLiteral* argLiteral
                     = dyn_cast<IntegerLiteral>(tmpExpr->GetTemporaryExpr())) {
                   
-                  const uint64_t* argIndex =argLiteral->getValue().getRawData();
+                  const uint64_t argIndex
+                    = *argLiteral->getValue().getRawData();
                   const uint64_t argNum = functionToDerive->getNumParams();
-                  
-                  if (*argIndex > argNum || *argIndex < 1)
+                  if (argIndex > argNum || argIndex < 1) {
                     llvm::outs() << "clad: Error: invalid argument index "
-                    << *argIndex << " among " << argNum << " argument(s)\n";
-                  else
-                    if (ValueDecl* VD = dyn_cast<ValueDecl>
-                        (functionToDerive->getParamDecl(*argIndex - 1)))
-                      argVar = VD;
+                    << argIndex << " among " << argNum << " argument(s)\n";
+                    return false;
+                  }
+                  argVar = functionToDerive->getParamDecl(argIndex - 1);
                 }
                 else if (DeclRefExpr* argDecl
                          = dyn_cast<DeclRefExpr>(diffCallExprs[i]->getArg(1)))
