@@ -116,38 +116,48 @@ namespace clad {
                   const uint64_t argIndex
                     = *argLiteral->getValue().getRawData();
                   const uint64_t argNum = functionToDerive->getNumParams();
+
                   if (argIndex > argNum || argIndex < 1) {
-                    llvm::outs() << "clad: Error: invalid argument index "
-                    << argIndex << " among " << argNum << " argument(s)\n";
-                    return false;
+                    DiagnosticsEngine& Diags = m_CI.getSema().Diags;
+                    unsigned DiagID
+                      = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                              "Invalid argument index %0 among %1 argument(s)");
+                    Diags.Report(diffCallExprs[i]->getLocStart(), DiagID)
+                      << (uint)argIndex
+                      << (uint)argNum;
                   }
-                  argVar = functionToDerive->getParamDecl(argIndex - 1);
+                  else
+                    argVar = functionToDerive->getParamDecl(argIndex - 1);
                 }
               }
               if (!argVar) {
-                // Print out error msg and exit.
-                return false; 
-              }
+                DiagnosticsEngine& Diags = m_CI.getSema().Diags;
+                    unsigned DiagID
+                      = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                              "Must be IntegerLiteral");
+                    Diags.Report(diffCallExprs[i]->getLocStart(), DiagID);
+              } else {
               
-              // derive the collected functions
-              Derivative
-                = m_DerivativeBuilder->Derive(functionToDerive, argVar);
+                // derive the collected functions
+                Derivative
+                  = m_DerivativeBuilder->Derive(functionToDerive, argVar);
               
-              // if enabled, print source code of the derived functions
-              if (fPrintDerivedFn) {
-                Derivative->print(llvm::outs(), Policy);
-              }
-              // if enabled, print ASTs of the derived functions
-              if (fPrintDerivedAst) {
-                Derivative->dumpColor();
+                // if enabled, print source code of the derived functions
+                if (fPrintDerivedFn) {
+                  Derivative->print(llvm::outs(), Policy);
+                }
+                // if enabled, print ASTs of the derived functions
+                if (fPrintDerivedAst) {
+                  Derivative->dumpColor();
+                }
               }
             }
-          }
-          lastIndex = i + 1;
-          if (Derivative) {
-            m_CurDerivative = Derivative;
-            m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
-            m_CurDerivative = 0;
+            lastIndex = i + 1;
+            if (Derivative) {
+              m_CurDerivative = Derivative;
+              m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+              m_CurDerivative = 0;
+            }
           }
         }
         return true; // Happiness
