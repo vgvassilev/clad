@@ -57,7 +57,6 @@ namespace clad {
     assert(!notInArgs && "Must pass in a param of the FD.");
 #endif
 
-    SourceLocation noLoc;
     independentVar = argVar; // FIXME: Use only one var.
     
     if (!m_NodeCloner) {
