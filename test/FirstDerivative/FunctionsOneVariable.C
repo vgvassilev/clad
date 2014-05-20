@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -14,9 +14,11 @@ int f_simple(int x) {
 
 int main () {
   int x = 4;
+  diff(f_simple, x); // expected-error {{Must be IntegerLiteral}}
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
-  diff(f_simple, x);
+  diff(f_simple, 2); // expected-error {{Invalid argument index 2 among 1 argument(s)}}
+  diff(f_simple, 1);
   
   //long y = 2;
   //diff(g, y);
