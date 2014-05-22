@@ -122,7 +122,7 @@ namespace clad {
                     unsigned DiagID
                       = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                               "Invalid argument index %0 among %1 argument(s)");
-                    Diags.Report(diffCallExprs[i]->getLocStart(), DiagID)
+                    Diags.Report(diffCallExprs[i]->getArg(1)->getLocStart(), DiagID)
                       << (uint)argIndex
                       << (uint)argNum;
                   }
