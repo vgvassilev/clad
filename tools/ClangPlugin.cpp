@@ -104,50 +104,57 @@ namespace clad {
               if (fPrintSourceAst) {
                 functionToDerive->dumpColor();
               }
-              
+
               ValueDecl* argVar = 0;
-              
               //const MaterializeTemporaryExpr* MTE;
-              if (const MaterializeTemporaryExpr* tmpExpr
-                  = dyn_cast<MaterializeTemporaryExpr>(diffCallExprs[i]->getArg(1))) {
-                if (IntegerLiteral* argLiteral
-                    = dyn_cast<IntegerLiteral>(tmpExpr->GetTemporaryExpr())) {
-                  
-                  const uint64_t argIndex
-                    = *argLiteral->getValue().getRawData();
-                  const uint64_t argNum = functionToDerive->getNumParams();
-                  if (argIndex > argNum || argIndex < 1) {
-                    llvm::outs() << "clad: Error: invalid argument index "
-                    << argIndex << " among " << argNum << " argument(s)\n";
-                    return false;
-                  }
+              bool isIndexOutOfRange = false;
+              llvm::APSInt result;
+              ASTContext& C = m_CI.getASTContext();
+              if (diffCallExprs[i]->getArg(1)->EvaluateAsInt(result, C)) {
+                const int64_t argIndex = result.getSExtValue();
+                const int64_t argNum = functionToDerive->getNumParams();
+                if (argIndex > argNum || argIndex < 1) {
+                  isIndexOutOfRange = true;
+                  DiagnosticsEngine& Diags = m_CI.getSema().Diags;
+                  unsigned DiagID
+                    = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                            "Invalid argument index %0 among %1 argument(s)");
+                  Diags.Report(diffCallExprs[i]->getArg(1)->getLocStart(), DiagID)
+                    << (int)argIndex
+                    << (int)argNum;
+                }
+                else
                   argVar = functionToDerive->getParamDecl(argIndex - 1);
+              }
+              else if (!isIndexOutOfRange){
+                DiagnosticsEngine& Diags = m_CI.getSema().Diags;
+                unsigned DiagID
+                  = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                          "Must be an integral value");
+                Diags.Report(diffCallExprs[i]->getArg(1)->getLocStart(), DiagID);
+              }
+
+              if (argVar) {
+                // derive the collected functions
+                Derivative
+                  = m_DerivativeBuilder->Derive(functionToDerive, argVar);
+
+                // if enabled, print source code of the derived functions
+                if (fPrintDerivedFn) {
+                  Derivative->print(llvm::outs(), Policy);
+                }
+                // if enabled, print ASTs of the derived functions
+                if (fPrintDerivedAst) {
+                  Derivative->dumpColor();
                 }
               }
-              if (!argVar) {
-                // Print out error msg and exit.
-                return false; 
-              }
-              
-              // derive the collected functions
-              Derivative
-                = m_DerivativeBuilder->Derive(functionToDerive, argVar);
-              
-              // if enabled, print source code of the derived functions
-              if (fPrintDerivedFn) {
-                Derivative->print(llvm::outs(), Policy);
-              }
-              // if enabled, print ASTs of the derived functions
-              if (fPrintDerivedAst) {
-                Derivative->dumpColor();
-              }
             }
-          }
-          lastIndex = i + 1;
-          if (Derivative) {
-            m_CurDerivative = Derivative;
-            m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
-            m_CurDerivative = 0;
+            lastIndex = i + 1;
+            if (Derivative) {
+              m_CurDerivative = Derivative;
+              m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+              m_CurDerivative = 0;
+            }
           }
         }
         return true; // Happiness

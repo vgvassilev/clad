@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -22,10 +22,6 @@ int f_2(int x, float y, int z) {
 // CHECK-NEXT: return ((1 * y + x * 0) * z + x * y * 0);
 // CHECK-NEXT: }
 
-// CHECK: int f_2_derived_x(int x, float y, int z) {
-// CHECK-NEXT: return ((1 * y + x * 0) * z + x * y * 0);
-// CHECK-NEXT: }
-
 // x * z
 // CHECK: int f_2_derived_y(int x, float y, int z) {
 // CHECK-NEXT: return ((0 * y + x * 1) * z + x * y * 0);
@@ -34,11 +30,6 @@ int f_2(int x, float y, int z) {
 // x * y
 // CHECK: int f_2_derived_z(int x, float y, int z) {
 // CHECK-NEXT: return ((0 * y + x * 0) * z + x * y * 1);
-// CHECK-NEXT: }
-
-// 0
-// CHECK: int f_2_derived_f_2(int x, float y, int z) {
-// CHECK-NEXT: return ((0 * y + x * 0) * z + x * y * 0)
 // CHECK-NEXT: }
 
 int f_3() {
@@ -51,26 +42,25 @@ int main () {
   int x = 4 * 5;
   diff(f_1, 1);
   
-  diff(f_2, x);
   diff(f_2, 1);
+
   diff(f_2, 2);
-  diff(f_2, 3);
-  
-  // hre f_2 is regarded as a variable name
-  diff(f_2, f_2);
-  
-  // invalid 2nd argument
-  diff(f_3, 1);
-  // CHECK: plugin ad: Error: invalid argument index 1 among 0 argument(s)
-  diff(f_2, -1);
-  // note that here "-" is regarded as a prefix
-  // CHECK: plugin ad: Error: expected positions of independent variables
-  diff(f_2, 0);
-  // CHECK: plugin ad: Error: invalid argument index 0 among 3 argument(s)
-  diff(f_2, 4);
-  // CHECK: plugin ad: Error: invalid argument index 4 among 3 argument(s)
-  diff(f_2, 10);
-  // CHECK: plugin ad: Error: invalid argument index 10 among 3 argument(s)
+
+  diff(f_2, 3); 
+
+  diff(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
+
+  diff(f_2, 0); // expected-error {{Invalid argument index 0 among 3 argument(s)}}
+
+  diff(f_2, 4); // expected-error {{Invalid argument index 4 among 3 argument(s)}}
+
+  diff(f_2, 10); // expected-error {{Invalid argument index 10 among 3 argument(s)}}
+
+  diff(f_2, x); // expected-error {{Must be an integral value}}
+
+  diff(f_2, f_2); // expected-error {{Must be an integral value}}
+
+  diff(f_3, 1); // expected-error {{Invalid argument index 1 among 0 argument(s)}}
 
   // TODO: this causes seg fault:
   //  float one = 1.0;
