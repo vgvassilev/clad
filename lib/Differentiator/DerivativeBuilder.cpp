@@ -281,7 +281,19 @@ namespace clad {
         << FD->getNameAsString();
         return NodeContext(CE);
       }
-      FunctionDecl* derivedFD = Derive(mostRecentFD, independentVar);
+
+      ValueDecl* oldIndependentVar = m_IndependentVar;
+      FunctionDecl* derivedFD;
+      unsigned index;
+      for (index = 0; index < m_DerivedFD->getNumParams(); ++index) {
+        if (m_DerivedFD->getParamDecl(index) == oldIndependentVar)
+          break;
+      }
+      assert(index <= m_DerivedFD->getNumParams() && "Not found");
+      m_IndependentVar = mostRecentFD->getParamDecl(index - 1);
+      if (mostRecentFD->getNumParams() > 0)
+        derivedFD = Derive(mostRecentFD, m_IndependentVar);
+      m_IndependentVar = oldIndependentVar;
 //      derivedFD->dumpColor();
       // Update function name in the source.
       R.clear();
