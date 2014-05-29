@@ -83,11 +83,11 @@ float test_5(int x) {
 
 int main () {
   int x = 4;
-  diff(test_1, x);
-  diff(test_2, x);
-  diff(test_3, x);
-  diff(test_4, x);
-  diff(test_5, x);
-  
+  diff(test_1, 1);
+  diff(test_2, 1);
+  diff(test_3, 1); // expected-warning {{Trying to differentiate function test_3 taking no arguments}}
+  diff(test_4, 1); // expected-warning {{Trying to differentiate function test_4 taking no arguments}}
+  diff(test_5, 1);
+
   return 0;
 }
