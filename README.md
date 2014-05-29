@@ -21,9 +21,9 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
 
 3. Building from source  
   ```
-    svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
+    svn checkout http://llvm.org/svn/llvm-project/llvm/trunk -r`cat LastKnownGoodLLVMRevision.txt` src
     cd src/tools
-    svn checkout http://llvm.org/svn/llvm-project/cfe/trunk clang
+    svn checkout http://llvm.org/svn/llvm-project/cfe/trunk -r`cat LastKnownGoodLLVMRevision.txt` clang
     git clone https://github.com/vgvassilev/clad.git clad
     cd ../
     cat patches tools/clad/patches/*.diff | patch -p0
