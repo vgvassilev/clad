@@ -95,7 +95,7 @@ namespace clad {
               assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
               FunctionDecl* functionToDerive
                 = cast<FunctionDecl>(DRE->getDecl());
-              
+
               // if enabled, print source code of the original functions
               if (fPrintSourceFn) {
                 functionToDerive->print(llvm::outs(), Policy);
@@ -113,7 +113,17 @@ namespace clad {
               if (diffCallExprs[i]->getArg(1)->EvaluateAsInt(result, C)) {
                 const int64_t argIndex = result.getSExtValue();
                 const int64_t argNum = functionToDerive->getNumParams();
-                if (argIndex > argNum || argIndex < 1) {
+                //TODO: Implement the argument checks in the DerivativeBuilder
+                if (argNum == 0) {
+                  DiagnosticsEngine& Diags = m_CI.getSema().Diags;
+                  unsigned DiagID
+                    = Diags.getCustomDiagID(DiagnosticsEngine::Warning,
+                                             "Trying to differentiate function '%0' taking no arguments");
+                  Diags.Report(diffCallExprs[i]->getLocStart(), DiagID)
+                    << functionToDerive->getNameAsString();
+                }
+                //if arg is int but do not exists print error
+                else if (argIndex > argNum || argIndex < 1) {
                   isIndexOutOfRange = true;
                   DiagnosticsEngine& Diags = m_CI.getSema().Diags;
                   unsigned DiagID
