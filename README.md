@@ -20,7 +20,7 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
  for code transformation, but also serves as a basis for the plugin.
 
 3. Building from source  
-```
+  ```
     svn checkout http://llvm.org/svn/llvm-project/llvm/trunk src
     cd src/tools
     svn checkout http://llvm.org/svn/llvm-project/cfe/trunk clang
@@ -32,7 +32,7 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
     cd obj
     ../src/configure --prefix=../inst
     make && make install
-```
+  ```
 
 4. Usage  
 After a successful build libclad.so or libclad.dylib will be created
@@ -40,8 +40,9 @@ in llvm's lib (inst/lib) directory. One can attach the plugin to clang invocatio
 like this:
 
  clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -fprint-folded-fn -plugin-arg-clad -fprint-folded-fn-ast SourceFile.cpp  
-For more details see: http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf
-
+For more details see:  
+http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf  
+http://prezi.com/g1iggppw76wl/autodiff/  
 
 2. Founders  
 Founder of the project is Vassil Vassilev as part of his research interests and vision. He holds the exclusive copyright and other related rights, described in Copyright.txt.
