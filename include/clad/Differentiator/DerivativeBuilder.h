@@ -70,8 +70,8 @@ namespace clad {
   private:
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
-    clang::FunctionDecl* derivedFD;
-    clang::ValueDecl* independentVar;
+    clang::FunctionDecl* m_DerivedFD;
+    clang::ValueDecl* m_IndependentVar;
     llvm::OwningPtr<clang::Scope> m_CurScope;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;

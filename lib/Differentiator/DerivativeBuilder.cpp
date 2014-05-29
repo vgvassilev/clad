@@ -28,7 +28,8 @@ namespace clad {
   }
   
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
-    : m_Sema(S), m_Context(S.getASTContext()) {
+     : m_Sema(S), m_Context(S.getASTContext()), m_DerivedFD(0),
+       m_IndependentVar(0) {
     m_NodeCloner.reset(new utils::StmtClone(m_Context));
     // Find the builtin derivatives namespace
     DeclarationName Name = &m_Context.Idents.get("custom_derivatives");
@@ -38,9 +39,6 @@ namespace clad {
                                /*allowBuiltinCreation*/ false);
     assert(!R.empty() && "Cannot find builtin derivatives!");
     m_BuiltinDerivativesNSD = cast<NamespaceDecl>(R.getFoundDecl());
-    // Initialize pointers.
-    derivedFD = 0;
-    independentVar = 0;
   }
 
   DerivativeBuilder::~DerivativeBuilder() {}
@@ -57,7 +55,7 @@ namespace clad {
     assert(!notInArgs && "Must pass in a param of the FD.");
 #endif
 
-    independentVar = argVar; // FIXME: Use only one var.
+    m_IndependentVar = argVar; // FIXME: Use only one var.
     
     if (!m_NodeCloner) {
       m_NodeCloner.reset(new utils::StmtClone(m_Context));
@@ -66,17 +64,17 @@ namespace clad {
     SourceLocation noLoc;
     IdentifierInfo* II
       = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
-                             independentVar->getNameAsString());
+                             m_IndependentVar->getNameAsString());
     DeclarationName name(II);
-    derivedFD = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc, 
-                                     noLoc, name, FD->getType(), 
-                                     FD->getTypeSourceInfo(),
-                                     FD->getStorageClass(),
-                                     /*default*/
-                                     FD->isInlineSpecified(),
-                                     FD->hasWrittenPrototype(),
-                                     FD->isConstexpr()
-                                     );
+    m_DerivedFD = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc,
+                                       noLoc, name, FD->getType(),
+                                       FD->getTypeSourceInfo(),
+                                       FD->getStorageClass(),
+                                       /*default*/
+                                       FD->isInlineSpecified(),
+                                       FD->hasWrittenPrototype(),
+                                       FD->isConstexpr()
+                                       );
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
@@ -88,7 +86,7 @@ namespace clad {
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
-      newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
+      newPVD = ParmVarDecl::Create(m_Context, m_DerivedFD, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
@@ -102,17 +100,17 @@ namespace clad {
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
-    derivedFD->setParams(paramsRef);
-    derivedFD->setBody(0);
+    m_DerivedFD->setParams(paramsRef);
+    m_DerivedFD->setBody(0);
 
     // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
-    Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
+    Sema::SynthesizedFunctionScope Scope(m_Sema, m_DerivedFD);
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
 
-    derivedFD->setBody(derivativeBody);
+    m_DerivedFD->setBody(derivativeBody);
     // Cleanup the IdResolver chain.
-    for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
-        E = derivedFD->param_end(); I != E; ++I) {
+    for(FunctionDecl::param_iterator I = m_DerivedFD->param_begin(),
+        E = m_DerivedFD->param_end(); I != E; ++I) {
       if ((*I)->getIdentifier()) {
         m_CurScope->RemoveDecl(*I);
         //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
@@ -120,7 +118,7 @@ namespace clad {
       
     }
     
-    return derivedFD;
+    return m_DerivedFD;
   }
   
   NodeContext DerivativeBuilder::VisitStmt(Stmt* S) {
@@ -157,7 +155,7 @@ namespace clad {
     DeclRefExpr* clonedDRE = m_NodeCloner->Clone(DRE);
     SourceLocation noLoc;
     if (clonedDRE->getDecl()->getNameAsString() ==
-        independentVar->getNameAsString()) {
+        m_IndependentVar->getNameAsString()) {
       llvm::APInt one(m_Context.getIntWidth(m_Context.IntTy), /*value*/1);
       IntegerLiteral* constant1 = IntegerLiteral::Create(m_Context, one,
                                                          m_Context.IntTy,
@@ -245,7 +243,7 @@ namespace clad {
     // Find the built-in derivatives namespace.
     IdentifierInfo* II
     = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                            "_derived_" + independentVar->getNameAsString());
+                            "_derived_" + m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
