@@ -66,15 +66,16 @@ namespace clad {
       = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
                              m_IndependentVar->getNameAsString());
     DeclarationName name(II);
-    m_DerivedFD = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc,
-                                       noLoc, name, FD->getType(),
-                                       FD->getTypeSourceInfo(),
-                                       FD->getStorageClass(),
-                                       /*default*/
-                                       FD->isInlineSpecified(),
-                                       FD->hasWrittenPrototype(),
-                                       FD->isConstexpr()
-                                       );
+    FunctionDecl* derivedFD = FunctionDecl::Create(m_Context,
+                                                   FD->getDeclContext(), noLoc,
+                                                   noLoc, name, FD->getType(),
+                                                   FD->getTypeSourceInfo(),
+                                                   FD->getStorageClass(),
+                                                   /*default*/
+                                                   FD->isInlineSpecified(),
+                                                   FD->hasWrittenPrototype(),
+                                                   FD->isConstexpr()
+                                                   );
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
@@ -86,7 +87,7 @@ namespace clad {
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
-      newPVD = ParmVarDecl::Create(m_Context, m_DerivedFD, noLoc, noLoc,
+      newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
@@ -100,31 +101,33 @@ namespace clad {
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
-    m_DerivedFD->setParams(paramsRef);
-    m_DerivedFD->setBody(0);
+    derivedFD->setParams(paramsRef);
+    derivedFD->setBody(0);
 
     // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
-    Sema::SynthesizedFunctionScope Scope(m_Sema, m_DerivedFD);
+    Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
+    FunctionDecl* oldDerivedFD = m_DerivedFD;
+    m_DerivedFD = derivedFD;
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
+    m_DerivedFD = oldDerivedFD;
 
-    m_DerivedFD->setBody(derivativeBody);
+    derivedFD->setBody(derivativeBody);
     // Cleanup the IdResolver chain.
-    for(FunctionDecl::param_iterator I = m_DerivedFD->param_begin(),
-        E = m_DerivedFD->param_end(); I != E; ++I) {
+    for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
+        E = derivedFD->param_end(); I != E; ++I) {
       if ((*I)->getIdentifier()) {
         m_CurScope->RemoveDecl(*I);
         //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
       }
-      
     }
-    
-    return m_DerivedFD;
+
+    return derivedFD;
   }
-  
+
   NodeContext DerivativeBuilder::VisitStmt(Stmt* S) {
     return NodeContext(m_NodeCloner->Clone(S));
   }
-  
+
   NodeContext DerivativeBuilder::VisitCompoundStmt(CompoundStmt* CS) {
     llvm::SmallVector<Stmt*, 16> stmts;
     for (CompoundStmt::body_iterator I = CS->body_begin(), E = CS->body_end();
