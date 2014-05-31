@@ -42,7 +42,7 @@ namespace clad {
   }
 
   DerivativeBuilder::~DerivativeBuilder() {}
-  
+
   FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar) {
     assert(FD && "Must not be null.");
 #ifndef NDEBUG
@@ -54,6 +54,7 @@ namespace clad {
       }
     assert(!notInArgs && "Must pass in a param of the FD.");
 #endif
+
 
     m_IndependentVar = argVar; // FIXME: Use only one var.
     
@@ -138,7 +139,15 @@ namespace clad {
     SourceLocation noLoc;
     return new (m_Context) CompoundStmt(m_Context, stmtsRef, noLoc, noLoc);
   }
-  
+
+  NodeContext DerivativeBuilder::VisitIfStmt(IfStmt* If) {
+    IfStmt* clonedIf = m_NodeCloner->Clone(If);
+    clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
+    if (clonedIf->getElse())
+      clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
+    return NodeContext(clonedIf);
+  }
+
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
     ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
     Expr* retVal
