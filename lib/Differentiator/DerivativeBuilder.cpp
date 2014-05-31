@@ -380,42 +380,39 @@ namespace clad {
     BinaryOperatorKind opCode = BinOp->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
       SourceLocation noLoc;
-      QualType qType = BinOp->getType();
-      ExprValueKind VK = BinOp->getValueKind();
-      ExprObjectKind OK = BinOp->getObjectKind();
-      bool fpContractable = BinOp->isFPContractable();
 
-      BinaryOperator* newBO_Mul_left
-        = new (m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
-                                         qType, VK, OK, noLoc, fpContractable);
-      BinaryOperator* newBO_Mul_Right
-        = new (m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
-                                         qType, VK, OK, noLoc, fpContractable);
+      Expr* newBO_Mul_left
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, rhs).get();
+
+      Expr* newBO_Mul_Right
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs, rhs_derived).get();
+
 
       SourceLocation L, R;
       if (opCode == BO_Mul) {
-        BinaryOperator* newBO_Add
-          = new (m_Context) BinaryOperator(newBO_Mul_left, newBO_Mul_Right,
-                                           BO_Add, qType, VK, OK, noLoc,
-                                           fpContractable);
-        // enforce precedence for addition
-        ParenExpr* PE = new (m_Context) ParenExpr(L, R, newBO_Add);
+        Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add,
+                                            newBO_Mul_left,
+                                            newBO_Mul_Right).get();
+
+
+        Expr* PE = m_Sema.ActOnParenExpr(L, R, newBO_Add).get();
         return NodeContext(PE);
       }
       else {
-        BinaryOperator* newBO_Sub
-          = new (m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Sub,
-                                           qType, VK, OK, noLoc, fpContractable);
-        BinaryOperator* newBO_Mul_denom
-          = new (m_Context) BinaryOperator(rhs, rhs, BO_Mul,
-                                           qType, VK, OK, noLoc, fpContractable);
-        SourceLocation L, R;
-        ParenExpr* PE_lhs = new (m_Context) ParenExpr(L, R, newBO_Sub);
-        ParenExpr* PE_rhs = new (m_Context) ParenExpr(L, R, newBO_Mul_denom);
+        Expr* newBO_Sub = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Sub,
+                                            newBO_Mul_left,
+                                            newBO_Mul_Right).get();
 
-        BinaryOperator* newBO_Div
-        = new (m_Context) BinaryOperator(PE_lhs, PE_rhs, BO_Div,
-                                         qType, VK, OK, noLoc, fpContractable);
+        Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
+                                                  rhs, rhs).get();
+
+        SourceLocation L, R;
+        Expr* PE_lhs = m_Sema.ActOnParenExpr(L, R, newBO_Sub).get();
+        Expr* PE_rhs = m_Sema.ActOnParenExpr(L, R, newBO_Mul_denom).get();
+
+        Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
+                                            PE_lhs, PE_rhs).get();
+
         return NodeContext(newBO_Div);
       }
     }
@@ -425,7 +422,7 @@ namespace clad {
 
       BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
-      BinOp->setRHS(new (m_Context) ParenExpr(L, R, rhs_derived));
+      BinOp->setRHS(m_Sema.ActOnParenExpr(L, R, rhs_derived).get());
 
       return NodeContext(BinOp);
     }
