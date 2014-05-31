@@ -281,26 +281,28 @@ namespace clad {
       if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
         SourceLocation IdentifierLoc = FD->getLocEnd();
         m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
-        << FD->getNameAsString();
+          << FD->getNameAsString();
         return NodeContext(CE);
       }
 
-      ValueDecl* oldIndependentVar = m_IndependentVar;
-      FunctionDecl* derivedFD;
-      unsigned index;
-      for (index = 0; index < m_DerivedFD->getNumParams(); ++index) {
-        if (m_DerivedFD->getParamDecl(index) == oldIndependentVar)
-          break;
+      if (m_DerivedFD) { // If recursively deriving. FIXME: 
+        ValueDecl* oldIndependentVar = m_IndependentVar;
+        unsigned index;
+        for (index = 0; index < m_DerivedFD->getNumParams(); ++index) {
+          if (m_DerivedFD->getParamDecl(index) == oldIndependentVar)
+            break;
+        }
+        assert(index <= m_DerivedFD->getNumParams() && "Not found");
+        m_IndependentVar = mostRecentFD->getParamDecl(index - 1);
+        FunctionDecl* derivedFD = 0;
+        if (mostRecentFD->getNumParams() > 0)
+          derivedFD = Derive(mostRecentFD, m_IndependentVar);
+        m_IndependentVar = oldIndependentVar;
+        R.clear();
+        R.addDecl(derivedFD);
+        //      derivedFD->dumpColor();
       }
-      assert(index <= m_DerivedFD->getNumParams() && "Not found");
-      m_IndependentVar = mostRecentFD->getParamDecl(index - 1);
-      if (mostRecentFD->getNumParams() > 0)
-        derivedFD = Derive(mostRecentFD, m_IndependentVar);
-      m_IndependentVar = oldIndependentVar;
-//      derivedFD->dumpColor();
       // Update function name in the source.
-      R.clear();
-      R.addDecl(derivedFD);
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
