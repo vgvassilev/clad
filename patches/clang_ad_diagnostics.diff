@@ -8,10 +8,10 @@ Index: tools/clang/include/clang/Basic/DiagnosticSemaKinds.td
  
 +// Automatic Differentiation
 +def err_differentiating_undefined_function : Error<
-+  "attempted differention of function %0, which does not have a definition">;
++  "attempted differention of function '%0', which does not have a definition">;
 +def warn_function_not_declared_in_custom_derivatives : Warning<
-+  "function %0 was not differentiated because it is not declared in "
-+  "namespace custom_derivatives">;
++  "function '%0' was not differentiated because it is not declared in "
++  "namespace 'custom_derivatives'">;
 +
  // Constant expressions
  def err_expr_not_ice : Error<
