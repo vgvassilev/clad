@@ -369,14 +369,14 @@ namespace clad {
     up.TraverseStmt(InSubtree);
     return InSubtree;
   }
-  
+
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
     Expr* rhs = updateReferencesOf(BinOp->getRHS());
     Expr* lhs = updateReferencesOf(BinOp->getLHS());
-    
+
     Expr* lhs_derived = cast<Expr>((Visit(lhs->IgnoreImpCasts())).getStmt());
     Expr* rhs_derived = cast<Expr>((Visit(rhs->IgnoreImpCasts())).getStmt());
-    
+
     BinaryOperatorKind opCode = BinOp->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
       SourceLocation noLoc;
@@ -384,19 +384,19 @@ namespace clad {
       ExprValueKind VK = BinOp->getValueKind();
       ExprObjectKind OK = BinOp->getObjectKind();
       bool fpContractable = BinOp->isFPContractable();
-      
+
       BinaryOperator* newBO_Mul_left
-      = new (m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
-                                       qType, VK, OK, noLoc, fpContractable);
+        = new (m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
+                                         qType, VK, OK, noLoc, fpContractable);
       BinaryOperator* newBO_Mul_Right
-      = new (m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
-                                       qType, VK, OK, noLoc, fpContractable);
-      
+        = new (m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
+                                         qType, VK, OK, noLoc, fpContractable);
+
       SourceLocation L, R;
       if (opCode == BO_Mul) {
         BinaryOperator* newBO_Add
           = new (m_Context) BinaryOperator(newBO_Mul_left, newBO_Mul_Right,
-                                           BO_Add, qType, VK, OK, noLoc, 
+                                           BO_Add, qType, VK, OK, noLoc,
                                            fpContractable);
         // enforce precedence for addition
         ParenExpr* PE = new (m_Context) ParenExpr(L, R, newBO_Add);
@@ -405,34 +405,34 @@ namespace clad {
       else {
         BinaryOperator* newBO_Sub
           = new (m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Sub,
-                                         qType, VK, OK, noLoc, fpContractable);
+                                           qType, VK, OK, noLoc, fpContractable);
         BinaryOperator* newBO_Mul_denom
           = new (m_Context) BinaryOperator(rhs, rhs, BO_Mul,
                                            qType, VK, OK, noLoc, fpContractable);
         SourceLocation L, R;
         ParenExpr* PE_lhs = new (m_Context) ParenExpr(L, R, newBO_Sub);
         ParenExpr* PE_rhs = new (m_Context) ParenExpr(L, R, newBO_Mul_denom);
-        
+
         BinaryOperator* newBO_Div
         = new (m_Context) BinaryOperator(PE_lhs, PE_rhs, BO_Div,
                                          qType, VK, OK, noLoc, fpContractable);
         return NodeContext(newBO_Div);
       }
     }
-    
+
     if (opCode == BO_Add || opCode == BO_Sub) {
       SourceLocation L, R;
-      
+
       BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
       BinOp->setRHS(new (m_Context) ParenExpr(L, R, rhs_derived));
-      
+
       return NodeContext(BinOp);
     }
-    
+
     return NodeContext(BinOp);
   }
-  
+
   NodeContext DerivativeBuilder::VisitDeclStmt(DeclStmt* DS) {
     DeclStmt* clonedDS = m_NodeCloner->Clone(DS);
     // Iterate through the declaration(s) contained in DS.
