@@ -8,8 +8,17 @@ int f_simple(int x) {
   //  printf("This is f(x).\n");
   return x*x;
 }
+
 // CHECK: int f_simple_derived_x(int x) {
 // CHECK-NEXT: return (1 * x + x * 1);
+// CHECK-NEXT: }
+
+int f_simple_negative(int x) {
+  //  printf("This is f(x).\n");
+  return -x*x;
+}
+// CHECK: int f_simple_negative_derived_x(int x) {
+// CHECK-NEXT: return (-1 * x + -x * 1);
 // CHECK-NEXT: }
 
 int main () {
@@ -20,6 +29,7 @@ int main () {
   diff(f_simple, 2); // expected-error {{Invalid argument index 2 among 1 argument(s)}}
   diff(f_simple, -1); // expected-error {{Invalid argument index -1 among 1 argument(s)}}
   diff(f_simple, 1);
+  diff(f_simple_negative, 1);
 
   return 0;
 }

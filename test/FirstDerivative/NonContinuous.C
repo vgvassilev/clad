@@ -14,8 +14,8 @@ int f(int x) {
 }
 // CHECK: int f_derived_x(int x) {
 // CHECK-NEXT: if (x < 0)
-// CHECK-NEXT:   return -2 * x;
-// CHECK-NEXT: return 2 * x;
+// CHECK-NEXT:   return (-1 * x + -x * 1);
+// CHECK-NEXT: return (1 * x + x * 1);
 // CHECK-NEXT: }
 
 // Semantically equivallent to f(x), but implemented differently.
@@ -27,9 +27,9 @@ int f1(int x) {
 }
 // CHECK: int f1_derived_x(int x) {
 // CHECK-NEXT: if (x < 0)
-// CHECK-NEXT:   return -2 * x;
+// CHECK-NEXT:   return (-1 * x + -x * 1);
 // CHECK-NEXT: else
-// CHECK-NEXT:   return 2 * x;
+// CHECK-NEXT:   return (1 * x + x * 1);
 // CHECK-NEXT: }
 
 int f2(int x) {

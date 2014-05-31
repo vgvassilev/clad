@@ -150,8 +150,7 @@ namespace clad {
 
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
     ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal
-      = cast<Expr>(Visit(clonedStmt->getRetValue()->IgnoreImpCasts()).getStmt());
+    Expr* retVal = Visit(clonedStmt->getRetValue()->IgnoreImpCasts()).getExpr();
     clonedStmt->setRetValue(retVal);
     return NodeContext(clonedStmt);
   }
@@ -368,6 +367,12 @@ namespace clad {
     Updater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
     up.TraverseStmt(InSubtree);
     return InSubtree;
+  }
+
+  NodeContext DerivativeBuilder::VisitUnaryOperator(UnaryOperator* UnOp) {
+    UnaryOperator* clonedUnOp = m_NodeCloner->Clone(UnOp);
+    clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()->IgnoreImpCasts()).getExpr());
+    return NodeContext(clonedUnOp);
   }
 
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
