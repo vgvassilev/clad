@@ -60,15 +60,13 @@ float test_3() {
   return custom_fn();
 }
 
-// CHECK: float test_3_derived_x() {
-// CHECK-NEXT: return custom_fn_derived_x();
-// CHECK-NEXT: }
+// CHECK-NOT: float test_3_derived_x() {
 
 float test_4(int x) {
   return overloaded();
 }
 
-// CHECK: float test_4_derived_x() {
+// CHECK: float test_4_derived_x(int x) {
 // CHECK-NEXT: return overloaded();
 // CHECK-NEXT: }
 
