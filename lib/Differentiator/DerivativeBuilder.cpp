@@ -204,7 +204,8 @@ namespace clad {
         if (isa<UnresolvedLookupExpr>(ovl)) {
           ExprResult result;
           SourceLocation Loc;
-          OverloadCandidateSet CandidateSet(Loc);
+          OverloadCandidateSet CandidateSet(Loc,
+                                            OverloadCandidateSet::CSK_Normal);
           Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
           UnresolvedLookupExpr *ULE = cast<UnresolvedLookupExpr>(ovl);
           // Populate CandidateSet.
@@ -232,10 +233,10 @@ namespace clad {
     if (!R.empty()) {
       CXXScopeSpec CSS;
       Expr* UnresolvedLookup
-      = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
+        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
 
       llvm::MutableArrayRef<Expr*> MARargs
-      = llvm::MutableArrayRef<Expr*>(CallArgs);
+        = llvm::MutableArrayRef<Expr*>(CallArgs);
             
       SourceLocation Loc;
       Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
@@ -245,7 +246,7 @@ namespace clad {
       }
       
       OverloadedFn = m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc,
-                                          MARargs, Loc).take();
+                                          MARargs, Loc).get();
     }
     return OverloadedFn;
   }
@@ -313,7 +314,7 @@ namespace clad {
       // Update function name in the source.
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
-        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
+        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
       CallExpr* clonedCE = m_NodeCloner->Clone(CE);
       clonedCE->setCallee(ResolvedLookup);
       return NodeContext(clonedCE);
