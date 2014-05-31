@@ -300,7 +300,7 @@ namespace clad {
       R.addDecl(derivedFD);
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
-      = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
+        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).take();
       CallExpr* clonedCE = m_NodeCloner->Clone(CE);
       clonedCE->setCallee(ResolvedLookup);
       return NodeContext(clonedCE);
@@ -309,7 +309,7 @@ namespace clad {
     // Function was not derived => issue a warning.
     SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
     m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
-    << CE->getDirectCallee()->getNameAsString();
+      << CE->getDirectCallee()->getNameAsString();
     return NodeContext(CE);
   }
 
