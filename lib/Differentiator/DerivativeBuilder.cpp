@@ -245,8 +245,8 @@ namespace clad {
   NodeContext DerivativeBuilder::VisitCallExpr(CallExpr* CE) {
     // Find the built-in derivatives namespace.
     IdentifierInfo* II
-    = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                            "_derived_" + m_IndependentVar->getNameAsString());
+      = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
+                              "_derived_" + m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
