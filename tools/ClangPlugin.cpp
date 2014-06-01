@@ -117,7 +117,7 @@ namespace clad {
                 if (argNum == 0) {
                   DiagnosticsEngine& Diags = m_CI.getSema().Diags;
                   unsigned DiagID
-                    = Diags.getCustomDiagID(DiagnosticsEngine::Warning,
+                    = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                                              "Trying to differentiate function '%0' taking no arguments");
                   Diags.Report(diffCallExprs[i]->getLocStart(), DiagID)
                     << functionToDerive->getNameAsString();

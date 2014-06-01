@@ -60,11 +60,10 @@ int main () {
 
   diff(f_2, f_2); // expected-error {{Must be an integral value}}
 
-  diff(f_3, 1); // expected-warning {{Trying to differentiate function 'f_3' taking no arguments}}
+  diff(f_3, 1); // expected-error {{Trying to differentiate function 'f_3' taking no arguments}}
 
-  // TODO: this causes seg fault:
-  //  float one = 1.0;
-  //  diff(f_2, one);
-  
+  float one = 1.0;
+  diff(f_2, one); // expected-error {{Must be an integral value}}
+
   return 0;
 }

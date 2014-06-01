@@ -95,7 +95,9 @@ namespace clad {
                                       clang::ValueDecl* argVar);    
     NodeContext VisitStmt(clang::Stmt* S);
     NodeContext VisitCompoundStmt(clang::CompoundStmt* CS);
+    NodeContext VisitIfStmt(clang::IfStmt* If);
     NodeContext VisitReturnStmt(clang::ReturnStmt* RS);
+    NodeContext VisitUnaryOperator(clang::UnaryOperator* UnOp);
     NodeContext VisitBinaryOperator(clang::BinaryOperator* BinOp);
     NodeContext VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr* OpCall);
     NodeContext VisitDeclRefExpr(clang::DeclRefExpr* DRE);
