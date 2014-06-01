@@ -42,7 +42,7 @@ namespace clad {
   }
 
   DerivativeBuilder::~DerivativeBuilder() {}
-  
+
   FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar) {
     assert(FD && "Must not be null.");
 #ifndef NDEBUG
@@ -55,6 +55,7 @@ namespace clad {
     assert(!notInArgs && "Must pass in a param of the FD.");
 #endif
 
+
     m_IndependentVar = argVar; // FIXME: Use only one var.
     
     if (!m_NodeCloner) {
@@ -66,15 +67,16 @@ namespace clad {
       = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
                              m_IndependentVar->getNameAsString());
     DeclarationName name(II);
-    m_DerivedFD = FunctionDecl::Create(m_Context, FD->getDeclContext(), noLoc,
-                                       noLoc, name, FD->getType(),
-                                       FD->getTypeSourceInfo(),
-                                       FD->getStorageClass(),
-                                       /*default*/
-                                       FD->isInlineSpecified(),
-                                       FD->hasWrittenPrototype(),
-                                       FD->isConstexpr()
-                                       );
+    FunctionDecl* derivedFD = FunctionDecl::Create(m_Context,
+                                                   FD->getDeclContext(), noLoc,
+                                                   noLoc, name, FD->getType(),
+                                                   FD->getTypeSourceInfo(),
+                                                   FD->getStorageClass(),
+                                                   /*default*/
+                                                   FD->isInlineSpecified(),
+                                                   FD->hasWrittenPrototype(),
+                                                   FD->isConstexpr()
+                                                   );
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
@@ -86,7 +88,7 @@ namespace clad {
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
-      newPVD = ParmVarDecl::Create(m_Context, m_DerivedFD, noLoc, noLoc,
+      newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
@@ -100,31 +102,33 @@ namespace clad {
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
-    m_DerivedFD->setParams(paramsRef);
-    m_DerivedFD->setBody(0);
+    derivedFD->setParams(paramsRef);
+    derivedFD->setBody(0);
 
     // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
-    Sema::SynthesizedFunctionScope Scope(m_Sema, m_DerivedFD);
+    Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
+    FunctionDecl* oldDerivedFD = m_DerivedFD;
+    m_DerivedFD = derivedFD;
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
+    m_DerivedFD = oldDerivedFD;
 
-    m_DerivedFD->setBody(derivativeBody);
+    derivedFD->setBody(derivativeBody);
     // Cleanup the IdResolver chain.
-    for(FunctionDecl::param_iterator I = m_DerivedFD->param_begin(),
-        E = m_DerivedFD->param_end(); I != E; ++I) {
+    for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
+        E = derivedFD->param_end(); I != E; ++I) {
       if ((*I)->getIdentifier()) {
         m_CurScope->RemoveDecl(*I);
         //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
       }
-      
     }
-    
-    return m_DerivedFD;
+
+    return derivedFD;
   }
-  
+
   NodeContext DerivativeBuilder::VisitStmt(Stmt* S) {
     return NodeContext(m_NodeCloner->Clone(S));
   }
-  
+
   NodeContext DerivativeBuilder::VisitCompoundStmt(CompoundStmt* CS) {
     llvm::SmallVector<Stmt*, 16> stmts;
     for (CompoundStmt::body_iterator I = CS->body_begin(), E = CS->body_end();
@@ -135,11 +139,18 @@ namespace clad {
     SourceLocation noLoc;
     return new (m_Context) CompoundStmt(m_Context, stmtsRef, noLoc, noLoc);
   }
-  
+
+  NodeContext DerivativeBuilder::VisitIfStmt(IfStmt* If) {
+    IfStmt* clonedIf = m_NodeCloner->Clone(If);
+    clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
+    if (clonedIf->getElse())
+      clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
+    return NodeContext(clonedIf);
+  }
+
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
     ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal
-      = cast<Expr>(Visit(clonedStmt->getRetValue()->IgnoreImpCasts()).getStmt());
+    Expr* retVal = Visit(clonedStmt->getRetValue()->IgnoreImpCasts()).getExpr();
     clonedStmt->setRetValue(retVal);
     return NodeContext(clonedStmt);
   }
@@ -243,8 +254,8 @@ namespace clad {
   NodeContext DerivativeBuilder::VisitCallExpr(CallExpr* CE) {
     // Find the built-in derivatives namespace.
     IdentifierInfo* II
-    = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                            "_derived_" + m_IndependentVar->getNameAsString());
+      = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
+                              "_derived_" + m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
@@ -279,26 +290,28 @@ namespace clad {
       if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
         SourceLocation IdentifierLoc = FD->getLocEnd();
         m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
-        << FD->getNameAsString();
+          << FD->getNameAsString();
         return NodeContext(CE);
       }
 
-      ValueDecl* oldIndependentVar = m_IndependentVar;
-      FunctionDecl* derivedFD;
-      unsigned index;
-      for (index = 0; index < m_DerivedFD->getNumParams(); ++index) {
-        if (m_DerivedFD->getParamDecl(index) == oldIndependentVar)
-          break;
+      if (m_DerivedFD) { // If recursively deriving. FIXME: 
+        ValueDecl* oldIndependentVar = m_IndependentVar;
+        unsigned index;
+        for (index = 0; index < m_DerivedFD->getNumParams(); ++index) {
+          if (m_DerivedFD->getParamDecl(index) == oldIndependentVar)
+            break;
+        }
+        assert(index <= m_DerivedFD->getNumParams() && "Not found");
+        m_IndependentVar = mostRecentFD->getParamDecl(index - 1);
+        FunctionDecl* derivedFD = 0;
+        if (mostRecentFD->getNumParams() > 0)
+          derivedFD = Derive(mostRecentFD, m_IndependentVar);
+        m_IndependentVar = oldIndependentVar;
+        R.clear();
+        R.addDecl(derivedFD);
+        //      derivedFD->dumpColor();
       }
-      assert(index <= m_DerivedFD->getNumParams() && "Not found");
-      m_IndependentVar = mostRecentFD->getParamDecl(index - 1);
-      if (mostRecentFD->getNumParams() > 0)
-        derivedFD = Derive(mostRecentFD, m_IndependentVar);
-      m_IndependentVar = oldIndependentVar;
-//      derivedFD->dumpColor();
       // Update function name in the source.
-      R.clear();
-      R.addDecl(derivedFD);
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
@@ -310,7 +323,7 @@ namespace clad {
     // Function was not derived => issue a warning.
     SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
     m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
-    << CE->getDirectCallee()->getNameAsString();
+      << CE->getDirectCallee()->getNameAsString();
     return NodeContext(CE);
   }
 
@@ -356,70 +369,73 @@ namespace clad {
     up.TraverseStmt(InSubtree);
     return InSubtree;
   }
-  
+
+  NodeContext DerivativeBuilder::VisitUnaryOperator(UnaryOperator* UnOp) {
+    UnaryOperator* clonedUnOp = m_NodeCloner->Clone(UnOp);
+    clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()->IgnoreImpCasts()).getExpr());
+    return NodeContext(clonedUnOp);
+  }
+
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
     Expr* rhs = updateReferencesOf(BinOp->getRHS());
     Expr* lhs = updateReferencesOf(BinOp->getLHS());
-    
+
     Expr* lhs_derived = cast<Expr>((Visit(lhs->IgnoreImpCasts())).getStmt());
     Expr* rhs_derived = cast<Expr>((Visit(rhs->IgnoreImpCasts())).getStmt());
-    
+
     BinaryOperatorKind opCode = BinOp->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
       SourceLocation noLoc;
-      QualType qType = BinOp->getType();
-      ExprValueKind VK = BinOp->getValueKind();
-      ExprObjectKind OK = BinOp->getObjectKind();
-      bool fpContractable = BinOp->isFPContractable();
-      
-      BinaryOperator* newBO_Mul_left
-      = new (m_Context) BinaryOperator(lhs_derived, rhs, BO_Mul,
-                                       qType, VK, OK, noLoc, fpContractable);
-      BinaryOperator* newBO_Mul_Right
-      = new (m_Context) BinaryOperator(lhs, rhs_derived, BO_Mul,
-                                       qType, VK, OK, noLoc, fpContractable);
-      
+
+      Expr* newBO_Mul_left
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, rhs).get();
+
+      Expr* newBO_Mul_Right
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs, rhs_derived).get();
+
+
       SourceLocation L, R;
       if (opCode == BO_Mul) {
-        BinaryOperator* newBO_Add
-          = new (m_Context) BinaryOperator(newBO_Mul_left, newBO_Mul_Right,
-                                           BO_Add, qType, VK, OK, noLoc, 
-                                           fpContractable);
-        // enforce precedence for addition
-        ParenExpr* PE = new (m_Context) ParenExpr(L, R, newBO_Add);
+        Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add,
+                                            newBO_Mul_left,
+                                            newBO_Mul_Right).get();
+
+
+        Expr* PE = m_Sema.ActOnParenExpr(L, R, newBO_Add).get();
         return NodeContext(PE);
       }
       else {
-        BinaryOperator* newBO_Sub
-          = new (m_Context) BinaryOperator(newBO_Mul_left,newBO_Mul_Right,BO_Sub,
-                                         qType, VK, OK, noLoc, fpContractable);
-        BinaryOperator* newBO_Mul_denom
-          = new (m_Context) BinaryOperator(rhs, rhs, BO_Mul,
-                                           qType, VK, OK, noLoc, fpContractable);
+        Expr* newBO_Sub = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Sub,
+                                            newBO_Mul_left,
+                                            newBO_Mul_Right).get();
+
+        Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
+                                                  rhs, rhs).get();
+
         SourceLocation L, R;
-        ParenExpr* PE_lhs = new (m_Context) ParenExpr(L, R, newBO_Sub);
-        ParenExpr* PE_rhs = new (m_Context) ParenExpr(L, R, newBO_Mul_denom);
-        
-        BinaryOperator* newBO_Div
-        = new (m_Context) BinaryOperator(PE_lhs, PE_rhs, BO_Div,
-                                         qType, VK, OK, noLoc, fpContractable);
+        Expr* PE_lhs = m_Sema.ActOnParenExpr(L, R, newBO_Sub).get();
+        Expr* PE_rhs = m_Sema.ActOnParenExpr(L, R, newBO_Mul_denom).get();
+
+        Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
+                                            PE_lhs, PE_rhs).get();
+
         return NodeContext(newBO_Div);
       }
     }
-    
+
     if (opCode == BO_Add || opCode == BO_Sub) {
       SourceLocation L, R;
-      
+
       BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
-      BinOp->setRHS(new (m_Context) ParenExpr(L, R, rhs_derived));
-      
+      BinOp->setRHS(m_Sema.ActOnParenExpr(L, R, rhs_derived).get());
+
       return NodeContext(BinOp);
     }
-    
+
     return NodeContext(BinOp);
   }
-  
+
   NodeContext DerivativeBuilder::VisitDeclStmt(DeclStmt* DS) {
     DeclStmt* clonedDS = m_NodeCloner->Clone(DS);
     // Iterate through the declaration(s) contained in DS.

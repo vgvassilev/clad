@@ -2,8 +2,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-int printf(const char* fmt, ...); // expected-warning {{function printf was not differentiated because it is not declared in namespace custom_derivatives}}
-int no_body(int x); // expected-error {{attempted differention of function no_body, which does not have a definition}}
+int printf(const char* fmt, ...); // expected-warning {{function 'printf' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
+int no_body(int x); // expected-error {{attempted differention of function 'no_body', which does not have a definition}}
 int custom_fn(int x);
 int custom_fn(float x);
 int custom_fn();
@@ -38,7 +38,7 @@ int overloaded(float x) {
 
 int overloaded() {
   return 3;
-} // expected-warning {{function overloaded was not differentiated because it is not declared in namespace custom_derivatives}}
+} // expected-warning {{function 'overloaded' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
 
 float test_1(int x) {
   return overloaded(x) + custom_fn(x);
@@ -60,18 +60,15 @@ float test_3() {
   return custom_fn();
 }
 
-// CHECK: float test_3_derived_x() {
-// CHECK-NEXT: return custom_fn_derived_x();
-// CHECK-NEXT: }
+// CHECK-NOT: float test_3_derived_x() {
 
-float test_4() {
+float test_4(int x) {
   return overloaded();
 }
 
-// CHECK: float test_4_derived_x() {
+// CHECK: float test_4_derived_x(int x) {
 // CHECK-NEXT: return overloaded();
 // CHECK-NEXT: }
-
 
 float test_5(int x) {
   return no_body(x);
@@ -82,11 +79,10 @@ float test_5(int x) {
 // CHECK-NEXT: }
 
 int main () {
-  int x = 4;
   diff(test_1, 1);
   diff(test_2, 1);
-  diff(test_3, 1); // expected-warning {{Trying to differentiate function 'test_3' taking no arguments}}
-  diff(test_4, 1); // expected-warning {{Trying to differentiate function 'test_4' taking no arguments}}
+  diff(test_3, 1); // expected-error {{Trying to differentiate function 'test_3' taking no arguments}}
+  diff(test_4, 1);
   diff(test_5, 1);
 
   return 0;
