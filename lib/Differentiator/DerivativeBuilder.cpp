@@ -369,10 +369,9 @@ namespace clad {
     };
   } // end anon namespace
   
-  Expr* DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
+  void DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
     Updater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
     up.TraverseStmt(InSubtree);
-    return InSubtree;
   }
 
   NodeContext DerivativeBuilder::VisitUnaryOperator(UnaryOperator* UnOp) {
@@ -382,21 +381,21 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
-    Expr* rhs = updateReferencesOf(BinOp->getRHS());
-    Expr* lhs = updateReferencesOf(BinOp->getLHS());
+    updateReferencesOf(BinOp->getRHS());
+    updateReferencesOf(BinOp->getLHS());
 
-    Expr* lhs_derived = cast<Expr>((Visit(lhs->IgnoreImpCasts())).getStmt());
-    Expr* rhs_derived = cast<Expr>((Visit(rhs->IgnoreImpCasts())).getStmt());
+    Expr* lhs_derived = cast<Expr>((Visit(BinOp->getLHS()->IgnoreImpCasts())).getStmt());
+    Expr* rhs_derived = cast<Expr>((Visit(BinOp->getRHS()->IgnoreImpCasts())).getStmt());
 
     BinaryOperatorKind opCode = BinOp->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
       SourceLocation noLoc;
 
       Expr* newBO_Mul_left
-        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, rhs).get();
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, BinOp->getRHS()).get();
 
       Expr* newBO_Mul_Right
-        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs, rhs_derived).get();
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, BinOp->getLHS(), rhs_derived).get();
 
 
       SourceLocation L, R;
@@ -415,7 +414,7 @@ namespace clad {
                                             newBO_Mul_Right).get();
 
         Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
-                                                  rhs, rhs).get();
+                                                  BinOp->getRHS(), BinOp->getRHS()).get();
 
         SourceLocation L, R;
         Expr* PE_lhs = m_Sema.ActOnParenExpr(L, R, newBO_Sub).get();
