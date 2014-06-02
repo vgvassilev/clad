@@ -1,4 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticMulDiv.out 2>&1 | FileCheck %s
+// RUN: ./BasicArithmeticMulDiv.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -77,18 +78,44 @@ int md_1(int x) {
 // CHECK-NEXT: return ((((((1 * x + x * 1) * x - x * x * 1) / (x * x) * y + x * x / x * 0) * y - x * x / x * y * 0) / (y * y) * 3 + x * x / x * y / y * 0) * 3 - x * x / x * y / y * 3 * 0) / (3 * 3);
 // CHECK-NEXT: }
 
+int m_1_derived_x(int x);
+int m_2_derived_x(int x);
+int m_3_derived_x(int x);
+int m_4_derived_x(int x);
+int d_1_derived_x(int x);
+int d_2_derived_x(int x);
+int d_3_derived_x(int x);
+int d_4_derived_x(int x);
+int md_1_derived_x(int x);
+
 int main () {
   int x = 4;
   diff(m_1, 1);
+  printf("Result is = %d\n", m_1_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(m_2, 1);
+  printf("Result is = %d\n", m_2_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(m_3, 1);
+  printf("Result is = %d\n", m_3_derived_x(1)); // CHECK-EXEC: Result is = 2
+
   diff(m_4, 1);
-  
+  printf("Result is = %d\n", m_4_derived_x(1)); // CHECK-EXEC: Result is = 36
+
   diff(d_1, 1);
+  printf("Result is = %d\n", d_1_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(d_2, 1);
+  printf("Result is = %d\n", d_2_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(d_3, 1);
+  printf("Result is = %d\n", d_3_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(d_4, 1);
-  
+  printf("Result is = %d\n", d_4_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(md_1, 1);
+  printf("Result is = %d\n", md_1_derived_x(1)); // CHECK-EXEC: Result is = 1
+
   return 0;
 }

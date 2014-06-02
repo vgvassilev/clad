@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
-
+// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticAll.out 2>&1 | FileCheck %s
+// RUN: ./BasicArithmeticAll.out | FileCheck -check-prefix=CHECK-EXEC %s
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
@@ -15,9 +15,19 @@ float basic_1(int x) {
 // CHECK-NEXT: return (((0 + (1)) * (x - z) - (y + x) * (1 - (0))) / ((x - z) * (x - z)) * ((x * y * z) / 5) + (y + x) / (x - z) * (((((1 * y + x * 0) * z + x * y * 0)) * 5 - (x * y * z) * 0) / (5 * 5)));
 // CHECK-NEXT: }
 
-int main () {
-  int x = 4;
-  diff(basic_1, 1);
+float basic_1_derived_x(int x);
 
+int main () {
+  float basic_1_derived_x_result = 0;
+  {
+    int x = 1;
+    int y = 4;
+    int z = 3;
+    basic_1_derived_x_result = (((0 + (1)) * (x - z) - (y + x) * (1 - (0))) / ((x - z) * (x - z)) * ((x * y * z) / 5) + (y + x) / (x - z) * (((((1 * y + x * 0) * z + x * y * 0)) * 5 - (x * y * z) * 0) / (5 * 5)));
+    printf("Result of basic_1_derived_x_result is = %f\n", basic_1_derived_x_result);
+  }
+
+  auto f = diff(basic_1, 1);
+  printf("Result is = %f\n", basic_1_derived_x(1)); // CHECK-EXEC: Result is = -6
   return 0;
 }

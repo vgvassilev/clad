@@ -142,6 +142,7 @@ namespace clad {
 
   NodeContext DerivativeBuilder::VisitIfStmt(IfStmt* If) {
     IfStmt* clonedIf = m_NodeCloner->Clone(If);
+    updateReferencesOf(clonedIf->getCond());
     clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
     if (clonedIf->getElse())
       clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
@@ -149,9 +150,13 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
-    ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal = Visit(clonedStmt->getRetValue()->IgnoreImpCasts()).getExpr();
-    clonedStmt->setRetValue(retVal);
+     //ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
+    Expr* retVal = Visit(RS->getRetValue()->IgnoreImpCasts()).getExpr();
+    SourceLocation noLoc;
+
+    // Note here getCurScope is the TU unit, since we've done parsing and there
+    // is no active scope.
+    Stmt* clonedStmt = m_Sema.ActOnReturnStmt(noLoc, retVal, m_Sema.getCurScope()).get();
     return NodeContext(clonedStmt);
   }
   
