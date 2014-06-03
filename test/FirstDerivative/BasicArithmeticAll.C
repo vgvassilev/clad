@@ -18,16 +18,7 @@ float basic_1(int x) {
 float basic_1_derived_x(int x);
 
 int main () {
-  float basic_1_derived_x_result = 0;
-  {
-    int x = 1;
-    int y = 4;
-    int z = 3;
-    basic_1_derived_x_result = (((0 + (1)) * (x - z) - (y + x) * (1 - (0))) / ((x - z) * (x - z)) * ((x * y * z) / 5) + (y + x) / (x - z) * (((((1 * y + x * 0) * z + x * y * 0)) * 5 - (x * y * z) * 0) / (5 * 5)));
-    printf("Result of basic_1_derived_x_result is = %f\n", basic_1_derived_x_result);
-  }
-
-  auto f = diff(basic_1, 1);
+  diff(basic_1, 1);
   printf("Result is = %f\n", basic_1_derived_x(1)); // CHECK-EXEC: Result is = -6
   return 0;
 }
