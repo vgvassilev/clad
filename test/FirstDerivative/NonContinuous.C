@@ -1,5 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
-// XFAIL:*
+// RUN: %cladclang %s -I%S/../../include -oNonContinuous.out 2>&1 | FileCheck %s
+// RUN: ./NonContinuous.out | FileCheck -check-prefix=CHECK-EXEC %s
+
 #include "clad/Differentiator/Differentiator.h"
 
 // f(x) = | +x*x, x >= 0
@@ -32,23 +33,6 @@ int f1(int x) {
 // CHECK-NEXT:   return (1 * x + x * 1);
 // CHECK-NEXT: }
 
-int f2(int x) {
-  int result = 0;
-  if (x < 0)
-    result = -x*x;
-  else
-    result = x*x;
-  return result;
-}
-// CHECK: int f2_derived_x(int x) {
-// CHECK-NEXT: int result = 0;
-// CHECK-NEXT: if (x < 0)
-// CHECK-NEXT:   result = -2 * x;
-// CHECK-NEXT: else
-// CHECK-NEXT:   result = 2 * x;
-// CHECK-NEXT: return result;
-// CHECK-NEXT: }
-
 // g(y) = | 1, y >= 0
 //        | 2, y < 0
 //
@@ -60,23 +44,27 @@ int g(long y) {
   else
     return 2;
 }
-// CHECK: int g_derived_x(long x) {
+// CHECK: int g_derived_y(long y) {
 // CHECK-NEXT: if (y)
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: else
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: }
 
-// Or even better:
-// CHECK: int g_derived_x(long x) {
-// CHECK-NEXT: return 0;
-// CHECK-NEXT: }
+int f_derived_x(int x);
+int f1_derived_x(int x);
+int g_derived_y(long y);
 
 int main () {
   int x = 4;
-  diff(f, 1);
+  diff(f, 1); // expected-no-diagnostics
+  printf("Result is = %d\n", f_derived_x(1)); // CHECK-EXEC: Result is = 2
+
   diff(f1, 1);
-  diff(f2, 1);
+  printf("Result is = %d\n", f1_derived_x(1)); // CHECK-EXEC: Result is = 2
+
   diff(g, 1);
+  printf("Result is = %d\n", g_derived_y(1)); // CHECK-EXEC: Result is = 0
+
   return 0;
 }

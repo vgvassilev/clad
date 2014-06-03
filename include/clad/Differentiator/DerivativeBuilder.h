@@ -75,7 +75,7 @@ namespace clad {
     llvm::OwningPtr<clang::Scope> m_CurScope;
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
-    clang::Expr* updateReferencesOf(clang::Expr* InSubtree);
+    void updateReferencesOf(clang::Expr* InSubtree);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVector<clang::Expr*, 4> CallArgs);
     bool overloadExists(clang::Expr* UnresolvedLookup,

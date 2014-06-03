@@ -1,4 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: ./BasicArithmeticAddSub.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -77,18 +78,44 @@ int as_1(int x) {
 // CHECK-NEXT: return 1 + (1) - (1) + (0) - (0) + (0) - (0);
 // CHECK-NEXT: }
 
-int main () {
+int a_1_derived_x(int x);
+int a_2_derived_x(int x);
+int a_3_derived_x(int x);
+int a_4_derived_x(int x);
+int s_1_derived_x(int x);
+int s_2_derived_x(int x);
+int s_3_derived_x(int x);
+int s_4_derived_x(int x);
+int as_1_derived_x(int x);
+
+int main () { // expected-no-diagnostics
   int x = 4;
   diff(a_1, 1);
+  printf("Result is = %d\n", a_1_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(a_2, 1);
+  printf("Result is = %d\n", a_2_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(a_3, 1);
+  printf("Result is = %d\n", a_3_derived_x(1)); // CHECK-EXEC: Result is = 2
+
   diff(a_4, 1);
-  
+  printf("Result is = %d\n", a_4_derived_x(1)); // CHECK-EXEC: Result is = 3
+
   diff(s_1, 1);
+  printf("Result is = %d\n", s_1_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(s_2, 1);
+  printf("Result is = %d\n", s_2_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(s_3, 1);
+  printf("Result is = %d\n", s_3_derived_x(1)); // CHECK-EXEC: Result is = 0
+
   diff(s_4, 1);
-  
+  printf("Result is = %d\n", s_4_derived_x(1)); // CHECK-EXEC: Result is = -1
+
   diff(as_1, 1);
+  printf("Result is = %d\n", as_1_derived_x(1)); // CHECK-EXEC: Result is = 1
+
   return 0;
 }

@@ -163,6 +163,7 @@ namespace clad {
             if (Derivative) {
               m_CurDerivative = Derivative;
               m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+              Derivative->getDeclContext()->addDecl(Derivative);
               m_CurDerivative = 0;
             }
           }
