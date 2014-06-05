@@ -84,4 +84,10 @@ template<typename F, typename... Args, typename... A>
 Function<F, Args...> diff(F (*f)(Args...), A&&... a) {
   return Function<F, Args...>(f);
 }
+
+template<typename F, class C, typename... Args, typename... A>
+Function<F, Args...> diff(F (C::*f)(Args...), A&&... a) {
+//return Function<F, Args...>(f);
+return 0;
+}
 #endif // CLAD_DIFFERENTIATOR
