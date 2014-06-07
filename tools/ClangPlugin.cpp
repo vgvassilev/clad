@@ -182,17 +182,26 @@ namespace {
 
 namespace clad {
   namespace plugin {
+    struct DifferentiationOptions {
+      DifferentiationOptions()
+        : PrintSourceFn(false), PrintSourceFnAST(false), PrintDerivedFn(false),
+          PrintDerivedAST(false) { }
 
-    bool fPrintSourceFn = false,  fPrintSourceAst = false,
-    fPrintDerivedFn = false, fPrintDerivedAst = false;
+      bool PrintSourceFn : 1;
+      bool PrintSourceFnAST : 1;
+      bool PrintDerivedFn : 1;
+      bool PrintDerivedAST : 1;
+    };
 
     class CladPlugin : public ASTConsumer {
     private:
       clang::CompilerInstance& m_CI;
+      DifferentiationOptions m_DO;
       llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
       clang::FunctionDecl* m_CurDerivative;
     public:
-      CladPlugin(CompilerInstance& CI) : m_CI(CI), m_CurDerivative(0) { }
+      CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
+        : m_CI(CI), m_DO(DO), m_CurDerivative(0) { }
 
       virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
 
@@ -219,11 +228,11 @@ namespace clad {
           if (!I->isValid())
             continue;
           // if enabled, print source code of the original functions
-          if (fPrintSourceFn) {
+          if (m_DO.PrintSourceFn) {
             I->getFD()->print(llvm::outs(), Policy);
           }
           // if enabled, print ASTs of the original functions
-          if (fPrintSourceAst) {
+          if (m_DO.PrintSourceFnAST) {
             I->getFD()->dumpColor();
           }
 
@@ -232,11 +241,11 @@ namespace clad {
             = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
 
             // if enabled, print source code of the derived functions
-            if (fPrintDerivedFn) {
+            if (m_DO.PrintDerivedFn) {
               Derivative->print(llvm::outs(), Policy);
             }
             // if enabled, print ASTs of the derived functions
-            if (fPrintDerivedAst) {
+            if (m_DO.PrintDerivedAST) {
               Derivative->dumpColor();
             }
             if (Derivative) {
@@ -256,34 +265,34 @@ namespace clad {
 
     template<typename ConsumerType>
     class Action : public PluginASTAction {
+    private:
+      DifferentiationOptions m_DO;
     protected:
       ASTConsumer *CreateASTConsumer(CompilerInstance& CI,
                                      llvm::StringRef InFile) {
-        return new ConsumerType(CI);
+        return new ConsumerType(CI, m_DO);
       }
-      
+
       bool ParseArgs(const CompilerInstance &CI,
                      const std::vector<std::string>& args) {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
-          
           if (args[i] == "-fprint-source-fn") {
-            fPrintSourceFn = true;
+            m_DO.PrintSourceFn = true;
           }
           else if (args[i] == "-fprint-source-fn-ast") {
-            fPrintSourceAst = true;
+            m_DO.PrintSourceFnAST = true;
           }
           else if (args[i] == "-fprint-derived-fn") {
-            fPrintDerivedFn = true;
+            m_DO.PrintDerivedFn = true;
           }
           else if (args[i] == "-fprint-derived-fn-ast") {
-            fPrintDerivedAst = true;
+            m_DO.PrintDerivedAST = true;
           }
           else {
             llvm::outs() << "clad: Error: invalid option "
             << args[i] << "\n";
           }
         }
-        
         return true;
       }
     };
