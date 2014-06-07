@@ -145,17 +145,38 @@ namespace clad {
               }
 
               if (argVar) {
-                // derive the collected functions
-                Derivative
-                  = m_DerivativeBuilder->Derive(functionToDerive, argVar);
+                // Collect the functions to be derived, preventing recursive
+                // derivation.
+                typedef llvm::SmallVector<FunctionDecl*, 8> DerivativeChain;
+                class DerivativesCollector
+                  : public RecursiveASTVisitor<DerivativesCollector> {
+                private:
+                  DerivativeChain& m_Collected;
+                public:
+                  DerivativesCollector(DerivativeChain& V)
+                    : m_Collected(V) {}
 
-                // if enabled, print source code of the derived functions
-                if (fPrintDerivedFn) {
-                  Derivative->print(llvm::outs(), Policy);
-                }
-                // if enabled, print ASTs of the derived functions
-                if (fPrintDerivedAst) {
-                  Derivative->dumpColor();
+                  bool VisitCallExpr(CallExpr* CE) {
+                    m_Collected.push_back(CE->getDirectCallee());
+                    return true; // returning false will abort the visitation.
+                  }
+                };
+                DerivativeChain derivativeChain;
+                DerivativesCollector collector(derivativeChain);
+                derivativeChain.push_back(functionToDerive);
+                for (unsigned i = 0, e = derivativeChain.size(); i < e; ++i) {
+                  // derive the collected functions
+                  Derivative
+                    = m_DerivativeBuilder->Derive(derivativeChain[i], argVar);
+
+                  // if enabled, print source code of the derived functions
+                  if (fPrintDerivedFn) {
+                    Derivative->print(llvm::outs(), Policy);
+                  }
+                  // if enabled, print ASTs of the derived functions
+                  if (fPrintDerivedAst) {
+                    Derivative->dumpColor();
+                  }
                 }
               }
             }

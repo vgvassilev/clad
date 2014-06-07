@@ -151,7 +151,7 @@ namespace clad {
 
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
      //ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal = Visit(RS->getRetValue()->IgnoreImpCasts()).getExpr();
+    Expr* retVal = Visit(RS->getRetValue()).getExpr();
     SourceLocation noLoc;
 
     // Note here getCurScope is the TU unit, since we've done parsing and there
@@ -267,7 +267,7 @@ namespace clad {
     
     llvm::SmallVector<Expr*, 4> CallArgs;
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
-      CallArgs.push_back(m_NodeCloner->Clone(CE->getArg(i)->IgnoreImpCasts()));
+      CallArgs.push_back(m_NodeCloner->Clone(CE->getArg(i)));
     }
     
     Expr* OverloadedDerivedFn = findOverloadedDefinition(DNInfo, CallArgs);
@@ -376,7 +376,7 @@ namespace clad {
 
   NodeContext DerivativeBuilder::VisitUnaryOperator(UnaryOperator* UnOp) {
     UnaryOperator* clonedUnOp = m_NodeCloner->Clone(UnOp);
-    clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()->IgnoreImpCasts()).getExpr());
+    clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()).getExpr());
     return NodeContext(clonedUnOp);
   }
 
@@ -384,8 +384,8 @@ namespace clad {
     updateReferencesOf(BinOp->getRHS());
     updateReferencesOf(BinOp->getLHS());
 
-    Expr* lhs_derived = cast<Expr>((Visit(BinOp->getLHS()->IgnoreImpCasts())).getStmt());
-    Expr* rhs_derived = cast<Expr>((Visit(BinOp->getRHS()->IgnoreImpCasts())).getStmt());
+    Expr* lhs_derived = cast<Expr>((Visit(BinOp->getLHS())).getStmt());
+    Expr* rhs_derived = cast<Expr>((Visit(BinOp->getRHS())).getStmt());
 
     BinaryOperatorKind opCode = BinOp->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
@@ -454,12 +454,19 @@ namespace clad {
     }
     return NodeContext(clonedDS);
   }
-  
+
+  NodeContext DerivativeBuilder::VisitImplicitCastExpr(ImplicitCastExpr* ICE) {
+    NodeContext result = Visit(ICE->getSubExpr());
+    if (result.getExpr() == ICE->getSubExpr())
+      return NodeContext(ICE);
+    return NodeContext(result.getExpr());
+  }
+
   NodeContext
   DerivativeBuilder::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* OpCall) {
     // This operator gets emitted when there is a binary operation containing
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
     assert(0 && "We don't support overloaded operators yet!");
     return NodeContext(OpCall);
-  }  
+  }
 } // end namespace clad
