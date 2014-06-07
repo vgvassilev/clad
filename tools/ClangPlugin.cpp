@@ -198,10 +198,9 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
-      clang::FunctionDecl* m_CurDerivative;
     public:
       CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-        : m_CI(CI), m_DO(DO), m_CurDerivative(0) { }
+        : m_CI(CI), m_DO(DO) { }
 
       virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
 
@@ -210,11 +209,6 @@ namespace clad {
       virtual bool HandleTopLevelDecl(DeclGroupRef DGR) {
         if (!m_DerivativeBuilder)
           m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
-
-        // Check if this is called recursively and if it is abort, because we
-        // don't want CodeGen to see that decl twice.
-        if (m_CurDerivative == *DGR.begin())
-          return false;
 
         DiffPlan plan;
         DiffCollector m_Collector(DGR, plan, m_CI.getSema());
@@ -249,10 +243,8 @@ namespace clad {
               Derivative->dumpColor();
             }
             if (Derivative) {
-              m_CurDerivative = Derivative;
               m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
               Derivative->getDeclContext()->addDecl(Derivative);
-              m_CurDerivative = 0;
             }
 
         }
