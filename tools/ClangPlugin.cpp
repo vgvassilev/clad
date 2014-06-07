@@ -142,13 +142,6 @@ namespace {
 
     bool VisitCallExpr(CallExpr* E) {
       if (FunctionDecl *FD = E->getDirectCallee()) {
-        // Note here that best would be to annotate with, eg:
-        //  __attribute__((annotate("This is our diff that must differentiate"))) {
-        // However, GCC doesn't support the annotate attribute on a function
-        // definition and clang's version on MacOS chokes up (with clang's trunk
-        // everything seems ok 03.06.2013)
-
-        //        if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
         if (m_TopMostFDI) {
           unsigned index;
           for (index = 0; index < m_TopMostFDI->getFD()->getNumParams();++index)
@@ -158,21 +151,25 @@ namespace {
             FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
             m_DiffPlan.push_back(FDI);
         }
-        else if (FD->getNameAsString() == "diff") {
-          if (ImplicitCastExpr* ICE
-              = dyn_cast<ImplicitCastExpr>(E->getArg(0))) {
-            if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-              assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
+        // We need to find our 'special' diff annotated such:
+        // diff(...) __attribute__((annotate("D")))
+        else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>()) {
+          if (A->getAnnotation().equals("D"))
+            if (ImplicitCastExpr* ICE
+                = dyn_cast<ImplicitCastExpr>(E->getArg(0))) {
+              if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
 
-              // We know that is *our* diff function.
-              FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
-              FunctionDeclInfo FDI(cand, getIndependentArg(E->getArg(1), cand));
-              m_TopMostFDI = &FDI;
-              TraverseDecl(FD);
-              m_TopMostFDI = 0;
-              m_DiffPlan.push_back(FDI);
+                // We know that is *our* diff function.
+                FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
+                ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
+                FunctionDeclInfo FDI(cand, candPVD);
+                m_TopMostFDI = &FDI;
+                TraverseDecl(FD);
+                m_TopMostFDI = 0;
+                m_DiffPlan.push_back(FDI);
+              }
             }
-          }
         }
       }
       return true;     // return false to abort visiting.
