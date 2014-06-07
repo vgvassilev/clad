@@ -274,15 +274,9 @@ namespace clad {
     if (OverloadedDerivedFn) {
       return NodeContext(OverloadedDerivedFn);
     }
-    
-    // Look for a declaration of a function to differentiate
-    // in the derivatives namespace.
-    LookupResult R(m_Sema, CE->getDirectCallee()->getNameInfo(),
-                   Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
-                               /*allowBuiltinCreation*/ false);    
+
     Expr* OverloadedFnInFile
-    = findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(), CallArgs);
+       = findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(), CallArgs);
     
     if (OverloadedFnInFile) {
       // Take the function to derive from the source.
@@ -299,22 +293,20 @@ namespace clad {
         return NodeContext(CE);
       }
 
-      if (m_DerivedFD) { // If recursively deriving. FIXME: 
-        ValueDecl* oldIndependentVar = m_IndependentVar;
-        unsigned index;
-        for (index = 0; index < m_DerivedFD->getNumParams(); ++index) {
-          if (m_DerivedFD->getParamDecl(index) == oldIndependentVar)
-            break;
+      // Look for a declaration of a function to differentiate
+      // in the derivatives namespace.
+      LookupResult R(m_Sema, CE->getDirectCallee()->getNameInfo(),
+                     Sema::LookupOrdinaryName);
+      m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
+                                 /*allowBuiltinCreation*/ false);
+      if (R.empty()) {
+        DeclContext::lookup_result res
+          = m_Context.getTranslationUnitDecl()->lookup(name);
+        for (DeclContext::lookup_iterator I = res.begin(), E = res.end();
+             I != E; ++I) {
+          R.addDecl(*I);
         }
-        assert(index <= m_DerivedFD->getNumParams() && "Not found");
-        m_IndependentVar = mostRecentFD->getParamDecl(index - 1);
-        FunctionDecl* derivedFD = 0;
-        if (mostRecentFD->getNumParams() > 0)
-          derivedFD = Derive(mostRecentFD, m_IndependentVar);
-        m_IndependentVar = oldIndependentVar;
-        R.clear();
-        R.addDecl(derivedFD);
-        //      derivedFD->dumpColor();
+        assert(!R.empty() && "Must be reachable");
       }
       // Update function name in the source.
       CXXScopeSpec CSS;
@@ -324,7 +316,7 @@ namespace clad {
       clonedCE->setCallee(ResolvedLookup);
       return NodeContext(clonedCE);
     }
-    
+
     // Function was not derived => issue a warning.
     SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
     m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
