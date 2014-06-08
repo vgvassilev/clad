@@ -228,7 +228,7 @@ namespace clad {
           }
 
           // derive the collected functions
-          FunctionDecl* Derivative = Derivative
+          FunctionDecl* Derivative
             = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
 
             // if enabled, print source code of the derived functions
