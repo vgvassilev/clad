@@ -6,19 +6,14 @@
 
 #ifndef CLAD_DIFFERENTIATOR
 #define CLAD_DIFFERENTIATOR
-// We might want to consider using one of C++11 features of std. For now I am 
-// sceptical, because they enforce extra conventions that we don't need. Moreover
-// by 1.05.2013 it seems that they are not supported on MacOS.
-
-//#include <functional>
-//#include <utility>
-//void diff(std::function f) {
-//void diff(std::mem_fn f) {
 
 #include "BuiltinDerivatives.h"
 
 extern "C" int printf(const char* fmt, ...);
 
+// Using std::function and std::mem_fn introduces a lot of overhead, which we
+// do not need. Another disadvantage is that it is difficult to distinguish a
+// 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
 template<typename ReturnResult, typename... ArgsTypes>
 class CladFunction {
 public:
