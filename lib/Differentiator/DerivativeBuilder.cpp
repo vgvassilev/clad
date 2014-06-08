@@ -28,8 +28,8 @@ namespace clad {
   }
   
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
-     : m_Sema(S), m_Context(S.getASTContext()), m_DerivedFD(0),
-       m_IndependentVar(0) {
+    : m_Sema(S), m_Context(S.getASTContext()), m_IndependentVar(0),
+      m_DerivativeInFlight(false) {
     m_NodeCloner.reset(new utils::StmtClone(m_Context));
     // Find the builtin derivatives namespace
     DeclarationName Name = &m_Context.Idents.get("custom_derivatives");
@@ -45,6 +45,9 @@ namespace clad {
 
   FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar) {
     assert(FD && "Must not be null.");
+    assert(!m_DerivativeInFlight
+           && "Doesn't support recursive diff. Use DiffPlan.");
+    m_DerivativeInFlight = true;
 #ifndef NDEBUG
     bool notInArgs = true;
     for (unsigned i = 0; i < FD->getNumParams(); ++i)
@@ -107,10 +110,7 @@ namespace clad {
 
     // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
     Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
-    FunctionDecl* oldDerivedFD = m_DerivedFD;
-    m_DerivedFD = derivedFD;
     Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
-    m_DerivedFD = oldDerivedFD;
 
     derivedFD->setBody(derivativeBody);
     // Cleanup the IdResolver chain.
@@ -121,7 +121,7 @@ namespace clad {
         //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
       }
     }
-
+    m_DerivativeInFlight = false;
     return derivedFD;
   }
 
@@ -299,16 +299,24 @@ namespace clad {
                      Sema::LookupOrdinaryName);
       m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
                                  /*allowBuiltinCreation*/ false);
-      if (R.empty()) {
+      {
         DeclContext::lookup_result res
           = m_Context.getTranslationUnitDecl()->lookup(name);
+        bool shouldAdd = true;
         for (DeclContext::lookup_iterator I = res.begin(), E = res.end();
              I != E; ++I) {
-          R.addDecl(*I);
+          for (LookupResult::iterator J = R.begin(), E = R.end(); J != E; ++J)
+            if (cast<ValueDecl>(*I)->getType().getTypePtr()
+                == cast<ValueDecl>(J.getDecl())->getType().getTypePtr()) {
+              shouldAdd = false;
+              break;
+            }
+          if (shouldAdd)
+            R.addDecl(*I);
+          shouldAdd = true;
         }
         assert(!R.empty() && "Must be reachable");
-      }
-      // Update function name in the source.
+      }      // Update function name in the source.
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
