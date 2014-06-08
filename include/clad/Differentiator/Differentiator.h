@@ -30,8 +30,10 @@ public:
   Function(FunctionType f)
     : m_Function(f), m_Code("aaaa") { }
 
-  template<typename... Args>
-  Function differentiate(Args&&... args);
+  ///\brief N is the derivative order.
+  ///
+  template<unsigned N>
+  Function differentiate(unsigned independentArg);
 
   template<typename... Args>
   ReturnResult execute(Args&&... args) {
