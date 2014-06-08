@@ -20,20 +20,20 @@
 extern "C" int printf(const char* fmt, ...);
 
 template<typename ReturnResult, typename... ArgsTypes>
-class Function {
+class CladFunction {
 public:
-  using FunctionType = ReturnResult (*)(ArgsTypes...);
+  using CladFunctionType = ReturnResult (*)(ArgsTypes...);
 private:
-  FunctionType m_Function;
+  CladFunctionType m_Function;
   const char m_Code[];
 public:
-  Function(FunctionType f)
+  CladFunction(CladFunctionType f)
     : m_Function(f), m_Code("aaaa") { }
 
   ///\brief N is the derivative order.
   ///
   template<unsigned N>
-  Function differentiate(unsigned independentArg);
+  CladFunction differentiate(unsigned independentArg);
 
   template<typename... Args>
   ReturnResult execute(Args&&... args) {
@@ -57,15 +57,15 @@ public:
 //
 
 template<typename F, typename... Args>
-Function<F, Args...> diff(F (*f)(Args...), unsigned independentArg)
+CladFunction<F, Args...> diff(F (*f)(Args...), unsigned independentArg)
    __attribute__((annotate("D"))) {
-  return Function<F, Args...>(f);
+  return CladFunction<F, Args...>(f);
 }
 
 template<typename F, class C, typename... Args>
-Function<F, Args...> diff(F (C::*f)(Args...), unsigned independentArg)
+CladFunction<F, Args...> diff(F (C::*f)(Args...), unsigned independentArg)
    __attribute__((annotate("D"))) {
-//return Function<F, Args...>(f);
+//return CladFunction<F, Args...>(f);
 return 0;
 }
 #endif // CLAD_DIFFERENTIATOR
