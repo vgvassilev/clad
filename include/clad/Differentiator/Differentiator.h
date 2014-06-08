@@ -74,14 +74,14 @@ public:
 // This will be useful in fucture when we are ready to support partial diff.
 //
 
-template<typename F, typename... Args, typename... A>
-Function<F, Args...> diff(F (*f)(Args...), A&&... a)
+template<typename F, typename... Args>
+Function<F, Args...> diff(F (*f)(Args...), unsigned independentArg)
    __attribute__((annotate("D"))) {
   return Function<F, Args...>(f);
 }
 
-template<typename F, class C, typename... Args, typename... A>
-Function<F, Args...> diff(F (C::*f)(Args...), A&&... a)
+template<typename F, class C, typename... Args>
+Function<F, Args...> diff(F (C::*f)(Args...), unsigned independentArg)
    __attribute__((annotate("D"))) {
 //return Function<F, Args...>(f);
 return 0;
