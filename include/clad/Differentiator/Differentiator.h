@@ -44,26 +44,6 @@ public:
     return result;
   }
 
-  // template<typename... Args>
-  // void executeAndPrintResult(Args&&... args) {
-  //   execute(args...);
-  //   printf("Returns void\n");
-  // }
-
-  // template<typename... Args>
-  // int executeAndPrintResult(Args&&... args) {
-  //   ReturnResult result = execute(args...);
-  //   printf("Returns covertible to int %d\n", result);
-  //   return result;
-  // }
-
-  // template<typename... Args>
-  // double executeAndPrintResult(Args&&... args) {
-  //   ReturnResult result = execute(args...);
-  //   printf("Returns covertible to double %f\n", result);
-  //   return result;
-  // }
-
   void dump() const {
     printf("The code is: %s\n", m_Code);
   }
