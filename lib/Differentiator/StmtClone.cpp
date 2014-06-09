@@ -149,6 +149,25 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   return result;
 }
 
+Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
+  TemplateArgumentListInfo TemplateArgs;
+  if (Node->hasExplicitTemplateArgs())
+    Node->copyTemplateArgumentsInto(TemplateArgs);
+  Stmt* result = UnresolvedLookupExpr::Create(Ctx,
+                                              Node->getNamingClass(),
+                                              Node->getQualifierLoc(),
+                                              Node->getTemplateKeywordLoc(),
+                                              Node->getNameInfo(),
+                                              Node->requiresADL(),
+                                              // They get copied again by
+                                              // OverloadExpr, so we are safe.
+                                              &TemplateArgs,
+                                              Node->decls_begin(),
+                                              Node->decls_end()
+                                              );
+  return result;
+}
+
 Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   CXXOperatorCallExpr* result 
     = new (Ctx) CXXOperatorCallExpr(Ctx, Node->getOperator(), 

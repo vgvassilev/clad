@@ -78,6 +78,7 @@ namespace utils {
     DECLARE_CLONE_FN(MemberExpr)
     DECLARE_CLONE_FN(CompoundLiteralExpr)
     DECLARE_CLONE_FN(ImplicitCastExpr)
+    DECLARE_CLONE_FN(UnresolvedLookupExpr)
     DECLARE_CLONE_FN(CStyleCastExpr)
     DECLARE_CLONE_FN(CompoundAssignOperator)
     DECLARE_CLONE_FN(ConditionalOperator)
@@ -107,7 +108,7 @@ namespace utils {
     DECLARE_CLONE_FN(CXXConstructExpr)
     DECLARE_CLONE_FN(CXXTemporaryObjectExpr)
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
-    
+
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
 
