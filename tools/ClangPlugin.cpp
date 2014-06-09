@@ -159,19 +159,26 @@ namespace {
             m_DiffPlan.push_back(FDI);
         }
         else if (FD->getNameAsString() == "diff") {
-          if (ImplicitCastExpr* ICE
-              = dyn_cast<ImplicitCastExpr>(E->getArg(0))) {
-            if (DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-              assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
+          DeclRefExpr* DRE = 0;
 
-              // We know that is *our* diff function.
-              FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
-              FunctionDeclInfo FDI(cand, getIndependentArg(E->getArg(1), cand));
-              m_TopMostFDI = &FDI;
-              TraverseDecl(FD);
-              m_TopMostFDI = 0;
-              m_DiffPlan.push_back(FDI);
-            }
+          // Handle the case of function.
+          if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
+            DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+          }
+          // Handle the case of member function.
+          else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
+            DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+          }
+          if (DRE) {
+            assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
+
+            // We know that is *our* diff function.
+            FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
+            FunctionDeclInfo FDI(cand, getIndependentArg(E->getArg(1), cand));
+            m_TopMostFDI = &FDI;
+            TraverseDecl(FD);
+            m_TopMostFDI = 0;
+            m_DiffPlan.push_back(FDI);
           }
         }
       }
@@ -241,14 +248,21 @@ namespace clad {
             }
             if (Derivative) {
               m_CurDerivative = Derivative;
-              m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
               Derivative->getDeclContext()->addDecl(Derivative);
+              // Call CodeGen only if the produced decl is a top-most decl.
+              if (Derivative->getDeclContext()
+                  == m_CI.getASTContext().getTranslationUnitDecl())
+                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
               m_CurDerivative = 0;
             }
 
         }
         return true; // Happiness
       }
+
+      // virtual void HandleTagDeclDefinition(clang::TagDecl* TD) {
+
+      // }
 
       virtual void HandleTranslationUnit(clang::ASTContext& C) {
       }
