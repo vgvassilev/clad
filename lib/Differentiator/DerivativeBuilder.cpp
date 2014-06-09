@@ -91,11 +91,15 @@ namespace clad {
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
+      Expr* clonedPVDDefaultArg = 0;
+      if (PVD->hasDefaultArg())
+        clonedPVDDefaultArg = VisitStmt(PVD->getDefaultArg()).getExpr();
+
       newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
-                                   m_NodeCloner->Clone(PVD->getDefaultArg()));
+                                   clonedPVDDefaultArg);
       params.push_back(newPVD);
       // Add the args in the scope and id chain so that they could be found.
       if (newPVD->getIdentifier()) {
