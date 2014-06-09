@@ -355,7 +355,10 @@ namespace clad {
 
         LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
         m_Sema.LookupName(R, m_CurScope, /*allowBuiltinCreation*/ false);
-        
+
+        if (R.empty())
+          return true;  // Nothing to update.
+
         if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
           // FIXME: Handle the case when there are overloads found. Update
           // it with the best match.
