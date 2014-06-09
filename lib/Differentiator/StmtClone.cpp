@@ -37,7 +37,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
   result->setValueDependent(Node->isValueDependent());  \
   result->setTypeDependent(Node->isTypeDependent());    \
   return result;                              \
-}                 
+}
 
 DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->isFPContractable()))
 DEFINE_CLONE_EXPR(UnaryOperator, (Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc()))

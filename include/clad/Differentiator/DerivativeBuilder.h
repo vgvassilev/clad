@@ -60,8 +60,14 @@ namespace clad {
       assert(llvm::isa<clang::Expr>(getStmt()) && "Must be an expression.");
       return llvm::cast<clang::Expr>(getStmt());
     }
-    
+
     const clang::Expr* getExpr() const { return getExpr(); }
+
+    template<typename T> T* getAs() {
+      if (clang::Expr* E = llvm::dyn_cast<clang::Expr>(getStmt()))
+        return llvm::cast<T>(E);
+      return llvm::cast<T>(getStmt());
+    }
   };
 
   class DerivativeBuilder
@@ -76,7 +82,7 @@ namespace clad {
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     bool m_DerivativeInFlight;
-    void updateReferencesOf(clang::Expr* InSubtree);
+    void updateReferencesOf(clang::Stmt* InSubtree);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVector<clang::Expr*, 4> CallArgs);
     bool overloadExists(clang::Expr* UnresolvedLookup,

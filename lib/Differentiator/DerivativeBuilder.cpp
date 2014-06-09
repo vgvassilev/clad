@@ -130,7 +130,9 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitStmt(Stmt* S) {
-    return NodeContext(m_NodeCloner->Clone(S));
+    Stmt* clonedStmt = m_NodeCloner->Clone(S);
+    updateReferencesOf(clonedStmt);
+    return NodeContext(clonedStmt);
   }
 
   NodeContext DerivativeBuilder::VisitCompoundStmt(CompoundStmt* CS) {
@@ -145,8 +147,7 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitIfStmt(IfStmt* If) {
-    IfStmt* clonedIf = m_NodeCloner->Clone(If);
-    updateReferencesOf(clonedIf->getCond());
+    IfStmt* clonedIf = VisitStmt(If).getAs<IfStmt>();
     clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
     if (clonedIf->getElse())
       clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
@@ -155,7 +156,7 @@ namespace clad {
 
   NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
      //ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal = Visit(RS->getRetValue()).getExpr();
+    Expr* retVal = Visit(VisitStmt(RS->getRetValue()).getExpr()).getExpr();
     SourceLocation noLoc;
 
     // Note here getCurScope is the TU unit, since we've done parsing and there
@@ -165,14 +166,14 @@ namespace clad {
   }
   
   NodeContext DerivativeBuilder::VisitParenExpr(ParenExpr* PE) {
-    ParenExpr* clonedPE = m_NodeCloner->Clone(PE);
+    ParenExpr* clonedPE = VisitStmt(PE).getAs<ParenExpr>();
     Expr* retVal = cast<Expr>(Visit(clonedPE->getSubExpr()).getStmt());
     clonedPE->setSubExpr(retVal);
     return NodeContext(clonedPE);
   }
   
   NodeContext DerivativeBuilder::VisitDeclRefExpr(DeclRefExpr* DRE) {
-    DeclRefExpr* clonedDRE = m_NodeCloner->Clone(DRE);
+    DeclRefExpr* clonedDRE = VisitStmt(DRE).getAs<DeclRefExpr>();
     SourceLocation noLoc;
     if (clonedDRE->getDecl()->getNameAsString() ==
         m_IndependentVar->getNameAsString()) {
@@ -271,7 +272,7 @@ namespace clad {
     
     llvm::SmallVector<Expr*, 4> CallArgs;
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
-      CallArgs.push_back(m_NodeCloner->Clone(CE->getArg(i)));
+      CallArgs.push_back(VisitStmt(CE->getArg(i)).getExpr());
     }
     
     Expr* OverloadedDerivedFn = findOverloadedDefinition(DNInfo, CallArgs);
@@ -324,7 +325,7 @@ namespace clad {
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
-      CallExpr* clonedCE = m_NodeCloner->Clone(CE);
+      CallExpr* clonedCE = VisitStmt(CE).getAs<CallExpr>();
       clonedCE->setCallee(ResolvedLookup);
       return NodeContext(clonedCE);
     }
@@ -376,13 +377,13 @@ namespace clad {
     };
   } // end anon namespace
   
-  void DerivativeBuilder::updateReferencesOf(Expr* InSubtree) {
+  void DerivativeBuilder::updateReferencesOf(Stmt* InSubtree) {
     Updater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
     up.TraverseStmt(InSubtree);
   }
 
   NodeContext DerivativeBuilder::VisitUnaryOperator(UnaryOperator* UnOp) {
-    UnaryOperator* clonedUnOp = m_NodeCloner->Clone(UnOp);
+    UnaryOperator* clonedUnOp = VisitStmt(UnOp).getAs<UnaryOperator>();
     clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()).getExpr());
     return NodeContext(clonedUnOp);
   }
@@ -391,8 +392,8 @@ namespace clad {
     updateReferencesOf(BinOp->getRHS());
     updateReferencesOf(BinOp->getLHS());
 
-    Expr* lhs_derived = cast<Expr>((Visit(BinOp->getLHS())).getStmt());
-    Expr* rhs_derived = cast<Expr>((Visit(BinOp->getRHS())).getStmt());
+    Expr* lhs_derived = Visit(BinOp->getLHS()).getExpr();
+    Expr* rhs_derived = Visit(BinOp->getRHS()).getExpr();
 
     BinaryOperatorKind opCode = BinOp->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
@@ -448,7 +449,7 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitDeclStmt(DeclStmt* DS) {
-    DeclStmt* clonedDS = m_NodeCloner->Clone(DS);
+    DeclStmt* clonedDS = VisitStmt(DS).getAs<DeclStmt>();
     // Iterate through the declaration(s) contained in DS.
     for (DeclStmt::decl_iterator I = clonedDS->decl_begin(),
          E = clonedDS->decl_end(); I != E; ++I) {
@@ -465,7 +466,7 @@ namespace clad {
   NodeContext DerivativeBuilder::VisitImplicitCastExpr(ImplicitCastExpr* ICE) {
     NodeContext result = Visit(ICE->getSubExpr());
     if (result.getExpr() == ICE->getSubExpr())
-      return NodeContext(ICE);
+      return NodeContext(VisitStmt(ICE).getExpr());
     return NodeContext(result.getExpr());
   }
 
