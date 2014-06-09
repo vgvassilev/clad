@@ -81,12 +81,14 @@ public:
 // ok 03.06.2013)
 
 template<typename F, typename... Args, typename... A>
-Function<F, Args...> diff(F (*f)(Args...), A&&... a) {
+Function<F, Args...> diff(F (*f)(Args...), A&&... a)
+   __attribute__((annotate("D"))) {
   return Function<F, Args...>(f);
 }
 
 template<typename F, class C, typename... Args, typename... A>
-Function<F, Args...> diff(F (C::*f)(Args...), A&&... a) {
+Function<F, Args...> diff(F (C::*f)(Args...), A&&... a)
+   __attribute__((annotate("D"))) {
 //return Function<F, Args...>(f);
 return 0;
 }

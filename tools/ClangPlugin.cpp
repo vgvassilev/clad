@@ -142,13 +142,6 @@ namespace {
 
     bool VisitCallExpr(CallExpr* E) {
       if (FunctionDecl *FD = E->getDirectCallee()) {
-        // Note here that best would be to annotate with, eg:
-        //  __attribute__((annotate("This is our diff that must differentiate"))) {
-        // However, GCC doesn't support the annotate attribute on a function
-        // definition and clang's version on MacOS chokes up (with clang's trunk
-        // everything seems ok 03.06.2013)
-
-        //        if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
         if (m_TopMostFDI) {
           unsigned index;
           for (index = 0; index < m_TopMostFDI->getFD()->getNumParams();++index)
@@ -158,29 +151,33 @@ namespace {
             FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
             m_DiffPlan.push_back(FDI);
         }
-        else if (FD->getNameAsString() == "diff") {
-          DeclRefExpr* DRE = 0;
+        // We need to find our 'special' diff annotated such:
+        // diff(...) __attribute__((annotate("D")))
+        else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
+          if (A->getAnnotation().equals("D")) {
+            DeclRefExpr* DRE = 0;
 
-          // Handle the case of function.
-          if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
-            DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-          }
-          // Handle the case of member function.
-          else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
-            DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-          }
-          if (DRE) {
-            assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
+            // Handle the case of function.
+            if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
+              DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+            }
+            // Handle the case of member function.
+            else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
+              DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+            }
+            if (DRE) {
+              assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
 
-            // We know that is *our* diff function.
-            FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
-            FunctionDeclInfo FDI(cand, getIndependentArg(E->getArg(1), cand));
-            m_TopMostFDI = &FDI;
-            TraverseDecl(FD);
-            m_TopMostFDI = 0;
-            m_DiffPlan.push_back(FDI);
+              // We know that is *our* diff function.
+              FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
+              ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
+              FunctionDeclInfo FDI(cand, candPVD);
+              m_TopMostFDI = &FDI;
+              TraverseDecl(FD);
+              m_TopMostFDI = 0;
+              m_DiffPlan.push_back(FDI);
+            }
           }
-        }
       }
       return true;     // return false to abort visiting.
     }
@@ -189,17 +186,25 @@ namespace {
 
 namespace clad {
   namespace plugin {
+    struct DifferentiationOptions {
+      DifferentiationOptions()
+        : PrintSourceFn(false), PrintSourceFnAST(false), PrintDerivedFn(false),
+          PrintDerivedAST(false) { }
 
-    bool fPrintSourceFn = false,  fPrintSourceAst = false,
-    fPrintDerivedFn = false, fPrintDerivedAst = false;
+      bool PrintSourceFn : 1;
+      bool PrintSourceFnAST : 1;
+      bool PrintDerivedFn : 1;
+      bool PrintDerivedAST : 1;
+    };
 
     class CladPlugin : public ASTConsumer {
     private:
       clang::CompilerInstance& m_CI;
+      DifferentiationOptions m_DO;
       llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
-      clang::FunctionDecl* m_CurDerivative;
     public:
-      CladPlugin(CompilerInstance& CI) : m_CI(CI), m_CurDerivative(0) { }
+      CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
+        : m_CI(CI), m_DO(DO) { }
 
       virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
 
@@ -208,11 +213,6 @@ namespace clad {
       virtual bool HandleTopLevelDecl(DeclGroupRef DGR) {
         if (!m_DerivativeBuilder)
           m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
-
-        // Check if this is called recursively and if it is abort, because we
-        // don't want CodeGen to see that decl twice.
-        if (m_CurDerivative == *DGR.begin())
-          return false;
 
         DiffPlan plan;
         DiffCollector m_Collector(DGR, plan, m_CI.getSema());
@@ -226,11 +226,11 @@ namespace clad {
           if (!I->isValid())
             continue;
           // if enabled, print source code of the original functions
-          if (fPrintSourceFn) {
+          if (m_DO.PrintSourceFn) {
             I->getFD()->print(llvm::outs(), Policy);
           }
           // if enabled, print ASTs of the original functions
-          if (fPrintSourceAst) {
+          if (m_DO.PrintSourceFnAST) {
             I->getFD()->dumpColor();
           }
 
@@ -239,21 +239,19 @@ namespace clad {
             = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
 
             // if enabled, print source code of the derived functions
-            if (fPrintDerivedFn) {
+            if (m_DO.PrintDerivedFn) {
               Derivative->print(llvm::outs(), Policy);
             }
             // if enabled, print ASTs of the derived functions
-            if (fPrintDerivedAst) {
+            if (m_DO.PrintDerivedAST) {
               Derivative->dumpColor();
             }
             if (Derivative) {
-              m_CurDerivative = Derivative;
               Derivative->getDeclContext()->addDecl(Derivative);
               // Call CodeGen only if the produced decl is a top-most decl.
               if (Derivative->getDeclContext()
                   == m_CI.getASTContext().getTranslationUnitDecl())
                 m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
-              m_CurDerivative = 0;
             }
 
         }
@@ -270,34 +268,34 @@ namespace clad {
 
     template<typename ConsumerType>
     class Action : public PluginASTAction {
+    private:
+      DifferentiationOptions m_DO;
     protected:
       ASTConsumer *CreateASTConsumer(CompilerInstance& CI,
                                      llvm::StringRef InFile) {
-        return new ConsumerType(CI);
+        return new ConsumerType(CI, m_DO);
       }
-      
+
       bool ParseArgs(const CompilerInstance &CI,
                      const std::vector<std::string>& args) {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
-          
           if (args[i] == "-fprint-source-fn") {
-            fPrintSourceFn = true;
+            m_DO.PrintSourceFn = true;
           }
           else if (args[i] == "-fprint-source-fn-ast") {
-            fPrintSourceAst = true;
+            m_DO.PrintSourceFnAST = true;
           }
           else if (args[i] == "-fprint-derived-fn") {
-            fPrintDerivedFn = true;
+            m_DO.PrintDerivedFn = true;
           }
           else if (args[i] == "-fprint-derived-fn-ast") {
-            fPrintDerivedAst = true;
+            m_DO.PrintDerivedAST = true;
           }
           else {
             llvm::outs() << "clad: Error: invalid option "
             << args[i] << "\n";
           }
         }
-        
         return true;
       }
     };
