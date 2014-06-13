@@ -90,31 +90,31 @@ int as_1_derived_x(int x);
 
 int main () { // expected-no-diagnostics
   int x = 4;
-  diff(a_1, 1);
+  clad::differentiate(a_1, 1);
   printf("Result is = %d\n", a_1_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  diff(a_2, 1);
+  clad::differentiate(a_2, 1);
   printf("Result is = %d\n", a_2_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  diff(a_3, 1);
+  clad::differentiate(a_3, 1);
   printf("Result is = %d\n", a_3_derived_x(1)); // CHECK-EXEC: Result is = 2
 
-  diff(a_4, 1);
+  clad::differentiate(a_4, 1);
   printf("Result is = %d\n", a_4_derived_x(1)); // CHECK-EXEC: Result is = 3
 
-  diff(s_1, 1);
+  clad::differentiate(s_1, 1);
   printf("Result is = %d\n", s_1_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  diff(s_2, 1);
+  clad::differentiate(s_2, 1);
   printf("Result is = %d\n", s_2_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  diff(s_3, 1);
+  clad::differentiate(s_3, 1);
   printf("Result is = %d\n", s_3_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  diff(s_4, 1);
+  clad::differentiate(s_4, 1);
   printf("Result is = %d\n", s_4_derived_x(1)); // CHECK-EXEC: Result is = -1
 
-  diff(as_1, 1);
+  clad::differentiate(as_1, 1);
   printf("Result is = %d\n", as_1_derived_x(1)); // CHECK-EXEC: Result is = 1
 
   return 0;

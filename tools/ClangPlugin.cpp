@@ -152,7 +152,7 @@ namespace {
             m_DiffPlan.push_back(FDI);
         }
         // We need to find our 'special' diff annotated such:
-        // diff(...) __attribute__((annotate("D")))
+        // clad::differentiate(...) __attribute__((annotate("D")))
         else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
           if (A->getAnnotation().equals("D")) {
             DeclRefExpr* DRE = 0;
