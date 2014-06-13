@@ -23,4 +23,8 @@ D: Founder and Head Architect
 
 N: Violeta Ilieva
 E: vilieva [at] princeton.edu
-D: Developer
+D: Developer, GSoC2013 student
+
+N: Martin Vassilev
+E: mrtn.vassilev [at] gmail.com
+D: Developer, GSoC2014 student
