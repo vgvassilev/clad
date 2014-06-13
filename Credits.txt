@@ -8,23 +8,23 @@ beautification by scripts.  The fields are: name (N), email (E), web-address
 (W), PGP key ID and fingerprint (P), description (D), snail-mail address
 (S), and (I) IRC handle.
 
-N: Alexander Penev
-E: alexander_penev [at] yahoo.com; apenev [at] uni-plovdiv.bg
-W: http://www.alexander-penev.info
-D: Founder, provider of much wisdom, and motivator for clad
+N: Violeta Ilieva
+E: vilieva [at] princeton.edu
+D: Developer, GSoC2013 student
 
 N: Lorenzo Moneta
 E: lorenzo.moneta [at] cern.ch
 D: Provider of a lot of feedback and real test examples
 
-N: Vassil Vassilev
-E: v.g.vassilev [at] gmail.com; vvasilev [at] cern.ch
-D: Founder and Head Architect
-
-N: Violeta Ilieva
-E: vilieva [at] princeton.edu
-D: Developer, GSoC2013 student
+N: Alexander Penev
+E: alexander_penev [at] yahoo.com; apenev [at] uni-plovdiv.bg
+W: http://www.alexander-penev.info
+D: Founder, provider of much wisdom, and motivator for clad
 
 N: Martin Vassilev
 E: mrtn.vassilev [at] gmail.com
 D: Developer, GSoC2014 student
+
+N: Vassil Vassilev
+E: v.g.vassilev [at] gmail.com; vvasilev [at] cern.ch
+D: Founder and Head Architect
