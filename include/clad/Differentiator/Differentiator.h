@@ -12,7 +12,7 @@
 
 extern "C" int printf(const char* fmt, ...);
 extern "C" char * strcpy (char* destination, const char* source);
-extern "C" unsigned strlen (const char* str);
+extern "C" size_t strlen (const char* str);
 //void operator delete(void *ptr);
 namespace clad {
 
