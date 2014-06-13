@@ -45,7 +45,7 @@ public:
 };
 
 int main () {
-  A* a = new A();
+  A a;
   clad::differentiate(&A::f, 1);
   clad::differentiate(&A::g_1, 1);
   clad::differentiate(&A::g_1, 2);
