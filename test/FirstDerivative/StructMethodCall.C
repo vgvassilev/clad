@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include  -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
 //CHECK-NOT: {{.*error:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
