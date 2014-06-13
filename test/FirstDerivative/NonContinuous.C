@@ -57,13 +57,13 @@ int g_derived_y(long y);
 
 int main () {
   int x = 4;
-  diff(f, 1); // expected-no-diagnostics
+  clad::differentiate(f, 1); // expected-no-diagnostics
   printf("Result is = %d\n", f_derived_x(1)); // CHECK-EXEC: Result is = 2
 
-  diff(f1, 1);
+  clad::differentiate(f1, 1);
   printf("Result is = %d\n", f1_derived_x(1)); // CHECK-EXEC: Result is = 2
 
-  diff(g, 1);
+  clad::differentiate(g, 1);
   printf("Result is = %d\n", g_derived_y(1)); // CHECK-EXEC: Result is = 0
 
   return 0;

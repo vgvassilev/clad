@@ -23,13 +23,13 @@ int f_simple_negative(int x) {
 
 int main () {
   int x = 4;
-  diff(f_simple, x); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_simple, x); // expected-error {{Must be an integral value}}
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
-  diff(f_simple, 2); // expected-error {{Invalid argument index 2 among 1 argument(s)}}
-  diff(f_simple, -1); // expected-error {{Invalid argument index -1 among 1 argument(s)}}
-  diff(f_simple, 1);
-  diff(f_simple_negative, 1);
+  clad::differentiate(f_simple, 2); // expected-error {{Invalid argument index 2 among 1 argument(s)}}
+  clad::differentiate(f_simple, -1); // expected-error {{Invalid argument index -1 among 1 argument(s)}}
+  clad::differentiate(f_simple, 1);
+  clad::differentiate(f_simple_negative, 1);
 
   return 0;
 }

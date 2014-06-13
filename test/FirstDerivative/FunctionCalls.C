@@ -79,11 +79,11 @@ float test_5(int x) {
 // CHECK-NEXT: }
 
 int main () {
-  diff(test_1, 1);
-  diff(test_2, 1);
-  diff(test_3, 1); // expected-error {{Trying to differentiate function 'test_3' taking no arguments}}
-  diff(test_4, 1);
-  diff(test_5, 1);
+  clad::differentiate(test_1, 1);
+  clad::differentiate(test_2, 1);
+  clad::differentiate(test_3, 1); // expected-error {{Trying to differentiate function 'test_3' taking no arguments}}
+  clad::differentiate(test_4, 1);
+  clad::differentiate(test_5, 1);
 
   return 0;
 }

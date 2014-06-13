@@ -56,12 +56,12 @@ public:
 
 int main () {
   A* a = new A();
-  diff(&A::f, 1);
-  diff(&A::g_1, 1);
-  diff(&A::g_1, 2);
-  diff(&A::g_1, 1);
-  diff(&A::g_2, 2);
-  diff(&A::m, 1);
-  diff(&A::m, 2);
+  clad::differentiate(&A::f, 1);
+  clad::differentiate(&A::g_1, 1);
+  clad::differentiate(&A::g_1, 2);
+  clad::differentiate(&A::g_1, 1);
+  clad::differentiate(&A::g_2, 2);
+  clad::differentiate(&A::m, 1);
+  clad::differentiate(&A::m, 2);
   return 0;
 }

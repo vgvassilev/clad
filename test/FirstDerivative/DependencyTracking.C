@@ -26,6 +26,6 @@ int f(int x) {
 // CHECK-NEXT: }
 
 int main () {
-  diff(f, 1);
+  clad::differentiate(f, 1);
   return 0;
 }

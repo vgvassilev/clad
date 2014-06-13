@@ -8,59 +8,84 @@
 #define CLAD_DIFFERENTIATOR
 
 #include "BuiltinDerivatives.h"
+#include <assert.h>
 
 extern "C" int printf(const char* fmt, ...);
+extern "C" char * strcpy (char* destination, const char* source);
+extern "C" unsigned strlen (const char* str);
+//void operator delete(void *ptr);
+namespace clad {
 
-// Using std::function and std::mem_fn introduces a lot of overhead, which we
-// do not need. Another disadvantage is that it is difficult to distinguish a
-// 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
-template<typename ReturnResult, typename... ArgsTypes>
-class CladFunction {
-public:
-  using CladFunctionType = ReturnResult (*)(ArgsTypes...);
-private:
-  CladFunctionType m_Function;
-  const char m_Code[];
-public:
-  CladFunction(CladFunctionType f)
-    : m_Function(f), m_Code("aaaa") { }
+  // Provide the accurate type for standalone functions and members.
+  template<bool isMemFn, typename ReturnResult, typename... ArgTypes>
+  struct FnTypeTrait {
+    using type = ReturnResult (*)(ArgTypes...);
+  };
+
+  // If it is a member function the compiler uses this specialisation.
+  template<typename ReturnResult, class C, typename... ArgTypes>
+  struct FnTypeTrait<true, ReturnResult, C, ArgTypes...> {
+    using type = ReturnResult (C::*)(ArgTypes...);
+  };
+
+  // Using std::function and std::mem_fn introduces a lot of overhead, which we
+  // do not need. Another disadvantage is that it is difficult to distinguish a
+  // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
+  template<bool isMemFn, typename ReturnResult, typename... ArgTypes>
+  class CladFunction {
+  public:
+    using CladFunctionType = typename FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>::type;
+  private:
+    CladFunctionType m_Function;
+    char* m_Code;
+  public:
+    CladFunction(CladFunctionType f, const char* code)
+      : m_Function(f) {
+      m_Code = (char*) malloc(strlen(code));
+      strcpy(m_Code, code);
+    }
+
+    // FIXME: Free the storage.
+    //~CladFunction() { delete m_Code; }
+
+    CladFunctionType getFunctionPtr() { return m_Function; }
+
+    template<typename... Args>
+    ReturnResult execute(Args&&... args) {
+      if(!m_Function)
+        printf("Function ptr must be set.");
+      printf("I was here. m_Function=%p\n", m_Function);
+      ReturnResult result = m_Function(args...);
+      return result;
+    }
+
+    void dump() const {
+      printf("The code is: %s\n", m_Code);
+    }
+  };
+
+  // This is the function which will be instantiated with the concrete arguments
+  // After that our AD library will have all the needed information. For eg:
+  // which is the differentiated function, which is the argument with respect to.
+  //
+  // This will be useful in fucture when we are ready to support partial diff.
+  //
 
   ///\brief N is the derivative order.
   ///
-  template<unsigned N>
-  CladFunction differentiate(unsigned independentArg);
-
-  template<typename... Args>
-  ReturnResult execute(Args&&... args) {
-    if(!m_Function)
-      printf("Function ptr must be set.");
-    printf("I was here. m_Function=%p\n", m_Function);
-    ReturnResult result = m_Function(args...);
-    return result;
+  template<unsigned N = 1, typename R, typename... Args>
+  CladFunction <false, R, Args...> __attribute__((annotate("D")))
+  differentiate(R (*f)(Args...), unsigned independentArg) {
+    assert(f && "Must pass in a non-0 argument");
+    const char code[] = "";
+    return CladFunction<false, R, Args...>(f, "");
   }
 
-  void dump() const {
-    printf("The code is: %s\n", m_Code);
+  template<unsigned N = 1, typename R, class C, typename... Args>
+  CladFunction<true, R, C, Args...> __attribute__((annotate("D")))
+  differentiate(R (C::*f)(Args...), unsigned independentArg) {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<true, R, C, Args...>(f, "");
   }
-};
-
-// This is the function which will be instantiated with the concrete arguments
-// After that our AD library will have all the needed information. For example:
-// which is the differentiated function, which is the argument with respect to.
-//
-// This will be useful in fucture when we are ready to support partial diff.
-//
-
-template<typename F, typename... Args>
-CladFunction<F, Args...> diff(F (*f)(Args...), unsigned independentArg)
-   __attribute__((annotate("D"))) {
-  return CladFunction<F, Args...>(f);
-}
-
-template<typename F, class C, typename... Args>
-CladFunction<F, Args...> diff(F (C::*f)(Args...), unsigned independentArg)
-   __attribute__((annotate("D"))) {
-//return CladFunction<F, Args...>(f);
-return 0;
 }
 #endif // CLAD_DIFFERENTIATOR

@@ -40,30 +40,30 @@ int f_3() {
 
 int main () {
   int x = 4 * 5;
-  diff(f_1, 1);
-  
-  diff(f_2, 1);
+  clad::differentiate(f_1, 1);
 
-  diff(f_2, 2);
+  clad::differentiate(f_2, 1);
 
-  diff(f_2, 3); 
+  clad::differentiate(f_2, 2);
 
-  diff(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
+  clad::differentiate(f_2, 3);
 
-  diff(f_2, 0); // expected-error {{Invalid argument index 0 among 3 argument(s)}}
+  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
 
-  diff(f_2, 4); // expected-error {{Invalid argument index 4 among 3 argument(s)}}
+  clad::differentiate(f_2, 0); // expected-error {{Invalid argument index 0 among 3 argument(s)}}
 
-  diff(f_2, 10); // expected-error {{Invalid argument index 10 among 3 argument(s)}}
+  clad::differentiate(f_2, 4); // expected-error {{Invalid argument index 4 among 3 argument(s)}}
 
-  diff(f_2, x); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_2, 10); // expected-error {{Invalid argument index 10 among 3 argument(s)}}
 
-  diff(f_2, f_2); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_2, x); // expected-error {{Must be an integral value}}
 
-  diff(f_3, 1); // expected-error {{Trying to differentiate function 'f_3' taking no arguments}}
+  clad::differentiate(f_2, f_2); // expected-error {{no matching member function for call to 'differentiate'}}
+
+  clad::differentiate(f_3, 1); // expected-error {{Trying to differentiate function 'f_3' taking no arguments}}
 
   float one = 1.0;
-  diff(f_2, one); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_2, one); // expected-error {{Must be an integral value}}
 
   return 0;
 }
