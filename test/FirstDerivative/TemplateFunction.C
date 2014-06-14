@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include  -Xclang -verify 2>&1 | FileCheck %s
-//CHECK-NOT: {{.*error:.*}}
+// RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
+//CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 template<typename T>
@@ -17,7 +17,7 @@ T multiplication(T x) {
   return x * x;
 }
 
-int main () { // expected-no-diagnostics
+int main () {
   int x;
 
   diff(simple_return<int>, 1);
