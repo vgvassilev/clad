@@ -46,9 +46,6 @@ namespace clad {
       strcpy(m_Code, code);
     }
 
-    // FIXME: Free the storage.
-    //~CladFunction() { delete m_Code; }
-
     CladFunctionType getFunctionPtr() { return m_Function; }
 
     template<typename... Args>
