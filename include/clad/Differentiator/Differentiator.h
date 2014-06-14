@@ -10,10 +10,11 @@
 #include "BuiltinDerivatives.h"
 #include <assert.h>
 
-extern "C" int printf(const char* fmt, ...);
-extern "C" char * strcpy (char* destination, const char* source);
-extern "C" size_t strlen (const char* str);
-//void operator delete(void *ptr);
+extern "C" {
+  int printf(const char* fmt, ...);
+  char* strcpy (char* destination, const char* source);
+}
+
 namespace clad {
 
   // Provide the accurate type for standalone functions and members.
@@ -37,11 +38,11 @@ namespace clad {
     using CladFunctionType = typename FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>::type;
   private:
     CladFunctionType m_Function;
-    char* m_Code;
+    char m_Code[];
   public:
     CladFunction(CladFunctionType f, const char* code)
       : m_Function(f) {
-      m_Code = (char*) malloc(strlen(code));
+      assert(f && "Must pass a non-0 argument.");
       strcpy(m_Code, code);
     }
 
