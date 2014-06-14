@@ -12,6 +12,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
+#include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/Sema.h"
 
 using namespace clang;
@@ -205,6 +206,16 @@ namespace clad {
     public:
       CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO) { }
+
+      virtual void Initialize(ASTContext& Context) {
+        // We need to reorder the consumers in the MultiplexConsumer.
+        MultiplexConsumer& multiplex
+          = static_cast<MultiplexConsumer&>(m_CI.getASTConsumer());
+        std::vector<ASTConsumer*>& consumers = multiplex.getConsumers();
+        ASTConsumer* lastConsumer = consumers.back();
+        consumers.pop_back();
+        consumers.insert(consumers.begin(), lastConsumer);
+      }
 
       virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
 

@@ -1,0 +1,13 @@
+Index: tools/clang/include/clang/Frontend/MultiplexConsumer.h
+===================================================================
+--- tools/clang/include/clang/Frontend/MultiplexConsumer.h	(revision 209839)
++++ tools/clang/include/clang/Frontend/MultiplexConsumer.h	(working copy)
+@@ -52,6 +52,8 @@
+   void InitializeSema(Sema &S) override;
+   void ForgetSema() override;
+ 
++  std::vector<ASTConsumer*>& getConsumers() { return Consumers; }
++
+ private:
+   std::vector<ASTConsumer*> Consumers;  // Owns these.
+   std::unique_ptr<MultiplexASTMutationListener> MutationListener;
