@@ -14,7 +14,7 @@ int main() {
   int pow1stOrderDerivative = clad::differentiate(pow2, 0).execute(12);
 
   // Or we can call like this:
-  pow1stOrderDerivative = cladPow.execute();
+  pow1stOrderDerivative = cladPow2.execute(1);
 
   auto fnPtr = clad::differentiate<5>(pow2, 0).getFunctionPtr();
   fnPtr(1);
