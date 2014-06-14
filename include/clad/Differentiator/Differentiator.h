@@ -73,17 +73,16 @@ namespace clad {
   ///
   template<unsigned N = 1, typename R, typename... Args>
   CladFunction <false, R, Args...> __attribute__((annotate("D")))
-  differentiate(R (*f)(Args...), unsigned independentArg) {
+  differentiate(R (*f)(Args...), unsigned independentArg, const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    const char code[] = "";
-    return CladFunction<false, R, Args...>(f, "");
+    return CladFunction<false, R, Args...>(f, code);
   }
 
   template<unsigned N = 1, typename R, class C, typename... Args>
   CladFunction<true, R, C, Args...> __attribute__((annotate("D")))
-  differentiate(R (C::*f)(Args...), unsigned independentArg) {
+  differentiate(R (C::*f)(Args...), unsigned independentArg, const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<true, R, C, Args...>(f, "");
+    return CladFunction<true, R, C, Args...>(f, code);
   }
 }
 #endif // CLAD_DIFFERENTIATOR

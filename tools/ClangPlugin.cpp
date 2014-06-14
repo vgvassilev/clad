@@ -60,7 +60,9 @@ namespace {
   private:
     typedef llvm::SmallVector<FunctionDeclInfo, 16> Functions;
     Functions m_Functions;
+    CallExpr* m_CallToUpdate;
   public:
+    DiffPlan() : m_CallToUpdate(0) {}
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
     void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
@@ -69,6 +71,53 @@ namespace {
     const_iterator begin() const { return m_Functions.begin(); }
     const_iterator end() const { return m_Functions.end(); }
     size_t size() const { return m_Functions.size(); }
+    void setCallToUpdate(CallExpr* CE) { m_CallToUpdate = CE; }
+    void updateCall(FunctionDecl* FD, Sema& SemaRef) {
+      assert(m_CallToUpdate && "Must be set");
+      DeclRefExpr* DRE = 0;
+      if (ImplicitCastExpr* ICE
+          = dyn_cast<ImplicitCastExpr>(m_CallToUpdate->getArg(0))){
+        DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+      }
+      // Handle the case of member function.
+      else if (UnaryOperator* UnOp
+               = dyn_cast<UnaryOperator>(m_CallToUpdate->getArg(0))){
+        DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+      }
+      if (DRE)
+        DRE->setDecl(FD);
+      if (CXXDefaultArgExpr* Arg
+          = dyn_cast<CXXDefaultArgExpr>(m_CallToUpdate->getArg(2))) {
+        clang::LangOptions LangOpts;
+        LangOpts.CPlusPlus = true;
+        clang::PrintingPolicy Policy(LangOpts);
+
+        std::string s;
+        llvm::raw_string_ostream Out(s);
+        FD->print(Out, Policy);
+        Out.flush();
+
+        // Copied and adapted from clang::Sema::ActOnStringLiteral.
+        ASTContext& C = SemaRef.getASTContext();
+        QualType CharTyConst = C.CharTy;
+        CharTyConst.addConst();
+        // Get an array type for the string, according to C99 6.4.5.  This includes
+        // the nul terminator character as well as the string length for pascal
+        // strings.
+        QualType StrTy = C.getConstantArrayType(CharTyConst,
+                                            llvm::APInt(32, Out.str().size()+1),
+                                                ArrayType::Normal, 0);
+
+
+        StringLiteral* SL = StringLiteral::Create(C, Out.str(),
+                                                  StringLiteral::Ascii,
+                                                  /*Pascal*/false, StrTy,
+                                                  SourceLocation());
+        Expr* newArg = SemaRef.ImpCastExprToType(SL, Arg->getType(),
+                                                 CK_ArrayToPointerDecay).get();
+        m_CallToUpdate->setArg(2, newArg);
+      }
+    }
     void dump() {
       for (const_iterator I = begin(), E = end(); I != E; ++I) {
         I->dump();
@@ -168,8 +217,9 @@ namespace {
             }
             if (DRE) {
               assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
-
               // We know that is *our* diff function.
+
+              m_DiffPlan.setCallToUpdate(E);
               FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
               ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
               FunctionDeclInfo FDI(cand, candPVD);
@@ -251,6 +301,8 @@ namespace clad {
           // derive the collected functions
           FunctionDecl* Derivative
             = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
+          if (I + 1 == E) // The last element
+            plan.updateCall(Derivative, m_CI.getSema());
 
             // if enabled, print source code of the derived functions
             if (m_DO.PrintDerivedFn) {
