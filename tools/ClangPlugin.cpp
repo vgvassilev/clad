@@ -215,6 +215,9 @@ namespace clad {
           m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
 
         DiffPlan plan;
+        // Instantiate all pending for instantiations templates, because we will
+        // need the full bodies to produce derivatives.
+        m_CI.getSema().PerformPendingInstantiations();
         DiffCollector m_Collector(DGR, plan, m_CI.getSema());
 
         //set up printing policy

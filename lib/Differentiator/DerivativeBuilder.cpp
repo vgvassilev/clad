@@ -441,7 +441,9 @@ namespace clad {
       BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
       BinOp->setRHS(m_Sema.ActOnParenExpr(L, R, rhs_derived).get());
-
+      assert(lhs_derived->getType() == rhs_derived->getType()
+             && "Must be the same types.");
+      BinOp->setType(lhs_derived->getType());
       return NodeContext(BinOp);
     }
 
