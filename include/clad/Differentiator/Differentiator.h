@@ -59,9 +59,6 @@ namespace clad {
 
     template<typename... Args>
     ReturnResult execute(Args&&... args) {
-      if(!m_Function)
-        printf("Function ptr must be set.");
-      printf("I was here. m_Function=%p\n", m_Function);
       ReturnResult result = m_Function(args...);
       return result;
     }
