@@ -105,8 +105,9 @@ namespace {
         // the nul terminator character as well as the string length for pascal
         // strings.
         QualType StrTy = C.getConstantArrayType(CharTyConst,
-                                            llvm::APInt(32, Out.str().size()+1),
-                                                ArrayType::Normal, 0);
+                                            llvm::APInt(32, Out.str().size() + 1),
+                                                ArrayType::Normal,
+                                                /*IndexTypeQuals*/0);
 
 
         StringLiteral* SL = StringLiteral::Create(C, Out.str(),
