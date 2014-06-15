@@ -9,10 +9,14 @@
 
 #include "BuiltinDerivatives.h"
 #include <assert.h>
+#include <stddef.h>
 
 extern "C" {
   int printf(const char* fmt, ...);
   char* strcpy (char* destination, const char* source);
+  size_t strlen(const char*);
+  void* malloc(size_t);
+  void free(void *ptr);
 }
 
 namespace clad {
@@ -38,13 +42,18 @@ namespace clad {
     using CladFunctionType = typename FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>::type;
   private:
     CladFunctionType m_Function;
-    char m_Code[];
+    char* m_Code;
   public:
     CladFunction(CladFunctionType f, const char* code)
       : m_Function(f) {
       assert(f && "Must pass a non-0 argument.");
+      m_Code = (char*)malloc(strlen(code) + 1);
       strcpy(m_Code, code);
     }
+
+    // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
+    // i.e -lstdc++.
+    //~CladFunction() { /*free(m_Code);*/ }
 
     CladFunctionType getFunctionPtr() { return m_Function; }
 
