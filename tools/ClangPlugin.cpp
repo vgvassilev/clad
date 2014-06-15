@@ -194,13 +194,16 @@ namespace {
     bool VisitCallExpr(CallExpr* E) {
       if (FunctionDecl *FD = E->getDirectCallee()) {
         if (m_TopMostFDI) {
-          unsigned index;
-          for (index = 0; index < m_TopMostFDI->getFD()->getNumParams();++index)
-            if (FD->getParamDecl(index) == m_TopMostFDI->getPVD())
+          int index = -1;
+          for (unsigned i = 0; i < m_TopMostFDI->getFD()->getNumParams(); ++i)
+            if (FD->getParamDecl(index) == m_TopMostFDI->getPVD()) {
+              index = i - 1; // Decrement by 1, adapting to FD's 0 param list.
               break;
-
+            }
+          if (index > -1) {
             FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
             m_DiffPlan.push_back(FDI);
+          }
         }
         // We need to find our 'special' diff annotated such:
         // clad::differentiate(...) __attribute__((annotate("D")))
