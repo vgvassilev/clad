@@ -225,7 +225,7 @@ namespace {
               ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
               FunctionDeclInfo FDI(cand, candPVD);
               m_TopMostFDI = &FDI;
-              TraverseDecl(FD);
+              TraverseDecl(cand);
               m_TopMostFDI = 0;
               m_DiffPlan.push_back(FDI);
             }
