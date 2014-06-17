@@ -362,6 +362,17 @@ namespace clad {
           else if (args[i] == "-fdump-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
           }
+          else if (args[i] == "-help") {
+            // Print some help info
+            llvm::errs() <<
+              "Option set for the clang-based automatic differentiator - clad:\n\n" <<
+              "-fdump-source-fn - Prints out the source code of the function.\n" <<
+              "-fdump-source-fn-ast - Prints out the AST of the function.\n" <<
+              "-fdump-derived-fn - Prints out the source code of the derivative.\n" <<
+              "-fdump-derived-fn-ast - Prints out the AST of the derivative.\n";
+
+            llvm::errs() << "-help - Prints out this screen.\n\n";
+          }
           else {
             llvm::outs() << "clad: Error: invalid option "
             << args[i] << "\n";
