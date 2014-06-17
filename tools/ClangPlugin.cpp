@@ -244,13 +244,13 @@ namespace clad {
   namespace plugin {
     struct DifferentiationOptions {
       DifferentiationOptions()
-        : PrintSourceFn(false), PrintSourceFnAST(false), PrintDerivedFn(false),
-          PrintDerivedAST(false) { }
+        : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
+          DumpDerivedAST(false) { }
 
-      bool PrintSourceFn : 1;
-      bool PrintSourceFnAST : 1;
-      bool PrintDerivedFn : 1;
-      bool PrintDerivedAST : 1;
+      bool DumpSourceFn : 1;
+      bool DumpSourceFnAST : 1;
+      bool DumpDerivedFn : 1;
+      bool DumpDerivedAST : 1;
     };
 
     class CladPlugin : public ASTConsumer {
@@ -295,11 +295,11 @@ namespace clad {
           if (!I->isValid())
             continue;
           // if enabled, print source code of the original functions
-          if (m_DO.PrintSourceFn) {
+          if (m_DO.DumpSourceFn) {
             I->getFD()->print(llvm::outs(), Policy);
           }
           // if enabled, print ASTs of the original functions
-          if (m_DO.PrintSourceFnAST) {
+          if (m_DO.DumpSourceFnAST) {
             I->getFD()->dumpColor();
           }
 
@@ -310,11 +310,11 @@ namespace clad {
             plan.updateCall(Derivative, m_CI.getSema());
 
             // if enabled, print source code of the derived functions
-            if (m_DO.PrintDerivedFn) {
+            if (m_DO.DumpDerivedFn) {
               Derivative->print(llvm::outs(), Policy);
             }
             // if enabled, print ASTs of the derived functions
-            if (m_DO.PrintDerivedAST) {
+            if (m_DO.DumpDerivedAST) {
               Derivative->dumpColor();
             }
             if (Derivative) {
@@ -350,17 +350,17 @@ namespace clad {
       bool ParseArgs(const CompilerInstance &CI,
                      const std::vector<std::string>& args) {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
-          if (args[i] == "-fprint-source-fn") {
-            m_DO.PrintSourceFn = true;
+          if (args[i] == "-fdump-source-fn") {
+            m_DO.DumpSourceFn = true;
           }
-          else if (args[i] == "-fprint-source-fn-ast") {
-            m_DO.PrintSourceFnAST = true;
+          else if (args[i] == "-fdump-source-fn-ast") {
+            m_DO.DumpSourceFnAST = true;
           }
-          else if (args[i] == "-fprint-derived-fn") {
-            m_DO.PrintDerivedFn = true;
+          else if (args[i] == "-fdump-derived-fn") {
+            m_DO.DumpDerivedFn = true;
           }
-          else if (args[i] == "-fprint-derived-fn-ast") {
-            m_DO.PrintDerivedAST = true;
+          else if (args[i] == "-fdump-derived-fn-ast") {
+            m_DO.DumpDerivedAST = true;
           }
           else {
             llvm::outs() << "clad: Error: invalid option "
