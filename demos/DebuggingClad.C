@@ -1,7 +1,7 @@
 //--------------------------------------------------------------------*- C++ -*-
 // clad - The C++ Clang-based Automatic Differentiator
 //
-// A demo, describing a basic usage of the tool.
+// A demo, describing the debugging facilities in clad.
 //
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //----------------------------------------------------------------------------//
