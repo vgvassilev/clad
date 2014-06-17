@@ -45,7 +45,7 @@ namespace {
     FunctionDecl* getFD() const { return m_FD; }
     ParmVarDecl* getPVD() const { return m_PVD; }
     bool isValid() const { return m_FD && m_PVD; }
-    void dump() const {
+    LLVM_DUMP_METHOD void dump() const {
       if (!isValid())
         llvm::errs() << "<invalid> FD :"<< m_FD << " , PVD:" << m_PVD << "\n";
       else {
@@ -121,7 +121,7 @@ namespace {
         m_CallToUpdate->setArg(2, newArg);
       }
     }
-    void dump() {
+    LLVM_DUMP_METHOD void dump() {
       for (const_iterator I = begin(), E = end(); I != E; ++I) {
         I->dump();
         llvm::errs() << "\n";
