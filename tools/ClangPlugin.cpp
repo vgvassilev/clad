@@ -15,6 +15,8 @@
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/Support/raw_ostream.h"
+
 using namespace clang;
 
 namespace {
@@ -245,12 +247,13 @@ namespace clad {
     struct DifferentiationOptions {
       DifferentiationOptions()
         : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-          DumpDerivedAST(false) { }
+          DumpDerivedAST(false), GenerateSourceFile(false) { }
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
       bool DumpDerivedFn : 1;
       bool DumpDerivedAST : 1;
+      bool GenerateSourceFile : 1;
     };
 
     class CladPlugin : public ASTConsumer {
@@ -317,6 +320,14 @@ namespace clad {
             if (m_DO.DumpDerivedAST) {
               Derivative->dumpColor();
             }
+            // if enabled, print the derivatives in a file.
+            if (m_DO.GenerateSourceFile) {
+              std::string err;
+              llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                                     llvm::sys::fs::F_Append);
+              Derivative->print(f, Policy);
+              f.flush();
+            }
             if (Derivative) {
               Derivative->getDeclContext()->addDecl(Derivative);
               // Call CodeGen only if the produced decl is a top-most decl.
@@ -362,14 +373,18 @@ namespace clad {
           else if (args[i] == "-fdump-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
           }
+          else if (args[i] == "-fgenerate-source-file") {
+            m_DO.GenerateSourceFile = true;
+          }
           else if (args[i] == "-help") {
-            // Print some help info
+            // Print some help info.
             llvm::errs() <<
               "Option set for the clang-based automatic differentiator - clad:\n\n" <<
               "-fdump-source-fn - Prints out the source code of the function.\n" <<
               "-fdump-source-fn-ast - Prints out the AST of the function.\n" <<
               "-fdump-derived-fn - Prints out the source code of the derivative.\n" <<
-              "-fdump-derived-fn-ast - Prints out the AST of the derivative.\n";
+              "-fdump-derived-fn-ast - Prints out the AST of the derivative.\n" <<
+              "-fgenerate-source-file - Produces a file containing the derivatives.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           }
