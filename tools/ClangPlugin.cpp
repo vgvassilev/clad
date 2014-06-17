@@ -196,10 +196,11 @@ namespace {
         if (m_TopMostFDI) {
           int index = -1;
           for (unsigned i = 0; i < m_TopMostFDI->getFD()->getNumParams(); ++i)
-            if (FD->getParamDecl(index) == m_TopMostFDI->getPVD()) {
-              index = i - 1; // Decrement by 1, adapting to FD's 0 param list.
-              break;
-            }
+            if (index != -1)
+              if (FD->getParamDecl(index) == m_TopMostFDI->getPVD()) {
+                index = i - 1; // Decrement by 1, adapting to FD's 0 param list.
+                break;
+              }
           if (index > -1) {
             FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
             m_DiffPlan.push_back(FDI);

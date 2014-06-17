@@ -2,7 +2,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-int printf(const char* fmt, ...); // expected-warning {{function 'printf' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
+int printf(const char* fmt, ...); //expected-warning {{function 'printf' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
 int no_body(int x); // expected-error {{attempted differention of function 'no_body', which does not have a definition}}
 int custom_fn(int x);
 int custom_fn(float x);
@@ -81,7 +81,7 @@ float test_5(int x) {
 int main () {
   clad::differentiate(test_1, 1);
   clad::differentiate(test_2, 1);
-  clad::differentiate(test_3, 1); // expected-error {{Trying to differentiate function 'test_3' taking no arguments}}
+  clad::differentiate(test_3, 1); //expected-error {{Trying to differentiate function 'test_3' taking no arguments}}
   clad::differentiate(test_4, 1);
   clad::differentiate(test_5, 1);
 

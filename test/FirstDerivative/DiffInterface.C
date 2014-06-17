@@ -58,7 +58,7 @@ int main () {
 
   clad::differentiate(f_2, x); // expected-error {{Must be an integral value}}
 
-  clad::differentiate(f_2, f_2); // expected-error {{no matching member function for call to 'differentiate'}}
+  clad::differentiate(f_2, f_2); // expected-error {{no matching function for call to 'differentiate'}}
 
   clad::differentiate(f_3, 1); // expected-error {{Trying to differentiate function 'f_3' taking no arguments}}
 
