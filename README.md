@@ -39,7 +39,7 @@ After a successful build libclad.so or libclad.dylib will be created
 in llvm's lib (inst/lib) directory. One can attach the plugin to clang invocation
 like this:
 
- clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -fprint-folded-fn -plugin-arg-clad -fprint-folded-fn-ast SourceFile.cpp  
+ clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -help SourceFile.cpp  
 For more details see:  
 http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf  
 http://prezi.com/g1iggppw76wl/autodiff/  
