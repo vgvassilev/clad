@@ -21,9 +21,10 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
 
 3. Building from source  
   ```
-    svn checkout http://llvm.org/svn/llvm-project/llvm/trunk -r`cat LastKnownGoodLLVMRevision.txt` src
+    LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q)
+    svn checkout http://llvm.org/svn/llvm-project/llvm/trunk -r$LAST_KNOWN_GOOD_LLVM src
     cd src/tools
-    svn checkout http://llvm.org/svn/llvm-project/cfe/trunk -r`cat LastKnownGoodLLVMRevision.txt` clang
+    svn checkout http://llvm.org/svn/llvm-project/cfe/trunk -r$LAST_KNOWN_GOOD_LLVM clang
     git clone https://github.com/vgvassilev/clad.git clad
     cd ../
     cat patches tools/clad/patches/*.diff | patch -p0
