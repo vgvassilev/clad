@@ -389,8 +389,8 @@ namespace clad {
             llvm::errs() << "-help - Prints out this screen.\n\n";
           }
           else {
-            llvm::outs() << "clad: Error: invalid option "
-            << args[i] << "\n";
+            llvm::errs() << "clad: Error: invalid option "
+                         << args[i] << "\n";
             return false; // Tells clang not to create the plugin.
           }
         }
