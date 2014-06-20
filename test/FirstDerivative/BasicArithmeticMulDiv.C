@@ -37,6 +37,13 @@ int m_4(int x) {
 // CHECK-NEXT: return ((((1 * y + x * 0) * x + x * y * 1) * 3 + x * y * x * 0) * x + x * y * x * 3 * 1);
 // CHECK-NEXT: }
 
+double m_5(int x) {
+  return 3.14 * x;
+}
+// CHECK: double m_5_derived_x(int x) {
+// CHECK-NEXT: return (0. * x + 3.1400000000000001 * 1);
+// CHECK-NEXT: }
+
 int d_1(int x) {
   int y = 4;
   return y / y; // == 0
@@ -82,6 +89,7 @@ int m_1_derived_x(int x);
 int m_2_derived_x(int x);
 int m_3_derived_x(int x);
 int m_4_derived_x(int x);
+double m_5_derived_x(int x);
 int d_1_derived_x(int x);
 int d_2_derived_x(int x);
 int d_3_derived_x(int x);
@@ -101,6 +109,9 @@ int main () {
 
   clad::differentiate(m_4, 1);
   printf("Result is = %d\n", m_4_derived_x(1)); // CHECK-EXEC: Result is = 36
+
+  clad::differentiate(m_5, 1);
+  printf("Result is = %f\n", m_5_derived_x(1)); // CHECK-EXEC: Result is = 3.14
 
   clad::differentiate(d_1, 1);
   printf("Result is = %d\n", d_1_derived_x(1)); // CHECK-EXEC: Result is = 0

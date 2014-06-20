@@ -200,7 +200,13 @@ namespace clad {
                                                        noLoc);
     return NodeContext(constant0);
   }
-  
+
+  NodeContext DerivativeBuilder::VisitFloatingLiteral(FloatingLiteral* FL) {
+    FloatingLiteral* clonedStmt = m_NodeCloner->Clone(FL);
+    clonedStmt->setValue(m_Context, llvm::APFloat(0.0));
+    return NodeContext(clonedStmt);
+  }
+
   // This method is derived from the source code of both buildOverloadedCallSet()
   // in SemaOverload.cpp and ActOnCallExpr() in SemaExpr.cpp.
   bool DerivativeBuilder::overloadExists(Expr* UnresolvedLookup,

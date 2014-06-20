@@ -109,6 +109,7 @@ namespace clad {
     NodeContext VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     NodeContext VisitParenExpr(clang::ParenExpr* PE);
     NodeContext VisitIntegerLiteral(clang::IntegerLiteral* IL);
+    NodeContext VisitFloatingLiteral(clang::FloatingLiteral* FL);
     NodeContext VisitCallExpr(clang::CallExpr* CE);
     NodeContext VisitDeclStmt(clang::DeclStmt* DS);
     NodeContext VisitImplicitCastExpr(clang::ImplicitCastExpr* ICE);
