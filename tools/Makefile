@@ -26,7 +26,7 @@ endif
 
 include $(CLANG_LEVEL)/../../Makefile.config
 
-LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
+#LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
 
 USEDLIBS := cladDifferentiator.a \
 	    clangSerialization.a LLVMOption.a clangFrontend.a clangDriver.a \
