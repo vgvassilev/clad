@@ -45,7 +45,6 @@ DEFINE_CLONE_EXPR(DeclRefExpr, (Node->getDecl(), Node->refersToEnclosingLocal(),
 DEFINE_CREATE_EXPR(IntegerLiteral, (Ctx, Node->getValue(), Node->getType(), Node->getLocation()))
 DEFINE_CLONE_EXPR(PredefinedExpr, (Node->getLocation(), Node->getType(), Node->getIdentType()))
 DEFINE_CLONE_EXPR(CharacterLiteral, (Node->getValue(), Node->getKind(), Node->getType(), Node->getLocation()))
-DEFINE_CREATE_EXPR(FloatingLiteral, (Ctx, Node->getValue(), Node->isExact(), Node->getType(), Node->getLocation()))
 DEFINE_CLONE_EXPR(ImaginaryLiteral, (Clone(Node->getSubExpr()), Node->getType()))
 DEFINE_CLONE_EXPR(ParenExpr, (Node->getLParen(), Node->getRParen(), Clone(Node->getSubExpr())))
 DEFINE_CLONE_EXPR(ArraySubscriptExpr, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRBracketLoc()))
@@ -84,6 +83,15 @@ Stmt* StmtClone::VisitStringLiteral(StringLiteral* Node) {
   return StringLiteral::Create(Ctx, Node->getString(), Node->getKind(), 
                                Node->isPascal(), Node->getType(),
                                &concatLocations[0], concatLocations.size());
+}
+
+Stmt* StmtClone::VisitFloatingLiteral(FloatingLiteral* Node) {
+  FloatingLiteral* clone = FloatingLiteral::Create(Ctx, Node->getValue(),
+                                                   Node->isExact(),
+                                                   Node->getType(),
+                                                   Node->getLocation());
+  clone->setSemantics(Node->getSemantics());
+  return clone;
 }
 
 Stmt* StmtClone::VisitInitListExpr(InitListExpr* Node) {
