@@ -391,6 +391,7 @@ namespace clad {
           else {
             llvm::outs() << "clad: Error: invalid option "
             << args[i] << "\n";
+            return false; // Tells clang not to create the plugin.
           }
         }
         return true;
