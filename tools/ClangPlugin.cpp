@@ -5,11 +5,13 @@
 //------------------------------------------------------------------------------
 
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/Version.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
@@ -360,6 +362,13 @@ namespace clad {
 
       bool ParseArgs(const CompilerInstance &CI,
                      const std::vector<std::string>& args) {
+        if (clang::getClangRevision() != clad::getClangCompatRevision()) {
+          // TODO: Print nice looking diagnostics through the DiagEngine.
+          llvm::errs() << "Clang is not compatible with clad."
+                       << " (" << clang::getClangRevision() << " != "
+                       << clad::getClangCompatRevision() << " )\n";
+          return false;
+        }
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
           if (args[i] == "-fdump-source-fn") {
             m_DO.DumpSourceFn = true;
