@@ -26,7 +26,7 @@ namespace utils {
   class StmtClone : public clang::StmtVisitor<StmtClone, clang::Stmt*>  {
   public:
     // first: original stmt, second: appropriate cloned stmt
-    typedef llvm::DenseMap<clang::Stmt*, clang::Stmt*> StmtMapping; 
+    typedef llvm::DenseMap<const clang::Stmt*, clang::Stmt*> StmtMapping;
     typedef llvm::DenseMap<clang::ValueDecl*, clang::ValueDecl*> DeclMapping; 
     typedef StmtCloneMapping Mapping; 
 
