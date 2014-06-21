@@ -42,7 +42,7 @@ namespace utils {
       : Ctx(ctx), m_OriginalToClonedStmts(originalToClonedStmts) {}
 
     template<class StmtTy>
-    StmtTy* Clone(StmtTy* S);
+    StmtTy* Clone(const StmtTy* S);
 
   // visitor part (not for public use)
   // Stmt.def could be used if ABSTR_STMT is introduced
@@ -119,11 +119,11 @@ namespace utils {
   };
 
   template<class StmtTy>
-  StmtTy* StmtClone::Clone(StmtTy* S) {
+  StmtTy* StmtClone::Clone(const StmtTy* S) {
     if (!S)
       return 0;
 
-    clang::Stmt* clonedStmt = Visit(S);
+    clang::Stmt* clonedStmt = Visit(const_cast<StmtTy*>(S));
 
     if (m_OriginalToClonedStmts)
       m_OriginalToClonedStmts->m_StmtMapping[S] = clonedStmt;

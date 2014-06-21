@@ -130,7 +130,7 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitStmt(const Stmt* S) {
-    Stmt* clonedStmt = m_NodeCloner->Clone(const_cast<Stmt*>(S));
+    Stmt* clonedStmt = m_NodeCloner->Clone(S);
     updateReferencesOf(clonedStmt);
     return NodeContext(clonedStmt);
   }
