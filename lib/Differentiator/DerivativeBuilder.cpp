@@ -446,16 +446,19 @@ namespace clad {
     if (opCode == BO_Add || opCode == BO_Sub) {
       SourceLocation L, R;
 
-      BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
-      BinOp->setRHS(m_Sema.ActOnParenExpr(L, R, rhs_derived).get());
+      rhs_derived = m_Sema.ActOnParenExpr(L, R, rhs_derived).get();
+
       assert(lhs_derived->getType() == rhs_derived->getType()
              && "Must be the same types.");
-      BinOp->setType(lhs_derived->getType());
-      return NodeContext(BinOp);
+
+      Expr* newBO = m_Sema.BuildBinOp(/*Scope*/0, L, opCode,
+                                      lhs_derived, rhs_derived).get();
+
+      return NodeContext(newBO);
     }
 
-    return NodeContext(BinOp);
+    return VisitStmt(const_cast<BinaryOperator*>(BinOp));
   }
 
   NodeContext DerivativeBuilder::VisitDeclStmt(DeclStmt* DS) {
