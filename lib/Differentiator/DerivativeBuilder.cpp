@@ -167,8 +167,9 @@ namespace clad {
   
   NodeContext DerivativeBuilder::VisitParenExpr(ParenExpr* PE) {
     ParenExpr* clonedPE = VisitStmt(PE).getAs<ParenExpr>();
-    Expr* retVal = cast<Expr>(Visit(clonedPE->getSubExpr()).getStmt());
+    Expr* retVal = Visit(clonedPE->getSubExpr()).getExpr();
     clonedPE->setSubExpr(retVal);
+    clonedPE->setType(retVal->getType());
     return NodeContext(clonedPE);
   }
   
