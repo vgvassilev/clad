@@ -203,7 +203,8 @@ namespace clad {
 
   NodeContext DerivativeBuilder::VisitFloatingLiteral(FloatingLiteral* FL) {
     FloatingLiteral* clonedStmt = m_NodeCloner->Clone(FL);
-    clonedStmt->setValue(m_Context, llvm::APFloat(0.0));
+    llvm::APFloat zero = llvm::APFloat::getZero(clonedStmt->getSemantics());
+    clonedStmt->setValue(m_Context, zero);
     return NodeContext(clonedStmt);
   }
 
