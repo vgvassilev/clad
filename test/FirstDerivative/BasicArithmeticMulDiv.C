@@ -48,7 +48,7 @@ float m_6(int x) {
   return 3.f * x;
 }
 // CHECK: float m_6_derived_x(int x) {
-// CHECK-NEXT: return 3;
+// CHECK-NEXT: return (0.F * x + 3.F * 1);
 // CHECK-NEXT: }
 
 int d_1(int x) {
