@@ -1,5 +1,5 @@
 
-#include "../tools/ClangPlugin.h"
+#include "ClangPlugin.h"
 
 namespace clad {
   namespace internal {
