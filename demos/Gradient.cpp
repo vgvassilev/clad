@@ -9,12 +9,12 @@
 
 // To run the demo please type:
 // path/to/clang  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -x c++ -std=c++11 Gradient.C
+// path/to/libclad.so  -I../include/ -x c++ -std=c++11 Gradient.cpp
 //
 // A typical invocation would be:
 // ../../../../obj/Debug+Asserts/bin/clang  -Xclang -add-plugin -Xclang clad \
 // -Xclang -load -Xclang ../../../../obj/Debug+Asserts/lib/libclad.dylib     \
-// -I../include/ -x c++ -std=c++11 Gradient.C
+// -I../include/ -x c++ -std=c++11 Gradient.cpp
 
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
