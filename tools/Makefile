@@ -18,7 +18,9 @@ LINK_LIBS_IN_SHARED = 1
 SHARED_LIBRARY = 1
 
 # Set common clad build flags.
-CPP.Flags += -I$(PROJ_SRC_DIR)/$(CLAD_LEVEL)/include -I$(PROJ_OBJ_DIR)/$(CLAD_LEVEL)/include
+CPP.Flags += -I$(PROJ_SRC_DIR)/$(CLAD_LEVEL)/include \
+	 -I$(PROJ_OBJ_DIR)/$(CLAD_LEVEL)/include \
+	 -I$(PROJ_SRC_DIR)/$(CLAD_LEVEL)/tools # FIXME: For RequiredSymbols.cpp
 ifdef CLAD_VENDOR
 CPP.Flags += -DCLAD_VENDOR='"$(CLAD_VENDOR) "'
 endif

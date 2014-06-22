@@ -129,24 +129,24 @@ namespace clad {
     return derivedFD;
   }
 
-  NodeContext DerivativeBuilder::VisitStmt(Stmt* S) {
+  NodeContext DerivativeBuilder::VisitStmt(const Stmt* S) {
     Stmt* clonedStmt = m_NodeCloner->Clone(S);
     updateReferencesOf(clonedStmt);
     return NodeContext(clonedStmt);
   }
 
-  NodeContext DerivativeBuilder::VisitCompoundStmt(CompoundStmt* CS) {
+  NodeContext DerivativeBuilder::VisitCompoundStmt(const CompoundStmt* CS) {
     llvm::SmallVector<Stmt*, 16> stmts;
-    for (CompoundStmt::body_iterator I = CS->body_begin(), E = CS->body_end();
-         I != E; ++I)
+    for (CompoundStmt::const_body_iterator I = CS->body_begin(),
+           E = CS->body_end(); I != E; ++I)
       stmts.push_back(Visit(*I).getStmt());
-    
+
     llvm::ArrayRef<Stmt*> stmtsRef(stmts.data(), stmts.size());
     SourceLocation noLoc;
     return new (m_Context) CompoundStmt(m_Context, stmtsRef, noLoc, noLoc);
   }
 
-  NodeContext DerivativeBuilder::VisitIfStmt(IfStmt* If) {
+  NodeContext DerivativeBuilder::VisitIfStmt(const IfStmt* If) {
     IfStmt* clonedIf = VisitStmt(If).getAs<IfStmt>();
     clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
     if (clonedIf->getElse())
@@ -154,7 +154,7 @@ namespace clad {
     return NodeContext(clonedIf);
   }
 
-  NodeContext DerivativeBuilder::VisitReturnStmt(ReturnStmt* RS) {
+  NodeContext DerivativeBuilder::VisitReturnStmt(const ReturnStmt* RS) {
      //ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
     Expr* retVal = Visit(VisitStmt(RS->getRetValue()).getExpr()).getExpr();
     SourceLocation noLoc;
@@ -165,14 +165,15 @@ namespace clad {
     return NodeContext(clonedStmt);
   }
   
-  NodeContext DerivativeBuilder::VisitParenExpr(ParenExpr* PE) {
+  NodeContext DerivativeBuilder::VisitParenExpr(const ParenExpr* PE) {
     ParenExpr* clonedPE = VisitStmt(PE).getAs<ParenExpr>();
-    Expr* retVal = cast<Expr>(Visit(clonedPE->getSubExpr()).getStmt());
+    Expr* retVal = Visit(clonedPE->getSubExpr()).getExpr();
     clonedPE->setSubExpr(retVal);
+    clonedPE->setType(retVal->getType());
     return NodeContext(clonedPE);
   }
   
-  NodeContext DerivativeBuilder::VisitDeclRefExpr(DeclRefExpr* DRE) {
+  NodeContext DerivativeBuilder::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = VisitStmt(DRE).getAs<DeclRefExpr>();
     SourceLocation noLoc;
     if (clonedDRE->getDecl()->getNameAsString() ==
@@ -192,7 +193,7 @@ namespace clad {
     }
   }
   
-  NodeContext DerivativeBuilder::VisitIntegerLiteral(IntegerLiteral* IL) {
+  NodeContext DerivativeBuilder::VisitIntegerLiteral(const IntegerLiteral* IL) {
     SourceLocation noLoc;
     llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
     IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
@@ -201,9 +202,10 @@ namespace clad {
     return NodeContext(constant0);
   }
 
-  NodeContext DerivativeBuilder::VisitFloatingLiteral(FloatingLiteral* FL) {
+  NodeContext DerivativeBuilder::VisitFloatingLiteral(const FloatingLiteral* FL) {
     FloatingLiteral* clonedStmt = m_NodeCloner->Clone(FL);
-    clonedStmt->setValue(m_Context, llvm::APFloat(0.0));
+    llvm::APFloat zero = llvm::APFloat::getZero(clonedStmt->getSemantics());
+    clonedStmt->setValue(m_Context, zero);
     return NodeContext(clonedStmt);
   }
 
@@ -267,7 +269,7 @@ namespace clad {
     return OverloadedFn;
   }
   
-  NodeContext DerivativeBuilder::VisitCallExpr(CallExpr* CE) {
+  NodeContext DerivativeBuilder::VisitCallExpr(const CallExpr* CE) {
     // Find the built-in derivatives namespace.
     IdentifierInfo* II
       = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
@@ -288,12 +290,12 @@ namespace clad {
 
     Expr* OverloadedFnInFile
        = findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(), CallArgs);
-    
+
     if (OverloadedFnInFile) {
       // Take the function to derive from the source.
-      FunctionDecl* FD = CE->getDirectCallee();
+      const FunctionDecl* FD = CE->getDirectCallee();
       // Get the definition, if any.
-      FunctionDecl* mostRecentFD = FD->getMostRecentDecl();
+      const FunctionDecl* mostRecentFD = FD->getMostRecentDecl();
       while (mostRecentFD && !mostRecentFD->isThisDeclarationADefinition()) {
         mostRecentFD = mostRecentFD->getPreviousDecl();
       }
@@ -301,7 +303,7 @@ namespace clad {
         SourceLocation IdentifierLoc = FD->getLocEnd();
         m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
           << FD->getNameAsString();
-        return NodeContext(CE);
+        return VisitStmt(CE);
       }
 
       // Look for a declaration of a function to differentiate
@@ -340,7 +342,7 @@ namespace clad {
     SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
     m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
       << CE->getDirectCallee()->getNameAsString();
-    return NodeContext(CE);
+    return VisitStmt(CE);
   }
 
   namespace {
@@ -388,13 +390,13 @@ namespace clad {
     up.TraverseStmt(InSubtree);
   }
 
-  NodeContext DerivativeBuilder::VisitUnaryOperator(UnaryOperator* UnOp) {
+  NodeContext DerivativeBuilder::VisitUnaryOperator(const UnaryOperator* UnOp) {
     UnaryOperator* clonedUnOp = VisitStmt(UnOp).getAs<UnaryOperator>();
     clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()).getExpr());
     return NodeContext(clonedUnOp);
   }
 
-  NodeContext DerivativeBuilder::VisitBinaryOperator(BinaryOperator* BinOp) {
+  NodeContext DerivativeBuilder::VisitBinaryOperator(const BinaryOperator* BinOp) {
     updateReferencesOf(BinOp->getRHS());
     updateReferencesOf(BinOp->getLHS());
 
@@ -444,19 +446,22 @@ namespace clad {
     if (opCode == BO_Add || opCode == BO_Sub) {
       SourceLocation L, R;
 
-      BinOp->setLHS(lhs_derived);
       // enforce precedence for substraction
-      BinOp->setRHS(m_Sema.ActOnParenExpr(L, R, rhs_derived).get());
+      rhs_derived = m_Sema.ActOnParenExpr(L, R, rhs_derived).get();
+
       assert(lhs_derived->getType() == rhs_derived->getType()
              && "Must be the same types.");
-      BinOp->setType(lhs_derived->getType());
-      return NodeContext(BinOp);
+
+      Expr* newBO = m_Sema.BuildBinOp(/*Scope*/0, L, opCode,
+                                      lhs_derived, rhs_derived).get();
+
+      return NodeContext(newBO);
     }
 
-    return NodeContext(BinOp);
+    return VisitStmt(const_cast<BinaryOperator*>(BinOp));
   }
 
-  NodeContext DerivativeBuilder::VisitDeclStmt(DeclStmt* DS) {
+  NodeContext DerivativeBuilder::VisitDeclStmt(const DeclStmt* DS) {
     DeclStmt* clonedDS = VisitStmt(DS).getAs<DeclStmt>();
     // Iterate through the declaration(s) contained in DS.
     for (DeclStmt::decl_iterator I = clonedDS->decl_begin(),
@@ -471,7 +476,7 @@ namespace clad {
     return NodeContext(clonedDS);
   }
 
-  NodeContext DerivativeBuilder::VisitImplicitCastExpr(ImplicitCastExpr* ICE) {
+  NodeContext DerivativeBuilder::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
     NodeContext result = Visit(ICE->getSubExpr());
     if (result.getExpr() == ICE->getSubExpr())
       return NodeContext(VisitStmt(ICE).getExpr());
@@ -479,10 +484,10 @@ namespace clad {
   }
 
   NodeContext
-  DerivativeBuilder::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* OpCall) {
+  DerivativeBuilder::VisitCXXOperatorCallExpr(const CXXOperatorCallExpr* OpCall) {
     // This operator gets emitted when there is a binary operation containing
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
     assert(0 && "We don't support overloaded operators yet!");
-    return NodeContext(OpCall);
+    return VisitStmt(OpCall);
   }
 } // end namespace clad

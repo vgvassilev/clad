@@ -4,6 +4,8 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
+#include "ClangPlugin.h"
+
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/Version.h"
 
@@ -21,395 +23,276 @@
 
 using namespace clang;
 
-namespace {
+namespace clad {
 
-  ///\brief A pair function, independent variable.
-  ///
-  class FunctionDeclInfo {
-  private:
-    FunctionDecl* m_FD;
-    ParmVarDecl* m_PVD;
-  public:
-    FunctionDeclInfo(FunctionDecl* FD, ParmVarDecl* PVD)
-      : m_FD(FD), m_PVD(PVD) {
+  FunctionDeclInfo::FunctionDeclInfo(FunctionDecl* FD, ParmVarDecl* PVD)
+    : m_FD(FD), m_PVD(PVD) {
 #ifndef NDEBUG
-      if (!PVD) // Can happen if there was error deducing the argument
-        return;
-      bool inArgs = false;
-      for (unsigned i = 0; i < FD->getNumParams(); ++i)
-        if (PVD == FD->getParamDecl(i)) {
-          inArgs = true;
-          break;
-        }
-      assert(inArgs && "Must pass in a param of the FD.");
+    if (!PVD) // Can happen if there was error deducing the argument
+      return;
+    bool inArgs = false;
+    for (unsigned i = 0; i < FD->getNumParams(); ++i)
+      if (PVD == FD->getParamDecl(i)) {
+        inArgs = true;
+        break;
+      }
+    assert(inArgs && "Must pass in a param of the FD.");
 #endif
+  }
+
+  LLVM_DUMP_METHOD void FunctionDeclInfo::dump() const {
+    if (!isValid())
+      llvm::errs() << "<invalid> FD :"<< m_FD << " , PVD:" << m_PVD << "\n";
+    else {
+      m_FD->dump();
+      m_PVD->dump();
     }
-    FunctionDecl* getFD() const { return m_FD; }
-    ParmVarDecl* getPVD() const { return m_PVD; }
-    bool isValid() const { return m_FD && m_PVD; }
-    LLVM_DUMP_METHOD void dump() const {
-      if (!isValid())
-        llvm::errs() << "<invalid> FD :"<< m_FD << " , PVD:" << m_PVD << "\n";
-      else {
-        m_FD->dump();
-        m_PVD->dump();
-      }
+  }
+
+  void DiffPlan::updateCall(FunctionDecl* FD, Sema& SemaRef) {
+    assert(m_CallToUpdate && "Must be set");
+    DeclRefExpr* DRE = 0;
+    if (ImplicitCastExpr* ICE
+        = dyn_cast<ImplicitCastExpr>(m_CallToUpdate->getArg(0))){
+      DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
     }
-  };
-
-  ///\brief The list of the dependent functions which also need differentiation
-  /// because they are called by the function we are asked to differentitate.
-  ///
-  class DiffPlan {
-  private:
-    typedef llvm::SmallVector<FunctionDeclInfo, 16> Functions;
-    Functions m_Functions;
-    CallExpr* m_CallToUpdate;
-  public:
-    DiffPlan() : m_CallToUpdate(0) {}
-    typedef Functions::iterator iterator;
-    typedef Functions::const_iterator const_iterator;
-    void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
-    iterator begin() { return m_Functions.begin(); }
-    iterator end() { return m_Functions.end(); }
-    const_iterator begin() const { return m_Functions.begin(); }
-    const_iterator end() const { return m_Functions.end(); }
-    size_t size() const { return m_Functions.size(); }
-    void setCallToUpdate(CallExpr* CE) { m_CallToUpdate = CE; }
-    void updateCall(FunctionDecl* FD, Sema& SemaRef) {
-      assert(m_CallToUpdate && "Must be set");
-      DeclRefExpr* DRE = 0;
-      if (ImplicitCastExpr* ICE
-          = dyn_cast<ImplicitCastExpr>(m_CallToUpdate->getArg(0))){
-        DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-      }
-      // Handle the case of member function.
-      else if (UnaryOperator* UnOp
-               = dyn_cast<UnaryOperator>(m_CallToUpdate->getArg(0))){
-        DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-      }
-      if (DRE)
-        DRE->setDecl(FD);
-      if (CXXDefaultArgExpr* Arg
-          = dyn_cast<CXXDefaultArgExpr>(m_CallToUpdate->getArg(2))) {
-        clang::LangOptions LangOpts;
-        LangOpts.CPlusPlus = true;
-        clang::PrintingPolicy Policy(LangOpts);
-
-        std::string s;
-        llvm::raw_string_ostream Out(s);
-        FD->print(Out, Policy);
-        Out.flush();
-
-        // Copied and adapted from clang::Sema::ActOnStringLiteral.
-        ASTContext& C = SemaRef.getASTContext();
-        QualType CharTyConst = C.CharTy;
-        CharTyConst.addConst();
-        // Get an array type for the string, according to C99 6.4.5.  This includes
-        // the nul terminator character as well as the string length for pascal
-        // strings.
-        QualType StrTy = C.getConstantArrayType(CharTyConst,
-                                            llvm::APInt(32, Out.str().size() + 1),
-                                                ArrayType::Normal,
-                                                /*IndexTypeQuals*/0);
-
-
-        StringLiteral* SL = StringLiteral::Create(C, Out.str(),
-                                                  StringLiteral::Ascii,
-                                                  /*Pascal*/false, StrTy,
-                                                  SourceLocation());
-        Expr* newArg = SemaRef.ImpCastExprToType(SL, Arg->getType(),
-                                                 CK_ArrayToPointerDecay).get();
-        m_CallToUpdate->setArg(2, newArg);
-      }
+    // Handle the case of member function.
+    else if (UnaryOperator* UnOp
+             = dyn_cast<UnaryOperator>(m_CallToUpdate->getArg(0))){
+      DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
     }
-    LLVM_DUMP_METHOD void dump() {
-      for (const_iterator I = begin(), E = end(); I != E; ++I) {
-        I->dump();
-        llvm::errs() << "\n";
-      }
+    if (DRE)
+      DRE->setDecl(FD);
+    if (CXXDefaultArgExpr* Arg
+        = dyn_cast<CXXDefaultArgExpr>(m_CallToUpdate->getArg(2))) {
+      clang::LangOptions LangOpts;
+      LangOpts.CPlusPlus = true;
+      clang::PrintingPolicy Policy(LangOpts);
+
+      std::string s;
+      llvm::raw_string_ostream Out(s);
+      FD->print(Out, Policy);
+      Out.flush();
+
+      // Copied and adapted from clang::Sema::ActOnStringLiteral.
+      ASTContext& C = SemaRef.getASTContext();
+      QualType CharTyConst = C.CharTy;
+      CharTyConst.addConst();
+      // Get an array type for the string, according to C99 6.4.5.  This includes
+      // the nul terminator character as well as the string length for pascal
+      // strings.
+      QualType StrTy = C.getConstantArrayType(CharTyConst,
+                                              llvm::APInt(32, Out.str().size() + 1),
+                                              ArrayType::Normal,
+                                              /*IndexTypeQuals*/0);
+
+
+      StringLiteral* SL = StringLiteral::Create(C, Out.str(),
+                                                StringLiteral::Ascii,
+                                                /*Pascal*/false, StrTy,
+                                                SourceLocation());
+      Expr* newArg = SemaRef.ImpCastExprToType(SL, Arg->getType(),
+                                               CK_ArrayToPointerDecay).get();
+      m_CallToUpdate->setArg(2, newArg);
     }
-  };
+  }
 
-  class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
-  private:
-    ///\brief The diff step-by-step plan for differentiation.
-    ///
-    DiffPlan& m_DiffPlan;
+  LLVM_DUMP_METHOD void DiffPlan::dump() {
+    for (const_iterator I = begin(), E = end(); I != E; ++I) {
+      I->dump();
+      llvm::errs() << "\n";
+    }
+  }
 
-    ///\brief If set it means that we need to find the called functions and
-    /// add them for implicit diff.
-    ///
-    FunctionDeclInfo* m_TopMostFDI;
-
-    Sema& m_Sema;
-
-    ///\brief Tries to find the independent variable of explicitly diffed
-    /// functions.
-    ///
-    ParmVarDecl* getIndependentArg(Expr* argExpr, FunctionDecl* FD) {
-      assert(!m_TopMostFDI && "Must be not in implicit fn collecting mode.");
-      bool isIndexOutOfRange = false;
-      llvm::APSInt result;
-      ASTContext& C = m_Sema.getASTContext();
-      DiagnosticsEngine& Diags = m_Sema.Diags;
-      if (argExpr->EvaluateAsInt(result, C)) {
-        const int64_t argIndex = result.getSExtValue();
-        const int64_t argNum = FD->getNumParams();
-        //TODO: Implement the argument checks in the DerivativeBuilder
-        if (argNum == 0) {
-          unsigned DiagID
-            = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                    "Trying to differentiate function '%0' taking no arguments");
-          Diags.Report(argExpr->getLocStart(), DiagID)
-            << FD->getNameAsString();
-          return 0;
-        }
-        //if arg is int but do not exists print error
-        else if (argIndex > argNum || argIndex < 1) {
-          isIndexOutOfRange = true;
-          unsigned DiagID
-            = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                    "Invalid argument index %0 among %1 argument(s)");
-          Diags.Report(argExpr->getLocStart(), DiagID)
-            << (int)argIndex
-            << (int)argNum;
-          return 0;
-        }
-        else
-          return FD->getParamDecl(argIndex - 1);
-      }
-      else if (!isIndexOutOfRange){
+  ParmVarDecl* DiffCollector::getIndependentArg(Expr* argExpr, FunctionDecl* FD) {
+    assert(!m_TopMostFDI && "Must be not in implicit fn collecting mode.");
+    bool isIndexOutOfRange = false;
+    llvm::APSInt result;
+    ASTContext& C = m_Sema.getASTContext();
+    DiagnosticsEngine& Diags = m_Sema.Diags;
+    if (argExpr->EvaluateAsInt(result, C)) {
+      const int64_t argIndex = result.getSExtValue();
+      const int64_t argNum = FD->getNumParams();
+      //TODO: Implement the argument checks in the DerivativeBuilder
+      if (argNum == 0) {
         unsigned DiagID
           = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                  "Must be an integral value");
-        Diags.Report(argExpr->getLocStart(), DiagID);
+                                  "Trying to differentiate function '%0' taking no arguments");
+        Diags.Report(argExpr->getLocStart(), DiagID)
+          << FD->getNameAsString();
         return 0;
       }
+      //if arg is int but do not exists print error
+      else if (argIndex > argNum || argIndex < 1) {
+        isIndexOutOfRange = true;
+        unsigned DiagID
+          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                  "Invalid argument index %0 among %1 argument(s)");
+        Diags.Report(argExpr->getLocStart(), DiagID)
+          << (int)argIndex
+          << (int)argNum;
+        return 0;
+      }
+      else
+        return FD->getParamDecl(argIndex - 1);
+    }
+    else if (!isIndexOutOfRange){
+      unsigned DiagID
+        = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                "Must be an integral value");
+      Diags.Report(argExpr->getLocStart(), DiagID);
       return 0;
     }
-  public:
-    DiffCollector(DeclGroupRef DGR, DiffPlan& plan, Sema& S)
-      : m_DiffPlan(plan), m_TopMostFDI(0), m_Sema(S) {
-      if (DGR.isSingleDecl())
-        TraverseDecl(DGR.getSingleDecl());
-    }
+    return 0;
+  }
+  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffPlan& plan, Sema& S)
+    : m_DiffPlan(plan), m_TopMostFDI(0), m_Sema(S) {
+    if (DGR.isSingleDecl())
+      TraverseDecl(DGR.getSingleDecl());
+  }
 
-    bool VisitCallExpr(CallExpr* E) {
-      if (FunctionDecl *FD = E->getDirectCallee()) {
-        if (m_TopMostFDI) {
-          int index = -1;
-          for (unsigned i = 0; i < m_TopMostFDI->getFD()->getNumParams(); ++i)
-            if (index != -1)
-              if (FD->getParamDecl(index) == m_TopMostFDI->getPVD()) {
-                index = i - 1; // Decrement by 1, adapting to FD's 0 param list.
-                break;
-              }
-          if (index > -1) {
-            FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
+  bool DiffCollector::VisitCallExpr(CallExpr* E) {
+    if (FunctionDecl *FD = E->getDirectCallee()) {
+      if (m_TopMostFDI) {
+        int index = -1;
+        for (unsigned i = 0; i < m_TopMostFDI->getFD()->getNumParams(); ++i)
+          if (index != -1)
+            if (FD->getParamDecl(index) == m_TopMostFDI->getPVD()) {
+              index = i - 1; // Decrement by 1, adapting to FD's 0 param list.
+              break;
+            }
+        if (index > -1) {
+          FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
+          m_DiffPlan.push_back(FDI);
+        }
+      }
+      // We need to find our 'special' diff annotated such:
+      // clad::differentiate(...) __attribute__((annotate("D")))
+      else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
+        if (A->getAnnotation().equals("D")) {
+          DeclRefExpr* DRE = 0;
+
+          // Handle the case of function.
+          if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
+              DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+          }
+          // Handle the case of member function.
+          else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
+            DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+          }
+          if (DRE) {
+            assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
+            // We know that is *our* diff function.
+
+            llvm::APSInt derivativeOrderAPSInt
+              = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
+            // We know the first template spec argument is of unsigned type
+            assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
+            unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
+
+            m_DiffPlan.setCallToUpdate(E);
+            FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
+            ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
+            FunctionDeclInfo FDI(cand, candPVD);
+            m_TopMostFDI = &FDI;
+            TraverseDecl(cand);
+            m_TopMostFDI = 0;
             m_DiffPlan.push_back(FDI);
+            while (--derivativeOrder) {
+              ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), FDI.getFD());
+              FunctionDeclInfo FDI1(FDI.getFD(), candPVD);
+              m_TopMostFDI = &FDI1;
+              TraverseDecl(FDI1.getFD());
+              m_TopMostFDI = 0;
+              m_DiffPlan.push_back(FDI1);
+            }
           }
         }
-        // We need to find our 'special' diff annotated such:
-        // clad::differentiate(...) __attribute__((annotate("D")))
-        else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
-          if (A->getAnnotation().equals("D")) {
-            DeclRefExpr* DRE = 0;
-
-            // Handle the case of function.
-            if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
-              DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-            }
-            // Handle the case of member function.
-            else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
-              DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-            }
-            if (DRE) {
-              assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
-              // We know that is *our* diff function.
-
-              m_DiffPlan.setCallToUpdate(E);
-              FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
-              ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
-              FunctionDeclInfo FDI(cand, candPVD);
-              m_TopMostFDI = &FDI;
-              TraverseDecl(cand);
-              m_TopMostFDI = 0;
-              m_DiffPlan.push_back(FDI);
-            }
-          }
       }
-      return true;     // return false to abort visiting.
-    }
-  };
+    return true;     // return false to abort visiting.
+  }
 } // end namespace
 
 namespace clad {
   namespace plugin {
-    struct DifferentiationOptions {
-      DifferentiationOptions()
-        : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-          DumpDerivedAST(false), GenerateSourceFile(false) { }
+    CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
+      : m_CI(CI), m_DO(DO) { }
+    CladPlugin::~CladPlugin() {}
 
-      bool DumpSourceFn : 1;
-      bool DumpSourceFnAST : 1;
-      bool DumpDerivedFn : 1;
-      bool DumpDerivedAST : 1;
-      bool GenerateSourceFile : 1;
-    };
+    void CladPlugin::Initialize(ASTContext& Context) {
+      // We need to reorder the consumers in the MultiplexConsumer.
+      MultiplexConsumer& multiplex
+        = static_cast<MultiplexConsumer&>(m_CI.getASTConsumer());
+      std::vector<ASTConsumer*>& consumers = multiplex.getConsumers();
+      ASTConsumer* lastConsumer = consumers.back();
+      consumers.pop_back();
+      consumers.insert(consumers.begin(), lastConsumer);
+    }
 
-    class CladPlugin : public ASTConsumer {
-    private:
-      clang::CompilerInstance& m_CI;
-      DifferentiationOptions m_DO;
-      llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
-    public:
-      CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-        : m_CI(CI), m_DO(DO) { }
+    bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
+      if (!m_DerivativeBuilder)
+        m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
 
-      virtual void Initialize(ASTContext& Context) {
-        // We need to reorder the consumers in the MultiplexConsumer.
-        MultiplexConsumer& multiplex
-          = static_cast<MultiplexConsumer&>(m_CI.getASTConsumer());
-        std::vector<ASTConsumer*>& consumers = multiplex.getConsumers();
-        ASTConsumer* lastConsumer = consumers.back();
-        consumers.pop_back();
-        consumers.insert(consumers.begin(), lastConsumer);
-      }
+      DiffPlan plan;
+      // Instantiate all pending for instantiations templates, because we will
+      // need the full bodies to produce derivatives.
+      m_CI.getSema().PerformPendingInstantiations();
+      DiffCollector m_Collector(DGR, plan, m_CI.getSema());
 
-      virtual void HandleCXXImplicitFunctionInstantiation (FunctionDecl *D) {
+      //set up printing policy
+      clang::LangOptions LangOpts;
+      LangOpts.CPlusPlus = true;
+      clang::PrintingPolicy Policy(LangOpts);
 
-      }
-
-      virtual bool HandleTopLevelDecl(DeclGroupRef DGR) {
-        if (!m_DerivativeBuilder)
-          m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
-
-        DiffPlan plan;
-        // Instantiate all pending for instantiations templates, because we will
-        // need the full bodies to produce derivatives.
-        m_CI.getSema().PerformPendingInstantiations();
-        DiffCollector m_Collector(DGR, plan, m_CI.getSema());
-
-        //set up printing policy
-        clang::LangOptions LangOpts;
-        LangOpts.CPlusPlus = true;
-        clang::PrintingPolicy Policy(LangOpts);
-
-        for (DiffPlan::iterator I = plan.begin(), E = plan.end(); I != E; ++I) {
-          if (!I->isValid())
-            continue;
-          // if enabled, print source code of the original functions
-          if (m_DO.DumpSourceFn) {
-            I->getFD()->print(llvm::outs(), Policy);
+      for (DiffPlan::iterator I = plan.begin(), E = plan.end(); I != E; ++I) {
+        if (!I->isValid())
+          continue;
+        // if enabled, print source code of the original functions
+        if (m_DO.DumpSourceFn) {
+          I->getFD()->print(llvm::outs(), Policy);
           }
-          // if enabled, print ASTs of the original functions
-          if (m_DO.DumpSourceFnAST) {
-            I->getFD()->dumpColor();
-          }
-
-          // derive the collected functions
-          FunctionDecl* Derivative
-            = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
-          if (I + 1 == E) // The last element
-            plan.updateCall(Derivative, m_CI.getSema());
-
-            // if enabled, print source code of the derived functions
-            if (m_DO.DumpDerivedFn) {
-              Derivative->print(llvm::outs(), Policy);
-            }
-            // if enabled, print ASTs of the derived functions
-            if (m_DO.DumpDerivedAST) {
-              Derivative->dumpColor();
-            }
-            // if enabled, print the derivatives in a file.
-            if (m_DO.GenerateSourceFile) {
-              std::string err;
-              llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                     llvm::sys::fs::F_Append);
-              Derivative->print(f, Policy);
-              f.flush();
-            }
-            if (Derivative) {
-              Derivative->getDeclContext()->addDecl(Derivative);
-              // Call CodeGen only if the produced decl is a top-most decl.
-              if (Derivative->getDeclContext()
-                  == m_CI.getASTContext().getTranslationUnitDecl())
-                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
-            }
-
+        // if enabled, print ASTs of the original functions
+        if (m_DO.DumpSourceFnAST) {
+          I->getFD()->dumpColor();
         }
-        return true; // Happiness
-      }
 
-      // virtual void HandleTagDeclDefinition(clang::TagDecl* TD) {
+        // derive the collected functions
+        FunctionDecl* Derivative
+          = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
+        if (I + 1 == E) // The last element
+          plan.updateCall(Derivative, m_CI.getSema());
 
-      // }
-
-      virtual void HandleTranslationUnit(clang::ASTContext& C) {
-      }
-    };
-
-    template<typename ConsumerType>
-    class Action : public PluginASTAction {
-    private:
-      DifferentiationOptions m_DO;
-    protected:
-      ASTConsumer *CreateASTConsumer(CompilerInstance& CI,
-                                     llvm::StringRef InFile) {
-        return new ConsumerType(CI, m_DO);
-      }
-
-      bool ParseArgs(const CompilerInstance &CI,
-                     const std::vector<std::string>& args) {
-        if (clang::getClangRevision() != clad::getClangCompatRevision()) {
-          // TODO: Print nice looking diagnostics through the DiagEngine.
-          llvm::errs() << "Clang is not compatible with clad."
-                       << " (" << clang::getClangRevision() << " != "
-                       << clad::getClangCompatRevision() << " )\n";
-          return false;
+        // if enabled, print source code of the derived functions
+        if (m_DO.DumpDerivedFn) {
+          Derivative->print(llvm::outs(), Policy);
         }
-        for (unsigned i = 0, e = args.size(); i != e; ++i) {
-          if (args[i] == "-fdump-source-fn") {
-            m_DO.DumpSourceFn = true;
-          }
-          else if (args[i] == "-fdump-source-fn-ast") {
-            m_DO.DumpSourceFnAST = true;
-          }
-          else if (args[i] == "-fdump-derived-fn") {
-            m_DO.DumpDerivedFn = true;
-          }
-          else if (args[i] == "-fdump-derived-fn-ast") {
-            m_DO.DumpDerivedAST = true;
-          }
-          else if (args[i] == "-fgenerate-source-file") {
-            m_DO.GenerateSourceFile = true;
-          }
-          else if (args[i] == "-help") {
-            // Print some help info.
-            llvm::errs() <<
-              "Option set for the clang-based automatic differentiator - clad:\n\n" <<
-              "-fdump-source-fn - Prints out the source code of the function.\n" <<
-              "-fdump-source-fn-ast - Prints out the AST of the function.\n" <<
-              "-fdump-derived-fn - Prints out the source code of the derivative.\n" <<
-              "-fdump-derived-fn-ast - Prints out the AST of the derivative.\n" <<
-              "-fgenerate-source-file - Produces a file containing the derivatives.\n";
-
-            llvm::errs() << "-help - Prints out this screen.\n\n";
-          }
-          else {
-            llvm::errs() << "clad: Error: invalid option "
-                         << args[i] << "\n";
-            return false; // Tells clang not to create the plugin.
-          }
+        // if enabled, print ASTs of the derived functions
+        if (m_DO.DumpDerivedAST) {
+          Derivative->dumpColor();
         }
-        return true;
+        // if enabled, print the derivatives in a file.
+        if (m_DO.GenerateSourceFile) {
+          std::string err;
+          llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                                 llvm::sys::fs::F_Append);
+          Derivative->print(f, Policy);
+          f.flush();
+        }
+        if (Derivative) {
+          Derivative->getDeclContext()->addDecl(Derivative);
+          // Call CodeGen only if the produced decl is a top-most decl.
+          if (Derivative->getDeclContext()
+              == m_CI.getASTContext().getTranslationUnitDecl())
+            m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+        }
+
       }
-    };
+      return true; // Happiness
+    }
   } // end namespace plugin
 } // end namespace clad
 
 using namespace clad::plugin;
 // register the PluginASTAction in the registry.
-static FrontendPluginRegistry::Add<Action<CladPlugin> >
+static clang::FrontendPluginRegistry::Add<Action<CladPlugin> >
 X("clad","Produces derivatives or arbitrary functions");

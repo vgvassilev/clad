@@ -71,8 +71,7 @@ namespace clad {
   };
 
   class DerivativeBuilder
-    : public clang::StmtVisitor<DerivativeBuilder, NodeContext> {
-    
+    : public clang::ConstStmtVisitor<DerivativeBuilder, NodeContext> {
   private:
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
@@ -98,23 +97,22 @@ namespace clad {
     ///\returns The differentiated function.
     ///
     clang::FunctionDecl* Derive(clang::FunctionDecl* FD,
-                                      clang::ValueDecl* argVar);    
-    NodeContext VisitStmt(clang::Stmt* S);
-    NodeContext VisitCompoundStmt(clang::CompoundStmt* CS);
-    NodeContext VisitIfStmt(clang::IfStmt* If);
-    NodeContext VisitReturnStmt(clang::ReturnStmt* RS);
-    NodeContext VisitUnaryOperator(clang::UnaryOperator* UnOp);
-    NodeContext VisitBinaryOperator(clang::BinaryOperator* BinOp);
-    NodeContext VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr* OpCall);
-    NodeContext VisitDeclRefExpr(clang::DeclRefExpr* DRE);
-    NodeContext VisitParenExpr(clang::ParenExpr* PE);
-    NodeContext VisitIntegerLiteral(clang::IntegerLiteral* IL);
-    NodeContext VisitFloatingLiteral(clang::FloatingLiteral* FL);
-    NodeContext VisitCallExpr(clang::CallExpr* CE);
-    NodeContext VisitDeclStmt(clang::DeclStmt* DS);
-    NodeContext VisitImplicitCastExpr(clang::ImplicitCastExpr* ICE);
+                                      clang::ValueDecl* argVar);
+    NodeContext VisitStmt(const clang::Stmt* S);
+    NodeContext VisitCompoundStmt(const clang::CompoundStmt* CS);
+    NodeContext VisitIfStmt(const clang::IfStmt* If);
+    NodeContext VisitReturnStmt(const clang::ReturnStmt* RS);
+    NodeContext VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+    NodeContext VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+    NodeContext VisitCXXOperatorCallExpr(const clang::CXXOperatorCallExpr* OpCall);
+    NodeContext VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
+    NodeContext VisitParenExpr(const clang::ParenExpr* PE);
+    NodeContext VisitIntegerLiteral(const clang::IntegerLiteral* IL);
+    NodeContext VisitFloatingLiteral(const clang::FloatingLiteral* FL);
+    NodeContext VisitCallExpr(const clang::CallExpr* CE);
+    NodeContext VisitDeclStmt(const clang::DeclStmt* DS);
+    NodeContext VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
   };
-  
 } // end namespace clad
 
 #endif // CLAD_DERIVATIVE_BUILDER_H
