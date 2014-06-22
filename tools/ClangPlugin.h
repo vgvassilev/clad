@@ -54,7 +54,7 @@ namespace clad {
     Functions m_Functions;
     clang::CallExpr* m_CallToUpdate;
   public:
-    DiffPlan();
+    DiffPlan() : m_CallToUpdate(0) { }
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
     void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
