@@ -291,3 +291,8 @@ namespace clad {
     }
   } // end namespace plugin
 } // end namespace clad
+
+using namespace clad::plugin;
+// register the PluginASTAction in the registry.
+static clang::FrontendPluginRegistry::Add<Action<CladPlugin> >
+X("clad","Produces derivatives or arbitrary functions");
