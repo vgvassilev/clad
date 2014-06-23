@@ -25,8 +25,11 @@ ifdef CLAD_VENDOR
 CPP.Flags += -DCLAD_VENDOR='"$(CLAD_VENDOR) "'
 endif
 
-
 include $(CLANG_LEVEL)/../../Makefile.config
+
+ifeq ($(HOST_OS),Darwin)
+	LLVMLibsOptions += -undefined suppress -flat_namespace 
+endif
 
 #LINK_COMPONENTS := $(TARGETS_TO_BUILD) asmparser bitreader support mc
 
