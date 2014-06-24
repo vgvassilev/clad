@@ -68,11 +68,13 @@ namespace clad {
     LLVM_DUMP_METHOD void dump();
   };
 
+  typedef llvm::SmallVector<DiffPlan, 16> DiffPlans;
+
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
   private:
     ///\brief The diff step-by-step plan for differentiation.
     ///
-    DiffPlan& m_DiffPlan;
+    DiffPlans& m_DiffPlans;
 
     ///\brief If set it means that we need to find the called functions and
     /// add them for implicit diff.
@@ -81,13 +83,15 @@ namespace clad {
 
     clang::Sema& m_Sema;
 
+    DiffPlan& getCurrentPlan() { return m_DiffPlans.back(); }
+
     ///\brief Tries to find the independent variable of explicitly diffed
     /// functions.
     ///
     clang::ParmVarDecl* getIndependentArg(clang::Expr* argExpr,
                                           clang::FunctionDecl* FD);
   public:
-    DiffCollector(clang::DeclGroupRef DGR, DiffPlan& plan, clang::Sema& S);
+    DiffCollector(clang::DeclGroupRef DGR, DiffPlans& plans, clang::Sema& S);
     bool VisitCallExpr(clang::CallExpr* E);
   };
 }

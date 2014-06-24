@@ -22,5 +22,5 @@
 // CHECK_GRADIENT:}
 
 // RUN: ./Gradient.out | FileCheck -check-prefix CHECK_GRADIENT_EXEC %s
-// CHECK_GRADIENT_EXEC: Result is N=(0.000000,0.000000,0.000000)
+// CHECK_GRADIENT_EXEC: Result is N=(10.000000,0.000000,0.000000)
 

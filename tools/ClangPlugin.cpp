@@ -145,8 +145,8 @@ namespace clad {
     }
     return 0;
   }
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffPlan& plan, Sema& S)
-    : m_DiffPlan(plan), m_TopMostFDI(0), m_Sema(S) {
+  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffPlans& plans, Sema& S)
+     : m_DiffPlans(plans), m_TopMostFDI(0), m_Sema(S) {
     if (DGR.isSingleDecl())
       TraverseDecl(DGR.getSingleDecl());
   }
@@ -163,7 +163,7 @@ namespace clad {
             }
         if (index > -1) {
           FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
-          m_DiffPlan.push_back(FDI);
+          getCurrentPlan().push_back(FDI);
         }
       }
       // We need to find our 'special' diff annotated such:
@@ -184,27 +184,30 @@ namespace clad {
             assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
             // We know that is *our* diff function.
 
+            // Add new plan for describing the differentiation for the function.
+            m_DiffPlans.push_back(DiffPlan());
+
             llvm::APSInt derivativeOrderAPSInt
               = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
             // We know the first template spec argument is of unsigned type
             assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
             unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
 
-            m_DiffPlan.setCallToUpdate(E);
+            getCurrentPlan().setCallToUpdate(E);
             FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
             ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
             FunctionDeclInfo FDI(cand, candPVD);
             m_TopMostFDI = &FDI;
             TraverseDecl(cand);
             m_TopMostFDI = 0;
-            m_DiffPlan.push_back(FDI);
+            getCurrentPlan().push_back(FDI);
             while (--derivativeOrder) {
               ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), FDI.getFD());
               FunctionDeclInfo FDI1(FDI.getFD(), candPVD);
               m_TopMostFDI = &FDI1;
               TraverseDecl(FDI1.getFD());
               m_TopMostFDI = 0;
-              m_DiffPlan.push_back(FDI1);
+              getCurrentPlan().push_back(FDI1);
             }
           }
         }
@@ -233,59 +236,60 @@ namespace clad {
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
 
-      DiffPlan plan;
+      DiffPlans plans;
       // Instantiate all pending for instantiations templates, because we will
       // need the full bodies to produce derivatives.
       m_CI.getSema().PerformPendingInstantiations();
-      DiffCollector m_Collector(DGR, plan, m_CI.getSema());
+      DiffCollector collector(DGR, plans, m_CI.getSema());
 
       //set up printing policy
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
+      for (DiffPlans::iterator plan = plans.begin(), planE = plans.end();
+           plan != planE; ++plan)
+         for (DiffPlan::iterator I = plan->begin(), E = plan->end();
+              I != E; ++I) {
+            if (!I->isValid())
+               continue;
+            // if enabled, print source code of the original functions
+            if (m_DO.DumpSourceFn) {
+               I->getFD()->print(llvm::outs(), Policy);
+            }
+            // if enabled, print ASTs of the original functions
+            if (m_DO.DumpSourceFnAST) {
+               I->getFD()->dumpColor();
+            }
 
-      for (DiffPlan::iterator I = plan.begin(), E = plan.end(); I != E; ++I) {
-        if (!I->isValid())
-          continue;
-        // if enabled, print source code of the original functions
-        if (m_DO.DumpSourceFn) {
-          I->getFD()->print(llvm::outs(), Policy);
-          }
-        // if enabled, print ASTs of the original functions
-        if (m_DO.DumpSourceFnAST) {
-          I->getFD()->dumpColor();
-        }
+            // derive the collected functions
+            FunctionDecl* Derivative
+               = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
+            if (I + 1 == E) // The last element
+               plan->updateCall(Derivative, m_CI.getSema());
 
-        // derive the collected functions
-        FunctionDecl* Derivative
-          = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
-        if (I + 1 == E) // The last element
-          plan.updateCall(Derivative, m_CI.getSema());
-
-        // if enabled, print source code of the derived functions
-        if (m_DO.DumpDerivedFn) {
-          Derivative->print(llvm::outs(), Policy);
-        }
-        // if enabled, print ASTs of the derived functions
-        if (m_DO.DumpDerivedAST) {
-          Derivative->dumpColor();
-        }
-        // if enabled, print the derivatives in a file.
-        if (m_DO.GenerateSourceFile) {
-          std::string err;
-          llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                 llvm::sys::fs::F_Append);
-          Derivative->print(f, Policy);
-          f.flush();
-        }
-        if (Derivative) {
-          Derivative->getDeclContext()->addDecl(Derivative);
-          // Call CodeGen only if the produced decl is a top-most decl.
-          if (Derivative->getDeclContext()
-              == m_CI.getASTContext().getTranslationUnitDecl())
-            m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
-        }
-
+            // if enabled, print source code of the derived functions
+            if (m_DO.DumpDerivedFn) {
+               Derivative->print(llvm::outs(), Policy);
+            }
+            // if enabled, print ASTs of the derived functions
+            if (m_DO.DumpDerivedAST) {
+               Derivative->dumpColor();
+            }
+            // if enabled, print the derivatives in a file.
+            if (m_DO.GenerateSourceFile) {
+               std::string err;
+               llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                                      llvm::sys::fs::F_Append);
+               Derivative->print(f, Policy);
+               f.flush();
+            }
+            if (Derivative) {
+               Derivative->getDeclContext()->addDecl(Derivative);
+               // Call CodeGen only if the produced decl is a top-most decl.
+               if (Derivative->getDeclContext()
+                   == m_CI.getASTContext().getTranslationUnitDecl())
+                  m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+            }
       }
       return true; // Happiness
     }
