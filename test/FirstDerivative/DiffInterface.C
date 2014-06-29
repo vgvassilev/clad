@@ -49,6 +49,8 @@ int main () {
   clad::differentiate(f_2, 3);
 
   clad::differentiate(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
+  //expected-note@clad/Differentiator/Differentiator.h:82 {{candidate function [with N = 1, R = int, Args = <int, float, int>] not viable: no known conversion from 'int (int, float, int)' to 'unsigned int' for 2nd argument}}
+  //expected-note@clad/Differentiator/Differentiator.h:89 {{candidate template ignored: could not match 'R (C::*)(Args...)' against 'int (*)(int, float, int)'}}
 
   clad::differentiate(f_2, 0); // expected-error {{Invalid argument index 0 among 3 argument(s)}}
 

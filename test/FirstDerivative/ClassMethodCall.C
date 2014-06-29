@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
 //CHECK-NOT: {{.*error:.*}}
+//XFAIL:*
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
