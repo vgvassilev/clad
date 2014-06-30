@@ -18,7 +18,7 @@ float basic_1(int x) {
 float basic_1_derived_x(int x);
 
 int main () {
-  clad::differentiate(basic_1, 1);
+  clad::differentiate(basic_1, 0);
   printf("Result is = %f\n", basic_1_derived_x(1)); // CHECK-EXEC: Result is = -6
   return 0;
 }

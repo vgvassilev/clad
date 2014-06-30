@@ -20,47 +20,47 @@ T multiplication(T x) {
 int main () {
   int x;
 
-  clad::differentiate(simple_return<int>, 1);
+  clad::differentiate(simple_return<int>, 0);
   // CHECK: int simple_return_derived_x(int x) {
   // CHECK-NEXT: return 1;
   // CHECK-NEXT: }
 
-  clad::differentiate(simple_return<float>, 1);
+  clad::differentiate(simple_return<float>, 0);
   // CHECK: float simple_return_derived_x(float x) {
   // CHECK-NEXT: return 1;
   // CHECK-NEXT: }
 
-  clad::differentiate(simple_return<double>, 1);
+  clad::differentiate(simple_return<double>, 0);
   // CHECK: double simple_return_derived_x(double x) {
   // CHECK-NEXT: return 1;
   // CHECK-NEXT: }
 
-  clad::differentiate(addition<int>, 1);
+  clad::differentiate(addition<int>, 0);
   // CHECK: int addition_derived_x(int x) {
   // CHECK-NEXT: return 1 + (1);
   // CHECK-NEXT: }
 
-  clad::differentiate(addition<float>, 1);
+  clad::differentiate(addition<float>, 0);
   // CHECK: float addition_derived_x(float x) {
   // CHECK-NEXT: return 1 + (1);
   // CHECK-NEXT: }
 
-  clad::differentiate(addition<double>, 1);
+  clad::differentiate(addition<double>, 0);
   // CHECK: double addition_derived_x(double x) {
   // CHECK-NEXT: return 1 + (1);
   // CHECK-NEXT: }
 
-  clad::differentiate(multiplication<int>, 1);
+  clad::differentiate(multiplication<int>, 0);
   // CHECK: int multiplication_derived_x(int x) {
   // CHECK-NEXT: return (1 * x + x * 1);
   // CHECK-NEXT: }
 
-  clad::differentiate(multiplication<float>, 1);
+  clad::differentiate(multiplication<float>, 0);
   // CHECK: float multiplication_derived_x(float x) {
   // CHECK-NEXT: return (1 * x + x * 1);
   // CHECK-NEXT: }
 
-  clad::differentiate(multiplication<double>, 1);
+  clad::differentiate(multiplication<double>, 0);
   // CHECK: double multiplication_derived_x(double x) {
   // CHECK-NEXT: return (1 * x + x * 1);
   // CHECK-NEXT: }

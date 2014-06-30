@@ -27,9 +27,9 @@ float sphere_implicit_func(float x, float y, float z, float xc, float yc, float 
 int main() {
   // Differentiate implicit sphere function. Clad will produce the three partial derivatives
   // of function sphere_implicit_func
-  auto sphere_implicit_func_dx = clad::differentiate(sphere_implicit_func, 1);
-  auto sphere_implicit_func_dy = clad::differentiate(sphere_implicit_func, 2);
-  auto sphere_implicit_func_dz = clad::differentiate(sphere_implicit_func, 3);
+  auto sphere_implicit_func_dx = clad::differentiate(sphere_implicit_func, 0);
+  auto sphere_implicit_func_dy = clad::differentiate(sphere_implicit_func, 1);
+  auto sphere_implicit_func_dz = clad::differentiate(sphere_implicit_func, 2);
 
   // Point P=(x,y,z) on surface
   float x = 5.0f;

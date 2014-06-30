@@ -106,37 +106,37 @@ int md_1_derived_x(int x);
 
 int main () {
   int x = 4;
-  clad::differentiate(m_1, 1);
+  clad::differentiate(m_1, 0);
   printf("Result is = %d\n", m_1_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  clad::differentiate(m_2, 1);
+  clad::differentiate(m_2, 0);
   printf("Result is = %d\n", m_2_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  clad::differentiate(m_3, 1);
+  clad::differentiate(m_3, 0);
   printf("Result is = %d\n", m_3_derived_x(1)); // CHECK-EXEC: Result is = 2
 
-  clad::differentiate(m_4, 1);
+  clad::differentiate(m_4, 0);
   printf("Result is = %d\n", m_4_derived_x(1)); // CHECK-EXEC: Result is = 36
 
-  clad::differentiate(m_5, 1);
+  clad::differentiate(m_5, 0);
   printf("Result is = %f\n", m_5_derived_x(1)); // CHECK-EXEC: Result is = 3.14
 
-  clad::differentiate(m_6, 1);
+  clad::differentiate(m_6, 0);
   printf("Result is = %f\n", m_6_derived_x(1)); // CHECK-EXEC: Result is = 3
 
-  clad::differentiate(d_1, 1);
+  clad::differentiate(d_1, 0);
   printf("Result is = %d\n", d_1_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  clad::differentiate(d_2, 1);
+  clad::differentiate(d_2, 0);
   printf("Result is = %d\n", d_2_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  clad::differentiate(d_3, 1);
+  clad::differentiate(d_3, 0);
   printf("Result is = %d\n", d_3_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  clad::differentiate(d_4, 1);
+  clad::differentiate(d_4, 0);
   printf("Result is = %d\n", d_4_derived_x(1)); // CHECK-EXEC: Result is = 0
 
-  clad::differentiate(md_1, 1);
+  clad::differentiate(md_1, 0);
   printf("Result is = %d\n", md_1_derived_x(1)); // CHECK-EXEC: Result is = 1
 
   return 0;

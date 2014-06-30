@@ -29,7 +29,7 @@ int main() {
 
   // cladPow2 is of type CladFunction, which is a tiny wrapper over the derived
   // function pointer.
-  auto cladPow2 = clad::differentiate(pow2, 1);
+  auto cladPow2 = clad::differentiate(pow2, 0);
 
   // Function execution can happen in 3 ways:
 

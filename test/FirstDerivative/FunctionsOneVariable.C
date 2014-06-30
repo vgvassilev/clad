@@ -26,10 +26,10 @@ int main () {
   clad::differentiate(f_simple, x); // expected-error {{Must be an integral value}}
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
-  clad::differentiate(f_simple, 2); // expected-error {{Invalid argument index 2 among 1 argument(s)}}
+  clad::differentiate(f_simple, 1); // expected-error {{Invalid argument index 1 among 1 argument(s)}}
   clad::differentiate(f_simple, -1); // expected-error {{Invalid argument index -1 among 1 argument(s)}}
-  clad::differentiate(f_simple, 1);
-  clad::differentiate(f_simple_negative, 1);
+  clad::differentiate(f_simple, 0);
+  clad::differentiate(f_simple_negative, 0);
 
   return 0;
 }

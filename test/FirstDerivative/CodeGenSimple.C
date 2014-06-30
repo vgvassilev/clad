@@ -31,7 +31,7 @@ int f_1_derived_x(int x);
 
 int main() {
   int x = 4;
-  clad::differentiate(f_1, 1);
+  clad::differentiate(f_1, 0);
   printf("Result is = %d\n", f_1_derived_x(1)); // CHECK-EXEC: Result is = 2
   return 0;
 }
