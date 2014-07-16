@@ -9,7 +9,8 @@
 
 // To compile the demo please type:
 // path/to/clang -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so -I../../include/ -x c++ -std=c++11 SmallPT.cpp -o SmallPT
+// path/to/libclad.so -I../../include/ -x c++ -std=c++11 -lstdc++ SmallPT.cpp \
+// -o SmallPT
 //
 // To run the demo please type:
 // ./SmallPT 5000 && xv image.ppm
@@ -17,7 +18,7 @@
 // A typical invocation would be:
 // ../../../../../obj/Debug+Asserts/bin/clang -Xclang -add-plugin -Xclang clad \
 // -Xclang -load -Xclang ../../../../../obj/Debug+Asserts/lib/libclad.dylib \
-// -I../../include/ -x c++ -std=c++11 SmallPT.cpp -o SmallPT
+// -I../../include/ -x c++ -std=c++11 -lstdc++ SmallPT.cpp -o SmallPT
 // ./SmallPT 5000 && xv image.ppm
 
 #include <math.h>
@@ -25,7 +26,7 @@
 #include <stdio.h>
 
 // Necessary for clad to work include
-#include "clad/Differentiator/Differentiator.h"
+//#include "clad/Differentiator/Differentiator.h"
 
 struct Vec {
   float x, y, z; // position, also color (r,g,b)
@@ -35,10 +36,11 @@ struct Vec {
   Vec operator+(const Vec &b) const { return Vec(x+b.x, y+b.y, z+b.z); }
   Vec operator-(const Vec &b) const { return Vec(x-b.x, y-b.y, z-b.z); }
   Vec operator*(float b) const { return Vec(x*b, y*b, z*b); }
+  float operator*(const Vec &b) const { return x*b.x+y*b.y+z*b.z; } // dot
+  //float dot(const Vec &b) const { return x*b.x+y*b.y+z*b.z; }
+  Vec operator%(const Vec &b) { return Vec(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); } // cross
   Vec mult(const Vec &b) const { return Vec(x*b.x, y*b.y, z*b.z); }
   Vec& norm() { return *this = *this * (1/sqrt(x*x+y*y+z*z)); }
-  float dot(const Vec &b) const { return x*b.x+y*b.y+z*b.z; } // cross:
-  Vec operator%(Vec&b) { return Vec(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); }
 };
 
 struct Ray {
@@ -64,6 +66,7 @@ struct Solid {
 
   float implicit(const Vec &x) const {
     //return x.dot(x)-rad*rad;
+    //return x*x-rad*rad;
     return 0;
   }
 
@@ -75,7 +78,8 @@ struct Solid {
   float intersect(const Ray &r) const {
     // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
     Vec op = p-r.o;
-    float t, eps=1e-1, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad;
+    ///float t, eps=1e-1, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad;
+    float t, eps=1e-1, b=op*r.d, det=b*b-op*op+rad*rad;
     if (det<0) return 0; else det=sqrt(det);
     return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
   }
@@ -132,7 +136,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
 
   // calculate surface normal vector in point x
   Vec n=obj.normal(x);
-  Vec nl=n.dot(r.d)<0 ? n : n*-1;
+  Vec nl=n*r.d<0 ? n : n*-1;
 
   // object base color
   Vec f=obj.c;
@@ -148,30 +152,30 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
     Vec d = (u*cos(r1)*r2s+v*sin(r1)*r2s+w*sqrt(1-r2)).norm();
     return obj.e + f.mult(radiance(Ray(x,d), depth, Xi));
   } else if (obj.refl == SPEC) { // Ideal SPECULAR reflection
-    return obj.e + f.mult(radiance(Ray(x,r.d-n*2*n.dot(r.d)), depth, Xi));
+    return obj.e + f.mult(radiance(Ray(x,r.d-n*2*(n*r.d)), depth, Xi));
   }
 
   // Ideal dielectric REFRACTION
-  Ray reflRay(x, r.d-n*2*n.dot(r.d));
-  bool into = n.dot(nl)>0; // Ray from outside going in?
-  float nc=1, nt=1.5, nnt=into ? nc/nt : nt/nc, ddn=r.d.dot(nl), cos2t;
+  Ray reflRay(x, r.d-n*2*(n*r.d));
+  bool into = n*nl>0; // Ray from outside going in?
+  float nc=1, nt=1.5, nnt=into ? nc/nt : nt/nc, ddn=r.d*nl, cos2t;
 
   if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0) // Total internal reflection
     return obj.e + f.mult(radiance(reflRay, depth, Xi));
 
   Vec tdir = (r.d*nnt-n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
-  float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir.dot(n));
+  float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir*n);
   float Re=R0+(1-R0)*c*c*c*c*c, Tr=1-Re, P=.25+.5*Re, RP=Re/P, TP=Tr/(1-P);
 
   return obj.e + f.mult(depth>2 ? (erand48(Xi)<P ?   // Russian roulette
-    radiance(reflRay,depth,Xi)*RP:radiance(Ray(x,tdir),depth,Xi)*TP) :
-    radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr);
+    radiance(reflRay, depth, Xi)*RP : radiance(Ray(x,tdir), depth, Xi)*TP) :
+    radiance(reflRay, depth, Xi)*Re+radiance(Ray(x,tdir), depth, Xi)*Tr);
 }
 
 int main(int argc, char *argv[]) {
 
   // Diff test
-  auto cladDiff = clad::differentiate(difftest, 1);
+  //auto cladDiff = clad::differentiate(difftest, 1);
   //auto cladDiff = clad::differentiate(Solid::implicit1, 1);
 
 
@@ -182,12 +186,13 @@ int main(int argc, char *argv[]) {
   Vec *frame=new Vec[w*h];
 
 #pragma omp parallel for schedule(dynamic, 1) private(r)
-  for (int y=0; y<h; y++) { // Loop over image rows
-    fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps*4, 100.*y/(h-1));
-    for (unsigned short x=0, Xi[3]={0,0,y*y*y}; x<w; x++) { // Loop cols
+  for (unsigned short y=0; y<h; y++) { // Loop over image rows
+    //fprintf(stderr, "\nRendering (%d spp) %5.2f%%", samps*4, 100.*y/(h-1));
+    for (unsigned short x=0, Xi[3]={0,0,(unsigned short)(y*y*y)}; x<w; x++) { // Loop cols
       for (int sy=0, i=(h-y-1)*w+x; sy<2; sy++) { // 2x2 subpixel rows
         for (int sx=0; sx<2; sx++, r=Vec()) {     // 2x2 subpixel cols
           for (int s=0; s<samps; s++) {
+fprintf(stderr, "\ny=%d, x=%d, sy=%d, sx=%d, s=%d, i=%d", y, x, sy, sx, s, i);
             float r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1 : 1-sqrt(2-r1);
             float r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1 : 1-sqrt(2-r2);
             Vec d = cx*(((sx+.5+dx)/2+x)/w-.5)+cy*(((sy+.5+dy)/2+y)/h-.5)+cam.d;
@@ -202,6 +207,6 @@ int main(int argc, char *argv[]) {
   // Write image to PPM file.
   FILE *f = fopen("image.ppm", "wb");
   fprintf(f, "P6\n%d %d\n%d\n", w, h, 255);
-  for (int i=0; i<w*h; i++)
-    fprintf(f, "%c%c%c", toInt(fb[i].x), toInt(fb[i].y), toInt(fb[i].z));
+  for (unsigned short i=0; i<w*h; i++)
+    fprintf(f, "%c%c%c", toInt(frame[i].x), toInt(frame[i].y), toInt(frame[i].z));
 }
