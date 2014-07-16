@@ -8,7 +8,7 @@
 //----------------------------------------------------------------------------//
 
 // To compile the demo please type:
-// path/to/clang -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
+// path/to/clang -O3 -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
 // path/to/libclad.so -I../../include/ -x c++ -std=c++11 -lstdc++ SmallPT.cpp \
 // -o SmallPT
 //
@@ -16,7 +16,7 @@
 // ./SmallPT 5000 && xv image.ppm
 
 // A typical invocation would be:
-// ../../../../../obj/Debug+Asserts/bin/clang -Xclang -add-plugin -Xclang clad \
+// ../../../../../obj/Debug+Asserts/bin/clang -O3 -Xclang -add-plugin -Xclang clad \
 // -Xclang -load -Xclang ../../../../../obj/Debug+Asserts/lib/libclad.dylib \
 // -I../../include/ -x c++ -std=c++11 -lstdc++ SmallPT.cpp -o SmallPT
 // ./SmallPT 5000 && xv image.ppm
@@ -37,7 +37,6 @@ struct Vec {
   Vec operator-(const Vec &b) const { return Vec(x-b.x, y-b.y, z-b.z); }
   Vec operator*(float b) const { return Vec(x*b, y*b, z*b); }
   float operator*(const Vec &b) const { return x*b.x+y*b.y+z*b.z; } // dot
-  //float dot(const Vec &b) const { return x*b.x+y*b.y+z*b.z; }
   Vec operator%(const Vec &b) { return Vec(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); } // cross
   Vec mult(const Vec &b) const { return Vec(x*b.x, y*b.y, z*b.z); }
   Vec& norm() { return *this = *this * (1/sqrt(x*x+y*y+z*z)); }
@@ -187,12 +186,11 @@ int main(int argc, char *argv[]) {
 
 #pragma omp parallel for schedule(dynamic, 1) private(r)
   for (unsigned short y=0; y<h; y++) { // Loop over image rows
-    //fprintf(stderr, "\nRendering (%d spp) %5.2f%%", samps*4, 100.*y/(h-1));
+    fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps*4, 100.*y/(h-1));
     for (unsigned short x=0, Xi[3]={0,0,(unsigned short)(y*y*y)}; x<w; x++) { // Loop cols
       for (int sy=0, i=(h-y-1)*w+x; sy<2; sy++) { // 2x2 subpixel rows
         for (int sx=0; sx<2; sx++, r=Vec()) {     // 2x2 subpixel cols
           for (int s=0; s<samps; s++) {
-fprintf(stderr, "\ny=%d, x=%d, sy=%d, sx=%d, s=%d, i=%d", y, x, sy, sx, s, i);
             float r1=2*erand48(Xi), dx=r1<1 ? sqrt(r1)-1 : 1-sqrt(2-r1);
             float r2=2*erand48(Xi), dy=r2<1 ? sqrt(r2)-1 : 1-sqrt(2-r2);
             Vec d = cx*(((sx+.5+dx)/2+x)/w-.5)+cy*(((sy+.5+dy)/2+y)/h-.5)+cam.d;
@@ -207,6 +205,6 @@ fprintf(stderr, "\ny=%d, x=%d, sy=%d, sx=%d, s=%d, i=%d", y, x, sy, sx, s, i);
   // Write image to PPM file.
   FILE *f = fopen("image.ppm", "wb");
   fprintf(f, "P6\n%d %d\n%d\n", w, h, 255);
-  for (unsigned short i=0; i<w*h; i++)
+  for (int i=0; i<w*h; i++)
     fprintf(f, "%c%c%c", toInt(frame[i].x), toInt(frame[i].y), toInt(frame[i].z));
 }
