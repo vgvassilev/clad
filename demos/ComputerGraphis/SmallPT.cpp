@@ -1,7 +1,7 @@
 //--------------------------------------------------------------------*- C++ -*-
 // clad - The C++ Clang-based Automatic Differentiator
 //
-// A demo, describing how to use clad in simple path tracer.
+// A demo, describing how to use clad in simple Path tracer.
 //
 // author:  Alexander Penev <alexander_penev-at-yahoo.com>
 //          Based on smallpt, a Path Tracer by Kevin Beason, 2008
@@ -21,12 +21,12 @@
 // -I../../include/ -x c++ -std=c++11 -lstdc++ SmallPT.cpp -o SmallPT
 // ./SmallPT 5000 && xv image.ppm
 
+// Necessary for clad to work include
+#include "clad/Differentiator/Differentiator.h"
+
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-// Necessary for clad to work include
-//#include "clad/Differentiator/Differentiator.h"
 
 struct Vec {
   float x, y, z; // position, also color (r,g,b)
@@ -37,7 +37,7 @@ struct Vec {
   Vec operator-(const Vec &b) const { return Vec(x-b.x, y-b.y, z-b.z); }
   Vec operator*(float b) const { return Vec(x*b, y*b, z*b); }
   float operator*(const Vec &b) const { return x*b.x+y*b.y+z*b.z; } // dot
-  Vec operator%(const Vec &b) { return Vec(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); } // cross
+  Vec operator%(const Vec &b) const { return Vec(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); } // cross
   Vec mult(const Vec &b) const { return Vec(x*b.x, y*b.y, z*b.z); }
   Vec& norm() { return *this = *this * (1/sqrt(x*x+y*y+z*z)); }
 };
@@ -50,56 +50,74 @@ struct Ray {
 
 enum Refl_t { DIFF, SPEC, REFR };  // material types, used in radiance()
 
-float difftest(float x) {
-  return 0;
-}
+// Abstract Solid
 
-struct Solid {
-  float rad;   // radius
-  Vec p; // position
+class Solid {
+  public:
   Vec e, c; // emission, color
   Refl_t refl; // reflection type (DIFFuse, SPECular, REFRactive)
 
-  Solid(float rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
-    rad(rad_), p(p_), e(e_), c(c_), refl(refl_) {}
-
-  float implicit(const Vec &x) const {
-    //return x.dot(x)-rad*rad;
-    //return x*x-rad*rad;
-    return 0;
-  }
-
-  float implicit1(float x, float y, float z) const {
-    return 0;
-  }
+  Solid(Vec e_, Vec c_, Refl_t refl_): e(e_), c(c_), refl(refl_) {}
 
   // returns distance, 0 if nohit
-  float intersect(const Ray &r) const {
+  virtual float intersect(const Ray &r) const { return 0; };
+
+  // returns normal vector to surface in point pt
+  virtual Vec normal(const Vec &pt) const { return Vec(1,0,0); };
+};
+
+// Sphere Solid
+
+//float sphere_implicit_func(float x, float y, float z, Vec &p, float r) {
+//  return (x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z) - r*r;
+//}
+
+float sphere_implicit_func(float x, float y, float z, float px, float py, float pz, float r) {
+  return (x-px)*(x-px) + (y-py)*(y-py) + (z-pz)*(z-pz) - r*r;
+}
+
+class Sphere : public Solid {
+  public:
+  float rad; // radius
+  Vec p; // position
+
+  Sphere(float rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
+    rad(rad_), p(p_), Solid(e_, c_, refl_) {}
+
+  // returns distance, 0 if nohit
+  float intersect(const Ray &r) const override {
     // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
     Vec op = p-r.o;
-    ///float t, eps=1e-1, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad;
     float t, eps=1e-1, b=op*r.d, det=b*b-op*op+rad*rad;
     if (det<0) return 0; else det=sqrt(det);
     return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
   }
 
-  // returns normal vector to surface in point x
-  Vec normal(const Vec &x) const {
-    return (x-p).norm();
+  // returns normal vector to surface in point pt
+  Vec normal(const Vec &pt) const override {
+    auto sphere_implicit_func_dx = clad::differentiate(sphere_implicit_func, 1);
+    auto sphere_implicit_func_dy = clad::differentiate(sphere_implicit_func, 2);
+    auto sphere_implicit_func_dz = clad::differentiate(sphere_implicit_func, 3);
+
+    float Nx = sphere_implicit_func_dx.execute(pt.x, pt.y, pt.z, p.x, p.y, p.z, rad);
+    float Ny = sphere_implicit_func_dy.execute(pt.x, pt.y, pt.z, p.x, p.y, p.z, rad);
+    float Nz = sphere_implicit_func_dz.execute(pt.x, pt.y, pt.z, p.x, p.y, p.z, rad);
+
+    return Vec(Nx, Ny, Nz).norm();
   }
 };
 
-// Scene: radius, position, emission, color, material
-Solid scene[] = {
-  Solid(1e5,  Vec( 1e5+1,40.8,81.6),  Vec(), Vec(.75,.25,.25), DIFF), // Left
-  Solid(1e5,  Vec(-1e5+99,40.8,81.6), Vec(), Vec(.25,.25,.75), DIFF), // Rght
-  Solid(1e5,  Vec(50,40.8, 1e5),      Vec(), Vec(.75,.75,.75), DIFF), // Back
-  Solid(1e5,  Vec(50,40.8,-1e5+170),  Vec(), Vec(),            DIFF), // Frnt
-  Solid(1e5,  Vec(50, 1e5, 81.6),     Vec(), Vec(.75,.75,.75), DIFF), // Botm
-  Solid(1e5,  Vec(50,-1e5+81.6,81.6), Vec(), Vec(.75,.75,.75), DIFF), // Top
-  Solid(16.5, Vec(27,16.5,47),        Vec(), Vec(1,1,1)*.999,  SPEC), // Mirr
-  Solid(16.5, Vec(73,16.5,78),        Vec(), Vec(1,1,1)*.999,  REFR), // Glas
-  Solid(600,  Vec(50,681.6-.27,81.6), Vec(12,12,12), Vec(),    DIFF)  // Lite
+// Sphere: radius, position, emission, color, material
+Solid* scene[] = {
+  new Sphere(1e5,  Vec( 1e5+1,40.8,81.6),  Vec(), Vec(.75,.25,.25), DIFF), // Left
+  new Sphere(1e5,  Vec(-1e5+99,40.8,81.6), Vec(), Vec(.25,.25,.75), DIFF), // Rght
+  new Sphere(1e5,  Vec(50,40.8, 1e5),      Vec(), Vec(.75,.75,.75), DIFF), // Back
+  new Sphere(1e5,  Vec(50,40.8,-1e5+170),  Vec(), Vec(),            DIFF), // Frnt
+  new Sphere(1e5,  Vec(50, 1e5, 81.6),     Vec(), Vec(.75,.75,.75), DIFF), // Botm
+  new Sphere(1e5,  Vec(50,-1e5+81.6,81.6), Vec(), Vec(.75,.75,.75), DIFF), // Top
+  new Sphere(16.5, Vec(27,16.5,47),        Vec(), Vec(1,1,1)*.999,  SPEC), // Mirr
+  new Sphere(16.5, Vec(73,16.5,78),        Vec(), Vec(1,1,1)*.999,  REFR), // Glas
+  new Sphere(600,  Vec(50,681.6-.27,81.6), Vec(12,12,12), Vec(),    DIFF)  // Lite
 };
 
 inline float clamp(float x) {
@@ -111,11 +129,10 @@ inline int toInt(float x) {
 }
 
 inline bool intersect(const Ray &r, float &t, int &id) {
-  int n = sizeof(scene)/sizeof(scene[0]);
   float d, inf=t=1e20;
 
-  for(int i=n; i--; )
-    if ((d=scene[i].intersect(r))&&d<t) { t=d; id=i; }
+  for(int i=sizeof(scene)/sizeof(scene[0]); i--; )
+    if ((d=scene[i]->intersect(r)) && d<t) { t=d; id=i; }
 
   return t<inf;
 }
@@ -128,7 +145,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
   if (!intersect(r, t, id)) return Vec();
 
   // the hit object
-  const Solid &obj = scene[id];
+  Solid& obj = *scene[id];
 
   // calculate intersection point
   Vec x=r.o+r.d*t;
@@ -172,12 +189,6 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
 }
 
 int main(int argc, char *argv[]) {
-
-  // Diff test
-  //auto cladDiff = clad::differentiate(difftest, 1);
-  //auto cladDiff = clad::differentiate(Solid::implicit1, 1);
-
-
   int w=1024, h=768, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
 
   Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
