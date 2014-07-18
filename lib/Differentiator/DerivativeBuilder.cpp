@@ -469,7 +469,7 @@ namespace clad {
       // enforce precedence for substraction
       rhs_derived = m_Sema.ActOnParenExpr(L, R, rhs_derived).get();
 
-      assert(lhs_derived->getType() == rhs_derived->getType()
+      assert(m_Context.hasSameUnqualifiedType(lhs_derived->getType(), rhs_derived->getType())
              && "Must be the same types.");
 
       Expr* newBO = m_Sema.BuildBinOp(/*Scope*/0, L, opCode,
