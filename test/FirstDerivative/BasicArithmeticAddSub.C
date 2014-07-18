@@ -1,6 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out -Xclang -verify 2>&1 | FileCheck %s
 // RUN: ./BasicArithmeticAddSub.out | FileCheck -check-prefix=CHECK-EXEC %s
 
+//CHECK-NOT: {{.*error:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
@@ -78,6 +79,13 @@ int as_1(int x) {
 // CHECK-NEXT: return 1 + (1) - (1) + (0) - (0) + (0) - (0);
 // CHECK-NEXT: }
 
+float IntegerLiteralToFloatLiteral(float x, float y) {
+  return x * x - y;
+}
+// CHECK: float IntegerLiteralToFloatLiteral_derived_x(float x, float y) {
+// CHECK-NEXT: return (1.F * x + x * 1.F) - (0.F);
+// CHECK-NEXT: }
+
 int a_1_derived_x(int x);
 int a_2_derived_x(int x);
 int a_3_derived_x(int x);
@@ -87,6 +95,7 @@ int s_2_derived_x(int x);
 int s_3_derived_x(int x);
 int s_4_derived_x(int x);
 int as_1_derived_x(int x);
+float IntegerLiteralToFloatLiteral_derived_x(float x, float y);
 
 int main () { // expected-no-diagnostics
   int x = 4;
@@ -116,6 +125,9 @@ int main () { // expected-no-diagnostics
 
   clad::differentiate(as_1, 1);
   printf("Result is = %d\n", as_1_derived_x(1)); // CHECK-EXEC: Result is = 1
+
+  clad::differentiate(IntegerLiteralToFloatLiteral, 1);
+  printf("Result is = %f\n", IntegerLiteralToFloatLiteral_derived_x(5., 0.)); // CHECK-EXEC: Result is = 10
 
   return 0;
 }

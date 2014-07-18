@@ -176,23 +176,43 @@ namespace clad {
   NodeContext DerivativeBuilder::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = VisitStmt(DRE).getAs<DeclRefExpr>();
     SourceLocation noLoc;
+    QualType Ty = DRE->getType();
     if (clonedDRE->getDecl()->getNameAsString() ==
         m_IndependentVar->getNameAsString()) {
-      llvm::APInt one(m_Context.getIntWidth(m_Context.IntTy), /*value*/1);
-      IntegerLiteral* constant1 = IntegerLiteral::Create(m_Context, one,
-                                                         m_Context.IntTy,
-                                                         noLoc);
-      return NodeContext(constant1);
+      if (Ty->isIntegralType(m_Context)) {
+          llvm::APInt one(m_Context.getIntWidth(m_Context.IntTy), /*value*/1);
+          IntegerLiteral* constant1 = IntegerLiteral::Create(m_Context, one,
+                                                             m_Context.IntTy,
+                                                             noLoc);
+          return NodeContext(constant1);
+        }
+        else {
+          llvm::APFloat one(m_Context.getFloatTypeSemantics(Ty), 1);
+          FloatingLiteral* constant1 = FloatingLiteral::Create(m_Context, one,
+                                                               /*isexact*/true,
+                                                               Ty, noLoc);
+          return NodeContext(constant1);
+        }
     }
     else {
-      llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
-      IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
-                                                         m_Context.IntTy,
-                                                         noLoc);
-      return NodeContext(constant0);
+      if (Ty->isIntegralType(m_Context)) {
+        llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
+        IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
+                                                           m_Context.IntTy,
+                                                           noLoc);
+        return NodeContext(constant0);
+      }
+      else {
+        llvm::APFloat zero
+          = llvm::APFloat::getZero(m_Context.getFloatTypeSemantics(Ty));
+        FloatingLiteral* constant0 = FloatingLiteral::Create(m_Context, zero,
+                                                             /*isexact*/true,
+                                                             Ty, noLoc);
+        return NodeContext(constant0);
+      }
     }
   }
-  
+
   NodeContext DerivativeBuilder::VisitIntegerLiteral(const IntegerLiteral* IL) {
     SourceLocation noLoc;
     llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);

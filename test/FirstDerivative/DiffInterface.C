@@ -11,7 +11,7 @@ int f_1(float y) {
 
 // CHECK: int f_1_derived_y(float y) {
 // CHECK-NEXT: int x = 1, z = 3;
-// CHECK-NEXT: return ((0 * y + x * 1) * z + x * y * 0);
+// CHECK-NEXT: return ((0 * y + x * 1.F) * z + x * y * 0);
 // CHECK-NEXT: }
 
 int f_2(int x, float y, int z) {
@@ -19,17 +19,17 @@ int f_2(int x, float y, int z) {
 }
 
 // CHECK: int f_2_derived_x(int x, float y, int z) {
-// CHECK-NEXT: return ((1 * y + x * 0) * z + x * y * 0);
+// CHECK-NEXT: return ((1 * y + x * 0.F) * z + x * y * 0);
 // CHECK-NEXT: }
 
 // x * z
 // CHECK: int f_2_derived_y(int x, float y, int z) {
-// CHECK-NEXT: return ((0 * y + x * 1) * z + x * y * 0);
+// CHECK-NEXT: return ((0 * y + x * 1.F) * z + x * y * 0);
 // CHECK-NEXT: }
 
 // x * y
 // CHECK: int f_2_derived_z(int x, float y, int z) {
-// CHECK-NEXT: return ((0 * y + x * 0) * z + x * y * 1);
+// CHECK-NEXT: return ((0 * y + x * 0.F) * z + x * y * 1);
 // CHECK-NEXT: }
 
 int f_3() {
