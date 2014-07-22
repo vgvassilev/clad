@@ -468,8 +468,12 @@ namespace clad {
 
       // enforce precedence for substraction
       rhs_derived = m_Sema.ActOnParenExpr(L, R, rhs_derived).get();
-      Expr* newBO = m_Sema.BuildBinOp(/*Scope*/0, L, opCode,
-                                      lhs_derived, rhs_derived).get();
+      BinaryOperator* newBO = m_Sema.BuildBinOp(/*Scope*/0, L, opCode,
+                                                lhs_derived, rhs_derived).getAs<BinaryOperator>();
+      assert(m_Context.hasSameUnqualifiedType(newBO->getLHS()->getType(),
+                                              newBO->getRHS()->getType())
+             && "Must be the same types.");
+
 
       return NodeContext(newBO);
     }
