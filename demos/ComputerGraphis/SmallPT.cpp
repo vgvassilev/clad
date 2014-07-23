@@ -68,12 +68,12 @@ class Solid {
 
 // Sphere Solid
 
-//float sphere_implicit_func(float x, float y, float z, Vec &p, float r) {
+//float sphere_implicit_func(float x, float y, float z, const Vec &p, float r) {
 //  return (x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z) - r*r;
 //}
 
-float sphere_implicit_func(float x, float y, float z, float px, float py, float pz, float r) {
-  return (x-px)*(x-px) + (y-py)*(y-py) + (z-pz)*(z-pz) - r*r;
+float sphere_distance_func(float x, float y, float z, const Vec &p, float r) {
+  return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z)) - r;
 }
 
 class Sphere : public Solid {
@@ -84,6 +84,7 @@ class Sphere : public Solid {
   Sphere(float rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
     rad(rad_), p(p_), Solid(e_, c_, refl_) {}
 
+/*
   // returns distance, 0 if nohit
   float intersect(const Ray &r) const override {
     // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
@@ -95,13 +96,32 @@ class Sphere : public Solid {
 
   // returns normal vector to surface in point pt
   Vec normal(const Vec &pt) const override {
-    auto sphere_implicit_func_dx = clad::differentiate(sphere_implicit_func, 1);
-    auto sphere_implicit_func_dy = clad::differentiate(sphere_implicit_func, 2);
-    auto sphere_implicit_func_dz = clad::differentiate(sphere_implicit_func, 3);
+    return (pt-p).norm();
+  }
+*/
 
-    float Nx = sphere_implicit_func_dx.execute(pt.x, pt.y, pt.z, p.x, p.y, p.z, rad);
-    float Ny = sphere_implicit_func_dy.execute(pt.x, pt.y, pt.z, p.x, p.y, p.z, rad);
-    float Nz = sphere_implicit_func_dz.execute(pt.x, pt.y, pt.z, p.x, p.y, p.z, rad);
+  // returns distance, 0 if nohit
+  float intersect(const Ray &r) const override {
+    float t=0, f, eps=1e-1, inf=1e20;
+    Vec pt=r.o;
+    do {
+      f=fabs(sphere_distance_func(pt.x, pt.y, pt.z, p, rad));
+      t+=f;
+      if (f<eps) return t;
+      pt=pt+r.d*f;
+    } while (t<inf);
+    return 0;
+  }
+
+  // returns normal vector to surface in point pt
+  Vec normal(const Vec &pt) const override {
+    auto sphere_distance_func_dx = clad::differentiate(sphere_distance_func, 1);
+    auto sphere_distance_func_dy = clad::differentiate(sphere_distance_func, 2);
+    auto sphere_distance_func_dz = clad::differentiate(sphere_distance_func, 3);
+
+    float Nx = sphere_distance_func_dx.execute(pt.x, pt.y, pt.z, p, rad);
+    float Ny = sphere_distance_func_dy.execute(pt.x, pt.y, pt.z, p, rad);
+    float Nz = sphere_distance_func_dz.execute(pt.x, pt.y, pt.z, p, rad);
 
     return Vec(Nx, Ny, Nz).norm();
   }
@@ -189,7 +209,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
 }
 
 int main(int argc, char *argv[]) {
-  int w=1024, h=768, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
+//  int w=1024, h=768, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
+  int w=512, h=384, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
 
   Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
   Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135, r;
