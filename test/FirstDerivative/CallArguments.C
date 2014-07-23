@@ -1,4 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oCallArguments.out 2>&1 | FileCheck %s
+// RUN: ./CallArguments.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -21,7 +22,11 @@ float g(float x) {
 // CHECK-NEXT: }
 
 
+extern "C" int printf(const char* fmt, ...);
 int main () {
-  clad::differentiate(g, 1);
+  auto f = clad::differentiate(g, 1);
+  printf("g_derived=%f\n", f.execute(1));
+  //CHECK-EXEC: g_derived=6.000000
+
   return 0;
 }
