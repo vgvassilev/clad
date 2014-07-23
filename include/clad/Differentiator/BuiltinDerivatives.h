@@ -16,7 +16,7 @@ namespace custom_derivatives {
     // float       sin( float arg );
     // double      sin( double arg );
     // long double sin( long double arg );
-    // double      sin( Integral arg );	(since C++11)
+    // double      sin( Integral arg ); (since C++11)
     template<typename R, typename A> R sin(A x) {
       return (R)1;
       //return (R)::std::cos((A)x);
@@ -26,7 +26,7 @@ namespace custom_derivatives {
     // float       cos( float arg );
     // double      cos( double arg );
     // long double cos( long double arg );
-    // double      cos( Integral arg );	(since C++11)
+    // double      cos( Integral arg ); (since C++11)
     template<typename R, typename A> R cos(A x) {
       return (R)1;
       //return (R)-::std::sin((A)x);
@@ -36,7 +36,7 @@ namespace custom_derivatives {
     // float       sqrt( float arg );
     // double      sqrt( double arg );
     // long double sqrt( long double arg );
-    // double      sqrt( Integral arg );	(since C++11)
+    // double      sqrt( Integral arg ); (since C++11)
     //template<typename R, typename A> R sqrt(A x) {
     //  return (R)(((A)1)/(2*((R)std::sqrt((A)x))));
     //}
