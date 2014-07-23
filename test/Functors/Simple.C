@@ -1,5 +1,7 @@
 // R U N: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out -Xclang -verify 2>&1 | FileCheck %s
 
+//CHECK-NOT: {{.*error|warning|note:.*}}
+
 class AFunctor {
 public:
   int operator()(int x) { return x * 2;}

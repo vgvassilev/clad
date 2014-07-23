@@ -1,5 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
+
 #include "clad/Differentiator/Differentiator.h"
 
 template<typename T>

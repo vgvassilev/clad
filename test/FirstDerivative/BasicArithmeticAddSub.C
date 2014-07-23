@@ -1,7 +1,8 @@
 // RUN: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out -Xclang -verify 2>&1 | FileCheck %s
 // RUN: ./BasicArithmeticAddSub.out | FileCheck -check-prefix=CHECK-EXEC %s
 
-//CHECK-NOT: {{.*error:.*}}
+//CHECK-NOT: {{.*error|warning|note:.*}}
+
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
