@@ -7,7 +7,11 @@
 #ifndef CLAD_BUILTIN_DERIVATIVES
 #define CLAD_BUILTIN_DERIVATIVES
 
-//#include <cmath> TODO: libc++ and clang on MacOS is not ready yet.
+// Avoid assertion custom_derivative namespace not found. FIXME: This in future
+// should go.
+namespace custom_derivatives{}
+
+#include <math.h>
 
 namespace custom_derivatives {
   // define functions' derivatives from std
@@ -40,18 +44,15 @@ namespace custom_derivatives {
     //template<typename R, typename A> R sqrt(A x) {
     //  return (R)(((A)1)/(2*((R)std::sqrt((A)x))));
     //}
-    float sqrt(float x) {
-      return 1.F/(2.F*std::sqrt(x));
-    }
-    double sqrt(double x) {
-      return 1./(2.*std::sqrt(x));
-    }
-    long double sqrt(long double x) {
-      return 1.L/(2.L*std::sqrt(x));
-    }
-    float sqrtf(float x) {
-      return 1.F/(2.F*std::sqrtf(x));
-    }
+  }// end namespace std
+
+  template<typename T>
+  T sqrt_derived_x(T x) {
+    return ((T)1)/(((T)2)*sqrt(x));
+  }
+
+  float sqrtf_derived_x(float x) {
+    return 1.F/(2.F*sqrtf(x));
   }
 } // end namespace builtin_derivatives
 
