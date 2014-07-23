@@ -297,14 +297,26 @@ namespace clad {
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
-    
+
     llvm::SmallVector<Expr*, 4> CallArgs;
+    // For f(g(x)) = f'(x) * g'(x)
+    Expr* Multiplier = 0;
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
+      if (!Multiplier)
+        Multiplier = Visit(CE->getArg(i)).getExpr();
+      else {
+        Multiplier = m_Sema.BuildBinOp(/*Scope*/0, SourceLocation(),
+                                       BO_Add, Multiplier,
+                                       Visit(CE->getArg(i)).getExpr()).get();
+      }
       CallArgs.push_back(VisitStmt(CE->getArg(i)).getExpr());
     }
-    
+
     Expr* OverloadedDerivedFn = findOverloadedDefinition(DNInfo, CallArgs);
     if (OverloadedDerivedFn) {
+      if (Multiplier)
+        return m_Sema.BuildBinOp(/*Scope*/0, SourceLocation(),
+                                 BO_Mul, OverloadedDerivedFn, Multiplier).get();
       return NodeContext(OverloadedDerivedFn);
     }
 
