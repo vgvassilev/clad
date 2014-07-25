@@ -18,7 +18,7 @@ float g(float x) {
 }
 
 // CHECK: float g_derived_x(float x) {
-// CHECK-NEXT: return f_derived_x(x * x * x)  * ((1.F * x + x * 1.F) * x + x * x * 1.F);
+// CHECK-NEXT: return f_derived_x(x * x * x)  * (((1.F * x + x * 1.F) * x + x * x * 1.F));
 // CHECK-NEXT: }
 
 float sqrt_func(float x, float y) {
@@ -26,7 +26,7 @@ float sqrt_func(float x, float y) {
 }
 
 // CHECK: float sqrt_func_derived_x(float x, float y) {
-// CHECK-NEXT: sqrt_derived_x(x * x + y * y) * (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F);
+// CHECK-NEXT: sqrt_derived_x(x * x + y * y) * ((1.F * x + x * 1.F) + ((0.F * y + y * 0.F))) - (0.F);
 // CHECK-NEXT: }
 
 extern "C" int printf(const char* fmt, ...);

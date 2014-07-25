@@ -298,6 +298,7 @@ namespace clad {
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
 
+    SourceLocation noLoc;
     llvm::SmallVector<Expr*, 4> CallArgs;
     // For f(g(x)) = f'(x) * g'(x)
     Expr* Multiplier = 0;
@@ -305,12 +306,14 @@ namespace clad {
       if (!Multiplier)
         Multiplier = Visit(CE->getArg(i)).getExpr();
       else {
-        Multiplier = m_Sema.BuildBinOp(/*Scope*/0, SourceLocation(),
-                                       BO_Add, Multiplier,
+        Multiplier = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add, Multiplier,
                                        Visit(CE->getArg(i)).getExpr()).get();
       }
       CallArgs.push_back(VisitStmt(CE->getArg(i)).getExpr());
     }
+
+    if (Multiplier)
+      Multiplier = m_Sema.ActOnParenExpr(noLoc, noLoc, Multiplier).get();
 
     Expr* OverloadedDerivedFn = findOverloadedDefinition(DNInfo, CallArgs);
     if (OverloadedDerivedFn) {

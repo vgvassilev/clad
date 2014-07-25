@@ -54,7 +54,7 @@ float test_1(float x) {
 }
 
 // CHECK: float test_1_derived_x(float x) {
-// CHECK-NEXT: return overloaded_derived_x(x) * 1.F + (custom_fn_derived_x(x) * 1.F);
+// CHECK-NEXT: return overloaded_derived_x(x) * (1.F) + (custom_fn_derived_x(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_2(float x) {
@@ -62,7 +62,7 @@ float test_2(float x) {
 }
 
 // CHECK: float test_2_derived_x(float x) {
-// CHECK-NEXT: return overloaded_derived_x(x) * 1.F + (custom_fn_derived_x(x) * 1.F);
+// CHECK-NEXT: return overloaded_derived_x(x) * (1.F) + (custom_fn_derived_x(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_3() {
@@ -84,7 +84,7 @@ float test_5(int x) {
 }
 
 // CHECK: float test_5_derived_x(int x) {
-// CHECK-NEXT: return no_body_derived_x(x) * 1;
+// CHECK-NEXT: return no_body_derived_x(x) * (1);
 // CHECK-NEXT: }
 
 int main () {
