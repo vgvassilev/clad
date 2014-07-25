@@ -48,12 +48,13 @@ namespace custom_derivatives {
 
   template<typename T>
   T sqrt_derived_x(T x) {
-    return ((T)1)/(((T)2)*sqrt(x));
+     return ((T)1)/(((T)2)*sqrt(x));
   }
-
+#ifdef MACOS
   float sqrtf_derived_x(float x) {
     return 1.F/(2.F*sqrtf(x));
   }
+#endif
 } // end namespace builtin_derivatives
 
 #endif //CLAD_BUILTIN_DERIVATIVES
