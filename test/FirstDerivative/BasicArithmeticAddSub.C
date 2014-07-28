@@ -9,7 +9,7 @@ int a_1(int x) {
   int y = 4;
   return y + y; // == 0
 }
-// CHECK: int a_1_derived_x(int x) {
+// CHECK: int a_1_dx(int x) {
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return 0 + (0);
 // CHECK-NEXT: }
@@ -17,14 +17,14 @@ int a_1(int x) {
 int a_2(int x) {
   return 1 + 1; // == 0
 }
-// CHECK: int a_2_derived_x(int x) {
+// CHECK: int a_2_dx(int x) {
 // CHECK-NEXT: return 0 + (0);
 // CHECK-NEXT: }
 
 int a_3(int x) {
   return x + x; // == 2
 }
-// CHECK: int a_3_derived_x(int x) {
+// CHECK: int a_3_dx(int x) {
 // CHECK-NEXT: return 1 + (1);
 // CHECK-NEXT: }
 
@@ -32,7 +32,7 @@ int a_4(int x) {
   int y = 4;
   return x + y + x + 3 + x; // == 3
 }
-// CHECK: int a_4_derived_x(int x) {
+// CHECK: int a_4_dx(int x) {
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return 1 + (0) + (1) + (0) + (1);
 // CHECK-NEXT: }
@@ -41,7 +41,7 @@ int s_1(int x) {
   int y = 4;
   return y - y; // == 0
 }
-// CHECK: int s_1_derived_x(int x) {
+// CHECK: int s_1_dx(int x) {
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return 0 - (0);
 // CHECK-NEXT: }
@@ -49,14 +49,14 @@ int s_1(int x) {
 int s_2(int x) {
   return 1 - 1; // == 0
 }
-// CHECK: int s_2_derived_x(int x) {
+// CHECK: int s_2_dx(int x) {
 // CHECK-NEXT: return 0 - (0);
 // CHECK-NEXT: }
 
 int s_3(int x) {
   return x - x; // == 0
 }
-// CHECK: int s_3_derived_x(int x) {
+// CHECK: int s_3_dx(int x) {
 // CHECK-NEXT: return 1 - (1);
 // CHECK-NEXT: }
 
@@ -64,7 +64,7 @@ int s_4(int x) {
   int y = 4;
   return x - y - x - 3 - x; // == -1
 }
-// CHECK: int s_4_derived_x(int x) {
+// CHECK: int s_4_dx(int x) {
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return 1 - (0) - (1) - (0) - (1);
 // CHECK-NEXT: }
@@ -73,49 +73,49 @@ int as_1(int x) {
   int y = 4;
   return x + x - x + y - y + 3 - 3; // == 1
 }
-// CHECK: int as_1_derived_x(int x) {
+// CHECK: int as_1_dx(int x) {
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return 1 + (1) - (1) + (0) - (0) + (0) - (0);
 // CHECK-NEXT: }
 
-int a_1_derived_x(int x);
-int a_2_derived_x(int x);
-int a_3_derived_x(int x);
-int a_4_derived_x(int x);
-int s_1_derived_x(int x);
-int s_2_derived_x(int x);
-int s_3_derived_x(int x);
-int s_4_derived_x(int x);
-int as_1_derived_x(int x);
+int a_1_dx(int x);
+int a_2_dx(int x);
+int a_3_dx(int x);
+int a_4_dx(int x);
+int s_1_dx(int x);
+int s_2_dx(int x);
+int s_3_dx(int x);
+int s_4_dx(int x);
+int as_1_dx(int x);
 
 int main () { // expected-no-diagnostics
   int x = 4;
   clad::differentiate(a_1, 0);
-  printf("Result is = %d\n", a_1_derived_x(1)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %d\n", a_1_dx(1)); // CHECK-EXEC: Result is = 0
 
   clad::differentiate(a_2, 0);
-  printf("Result is = %d\n", a_2_derived_x(1)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %d\n", a_2_dx(1)); // CHECK-EXEC: Result is = 0
 
   clad::differentiate(a_3, 0);
-  printf("Result is = %d\n", a_3_derived_x(1)); // CHECK-EXEC: Result is = 2
+  printf("Result is = %d\n", a_3_dx(1)); // CHECK-EXEC: Result is = 2
 
   clad::differentiate(a_4, 0);
-  printf("Result is = %d\n", a_4_derived_x(1)); // CHECK-EXEC: Result is = 3
+  printf("Result is = %d\n", a_4_dx(1)); // CHECK-EXEC: Result is = 3
 
   clad::differentiate(s_1, 0);
-  printf("Result is = %d\n", s_1_derived_x(1)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %d\n", s_1_dx(1)); // CHECK-EXEC: Result is = 0
 
   clad::differentiate(s_2, 0);
-  printf("Result is = %d\n", s_2_derived_x(1)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %d\n", s_2_dx(1)); // CHECK-EXEC: Result is = 0
 
   clad::differentiate(s_3, 0);
-  printf("Result is = %d\n", s_3_derived_x(1)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %d\n", s_3_dx(1)); // CHECK-EXEC: Result is = 0
 
   clad::differentiate(s_4, 0);
-  printf("Result is = %d\n", s_4_derived_x(1)); // CHECK-EXEC: Result is = -1
+  printf("Result is = %d\n", s_4_dx(1)); // CHECK-EXEC: Result is = -1
 
   clad::differentiate(as_1, 0);
-  printf("Result is = %d\n", as_1_derived_x(1)); // CHECK-EXEC: Result is = 1
+  printf("Result is = %d\n", as_1_dx(1)); // CHECK-EXEC: Result is = 1
 
   return 0;
 }

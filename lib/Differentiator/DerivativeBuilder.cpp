@@ -67,7 +67,7 @@ namespace clad {
     
     SourceLocation noLoc;
     IdentifierInfo* II
-      = &m_Context.Idents.get(FD->getNameAsString() + "_derived_" +
+      = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
                              m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     FunctionDecl* derivedFD = FunctionDecl::Create(m_Context,
@@ -273,7 +273,7 @@ namespace clad {
     // Find the built-in derivatives namespace.
     IdentifierInfo* II
       = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                              "_derived_" + m_IndependentVar->getNameAsString());
+                              "_d" + m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
