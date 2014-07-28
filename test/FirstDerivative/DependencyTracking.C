@@ -19,7 +19,7 @@ int f(int x) {
     result = x*x;
   return result;
 }
-// CHECK: int f_derived_x(int x) {
+// CHECK: int f_dx(int x) {
 // CHECK-NEXT: int result = 0;
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   result = -2 * x;

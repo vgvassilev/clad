@@ -23,7 +23,7 @@ float func(float x) { return 3.14 * x * x; }
 
 int main() {
   // Differentiate pow2. Clad will produce the second derivative of pow2.
-  auto d2_func_dx = clad::differentiate<2>(func, 1);
+  auto d2_func_dx = clad::differentiate<2>(func, 0);
 
   // Or we can call like this:
   float pow5thOrderDerivative = d2_func_dx.execute(1);

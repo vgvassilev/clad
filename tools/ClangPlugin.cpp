@@ -123,7 +123,7 @@ namespace clad {
         return 0;
       }
       //if arg is int but do not exists print error
-      else if (argIndex > argNum || argIndex < 1) {
+      else if (argIndex >= argNum || argIndex < 0) {
         isIndexOutOfRange = true;
         unsigned DiagID
           = Diags.getCustomDiagID(DiagnosticsEngine::Error,
@@ -134,7 +134,7 @@ namespace clad {
         return 0;
       }
       else
-        return FD->getParamDecl(argIndex - 1);
+        return FD->getParamDecl(argIndex);
     }
     else if (!isIndexOutOfRange){
       unsigned DiagID

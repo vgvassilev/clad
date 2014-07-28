@@ -26,7 +26,7 @@ int main() {
   // In some cases one needs to make sure the produced code is correct. After
   // the differentiation process finishes, dump can be called to print out some
   // debug information.
-  auto cladMyFunc = clad::differentiate(myFunc, 1);
+  auto cladMyFunc = clad::differentiate(myFunc, 0);
   cladMyFunc.dump();
 
   // At runtime, this would produce an output similar to:

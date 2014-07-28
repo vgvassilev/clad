@@ -11,7 +11,7 @@ public:
     return x;
   }
 
-  // CHECK: int f_derived_x(int x) {
+  // CHECK: int f_dx(int x) {
   // CHECK-NEXT: return 1;
   // CHECK-NEXT: }
 
@@ -19,11 +19,11 @@ public:
     return x*x + y;
   }
 
-  // CHECK: int g_1_derived_x(int x, int y) {
+  // CHECK: int g_1_dx(int x, int y) {
   // CHECK-NEXT: return (1 * x + x * 1) + (0);
   // CHECK-NEXT: }
 
-  // CHECK: int g_1_derived_y(int x, int y) {
+  // CHECK: int g_1_dy(int x, int y) {
   // CHECK-NEXT: return (0 * x + x * 0) + (1);
   // CHECK-NEXT: }
 
@@ -31,11 +31,11 @@ public:
     return x + y*y;
   }
 
-  // CHECK: int g_2_derived_x(int x, int y) {
+  // CHECK: int g_2_dx(int x, int y) {
   // CHECK-NEXT: return 1 + ((0 * y + y * 0));
   // CHECK-NEXT: }
 
-  // CHECK: int g_2_derived_y(int x, int y) {
+  // CHECK: int g_2_dy(int x, int y) {
   // CHECK-NEXT: return 0 + ((1 * y + y * 1));
   // CHECK-NEXT: }
 
