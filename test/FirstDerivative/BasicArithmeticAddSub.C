@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out 2>&1 | FileCheck %s
 // RUN: ./BasicArithmeticAddSub.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -32,7 +32,7 @@ int a_3(int x) {
 
 int a_4(int x) {
   int y = 4;
-  return x + y + x + 3 + x; // == 3
+  return x + y + x + 3 + x; // == 3x
 }
 // CHECK: int a_4_dx(int x) {
 // CHECK-NEXT: int y = 4;
@@ -127,8 +127,8 @@ int main () { // expected-no-diagnostics
   clad::differentiate(as_1, 0);
   printf("Result is = %d\n", as_1_dx(1)); // CHECK-EXEC: Result is = 1
 
-  clad::differentiate(IntegerLiteralToFloatLiteral, 1);
-  printf("Result is = %f\n", IntegerLiteralToFloatLiteral_derived_x(5., 0.)); // CHECK-EXEC: Result is = 10
+  clad::differentiate(IntegerLiteralToFloatLiteral, 0);
+  printf("Result is = %f\n", IntegerLiteralToFloatLiteral_dx(5., 0.)); // CHECK-EXEC: Result is = 10
 
   return 0;
 }

@@ -54,7 +54,7 @@ float test_1(float x) {
 }
 
 // CHECK: float test_1_dx(float x) {
-// CHECK-NEXT: return overloaded_derived_x(x) * (1.F) + (custom_fn_derived_x(x) * (1.F));
+// CHECK-NEXT: return overloaded_dx(x) * (1.F) + (custom_fn_dx(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_2(float x) {

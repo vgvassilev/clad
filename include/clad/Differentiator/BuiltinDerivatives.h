@@ -47,11 +47,11 @@ namespace custom_derivatives {
   }// end namespace std
 
   template<typename T>
-  T sqrt_derived_x(T x) {
+  T sqrt_dx(T x) {
      return ((T)1)/(((T)2)*sqrt(x));
   }
 #ifdef MACOS
-  float sqrtf_derived_x(float x) {
+  float sqrtf_dx(float x) {
     return 1.F/(2.F*sqrtf(x));
   }
 #endif

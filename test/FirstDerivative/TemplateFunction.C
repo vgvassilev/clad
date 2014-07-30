@@ -26,12 +26,12 @@ int main () {
   // CHECK-NEXT: return 1;
   // CHECK-NEXT: }
 
-  clad::differentiate(simple_return<float>, 1);
+  clad::differentiate(simple_return<float>, 0);
   // CHECK: float simple_return_dx(float x) {
   // CHECK-NEXT: return 1.F;
   // CHECK-NEXT: }
 
-  clad::differentiate(simple_return<double>, 1);
+  clad::differentiate(simple_return<double>, 0);
   // CHECK: double simple_return_dx(double x) {
   // CHECK-NEXT: return 1.;
   // CHECK-NEXT: }
@@ -41,12 +41,12 @@ int main () {
   // CHECK-NEXT: return 1 + (1);
   // CHECK-NEXT: }
 
-  clad::differentiate(addition<float>, 1);
+  clad::differentiate(addition<float>, 0);
   // CHECK: float addition_dx(float x) {
   // CHECK-NEXT: return 1.F + (1.F);
   // CHECK-NEXT: }
 
-  clad::differentiate(addition<double>, 1);
+  clad::differentiate(addition<double>, 0);
   // CHECK: double addition_dx(double x) {
   // CHECK-NEXT: return 1. + (1.);
   // CHECK-NEXT: }
@@ -56,12 +56,12 @@ int main () {
   // CHECK-NEXT: return (1 * x + x * 1);
   // CHECK-NEXT: }
 
-  clad::differentiate(multiplication<float>, 1);
+  clad::differentiate(multiplication<float>, 0);
   // CHECK: float multiplication_dx(float x) {
   // CHECK-NEXT: return (1.F * x + x * 1.F);
   // CHECK-NEXT: }
 
-  clad::differentiate(multiplication<double>, 1);
+  clad::differentiate(multiplication<double>, 0);
   // CHECK: double multiplication_dx(double x) {
   // CHECK-NEXT: return (1. * x + x * 1.);
   // CHECK-NEXT: }
