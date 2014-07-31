@@ -31,7 +31,7 @@ float sqrt_func(float x, float y) {
 // CHECK-NEXT: }
 
 float f_const_args_func_1(const float x, const float y) {
-  return x * x + y * y - 1;
+  return x * x + y * y - 1.F;
 }
 
 // CHECK: float f_const_args_func_1_dx(const float x, const float y) {
@@ -39,7 +39,7 @@ float f_const_args_func_1(const float x, const float y) {
 // CHECK-NEXT: }
 
 float f_const_args_func_2(float x, const float y) {
-  return x * x + y * y - 1;
+  return x * x + y * y - 1.F;
 }
 
 // CHECK: float f_const_args_func_2_dx(float x, const float y) {
@@ -47,7 +47,7 @@ float f_const_args_func_2(float x, const float y) {
 // CHECK-NEXT: }
 
 float f_const_args_func_3(const float x, float y) {
-  return x * x + y * y - 1;
+  return x * x + y * y - 1.F;
 }
 
 // CHECK: float f_const_args_func_3_dx(const float x, float y) {
