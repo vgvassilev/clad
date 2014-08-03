@@ -170,6 +170,7 @@ namespace clad {
             // We know the first template spec argument is of unsigned type
             assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
             unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
+            getCurrentPlan().setDerivativeOrder(derivativeOrder);
 
             getCurrentPlan().setCallToUpdate(E);
             FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());

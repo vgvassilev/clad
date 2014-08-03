@@ -38,10 +38,13 @@ namespace clad {
     typedef llvm::SmallVector<FunctionDeclInfo, 16> Functions;
     Functions m_Functions;
     clang::CallExpr* m_CallToUpdate;
+    unsigned m_DerivativeOrder;
   public:
-    DiffPlan() : m_CallToUpdate(0) { }
+    DiffPlan() : m_CallToUpdate(0), m_DerivativeOrder(1) { }
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
+    bool isComplete() { return m_DerivativeOrder == 1; }
+    void setDerivativeOrder(unsigned val) { m_DerivativeOrder = val; }
     void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
     iterator begin() { return m_Functions.begin(); }
     iterator end() { return m_Functions.end(); }
