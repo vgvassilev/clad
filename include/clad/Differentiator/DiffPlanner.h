@@ -1,7 +1,4 @@
-#include "clang/AST/ASTContext.h"
-
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Sema/Sema.h"
 
 namespace clang {
   class ASTContext;
