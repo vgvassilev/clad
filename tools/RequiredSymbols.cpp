@@ -1,5 +1,5 @@
 
-#include "ClangPlugin.h"
+#include "clad/Differentiator/DiffPlanner.h"
 
 namespace clad {
   namespace internal {

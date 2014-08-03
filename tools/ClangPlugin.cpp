@@ -7,6 +7,8 @@
 #include "ClangPlugin.h"
 
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffPlanner.h"
+
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/ASTConsumer.h"
