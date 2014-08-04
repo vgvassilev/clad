@@ -42,6 +42,7 @@ namespace clad {
     typedef Functions::const_iterator const_iterator;
     bool isComplete() { return m_DerivativeOrder == 1; }
     void setDerivativeOrder(unsigned val) { m_DerivativeOrder = val; }
+    unsigned getDerivativeOrder() { return m_DerivativeOrder; }
     void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
     iterator begin() { return m_Functions.begin(); }
     iterator end() { return m_Functions.end(); }
@@ -77,6 +78,7 @@ namespace clad {
                                           clang::FunctionDecl* FD);
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffPlans& plans, clang::Sema& S);
+    void UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan);
     bool VisitCallExpr(clang::CallExpr* E);
   };
 }

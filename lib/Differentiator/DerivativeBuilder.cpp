@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 
 #include "clad/Differentiator/DerivativeBuilder.h"
+
+#include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
@@ -44,7 +46,8 @@ namespace clad {
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
-  FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar) {
+  FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar,
+                                          DiffPlan* plan) {
     assert(FD && "Must not be null.");
     assert(!m_DerivativeInFlight
            && "Doesn't support recursive diff. Use DiffPlan.");
@@ -61,11 +64,11 @@ namespace clad {
 
 
     m_IndependentVar = argVar; // FIXME: Use only one var.
-    
+
     if (!m_NodeCloner) {
       m_NodeCloner.reset(new utils::StmtClone(m_Context));
     }
-    
+
     SourceLocation noLoc;
     IdentifierInfo* II
       = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
@@ -128,6 +131,11 @@ namespace clad {
     }
     m_DerivativeInFlight = false;
     return derivedFD;
+
+    // DiffPlans plans;
+    // plans.push_back(plan);
+    // DiffCollector collector(DeclGroupRef(derivedFD), plans, m_Sema);
+    // return derivedFD;
   }
 
   NodeContext DerivativeBuilder::VisitStmt(const Stmt* S) {

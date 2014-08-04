@@ -72,6 +72,7 @@ namespace clad {
     }
   };
 
+  class DiffPlan;
   class DerivativeBuilder
     : public clang::ConstStmtVisitor<DerivativeBuilder, NodeContext> {
   private:
@@ -99,7 +100,7 @@ namespace clad {
     ///\returns The differentiated function.
     ///
     clang::FunctionDecl* Derive(clang::FunctionDecl* FD,
-                                      clang::ValueDecl* argVar);
+                                clang::ValueDecl* argVar, DiffPlan* plan);
     NodeContext VisitStmt(const clang::Stmt* S);
     NodeContext VisitCompoundStmt(const clang::CompoundStmt* CS);
     NodeContext VisitIfStmt(const clang::IfStmt* If);

@@ -132,6 +132,18 @@ namespace clad {
       TraverseDecl(DGR.getSingleDecl());
   }
 
+  void DiffCollector::UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan) {
+    if (plan->getDerivativeOrder() -1 == 0)
+      return;
+    assert(plan->getDerivativeOrder() > 0
+           && "Must be called on high order derivatives");
+    plan->setDerivativeOrder(plan->getDerivativeOrder() -1);
+    plan->push_back(FunctionDeclInfo(FD, FD->getParamDecl(0)));
+    m_DiffPlans.push_back(*plan);
+    TraverseDecl(FD);
+    m_DiffPlans.pop_back();
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     if (FunctionDecl *FD = E->getDirectCallee()) {
       if (m_TopMostFDI) {
@@ -183,14 +195,14 @@ namespace clad {
             TraverseDecl(cand);
             m_TopMostFDI = 0;
             getCurrentPlan().push_back(FDI);
-            while (--derivativeOrder) {
-              ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), FDI.getFD());
-              FunctionDeclInfo FDI1(FDI.getFD(), candPVD);
-              m_TopMostFDI = &FDI1;
-              TraverseDecl(FDI1.getFD());
-              m_TopMostFDI = 0;
-              getCurrentPlan().push_back(FDI1);
-            }
+            // while (--derivativeOrder) {
+            //   ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), FDI.getFD());
+            //   FunctionDeclInfo FDI1(FDI.getFD(), candPVD);
+            //   m_TopMostFDI = &FDI1;
+            //   TraverseDecl(FDI1.getFD());
+            //   m_TopMostFDI = 0;
+            //   getCurrentPlan().push_back(FDI1);
+            // }
           }
         }
       }

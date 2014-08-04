@@ -58,8 +58,7 @@ namespace clad {
       clang::PrintingPolicy Policy(LangOpts);
       for (DiffPlans::iterator plan = plans.begin(), planE = plans.end();
            plan != planE; ++plan)
-         for (DiffPlan::iterator I = plan->begin(), E = plan->end();
-              I != E; ++I) {
+         for (DiffPlan::iterator I = plan->begin(); I != plan->end(); ++I) {
             if (!I->isValid())
                continue;
             // if enabled, print source code of the original functions
@@ -73,8 +72,9 @@ namespace clad {
 
             // derive the collected functions
             FunctionDecl* Derivative
-               = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD());
-            if (I + 1 == E) // The last element
+               = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD(), plan);
+            collector.UpdatePlan(Derivative, &*plan);
+            if (I + 1 == plan->end()) // The last element
                plan->updateCall(Derivative, m_CI.getSema());
 
             // if enabled, print source code of the derived functions
