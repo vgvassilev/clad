@@ -27,6 +27,7 @@ namespace clad {
   namespace utils {
     class StmtClone;
   }
+  class FunctionDeclInfo;
 }
 
 namespace clad {
@@ -99,8 +100,7 @@ namespace clad {
     ///
     ///\returns The differentiated function.
     ///
-    clang::FunctionDecl* Derive(clang::FunctionDecl* FD,
-                                clang::ValueDecl* argVar, DiffPlan* plan);
+    clang::FunctionDecl* Derive(FunctionDeclInfo& FDI, DiffPlan* plan);
     NodeContext VisitStmt(const clang::Stmt* S);
     NodeContext VisitCompoundStmt(const clang::CompoundStmt* CS);
     NodeContext VisitIfStmt(const clang::IfStmt* If);

@@ -71,8 +71,7 @@ namespace clad {
             }
 
             // derive the collected functions
-            FunctionDecl* Derivative
-               = m_DerivativeBuilder->Derive(I->getFD(), I->getPVD(), plan);
+            FunctionDecl* Derivative = m_DerivativeBuilder->Derive(*I, plan);
             collector.UpdatePlan(Derivative, &*plan);
             if (I + 1 == plan->end()) // The last element
                plan->updateCall(Derivative, m_CI.getSema());

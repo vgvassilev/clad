@@ -46,8 +46,8 @@ namespace clad {
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
-  FunctionDecl* DerivativeBuilder::Derive(FunctionDecl* FD, ValueDecl* argVar,
-                                          DiffPlan* plan) {
+  FunctionDecl* DerivativeBuilder::Derive(FunctionDeclInfo& FDI, DiffPlan* plan) {
+    clang::FunctionDecl* FD = FDI.getFD();
     assert(FD && "Must not be null.");
     assert(!m_DerivativeInFlight
            && "Doesn't support recursive diff. Use DiffPlan.");
@@ -55,7 +55,7 @@ namespace clad {
 #ifndef NDEBUG
     bool notInArgs = true;
     for (unsigned i = 0; i < FD->getNumParams(); ++i)
-      if (argVar == FD->getParamDecl(i)) {
+      if (FDI.getPVD() == FD->getParamDecl(i)) {
         notInArgs = false;
         break;
       }
@@ -63,7 +63,7 @@ namespace clad {
 #endif
 
 
-    m_IndependentVar = argVar; // FIXME: Use only one var.
+    m_IndependentVar = FDI.getPVD(); // FIXME: Use only one var.
 
     if (!m_NodeCloner) {
       m_NodeCloner.reset(new utils::StmtClone(m_Context));
