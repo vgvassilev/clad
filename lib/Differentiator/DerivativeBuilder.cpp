@@ -502,7 +502,12 @@ namespace clad {
       return NodeContext(newBO);
     }
 
-    return VisitStmt(const_cast<BinaryOperator*>(BinOp));
+    BinaryOperator* clonedBO = VisitStmt(BinOp).getAs<BinaryOperator>();
+    if (opCode != BO_Assign) // Skip LHS in assignments.
+      clonedBO->setLHS(lhs_derived);
+    clonedBO->setRHS(rhs_derived);
+
+    return NodeContext(clonedBO);
   }
 
   NodeContext DerivativeBuilder::VisitDeclStmt(const DeclStmt* DS) {
