@@ -30,7 +30,7 @@ int main() {
   cladMyFunc.dump();
 
   // At runtime, this would produce an output similar to:
-  // float myFunc_derived_x(float x) {
+  // float myFunc_dx(float x) {
   //    return ((3.1400000000000001 * x + 3.1400000000000001 * 1) * x + 3.1400000000000001 * x * 1);
   // }
   //
