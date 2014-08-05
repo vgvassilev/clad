@@ -6,11 +6,22 @@
 
 extern "C" int printf(const char* fmt, ...);
 
-int f_simple(int x) {
+float f_simple(float x) {
   //  printf("This is f(x).\n");
   return x*x;
 }
 
+//CHECK:float f_simple_dx(float x) {
+//CHECK-NEXT:    return (1.F * x + x * 1.F);
+//CHECK-NEXT:}
+
+//CHECK:float f_simple_dx_dx(float x) {
+//CHECK-NEXT:    return ((0.F * x + 1.F * 1.F) + ((1.F * 1.F + x * 0.F)));
+//CHECK-NEXT:}
+
+//CHECK:float f_simple_dx_dx_dx(float x) {
+//CHECK-NEXT:    return (((0.F * x + 0.F * 1.F) + ((0.F * 1.F + 1.F * 0.F))) + ((((0.F * 1.F + 1.F * 0.F) + ((1.F * 0.F + x * 0.F))))));
+//CHECK-NEXT:}
 
 int f_simple_negative(int x) {
   //  printf("This is f(x).\n");
