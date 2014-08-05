@@ -347,7 +347,7 @@ namespace clad {
         SourceLocation IdentifierLoc = FD->getLocEnd();
         m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
           << FD->getNameAsString();
-        return VisitStmt(CE);
+        return NodeContext(0);
       }
 
       // Look for a declaration of a function to differentiate
