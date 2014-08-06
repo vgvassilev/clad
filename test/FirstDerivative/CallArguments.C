@@ -1,10 +1,9 @@
-// RUN: %cladclang %s -I%S/../../include -oCallArguments.out -lm 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oCallArguments.out -lm 2>&1 | FileCheck %s
 // RUN: ./CallArguments.out | FileCheck -check-prefix=CHECK-EXEC %s
-//XFAIL:*
-
-#include "clad/Differentiator/Differentiator.h"
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
+
+#include "clad/Differentiator/Differentiator.h"
 
 namespace custom_derivatives {
   float f_dx(float y) { return 2*y; }
@@ -79,14 +78,9 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 // CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
 // CHECK-NEXT: }
 
-float f_const_helper(const float x) { return x * x; }
-//namespace custom_derivatives {
-//  float f_const_helper_dx(float x) { return 2*x; }
-//}
-
-// CHECK: float f_const_helper_dx(const float x) {
-// CHECK-NEXT: (1.F * x + x * 1.F)
-// CHECK-NEXT: }
+float f_const_helper(const float x) {
+  return x * x;
+} // expected-warning 4 {{function 'f_const_helper' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
 
 float f_const_args_func_7(const float x, const float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
@@ -130,7 +124,6 @@ int main () {
   auto f6 = clad::differentiate(f_const_args_func_6, 0);
   printf("f6_dx=%f\n", f6.execute(1.F,2.F,Vec()));
   //CHECK-EXEC: f6_dx=2.000000
-  clad::differentiate(f_const_helper, 0);
   auto f7 = clad::differentiate(f_const_args_func_7, 0);
   printf("f7_dx=%f\n", f7.execute(1.F,2.F));
   //CHECK-EXEC: f7_dx=2.000000
