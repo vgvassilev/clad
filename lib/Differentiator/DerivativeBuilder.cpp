@@ -441,7 +441,6 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitBinaryOperator(const BinaryOperator* BinOp) {
-
     BinaryOperator* clonedBO = VisitStmt(BinOp).getAs<BinaryOperator>();
     updateReferencesOf(clonedBO->getRHS());
     updateReferencesOf(clonedBO->getLHS());
@@ -449,9 +448,9 @@ namespace clad {
     Expr* lhs_derived = Visit(clonedBO->getLHS()).getExpr();
     Expr* rhs_derived = Visit(clonedBO->getRHS()).getExpr();
 
+    SourceLocation noLoc;
     BinaryOperatorKind opCode = clonedBO->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
-      SourceLocation noLoc;
 
       Expr* newBO_Mul_left
         = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, clonedBO->getRHS()).get();
@@ -460,14 +459,13 @@ namespace clad {
         = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, clonedBO->getLHS(), rhs_derived).get();
 
 
-      SourceLocation L, R;
       if (opCode == BO_Mul) {
         Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add,
                                             newBO_Mul_left,
                                             newBO_Mul_Right).get();
 
 
-        Expr* PE = m_Sema.ActOnParenExpr(L, R, newBO_Add).get();
+        Expr* PE = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Add).get();
         return NodeContext(PE);
       }
       else {
@@ -478,9 +476,8 @@ namespace clad {
         Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
                                                   clonedBO->getRHS(), clonedBO->getRHS()).get();
 
-        SourceLocation L, R;
-        Expr* PE_lhs = m_Sema.ActOnParenExpr(L, R, newBO_Sub).get();
-        Expr* PE_rhs = m_Sema.ActOnParenExpr(L, R, newBO_Mul_denom).get();
+        Expr* PE_lhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Sub).get();
+        Expr* PE_rhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Mul_denom).get();
 
         Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
                                             PE_lhs, PE_rhs).get();
@@ -490,11 +487,9 @@ namespace clad {
     }
 
     if (opCode == BO_Add || opCode == BO_Sub) {
-      SourceLocation L, R;
-
       // enforce precedence for substraction
-      rhs_derived = m_Sema.ActOnParenExpr(L, R, rhs_derived).get();
-      BinaryOperator* newBO = m_Sema.BuildBinOp(/*Scope*/0, L, opCode,
+      rhs_derived = m_Sema.ActOnParenExpr(noLoc, noLoc, rhs_derived).get();
+      BinaryOperator* newBO = m_Sema.BuildBinOp(/*Scope*/0, noLoc, opCode,
                                                 lhs_derived, rhs_derived).getAs<BinaryOperator>();
       assert(m_Context.hasSameUnqualifiedType(newBO->getLHS()->getType(),
                                               newBO->getRHS()->getType())
