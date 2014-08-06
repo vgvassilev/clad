@@ -441,21 +441,23 @@ namespace clad {
   }
 
   NodeContext DerivativeBuilder::VisitBinaryOperator(const BinaryOperator* BinOp) {
-    updateReferencesOf(BinOp->getRHS());
-    updateReferencesOf(BinOp->getLHS());
 
-    Expr* lhs_derived = Visit(BinOp->getLHS()).getExpr();
-    Expr* rhs_derived = Visit(BinOp->getRHS()).getExpr();
+    BinaryOperator* clonedBO = VisitStmt(BinOp).getAs<BinaryOperator>();
+    updateReferencesOf(clonedBO->getRHS());
+    updateReferencesOf(clonedBO->getLHS());
 
-    BinaryOperatorKind opCode = BinOp->getOpcode();
+    Expr* lhs_derived = Visit(clonedBO->getLHS()).getExpr();
+    Expr* rhs_derived = Visit(clonedBO->getRHS()).getExpr();
+
+    BinaryOperatorKind opCode = clonedBO->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
       SourceLocation noLoc;
 
       Expr* newBO_Mul_left
-        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, BinOp->getRHS()).get();
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, clonedBO->getRHS()).get();
 
       Expr* newBO_Mul_Right
-        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, BinOp->getLHS(), rhs_derived).get();
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, clonedBO->getLHS(), rhs_derived).get();
 
 
       SourceLocation L, R;
@@ -474,7 +476,7 @@ namespace clad {
                                             newBO_Mul_Right).get();
 
         Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
-                                                  BinOp->getRHS(), BinOp->getRHS()).get();
+                                                  clonedBO->getRHS(), clonedBO->getRHS()).get();
 
         SourceLocation L, R;
         Expr* PE_lhs = m_Sema.ActOnParenExpr(L, R, newBO_Sub).get();
@@ -502,7 +504,6 @@ namespace clad {
       return NodeContext(newBO);
     }
 
-    BinaryOperator* clonedBO = VisitStmt(BinOp).getAs<BinaryOperator>();
     if (opCode != BO_Assign) // Skip LHS in assignments.
       clonedBO->setLHS(lhs_derived);
     clonedBO->setRHS(rhs_derived);
