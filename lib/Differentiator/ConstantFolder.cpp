@@ -13,6 +13,16 @@
 namespace clad {
   using namespace clang;
 
+  bool evalsToZero(Expr* E, ASTContext& C) {
+    llvm::APSInt result;
+    if (E->EvaluateAsInt(result, C)) {
+      return result.getSExtValue() == 0;
+    }
+
+    return false;
+  }
+
+
   Expr* ConstantFolder::fold(BinaryOperator* BinOp) {
     return BinOp;
   }
