@@ -133,11 +133,11 @@ namespace clad {
   }
 
   void DiffCollector::UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan) {
-    if (plan->getDerivativeOrder() -1 == 0)
+    if (plan->getCurrentDerivativeOrder() == plan->getRequestedDerivativeOrder())
       return;
-    assert(plan->getDerivativeOrder() > 0
+    assert(plan->getRequestedDerivativeOrder() > 1
            && "Must be called on high order derivatives");
-    plan->setDerivativeOrder(plan->getDerivativeOrder() -1);
+    plan->setCurrentDerivativeOrder(plan->getCurrentDerivativeOrder() + 1);
     plan->push_back(FunctionDeclInfo(FD, FD->getParamDecl(0)));
     m_DiffPlans.push_back(*plan);
     TraverseDecl(FD);
@@ -185,7 +185,7 @@ namespace clad {
             // We know the first template spec argument is of unsigned type
             assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
             unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
-            getCurrentPlan().setDerivativeOrder(derivativeOrder);
+            getCurrentPlan().m_RequestedDerivativeOrder = derivativeOrder;
 
             getCurrentPlan().setCallToUpdate(E);
             FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
@@ -195,14 +195,6 @@ namespace clad {
             TraverseDecl(cand);
             m_TopMostFDI = 0;
             getCurrentPlan().push_back(FDI);
-            // while (--derivativeOrder) {
-            //   ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), FDI.getFD());
-            //   FunctionDeclInfo FDI1(FDI.getFD(), candPVD);
-            //   m_TopMostFDI = &FDI1;
-            //   TraverseDecl(FDI1.getFD());
-            //   m_TopMostFDI = 0;
-            //   getCurrentPlan().push_back(FDI1);
-            // }
           }
         }
       }

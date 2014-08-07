@@ -84,6 +84,8 @@ namespace clad {
     llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     bool m_DerivativeInFlight;
+    unsigned m_DerivativeOrder;
+
     void updateReferencesOf(clang::Stmt* InSubtree);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVector<clang::Expr*, 4> CallArgs);

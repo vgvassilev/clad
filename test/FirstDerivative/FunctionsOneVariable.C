@@ -15,11 +15,11 @@ float f_simple(float x) {
 //CHECK-NEXT:    return (1.F * x + x * 1.F);
 //CHECK-NEXT:}
 
-//CHECK:float f_simple_dx_dx(float x) {
+//CHECK:float f_simple_d2x(float x) {
 //CHECK-NEXT:    return ((0.F * x + 1.F * 1.F) + ((1.F * 1.F + x * 0.F)));
 //CHECK-NEXT:}
 
-//CHECK:float f_simple_dx_dx_dx(float x) {
+//CHECK:float f_simple_d3x(float x) {
 //CHECK-NEXT:    return (((0.F * x + 0.F * 1.F) + ((0.F * 1.F + 1.F * 0.F))) + ((((0.F * 1.F + 1.F * 0.F) + ((1.F * 0.F + x * 0.F))))));
 //CHECK-NEXT:}
 

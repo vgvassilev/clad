@@ -34,7 +34,7 @@ namespace clad {
   
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
     : m_Sema(S), m_Context(S.getASTContext()), m_IndependentVar(0),
-      m_DerivativeInFlight(false) {
+      m_DerivativeInFlight(false), m_DerivativeOrder(0) {
     m_NodeCloner.reset(new utils::StmtClone(m_Context));
     // Find the builtin derivatives namespace
     DeclarationName Name = &m_Context.Idents.get("custom_derivatives");
@@ -72,9 +72,12 @@ namespace clad {
     }
 
     SourceLocation noLoc;
-    IdentifierInfo* II
-      = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
-                             m_IndependentVar->getNameAsString());
+    m_DerivativeOrder = plan->getCurrentDerivativeOrder();
+    std::string s = std::to_string(m_DerivativeOrder);
+    if (m_DerivativeOrder == 1)
+      s = "";
+    IdentifierInfo* II = &m_Context.Idents.get(plan->begin()->getFD()->getNameAsString() + "_d" + s +
+                                 m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     FunctionDecl* derivedFD = FunctionDecl::Create(m_Context,
                                                    FD->getDeclContext(), noLoc,
@@ -133,7 +136,6 @@ namespace clad {
     }
     m_DerivativeInFlight = false;
     return derivedFD;
-
     // DiffPlans plans;
     // plans.push_back(plan);
     // DiffCollector collector(DeclGroupRef(derivedFD), plans, m_Sema);
@@ -273,9 +275,12 @@ namespace clad {
   
   NodeContext DerivativeBuilder::VisitCallExpr(const CallExpr* CE) {
     // Find the built-in derivatives namespace.
+    std::string s = std::to_string(m_DerivativeOrder);
+    if (m_DerivativeOrder == 1)
+      s = "";
     IdentifierInfo* II
       = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                              "_d" + m_IndependentVar->getNameAsString());
+                              "_d" + s + m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);

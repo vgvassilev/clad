@@ -35,14 +35,19 @@ namespace clad {
     typedef llvm::SmallVector<FunctionDeclInfo, 16> Functions;
     Functions m_Functions;
     clang::CallExpr* m_CallToUpdate;
-    unsigned m_DerivativeOrder;
+    unsigned m_RequestedDerivativeOrder;
+    unsigned m_CurrentDerivativeOrder;
   public:
-    DiffPlan() : m_CallToUpdate(0), m_DerivativeOrder(1) { }
+    DiffPlan() : m_CallToUpdate(0), m_RequestedDerivativeOrder(1),
+                 m_CurrentDerivativeOrder(1) { }
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
-    bool isComplete() { return m_DerivativeOrder == 1; }
-    void setDerivativeOrder(unsigned val) { m_DerivativeOrder = val; }
-    unsigned getDerivativeOrder() { return m_DerivativeOrder; }
+    unsigned getRequestedDerivativeOrder() { return m_RequestedDerivativeOrder;}
+    void setCurrentDerivativeOrder(unsigned val) {
+      m_CurrentDerivativeOrder = val;
+    }
+    unsigned getCurrentDerivativeOrder() { return m_CurrentDerivativeOrder;}
+
     void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
     iterator begin() { return m_Functions.begin(); }
     iterator end() { return m_Functions.end(); }
@@ -52,6 +57,8 @@ namespace clad {
     void setCallToUpdate(clang::CallExpr* CE) { m_CallToUpdate = CE; }
     void updateCall(clang::FunctionDecl* FD, clang::Sema& SemaRef);
     LLVM_DUMP_METHOD void dump();
+
+    friend class DiffCollector;
   };
 
   typedef llvm::SmallVector<DiffPlan, 16> DiffPlans;
