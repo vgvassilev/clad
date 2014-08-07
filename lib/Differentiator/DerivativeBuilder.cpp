@@ -190,6 +190,7 @@ namespace clad {
     QualType Ty = DRE->getType();
     if (clonedDRE->getDecl()->getNameAsString() ==
         m_IndependentVar->getNameAsString())
+      // Return 1 literal if this is the independent variable.
       return ConstantFolder::synthesizeLiteral(Ty, m_Context, 1);
     return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
   }
