@@ -109,6 +109,12 @@ namespace clad {
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
                                    clonedPVDDefaultArg);
+
+      // Make m_IndependentVar to point to the argument of the newly created
+      // derivedFD.
+      if (PVD == m_IndependentVar)
+        m_IndependentVar = newPVD;
+
       params.push_back(newPVD);
       // Add the args in the scope and id chain so that they could be found.
       if (newPVD->getIdentifier()) {
@@ -184,6 +190,15 @@ namespace clad {
     clonedPE->setSubExpr(retVal);
     clonedPE->setType(retVal->getType());
     return NodeContext(clonedPE);
+  }
+
+  NodeContext DerivativeBuilder::VisitMemberExpr(const MemberExpr* ME) {
+    MemberExpr* clonedME = VisitStmt(ME).getAs<MemberExpr>();
+    // Copy paste from VisitDeclRefExpr.
+    QualType Ty = ME->getType();
+    if (clonedME->getMemberDecl() == m_IndependentVar)
+      return ConstantFolder::synthesizeLiteral(Ty, m_Context, 1);
+    return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
   }
 
   NodeContext DerivativeBuilder::VisitDeclRefExpr(const DeclRefExpr* DRE) {

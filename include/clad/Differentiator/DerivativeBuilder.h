@@ -17,6 +17,7 @@ namespace clang {
   class CXXOperatorCallExpr;
   class DeclRefExpr;
   class FunctionDecl;
+  class MemberExpr;
   class NamespaceDecl;
   class Scope;
   class Sema;
@@ -112,6 +113,7 @@ namespace clad {
     NodeContext VisitCXXOperatorCallExpr(const clang::CXXOperatorCallExpr* OpCall);
     NodeContext VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     NodeContext VisitParenExpr(const clang::ParenExpr* PE);
+    NodeContext VisitMemberExpr(const clang::MemberExpr* ME);
     NodeContext VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     NodeContext VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     NodeContext VisitCallExpr(const clang::CallExpr* CE);
