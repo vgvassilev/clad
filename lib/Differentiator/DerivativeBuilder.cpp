@@ -6,6 +6,8 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "ConstantFolder.h"
+
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
 
@@ -440,7 +442,17 @@ namespace clad {
     return NodeContext(clonedUnOp);
   }
 
+  bool evalsToZero(Expr* E, ASTContext& C) {
+    llvm::APSInt result;
+    if (E->EvaluateAsInt(result, C)) {
+      return result.getSExtValue() == 0;
+    }
+
+    return false;
+  }
+
   NodeContext DerivativeBuilder::VisitBinaryOperator(const BinaryOperator* BinOp) {
+    bool constantFolding = false;
     BinaryOperator* clonedBO = VisitStmt(BinOp).getAs<BinaryOperator>();
     updateReferencesOf(clonedBO->getRHS());
     updateReferencesOf(clonedBO->getLHS());
@@ -450,7 +462,39 @@ namespace clad {
 
     SourceLocation noLoc;
     BinaryOperatorKind opCode = clonedBO->getOpcode();
-    if (opCode == BO_Mul || opCode == BO_Div) {
+    if (opCode == BO_Mul) {
+      Expr* newBOLHS = 0;
+      Expr* newBORHS = 0;
+      if (constantFolding && (evalsToZero(lhs_derived, m_Context)
+                              || evalsToZero(clonedBO->getRHS(), m_Context)))
+        newBOLHS = ConstantFolder::synthesizeLiteral(clonedBO->getType(), m_Context, /*value*/0);
+      else
+        newBOLHS
+          = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, clonedBO->getRHS()).get();
+
+      if (constantFolding && (evalsToZero(rhs_derived, m_Context)
+                              || evalsToZero(clonedBO->getLHS(), m_Context)))
+        newBORHS = ConstantFolder::synthesizeLiteral(clonedBO->getType(), m_Context, /*value*/0);
+      else
+      newBORHS
+        = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, clonedBO->getLHS(), rhs_derived).get();
+
+
+      Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add, newBOLHS,
+                                          newBORHS).get();
+
+
+      Expr* PE = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Add).get();
+      return NodeContext(PE);
+    }
+    else if (opCode == BO_Div) {
+      Expr* newBOLHS = 0;
+      Expr* newBORHS = 0;
+      if (constantFolding && evalsToZero(lhs_derived, m_Context)) {
+        assert(evalsToZero(clonedBO->getRHS(), m_Context)
+               && "We have a problem. Div by 0");
+        return ConstantFolder::synthesizeLiteral(clonedBO->getType(), m_Context, /*value*/0);
+      }
 
       Expr* newBO_Mul_left
         = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, clonedBO->getRHS()).get();
@@ -458,35 +502,27 @@ namespace clad {
       Expr* newBO_Mul_Right
         = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, clonedBO->getLHS(), rhs_derived).get();
 
+      Expr* newBO_Sub = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Sub,
+                                          newBO_Mul_left,
+                                          newBO_Mul_Right).get();
 
-      if (opCode == BO_Mul) {
-        Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add,
-                                            newBO_Mul_left,
-                                            newBO_Mul_Right).get();
+      Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
+                                                clonedBO->getRHS(), clonedBO->getRHS()).get();
 
+      Expr* PE_lhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Sub).get();
+      Expr* PE_rhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Mul_denom).get();
 
-        Expr* PE = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Add).get();
-        return NodeContext(PE);
-      }
-      else {
-        Expr* newBO_Sub = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Sub,
-                                            newBO_Mul_left,
-                                            newBO_Mul_Right).get();
+      Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
+                                          PE_lhs, PE_rhs).get();
 
-        Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
-                                                  clonedBO->getRHS(), clonedBO->getRHS()).get();
-
-        Expr* PE_lhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Sub).get();
-        Expr* PE_rhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Mul_denom).get();
-
-        Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
-                                            PE_lhs, PE_rhs).get();
-
-        return NodeContext(newBO_Div);
-      }
+      return NodeContext(newBO_Div);
     }
+    else if (opCode == BO_Add || opCode == BO_Sub) {
+      if (constantFolding && evalsToZero(lhs_derived, m_Context))
+        return NodeContext(rhs_derived);
+      if (constantFolding && evalsToZero(rhs_derived, m_Context))
+        return NodeContext(lhs_derived);
 
-    if (opCode == BO_Add || opCode == BO_Sub) {
       // enforce precedence for substraction
       rhs_derived = m_Sema.ActOnParenExpr(noLoc, noLoc, rhs_derived).get();
       BinaryOperator* newBO = m_Sema.BuildBinOp(/*Scope*/0, noLoc, opCode,
