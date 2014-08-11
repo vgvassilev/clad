@@ -42,8 +42,8 @@ namespace clad {
     SourceLocation noLoc;
     Expr* Result = 0;
     if (QT->isIntegralType(C)) {
-      llvm::APInt APVal(C.getIntWidth(C.IntTy), val);
-      Result = IntegerLiteral::Create(C, APVal, C.IntTy, noLoc);
+      llvm::APInt APVal(C.getIntWidth(QT), val);
+      Result = IntegerLiteral::Create(C, APVal, QT, noLoc);
     }
     else {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
