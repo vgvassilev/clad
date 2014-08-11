@@ -42,7 +42,8 @@ namespace clad {
     SourceLocation noLoc;
     Expr* Result = 0;
     if (QT->isIntegralType(C)) {
-      llvm::APInt APVal(C.getIntWidth(QT), val);
+      llvm::APInt APVal(C.getIntWidth(QT), val,
+                        QT->isSignedIntegerOrEnumerationType());
       Result = IntegerLiteral::Create(C, APVal, QT, noLoc);
     }
     else {
