@@ -29,7 +29,7 @@ namespace clad {
     clang::Expr* fold(clang::Expr* E);
     clang::Stmt* VisitExpr(clang::Expr* E);
     static clang::Expr* synthesizeLiteral(clang::QualType, clang::ASTContext &C,
-                                          unsigned val);
+                                          uint64_t val);
   };
 } // end namespace clad
 #endif // CLAD_CONSTANT_FOLDER_H

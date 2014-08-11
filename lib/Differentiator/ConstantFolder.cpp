@@ -38,7 +38,7 @@ namespace clad {
   }
 
   Expr* ConstantFolder::synthesizeLiteral(QualType QT, ASTContext& C,
-                                          unsigned val) {
+                                          uint64_t val) {
     SourceLocation noLoc;
     Expr* Result = 0;
     if (QT->isIntegralType(C)) {
