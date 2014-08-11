@@ -442,20 +442,20 @@ namespace clad {
     Expr* rhs_derived = Visit(clonedBO->getRHS()).getExpr();
 
     SourceLocation noLoc;
-    ConstantFolder folder;
+    ConstantFolder folder(m_Context);
     BinaryOperatorKind opCode = clonedBO->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
       Expr* newBOLHS = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, clonedBO->getRHS()).get();
-      newBOLHS = folder.fold(cast<BinaryOperator>(newBOLHS));
+      //newBOLHS = folder.fold(cast<BinaryOperator>(newBOLHS));
       Expr* newBORHS = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, clonedBO->getLHS(), rhs_derived).get();
-      newBORHS = folder.fold(cast<BinaryOperator>(newBORHS));
+      //newBORHS = folder.fold(cast<BinaryOperator>(newBORHS));
       if (opCode == BO_Mul) {
         Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add, newBOLHS,
                                             newBORHS).get();
 
 
         Expr* PE = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Add).get();
-        return NodeContext(PE);
+        return NodeContext(folder.fold(PE));
       }
       else if (opCode == BO_Div) {
         Expr* newBO_Sub = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Sub, newBOLHS,
@@ -470,7 +470,7 @@ namespace clad {
         Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
                                             PE_lhs, PE_rhs).get();
 
-        return NodeContext(newBO_Div);
+        return NodeContext(folder.fold(newBO_Div));
       }
     }
     else if (opCode == BO_Add || opCode == BO_Sub) {
@@ -483,14 +483,14 @@ namespace clad {
              && "Must be the same types.");
 
 
-      return NodeContext(newBO);
+      return NodeContext(folder.fold(newBO));
     }
 
     if (opCode != BO_Assign) // Skip LHS in assignments.
       clonedBO->setLHS(lhs_derived);
     clonedBO->setRHS(rhs_derived);
 
-    return NodeContext(clonedBO);
+    return NodeContext(folder.fold(clonedBO));
   }
 
   NodeContext DerivativeBuilder::VisitDeclStmt(const DeclStmt* DS) {

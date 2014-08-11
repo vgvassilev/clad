@@ -16,12 +16,18 @@ namespace clang {
   class BinaryOperator;
   class Expr;
   class QualType;
+  class Stmt;
 }
 
 namespace clad {
-  class ConstantFolder: public clang::StmtVisitor<ConstantFolder> {
+  class ConstantFolder: public clang::StmtVisitor<ConstantFolder, clang::Stmt*> {
+  private:
+    clang::ASTContext& m_Context;
+    bool m_Enabled;
   public:
-    clang::Expr* fold(clang::BinaryOperator* BinOp);
+    ConstantFolder(clang::ASTContext& C) : m_Context(C), m_Enabled(false) {}
+    clang::Expr* fold(clang::Expr* E);
+    clang::Stmt* VisitExpr(clang::Expr* E);
     static clang::Expr* synthesizeLiteral(clang::QualType, clang::ASTContext &C,
                                           unsigned val);
   };

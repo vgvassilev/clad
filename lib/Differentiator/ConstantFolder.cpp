@@ -22,9 +22,19 @@ namespace clad {
     return false;
   }
 
+  Stmt* ConstantFolder::VisitExpr(Expr* E) {
+    llvm::APSInt Val;
+    if (E->EvaluateAsInt(Val, m_Context)) {
+      return synthesizeLiteral(E->getType(), m_Context, Val.getZExtValue());
+    }
+    return E;
+  }
 
-  Expr* ConstantFolder::fold(BinaryOperator* BinOp) {
-    return BinOp;
+  Expr* ConstantFolder::fold(Expr* E) {
+    if (!m_Enabled)
+      return E;
+    Stmt* result = Visit(E);
+    return cast<Expr>(result);
   }
 
   Expr* ConstantFolder::synthesizeLiteral(QualType QT, ASTContext& C,
