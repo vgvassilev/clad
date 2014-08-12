@@ -28,6 +28,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+//#define float double
+
+template <typename T> int sgn(T val) {
+  return (T(0) < val) - (val < T(0));
+}
+
 struct Vec {
   float x, y, z; // position, also color (r,g,b)
 
@@ -49,6 +55,9 @@ struct Ray {
 };
 
 enum Refl_t { DIFF, SPEC, REFR };  // material types, used in radiance()
+
+#define inf 1e6
+#define eps 1e-4
 
 // Abstract Solid
 
@@ -84,12 +93,11 @@ class Sphere : public Solid {
   Sphere(float rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
     rad(rad_), p(p_), Solid(e_, c_, refl_) {}
 
-/*
   // returns distance, 0 if nohit
   float intersect(const Ray &r) const override {
     // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
     Vec op = p-r.o;
-    float t, eps=1e-1, b=op*r.d, det=b*b-op*op+rad*rad;
+    float t, b=op*r.d, det=b*b-op*op+rad*rad;
     if (det<0) return 0; else det=sqrt(det);
     return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
   }
@@ -98,26 +106,57 @@ class Sphere : public Solid {
   Vec normal(const Vec &pt) const override {
     return (pt-p).norm();
   }
-*/
 
-  // returns distance, 0 if nohit
+/*  // returns distance, 0 if nohit
   float intersect(const Ray &r) const override {
-    float t=0, f, eps=1e-1, inf=1e20;
-    Vec pt=r.o;
+    float t=0., t1, f;
+    float start_sgn = sgn(sphere_distance_func(r.o.x, r.o.y, r.o.z, p, rad)), stop_sgn;
+    Vec pt;
+//    fprintf(stderr, "Intersect sphere p=(%f,%f,%f), rad=%f with ray\n", p.x, p.y, p.z, rad);
+//    fprintf(stderr, "r.o=(%f,%f,%f), r.d=(%f,%f,%f)\n", r.o.x, r.o.y, r.o.z, r.d.x, r.d.y, r.d.z);
     do {
-      f=fabs(sphere_distance_func(pt.x, pt.y, pt.z, p, rad));
+//      fprintf(stderr, "t=%25.25f\n", t);
+      pt=r.o+r.d*t;
+//      fprintf(stderr, "pt=(%f,%f,%f)\n", pt.x, pt.y, pt.z);
+      f=sphere_distance_func(pt.x, pt.y, pt.z, p, rad);
+//      fprintf(stderr, "abs(f(%f,%f,%f))=%25.25f\n", pt.x, pt.y, pt.z, f);
+      current_sgn = sgn(f);
+      if (current_sgn != start_sgn) {
+//        fprintf(stderr, "1\n");
+        return t;
+      }
+      f=fabs(f);
+      t1=t;
       t+=f;
-      if (f<eps) return t;
-      pt=pt+r.d*f;
+//      fprintf(stderr, "t_new=%25.25f\n", t);
+      if (f<eps || t==t1) {
+//        fprintf(stderr, "2\n");
+//        fprintf(stderr, "ret %f\n", t);
+        //f = sphere_distance_func(pt.x, pt.y, pt.z, p, rad);
+        //float f1 = f;
+        //while (f1*f>0) {
+        //  pt=r.o+r.d*t;
+        //  f1=sphere_distance_func(pt.x, pt.y, pt.z, p, rad);
+        //  t+=eps;
+//          fprintf(stderr, "ret %f\n", f1);
+//          fprintf(stderr, "ret %f\n", f);
+//          fprintf(stderr, "ret %f\n", t);
+        //}
+        return t;
+      }
+      //pt=pt+r.d*f;
     } while (t<inf);
+//    fprintf(stderr, "ret 0\n");
     return 0;
   }
+*/
 
+/*
   // returns normal vector to surface in point pt
   Vec normal(const Vec &pt) const override {
-    auto sphere_distance_func_dx = clad::differentiate(sphere_distance_func, 1);
-    auto sphere_distance_func_dy = clad::differentiate(sphere_distance_func, 2);
-    auto sphere_distance_func_dz = clad::differentiate(sphere_distance_func, 3);
+    auto sphere_distance_func_dx = clad::differentiate(sphere_distance_func, 0);
+    auto sphere_distance_func_dy = clad::differentiate(sphere_distance_func, 1);
+    auto sphere_distance_func_dz = clad::differentiate(sphere_distance_func, 2);
 
     float Nx = sphere_distance_func_dx.execute(pt.x, pt.y, pt.z, p, rad);
     float Ny = sphere_distance_func_dy.execute(pt.x, pt.y, pt.z, p, rad);
@@ -125,19 +164,20 @@ class Sphere : public Solid {
 
     return Vec(Nx, Ny, Nz).norm();
   }
+*/
 };
 
 // Sphere: radius, position, emission, color, material
 Solid* scene[] = {
-  new Sphere(1e5,  Vec( 1e5+1,40.8,81.6),  Vec(), Vec(.75,.25,.25), DIFF), // Left
-  new Sphere(1e5,  Vec(-1e5+99,40.8,81.6), Vec(), Vec(.25,.25,.75), DIFF), // Rght
-  new Sphere(1e5,  Vec(50,40.8, 1e5),      Vec(), Vec(.75,.75,.75), DIFF), // Back
-  new Sphere(1e5,  Vec(50,40.8,-1e5+170),  Vec(), Vec(),            DIFF), // Frnt
-  new Sphere(1e5,  Vec(50, 1e5, 81.6),     Vec(), Vec(.75,.75,.75), DIFF), // Botm
-  new Sphere(1e5,  Vec(50,-1e5+81.6,81.6), Vec(), Vec(.75,.75,.75), DIFF), // Top
-  new Sphere(16.5, Vec(27,16.5,47),        Vec(), Vec(1,1,1)*.999,  SPEC), // Mirr
-  new Sphere(16.5, Vec(73,16.5,78),        Vec(), Vec(1,1,1)*.999,  REFR), // Glas
-  new Sphere(600,  Vec(50,681.6-.27,81.6), Vec(12,12,12), Vec(),    DIFF)  // Lite
+  new Sphere(1e5,  Vec(1e5+1, 40.8, 81.6),   Vec(), Vec(.75, .25, .25), DIFF), // Left
+  new Sphere(1e5,  Vec(-1e5+99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), DIFF), // Rght
+  new Sphere(1e5,  Vec(50, 40.8, 1e5),       Vec(), Vec(.75, .75, .75), DIFF), // Back
+  new Sphere(1e5,  Vec(50, 40.8, -1e5+170),  Vec(), Vec(),              DIFF), // Frnt
+  new Sphere(1e5,  Vec(50, 1e5, 81.6),       Vec(), Vec(.75, .75, .75), DIFF), // Botm
+  new Sphere(1e5,  Vec(50, -1e5+81.6, 81.6), Vec(), Vec(.75, .75, .75), DIFF), // Top
+  new Sphere(16.5, Vec(27, 16.5, 47),        Vec(), Vec(1, 1, 1)*.999,  SPEC), // Mirr
+  new Sphere(16.5, Vec(73, 16.5, 78),        Vec(), Vec(1, 1, 1)*.999,  REFR), // Glas
+  new Sphere(600,  Vec(50, 681.6-.27, 81.6), Vec(12,12,12), Vec(),      DIFF)  // Lite
 };
 
 inline float clamp(float x) {
@@ -149,20 +189,25 @@ inline int toInt(float x) {
 }
 
 inline bool intersect(const Ray &r, float &t, int &id) {
-  float d, inf=t=1e20;
+  float d;
 
-  for(int i=sizeof(scene)/sizeof(scene[0]); i--; )
-    if ((d=scene[i]->intersect(r)) && d<t) { t=d; id=i; }
+  t = inf;
+  for(int i=sizeof(scene)/sizeof(scene[0]); i--; ) {
+    if ((d = scene[i]->intersect(r)) && d<t) { t=d; id=i; }
+  }
 
   return t<inf;
 }
 
 Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
-  float t;  // distance to intersection
-  int id=0; // id of intersected object
+  float t; // distance to intersection
+  int id;  // id of intersected object
+
+  //fprintf(stderr, "r=(%f,%f,%f):(%f,%f,%f)\n", r.o.x, r.o.y, r.o.z, r.d.x, r.d.y, r.d.z);
 
   // if miss, return black
   if (!intersect(r, t, id)) return Vec();
+//  fprintf(stderr, "id=%d, t=%25.25f\n", id, t);
 
   // the hit object
   Solid& obj = *scene[id];
@@ -200,17 +245,23 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
     return obj.e + f.mult(radiance(reflRay, depth, Xi));
 
   Vec tdir = (r.d*nnt-n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
-  float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn:tdir*n);
+  float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c=1-(into?-ddn:tdir*n);
   float Re=R0+(1-R0)*c*c*c*c*c, Tr=1-Re, P=.25+.5*Re, RP=Re/P, TP=Tr/(1-P);
 
-  return obj.e + f.mult(depth>2 ? (erand48(Xi)<P ?   // Russian roulette
-    radiance(reflRay, depth, Xi)*RP : radiance(Ray(x,tdir), depth, Xi)*TP) :
-    radiance(reflRay, depth, Xi)*Re+radiance(Ray(x,tdir), depth, Xi)*Tr);
+  return obj.e + f.mult(depth>2 ? // Russian roulette
+    (erand48(Xi)<P ? radiance(reflRay, depth, Xi)*RP : radiance(Ray(x,tdir), depth, Xi)*TP) :
+    (radiance(reflRay, depth, Xi)*Re + radiance(Ray(x,tdir), depth, Xi)*Tr) );
 }
 
 int main(int argc, char *argv[]) {
+
+//  Sphere* S = new Sphere(16.5, Vec(0,0,0), Vec(), Vec(1,1,1)*.999, SPEC);
+//  S->intersect(Ray(Vec(50,50,100),Vec(0,0,-1).norm()));
+//return 0;
+
 //  int w=1024, h=768, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
-  int w=512, h=384, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
+//  int w=512, h=384, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
+  int w=256, h=192, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
 
   Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
   Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135, r;
