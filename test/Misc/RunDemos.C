@@ -1,6 +1,7 @@
 // RUN: %cladclang %S/../../demos/BasicUsage.cpp -I%S/../../include -fsyntax-only 2>&1
 // RUN: %cladclang %S/../../demos/ControlFlow.cpp -I%S/../../include -fsyntax-only 2>&1
 // RUN: %cladclang %S/../../demos/DebuggingClad.cpp -I%S/../../include -fsyntax-only 2>&1
+// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include -fsyntax-only 2>&1
 
 
 //-----------------------------------------------------------------------------/
@@ -24,3 +25,16 @@
 // RUN: ./Gradient.out | FileCheck -check-prefix CHECK_GRADIENT_EXEC %s
 // CHECK_GRADIENT_EXEC: Result is N=(10.000000,0.000000,0.000000)
 
+//-----------------------------------------------------------------------------/
+// Demo: Rosenbrock Function
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include -oRosenbrockFunction.out 2>&1 | FileCheck -check-prefix CHECK_ROSENBROCK %s
+// CHECK_ROSENBROCK-NOT:{{.*error|warning|note:.*}}
+// CHECK_ROSENBROCK:double rosenbrock_func_dx(double x, double y) {
+// CHECK_ROSENBROCK: return ((1. - (0)) * (x - 1) + (x - 1) * (1. - (0))) + (((0 * (y - x * x) + 100 * (0. - ((1. * x + x * 1.)))) * (y - x * x) + 100 * (y - x * x) * (0. - ((1. * x + x * 1.)))));
+// CHECK_ROSENBROCK:}
+// CHECK_ROSENBROCK:double rosenbrock_func_dy(double x, double y) {
+// CHECK_ROSENBROCK: return ((0. - (0)) * (x - 1) + (x - 1) * (0. - (0))) + (((0 * (y - x * x) + 100 * (1. - ((0. * x + x * 0.)))) * (y - x * x) + 100 * (y - x * x) * (1. - ((0. * x + x * 0.)))));
+// CHECK_ROSENBROCK:}
+// RUN: ./RosenbrockFunction.out | FileCheck -check-prefix CHECK_ROSENBROCK_EXEC %s
+// CHECK_ROSENBROCK_EXEC: The result is -899.000000.
