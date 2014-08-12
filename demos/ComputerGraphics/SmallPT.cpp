@@ -199,7 +199,100 @@ inline bool intersect(const Ray &r, float &t, int &id) {
   return t<inf;
 }
 
-Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
+Vec radiance(const Ray &ray, int depth, unsigned short *Xi) {
+  float t; // distance to intersection
+  int id;  // id of intersected object
+
+  Ray r=ray;
+
+  // L0 = Le0 + f0*(L1)
+  //    = Le0 + f0*(Le1 + f1*L2)
+  //    = Le0 + f0*(Le1 + f1*(Le2 + f2*(L3))
+  //    = Le0 + f0*(Le1 + f1*(Le2 + f2*(Le3 + f3*(L4)))
+  //    = ...
+  //    = Le0 + f0*Le1 + f0*f1*Le2 + f0*f1*f2*Le3 + f0*f1*f2*f3*Le4 + ...
+  //
+  // So:
+  // F = 1
+  // while (1) {
+  //   L += F*Lei
+  //   F *= fi
+  // }
+
+  // accumulated color
+  Vec cl(0,0,0);
+  // accumulated reflectance
+  Vec cf(1,1,1);
+
+  while (1) {
+    // if miss, return accumulated color (black)
+    if (!intersect(r, t, id)) return cl;
+
+    // the hit object
+    const Solid &obj = *scene[id];
+
+    // calculate intersection point
+    Vec x=r.o+r.d*t;
+
+    // calculate surface normal vector in point x
+    Vec n=obj.normal(x);
+    Vec nl=n*r.d<0 ? n : n*-1;
+
+    // object base color
+    Vec f=obj.c;
+    float p = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z; // max refl
+
+    cl = cl + cf.mult(obj.e);
+
+    if (++depth>5) {
+      if (erand48(Xi)<p) f=f*(1/p); else return cl;
+    } // R.R.
+
+    cf = cf.mult(f);
+
+    if (obj.refl == DIFF) { // Ideal DIFFUSE reflection
+      float r1=2*M_PI*erand48(Xi), r2=erand48(Xi), r2s=sqrt(r2);
+      Vec w=nl, u=((fabs(w.x)>.1 ? Vec(0,1) : Vec(1))%w).norm(), v=w%u;
+      Vec d = (u*cos(r1)*r2s+v*sin(r1)*r2s+w*sqrt(1-r2)).norm();
+      //return obj.e + f.mult(radiance(Ray(x,d), depth, Xi));
+      r = Ray(x, d);
+      continue;
+    } else if (obj.refl == SPEC) { // Ideal SPECULAR reflection
+      //return obj.e + f.mult(radiance(Ray(x,r.d-n*2*(n*r.d)), depth, Xi));
+      r = Ray(x, r.d-n*2*(n*r.d));
+      continue;
+    }
+
+    // Ideal dielectric REFRACTION
+    Ray reflRay(x, r.d-n*2*(n*r.d));
+    bool into = n*nl>0; // Ray from outside going in?
+    float nc=1, nt=1.5, nnt=into ? nc/nt : nt/nc, ddn=r.d*nl, cos2t;
+
+    if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0) { // Total internal reflection
+      //return obj.e + f.mult(radiance(reflRay, depth, Xi));
+      r = reflRay;
+      continue;
+    }
+
+    Vec tdir = (r.d*nnt-n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
+    float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c=1-(into?-ddn:tdir*n);
+    float Re=R0+(1-R0)*c*c*c*c*c, Tr=1-Re, P=.25+.5*Re, RP=Re/P, TP=Tr/(1-P);
+
+    //return obj.e + f.mult(depth>2 ? // Russian roulette
+    //  (erand48(Xi)<P ? radiance(reflRay, depth, Xi)*RP : radiance(Ray(x,tdir), depth, Xi)*TP) :
+    //  (radiance(reflRay, depth, Xi)*Re + radiance(Ray(x,tdir), depth, Xi)*Tr) );
+
+    if (erand48(Xi)<P) {
+      cf = cf*RP;
+      r = reflRay;
+    } else {
+      cf = cf*TP;
+      r = Ray(x,tdir);
+    }
+    continue;
+  }
+
+/*
   float t; // distance to intersection
   int id;  // id of intersected object
 
@@ -251,6 +344,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi) {
   return obj.e + f.mult(depth>2 ? // Russian roulette
     (erand48(Xi)<P ? radiance(reflRay, depth, Xi)*RP : radiance(Ray(x,tdir), depth, Xi)*TP) :
     (radiance(reflRay, depth, Xi)*Re + radiance(Ray(x,tdir), depth, Xi)*Tr) );
+*/
 }
 
 int main(int argc, char *argv[]) {
