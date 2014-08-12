@@ -28,7 +28,7 @@ double rosenbrock(double x[], int size) {
   auto rosenbrockX = clad::differentiate(rosenbrock_func, 0);
   auto rosenbrockY = clad::differentiate(rosenbrock_func, 1);
 
-  for (int i = 1; i < size; i++) {
+  for (int i = 0; i < size-1; i++) {
     double one = rosenbrockX.execute(x[i], x[i + 1]);
     double two = rosenbrockY.execute(x[i], x[i + 1]);
     sum = sum + one + two;
@@ -41,7 +41,7 @@ int main() {
   double Xarray[] = {1.5, 4.5};
   int size = sizeof(Xarray) / sizeof(*Xarray);
   double result = rosenbrock(Xarray, size);
-  printf("The result is %f.", result);
+  printf("The result is %f.\n", result);
 
   return 0;
 }
