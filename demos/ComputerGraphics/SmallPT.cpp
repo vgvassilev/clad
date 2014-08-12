@@ -154,9 +154,9 @@ class Sphere : public Solid {
 /*
   // returns normal vector to surface in point pt
   Vec normal(const Vec &pt) const override {
-    auto sphere_distance_func_dx = clad::differentiate(sphere_distance_func, 0);
-    auto sphere_distance_func_dy = clad::differentiate(sphere_distance_func, 1);
-    auto sphere_distance_func_dz = clad::differentiate(sphere_distance_func, 2);
+    auto sphere_distance_func_dx = clad::differentiate(sphere_distance_func, 1);
+    auto sphere_distance_func_dy = clad::differentiate(sphere_distance_func, 2);
+    auto sphere_distance_func_dz = clad::differentiate(sphere_distance_func, 3);
 
     float Nx = sphere_distance_func_dx.execute(pt.x, pt.y, pt.z, p, rad);
     float Ny = sphere_distance_func_dy.execute(pt.x, pt.y, pt.z, p, rad);
