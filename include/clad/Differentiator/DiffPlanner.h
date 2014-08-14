@@ -37,9 +37,10 @@ namespace clad {
     clang::CallExpr* m_CallToUpdate;
     unsigned m_RequestedDerivativeOrder;
     unsigned m_CurrentDerivativeOrder;
+    unsigned m_ArgIndex;
   public:
     DiffPlan() : m_CallToUpdate(0), m_RequestedDerivativeOrder(1),
-                 m_CurrentDerivativeOrder(1) { }
+                 m_CurrentDerivativeOrder(1), m_ArgIndex(0) { }
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
     unsigned getRequestedDerivativeOrder() { return m_RequestedDerivativeOrder;}
@@ -57,6 +58,8 @@ namespace clad {
     void setCallToUpdate(clang::CallExpr* CE) { m_CallToUpdate = CE; }
     void updateCall(clang::FunctionDecl* FD, clang::Sema& SemaRef);
     LLVM_DUMP_METHOD void dump();
+    unsigned getArgIndex() { return m_ArgIndex;}
+    void setArgIndex(unsigned val) { m_ArgIndex = val; }
 
     friend class DiffCollector;
   };

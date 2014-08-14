@@ -93,6 +93,7 @@ namespace clad {
     DiagnosticsEngine& Diags = m_Sema.Diags;
     if (argExpr->EvaluateAsInt(result, C)) {
       const int64_t argIndex = result.getSExtValue();
+      getCurrentPlan().setArgIndex(argIndex);
       const int64_t argNum = FD->getNumParams();
       //TODO: Implement the argument checks in the DerivativeBuilder
       if (argNum == 0) {
@@ -138,7 +139,7 @@ namespace clad {
     assert(plan->getRequestedDerivativeOrder() > 1
            && "Must be called on high order derivatives");
     plan->setCurrentDerivativeOrder(plan->getCurrentDerivativeOrder() + 1);
-    plan->push_back(FunctionDeclInfo(FD, FD->getParamDecl(0)));
+    plan->push_back(FunctionDeclInfo(FD, FD->getParamDecl(plan->getArgIndex())));
     m_DiffPlans.push_back(*plan);
     TraverseDecl(FD);
     m_DiffPlans.pop_back();
