@@ -47,6 +47,16 @@ namespace custom_derivatives {
   }// end namespace std
 
   template<typename T>
+  T sin_dx(T x) {
+    return (T)cos(x);
+  }
+
+  template<typename T>
+  T cos_dx(T x) {
+    return (-1) * sin(x);
+  }
+
+  template<typename T>
   T sqrt_dx(T x) {
      return ((T)1)/(((T)2)*sqrt(x));
   }
