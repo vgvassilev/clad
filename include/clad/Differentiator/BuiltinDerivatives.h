@@ -48,12 +48,22 @@ namespace custom_derivatives {
 
   template<typename T>
   T sin_dx(T x) {
-    return (T)cos(x);
+    return cos(x);
+  }
+
+  template<typename T>
+  T sin_dy(T y) {
+    return cos(y);
   }
 
   template<typename T>
   T cos_dx(T x) {
     return (-1) * sin(x);
+  }
+
+  template<typename T>
+  T cos_dy(T y) {
+    return (-1) * sin(y);
   }
 
   template<typename T>
