@@ -15,8 +15,13 @@ extern "C" {
   int printf(const char* fmt, ...);
   char* strcpy (char* destination, const char* source);
   size_t strlen(const char*);
+#ifdef __APPLE__
+  void* malloc(size_t);
+  void free(void *ptr);
+#else
   void* malloc(size_t) __THROW __attribute_malloc__ __wur;
   void free(void *ptr) __THROW;
+#endif
 }
 
 namespace clad {
