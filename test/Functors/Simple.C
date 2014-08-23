@@ -1,6 +1,8 @@
-// R U N: %cladclang %s -I%S/../../include -oBasicArithmeticAddSub.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify 2>&1 | FileCheck %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
+
+#include "clad/Differentiator/Differentiator.h"
 
 class AFunctor {
 public:
@@ -22,7 +24,26 @@ public:
   int operator()(int x) { return x == target;}
 };
 
-int main() {
+class SimpleExpression {
+  float x, y;
+public:
+  SimpleExpression(float x, float y) : x(x), y(y) {}
+  float operator()(float x, float y) { return x * x + y * y;}
+};
+
+// CHECK: float operator_call_dx(float x, float y) {
+// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
+// CHECK-NEXT: }
+
+// CHECK: float operator_call_dy(float x, float y) {
+// CHECK-NEXT: (0.F * x + x * 0.F) + ((1.F * y + y * 1.F));
+// CHECK-NEXT: }
+
+float f(float x) {
+  return x;
+}
+
+int main() {// expected-no-diagnostics
   AFunctor doubler;
   int x = doubler(5);
   AFunctorWithState summer;
@@ -30,8 +51,12 @@ int main() {
 
   Matcher Is5(5);
 
-  if (Is5(n)) {
-    diff(Is5(1);
-  }
+  SimpleExpression expr(3.5, 4.5);
+  auto f1_dx = clad::differentiate(&SimpleExpression::operator(), 0);
+  // printf("Result is = %f\n", f1_dx.execute(3.5F, 4.5F)); // CHECK-EXEC: Result is = 0
+
+  auto f1_dy = clad::differentiate(&SimpleExpression::operator(), 1);
+  // printf("Result is = %f\n", f1_dy.execute(3.5, 4.5)); // CHECK-EXEC: Result is = 0
+
   return 0;
 }

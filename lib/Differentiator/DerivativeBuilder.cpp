@@ -89,10 +89,20 @@ namespace clad {
     SourceLocation noLoc;
     m_DerivativeOrder = plan->getCurrentDerivativeOrder();
     std::string s = std::to_string(m_DerivativeOrder);
+    std::string derivativeBaseName;
     if (m_DerivativeOrder == 1)
       s = "";
-    IdentifierInfo* II = &m_Context.Idents.get(plan->begin()->getFD()->getNameAsString() + "_d" + s +
-                                 m_IndependentVar->getNameAsString());
+    switch (FD->getOverloadedOperator()) {
+    default:
+      derivativeBaseName = plan->begin()->getFD()->getNameAsString();
+      break;
+    case OO_Call:
+      derivativeBaseName = "operator_call";
+      break;
+    }
+
+    IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_d" + s +
+                                                 m_IndependentVar->getNameAsString());
     DeclarationName name(II);
     FunctionDecl* derivedFD = FunctionDecl::Create(m_Context,
                                                    FD->getDeclContext(), noLoc,
