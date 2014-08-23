@@ -93,11 +93,10 @@ namespace clad {
                f.flush();
             }
             if (Derivative) {
-               Derivative->getDeclContext()->addDecl(Derivative);
-               // Call CodeGen only if the produced decl is a top-most decl.
-               if (Derivative->getDeclContext()
-                   == m_CI.getASTContext().getTranslationUnitDecl())
-                  m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+              // Call CodeGen only if the produced decl is a top-most decl.
+              if (Derivative->getDeclContext()
+                  == m_CI.getASTContext().getTranslationUnitDecl())
+                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
             }
       }
       return true; // Happiness

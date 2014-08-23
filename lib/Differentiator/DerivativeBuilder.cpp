@@ -48,6 +48,21 @@ namespace clad {
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
+  static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
+    LookupResult R(semaRef, derivedFD->getNameInfo(), Sema::LookupOrdinaryName);
+    semaRef.LookupQualifiedName(R, derivedFD->getDeclContext(),
+                                /*allowBuiltinCreation*/ false);
+    // Inform the decl's decl context for its existance after the lookup,
+    // otherwise it would end up in the LookupResult.
+    derivedFD->getDeclContext()->addDecl(derivedFD);
+
+    if (R.empty())
+      return;
+    // Register the function on the redecl chain.
+    derivedFD->setPreviousDecl(cast<FunctionDecl>(R.getFoundDecl()));
+
+  }
+
   FunctionDecl* DerivativeBuilder::Derive(FunctionDeclInfo& FDI, DiffPlan* plan) {
     clang::FunctionDecl* FD = FDI.getFD();
     assert(FD && "Must not be null.");
@@ -129,7 +144,7 @@ namespace clad {
 
     // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
     Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
-    Stmt* derivativeBody = Visit(FD->getBody()).getStmt();
+    Stmt* derivativeBody = Visit(FD->getMostRecentDecl()->getBody()).getStmt();
 
     derivedFD->setBody(derivativeBody);
     // Cleanup the IdResolver chain.
@@ -140,6 +155,9 @@ namespace clad {
         //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
       }
     }
+
+    registerDerivative(derivedFD, m_Sema);
+
     m_DerivativeInFlight = false;
     return derivedFD;
     // DiffPlans plans;
