@@ -90,6 +90,11 @@ namespace clad {
       // smth +- 0 == smth
       if (evalsToZero(RHS, m_Context))
         return LHS;
+
+      // 0 + smth == smth
+      if (opCode == BO_Add)
+        if (evalsToZero(LHS, m_Context))
+          return RHS;
     }
     else if (opCode == BO_Div) {
       // 0 / smth == 0
