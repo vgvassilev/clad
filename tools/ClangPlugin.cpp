@@ -22,8 +22,39 @@
 #include "clang/Sema/Sema.h"
 
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Timer.h"
 
 using namespace clang;
+
+namespace {
+  class SimpleTimer {
+    bool WantTiming;
+    llvm::TimeRecord Start;
+    std::string Output;
+
+  public:
+    explicit SimpleTimer(bool WantTiming) : WantTiming(WantTiming) {
+      if (WantTiming)
+        Start = llvm::TimeRecord::getCurrentTime();
+    }
+
+    void setOutput(const Twine &Output) {
+      if (WantTiming)
+        this->Output = Output.str();
+    }
+
+    ~SimpleTimer() {
+      if (WantTiming) {
+        llvm::TimeRecord Elapsed = llvm::TimeRecord::getCurrentTime();
+        Elapsed -= Start;
+        llvm::errs() << Output << ':';
+        Elapsed.print(Elapsed, llvm::errs());
+        llvm::errs() << '\n';
+      }
+    }
+  };
+}
+
 
 namespace clad {
   namespace plugin {
@@ -70,8 +101,18 @@ namespace clad {
                I->getFD()->dumpColor();
             }
 
-            // derive the collected functions
-            FunctionDecl* Derivative = m_DerivativeBuilder->Derive(*I, plan);
+            FunctionDecl* Derivative = 0;
+            {
+              // FIXME: Move the timing inside the DerivativeBuilder. This would
+              // require to pass in the DifferentiationOptions in the DiffPlan.
+              // derive the collected functions
+              bool WantTiming = getenv("LIBCLAD_TIMING");
+              SimpleTimer Timer(WantTiming);
+              Timer.setOutput("Generation time for "
+                              + plan->begin()->getFD()->getNameAsString());
+
+              Derivative = m_DerivativeBuilder->Derive(*I, plan);
+            }
             collector.UpdatePlan(Derivative, &*plan);
             if (I + 1 == plan->end()) // The last element
                plan->updateCall(Derivative, m_CI.getSema());
