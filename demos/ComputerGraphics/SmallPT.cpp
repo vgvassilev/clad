@@ -28,11 +28,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-//#define float double
-
-template <typename T> int sgn(T val) {
-  return (T(0) < val) - (val < T(0));
-}
+//TODO: Remove this define and fix float precision issues
+#define float double
 
 struct Vec {
   float x, y, z; // position, also color (r,g,b)
@@ -57,7 +54,7 @@ struct Ray {
 enum Refl_t { DIFF, SPEC, REFR };  // material types, used in radiance()
 
 #define inf 1e6
-#define eps 1e-4
+#define eps 1e-6
 
 // Abstract Solid
 
@@ -75,109 +72,242 @@ class Solid {
   virtual Vec normal(const Vec &pt) const { return Vec(1,0,0); };
 };
 
+// Abstract Implicit Solid
+
+class ImplicitSolid : public Solid {
+  public:
+
+  ImplicitSolid(Vec e_, Vec c_, Refl_t refl_): Solid(e_, c_, refl_) {}
+
+  // TODO: Make this method virtual
+  // Return signed distance to nearest point on solid surface
+  float distance_func(float x, float y, float z) const {
+    return 0;
+  }
+
+  // implicit surface intersection
+  // returns distance, 0 if nohit
+  float intersect(const Ray &r) const override {
+    float t=2*eps, t1, f;
+    Vec pt;
+    do {
+      pt=r.o+r.d*t;
+      f=fabs(distance_func(pt.x, pt.y, pt.z));
+      t1=t;
+      t+=f;
+      if (f<eps || t==t1) return t;
+    } while (t<inf);
+    return 0;
+  }
+
+  // returns normal vector to surface in point pt
+  // by clad
+  Vec normal(const Vec &pt) const override {
+    return Vec();
+
+    //TODO: Use this implementation when distance_func is virtual and clad can differentiate virtual methods
+
+    //auto distance_func_dx = clad::differentiate(&ImplicitSolid::distance_func, 0);
+    //auto distance_func_dy = clad::differentiate(&ImplicitSolid::distance_func, 1);
+    //auto distance_func_dz = clad::differentiate(&ImplicitSolid::distance_func, 2);
+
+    //float Nx = distance_func_dx.execute(pt.x, pt.y, pt.z);
+    //float Ny = distance_func_dy.execute(pt.x, pt.y, pt.z);
+    //float Nz = distance_func_dz.execute(pt.x, pt.y, pt.z);
+
+    //return Vec(Nx, Ny, Nz).norm();
+    ////return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
+  }
+};
+
+
 // Sphere Solid
 
-//float sphere_implicit_func(float x, float y, float z, const Vec &p, float r) {
-//  return (x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z) - r*r;
-//}
+/* // by hand
+float sphere_func_dx(float x, float y, float z, const Vec &p, float r) {
+  return 2*(x-p.x);
+}
+
+float sphere_func_dy(float x, float y, float z, const Vec &p, float r) {
+  return 2*(y-p.y);
+}
+
+float sphere_func_dz(float x, float y, float z, const Vec &p, float r) {
+  return 2*(z-p.z);
+}
+*/
 
 float sphere_distance_func(float x, float y, float z, const Vec &p, float r) {
   return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z)) - r;
 }
 
-class Sphere : public Solid {
+class Sphere : public ImplicitSolid {
   public:
-  float rad; // radius
+  float r; // radius
   Vec p; // position
 
-  Sphere(float rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
-    rad(rad_), p(p_), Solid(e_, c_, refl_) {}
+  Sphere(float r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
+    r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
+  }
 
+/*// hardcoded sphere intersection
   // returns distance, 0 if nohit
-  float intersect(const Ray &r) const override {
+  float intersect(const Ray &ray) const override {
     // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
-    Vec op = p-r.o;
-    float t, b=op*r.d, det=b*b-op*op+rad*rad;
+    Vec op = p-ray.o;
+    float t, b=op*ray.d, det=b*b-op*op+r*r;
     if (det<0) return 0; else det=sqrt(det);
     return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
   }
+*/
 
+  //TODO: Remove this implementation when we make distance_func virtual
+
+  // implicit surface intersection
+  // returns distance, 0 if nohit
+  float intersect(const Ray &ray) const override {
+    float t=2*eps, t1, f;
+    //float start_sgn = sgn(sphere_distance_func(ray.o.x, ray.o.y, ray.o.z, p, r)), current_sgn;
+    Vec pt;
+    do {
+      pt=ray.o+ray.d*t;
+      f=fabs(sphere_distance_func(pt.x, pt.y, pt.z, p, r));
+      //current_sgn = sgn(f);
+      //if (current_sgn != start_sgn) return t;
+      //f=fabs(f);
+      t1=t;
+      t+=f;
+      if (f<eps || t==t1) return t;
+    } while (t<inf);
+    return 0;
+  }
+
+  //TODO: Remove this implementation when we make distance_func virtual
+
+  // returns normal vector to surface in point pt
+
+/*// by hardcoded sphere normal
   // returns normal vector to surface in point pt
   Vec normal(const Vec &pt) const override {
     return (pt-p).norm();
   }
-
-/*  // returns distance, 0 if nohit
-  float intersect(const Ray &r) const override {
-    float t=0., t1, f;
-    float start_sgn = sgn(sphere_distance_func(r.o.x, r.o.y, r.o.z, p, rad)), stop_sgn;
-    Vec pt;
-//    fprintf(stderr, "Intersect sphere p=(%f,%f,%f), rad=%f with ray\n", p.x, p.y, p.z, rad);
-//    fprintf(stderr, "r.o=(%f,%f,%f), r.d=(%f,%f,%f)\n", r.o.x, r.o.y, r.o.z, r.d.x, r.d.y, r.d.z);
-    do {
-//      fprintf(stderr, "t=%25.25f\n", t);
-      pt=r.o+r.d*t;
-//      fprintf(stderr, "pt=(%f,%f,%f)\n", pt.x, pt.y, pt.z);
-      f=sphere_distance_func(pt.x, pt.y, pt.z, p, rad);
-//      fprintf(stderr, "abs(f(%f,%f,%f))=%25.25f\n", pt.x, pt.y, pt.z, f);
-      current_sgn = sgn(f);
-      if (current_sgn != start_sgn) {
-//        fprintf(stderr, "1\n");
-        return t;
-      }
-      f=fabs(f);
-      t1=t;
-      t+=f;
-//      fprintf(stderr, "t_new=%25.25f\n", t);
-      if (f<eps || t==t1) {
-//        fprintf(stderr, "2\n");
-//        fprintf(stderr, "ret %f\n", t);
-        //f = sphere_distance_func(pt.x, pt.y, pt.z, p, rad);
-        //float f1 = f;
-        //while (f1*f>0) {
-        //  pt=r.o+r.d*t;
-        //  f1=sphere_distance_func(pt.x, pt.y, pt.z, p, rad);
-        //  t+=eps;
-//          fprintf(stderr, "ret %f\n", f1);
-//          fprintf(stderr, "ret %f\n", f);
-//          fprintf(stderr, "ret %f\n", t);
-        //}
-        return t;
-      }
-      //pt=pt+r.d*f;
-    } while (t<inf);
-//    fprintf(stderr, "ret 0\n");
-    return 0;
-  }
 */
 
-/*
-  // returns normal vector to surface in point pt
+/*// by hand
   Vec normal(const Vec &pt) const override {
-    auto sphere_distance_func_dx = clad::differentiate(sphere_distance_func, 1);
-    auto sphere_distance_func_dy = clad::differentiate(sphere_distance_func, 2);
-    auto sphere_distance_func_dz = clad::differentiate(sphere_distance_func, 3);
-
-    float Nx = sphere_distance_func_dx.execute(pt.x, pt.y, pt.z, p, rad);
-    float Ny = sphere_distance_func_dy.execute(pt.x, pt.y, pt.z, p, rad);
-    float Nz = sphere_distance_func_dz.execute(pt.x, pt.y, pt.z, p, rad);
+    float Nx = sphere_func_dx(pt.x, pt.y, pt.z, p, r);
+    float Ny = sphere_func_dy(pt.x, pt.y, pt.z, p, r);
+    float Nz = sphere_func_dz(pt.x, pt.y, pt.z, p, r);
 
     return Vec(Nx, Ny, Nz).norm();
   }
 */
+
+  // by clad
+  Vec normal(const Vec &pt) const override {
+    auto sphere_func_dx = clad::differentiate(sphere_distance_func, 0);
+    auto sphere_func_dy = clad::differentiate(sphere_distance_func, 1);
+    auto sphere_func_dz = clad::differentiate(sphere_distance_func, 2);
+
+    float Nx = sphere_func_dx.execute(pt.x, pt.y, pt.z, p, r);
+    float Ny = sphere_func_dy.execute(pt.x, pt.y, pt.z, p, r);
+    float Nz = sphere_func_dz.execute(pt.x, pt.y, pt.z, p, r);
+
+    //return Vec(Nx, Ny, Nz).norm();
+    return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
+  }
+
+/*// by numeric approximation
+  Vec normal(const Vec &pt) const override {
+    float f = sphere_implicit_func(pt.x, pt.y, pt.z, p, r);
+    float fx = sphere_func_dx(pt.x+eps, pt.y, pt.z, p, r);
+    float fy = sphere_func_dy(pt.x, pt.y+eps, pt.z, p, r);
+    float fz = sphere_func_dz(pt.x, pt.y, pt.z+eps, p, r);
+
+    return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
+  }
+*/
+
+  //TODO: Override distance func method when parent method is virtual
+  //float distance_func(float x, float y, float z) const override {
+  //  return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z)) - r;
+  //}
+};
+
+
+// Hyperbolic Octahedron Solid
+
+//TODO: Check this distance func. Visualized "octahedron" do not like as octahedron.
+float hyperbolic_octahedron_func(float x, float y, float z, const Vec &p, float r) {
+#define sin_a 0.965925826289068
+#define cos_a 0.258819045102521
+  return pow((x-p.x)*cos_a+(z-p.z)*sin_a, 2./3.) + pow(y-p.y, 2./3.) + pow((x-p.x)*-sin_a+(z-p.z)*cos_a, 2./3.) - pow(r, 2./3.);
+}
+
+class HyperbolicOctahedron : public ImplicitSolid {
+  public:
+  float r; // radius
+  Vec p; // position
+
+  HyperbolicOctahedron(float r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
+    r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
+  }
+
+  //TODO: Remove this implementation when we make distance_func virtual
+
+  // implicit surface intersection
+  // returns distance, 0 if nohit
+  float intersect(const Ray &ray) const override {
+    float t=2*eps, t1, f;
+    Vec pt;
+    do {
+      pt=ray.o+ray.d*t;
+      f=fabs(hyperbolic_octahedron_func(pt.x, pt.y, pt.z, p, r));
+      t1=t;
+      t+=f;
+      if (f<eps || t==t1) return t;
+    } while (t<inf);
+    return 0;
+  }
+
+  //TODO: Remove this implementation when we make distance_func virtual
+
+  // returns normal vector to surface in point pt
+
+  // by clad
+  Vec normal(const Vec &pt) const override {
+    auto hyperbolic_octahedron_func_dx = clad::differentiate(hyperbolic_octahedron_func, 0);
+    auto hyperbolic_octahedron_func_dy = clad::differentiate(hyperbolic_octahedron_func, 1);
+    auto hyperbolic_octahedron_func_dz = clad::differentiate(hyperbolic_octahedron_func, 2);
+
+    float Nx = hyperbolic_octahedron_func_dx.execute(pt.x, pt.y, pt.z, p, r);
+    float Ny = hyperbolic_octahedron_func_dy.execute(pt.x, pt.y, pt.z, p, r);
+    float Nz = hyperbolic_octahedron_func_dz.execute(pt.x, pt.y, pt.z, p, r);
+
+    return Vec(Nx, Ny, Nz).norm();
+    //return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
+  }
+
+  //TODO: Override distance func method when parent method is virtual
+  //float distance_func(float x, float y, float z) const override {
+  //#define sin_a 0.965925826289068
+  //#define cos_a 0.258819045102521
+  //  return pow((x-p.x)*cos_a+(z-p.z)*sin_a, 2./3.) + pow(y-p.y, 2./3.) + pow((x-p.x)*-sin_a+(z-p.z)*cos_a, 2./3.) - pow(r, 2./3.);
+  //}
 };
 
 // Sphere: radius, position, emission, color, material
 Solid* scene[] = {
   new Sphere(1e5,  Vec(1e5+1, 40.8, 81.6),   Vec(), Vec(.75, .25, .25), DIFF), // Left
-  new Sphere(1e5,  Vec(-1e5+99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), DIFF), // Rght
+  new Sphere(1e5,  Vec(-1e5+99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), DIFF), // Right
   new Sphere(1e5,  Vec(50, 40.8, 1e5),       Vec(), Vec(.75, .75, .75), DIFF), // Back
-  new Sphere(1e5,  Vec(50, 40.8, -1e5+170),  Vec(), Vec(),              DIFF), // Frnt
-  new Sphere(1e5,  Vec(50, 1e5, 81.6),       Vec(), Vec(.75, .75, .75), DIFF), // Botm
+  new Sphere(1e5,  Vec(50, 40.8, -1e5+170),  Vec(), Vec(),              DIFF), // Front
+  new Sphere(1e5,  Vec(50, 1e5, 81.6),       Vec(), Vec(.75, .75, .75), DIFF), // Bottm
   new Sphere(1e5,  Vec(50, -1e5+81.6, 81.6), Vec(), Vec(.75, .75, .75), DIFF), // Top
-  new Sphere(16.5, Vec(27, 16.5, 47),        Vec(), Vec(1, 1, 1)*.999,  SPEC), // Mirr
-  new Sphere(16.5, Vec(73, 16.5, 78),        Vec(), Vec(1, 1, 1)*.999,  REFR), // Glas
-  new Sphere(600,  Vec(50, 681.6-.27, 81.6), Vec(12,12,12), Vec(),      DIFF)  // Lite
+  new HyperbolicOctahedron
+            (46.5, Vec(47, 16.5, 47),        Vec(), Vec(1, 1, 1)*.999,  SPEC), // Mirror
+  new Sphere(16.5, Vec(73, 16.5, 78),        Vec(), Vec(1, 1, 1)*.999,  REFR), // Glass
+  new Sphere(600,  Vec(50, 681.6-.27, 81.6), Vec(12,12,12), Vec(),      DIFF)  // Light
 };
 
 inline float clamp(float x) {
@@ -188,12 +318,12 @@ inline int toInt(float x) {
   return int(pow(clamp(x),1/2.2)*255+.5);
 }
 
-inline bool intersect(const Ray &r, float &t, int &id) {
+inline bool intersect(const Ray &ray, float &t, int &id) {
   float d;
 
   t = inf;
   for(int i=sizeof(scene)/sizeof(scene[0]); i--; ) {
-    if ((d = scene[i]->intersect(r)) && d<t) { t=d; id=i; }
+    if ((d = scene[i]->intersect(ray)) && d<t) { t=d; id=i; }
   }
 
   return t<inf;
@@ -238,15 +368,23 @@ Vec radiance(const Ray &ray, int depth, unsigned short *Xi) {
     Vec n=obj.normal(x);
     Vec nl=n*r.d<0 ? n : n*-1;
 
+    // normal map test
+    //return n;
+
     // object base color
     Vec f=obj.c;
     float p = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z; // max refl
+
+    // object intersection id map test
+    //return obj.c;
 
     cl = cl + cf.mult(obj.e);
 
     if (++depth>5) {
       if (erand48(Xi)<p) f=f*(1/p); else return cl;
     } // R.R.
+
+//    if (depth==0) return obj.c;
 
     cf = cf.mult(f);
 
@@ -292,66 +430,9 @@ Vec radiance(const Ray &ray, int depth, unsigned short *Xi) {
     continue;
   }
 
-/*
-  float t; // distance to intersection
-  int id;  // id of intersected object
-
-  //fprintf(stderr, "r=(%f,%f,%f):(%f,%f,%f)\n", r.o.x, r.o.y, r.o.z, r.d.x, r.d.y, r.d.z);
-
-  // if miss, return black
-  if (!intersect(r, t, id)) return Vec();
-//  fprintf(stderr, "id=%d, t=%25.25f\n", id, t);
-
-  // the hit object
-  Solid& obj = *scene[id];
-
-  // calculate intersection point
-  Vec x=r.o+r.d*t;
-
-  // calculate surface normal vector in point x
-  Vec n=obj.normal(x);
-  Vec nl=n*r.d<0 ? n : n*-1;
-
-  // object base color
-  Vec f=obj.c;
-  float p = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z; // max refl
-
-  if (++depth>5) {
-    if (erand48(Xi)<p) f=f*(1/p); else return obj.e;
-  } // R.R.
-
-  if (obj.refl == DIFF) { // Ideal DIFFUSE reflection
-    float r1=2*M_PI*erand48(Xi), r2=erand48(Xi), r2s=sqrt(r2);
-    Vec w=nl, u=((fabs(w.x)>.1 ? Vec(0,1) : Vec(1))%w).norm(), v=w%u;
-    Vec d = (u*cos(r1)*r2s+v*sin(r1)*r2s+w*sqrt(1-r2)).norm();
-    return obj.e + f.mult(radiance(Ray(x,d), depth, Xi));
-  } else if (obj.refl == SPEC) { // Ideal SPECULAR reflection
-    return obj.e + f.mult(radiance(Ray(x,r.d-n*2*(n*r.d)), depth, Xi));
-  }
-
-  // Ideal dielectric REFRACTION
-  Ray reflRay(x, r.d-n*2*(n*r.d));
-  bool into = n*nl>0; // Ray from outside going in?
-  float nc=1, nt=1.5, nnt=into ? nc/nt : nt/nc, ddn=r.d*nl, cos2t;
-
-  if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0) // Total internal reflection
-    return obj.e + f.mult(radiance(reflRay, depth, Xi));
-
-  Vec tdir = (r.d*nnt-n*((into?1:-1)*(ddn*nnt+sqrt(cos2t)))).norm();
-  float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c=1-(into?-ddn:tdir*n);
-  float Re=R0+(1-R0)*c*c*c*c*c, Tr=1-Re, P=.25+.5*Re, RP=Re/P, TP=Tr/(1-P);
-
-  return obj.e + f.mult(depth>2 ? // Russian roulette
-    (erand48(Xi)<P ? radiance(reflRay, depth, Xi)*RP : radiance(Ray(x,tdir), depth, Xi)*TP) :
-    (radiance(reflRay, depth, Xi)*Re + radiance(Ray(x,tdir), depth, Xi)*Tr) );
-*/
 }
 
 int main(int argc, char *argv[]) {
-
-//  Sphere* S = new Sphere(16.5, Vec(0,0,0), Vec(), Vec(1,1,1)*.999, SPEC);
-//  S->intersect(Ray(Vec(50,50,100),Vec(0,0,-1).norm()));
-//return 0;
 
 //  int w=1024, h=768, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
 //  int w=512, h=384, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
