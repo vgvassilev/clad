@@ -43,16 +43,41 @@ public:
   int m(int x, int y) {
     return f(x) + g_1(x, y);
   }
+
+  virtual float vm(float x, float y) {
+    return x + y;
+  }
+
+  // CHECK: virtual float vm_dx(float x, float y) {
+  // CHECK-NEXT: return 1.F;
+  // CHECK-NEXT: }
+
 };
+
+class B : public A {
+public:
+  float vm(float x, float y) override {
+    return x*x + y*y;
+  }
+
+  // CHECK: float vm_dx(float x, float y) override {
+  // CHECK-NEXT: return 2.F * x;
+  // CHECK-NEXT: }
+
+}
 
 int main () {
   A a;
-  clad::differentiate(&A::f, 1);
+  clad::differentiate(&A::f, 0);
+  clad::differentiate(&A::g_1, 0);
   clad::differentiate(&A::g_1, 1);
-  clad::differentiate(&A::g_1, 2);
-  clad::differentiate(&A::g_1, 1);
-  clad::differentiate(&A::g_2, 2);
+  clad::differentiate(&A::g_1, 0);
+  clad::differentiate(&A::g_2, 1);
+  //clad::differentiate(&A::m, 0);
   //clad::differentiate(&A::m, 1);
-  //clad::differentiate(&A::m, 2);
+  clad::differentiate(&A::vm, 0);
+  printf("Result is = %f\n", a.vm_dx(2,3)); // CHECK-EXEC: Result is = 2.F
+  clad::differentiate(&B::vm, 0);
+  printf("Result is = %f\n", a.vm_dx(2,3)); // CHECK-EXEC: Result is = 4.F
   return 0;
 }
