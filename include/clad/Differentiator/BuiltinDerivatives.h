@@ -70,11 +70,41 @@ namespace custom_derivatives {
   T sqrt_dx(T x) {
      return ((T)1)/(((T)2)*sqrt(x));
   }
+  template<typename T>
+  T sqrt_dy(T y) {
+     return ((T)1)/(((T)2)*sqrt(y));
+  }
+  template<typename T>
+  T sqrt_dz(T z) {
+     return ((T)1)/(((T)2)*sqrt(z));
+  }
 #ifdef MACOS
   float sqrtf_dx(float x) {
     return 1.F/(2.F*sqrtf(x));
   }
+  float sqrtf_dy(float y) {
+    return 1.F/(2.F*sqrtf(y));
+  }
+  float sqrtf_dz(float z) {
+    return 1.F/(2.F*sqrtf(z));
+  }
 #endif
+
+  template<typename T>
+  T pow_dx(T x, T exponent) {
+    return exponent * pow(x, exponent-((T)1));
+  }
+
+  template<typename T>
+  T pow_dy(T y, T exponent) {
+    return exponent * pow(y, exponent-((T)1));
+  }
+
+  template<typename T>
+  T pow_dz(T z, T exponent) {
+    return exponent * pow(z, exponent-((T)1));
+  }
+
 } // end namespace builtin_derivatives
 
 #endif //CLAD_BUILTIN_DERIVATIVES
