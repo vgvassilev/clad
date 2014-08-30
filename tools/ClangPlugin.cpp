@@ -47,7 +47,7 @@ namespace {
       if (WantTiming) {
         llvm::TimeRecord Elapsed = llvm::TimeRecord::getCurrentTime();
         Elapsed -= Start;
-        llvm::errs() << Output << ':';
+        llvm::errs() << Output << ": user | system | process | all :";
         Elapsed.print(Elapsed, llvm::errs());
         llvm::errs() << '\n';
       }
