@@ -47,6 +47,23 @@ float f4(float x, float y) {
 // CHECK-NEXT: return sin_dy(x * x) * ((0.F * x + x * 0.F)) + (sin_dy(y * y) * ((1.F * y + y * 1.F)));
 // CHECK-NEXT: }
 
+float f5(float x) {
+  return exp(x);
+}
+
+// CHECK: float f5_dx(float x) {
+// CHECK-NEXT: return exp_dx(x) * (1.F);
+// CHECK-NEXT: }
+
+float f6(float x) {
+  return exp(x * x);
+}
+
+// CHECK: float f6_dx(float x) {
+// CHECK-NEXT: return exp_dx(x * x) * ((1.F * x + x * 1.F));
+// CHECK-NEXT: }
+
+
 int main () { //expected-no-diagnostics
   auto f1_dx = clad::differentiate(f1, 0);
   printf("Result is = %f\n", f1_dx.execute(60)); // CHECK-EXEC: Result is = -0.952413
@@ -65,6 +82,12 @@ int main () { //expected-no-diagnostics
 
   auto f4_dy = clad::differentiate(f4, 1);
   printf("Result is = %f\n", f4_dy.execute(60, 30)); //CHECK-EXEC: Result is = 3.974802
+
+  auto f5_dx = clad::differentiate(f5, 0);
+  printf("Result is = %f\n", f5_dx.execute(3)); //CHECK-EXEC: Result is = 20.085537
+
+  auto f6_dx = clad::differentiate(f6, 0);
+  printf("Result is = %f\n", f6_dx.execute(3)); //CHECK-EXEC: Result is = 48618.503906
 
   return 0;
 }
