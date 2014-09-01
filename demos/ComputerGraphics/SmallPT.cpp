@@ -13,13 +13,13 @@
 // -o SmallPT
 //
 // To run the demo please type:
-// ./SmallPT 5000 && xv image.ppm
+// ./SmallPT 500 && xv image.ppm
 
 // A typical invocation would be:
 // ../../../../../obj/Debug+Asserts/bin/clang -O3 -Xclang -add-plugin -Xclang clad \
 // -Xclang -load -Xclang ../../../../../obj/Debug+Asserts/lib/libclad.dylib \
 // -I../../include/ -x c++ -std=c++11 -lstdc++ SmallPT.cpp -o SmallPT
-// ./SmallPT 5000 && xv image.ppm
+// ./SmallPT 500 && xv image.ppm
 
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
@@ -30,6 +30,11 @@
 
 //TODO: Remove this define and fix float precision issues
 #define float double
+
+// Test types (default is TEST_TYPE_BY_CLAD)
+//#define TEST_TYPE_BY_HAND
+#define TEST_TYPE_BY_CLAD
+//#define TEST_TYPE_BY_NUM
 
 struct Vec {
   float x, y, z; // position, also color (r,g,b)
@@ -123,7 +128,8 @@ class ImplicitSolid : public Solid {
 
 // Sphere Solid
 
-/* // by hand
+#ifdef TEST_TYPE_BY_HAND
+// by hand
 float sphere_func_dx(float x, float y, float z, const Vec &p, float r) {
   return 2*(x-p.x);
 }
@@ -135,11 +141,17 @@ float sphere_func_dy(float x, float y, float z, const Vec &p, float r) {
 float sphere_func_dz(float x, float y, float z, const Vec &p, float r) {
   return 2*(z-p.z);
 }
-*/
+#endif
 
 float sphere_distance_func(float x, float y, float z, const Vec &p, float r) {
   return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z)) - r;
 }
+
+float sphere_implicit_func(float x, float y, float z, const Vec &p, float r) {
+  return (x-p.x)*(x-p.x) + (y-p.y)*(y-p.y) + (z-p.z)*(z-p.z) - r*r;
+}
+
+//
 
 class Sphere : public ImplicitSolid {
   public:
@@ -186,14 +198,16 @@ class Sphere : public ImplicitSolid {
 
   // returns normal vector to surface in point pt
 
-/*// by hardcoded sphere normal
+/*
+  // by hardcoded sphere normal
   // returns normal vector to surface in point pt
   Vec normal(const Vec &pt) const override {
     return (pt-p).norm();
   }
 */
 
-/*// by hand
+#ifdef TEST_TYPE_BY_HAND
+  // by hand
   Vec normal(const Vec &pt) const override {
     float Nx = sphere_func_dx(pt.x, pt.y, pt.z, p, r);
     float Ny = sphere_func_dy(pt.x, pt.y, pt.z, p, r);
@@ -201,32 +215,35 @@ class Sphere : public ImplicitSolid {
 
     return Vec(Nx, Ny, Nz).norm();
   }
-*/
+#endif
 
+#ifdef TEST_TYPE_BY_CLAD
   // by clad
   Vec normal(const Vec &pt) const override {
-    auto sphere_func_dx = clad::differentiate(sphere_distance_func, 0);
-    auto sphere_func_dy = clad::differentiate(sphere_distance_func, 1);
-    auto sphere_func_dz = clad::differentiate(sphere_distance_func, 2);
+    auto sphere_func_dx = clad::differentiate(sphere_implicit_func, 0);
+    auto sphere_func_dy = clad::differentiate(sphere_implicit_func, 1);
+    auto sphere_func_dz = clad::differentiate(sphere_implicit_func, 2);
 
     float Nx = sphere_func_dx.execute(pt.x, pt.y, pt.z, p, r);
     float Ny = sphere_func_dy.execute(pt.x, pt.y, pt.z, p, r);
     float Nz = sphere_func_dz.execute(pt.x, pt.y, pt.z, p, r);
 
-    //return Vec(Nx, Ny, Nz).norm();
-    return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
+    return Vec(Nx, Ny, Nz).norm();
+    //return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
   }
+#endif
 
-/*// by numeric approximation
+#ifdef TEST_TYPE_BY_NUM
+  // by numeric approximation
   Vec normal(const Vec &pt) const override {
-    float f = sphere_implicit_func(pt.x, pt.y, pt.z, p, r);
-    float fx = sphere_func_dx(pt.x+eps, pt.y, pt.z, p, r);
-    float fy = sphere_func_dy(pt.x, pt.y+eps, pt.z, p, r);
-    float fz = sphere_func_dz(pt.x, pt.y, pt.z+eps, p, r);
+    float f =  sphere_implicit_func(pt.x, pt.y, pt.z, p, r);
+    float fx = sphere_implicit_func(pt.x+eps, pt.y, pt.z, p, r);
+    float fy = sphere_implicit_func(pt.x, pt.y+eps, pt.z, p, r);
+    float fz = sphere_implicit_func(pt.x, pt.y, pt.z+eps, p, r);
 
     return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
   }
-*/
+#endif
 
   //TODO: Override distance func method when parent method is virtual
   //float distance_func(float x, float y, float z) const override {
@@ -235,21 +252,37 @@ class Sphere : public ImplicitSolid {
 };
 
 
-// Hyperbolic Octahedron Solid
+// Hyperbolic Solid
 
-//TODO: Check this distance func. Visualized "octahedron" do not like as octahedron.
-float hyperbolic_octahedron_func(float x, float y, float z, const Vec &p, float r) {
 #define sin_a 0.965925826289068
 #define cos_a 0.258819045102521
+
+#ifdef TEST_TYPE_BY_HAND
+// by hand
+float h_func_dx(float x, float y, float z, const Vec &p, float r) {
+  return (2./3.*cos_a)/pow(((x-p.x)*cos_a+(z-p.z)*sin_a),1./3.) - (2./3.*sin_a)/pow(((z-p.z)*cos_a-(x-p.x)*sin_a),1./3.);
+}
+
+float h_func_dy(float x, float y, float z, const Vec &p, float r) {
+  return (2./3.)/pow(y-p.y,1./3.);
+}
+
+float h_func_dz(float x, float y, float z, const Vec &p, float r) {
+  return (2./3.*sin_a)/pow((x-p.x)*cos_a+(z-p.z)*sin_a,1./3.) + (2./3.*cos_a)/pow((z-p.z)*cos_a-(x-p.x)*sin_a,1./3.);
+}
+#endif
+
+//TODO: Check this distance func. Visualized "octahedron" do not like as octahedron.
+float hyperbolic_func(float x, float y, float z, const Vec &p, float r) {
   return pow((x-p.x)*cos_a+(z-p.z)*sin_a, 2./3.) + pow(y-p.y, 2./3.) + pow((x-p.x)*-sin_a+(z-p.z)*cos_a, 2./3.) - pow(r, 2./3.);
 }
 
-class HyperbolicOctahedron : public ImplicitSolid {
+class HyperbolicSolid : public ImplicitSolid {
   public:
   float r; // radius
   Vec p; // position
 
-  HyperbolicOctahedron(float r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
+  HyperbolicSolid(float r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
     r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
   }
 
@@ -262,7 +295,7 @@ class HyperbolicOctahedron : public ImplicitSolid {
     Vec pt;
     do {
       pt=ray.o+ray.d*t;
-      f=fabs(hyperbolic_octahedron_func(pt.x, pt.y, pt.z, p, r));
+      f=fabs(hyperbolic_func(pt.x, pt.y, pt.z, p, r));
       t1=t;
       t+=f;
       if (f<eps || t==t1) return t;
@@ -274,19 +307,44 @@ class HyperbolicOctahedron : public ImplicitSolid {
 
   // returns normal vector to surface in point pt
 
+#ifdef TEST_TYPE_BY_HAND
+  // by hand
+  Vec normal(const Vec &pt) const override {
+    float Nx = h_func_dx(pt.x, pt.y, pt.z, p, r);
+    float Ny = h_func_dy(pt.x, pt.y, pt.z, p, r);
+    float Nz = h_func_dz(pt.x, pt.y, pt.z, p, r);
+
+    return Vec(Nx, Ny, Nz).norm();
+  }
+#endif
+
+#ifdef TEST_TYPE_BY_CLAD
   // by clad
   Vec normal(const Vec &pt) const override {
-    auto hyperbolic_octahedron_func_dx = clad::differentiate(hyperbolic_octahedron_func, 0);
-    auto hyperbolic_octahedron_func_dy = clad::differentiate(hyperbolic_octahedron_func, 1);
-    auto hyperbolic_octahedron_func_dz = clad::differentiate(hyperbolic_octahedron_func, 2);
+    auto hyperbolic_func_dx = clad::differentiate(hyperbolic_func, 0);
+    auto hyperbolic_func_dy = clad::differentiate(hyperbolic_func, 1);
+    auto hyperbolic_func_dz = clad::differentiate(hyperbolic_func, 2);
 
-    float Nx = hyperbolic_octahedron_func_dx.execute(pt.x, pt.y, pt.z, p, r);
-    float Ny = hyperbolic_octahedron_func_dy.execute(pt.x, pt.y, pt.z, p, r);
-    float Nz = hyperbolic_octahedron_func_dz.execute(pt.x, pt.y, pt.z, p, r);
+    float Nx = hyperbolic_func_dx.execute(pt.x, pt.y, pt.z, p, r);
+    float Ny = hyperbolic_func_dy.execute(pt.x, pt.y, pt.z, p, r);
+    float Nz = hyperbolic_func_dz.execute(pt.x, pt.y, pt.z, p, r);
 
     return Vec(Nx, Ny, Nz).norm();
     //return Vec(Nx, Ny, Nz); // nabla f of signed distance functions is always unit vector
   }
+#endif
+
+#ifdef TEST_TYPE_BY_NUM
+  // by numeric approximation
+  Vec normal(const Vec &pt) const override {
+    float f  = hyperbolic_func(pt.x, pt.y, pt.z, p, r);
+    float fx = hyperbolic_func(pt.x+eps, pt.y, pt.z, p, r);
+    float fy = hyperbolic_func(pt.x, pt.y+eps, pt.z, p, r);
+    float fz = hyperbolic_func(pt.x, pt.y, pt.z+eps, p, r);
+
+    return Vec((fx-f)/eps, (fy-f)/eps, (fz-f)/eps).norm();
+  }
+#endif
 
   //TODO: Override distance func method when parent method is virtual
   //float distance_func(float x, float y, float z) const override {
@@ -296,7 +354,7 @@ class HyperbolicOctahedron : public ImplicitSolid {
   //}
 };
 
-// Sphere: radius, position, emission, color, material
+// Scene definition (Sphere: radius, position, emission, color, material)
 Solid* scene[] = {
   new Sphere(1e5,  Vec(1e5+1, 40.8, 81.6),   Vec(), Vec(.75, .25, .25), DIFF), // Left
   new Sphere(1e5,  Vec(-1e5+99, 40.8, 81.6), Vec(), Vec(.25, .25, .75), DIFF), // Right
@@ -304,7 +362,7 @@ Solid* scene[] = {
   new Sphere(1e5,  Vec(50, 40.8, -1e5+170),  Vec(), Vec(),              DIFF), // Front
   new Sphere(1e5,  Vec(50, 1e5, 81.6),       Vec(), Vec(.75, .75, .75), DIFF), // Bottm
   new Sphere(1e5,  Vec(50, -1e5+81.6, 81.6), Vec(), Vec(.75, .75, .75), DIFF), // Top
-  new HyperbolicOctahedron
+  new HyperbolicSolid
             (46.5, Vec(47, 16.5, 47),        Vec(), Vec(1, 1, 1)*.999,  SPEC), // Mirror
   new Sphere(16.5, Vec(73, 16.5, 78),        Vec(), Vec(1, 1, 1)*.999,  REFR), // Glass
   new Sphere(600,  Vec(50, 681.6-.27, 81.6), Vec(12,12,12), Vec(),      DIFF)  // Light
@@ -435,14 +493,14 @@ Vec radiance(const Ray &ray, int depth, unsigned short *Xi) {
 int main(int argc, char *argv[]) {
 
 //  int w=1024, h=768, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
-//  int w=512, h=384, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
-  int w=256, h=192, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
+  int w=512, h=384, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
+//  int w=256, h=192, samps = argc==2 ? atoi(argv[1])/4 : 1; // # samples
 
   Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
   Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135, r;
   Vec *frame=new Vec[w*h];
 
-#pragma omp parallel for schedule(dynamic, 1) private(r)
+  #pragma omp parallel for schedule(dynamic, 1) private(r)
   for (unsigned short y=0; y<h; y++) { // Loop over image rows
     fprintf(stderr, "\rRendering (%d spp) %5.2f%%", samps*4, 100.*y/(h-1));
     for (unsigned short x=0, Xi[3]={0,0,(unsigned short)(y*y*y)}; x<w; x++) { // Loop cols
