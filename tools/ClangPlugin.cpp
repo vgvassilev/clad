@@ -20,6 +20,7 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/Lookup.h"
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Timer.h"
@@ -59,7 +60,7 @@ namespace {
 namespace clad {
   namespace plugin {
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-      : m_CI(CI), m_DO(DO) { }
+      : m_CI(CI), m_DO(DO), m_CheckRuntime(true) { }
     CladPlugin::~CladPlugin() {}
 
     void CladPlugin::Initialize(ASTContext& Context) {
@@ -72,7 +73,31 @@ namespace clad {
       consumers.insert(consumers.begin(), lastConsumer);
     }
 
+    static bool CheckRuntime(Sema& SemaR) {
+      ASTContext& C = SemaR.getASTContext();
+      DeclarationName Name = &C.Idents.get("custom_derivatives");
+      LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
+                     Sema::ForRedeclaration);
+      SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
+                                /*allowBuiltinCreation*/ false);
+      if (R.empty()) {
+        DiagnosticsEngine::Level L = DiagnosticsEngine::Level::Error;
+        SourceLocation noLoc;
+        unsigned id
+          = SemaR.Diags.getCustomDiagID(L, "clad runtime missing. Did you #include \"clad/Differentiator/Differentiator.h\" at a first place?");
+        SemaR.Diags.Report(noLoc, id);
+        return false;
+      }
+
+      return true;
+    }
+
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
+      if (m_CheckRuntime) {
+        if (!CheckRuntime(m_CI.getSema()))
+          return false;
+        m_CheckRuntime = false;
+      }
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
 

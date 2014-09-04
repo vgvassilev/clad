@@ -48,6 +48,7 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
+       bool m_CheckRuntime;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();

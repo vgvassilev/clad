@@ -1,7 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
