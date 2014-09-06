@@ -532,7 +532,7 @@ namespace clad {
       return NodeContext(folder.fold(newBO));
     }
 
-    if (opCode != BO_Assign) // Skip LHS in assignments.
+    if (!clonedBO->isAssignmentOp()) // Skip LHS in assignments.
       clonedBO->setLHS(lhs_derived);
     clonedBO->setRHS(rhs_derived);
 

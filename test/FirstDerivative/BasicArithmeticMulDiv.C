@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticMulDiv.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oBasicArithmeticMulDiv.out 2>&1 | FileCheck  %s
 // RUN: ./BasicArithmeticMulDiv.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -85,6 +85,23 @@ int d_4(int x) {
 // CHECK-NEXT: return ((((1 * y - x * 0) / (y * y) * x - x / y * 1) / (x * x) * 3 - x / y / x * 0) / (3 * 3) * x - x / y / x / 3 * 1) / (x * x);
 // CHECK-NEXT: }
 
+double issue25(double x, double y) {
+  x+=y;
+  x-=y;
+  x/=y;
+  x*=y;
+
+  return x;
+}
+
+// CHECK: double issue25_darg0(double x, double y) {
+// CHECK-NEXT: x += 0.;
+// CHECK-NEXT: x -= 0.;
+// CHECK-NEXT: x /= 0.;
+// CHECK-NEXT: x *= 0.;
+// CHECK-NEXT: return 1.;
+// CHECK-NEXT: }
+
 int md_1(int x) {
   int y = 4;
   return x * x / x * y / y * 3 / 3; // == 1
@@ -93,6 +110,7 @@ int md_1(int x) {
 // CHECK-NEXT: int y = 4;
 // CHECK-NEXT: return ((((((1 * x + x * 1) * x - x * x * 1) / (x * x) * y + x * x / x * 0) * y - x * x / x * y * 0) / (y * y) * 3 + x * x / x * y / y * 0) * 3 - x * x / x * y / y * 3 * 0) / (3 * 3);
 // CHECK-NEXT: }
+
 
 int m_1_darg0(int x);
 int m_2_darg0(int x);
@@ -104,6 +122,7 @@ int d_1_darg0(int x);
 int d_2_darg0(int x);
 int d_3_darg0(int x);
 int d_4_darg0(int x);
+double issue25_darg0(double x, double y);
 int md_1_darg0(int x);
 
 int main () {
@@ -137,6 +156,9 @@ int main () {
 
   clad::differentiate(d_4, 0);
   printf("Result is = %d\n", d_4_darg0(1)); // CHECK-EXEC: Result is = 0
+
+  clad::differentiate(issue25, 0);
+  printf("Result is = %f\n", issue25_darg0(1.4, 2.3)); // CHECK-EXEC: Result is = 1
 
   clad::differentiate(md_1, 0);
   printf("Result is = %d\n", md_1_darg0(1)); // CHECK-EXEC: Result is = 1
