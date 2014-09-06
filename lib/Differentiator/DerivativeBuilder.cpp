@@ -101,6 +101,7 @@ namespace clad {
       break;
     }
 
+    m_ArgIndex = plan->getArgIndex();
     IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_d" + s +
                                                "arg" + std::to_string(m_ArgIndex));
     DeclarationNameInfo name(II, noLoc);
@@ -334,9 +335,13 @@ namespace clad {
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
       s = "";
-    IdentifierInfo* II
-      = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                              "_d" + s + m_IndependentVar->getNameAsString());
+    IdentifierInfo* II = 0;
+    if (m_ArgIndex == 1)
+      II = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
+                                 "_d" + s + "arg0");
+    else
+      II = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
+                                 "_d" + s + "arg" + std::to_string(m_ArgIndex));
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);

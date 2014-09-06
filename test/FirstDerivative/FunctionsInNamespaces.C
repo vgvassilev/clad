@@ -41,12 +41,12 @@ int test_1(int x, int y) {
   return function_namespace2::func3(x, y);
 }
 
-// CHECK: int test_1_dx(int x, int y) {
-// CHECK-NEXT: function_namespace2::func3_dx(int x, int y);
+// CHECK: int test_1_darg0(int x, int y) {
+// CHECK-NEXT: function_namespace2::func3_darg0(int x, int y);
 // CHECK-NEXT: }
 
-// CHECK: int test_1_dy(int x, int y) {
-// CHECK-NEXT: function_namespace2::func3_dy(int x, int y);
+// CHECK: int test_1_darg1(int x, int y) {
+// CHECK-NEXT: function_namespace2::func3_darg1(int x, int y);
 // CHECK-NEXT: }
 
 

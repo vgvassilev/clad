@@ -19,7 +19,7 @@ double f(double x) {
   return result;
 }
 
-// CHECK: double f_dx(double x) {
+// CHECK: double f_darg0(double x) {
 // CHECK-NEXT: double result = 0.;
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   result = (-1. * x + -x * 1.);

@@ -47,67 +47,34 @@ namespace custom_derivatives {
   }// end namespace std
 
   template<typename T>
-  T exp_dx(T x) {
+  T exp_darg0(T x) {
     return exp(x);
   }
 
   template<typename T>
-  T sin_dx(T x) {
+  T sin_darg0(T x) {
     return cos(x);
   }
 
   template<typename T>
-  T sin_dy(T y) {
-    return cos(y);
-  }
-
-  template<typename T>
-  T cos_dx(T x) {
+  T cos_darg0(T x) {
     return (-1) * sin(x);
   }
 
   template<typename T>
-  T cos_dy(T y) {
-    return (-1) * sin(y);
-  }
-
-  template<typename T>
-  T sqrt_dx(T x) {
+  T sqrt_darg0(T x) {
      return ((T)1)/(((T)2)*sqrt(x));
   }
-  template<typename T>
-  T sqrt_dy(T y) {
-     return ((T)1)/(((T)2)*sqrt(y));
-  }
-  template<typename T>
-  T sqrt_dz(T z) {
-     return ((T)1)/(((T)2)*sqrt(z));
-  }
+
 #ifdef MACOS
-  float sqrtf_dx(float x) {
+  float sqrtf_darg0(float x) {
     return 1.F/(2.F*sqrtf(x));
-  }
-  float sqrtf_dy(float y) {
-    return 1.F/(2.F*sqrtf(y));
-  }
-  float sqrtf_dz(float z) {
-    return 1.F/(2.F*sqrtf(z));
   }
 #endif
 
   template<typename T>
-  T pow_dx(T x, T exponent) {
+  T pow_darg0(T x, T exponent) {
     return exponent * pow(x, exponent-((T)1));
-  }
-
-  template<typename T>
-  T pow_dy(T y, T exponent) {
-    return exponent * pow(y, exponent-((T)1));
-  }
-
-  template<typename T>
-  T pow_dz(T z, T exponent) {
-    return exponent * pow(z, exponent-((T)1));
   }
 
 } // end namespace builtin_derivatives

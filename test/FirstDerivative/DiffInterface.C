@@ -11,7 +11,7 @@ int f_1(float y) {
   return x * y * z; // x * z
 }
 
-// CHECK: int f_1_dy(float y) {
+// CHECK: int f_1_darg0(float y) {
 // CHECK-NEXT: int x = 1, z = 3;
 // CHECK-NEXT: return ((0 * y + x * 1.F) * z + x * y * 0);
 // CHECK-NEXT: }
@@ -20,17 +20,17 @@ int f_2(int x, float y, int z) {
   return x * y * z; // y * z;
 }
 
-// CHECK: int f_2_dx(int x, float y, int z) {
+// CHECK: int f_2_darg0(int x, float y, int z) {
 // CHECK-NEXT: return ((1 * y + x * 0.F) * z + x * y * 0);
 // CHECK-NEXT: }
 
 // x * z
-// CHECK: int f_2_dy(int x, float y, int z) {
+// CHECK: int f_2_darg1(int x, float y, int z) {
 // CHECK-NEXT: return ((0 * y + x * 1.F) * z + x * y * 0);
 // CHECK-NEXT: }
 
 // x * y
-// CHECK: int f_2_dz(int x, float y, int z) {
+// CHECK: int f_2_darg2(int x, float y, int z) {
 // CHECK-NEXT: return ((0 * y + x * 0.F) * z + x * y * 1);
 // CHECK-NEXT: }
 

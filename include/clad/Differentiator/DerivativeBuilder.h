@@ -86,6 +86,7 @@ namespace clad {
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     bool m_DerivativeInFlight;
     unsigned m_DerivativeOrder;
+    unsigned m_ArgIndex;
 
     void updateReferencesOf(clang::Stmt* InSubtree);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,

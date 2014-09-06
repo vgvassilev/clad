@@ -6,24 +6,24 @@
 int printf(const char* fmt, ...);
 
 namespace custom_derivatives {
-  float custom_fn_dx(int x) {
+  float custom_fn_darg0(int x) {
     return x;
   }
 
-  float custom_fn_dx(float x) {
+  float custom_fn_darg0(float x) {
     return x * x;
   }
 
-  int custom_fn_dx() {
+  int custom_fn_darg0() {
     return 5;
   }
 
-  float overloaded_dx(float x) {
+  float overloaded_darg0(float x) {
     printf("A was called.\n");
     return x*x;
   }
 
-  float overloaded_dx() {
+  float overloaded_darg0() {
     int x = 2;
     printf("A was called.\n");
     return x*x;
@@ -50,39 +50,39 @@ float test_1(float x) {
   return overloaded(x) + custom_fn(x);
 }
 
-// CHECK: float test_1_dx(float x) {
-// CHECK-NEXT: return overloaded_dx(x) * (1.F) + (custom_fn_dx(x) * (1.F));
+// CHECK: float test_1_darg0(float x) {
+// CHECK-NEXT: return overloaded_darg0(x) * (1.F) + (custom_fn_darg0(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_2(float x) {
   return overloaded(x) + custom_fn(x);
 }
 
-// CHECK: float test_2_dx(float x) {
-// CHECK-NEXT: return overloaded_dx(x) * (1.F) + (custom_fn_dx(x) * (1.F));
+// CHECK: float test_2_darg0(float x) {
+// CHECK-NEXT: return overloaded_darg0(x) * (1.F) + (custom_fn_darg0(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_4(float x) {
   return overloaded();
 }
 
-// CHECK: float test_4_dx(float x) {
-// CHECK-NEXT: return overloaded_dx();
+// CHECK: float test_4_darg0(float x) {
+// CHECK-NEXT: return overloaded_darg0();
 // CHECK-NEXT: }
 
-float test_1_dx(float x);
-float test_2_dx(float x);
-float test_4_dx(float x);
+float test_1_darg0(float x);
+float test_2_darg0(float x);
+float test_4_darg0(float x);
 
 int main () {
   clad::differentiate(test_1, 0);
-  printf("Result is = %f\n", test_1_dx(1.1)); // CHECK-EXEC: Result is = 2
+  printf("Result is = %f\n", test_1_darg0(1.1)); // CHECK-EXEC: Result is = 2
 
   clad::differentiate(test_2, 0);
-  printf("Result is = %f\n", test_2_dx(1.0)); // CHECK-EXEC: Result is = 2
+  printf("Result is = %f\n", test_2_darg0(1.0)); // CHECK-EXEC: Result is = 2
 
   clad::differentiate(test_4, 0);
-  printf("Result is = %f\n", test_4_dx(1.0)); // CHECK-EXEC: Result is = 4
+  printf("Result is = %f\n", test_4_darg0(1.0)); // CHECK-EXEC: Result is = 4
 
   return 0;
 }

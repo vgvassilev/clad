@@ -11,7 +11,7 @@ public:
     return x;
   }
 
-  // CHECK: int f_dx(int x) {
+  // CHECK: int f_darg0(int x) {
   // CHECK-NEXT: return 1;
   // CHECK-NEXT: }
 
@@ -19,11 +19,11 @@ public:
     return x*x + y;
   }
 
-  // CHECK: int g_1_dx(int x, int y) {
+  // CHECK: int g_1_darg0(int x, int y) {
   // CHECK-NEXT: return (1 * x + x * 1) + (0);
   // CHECK-NEXT: }
 
-  // CHECK: int g_1_dy(int x, int y) {
+  // CHECK: int g_1_darg1(int x, int y) {
   // CHECK-NEXT: return (0 * x + x * 0) + (1);
   // CHECK-NEXT: }
 
@@ -31,11 +31,11 @@ public:
     return x + y*y;
   }
 
-  // CHECK: int g_2_dx(int x, int y) {
+  // CHECK: int g_2_darg0(int x, int y) {
   // CHECK-NEXT: return 1 + ((0 * y + y * 0));
   // CHECK-NEXT: }
 
-  // CHECK: int g_2_dy(int x, int y) {
+  // CHECK: int g_2_darg1(int x, int y) {
   // CHECK-NEXT: return 0 + ((1 * y + y * 1));
   // CHECK-NEXT: }
 
@@ -48,7 +48,7 @@ public:
     return x + y;
   }
 
-  // CHECK: virtual float vm_dx(float x, float y) {
+  // CHECK: virtual float vm_darg0(float x, float y) {
   // CHECK-NEXT: return 1.F;
   // CHECK-NEXT: }
 
@@ -60,7 +60,7 @@ public:
     return x*x + y*y;
   }
 
-  // CHECK: float vm_dx(float x, float y) override {
+  // CHECK: float vm_darg0(float x, float y) override {
   // CHECK-NEXT: return 2.F * x;
   // CHECK-NEXT: }
 
@@ -76,8 +76,8 @@ int main () {
   //clad::differentiate(&A::m, 0);
   //clad::differentiate(&A::m, 1);
   clad::differentiate(&A::vm, 0);
-  printf("Result is = %f\n", a.vm_dx(2,3)); // CHECK-EXEC: Result is = 2.F
+  printf("Result is = %f\n", a.vm_darg0(2,3)); // CHECK-EXEC: Result is = 2.F
   clad::differentiate(&B::vm, 0);
-  printf("Result is = %f\n", a.vm_dx(2,3)); // CHECK-EXEC: Result is = 4.F
+  printf("Result is = %f\n", a.vm_darg0(2,3)); // CHECK-EXEC: Result is = 4.F
   return 0;
 }

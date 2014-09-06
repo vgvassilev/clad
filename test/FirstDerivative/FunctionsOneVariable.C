@@ -11,7 +11,7 @@ float f_simple(float x) {
   return x*x;
 }
 
-//CHECK:float f_simple_dx(float x) {
+//CHECK:float f_simple_darg0(float x) {
 //CHECK-NEXT:    return (1.F * x + x * 1.F);
 //CHECK-NEXT:}
 
@@ -27,7 +27,7 @@ int f_simple_negative(int x) {
   //  printf("This is f(x).\n");
   return -x*x;
 }
-// CHECK: int f_simple_negative_dx(int x) {
+// CHECK: int f_simple_negative_darg0(int x) {
 // CHECK-NEXT: return (-1 * x + -x * 1);
 // CHECK-NEXT: }
 

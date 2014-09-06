@@ -11,27 +11,27 @@ int custom_fn(float x);
 int custom_fn();
 
 namespace custom_derivatives {
-  float overloaded_dx(float x) {
+  float overloaded_darg0(float x) {
     return x;
   }
 
-  float overloaded_dx(int x) {
+  float overloaded_darg0(int x) {
     return x;
   }
 
-  float no_body_dx(float x) {
+  float no_body_darg0(float x) {
     return 1;
   }
 
-  float custom_fn_dx(int x) {
+  float custom_fn_darg0(int x) {
     return x + x;
   }
 
-  float custom_fn_dx(float x) {
+  float custom_fn_darg0(float x) {
     return x * x;
   }
 
-  int custom_fn_dx() {
+  int custom_fn_darg0() {
     return 5;
   }
 }
@@ -53,29 +53,29 @@ float test_1(float x) {
   return overloaded(x) + custom_fn(x);
 }
 
-// CHECK: float test_1_dx(float x) {
-// CHECK-NEXT: return overloaded_dx(x) * (1.F) + (custom_fn_dx(x) * (1.F));
+// CHECK: float test_1_darg0(float x) {
+// CHECK-NEXT: return overloaded_darg0(x) * (1.F) + (custom_fn_darg0(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_2(float x) {
   return overloaded(x) + custom_fn(x);
 }
 
-// CHECK: float test_2_dx(float x) {
-// CHECK-NEXT: return overloaded_dx(x) * (1.F) + (custom_fn_dx(x) * (1.F));
+// CHECK: float test_2_darg0(float x) {
+// CHECK-NEXT: return overloaded_darg0(x) * (1.F) + (custom_fn_darg0(x) * (1.F));
 // CHECK-NEXT: }
 
 float test_3() {
   return custom_fn();
 }
 
-// CHECK-NOT: float test_3_dx() {
+// CHECK-NOT: float test_3_darg0() {
 
 float test_4(int x) {
   return overloaded();
 }
 
-// CHECK: float test_4_dx(int x) {
+// CHECK: float test_4_darg0(int x) {
 // CHECK-NEXT: return overloaded();
 // CHECK-NEXT: }
 
@@ -83,8 +83,8 @@ float test_5(int x) {
   return no_body(x);
 }
 
-// CHECK: float test_5_dx(int x) {
-// CHECK-NEXT: return no_body_dx(x) * (1);
+// CHECK: float test_5_darg0(int x) {
+// CHECK-NEXT: return no_body_darg0(x) * (1);
 // CHECK-NEXT: }
 
 int main () {

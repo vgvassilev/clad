@@ -32,7 +32,7 @@ public:
   float operator_call_darg0(float x, float y);
 };
 
-// CHECK: float operator_call_dx(float x, float y) {
+// CHECK: float operator_call_darg0(float x, float y) {
 // CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
 // CHECK-NEXT: }
 

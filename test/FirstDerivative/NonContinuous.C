@@ -15,7 +15,7 @@ int f(int x) {
     return -x*x;
   return x*x;
 }
-// CHECK: int f_dx(int x) {
+// CHECK: int f_darg0(int x) {
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   return (-1 * x + -x * 1);
 // CHECK-NEXT: return (1 * x + x * 1);
@@ -28,7 +28,7 @@ int f1(int x) {
   else
     return x*x;
 }
-// CHECK: int f1_dx(int x) {
+// CHECK: int f1_darg0(int x) {
 // CHECK-NEXT: if (x < 0)
 // CHECK-NEXT:   return (-1 * x + -x * 1);
 // CHECK-NEXT: else
@@ -46,27 +46,27 @@ int g(long y) {
   else
     return 2;
 }
-// CHECK: int g_dy(long y) {
+// CHECK: int g_darg0(long y) {
 // CHECK-NEXT: if (y)
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: else
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: }
 
-int f_dx(int x);
-int f1_dx(int x);
-int g_dy(long y);
+int f_darg0(int x);
+int f1_darg0(int x);
+int g_darg0(long y);
 
 int main () {
   int x = 4;
   clad::differentiate(f, 0); // expected-no-diagnostics
-  printf("Result is = %d\n", f_dx(1)); // CHECK-EXEC: Result is = 2
+  printf("Result is = %d\n", f_darg0(1)); // CHECK-EXEC: Result is = 2
 
   clad::differentiate(f1, 0);
-  printf("Result is = %d\n", f1_dx(1)); // CHECK-EXEC: Result is = 2
+  printf("Result is = %d\n", f1_darg0(1)); // CHECK-EXEC: Result is = 2
 
   clad::differentiate(g, 0);
-  printf("Result is = %d\n", g_dy(1)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %d\n", g_darg0(1)); // CHECK-EXEC: Result is = 0
 
   return 0;
 }

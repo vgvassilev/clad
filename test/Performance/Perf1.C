@@ -1036,8 +1036,8 @@ double f1(double x) {
 int main(int argc, char *argv[]) {
 #ifndef COMPILER_TEST_ONLY
   // clad test
-  auto f1_dx = clad::differentiate(f1, 0);
-  printf("%f\n", f1_dx.execute(1));
+  auto f1_darg0 = clad::differentiate(f1, 0);
+  printf("%f\n", f1_darg0.execute(1));
 #else
   // no clad
   printf("%f\n", f1(1));
