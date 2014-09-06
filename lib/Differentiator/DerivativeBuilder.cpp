@@ -102,18 +102,31 @@ namespace clad {
     }
 
     IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_d" + s +
-                                                 m_IndependentVar->getNameAsString());
-    DeclarationName name(II);
-    FunctionDecl* derivedFD = FunctionDecl::Create(m_Context,
-                                                   FD->getDeclContext(), noLoc,
-                                                   noLoc, name, FD->getType(),
-                                                   FD->getTypeSourceInfo(),
-                                                   FD->getStorageClass(),
-                                                   /*default*/
-                                                   FD->isInlineSpecified(),
-                                                   FD->hasWrittenPrototype(),
-                                                   FD->isConstexpr()
-                                                   );
+                                               "arg" + std::to_string(m_ArgIndex));
+    DeclarationNameInfo name(II, noLoc);
+    FunctionDecl* derivedFD = 0;
+    if (isa<CXXMethodDecl>(FD)) {
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(FD->getDeclContext());
+      derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
+                                        FD->getType(), FD->getTypeSourceInfo(),
+                                        FD->getStorageClass(),
+                                        FD->isInlineSpecified(),
+                                        FD->isConstexpr(), noLoc);
+    }
+    else {
+      assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
+      derivedFD = FunctionDecl::Create(m_Context,
+                                       FD->getDeclContext(), noLoc,
+                                       name, FD->getType(),
+                                       FD->getTypeSourceInfo(),
+                                       FD->getStorageClass(),
+                                       /*default*/
+                                       FD->isInlineSpecified(),
+                                       FD->hasWrittenPrototype(),
+                                       FD->isConstexpr()
+                                       );
+    }
+
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
