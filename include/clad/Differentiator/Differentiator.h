@@ -30,12 +30,21 @@ namespace clad {
   template<bool isMemFn, typename ReturnResult, typename... ArgTypes>
   struct FnTypeTrait {
     using type = ReturnResult (*)(ArgTypes...);
+
+    static ReturnResult execute(type f, ArgTypes&&... args) {
+      return f(args...);
+    }
   };
 
   // If it is a member function the compiler uses this specialisation.
   template<typename ReturnResult, class C, typename... ArgTypes>
   struct FnTypeTrait<true, ReturnResult, C, ArgTypes...> {
     using type = ReturnResult (C::*)(ArgTypes...);
+
+    static ReturnResult execute(type f, const C& self, ArgTypes&&... args) {
+      // cast away the const and call.
+      return (const_cast<C&>(self).*f)(args...);
+    }
   };
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
@@ -62,10 +71,10 @@ namespace clad {
 
     CladFunctionType getFunctionPtr() { return m_Function; }
 
-    template<typename... Args>
+    template<typename ...Args>
     ReturnResult execute(Args&&... args) {
-      ReturnResult result = m_Function(args...);
-      return result;
+      return FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>
+        ::execute(m_Function, static_cast<ArgTypes>(args)...);
     }
 
     void dump() const {

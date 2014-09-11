@@ -36,9 +36,9 @@ public:
 // CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
 // CHECK-NEXT: }
 
-// CHECK-TODO: float operator_call_darg1(float x, float y) {
-// CHECK-TODO: (0.F * x + x * 0.F) + ((1.F * y + y * 1.F));
-// CHECK-TODO: }
+// CHECK: float operator_call_darg1(float x, float y) {
+// CHECK-NEXT: (0.F * x + x * 0.F) + ((1.F * y + y * 1.F));
+// CHECK-NEXT: }
 
 float f(float x) {
   return x;
@@ -56,8 +56,8 @@ int main() {
   auto f1_darg0 = clad::differentiate(&SimpleExpression::operator(), 0);
   printf("Result is = %f\n", expr.operator_call_darg0(3.5, 4.5)); // CHECK-EXEC: Result is = 7
 
-  // auto f1_darg1 = clad::differentiate(&SimpleExpression::operator(), 1);
-  // printf("Result is = %f\n", f1_darg1.execute(3.5, 4.5)); // CHECK-EXEC: Result is = 0
+  auto f1_darg1 = clad::differentiate(&SimpleExpression::operator(), 1);
+  printf("Result is = %f\n", f1_darg1.execute(expr, 3.5, 4.5)); // CHECK-EXEC: Result is = 0
 
   return 0;
 }
