@@ -74,6 +74,7 @@ namespace clad {
     template<typename ...Args>
     ReturnResult execute(Args&&... args) {
       return FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>
+        // static_cast == std::forward, i.e convert the Args to ArgTypes
         ::execute(m_Function, static_cast<ArgTypes>(args)...);
     }
 
