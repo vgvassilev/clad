@@ -1,4 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oSimpleFunctor.out 2>&1 | FileCheck %s
+// RUN: ./SimpleFunctor.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -57,7 +58,7 @@ int main() {
   printf("Result is = %f\n", expr.operator_call_darg0(3.5, 4.5)); // CHECK-EXEC: Result is = 7
 
   auto f1_darg1 = clad::differentiate(&SimpleExpression::operator(), 1);
-  printf("Result is = %f\n", f1_darg1.execute(expr, 3.5, 4.5)); // CHECK-EXEC: Result is = 0
+  printf("Result is = %f\n", f1_darg1.execute(expr, 3.5, 4.5)); // CHECK-EXEC: Result is = 9
 
   return 0;
 }
