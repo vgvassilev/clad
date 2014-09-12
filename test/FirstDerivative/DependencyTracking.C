@@ -25,7 +25,7 @@ double f(double x) {
 // CHECK-NEXT:   result = (-1. * x + -x * 1.);
 // CHECK-NEXT: else
 // CHECK-NEXT:   result = (1. * x + x * 1.);
-// CHECK-NEXT: return result;
+// CHECK-NEXT: return result; // Now returns 0.
 // CHECK-NEXT: }
 
 int main () {
