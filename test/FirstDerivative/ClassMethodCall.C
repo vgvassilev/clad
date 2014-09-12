@@ -1,4 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -lstdc++ -oClassMethods.out 2>&1 | FileCheck %s
+// RUN: ./ClassMethods.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -72,7 +73,8 @@ public:
 };
 
 int main () {
-  A a; B b;
+  A a;
+  B b;
   clad::differentiate(&A::f, 0);
   clad::differentiate(&A::g_1, 0);
   clad::differentiate(&A::g_1, 1);
