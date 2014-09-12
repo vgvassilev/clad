@@ -113,6 +113,7 @@ namespace clad {
                                         FD->getStorageClass(),
                                         FD->isInlineSpecified(),
                                         FD->isConstexpr(), noLoc);
+      derivedFD->setAccess(FD->getAccess());
     }
     else {
       assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");

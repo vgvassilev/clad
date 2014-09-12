@@ -1,12 +1,15 @@
-// RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -lstdc++ -oClassMethods.out 2>&1 | FileCheck %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
-//XFAIL:*
+
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
 
 class A {
 public:
+  virtual ~A() {}
+  A() {}
+
   int f(int x) {
     return x;
   }
@@ -48,36 +51,38 @@ public:
     return x + y;
   }
 
-  // CHECK: virtual float vm_darg0(float x, float y) {
-  // CHECK-NEXT: return 1.F;
+  // CHECK: float vm_darg0(float x, float y) {
+  // CHECK-NEXT: return 1.F + (0.F);
   // CHECK-NEXT: }
 
 };
 
 class B : public A {
 public:
+  B() {}
+  virtual ~B() {}
   float vm(float x, float y) override {
     return x*x + y*y;
   }
 
-  // CHECK: float vm_darg0(float x, float y) override {
-  // CHECK-NEXT: return 2.F * x;
+  // CHECK: float vm_darg0(float x, float y) {
+  // CHECK-NEXT: return (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
   // CHECK-NEXT: }
 
-}
+};
 
 int main () {
-  A a;
+  A a; B b;
   clad::differentiate(&A::f, 0);
   clad::differentiate(&A::g_1, 0);
   clad::differentiate(&A::g_1, 1);
-  clad::differentiate(&A::g_1, 0);
+  clad::differentiate(&A::g_2, 0);
   clad::differentiate(&A::g_2, 1);
-  //clad::differentiate(&A::m, 0);
-  //clad::differentiate(&A::m, 1);
-  clad::differentiate(&A::vm, 0);
-  printf("Result is = %f\n", a.vm_darg0(2,3)); // CHECK-EXEC: Result is = 2.F
-  clad::differentiate(&B::vm, 0);
-  printf("Result is = %f\n", a.vm_darg0(2,3)); // CHECK-EXEC: Result is = 4.F
+  // clad::differentiate(&A::m, 0);
+  // clad::differentiate(&A::m, 1);
+  auto vm_darg0_A = clad::differentiate(&A::vm, 0);
+  printf("Result is = %f\n", vm_darg0_A.execute(a, 2, 3)); // CHECK-EXEC: Result is = 1.0000
+  auto vm_darg0_B = clad::differentiate(&B::vm, 0);
+  printf("Result is = %f\n", vm_darg0_B.execute(b, 2, 3)); // CHECK-EXEC: Result is = 4.0000
   return 0;
 }
