@@ -10,6 +10,11 @@ before_install:
   - rvm use $RVM --install --binary --fuzzy
   - gem update --system
   - gem --version
+  - sudo apt-get install python-software-properties
+  - sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+  - sudo apt-get update
+  - sudo apt-get install gcc-4.8
+  -sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 50
 before_script:
   - mkdir src inst obj
   - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src
@@ -18,7 +23,7 @@ before_script:
   - cd src
   - cat patches tools/clad/patches/*.diff | patch -p0
   - cd ../obj
-  - travis_retry ../src/configure --disable-compiler-version-checks --prefix=`pwd`/../inst
+  - travis_retry ../src/configure --prefix=`pwd`/../inst
 script:
   - make -j4
 
