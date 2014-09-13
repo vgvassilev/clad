@@ -25,7 +25,8 @@ before_script:
   - travis_retry ../src/configure --prefix=`pwd`/../inst
 script:
   - make -j4
-
+  - cd tools/clad
+  - make test
 branches:
   only:
     - master
