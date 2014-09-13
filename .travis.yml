@@ -26,7 +26,7 @@ before_script:
   - travis_retry ../src/configure --prefix=`pwd`/../inst
 
 script:
-  - travis_retry make -j4
+  - travis_retry make -j4 -k
   - cd tools/clad
   - make test LIT_ARGS=--no-progress-bar
 
