@@ -30,14 +30,14 @@ notifications:
     - vvasilev@cern.ch
     - mrtn.vassilev@gmail.com
 
-email:
-  on_success: change
-  on_failure: always
-#irc:
-#channels:
-#- "chat.freenode.net#rubinius"
-template:
-- "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
+  email:
+    on_success: change
+    on_failure: always
+  #irc:
+  #channels:
+    #- "chat.freenode.net#rubinius"
+  template:
+    - "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
 
 env:
   - RVM=2.0.0 LANG="en_US.UTF-8"
@@ -45,4 +45,3 @@ env:
 os:
   - linux
   - osx
-
