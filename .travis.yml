@@ -15,8 +15,9 @@ before_script:
   - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src
   - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk src/tools/clang
   - git clone https://github.com/vgvassilev/clad.git src/tools/clad
-  - cat patches src/tools/clad/patches/*.diff | patch -p0
-  - cd obj
+  - cd src
+  - cat patches tools/clad/patches/*.diff | patch -p0
+  - cd ../obj
   - travis_retry ../src/configure --prefix=`pwd`/../inst
 script:
   - make -j4
