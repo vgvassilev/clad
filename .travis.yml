@@ -13,12 +13,11 @@ before_install:
 before_script:
   - mkdir src inst obj
   - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src
-  - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk tools/clang
-  - git clone https://github.com/vgvassilev/clad.git tools/clad
-  - cd src
-  - cat patches tools/clad/patches/*.diff | patch -p0
-  - cd ../obj
-  - travis_retry ../src/configure --prefix=../inst
+  - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk src/tools/clang
+  - git clone https://github.com/vgvassilev/clad.git src/tools/clad
+  - cat patches src/tools/clad/patches/*.diff | patch -p0
+  - cd obj
+  - travis_retry ../src/configure --prefix=`pwd`/../inst
 script:
   - make -j4
 
