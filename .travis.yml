@@ -7,9 +7,6 @@ compiler:
 before_install:
   - echo $LANG
   - echo $LC_ALL
-  - rvm use $RVM --install --binary --fuzzy
-  - gem update --system
-  - gem --version
   - sudo apt-get install python-software-properties
   - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
   - sudo apt-get update
@@ -46,9 +43,6 @@ notifications:
     #- "chat.freenode.net#rubinius"
   template:
     - "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
-
-env:
-  - RVM=2.0.0 LANG="en_US.UTF-8"
 
 os:
   - linux
