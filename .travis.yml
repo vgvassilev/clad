@@ -17,8 +17,8 @@ before_install:
 
 before_script:
   - mkdir src inst obj
-  - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src
-  - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk src/tools/clang
+  - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src > /dev/null
+  - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk src/tools/clang > /dev/null
   - git clone https://github.com/vgvassilev/clad.git src/tools/clad
   - cd src
   - cat patches tools/clad/patches/*.diff | patch -p0
