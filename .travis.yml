@@ -18,7 +18,7 @@ before_script:
   - cd src
   - cat patches tools/clad/patches/*.diff | patch -p0
   - cd ../obj
-  - travis_retry ../src/configure --prefix=`pwd`/../inst
+  - travis_retry ../src/configure --disable-compiler-version-checks --prefix=`pwd`/../inst
 script:
   - make -j4
 
