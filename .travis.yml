@@ -14,6 +14,7 @@ before_script:
   - mkdir src inst obj
   - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src
   - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk tools/clang
+  - git clone https://github.com/vgvassilev/clad.git tools/clad
   - cd src
   - cat patches tools/clad/patches/*.diff | patch -p0
   - cd ../obj
