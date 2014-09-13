@@ -38,6 +38,7 @@ notifications:
   recipients:
     - vvasilev@cern.ch
     - mrtn.vassilev@gmail.com
+    - alexander_penev@yahoo.com
 
   email:
     on_success: change
