@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
-//XFAIL:*
+
 #include "clad/Differentiator/Differentiator.h"
 
 extern "C" int printf(const char* fmt, ...);
@@ -47,12 +47,12 @@ public:
 
 int main () {
   A a;
-  clad::differentiate(&A::f, 1);
+  clad::differentiate(&A::f, 0);
+  clad::differentiate(&A::g_1, 0);
   clad::differentiate(&A::g_1, 1);
-  clad::differentiate(&A::g_1, 2);
+  clad::differentiate(&A::g_2, 0);
   clad::differentiate(&A::g_2, 1);
-  clad::differentiate(&A::g_2, 2);
+  //clad::differentiate(&A::m, 0);
   //clad::differentiate(&A::m, 1);
-  //clad::differentiate(&A::m, 2);
   return 0;
 }
