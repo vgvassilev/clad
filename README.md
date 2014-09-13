@@ -1,3 +1,5 @@
+Linux & OSX: [![Linux & Osx Status](http://img.shields.io/travis/vgvassilev/clad.svg?style=flat-square)](https://travis-ci.org/vgvassilev/clad)
+
 1. What is clad  
 clad is a C++ plugin for clang that implements automatic differentiation of 
 user-defined functions by employing the chain rule in forward mode, coupled with
