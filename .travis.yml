@@ -1,0 +1,48 @@
+language: cpp
+
+compiler:
+  - gcc
+  - clang
+
+before_install:
+  - echo $LANG
+  - echo $LC_ALL
+  - rvm use $RVM --install --binary --fuzzy
+  - gem update --system
+  - gem --version
+before_script:
+  - mkdir src inst obj
+  - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src
+  - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk tools/clang
+  - cd src
+  - cat patches tools/clad/patches/*.diff | patch -p0
+  - cd ../obj
+  - travis_retry ../src/configure --prefix=../inst
+script:
+  - make -j4
+
+branches:
+  only:
+    - master
+
+notifications:
+  recipients:
+    - vvasilev@cern.ch
+    - mrtn.vassilev@gmail.com
+
+email:
+  on_success: change
+  on_failure: always
+#irc:
+#channels:
+#- "chat.freenode.net#rubinius"
+template:
+- "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
+
+env:
+  - RVM=2.0.0 LANG="en_US.UTF-8"
+
+os:
+  - linux
+  - osx
+
