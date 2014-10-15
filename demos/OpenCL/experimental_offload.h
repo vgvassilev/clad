@@ -7,7 +7,7 @@
 
 // Offload template
 template<typename Func>
-float offload(Func func) {
+float experimental_offload(Func func) {
   return func();
 }
 
@@ -22,8 +22,8 @@ static float rosenbrock_func_darg1(float x, float y) {\n\
 }\n\
 \n\
 kernel void rosenbrock_pfor_body(global float* x, global float* temp) {\n\
-printf(\"gsize=%d\\n\", 1 /*get_global_size(0)/4096*/);\n\
-printf(\"lsize=%d\\n\", 2 /*get_local_size(0)/4096*/);\n\
+//printf(\"gsize=%d\\n\", 1 /*get_global_size(0)/4096*/);\n\
+//printf(\"lsize=%d\\n\", 2 /*get_local_size(0)/4096*/);\n\
   size_t i = get_global_id(0);\n\
   float one = rosenbrock_func_darg0(x[i], x[i + 1]);\n\
   float two = rosenbrock_func_darg1(x[i], x[i + 1]);\n\
@@ -91,11 +91,10 @@ cl_device_id create_device() {
   cl_device_id dev;
 
   /* Identify a platform */
-  check(clGetPlatformIDs(1, &platform, NULL)); 
+  check(clGetPlatformIDs(1, &platform, NULL));
 
   /* Access a device */
   if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &dev, NULL) == CL_DEVICE_NOT_FOUND) {
-    //printf("NoGPU\n");    
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &dev, NULL);
   }
   //printf("result_dev=%p\n", dev);
@@ -112,7 +111,7 @@ cl_program build_program(cl_context ctx, cl_device_id dev, const char** source) 
 
   /* Build program */
   if (check(clBuildProgram(program, 0, NULL, "", NULL, NULL))) {
-//-cl-denorms-are-zero -cl-finite-math-only -cl-mad-enable -cl-no-signed-zeros -cl-unsafe-math-optimizations -cl-fast-relaxed-math", NULL, NULL))) {
+  //if (check(clBuildProgram(program, 0, NULL, "-cl-denorms-are-zero -cl-finite-math-only -cl-mad-enable -cl-no-signed-zeros -cl-unsafe-math-optimizations -cl-fast-relaxed-math", NULL, NULL))) {
       /* Find size of log and print to std output */
       char *program_log;
       size_t log_size;
@@ -140,7 +139,7 @@ size_t local_size;
 cl_event start_event, end_event;
 cl_ulong time_start, time_end, total_time;
 
-void init_offload() {
+void init_experimental_offload() {
   /* Create device and determine local size */
   device = create_device();
   check(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(local_size), &local_size, NULL));
@@ -167,7 +166,7 @@ void init_offload() {
   //printf("result_kernel_reduction_end=%p\n", kernel_reduction_end);
 }
 
-double offloaded(const float data[], const int data_size) {
+double experimental_offloaded(const float data[], const int data_size) {
   /* Data and buffers */
   float *temp;
   cl_mem data_buffer, temp_buffer, sum_buffer;
@@ -201,7 +200,7 @@ double offloaded(const float data[], const int data_size) {
   global_size_body = data_size;
   check(clSetKernelArg(kernel_body, 0, sizeof(cl_mem), &data_buffer));
   check(clSetKernelArg(kernel_body, 1, sizeof(cl_mem), &temp_buffer));
-  printf("result_global_size_body=%zu\n", global_size_body);
+  //printf("result_global_size_body=%zu\n", global_size_body);
   /* Enqueue parallel body kernel */
   check(clEnqueueNDRangeKernel(queue, kernel_body, 1, NULL, &global_size_body, NULL, 0, NULL, NULL));
 /*
@@ -267,7 +266,7 @@ double offloaded(const float data[], const int data_size) {
   return sum;
 }
 
-void done_offload() {
+void done_experimental_offload() {
   /* Deallocate resources */
   clReleaseKernel(kernel_body);
   clReleaseKernel(kernel_reduction);

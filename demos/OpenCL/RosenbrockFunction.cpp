@@ -18,7 +18,7 @@
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
-#include "offload.h"
+#include "experimental_offload.h"
 
 #define MAX_DATA_SIZE 1024*1024*2
 
@@ -44,7 +44,7 @@ float rosenbrock(float x[], int size) {
 
 /*
 float rosenbrock_offloaded(float x[], int size) {
-  return clad::offload([=] {
+  return clad::experimantal_offload([=] {
     auto rosenbrockX = clad::differentiate(rosenbrock_func, 0);
     auto rosenbrockY = clad::differentiate(rosenbrock_func, 1);
     float sum = 0;
@@ -59,12 +59,12 @@ float rosenbrock_offloaded(float x[], int size) {
 */
 
 float rosenbrock_offloaded(float x[], int size) {
-  return offloaded(x, size);
+  return experimental_offloaded(x, size);
 }
 
 int main() {
 #ifdef OFFLOAD
-  init_offload();
+  init_experimental_offload();
 #endif
 
   float *Xarray = (float *)malloc(MAX_DATA_SIZE*sizeof(float));
@@ -86,7 +86,7 @@ int main() {
   printf("The result is %f\n", a);
 
 #ifdef OFFLOAD
-  done_offload();
+  done_experimental_offload();
 #endif
 
  return 0;
