@@ -4,6 +4,7 @@ endif()
 
 add_llvm_loadable_module( clad
   ClangPlugin.cpp
+  RequiredSymbols.cpp
   )
 
 #add_dependencies(clad differentiator)

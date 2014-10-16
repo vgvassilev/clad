@@ -14,7 +14,11 @@ set( LLVM_LINK_COMPONENTS
 
 
 add_clad_library(cladDifferentiator
-  clad.cpp
+  ConstantFolder.cpp
+  DerivativeBuilder.cpp
+  DiffPlanner.cpp
+  StmtClone.cpp
+  Version.cpp
   )
 
 #add_dependencies(clangDriver ClangAttrList ClangDiagnosticDriver
