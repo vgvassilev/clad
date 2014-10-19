@@ -1,11 +1,12 @@
 // Include OpenCL headers
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
+#include <strings.h>
 #else
 #include <CL/cl.h>
 #include <stdio.h>
-#endif
 #include <memory.h>
+#endif
 
 // Offload template
 template<typename Func>
@@ -94,13 +95,13 @@ cl_device_id create_device() {
   cl_device_id dev;
 
   /* Identify a platform */
-  check(clGetPlatformIDs(2, platforms, NULL));
-  platform=platforms[1];
-  
+  check(clGetPlatformIDs(1, platforms, NULL));
+  platform=platforms[0];
+
   /* Access a device */
-  if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &dev, NULL) == CL_DEVICE_NOT_FOUND) {
+  //if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &dev, NULL) == CL_DEVICE_NOT_FOUND) {
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &dev, NULL);
-  }
+  //}
   //printf("result_dev=%p\n", dev);
 
   char* value;
@@ -113,7 +114,7 @@ cl_device_id create_device() {
   value = (char*) malloc(valueSize+1);
   check(clGetDeviceInfo(dev, CL_DEVICE_VENDOR, valueSize, value, NULL));
   printf("Vendor=%s\n", value);
-  
+
   return dev;
 }
 
@@ -161,7 +162,11 @@ void init_experimental_offload() {
   /* Create device and determine local size */
   device = create_device();
   check(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(local_size), &local_size, NULL));
+#ifdef __APPLE__
+  printf("result_max-work-group-size=%zu\n", local_size);
+#else
   printf("result_max-work-group-size=%d\n", local_size);
+#endif
 
   /* Create a context */
   context = clCreateContext(NULL, 1, &device, NULL, NULL, NULL);
@@ -195,21 +200,21 @@ double experimental_offloaded(const float data[], const int data_size) {
 
   /* Create data buffer */
   if (temp == NULL) {
-	  /* Allocate and initialize output arrays */
-	  temp = (float*)malloc(data_size * sizeof(float));
-	  //printf("result_num_groups=%d\n", num_groups);
-	  //scalar_sum = (float*)malloc(num_groups * sizeof(float));
-	  //for(int i=0; i<num_groups; i++) {
-	  //  scalar_sum[i] = 0.0f;
-	  //}
+    /* Allocate and initialize output arrays */
+    temp = (float*)malloc(data_size * sizeof(float));
+    //printf("result_num_groups=%d\n", num_groups);
+    //scalar_sum = (float*)malloc(num_groups * sizeof(float));
+    //for(int i=0; i<num_groups; i++) {
+    //  scalar_sum[i] = 0.0f;
+    //}
 
-	  //data_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, data_size * sizeof(float), (void *)data, NULL);
-	  data_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, data_size * sizeof(float), NULL, NULL);
-	  temp_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE /*| CL_MEM_HOST_NO_ACCESS */ | CL_MEM_USE_HOST_PTR, data_size * sizeof(float), temp, NULL);
-	  sum_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float), NULL, NULL);
-	  //printf("result_data_buffer=%p\n", data_buffer);
-	  //printf("result_temp_buffer=%p\n", temp_buffer);
-	  //printf("result_sum_buffer=%p\n", sum_buffer);
+    //data_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, data_size * sizeof(float), (void *)data, NULL);
+    data_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, data_size * sizeof(float), NULL, NULL);
+    temp_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE /*| CL_MEM_HOST_NO_ACCESS */ | CL_MEM_USE_HOST_PTR, data_size * sizeof(float), temp, NULL);
+    sum_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float), NULL, NULL);
+    //printf("result_data_buffer=%p\n", data_buffer);
+    //printf("result_temp_buffer=%p\n", temp_buffer);
+    //printf("result_sum_buffer=%p\n", sum_buffer);
   }
   memset(temp, 0, data_size * sizeof(float));
   //for (int i = 0; i<data_size; i++) {
@@ -223,7 +228,7 @@ double experimental_offloaded(const float data[], const int data_size) {
 
 
   /* Create kernel arguments */
-  global_size_body = data_size/4;
+  global_size_body = (data_size/4)-1;
   check(clSetKernelArg(kernel_body, 0, sizeof(cl_mem), &data_buffer));
   check(clSetKernelArg(kernel_body, 1, sizeof(cl_mem), &temp_buffer));
   //printf("result_global_size_body=%zu\n", global_size_body);
@@ -262,7 +267,7 @@ double experimental_offloaded(const float data[], const int data_size) {
   check(clEnqueueNDRangeKernel(queue, kernel_reduction_end, 1, NULL, &global_size_reduction, NULL, 0, NULL, NULL));
 
   /* Finish processing the queue and get profiling information */
-  //check(clFinish(queue));
+  check(clFinish(queue));
 
 /*
   check(clEnqueueReadBuffer(queue, temp_buffer, CL_TRUE, 0, data_size * sizeof(float), temp, 0, NULL, NULL));
@@ -293,10 +298,10 @@ double experimental_offloaded(const float data[], const int data_size) {
 void done_experimental_offload() {
   /* Deallocate resources */
   if (temp != NULL) {
-	check(clReleaseMemObject(sum_buffer));
-	check(clReleaseMemObject(temp_buffer));
-	check(clReleaseMemObject(data_buffer));
-	free(temp);
+    check(clReleaseMemObject(sum_buffer));
+    check(clReleaseMemObject(temp_buffer));
+    check(clReleaseMemObject(data_buffer));
+    free(temp);
   }
   clReleaseKernel(kernel_body);
   clReleaseKernel(kernel_reduction);
@@ -305,4 +310,3 @@ void done_experimental_offload() {
   clReleaseProgram(program);
   clReleaseContext(context);
 }
-
