@@ -28,9 +28,9 @@
 
 #include "experimental_offload.h"
 
-#define MAX_DATA_SIZE 1024*1024*32
+#define MAX_DATA_SIZE 1024*1024*48
 
-//#define OFFLOAD
+#define OFFLOAD
 
 // Rosenbrock function declaration
 float rosenbrock_func(float x, float y) {
