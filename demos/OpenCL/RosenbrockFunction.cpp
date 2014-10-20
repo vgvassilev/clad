@@ -18,9 +18,7 @@
 // Necessary for clad to work include
 //#include "clad/Differentiator/Differentiator.h"
 
-#ifdef WINDOWS
 #include "stdafx.h"
-#endif
 
 #include <stdlib.h>   // For _MAX_PATH definition
 #include <stdio.h>

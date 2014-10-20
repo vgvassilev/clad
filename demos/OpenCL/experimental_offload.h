@@ -24,7 +24,7 @@ static float rosenbrock_func_darg1(float x, float y) {\n\
   return 200.F * (y - x * x);\n\
 }\n\
 \n\
-kernel void rosenbrock_pfor_body(global float4* x, global float4* temp) {\n\
+kernel void rosenbrock_pfor_body(global const float4* x, global float4* temp) {\n\
 //printf(\"gsize=%d\\n\", 1 /*get_global_size(0)/4096*/);\n\
 //printf(\"lsize=%d\\n\", 2 /*get_local_size(0)/4096*/);\n\
   size_t i = get_global_id(0);\n\
@@ -95,8 +95,8 @@ cl_device_id create_device() {
   cl_device_id dev;
 
   /* Identify a platform */
-  check(clGetPlatformIDs(1, platforms, NULL));
-  platform=platforms[0];
+  check(clGetPlatformIDs(2, platforms, NULL));
+  platform=platforms[1];
 
   /* Access a device */
   if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &dev, NULL) == CL_DEVICE_NOT_FOUND) {
@@ -126,8 +126,8 @@ cl_program build_program(cl_context ctx, cl_device_id dev, const char** source) 
   program = clCreateProgramWithSource(ctx, 1, source, NULL, NULL);
 
   /* Build program */
-  //if (check(clBuildProgram(program, 0, NULL, "", NULL, NULL))) {
-  if (check(clBuildProgram(program, 0, NULL, "-cl-denorms-are-zero -cl-finite-math-only -cl-mad-enable -cl-no-signed-zeros -cl-unsafe-math-optimizations -cl-fast-relaxed-math", NULL, NULL))) {
+  if (check(clBuildProgram(program, 0, NULL, "", NULL, NULL))) {
+  //if (check(clBuildProgram(program, 0, NULL, "-cl-denorms-are-zero -cl-finite-math-only -cl-mad-enable -cl-no-signed-zeros -cl-unsafe-math-optimizations -cl-fast-relaxed-math", NULL, NULL))) {
       /* Find size of log and print to std output */
       char *program_log;
       size_t log_size;
