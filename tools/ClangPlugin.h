@@ -16,7 +16,6 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/OwningPtr.h"
 
 namespace clang {
   class ASTContext;
@@ -47,7 +46,7 @@ namespace clad {
     private:
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
-      llvm::OwningPtr<DerivativeBuilder> m_DerivativeBuilder;
+      std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
        bool m_CheckRuntime;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
@@ -62,9 +61,9 @@ namespace clad {
     private:
       DifferentiationOptions m_DO;
     protected:
-      clang::ASTConsumer *CreateASTConsumer(clang::CompilerInstance& CI,
+      std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& CI,
                                             llvm::StringRef InFile) {
-        return new ConsumerType(CI, m_DO);
+        return std::unique_ptr<clang::ASTConsumer>(new ConsumerType(CI, m_DO));
       }
 
       bool ParseArgs(const clang::CompilerInstance &CI,

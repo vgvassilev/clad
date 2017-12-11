@@ -39,16 +39,16 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
   return result;                              \
 }
 
-DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->isFPContractable()))
+DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->getFPFeatures()))
 DEFINE_CLONE_EXPR(UnaryOperator, (Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc()))
-DEFINE_CLONE_EXPR(DeclRefExpr, (Node->getDecl(), Node->refersToEnclosingLocal(), Node->getType(), Node->getValueKind(), Node->getLocation()))
+DEFINE_CLONE_EXPR(DeclRefExpr, (Node->getDecl(), Node->refersToEnclosingVariableOrCapture(), Node->getType(), Node->getValueKind(), Node->getLocation()))
 DEFINE_CREATE_EXPR(IntegerLiteral, (Ctx, Node->getValue(), Node->getType(), Node->getLocation()))
-DEFINE_CLONE_EXPR(PredefinedExpr, (Node->getLocation(), Node->getType(), Node->getIdentType()))
+DEFINE_CLONE_EXPR(PredefinedExpr, (Node->getLocation(), Node->getType(), Node->getIdentType(), Node->getFunctionName()))
 DEFINE_CLONE_EXPR(CharacterLiteral, (Node->getValue(), Node->getKind(), Node->getType(), Node->getLocation()))
 DEFINE_CLONE_EXPR(ImaginaryLiteral, (Clone(Node->getSubExpr()), Node->getType()))
 DEFINE_CLONE_EXPR(ParenExpr, (Node->getLParen(), Node->getRParen(), Clone(Node->getSubExpr())))
 DEFINE_CLONE_EXPR(ArraySubscriptExpr, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRBracketLoc()))
-DEFINE_CLONE_EXPR(MemberExpr, (Clone(Node->getBase()), Node->isArrow(), Node->getMemberDecl(), Node->getMemberLoc(), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
+DEFINE_CLONE_EXPR(MemberExpr, (Clone(Node->getBase()), Node->isArrow(), Node->getOperatorLoc(), Node->getMemberDecl(), Node->getMemberLoc(), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
 DEFINE_CLONE_EXPR(CompoundLiteralExpr, (Node->getLParenLoc(), Node->getTypeSourceInfo(), Node->getType(), Node->getValueKind(), Clone(Node->getInitializer()), Node->isFileScope()))
 DEFINE_CREATE_EXPR(ImplicitCastExpr, (Ctx, Node->getType(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getValueKind()))
 DEFINE_CREATE_EXPR(CStyleCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getLParenLoc(), Node->getRParenLoc()))
@@ -56,18 +56,20 @@ DEFINE_CREATE_EXPR(CXXStaticCastExpr, (Ctx, Node->getType(), Node->getValueKind(
 DEFINE_CREATE_EXPR(CXXDynamicCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXReinterpretCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXConstCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
-DEFINE_CREATE_EXPR(CXXConstructExpr, (Ctx, Node->getType(), Node->getLocation(), Node->getConstructor(), Node->isElidable(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->requiresZeroInitialization(), Node->getConstructionKind(), Node->getParenOrBraceRange()))
+DEFINE_CREATE_EXPR(CXXConstructExpr, (Ctx, Node->getType(), Node->getLocation(), Node->getConstructor(), Node->isElidable(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization(), Node->getConstructionKind(), Node->getParenOrBraceRange()))
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getTypeInfoAsWritten(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getLParenLoc(), Node->getRParenLoc()))
-DEFINE_CLONE_EXPR(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getTypeSourceInfo(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->requiresZeroInitialization()))
+
+DEFINE_CLONE_EXPR(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getType(), Node->getTypeSourceInfo(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization()))
+
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr, (Node->getType(), Clone(Node->GetTemporaryExpr()), Node->isBoundToLvalueReference()))
 DEFINE_CLONE_EXPR(CompoundAssignOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(),
-                                           Node->getValueKind(), Node->getObjectKind(), Node->getComputationLHSType(), Node->getComputationResultType(), Node->getOperatorLoc(), Node->isFPContractable()))
+                                           Node->getValueKind(), Node->getObjectKind(), Node->getComputationLHSType(), Node->getComputationResultType(), Node->getOperatorLoc(), Node->getFPFeatures()))
 DEFINE_CLONE_EXPR(ConditionalOperator, (Clone(Node->getCond()), Node->getQuestionLoc(), Clone(Node->getLHS()), Node->getColonLoc(), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
 DEFINE_CLONE_EXPR(AddrLabelExpr, (Node->getAmpAmpLoc(), Node->getLabelLoc(), Node->getLabel(), Node->getType()))
 DEFINE_CLONE_EXPR(StmtExpr, (Clone(Node->getSubStmt()), Node->getType(), Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRParenLoc(), Node->isConditionTrue(), Node->isTypeDependent(), Node->isValueDependent()))
 DEFINE_CLONE_EXPR(GNUNullExpr, (Node->getType(), Node->getTokenLocation()))
-DEFINE_CLONE_EXPR(VAArgExpr, (Node->getBuiltinLoc(), Clone(Node->getSubExpr()), Node->getWrittenTypeInfo(), Node->getRParenLoc(), Node->getType()))
+DEFINE_CLONE_EXPR(VAArgExpr, (Node->getBuiltinLoc(), Clone(Node->getSubExpr()), Node->getWrittenTypeInfo(), Node->getRParenLoc(), Node->getType(), Node->isMicrosoftABI()))
 DEFINE_CLONE_EXPR(ImplicitValueInitExpr, (Node->getType()))
 DEFINE_CLONE_EXPR(ExtVectorElementExpr, (Node->getType(), Node->getValueKind(), Clone(Node->getBase()), Node->getAccessor(), Node->getAccessorLoc()))
 DEFINE_CLONE_EXPR(CXXBoolLiteralExpr, (Node->getValue(), Node->getType(), Node->getSourceRange().getBegin()))
@@ -121,10 +123,10 @@ Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
   llvm::ArrayRef<Expr*> indexExprsRef 
     = llvm::makeArrayRef(&indexExprs[0] + 1, indexExprs.size() - 1);
 
-  return DesignatedInitExpr::Create(Ctx, Node->getDesignator(0), Node->size(),
+  return DesignatedInitExpr::Create(Ctx, Node->designators(),
                                     indexExprsRef,
                                     Node->getEqualOrColonLoc(),
-                                    Node->usesGNUSyntax(), indexExprs[0]);
+                                    Node->usesGNUSyntax(), Node->getInit());
 }
 
 Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
@@ -183,7 +185,7 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
                                     Node->getType(), 
                                     Node->getValueKind(), 
                                     Node->getRParenLoc(), 
-                                    Node->isFPContractable());
+                                    Node->getFPFeatures());
   result->setNumArgs(Ctx, Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
@@ -233,8 +235,7 @@ Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
 
 Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
   SwitchStmt* result 
-    = new (Ctx) SwitchStmt(Ctx, CloneDeclOrNull(Node->getConditionVariable()), 
-                           Clone(Node->getCond()));
+    = new (Ctx) SwitchStmt(Ctx, Node->getInit(), Node->getConditionVariable(), Node->getCond());
   result->setBody(Clone(Node->getBody()));
   result->setSwitchLoc(Node->getSwitchLoc());
   return result;
@@ -245,7 +246,7 @@ DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clon
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
 DEFINE_CLONE_STMT(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc()))
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
-DEFINE_CLONE_STMT(IfStmt, (Ctx, Node->getIfLoc(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
+DEFINE_CLONE_STMT(IfStmt, (Ctx, Node->getIfLoc(), Node->isConstexpr(), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
 DEFINE_CLONE_STMT(LabelStmt, (Node->getIdentLoc(), Node->getDecl(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(NullStmt, (Node->getSemiLoc()))
 DEFINE_CLONE_STMT(ForStmt, (Ctx, Clone(Node->getInit()), Clone(Node->getCond()), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getInc()), Clone(Node->getBody()), 

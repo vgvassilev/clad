@@ -21,5 +21,5 @@ add_clad_library(cladDifferentiator
   Version.cpp
   )
 
-#add_dependencies(clangDriver ClangAttrList ClangDiagnosticDriver
-#                 ClangDriverOptions ClangCC1Options ClangCC1AsOptions)
+add_dependencies(cladDifferentiator clangDriver ClangAttrList ClangDiagnosticDriver
+                 ClangDriverOptions ClangCC1Options ClangCC1AsOptions)

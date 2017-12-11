@@ -7,4 +7,4 @@ add_llvm_loadable_module( clad
   RequiredSymbols.cpp
   )
 
-#add_dependencies(clad differentiator)
+add_dependencies(clad cladDifferentiator)

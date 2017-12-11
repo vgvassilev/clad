@@ -74,8 +74,6 @@ if (APPLE)
   set(CMAKE_MODULE_LINKER_FLAGS "-Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
 endif ()
 
-include(LLVMParseArguments)
-
 macro(add_clad_library name)
   llvm_process_sources(srcs ${ARGN})
   if(MSVC_IDE OR XCODE)
@@ -102,7 +100,6 @@ macro(add_clad_library name)
   target_link_libraries( ${name} ${LLVM_USED_LIBS} )
   llvm_config( ${name} ${LLVM_LINK_COMPONENTS} )
   target_link_libraries( ${name} ${LLVM_COMMON_LIBS} )
-  link_system_libs( ${name} )
 
   if(MSVC)
     get_target_property(cflag ${name} COMPILE_FLAGS)
@@ -156,7 +153,7 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 
 # TODO: docs.
-#add_subdirectory(test)
+add_subdirectory(test)
 
 # Workaround for MSVS10 to avoid the Dialog Hell
 # FIXME: This could be removed with future version of CMake.

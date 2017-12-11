@@ -67,10 +67,11 @@ namespace clad {
       // We need to reorder the consumers in the MultiplexConsumer.
       MultiplexConsumer& multiplex
         = static_cast<MultiplexConsumer&>(m_CI.getASTConsumer());
-      std::vector<ASTConsumer*>& consumers = multiplex.getConsumers();
-      ASTConsumer* lastConsumer = consumers.back();
-      consumers.pop_back();
-      consumers.insert(consumers.begin(), lastConsumer);
+      std::vector<std::unique_ptr<ASTConsumer>> consumers = multiplex.getConsumers();
+      std::unique_ptr<ASTConsumer> lastConsumer = std::move(consumers.at(consumers.size() - 1));//consumers.back();
+      //consumers.pop_back();
+      //      consumers.insert(consumers.begin(), lastConsumer);
+      //consumers.emplace_back(lastConsumer);
     }
 
     static bool CheckRuntime(Sema& SemaR) {
@@ -152,7 +153,7 @@ namespace clad {
             }
             // if enabled, print the derivatives in a file.
             if (m_DO.GenerateSourceFile) {
-               std::string err;
+               std::error_code err;
                llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                       llvm::sys::fs::F_Append);
                Derivative->print(f, Policy);

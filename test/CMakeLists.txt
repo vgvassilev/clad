@@ -85,7 +85,7 @@ if(PYTHONINTERP_FOUND)
 
   add_dependencies(clad-test clad-test.deps)
   add_dependencies(clad-test.deps
-                 clad clad-headers c-index-test diagtool arcmt-test c-arcmt-test
-                 )
+                   clad clad-headers c-index-test diagtool arcmt-test c-arcmt-test
+                   )
 
 endif()
