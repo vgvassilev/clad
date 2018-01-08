@@ -52,7 +52,6 @@ namespace clad {
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
 
-      virtual void Initialize(clang::ASTContext& Context);
       virtual bool HandleTopLevelDecl(clang::DeclGroupRef DGR);
     };
 
@@ -110,6 +109,10 @@ namespace clad {
           }
         }
         return true;
+      }
+
+      PluginASTAction::ActionType getActionType() override {
+	return AddBeforeMainAction;
       }
     };
   } // end namespace plugin

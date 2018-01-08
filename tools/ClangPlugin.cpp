@@ -63,17 +63,6 @@ namespace clad {
       : m_CI(CI), m_DO(DO), m_CheckRuntime(true) { }
     CladPlugin::~CladPlugin() {}
 
-    void CladPlugin::Initialize(ASTContext& Context) {
-      // We need to reorder the consumers in the MultiplexConsumer.
-      MultiplexConsumer& multiplex
-        = static_cast<MultiplexConsumer&>(m_CI.getASTConsumer());
-      std::vector<std::unique_ptr<ASTConsumer>> consumers = multiplex.getConsumers();
-      std::unique_ptr<ASTConsumer> lastConsumer = std::move(consumers.at(consumers.size() - 1));//consumers.back();
-      //consumers.pop_back();
-      //      consumers.insert(consumers.begin(), lastConsumer);
-      //consumers.emplace_back(lastConsumer);
-    }
-
     static bool CheckRuntime(Sema& SemaR) {
       ASTContext& C = SemaR.getASTContext();
       DeclarationName Name = &C.Idents.get("custom_derivatives");
