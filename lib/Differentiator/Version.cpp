@@ -6,10 +6,14 @@
 
 #include "clad/Differentiator/Version.h"
 
+#ifdef HAVE_CLAD_VERSION_INC
+#  include "SVNVersion.inc"
+#endif
+
 namespace clad {
   std::string getCladRevision() {
-#ifdef CLAD_GIT_REVISION
-    return CLAD_GIT_REVISION;
+#ifdef CLAD_REVISION
+    return CLAD_REVISION;
 #else
     return "";
 #endif

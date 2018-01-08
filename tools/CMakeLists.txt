@@ -2,9 +2,14 @@ if( NOT LLVM_BUILD_TOOLS )
   set(EXCLUDE_FROM_ALL ON)
 endif()
 
-add_llvm_loadable_module( clad
+add_llvm_loadable_module(clad
   ClangPlugin.cpp
   RequiredSymbols.cpp
+  PLUGIN_TOOL
+  clang
   )
 
-add_dependencies(clad cladDifferentiator)
+target_link_libraries(clad PRIVATE
+  cladDifferentiator
+  )
+
