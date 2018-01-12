@@ -47,10 +47,10 @@ like this:
 
  clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -help SourceFile.cpp  
 For more details see:  
-[ACAT 2014 Slides] (https://indico.cern.ch/event/258092/session/8/contribution/90/material/slides/0.pdf)  
-[Martin's GSoC2014 Final Report] (https://indico.cern.ch/event/337174/contribution/2/material/slides/0.pdf)  
-[LLVM Poster] (http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf)  
-[Violeta's GSoC2013 Final Report] (http://prezi.com/g1iggppw76wl/autodiff/)  
+[ACAT 2014 Slides](https://indico.cern.ch/event/258092/session/8/contribution/90/material/slides/0.pdf)  
+[Martin's GSoC2014 Final Report](https://indico.cern.ch/event/337174/contribution/2/material/slides/0.pdf)  
+[LLVM Poster](http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf)  
+[Violeta's GSoC2013 Final Report](http://prezi.com/g1iggppw76wl/autodiff/)  
 
 2. Founders  
 Founder of the project is Vassil Vassilev as part of his research interests and vision. He holds the exclusive copyright and other related rights, described in Copyright.txt.
