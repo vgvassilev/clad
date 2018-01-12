@@ -385,7 +385,11 @@ namespace clad {
       }
       if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
         SourceLocation IdentifierLoc = FD->getLocEnd();
-        m_Sema.Diag(IdentifierLoc, diag::err_differentiating_undefined_function)
+        unsigned err_differentiating_undefined_function
+          = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                         "attempted differention of function "
+                                      "'%0', which does not have a definition");
+        m_Sema.Diag(IdentifierLoc, err_differentiating_undefined_function)
           << FD->getNameAsString();
         return NodeContext(0);
       }
@@ -424,7 +428,14 @@ namespace clad {
 
     // Function was not derived => issue a warning.
     SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
-    m_Sema.Diag(IdentifierLoc, diag::warn_function_not_declared_in_custom_derivatives)
+    unsigned warn_function_not_declared_in_custom_derivatives
+      = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Warning,
+                                     "function '%0' was not differentiated "
+                                     "because it is not declared in namespace "
+                                     "'custom_derivatives' attempted "
+                                     "differention of function '%0', which "
+                                     "does not have a definition");
+    m_Sema.Diag(IdentifierLoc, warn_function_not_declared_in_custom_derivatives)
       << CE->getDirectCallee()->getNameAsString();
     return VisitStmt(CE);
   }
