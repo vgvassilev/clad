@@ -15,7 +15,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
       message(FATAL_ERROR "Please set CLAD_PATH_TO_LLVM_SOURCE to the root directory of LLVM source code.")
     else()
       get_filename_component(LLVM_MAIN_SRC_DIR ${CLAD_PATH_TO_LLVM_SOURCE}
-	ABSOLUTE)
+        ABSOLUTE)
       list(APPEND CMAKE_MODULE_PATH "${LLVM_MAIN_SRC_DIR}/cmake/modules")
     endif()
   endif()
@@ -24,13 +24,14 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     message(FATAL_ERROR "Please set CLAD_PATH_TO_LLVM_BUILD to a directory containing a LLVM build.")
   endif()
 
+  # In case this was a path to a build folder of llvm still try to find AddLLVM.cmake
+  list(APPEND CMAKE_MODULE_PATH "${CLAD_PATH_TO_LLVM_BUILD}/lib/cmake/llvm/")
   list(APPEND CMAKE_MODULE_PATH "${CLAD_PATH_TO_LLVM_BUILD}/share/llvm/cmake")
 
-  get_filename_component(PATH_TO_LLVM_BUILD ${CLAD_PATH_TO_LLVM_BUILD}
-    ABSOLUTE)
+  get_filename_component(PATH_TO_LLVM_BUILD ${CLAD_PATH_TO_LLVM_BUILD} ABSOLUTE)
 
+  include("${PATH_TO_LLVM_BUILD}/lib/cmake/llvm/LLVMConfig.cmake")
   include(AddLLVM)
-  include("${CLAD_PATH_TO_LLVM_BUILD}/share/llvm/cmake/LLVMConfig.cmake")
   include(HandleLLVMOptions)
 
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
@@ -39,8 +40,11 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(LLVM_BINARY_DIR ${CMAKE_BINARY_DIR})
 
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  include_directories("${PATH_TO_LLVM_BUILD}/include" "${LLVM_MAIN_INCLUDE_DIR}")
-  link_directories("${PATH_TO_LLVM_BUILD}/lib")
+  include_directories("${LLVM_BUILD_BINARY_DIR}/include/" "${LLVM_BUILD_MAIN_INCLUDE_DIR}")
+  # FIXME: This expects clang to be hardcoded in tools/clang. LLVM supports
+  # building clang out of tree.
+  include_directories("${LLVM_BUILD_BINARY_DIR}/tools/clang/include" "${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/")
+  link_directories("${LLVM_BUILD_LIBRARY_DIR}")
 
   set(LLVM_TABLEGEN_EXE "${PATH_TO_LLVM_BUILD}/bin/llvm-tblgen")
 
@@ -74,10 +78,13 @@ if (APPLE)
   set(CMAKE_MODULE_LINKER_FLAGS "-Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
 endif ()
 
+# FIXME: Use merge this with the content from the LLVMConfig and ClangConfig.
+if (NOT CLAD_BUILT_STANDALONE)
 include_directories(BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}/../clang/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../clang/include
   )
+endif()
 
 include_directories(BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}/include
@@ -102,6 +109,11 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
 add_definitions( -D_GNU_SOURCE
   -DCLAD_SRCDIR_INCL="${CLAD_SOURCE_DIR}/include"
   -DCLAD_INSTDIR_INCL="${CLAD_BINARY_DIR}/include" )
+
+include(VersionFromVCS)
+# SVN_REVISION and GIT_COMMIT get set by the call to add_version_info_from_vcs.
+# DUMMY_VAR contains a version string which we don't care about.
+add_version_info_from_vcs(DUMMY_VAR)
 
 add_subdirectory(lib)
 add_subdirectory(tools)
