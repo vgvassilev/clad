@@ -67,7 +67,12 @@ namespace clad {
 
       bool ParseArgs(const clang::CompilerInstance &CI,
                      const std::vector<std::string>& args) {
-        if (clang::getClangRevision() != clad::getClangCompatRevision()) {
+        // FIXME: The check does more damage than good. We need to make it much
+        // more sophisticated to work as expected. For example, clang can be
+        // checked out from svn or git; the compatible revision can be a range;
+        // clang itself can have local patches on top of the compatible version.
+        if (clang::getClangRevision() != "" &&
+            clang::getClangRevision() != clad::getClangCompatRevision()) {
           // TODO: Print nice looking diagnostics through the DiagEngine.
           llvm::errs() << "Clang is not compatible with clad."
                        << " (" << clang::getClangRevision() << " != "
