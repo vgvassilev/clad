@@ -10,8 +10,6 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 
-#include "llvm/ADT/OwningPtr.h"
-
 namespace clang {
   class ASTContext;
   class CXXOperatorCallExpr;
@@ -54,7 +52,10 @@ namespace clad {
       return m_Stmts.front();
     }
     
-    const clang::Stmt* getStmt() const { return getStmt(); }
+    //FIXME: warning: all paths through this function will call itself
+    const clang::Stmt* getStmt() const {
+      return const_cast<NodeContext*>(this)->getStmt();
+    }
     
     const Statements& getStmts() const { return m_Stmts; }
     
@@ -65,7 +66,10 @@ namespace clad {
       return llvm::cast<clang::Expr>(getStmt());
     }
 
-    const clang::Expr* getExpr() const { return getExpr(); }
+    //FIXME: warning: all paths through this function will call itself
+    const clang::Expr* getExpr() const {
+      return const_cast<NodeContext*>(this)->getExpr();
+    }
 
     template<typename T> T* getAs() {
       if (clang::Expr* E = llvm::dyn_cast<clang::Expr>(getStmt()))
@@ -81,8 +85,8 @@ namespace clad {
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
     clang::ValueDecl* m_IndependentVar;
-    llvm::OwningPtr<clang::Scope> m_CurScope;
-    llvm::OwningPtr<utils::StmtClone> m_NodeCloner;
+    std::unique_ptr<clang::Scope> m_CurScope;
+    std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     bool m_DerivativeInFlight;
     unsigned m_DerivativeOrder;

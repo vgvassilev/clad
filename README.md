@@ -24,16 +24,19 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
 3. Building from source  
   ```
     LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q --no-check-certificate)
-    svn checkout http://llvm.org/svn/llvm-project/llvm/trunk -r$LAST_KNOWN_GOOD_LLVM src
-    cd src/tools
-    svn checkout http://llvm.org/svn/llvm-project/cfe/trunk -r$LAST_KNOWN_GOOD_LLVM clang
+    git clone https://github.com/llvm-mirror/llvm.git src
+    cd src; git checkout $LAST_KNOWN_GOOD_LLVM
+    cd tools
+    git clone https://github.com/llvm-mirror/clang.git clang
+    cd clang ; git checkout $LAST_KNOWN_GOOD_LLVM
+    cd ../
     git clone https://github.com/vgvassilev/clad.git clad
     cd ../
     cat patches tools/clad/patches/*.diff | patch -p0
     cd ../
     mkdir obj inst
     cd obj
-    ../src/configure --prefix=../inst
+    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst ../src/
     make && make install
   ```
 

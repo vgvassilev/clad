@@ -2,7 +2,7 @@
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
-  cmake_minimum_required(VERSION 2.8)
+  cmake_minimum_required(VERSION 3.4.3)
   find_package(Subversion)
 
   set(CLAD_PATH_TO_LLVM_SOURCE "" CACHE PATH
@@ -74,55 +74,6 @@ if (APPLE)
   set(CMAKE_MODULE_LINKER_FLAGS "-Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
 endif ()
 
-include(LLVMParseArguments)
-
-macro(add_clad_library name)
-  llvm_process_sources(srcs ${ARGN})
-  if(MSVC_IDE OR XCODE)
-    string( REGEX MATCHALL "/[^/]+" split_path ${CMAKE_CURRENT_SOURCE_DIR})
-    list( GET split_path -1 dir)
-    file( GLOB_RECURSE headers
-      ../../include/clad${dir}/*.h
-      ../../include/clad${dir}/*.td
-      ../../include/clad${dir}/*.def)
-    set(srcs ${srcs} ${headers})
-  endif(MSVC_IDE OR XCODE)
-  if (MODULE)
-    set(libkind MODULE)
-  elseif (SHARED_LIBRARY)
-    set(libkind SHARED)
-  else()
-    set(libkind)
-  endif()
-  add_library( ${name} ${libkind} ${srcs} )
-  if( LLVM_COMMON_DEPENDS )
-    add_dependencies( ${name} ${LLVM_COMMON_DEPENDS} )
-  endif( LLVM_COMMON_DEPENDS )
-
-  target_link_libraries( ${name} ${LLVM_USED_LIBS} )
-  llvm_config( ${name} ${LLVM_LINK_COMPONENTS} )
-  target_link_libraries( ${name} ${LLVM_COMMON_LIBS} )
-  link_system_libs( ${name} )
-
-  if(MSVC)
-    get_target_property(cflag ${name} COMPILE_FLAGS)
-    if(NOT cflag)
-      set(cflag "")
-    endif(NOT cflag)
-    set(cflag "${cflag} /Za")
-    set_target_properties(${name} PROPERTIES COMPILE_FLAGS ${cflag})
-  endif(MSVC)
-  install(TARGETS ${name}
-    LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
-    ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX})
-  set_target_properties(${name} PROPERTIES FOLDER "clad libraries")
-endmacro(add_clad_library)
-
-macro(add_clad_executable name)
-  add_llvm_executable( ${name} ${ARGN} )
-  set_target_properties(${name} PROPERTIES FOLDER "clad executables")
-endmacro(add_clad_executable)
-
 include_directories(BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}/../clang/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../clang/include
@@ -156,7 +107,7 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 
 # TODO: docs.
-#add_subdirectory(test)
+add_subdirectory(test)
 
 # Workaround for MSVS10 to avoid the Dialog Hell
 # FIXME: This could be removed with future version of CMake.

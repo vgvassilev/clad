@@ -63,16 +63,6 @@ namespace clad {
       : m_CI(CI), m_DO(DO), m_CheckRuntime(true) { }
     CladPlugin::~CladPlugin() {}
 
-    void CladPlugin::Initialize(ASTContext& Context) {
-      // We need to reorder the consumers in the MultiplexConsumer.
-      MultiplexConsumer& multiplex
-        = static_cast<MultiplexConsumer&>(m_CI.getASTConsumer());
-      std::vector<ASTConsumer*>& consumers = multiplex.getConsumers();
-      ASTConsumer* lastConsumer = consumers.back();
-      consumers.pop_back();
-      consumers.insert(consumers.begin(), lastConsumer);
-    }
-
     static bool CheckRuntime(Sema& SemaR) {
       ASTContext& C = SemaR.getASTContext();
       DeclarationName Name = &C.Idents.get("custom_derivatives");
@@ -152,7 +142,7 @@ namespace clad {
             }
             // if enabled, print the derivatives in a file.
             if (m_DO.GenerateSourceFile) {
-               std::string err;
+               std::error_code err;
                llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                       llvm::sys::fs::F_Append);
                Derivative->print(f, Policy);
