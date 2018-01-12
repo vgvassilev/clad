@@ -117,7 +117,7 @@ namespace clad {
       }
 
       PluginASTAction::ActionType getActionType() override {
-	return AddBeforeMainAction;
+        return AddBeforeMainAction;
       }
     };
   } // end namespace plugin
