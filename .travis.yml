@@ -1,34 +1,116 @@
-language: cpp
+sudo: false
 
-compiler:
-  - gcc
+# Specifying none will let us define CXX and CC in the way we want.
+# See more: https://github.com/travis-ci/travis-ci/issues/6083
+language: none
 
-before_install:
-  - echo $LANG
-  - echo $LC_ALL
-  - sudo apt-get install python-software-properties
-  - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-  - sudo apt-get update
-  - sudo apt-get install gcc-4.8
-  - sudo apt-get install g++-4.8
-  - sudo apt-get install binutils-gold
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 50
-  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50
+addons: &addons
+  apt:
+    packages: &common_deps
+      - cmake
+      - binutils-gold
+    sources: &sources
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty-4.0
+      - llvm-toolchain-trusty-5.0
+
+cache:
+  apt: true
+  ccache: true
+  directories:
+    - $HOME/.ccache
+
+env:
+  global:
+    - USE_CCACHE=1
+    - CCACHE_COMPRESS=1
+    - CCACHE_MAXSIZE=500M
+    - CCACHE_CPP2=1
+
+matrix:
+  # Abort all builds on a single failing matrix entry.
+  fast_finish: true
+
+  exclude:
+    # Note: Workaround travis-ci/travis-ci#4681
+    # Exclude default job which lacks our included environment variables.
+    - os: osx
+    - os: linux
+
+  include:
+    # GCC 5
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+
+    # GCC 6
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+
+    # Clang 4
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug
+      compiler: clang
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 5
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Debug
+      compiler: clang
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Release
+      compiler: clang
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
 
 before_script:
   - mkdir src inst obj
-  - svn checkout -r209839 http://llvm.org/svn/llvm-project/llvm/trunk src > /dev/null
-  - svn checkout -r209839 http://llvm.org/svn/llvm-project/cfe/trunk src/tools/clang > /dev/null
+  - git clone https://github.com/llvm-mirror/llvm.git src && (cd src && git checkout release_50)
+  - git clone https://github.com/llvm-mirror/clang.git src/tools/clang && (cd src/tools/clang && git checkout release_50)
   - git clone https://github.com/vgvassilev/clad.git src/tools/clad
   - cd src
   - cat patches tools/clad/patches/*.diff | patch -p0
   - cd ../obj
-  - travis_retry ../src/configure --prefix=`pwd`/../inst --disable-docs --disable-bindings --disable-visibility-inlines-hidden --disable-clang-rewriter --disable-clang-static-analyzer --disable-clang-arcmt --disable-compiler-version-checks --enable-targets=host
-
+  - REDUCED_LLVM_BUILD_OPTS='-DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_ENABLE_STATIC_ANALYZER=Off -DCLANG_ENABLE_ARCMT=Off'
+  - echo "cmake -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
+          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_CXX_FLAGS="${EXTRA_FLAGS}" \
+          ${REDUCED_LLVM_BUILD_OPTS} ${EXTRA_OPTS} ../src"
+  - cmake -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
+          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_CXX_FLAGS="${EXTRA_FLAGS}" \
+          ${REDUCED_LLVM_BUILD_OPTS} ${EXTRA_OPTS} ../src
 script:
-  - travis_retry make -j4 -k
-  - cd tools/clad
-  - make test LIT_ARGS=--no-progress-bar
+  - cmake --build . --target check-clad -- -j4
 
 branches:
   only:
@@ -48,7 +130,3 @@ notifications:
     #- "chat.freenode.net#rubinius"
   template:
     - "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
-
-os:
-  - linux
-  - osx
