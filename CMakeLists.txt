@@ -37,14 +37,24 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
 
   set(LLVM_MAIN_INCLUDE_DIR "${LLVM_MAIN_SRC_DIR}/include")
-  set(LLVM_BINARY_DIR ${CMAKE_BINARY_DIR})
+  if(NOT LLVM_BINARY_DIR)
+    if(LLVM_BUILD_BINARY_DIR)
+      set(LLVM_BINARY_DIR ${LLVM_BUILD_BINARY_DIR})
+    else()
+      set(LLVM_BINARY_DIR ${CMAKE_BINARY_DIR})
+    endif()
+  endif()
 
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  include_directories("${LLVM_BUILD_BINARY_DIR}/include/" "${LLVM_BUILD_MAIN_INCLUDE_DIR}")
-  # FIXME: This expects clang to be hardcoded in tools/clang. LLVM supports
-  # building clang out of tree.
-  include_directories("${LLVM_BUILD_BINARY_DIR}/tools/clang/include" "${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/")
-  link_directories("${LLVM_BUILD_LIBRARY_DIR}")
+  include_directories("${LLVM_BINARY_DIR}/include/")
+  # If we found the corresponding sources, add them as an include path.
+  if (LLVM_BUILD_MAIN_INCLUDE_DIR)
+    include_directories("${LLVM_BUILD_MAIN_INCLUDE_DIR}")
+    # FIXME: This expects clang to be hardcoded in tools/clang. LLVM supports
+    # building clang out of tree.
+    include_directories("${LLVM_BINARY_DIR}/tools/clang/include" "${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/")
+  endif()
+  link_directories("${LLVM_LIBRARY_DIRS}")
 
   set(LLVM_TABLEGEN_EXE "${PATH_TO_LLVM_BUILD}/bin/llvm-tblgen")
 
