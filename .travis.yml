@@ -1,4 +1,4 @@
-sudo: false
+sudo: true
 
 # Specifying none will let us define CXX and CC in the way we want.
 # See more: https://github.com/travis-ci/travis-ci/issues/6083
@@ -9,12 +9,16 @@ addons: &addons
     packages: &common_deps
       - cmake
       - binutils-gold
+      - llvm-5.0-dev
+      - libclang-5.0-dev
+      - clang-5.0
     sources: &sources
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty-4.0
       - llvm-toolchain-trusty-5.0
 
 cache:
+  pip: true
   apt: true
   ccache: true
   directories:
@@ -94,22 +98,29 @@ matrix:
           sources: *sources
           packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
 
+install:
+  - sudo easy_install lit # LLVM lit is not part of the llvm releases...
+
 before_script:
-  - mkdir src inst obj
-  - git clone https://github.com/llvm-mirror/llvm.git src && (cd src && git checkout release_50)
-  - git clone https://github.com/llvm-mirror/clang.git src/tools/clang && (cd src/tools/clang && git checkout release_50)
-  - git clone https://github.com/vgvassilev/clad.git src/tools/clad
-  - cd src
-  - cat patches tools/clad/patches/*.diff | patch -p0
-  - cd ../obj
-  - REDUCED_LLVM_BUILD_OPTS='-DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_ENABLE_STATIC_ANALYZER=Off -DCLANG_ENABLE_ARCMT=Off'
-  - echo "cmake -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
-          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_CXX_FLAGS="${EXTRA_FLAGS}" \
-          ${REDUCED_LLVM_BUILD_OPTS} ${EXTRA_OPTS} ../src"
-  - cmake -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
-          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DCMAKE_CXX_FLAGS="${EXTRA_FLAGS}" \
-          ${REDUCED_LLVM_BUILD_OPTS} ${EXTRA_OPTS} ../src
+  - cmake --version
+  - $CC --version
+  - $CXX --version
+  - mkdir ../obj
+  - |
+    # LLVM utils such as FileCheck and not are not part of the llvm release.
+    cd tools && for tool in FileCheck not; do
+        svn export \
+          http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
+          echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
+      done
+  - cd ../../obj
+  - cmake -DCLAD_PATH_TO_LLVM_BUILD="/usr/lib/llvm-5.0/" ../clad
 script:
+  - |
+    cmake --build . --target FileCheck -- -j4
+    # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
+    # This expands FileCheck to the location of installed llvm.
+    sudo ln -s `pwd`/bin/FileCheck /usr/lib/llvm-5.0/bin/FileCheck
   - cmake --build . --target check-clad -- -j4
 
 branches:
@@ -130,3 +141,8 @@ notifications:
     #- "chat.freenode.net#rubinius"
   template:
     - "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
+
+after_failure:
+  - dpkg-query -L libclang-5.0-dev
+  - find /usr/lib/llvm-5.0/
+  - cat /home/travis/build/vgvassilev/clad/obj/CMakeFiles/*.log
