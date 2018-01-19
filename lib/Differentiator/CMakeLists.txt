@@ -91,8 +91,8 @@ add_llvm_library(cladDifferentiator
   ${version_inc}
   )
 
-target_link_libraries(cladDifferentiator PRIVATE
-    clangAST
-    clangBasic
-    clangSema
-  )
+#target_link_libraries(cladDifferentiator PRIVATE
+#    clangAST
+#    clangBasic
+#    clangSema
+#  )
