@@ -5,62 +5,34 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   cmake_minimum_required(VERSION 3.4.3)
   find_package(Subversion)
 
-  set(CLAD_PATH_TO_LLVM_SOURCE "" CACHE PATH
-    "Path to LLVM source code. Not necessary if using an installed LLVM.")
-  set(CLAD_PATH_TO_LLVM_BUILD "" CACHE PATH
-    "Path to the directory where LLVM was built or installed.")
+  find_package(LLVM 5.0 REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD})
+  # FIXME: We cannot request concrete version (5.0) because ClangConfig does not
+  # have a version.
+  find_package(Clang REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD}/tools/clang/)
 
-  if( CLAD_PATH_TO_LLVM_SOURCE )
-    if( NOT EXISTS "${CLAD_PATH_TO_LLVM_SOURCE}/cmake/config-ix.cmake" )
-      message(FATAL_ERROR "Please set CLAD_PATH_TO_LLVM_SOURCE to the root directory of LLVM source code.")
-    else()
-      get_filename_component(LLVM_MAIN_SRC_DIR ${CLAD_PATH_TO_LLVM_SOURCE}
-        ABSOLUTE)
-      list(APPEND CMAKE_MODULE_PATH "${LLVM_MAIN_SRC_DIR}/cmake/modules")
-    endif()
+  if(NOT LLVM_FOUND OR NOT Clang_FOUND)
+    message(FATAL "Please set CLAD_PATH_TO_LLVM_BUILD pointing to the llvm build or installation folder")
   endif()
 
-  if( NOT EXISTS "${CLAD_PATH_TO_LLVM_BUILD}/bin/llvm-tblgen${CMAKE_EXECUTABLE_SUFFIX}" )
-    message(FATAL_ERROR "Please set CLAD_PATH_TO_LLVM_BUILD to a directory containing a LLVM build.")
-  endif()
+  # In case this was a path to a build folder of llvm still try to find AddLLVM
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
 
-  # In case this was a path to a build folder of llvm still try to find AddLLVM.cmake
-  list(APPEND CMAKE_MODULE_PATH "${CLAD_PATH_TO_LLVM_BUILD}/lib/cmake/llvm/")
-  list(APPEND CMAKE_MODULE_PATH "${CLAD_PATH_TO_LLVM_BUILD}/share/llvm/cmake")
-
-  get_filename_component(PATH_TO_LLVM_BUILD ${CLAD_PATH_TO_LLVM_BUILD} ABSOLUTE)
-
-  include("${PATH_TO_LLVM_BUILD}/lib/cmake/llvm/LLVMConfig.cmake")
   include(AddLLVM)
   include(HandleLLVMOptions)
 
-  set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
-
-  set(LLVM_MAIN_INCLUDE_DIR "${LLVM_MAIN_SRC_DIR}/include")
-  if(NOT LLVM_BINARY_DIR)
-    if(LLVM_BUILD_BINARY_DIR)
-      set(LLVM_BINARY_DIR ${LLVM_BUILD_BINARY_DIR})
-    else()
-      set(LLVM_BINARY_DIR ${CMAKE_BINARY_DIR})
-    endif()
-  endif()
-
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  include_directories("${LLVM_BINARY_DIR}/include/")
-  # If we found the corresponding sources, add them as an include path.
-  if (LLVM_BUILD_MAIN_INCLUDE_DIR)
-    include_directories("${LLVM_BUILD_MAIN_INCLUDE_DIR}")
-    # FIXME: This expects clang to be hardcoded in tools/clang. LLVM supports
-    # building clang out of tree.
-    include_directories("${LLVM_BINARY_DIR}/tools/clang/include" "${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/")
+
+  # If the llvm sources are present add them with higher priority.
+  if(LLVM_BUILD_MAIN_SRC_DIR)
+    include_directories(${LLVM_BUILD_MAIN_SRC_DIR}/include/)
+    include_directories(${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/)
   endif()
-  link_directories("${LLVM_LIBRARY_DIRS}")
 
-  set(LLVM_TABLEGEN_EXE "${PATH_TO_LLVM_BUILD}/bin/llvm-tblgen")
+  include_directories(${LLVM_INCLUDE_DIRS})
+  include_directories(${CLANG_INCLUDE_DIRS})
+  add_definitions(${LLVM_DEFINITIONS})
 
-  set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
-  set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
-  set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
   set( CLAD_BUILT_STANDALONE 1 )
 endif()
