@@ -102,6 +102,7 @@ install:
   - sudo easy_install lit # LLVM lit is not part of the llvm releases...
 
 before_script:
+  # travis untars clang-5.0 in /usr/local/clang-5.0.0/ which confuses the build.
   - sudo rm -fr /usr/local/clang*
   - cmake --version
   - $CC --version
