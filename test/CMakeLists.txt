@@ -65,8 +65,3 @@ add_lit_testsuites(CLAD ${CMAKE_CURRENT_SOURCE_DIR}
   PARAMS ${CLAD_TEST_PARAMS}
   DEPENDS ${CLAD_TEST_DEPS}
 )
-
-# Add a legacy target spelling: clad-test
-add_custom_target(clad-test)
-add_dependencies(clad-test check-clad)
-set_target_properties(clad-test PROPERTIES FOLDER "Clad tests")
