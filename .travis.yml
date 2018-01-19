@@ -102,6 +102,7 @@ install:
   - sudo easy_install lit # LLVM lit is not part of the llvm releases...
 
 before_script:
+  - sudo rm -fr /usr/local/clang*
   - cmake --version
   - $CC --version
   - $CXX --version
@@ -144,5 +145,7 @@ notifications:
 
 after_failure:
   - dpkg-query -L libclang-5.0-dev
+  - dpkg-query -L clang-5.0
+  - dpkg-query -L llvm-5.0-dev
   - find /usr/lib/llvm-5.0/
   - cat /home/travis/build/vgvassilev/clad/obj/CMakeFiles/*.log
