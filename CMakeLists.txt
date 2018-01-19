@@ -6,11 +6,8 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   find_package(Subversion)
 
   find_package(LLVM 5.0 REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD})
-  # FIXME: We cannot request concrete version (5.0) because ClangConfig does not
-  # have a version.
-  find_package(Clang REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD}/tools/clang/)
 
-  if(NOT LLVM_FOUND OR NOT Clang_FOUND)
+  if(NOT LLVM_FOUND)
     message(FATAL "Please set CLAD_PATH_TO_LLVM_BUILD pointing to the llvm build or installation folder")
   endif()
 
@@ -29,10 +26,10 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   endif()
 
   include_directories(${LLVM_INCLUDE_DIRS})
-  include_directories(${CLANG_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
-  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)
 
   set( CLAD_BUILT_STANDALONE 1 )
 endif()
