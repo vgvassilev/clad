@@ -463,14 +463,16 @@ namespace clad {
         if (R.empty())
           return true;  // Nothing to update.
 
-        if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
-          // FIXME: Handle the case when there are overloads found. Update
-          // it with the best match.
-          // 
-          // FIXME: This is the right way to go in principe, however there is no
-          // properly built decl context.
-          // m_Sema.MarkDeclRefReferenced(clonedDRE);
+       // FIXME: Handle the case when there are overloads found. Update
+       // it with the best match.
+       //
+       // FIXME: This is the right way to go in principe, however there is no
+       // properly built decl context.
+       // m_Sema.MarkDeclRefReferenced(clonedDRE);
+       if (!R.isSingleResult())
+         return true;
 
+        if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
           DRE->setDecl(VD);
           VD->setReferenced();
           VD->setIsUsed();
