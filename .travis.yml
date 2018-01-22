@@ -70,6 +70,21 @@ matrix:
           sources: *sources
           packages: [*common_deps, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
 
+
+    # GCC 7
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Debug
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Release
+      compiler: gcc
+      addons:
+        apt:
+          sources: *sources
+          packages: [*common_deps, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+
     # Clang 4
     - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug
       compiler: clang
