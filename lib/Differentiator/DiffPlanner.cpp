@@ -6,6 +6,14 @@
 using namespace clang;
 
 namespace clad {
+  // FIXME:
+  // Currently, the global variable is used to store the pointer to the last
+  // call which requires update.
+  // This is needed to share this information between different invocations of
+  // CladPlugin::HandleTopLevelDecl in which clad::gradient and make_gradient
+  // are processed (see Differentiator.h).
+  clang::CallExpr* global_GradientToUpdate = nullptr;
+
   FunctionDeclInfo::FunctionDeclInfo(FunctionDecl* FD, ParmVarDecl* PVD)
     : m_FD(FD), m_PVD(PVD) {
 #ifndef NDEBUG
@@ -22,30 +30,42 @@ namespace clad {
   }
 
   LLVM_DUMP_METHOD void FunctionDeclInfo::dump() const {
-    if (!isValid())
-      llvm::errs() << "<invalid> FD :"<< m_FD << " , PVD:" << m_PVD << "\n";
-    else {
+    if (m_FD)
       m_FD->dump();
+    else
+      llvm::errs() << "<invalid> FD: " << m_FD << '\n';
+    
+    if (m_PVD)
       m_PVD->dump();
-    }
+    else
+      llvm::errs() << "<invalid> PVD: " << m_PVD << '\n';
   }
 
   void DiffPlan::updateCall(FunctionDecl* FD, Sema& SemaRef) {
-    assert(m_CallToUpdate && "Must be set");
+    auto call =
+      (getMode() == DiffMode::forward) ?
+       m_CallToUpdate :
+       global_GradientToUpdate;
+    // Index of "code" parameter:
+    // 2 for clad::differentiate, 1 for clad::gradient.
+    auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
+    assert(call && "Must be set");
     DeclRefExpr* DRE = 0;
     if (ImplicitCastExpr* ICE
-        = dyn_cast<ImplicitCastExpr>(m_CallToUpdate->getArg(0))){
+        = dyn_cast<ImplicitCastExpr>(call->getArg(0))){
       DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
     }
     // Handle the case of member function.
     else if (UnaryOperator* UnOp
-             = dyn_cast<UnaryOperator>(m_CallToUpdate->getArg(0))){
+             = dyn_cast<UnaryOperator>(call->getArg(0))){
       DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
     }
+    // Set the new declaration.
     if (DRE)
       DRE->setDecl(FD);
+    // Update the code parameter.
     if (CXXDefaultArgExpr* Arg
-        = dyn_cast<CXXDefaultArgExpr>(m_CallToUpdate->getArg(2))) {
+        = dyn_cast<CXXDefaultArgExpr>(call->getArg(codeArgIdx))) {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -59,22 +79,30 @@ namespace clad {
       ASTContext& C = SemaRef.getASTContext();
       QualType CharTyConst = C.CharTy;
       CharTyConst.addConst();
-      // Get an array type for the string, according to C99 6.4.5.  This includes
+      // Get an array type for the string, according to C99 6.4.5. This includes
       // the nul terminator character as well as the string length for pascal
       // strings.
-      QualType StrTy = C.getConstantArrayType(CharTyConst,
-                                              llvm::APInt(32, Out.str().size() + 1),
-                                              ArrayType::Normal,
-                                              /*IndexTypeQuals*/0);
+      QualType StrTy =
+        C.getConstantArrayType(
+         CharTyConst,
+         llvm::APInt(32, Out.str().size() + 1),
+         ArrayType::Normal,
+         /*IndexTypeQuals*/0);
 
-
-      StringLiteral* SL = StringLiteral::Create(C, Out.str(),
-                                                StringLiteral::Ascii,
-                                                /*Pascal*/false, StrTy,
-                                                SourceLocation());
-      Expr* newArg = SemaRef.ImpCastExprToType(SL, Arg->getType(),
-                                               CK_ArrayToPointerDecay).get();
-      m_CallToUpdate->setArg(2, newArg);
+      StringLiteral* SL =
+        StringLiteral::Create(
+         C,
+         Out.str(),
+         StringLiteral::Ascii,
+         /*Pascal*/false,
+         StrTy,
+         SourceLocation());
+      Expr* newArg =
+        SemaRef.ImpCastExprToType(
+          SL,
+          Arg->getType(),
+          CK_ArrayToPointerDecay).get();
+      call->setArg(codeArgIdx, newArg);
     }
   }
 
@@ -85,7 +113,8 @@ namespace clad {
     }
   }
 
-  ParmVarDecl* DiffCollector::getIndependentArg(Expr* argExpr, FunctionDecl* FD) {
+  ParmVarDecl* DiffCollector::getIndependentArg(
+    Expr* argExpr, FunctionDecl* FD) {
     assert(!m_TopMostFDI && "Must be not in implicit fn collecting mode.");
     bool isIndexOutOfRange = false;
     llvm::APSInt result;
@@ -98,8 +127,9 @@ namespace clad {
       //TODO: Implement the argument checks in the DerivativeBuilder
       if (argNum == 0) {
         unsigned DiagID
-          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                  "Trying to differentiate function '%0' taking no arguments");
+          = Diags.getCustomDiagID(
+              DiagnosticsEngine::Error,
+              "Trying to differentiate function '%0' taking no arguments");
         Diags.Report(argExpr->getLocStart(), DiagID)
           << FD->getNameAsString();
         return 0;
@@ -108,8 +138,9 @@ namespace clad {
       else if (argIndex >= argNum || argIndex < 0) {
         isIndexOutOfRange = true;
         unsigned DiagID
-          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                  "Invalid argument index %0 among %1 argument(s)");
+          = Diags.getCustomDiagID(
+            DiagnosticsEngine::Error,
+            "Invalid argument index %0 among %1 argument(s)");
         Diags.Report(argExpr->getLocStart(), DiagID)
           << (int)argIndex
           << (int)argNum;
@@ -134,12 +165,14 @@ namespace clad {
   }
 
   void DiffCollector::UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan) {
-    if (plan->getCurrentDerivativeOrder() == plan->getRequestedDerivativeOrder())
+    if (plan->getCurrentDerivativeOrder() == 
+        plan->getRequestedDerivativeOrder())
       return;
     assert(plan->getRequestedDerivativeOrder() > 1
            && "Must be called on high order derivatives");
     plan->setCurrentDerivativeOrder(plan->getCurrentDerivativeOrder() + 1);
-    plan->push_back(FunctionDeclInfo(FD, FD->getParamDecl(plan->getArgIndex())));
+    plan->push_back(
+      FunctionDeclInfo(FD, FD->getParamDecl(plan->getArgIndex())));
     m_DiffPlans.push_back(*plan);
     TraverseDecl(FD);
     m_DiffPlans.pop_back();
@@ -162,24 +195,24 @@ namespace clad {
       }
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
-      else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>())
-        if (A->getAnnotation().equals("D")) {
-          DeclRefExpr* DRE = 0;
+      else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>()) {
+        DeclRefExpr* DRE = nullptr;
 
-          // Handle the case of function.
-          if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
-              DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-          }
-          // Handle the case of member function.
-          else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
-            DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-          }
-          if (DRE) {
-            assert(isa<FunctionDecl>(DRE->getDecl()) && "Must not happen.");
-            // We know that is *our* diff function.
+        // Handle the case of function.
+        if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
+           DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+        }
+        // Handle the case of member function.
+        else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
+          DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+        }
+        if (DRE) {          
+          auto && label = A->getAnnotation();
+          if (label.equals("D")) {
+            // A call to clad::differentiate was found.
 
-            // Add new plan for describing the differentiation for the function.
             m_DiffPlans.push_back(DiffPlan());
+            getCurrentPlan().setMode(DiffMode::forward);
 
             llvm::APSInt derivativeOrderAPSInt
               = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
@@ -197,8 +230,23 @@ namespace clad {
             m_TopMostFDI = 0;
             getCurrentPlan().push_back(FDI);
           }
+          else if (label.equals("G")) {
+            // A call to clad::gradient was found.
+
+            m_DiffPlans.push_back(DiffPlan());
+            getCurrentPlan().setMode(DiffMode::reverse);
+
+            FunctionDeclInfo FDI(cast<FunctionDecl>(DRE->getDecl()), nullptr);
+            getCurrentPlan().push_back(FDI);
+          }
+          else if (label.equals("GR")) {
+            // A call to make_gradient was found.
+
+            global_GradientToUpdate = E;
+          }
         }
-      }
+      }  
+    }
     return true;     // return false to abort visiting.
   }
 } // end namespace

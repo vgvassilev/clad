@@ -24,6 +24,8 @@ using namespace clang;
 
 
 namespace clad {
+  static SourceLocation noLoc{};
+
   CompoundStmt* NodeContext::wrapInCompoundStmt(clang::ASTContext& C) const {
     assert(!isSingleStmt() && "Must be more than 1");
     llvm::ArrayRef<Stmt*> stmts
@@ -33,9 +35,8 @@ namespace clad {
   }
   
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
-    : m_Sema(S), m_Context(S.getASTContext()), m_IndependentVar(0),
-      m_DerivativeInFlight(false), m_DerivativeOrder(0) {
-    m_NodeCloner.reset(new utils::StmtClone(m_Context));
+    : m_Sema(S), m_Context(S.getASTContext()),
+      m_NodeCloner(new utils::StmtClone(m_Context)) {
     // Find the builtin derivatives namespace
     DeclarationName Name = &m_Context.Idents.get("custom_derivatives");
     LookupResult R(m_Sema, Name, SourceLocation(), Sema::LookupNamespaceName,
@@ -63,8 +64,33 @@ namespace clad {
 
   }
 
-  FunctionDecl* DerivativeBuilder::Derive(FunctionDeclInfo& FDI, DiffPlan* plan) {
-    clang::FunctionDecl* FD = FDI.getFD();
+  FunctionDecl* DerivativeBuilder::Derive(
+    FunctionDeclInfo& FDI,
+    const DiffPlan& plan) {
+    FunctionDecl* result = nullptr;
+    if (plan.getMode() == DiffMode::forward) {
+      ForwardModeVisitor V(*this);
+      result = V.Derive(FDI, plan);
+    }
+    else if (plan.getMode() == DiffMode::reverse) {
+      ReverseModeVisitor V(*this);
+      result = V.Derive(FDI, plan);
+    }
+
+    if (result)
+      registerDerivative(result, m_Sema);
+    return result;
+  }
+
+  ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
+    VisitorBase(builder) {}
+
+  ForwardModeVisitor::~ForwardModeVisitor() {}
+
+  FunctionDecl* ForwardModeVisitor::Derive(
+    FunctionDeclInfo& FDI,
+    const DiffPlan& plan) {
+    FunctionDecl* FD = FDI.getFD();
     assert(FD && "Must not be null.");
     assert(!m_DerivativeInFlight
            && "Doesn't support recursive diff. Use DiffPlan.");
@@ -81,29 +107,23 @@ namespace clad {
 
 
     m_IndependentVar = FDI.getPVD(); // FIXME: Use only one var.
-
-    if (!m_NodeCloner) {
-      m_NodeCloner.reset(new utils::StmtClone(m_Context));
-    }
-
-    SourceLocation noLoc;
-    m_DerivativeOrder = plan->getCurrentDerivativeOrder();
+    m_DerivativeOrder = plan.getCurrentDerivativeOrder();
     std::string s = std::to_string(m_DerivativeOrder);
     std::string derivativeBaseName;
     if (m_DerivativeOrder == 1)
       s = "";
     switch (FD->getOverloadedOperator()) {
     default:
-      derivativeBaseName = plan->begin()->getFD()->getNameAsString();
+      derivativeBaseName = plan.begin()->getFD()->getNameAsString();
       break;
     case OO_Call:
       derivativeBaseName = "operator_call";
       break;
     }
 
-    m_ArgIndex = plan->getArgIndex();
-    IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_d" + s +
-                                               "arg" + std::to_string(m_ArgIndex));
+    m_ArgIndex = plan.getArgIndex();
+    IdentifierInfo* II = &m_Context.Idents.get(
+      derivativeBaseName + "_d" + s + "arg" + std::to_string(m_ArgIndex));
     DeclarationNameInfo name(II, noLoc);
     FunctionDecl* derivedFD = 0;
     if (isa<CXXMethodDecl>(FD)) {
@@ -142,7 +162,7 @@ namespace clad {
       PVD = FD->getParamDecl(i);
       Expr* clonedPVDDefaultArg = 0;
       if (PVD->hasDefaultArg())
-        clonedPVDDefaultArg = VisitStmt(PVD->getDefaultArg()).getExpr();
+        clonedPVDDefaultArg = Clone(PVD->getDefaultArg()).getExpr();
 
       newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
@@ -181,62 +201,79 @@ namespace clad {
       }
     }
 
-    registerDerivative(derivedFD, m_Sema);
-
     m_DerivativeInFlight = false;
     return derivedFD;
-    // DiffPlans plans;
-    // plans.push_back(plan);
-    // DiffCollector collector(DeclGroupRef(derivedFD), plans, m_Sema);
-    // return derivedFD;
   }
 
-  NodeContext DerivativeBuilder::VisitStmt(const Stmt* S) {
+  Stmt* DerivativeBuilder::Clone(const Stmt* S) {
     Stmt* clonedStmt = m_NodeCloner->Clone(S);
     updateReferencesOf(clonedStmt);
-    return NodeContext(clonedStmt);
+    return clonedStmt;
+  }
+  Expr* DerivativeBuilder::Clone(const Expr* E) {
+    const Stmt* S = E;
+    return llvm::cast<Expr>(Clone(S));
   }
 
-  NodeContext DerivativeBuilder::VisitCompoundStmt(const CompoundStmt* CS) {
+  Expr* DerivativeBuilder::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
+    return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get();
+  }
+  Expr* DerivativeBuilder::BuildOp(
+    clang::BinaryOperatorKind OpCode,
+    Expr* L,
+    Expr* R) {
+    return m_Sema.BuildBinOp(nullptr, noLoc, OpCode, L, R).get();
+  }
+
+  NodeContext ForwardModeVisitor::Clone(const Stmt* S) {
+    return NodeContext(m_Builder.Clone(S));
+  }
+
+  NodeContext ForwardModeVisitor::VisitStmt(const Stmt* S) {
+    return Clone(S);
+  }
+
+  NodeContext ForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     llvm::SmallVector<Stmt*, 16> stmts;
     for (CompoundStmt::const_body_iterator I = CS->body_begin(),
            E = CS->body_end(); I != E; ++I)
       stmts.push_back(Visit(*I).getStmt());
 
     llvm::ArrayRef<Stmt*> stmtsRef(stmts.data(), stmts.size());
-    SourceLocation noLoc;
     return new (m_Context) CompoundStmt(m_Context, stmtsRef, noLoc, noLoc);
   }
 
-  NodeContext DerivativeBuilder::VisitIfStmt(const IfStmt* If) {
-    IfStmt* clonedIf = VisitStmt(If).getAs<IfStmt>();
+  NodeContext ForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
+    IfStmt* clonedIf = Clone(If).getAs<IfStmt>();
     clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
     if (clonedIf->getElse())
       clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
     return NodeContext(clonedIf);
   }
 
-  NodeContext DerivativeBuilder::VisitReturnStmt(const ReturnStmt* RS) {
+  NodeContext ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
      //ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal = Visit(VisitStmt(RS->getRetValue()).getExpr()).getExpr();
-    SourceLocation noLoc;
+    Expr* retVal = Visit(Clone(RS->getRetValue()).getExpr()).getExpr();
 
     // Note here getCurScope is the TU unit, since we've done parsing and there
     // is no active scope.
-    Stmt* clonedStmt = m_Sema.ActOnReturnStmt(noLoc, retVal, m_Sema.getCurScope()).get();
+    Stmt* clonedStmt = m_Sema.ActOnReturnStmt(
+      noLoc,
+      retVal,
+      m_Sema.getCurScope()).get();
     return NodeContext(clonedStmt);
   }
   
-  NodeContext DerivativeBuilder::VisitParenExpr(const ParenExpr* PE) {
-    ParenExpr* clonedPE = VisitStmt(PE).getAs<ParenExpr>();
+  NodeContext ForwardModeVisitor::VisitParenExpr(const ParenExpr* PE) {
+    ParenExpr* clonedPE = Clone(PE).getAs<ParenExpr>();
     Expr* retVal = Visit(clonedPE->getSubExpr()).getExpr();
     clonedPE->setSubExpr(retVal);
     clonedPE->setType(retVal->getType());
     return NodeContext(clonedPE);
   }
 
-  NodeContext DerivativeBuilder::VisitMemberExpr(const MemberExpr* ME) {
-    MemberExpr* clonedME = VisitStmt(ME).getAs<MemberExpr>();
+  NodeContext ForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
+    MemberExpr* clonedME = Clone(ME).getAs<MemberExpr>();
     // Copy paste from VisitDeclRefExpr.
     QualType Ty = ME->getType();
     if (clonedME->getMemberDecl() == m_IndependentVar)
@@ -244,9 +281,8 @@ namespace clad {
     return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
   }
 
-  NodeContext DerivativeBuilder::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    DeclRefExpr* clonedDRE = VisitStmt(DRE).getAs<DeclRefExpr>();
-    SourceLocation noLoc;
+  NodeContext ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+    DeclRefExpr* clonedDRE = Clone(DRE).getAs<DeclRefExpr>();
     QualType Ty = DRE->getType();
     if (clonedDRE->getDecl()->getNameAsString() ==
         m_IndependentVar->getNameAsString())
@@ -255,8 +291,8 @@ namespace clad {
     return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
   }
 
-  NodeContext DerivativeBuilder::VisitIntegerLiteral(const IntegerLiteral* IL) {
-    SourceLocation noLoc;
+  NodeContext ForwardModeVisitor::VisitIntegerLiteral(
+    const IntegerLiteral* IL) {
     llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
     IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
                                                        m_Context.IntTy,
@@ -264,15 +300,17 @@ namespace clad {
     return NodeContext(constant0);
   }
 
-  NodeContext DerivativeBuilder::VisitFloatingLiteral(const FloatingLiteral* FL) {
-    FloatingLiteral* clonedStmt = m_NodeCloner->Clone(FL);
+  NodeContext ForwardModeVisitor::VisitFloatingLiteral(
+    const FloatingLiteral* FL) {
+    FloatingLiteral* clonedStmt = Clone(FL).getAs<FloatingLiteral>();
     llvm::APFloat zero = llvm::APFloat::getZero(clonedStmt->getSemantics());
     clonedStmt->setValue(m_Context, zero);
     return NodeContext(clonedStmt);
   }
 
-  // This method is derived from the source code of both buildOverloadedCallSet()
-  // in SemaOverload.cpp and ActOnCallExpr() in SemaExpr.cpp.
+  // This method is derived from the source code of both 
+  // buildOverloadedCallSet() in SemaOverload.cpp
+  // and ActOnCallExpr() in SemaExpr.cpp.
   bool DerivativeBuilder::overloadExists(Expr* UnresolvedLookup,
                                          llvm::MutableArrayRef<Expr*> ARargs) {
     if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
@@ -294,8 +332,9 @@ namespace clad {
           
           OverloadCandidateSet::iterator Best;
           OverloadingResult OverloadResult =
-          CandidateSet.BestViableFunction(m_Sema,
-                                          UnresolvedLookup->getLocStart(), Best);
+          CandidateSet.BestViableFunction(
+            m_Sema,
+            UnresolvedLookup->getLocStart(), Best);
           if (OverloadResult) // No overloads were found.
             return true;
         }
@@ -331,7 +370,7 @@ namespace clad {
     return OverloadedFn;
   }
   
-  NodeContext DerivativeBuilder::VisitCallExpr(const CallExpr* CE) {
+  NodeContext ForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // Find the built-in derivatives namespace.
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
@@ -355,25 +394,26 @@ namespace clad {
       if (!Multiplier)
         Multiplier = Visit(CE->getArg(i)).getExpr();
       else {
-        Multiplier = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add, Multiplier,
-                                       Visit(CE->getArg(i)).getExpr()).get();
+        Multiplier =
+          BuildOp(BO_Add, Multiplier, Visit(CE->getArg(i)).getExpr());
       }
-      CallArgs.push_back(VisitStmt(CE->getArg(i)).getExpr());
+      CallArgs.push_back(Clone(CE->getArg(i)).getExpr());
     }
 
     if (Multiplier)
       Multiplier = m_Sema.ActOnParenExpr(noLoc, noLoc, Multiplier).get();
 
-    Expr* OverloadedDerivedFn = findOverloadedDefinition(DNInfo, CallArgs);
+    Expr* OverloadedDerivedFn =
+      m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
     if (OverloadedDerivedFn) {
       if (Multiplier)
-        return m_Sema.BuildBinOp(/*Scope*/0, SourceLocation(),
-                                 BO_Mul, OverloadedDerivedFn, Multiplier).get();
+        return BuildOp(BO_Mul, OverloadedDerivedFn, Multiplier);
       return NodeContext(OverloadedDerivedFn);
     }
 
     Expr* OverloadedFnInFile
-       = findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(), CallArgs);
+       = m_Builder.findOverloadedDefinition(
+           CE->getDirectCallee()->getNameInfo(), CallArgs);
 
     if (OverloadedFnInFile) {
       // Take the function to derive from the source.
@@ -398,7 +438,7 @@ namespace clad {
       // in the derivatives namespace.
       LookupResult R(m_Sema, CE->getDirectCallee()->getNameInfo(),
                      Sema::LookupOrdinaryName);
-      m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
+      m_Sema.LookupQualifiedName(R, m_Builder.m_BuiltinDerivativesNSD,
                                  /*allowBuiltinCreation*/ false);
       {
         DeclContext::lookup_result res
@@ -421,7 +461,7 @@ namespace clad {
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
-      CallExpr* clonedCE = VisitStmt(CE).getAs<CallExpr>();
+      CallExpr* clonedCE = Clone(CE).getAs<CallExpr>();
       clonedCE->setCallee(ResolvedLookup);
       return NodeContext(clonedCE);
     }
@@ -437,98 +477,56 @@ namespace clad {
                                      "does not have a definition");
     m_Sema.Diag(IdentifierLoc, warn_function_not_declared_in_custom_derivatives)
       << CE->getDirectCallee()->getNameAsString();
-    return VisitStmt(CE);
+    return Clone(CE);
   }
-
-  namespace {
-    class Updater : public RecursiveASTVisitor<Updater> {
-    private:
-      Sema& m_Sema; // We don't own.
-      utils::StmtClone* m_NodeCloner; // We don't own.
-      Scope* m_CurScope; // We don't own.
-    public:
-      Updater(Sema& SemaRef, utils::StmtClone* C, Scope* S) 
-        : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S) {}
-      bool VisitDeclRefExpr(DeclRefExpr* DRE) {
-        // If the declaration's decl context encloses the derivative's decl
-        // context we must not update anything.
-        if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
-          return true;
-        }
-        DeclarationNameInfo DNI = DRE->getNameInfo();
-
-        LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
-        m_Sema.LookupName(R, m_CurScope, /*allowBuiltinCreation*/ false);
-
-        if (R.empty())
-          return true;  // Nothing to update.
-
-       // FIXME: Handle the case when there are overloads found. Update
-       // it with the best match.
-       //
-       // FIXME: This is the right way to go in principe, however there is no
-       // properly built decl context.
-       // m_Sema.MarkDeclRefReferenced(clonedDRE);
-       if (!R.isSingleResult())
-         return true;
-
-        if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
-          DRE->setDecl(VD);
-          VD->setReferenced();
-          VD->setIsUsed();
-        }
-        return true;
-      }
-    };
-  } // end anon namespace
   
   void DerivativeBuilder::updateReferencesOf(Stmt* InSubtree) {
-    Updater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
+    utils::ReferencesUpdater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
     up.TraverseStmt(InSubtree);
   }
 
-  NodeContext DerivativeBuilder::VisitUnaryOperator(const UnaryOperator* UnOp) {
-    UnaryOperator* clonedUnOp = VisitStmt(UnOp).getAs<UnaryOperator>();
+  NodeContext ForwardModeVisitor::VisitUnaryOperator(
+    const UnaryOperator* UnOp) {
+    UnaryOperator* clonedUnOp = Clone(UnOp).getAs<UnaryOperator>();
     clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()).getExpr());
     return NodeContext(clonedUnOp);
   }
 
-  NodeContext DerivativeBuilder::VisitBinaryOperator(const BinaryOperator* BinOp) {
-    BinaryOperator* clonedBO = VisitStmt(BinOp).getAs<BinaryOperator>();
-    updateReferencesOf(clonedBO->getRHS());
-    updateReferencesOf(clonedBO->getLHS());
+  NodeContext ForwardModeVisitor::VisitBinaryOperator(
+    const BinaryOperator* BinOp) {
+    BinaryOperator* clonedBO = Clone(BinOp).getAs<BinaryOperator>();
+    m_Builder.updateReferencesOf(clonedBO->getRHS());
+    m_Builder.updateReferencesOf(clonedBO->getLHS());
 
     Expr* lhs_derived = Visit(clonedBO->getLHS()).getExpr();
     Expr* rhs_derived = Visit(clonedBO->getRHS()).getExpr();
 
-    SourceLocation noLoc;
     ConstantFolder folder(m_Context);
     BinaryOperatorKind opCode = clonedBO->getOpcode();
     if (opCode == BO_Mul || opCode == BO_Div) {
-      Expr* newBOLHS = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, lhs_derived, clonedBO->getRHS()).get();
+      Expr* newBOLHS = BuildOp(BO_Mul, lhs_derived, clonedBO->getRHS());
       //newBOLHS = folder.fold(cast<BinaryOperator>(newBOLHS));
-      Expr* newBORHS = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul, clonedBO->getLHS(), rhs_derived).get();
+      Expr* newBORHS = BuildOp(BO_Mul, clonedBO->getLHS(), rhs_derived);
       //newBORHS = folder.fold(cast<BinaryOperator>(newBORHS));
       if (opCode == BO_Mul) {
-        Expr* newBO_Add = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Add, newBOLHS,
-                                            newBORHS).get();
+        Expr* newBO_Add = BuildOp(BO_Add, newBOLHS, newBORHS);
 
 
         Expr* PE = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Add).get();
         return NodeContext(folder.fold(PE));
       }
       else if (opCode == BO_Div) {
-        Expr* newBO_Sub = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Sub, newBOLHS,
-                                            newBORHS).get();
+        Expr* newBO_Sub = BuildOp(BO_Sub, newBOLHS, newBORHS);
 
-        Expr* newBO_Mul_denom = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Mul,
-                                                  clonedBO->getRHS(), clonedBO->getRHS()).get();
+        Expr* newBO_Mul_denom =
+          BuildOp(BO_Mul, clonedBO->getRHS(), clonedBO->getRHS());
 
-        Expr* PE_lhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Sub).get();
-        Expr* PE_rhs = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Mul_denom).get();
+        Expr* PE_lhs =
+          m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Sub).get();
+        Expr* PE_rhs =
+          m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Mul_denom).get();
 
-        Expr* newBO_Div = m_Sema.BuildBinOp(/*Scope*/0, noLoc, BO_Div,
-                                            PE_lhs, PE_rhs).get();
+        Expr* newBO_Div = BuildOp(BO_Div, PE_lhs, PE_rhs);
 
         return NodeContext(folder.fold(newBO_Div));
       }
@@ -536,8 +534,8 @@ namespace clad {
     else if (opCode == BO_Add || opCode == BO_Sub) {
       // enforce precedence for substraction
       rhs_derived = m_Sema.ActOnParenExpr(noLoc, noLoc, rhs_derived).get();
-      BinaryOperator* newBO = m_Sema.BuildBinOp(/*Scope*/0, noLoc, opCode,
-                                                lhs_derived, rhs_derived).getAs<BinaryOperator>();
+      BinaryOperator* newBO =
+        dyn_cast<BinaryOperator>(BuildOp(opCode, lhs_derived, rhs_derived));
       assert(m_Context.hasSameUnqualifiedType(newBO->getLHS()->getType(),
                                               newBO->getRHS()->getType())
              && "Must be the same types.");
@@ -553,8 +551,8 @@ namespace clad {
     return NodeContext(folder.fold(clonedBO));
   }
 
-  NodeContext DerivativeBuilder::VisitDeclStmt(const DeclStmt* DS) {
-    DeclStmt* clonedDS = VisitStmt(DS).getAs<DeclStmt>();
+  NodeContext ForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    DeclStmt* clonedDS = Clone(DS).getAs<DeclStmt>();
     // Iterate through the declaration(s) contained in DS.
     for (DeclStmt::decl_iterator I = clonedDS->decl_begin(),
          E = clonedDS->decl_end(); I != E; ++I) {
@@ -568,18 +566,298 @@ namespace clad {
     return NodeContext(clonedDS);
   }
 
-  NodeContext DerivativeBuilder::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
+  NodeContext ForwardModeVisitor::VisitImplicitCastExpr(
+    const ImplicitCastExpr* ICE) {
     NodeContext result = Visit(ICE->getSubExpr());
     if (result.getExpr() == ICE->getSubExpr())
-      return NodeContext(VisitStmt(ICE).getExpr());
+      return NodeContext(Clone(ICE).getExpr());
     return NodeContext(result.getExpr());
   }
 
   NodeContext
-  DerivativeBuilder::VisitCXXOperatorCallExpr(const CXXOperatorCallExpr* OpCall) {
+  ForwardModeVisitor::VisitCXXOperatorCallExpr(
+    const CXXOperatorCallExpr* OpCall) {
     // This operator gets emitted when there is a binary operation containing
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
     assert(0 && "We don't support overloaded operators yet!");
-    return VisitStmt(OpCall);
+    return Clone(OpCall);
   }
+
+  Stmt* ReverseModeVisitor::Clone(const Stmt* s) {
+    return m_Builder.Clone(s);
+  }
+  Expr* ReverseModeVisitor::Clone(const Expr* e) {
+    return m_Builder.Clone(e);
+  }
+
+  ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder):
+    VisitorBase(builder) {}
+
+  ReverseModeVisitor::~ReverseModeVisitor() {}
+
+  FunctionDecl* ReverseModeVisitor::Derive(
+    FunctionDeclInfo& FDI, const DiffPlan& plan) {
+    auto FD = FDI.getFD();
+    m_VariableIdx.clear();
+    m_BodyStmts.clear();
+    // Fill the {name, idx} map.
+    for (unsigned i = 0; i < FD->getNumParams (); i++)
+      m_VariableIdx.emplace(FD->getParamDecl(i)->getNameAsString(), i);
+    assert(FD && "Must not be null.");
+   
+    // We name the gradient of f as f_grad.
+    auto derivativeBaseName = FD->getNameAsString();
+    IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_grad");
+    DeclarationNameInfo name(II, noLoc);
+
+    // A vector of types of the gradient function parameters.
+    llvm::SmallVector<QualType, 16> paramTypes(FD->getNumParams() + 1);
+    std::transform(FD->param_begin(), FD->param_end(), std::begin(paramTypes),
+      [] (const ParmVarDecl * PVD) {
+        return PVD->getType();
+      });
+    // The last parameter is the output parameter of the R* type.
+    paramTypes.back() = m_Context.getPointerType(FD->getReturnType());
+    // For a function f of type R(A1, A2, ..., An),
+    // the type of the gradient function is void(A1, A2, ..., An, R*).
+    auto gradientFunctionType = m_Context.getFunctionType(
+      m_Context.VoidTy,
+      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
+      FunctionProtoType::ExtProtoInfo()); // Should we do something with ExtProtoInfo?
+
+    // Create the gradient function declaration.
+    auto gradientFD = FunctionDecl::Create(
+      m_Context,
+      FD->getDeclContext(),
+      noLoc,
+      name,
+      gradientFunctionType,
+      FD->getTypeSourceInfo(), // What is TypeSourceInfo for?
+      FD->getStorageClass(),
+      FD->isInlineSpecified(),
+      FD->hasWrittenPrototype(),
+      FD->isConstexpr());
+
+    m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
+                               m_Sema.getDiagnostics()));
+
+    // Create parameter declarations.
+    llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
+    std::transform(FD->param_begin(), FD->param_end(), std::begin(params),
+      [&] (const ParmVarDecl * PVD) {
+        auto VD = ParmVarDecl::Create(
+          m_Context,
+          gradientFD,
+          noLoc,
+          noLoc,
+          PVD->getIdentifier(),
+          PVD->getType(),
+          PVD->getTypeSourceInfo(), // Is it OK?
+          PVD->getStorageClass(),
+          nullptr); // No default values.
+        if (VD->getIdentifier()) {
+          m_CurScope->AddDecl(VD);
+          m_Sema.IdResolver.AddDecl(VD);
+        }
+        return VD;
+      });
+    // The output paremeter.
+    params.back() =
+      ParmVarDecl::Create(
+        m_Context,
+        gradientFD,
+        noLoc,
+        noLoc,
+        &m_Context.Idents.get("_result"), // We name it "_result".
+        paramTypes.back(),
+        m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
+        params.front()->getStorageClass(),
+        nullptr); // No default value.
+    if (params.back()->getIdentifier()) {
+      m_CurScope->AddDecl(params.back());
+      m_Sema.IdResolver.AddDecl(params.back());
+    }
+
+    llvm::ArrayRef<ParmVarDecl*> paramsRef =
+      llvm::makeArrayRef(params.data(), params.size());
+    gradientFD->setParams(paramsRef);
+    gradientFD->setBody(nullptr);
+
+    Sema::SynthesizedFunctionScope Scope(m_Sema, gradientFD);
+    // Reference to the output parameter.
+    m_Result = m_Sema.BuildDeclRefExpr(
+      params.back(),
+      paramTypes.back(),
+      VK_LValue,
+      noLoc).get();
+    // Initially, df/df = 1.
+    auto dfdf =
+      ConstantFolder::synthesizeLiteral(FD->getReturnType(), m_Context, 1.0);
+    // Start the visitation process which the statements in the m_BodyStmts.
+    Visit(FD->getMostRecentDecl()->getBody(), dfdf);
+
+    llvm::ArrayRef<Stmt*> stmtsRef =
+      llvm::makeArrayRef(m_BodyStmts.data(), m_BodyStmts.size());
+    // Create the body of the function.
+    Stmt* gradientBody = new (m_Context) CompoundStmt( //::Create(???
+      m_Context,
+      stmtsRef,
+      noLoc,
+      noLoc);
+
+    gradientFD->setBody(gradientBody);
+    // Cleanup the IdResolver chain.
+    for(FunctionDecl::param_iterator I = gradientFD->param_begin(),
+        E = gradientFD->param_end(); I != E; ++I) {
+      if ((*I)->getIdentifier()) {
+        m_CurScope->RemoveDecl(*I);
+        //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
+      }
+    }
+
+    return gradientFD;
+  }
+
+  void ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
+    for (CompoundStmt::const_body_iterator I = CS->body_begin(),
+           E = CS->body_end(); I != E; ++I)
+        Visit(Clone(*I), dfdx());
+  }
+
+  void ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
+    assert(false && "not supported yet");
+  }
+
+  void ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
+    Visit(Clone(RS->getRetValue()), dfdx());
+  }
+  
+  void ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
+    Visit(Clone(PE->getSubExpr()), dfdx());
+  }
+
+  void ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+    auto declName = DRE->getDecl()->getNameAsString();
+    // Find the variable index.
+    auto it = m_VariableIdx.find(declName);
+    if (it == std::end(m_VariableIdx))
+        assert(false && "ref to something unsupported");
+    auto idx = it->second;
+    auto size_type = m_Context.getSizeType();
+    auto size_type_bits = m_Context.getIntWidth(size_type);
+    // Create the idx literal.
+    auto i =
+      IntegerLiteral::Create(
+        m_Context,
+        llvm::APInt(size_type_bits, idx),
+        size_type,
+        noLoc);
+    // Create the _result[idx] expression.
+    auto result_at_i =
+      m_Sema.CreateBuiltinArraySubscriptExpr(
+        m_Result,
+        noLoc,
+        i,
+        noLoc).get();
+    // Create the (_result[idx] += dfdx) statement.
+    auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
+    // Add it to the body statements.
+    m_BodyStmts.push_back(add_assign);
+  }
+
+  void ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
+    // Nothing to do with it.
+  }
+
+  void ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
+    // Nothing to do with it.
+  }
+  
+  void ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    assert(false && "calling functions is not supported yet");
+  }
+
+  void ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
+    auto opCode = UnOp->getOpcode();
+    if (opCode == UO_Plus)
+      //xi = +xj
+      //dxi/dxj = +1.0
+      //df/dxj += df/dxi * dxi/dxj = df/dxi
+      Visit(Clone(UnOp->getSubExpr()), dfdx());
+    else if (opCode == UO_Minus) {
+      //xi = -xj
+      //dxi/dxj = -1.0
+      //df/dxj += df/dxi * dxi/dxj = -df/dxi
+      auto d = BuildOp(UO_Minus, dfdx());
+      Visit(Clone(UnOp->getSubExpr()), d);
+    }
+    else
+      assert(false && "unsupported unary operator");
+  }
+
+  void ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
+    auto opCode = BinOp->getOpcode();
+
+    auto L = Clone(BinOp->getLHS());
+    auto R = Clone(BinOp->getRHS());
+
+    if (opCode == BO_Add) {
+      //xi = xl + xr
+      //dxi/xl = 1.0
+      //df/dxl += df/dxi * dxi/xl = df/dxi
+      Visit(L, dfdx());
+      //dxi/xr = 1.0
+      //df/dxr += df/dxi * dxi/xr = df/dxi
+      Visit(R, dfdx());
+    }
+    else if (opCode == BO_Sub) {
+      //xi = xl - xr
+      //dxi/xl = 1.0
+      //df/dxl += df/dxi * dxi/xl = df/dxi
+      Visit(L, dfdx());
+      //dxi/xr = -1.0
+      //df/dxl += df/dxi * dxi/xr = -df/dxi
+      auto dr = BuildOp(UO_Minus, dfdx());
+      Visit(R, dr);
+    }
+    else if (opCode == BO_Mul) {
+      //xi = xl * xr
+      //dxi/xl = xr
+      //df/dxl += df/dxi * dxi/xl = df/dxi * xr
+      auto dl = BuildOp(BO_Mul, dfdx(), R);
+      Visit(L, dl);
+      //dxi/xr = xl
+      //df/dxr += df/dxi * dxi/xr = df/dxi * xl
+      auto dr = BuildOp(BO_Mul, L, dfdx());
+      Visit(R, dr);
+    }
+    else if (opCode == BO_Div) {
+      //xi = xl / xr
+      //dxi/xl = 1 / xr
+      //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
+      auto one = ConstantFolder::synthesizeLiteral(R->getType(), m_Context, 1.0);
+      auto dl = BuildOp(BO_Div, one, R);
+      Visit(L, dl);
+      //dxi/xr = xl / (xr * xr)
+      //df/dxl += df/dxi * dxi/xr = df/dxi * (xl /(xr * xr))
+      auto dr = BuildOp(UO_Minus, BuildOp(BO_Div, L, BuildOp(BO_Mul, R, R)));
+      Visit(R, dr);
+    }
+    else
+      assert(false && "unsupported binary operator");
+  }
+
+  void ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    assert(false && "declarations are not supported yet");
+  }
+
+  void ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
+    Visit(Clone(ICE->getSubExpr()), dfdx());
+  }
+
+  void ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
+    assert(false && "not supported yet");
+  }
+
+  
 } // end namespace clad
