@@ -8,6 +8,8 @@
 
 #include "clad/Differentiator/StmtClone.h"
 
+#include "clang/Sema/Lookup.h"
+
 #include "llvm/ADT/SmallVector.h"
 
 using namespace clang;
@@ -327,6 +329,41 @@ Stmt* StmtClone::VisitDeclStmt(DeclStmt* Node) {
 Stmt* StmtClone::VisitStmt(Stmt*) { 
   assert(0 && "clone not fully implemented"); 
   return 0; 
+}
+
+
+ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C, Scope* S) 
+  : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S) {}
+
+bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
+  // If the declaration's decl context encloses the derivative's decl
+  // context we must not update anything.
+  if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
+    return true;
+  }
+  DeclarationNameInfo DNI = DRE->getNameInfo();
+
+  LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
+  m_Sema.LookupName(R, m_CurScope, /*allowBuiltinCreation*/ false);
+
+  if (R.empty())
+    return true;  // Nothing to update.
+
+  // FIXME: Handle the case when there are overloads found. Update
+  // it with the best match.
+  //
+  // FIXME: This is the right way to go in principe, however there is no
+  // properly built decl context.
+  // m_Sema.MarkDeclRefReferenced(clonedDRE);
+  if (!R.isSingleResult())
+    return true;
+
+  if (ValueDecl* VD = dyn_cast<ValueDecl>(R.getFoundDecl())) {
+    DRE->setDecl(VD);
+    VD->setReferenced();
+    VD->setIsUsed();
+  }
+  return true;
 }
 
 //--------------------------------------------------------- 

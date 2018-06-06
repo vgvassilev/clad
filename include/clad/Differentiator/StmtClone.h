@@ -10,6 +10,10 @@
 #define CLAD_UTILS_STMTCLONE_H
 
 #include "clang/AST/StmtVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"
+
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/Scope.h"
 
 #include "llvm/ADT/DenseMap.h"
 
@@ -131,7 +135,17 @@ namespace utils {
     return static_cast<StmtTy*>(clonedStmt);
   }
 
-} // namespace ASTProcessing
-} // namespace clang
+  class ReferencesUpdater :
+    public clang::RecursiveASTVisitor<ReferencesUpdater> {
+  private:
+    clang::Sema& m_Sema; // We don't own.
+    StmtClone* m_NodeCloner; // We don't own.
+    clang::Scope* m_CurScope; // We don't own.
+  public:
+    ReferencesUpdater(clang::Sema& SemaRef, StmtClone* C, clang::Scope* S);
+    bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+  };
+} // namespace utils
+} // namespace clad
 
 #endif  //CLAD_UTILS_STMTCLONE_H

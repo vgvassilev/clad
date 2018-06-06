@@ -47,7 +47,7 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
-       bool m_CheckRuntime;
+      bool m_CheckRuntime;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
@@ -60,8 +60,9 @@ namespace clad {
     private:
       DifferentiationOptions m_DO;
     protected:
-      std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& CI,
-                                            llvm::StringRef InFile) {
+      std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
+        clang::CompilerInstance& CI,
+        llvm::StringRef InFile) {
         return std::unique_ptr<clang::ASTConsumer>(new ConsumerType(CI, m_DO));
       }
 

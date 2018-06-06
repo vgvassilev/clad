@@ -74,7 +74,10 @@ namespace clad {
         DiagnosticsEngine::Level L = DiagnosticsEngine::Level::Error;
         SourceLocation noLoc;
         unsigned id
-          = SemaR.Diags.getCustomDiagID(L, "clad runtime missing. Did you #include \"clad/Differentiator/Differentiator.h\" at a first place?");
+          = SemaR.Diags.getCustomDiagID(L,
+            "clad runtime missing. Did you #include \
+             \"clad/Differentiator/Differentiator.h\"\
+             at a first place?");
         SemaR.Diags.Report(noLoc, id);
         return false;
       }
@@ -105,8 +108,9 @@ namespace clad {
       for (DiffPlans::iterator plan = plans.begin(), planE = plans.end();
            plan != planE; ++plan)
          for (DiffPlan::iterator I = plan->begin(); I != plan->end(); ++I) {
-            if (!I->isValid())
-               continue;
+            if (!I->isValidInMode(plan->getMode()))
+                // Some error happened, ignore this plan.
+                continue;
             // if enabled, print source code of the original functions
             if (m_DO.DumpSourceFn) {
                I->getFD()->print(llvm::outs(), Policy);
@@ -116,7 +120,7 @@ namespace clad {
                I->getFD()->dumpColor();
             }
 
-            FunctionDecl* Derivative = 0;
+            FunctionDecl* Result = nullptr;
             {
               // FIXME: Move the timing inside the DerivativeBuilder. This would
               // require to pass in the DifferentiationOptions in the DiffPlan.
@@ -126,33 +130,33 @@ namespace clad {
               Timer.setOutput("Generation time for "
                               + plan->begin()->getFD()->getNameAsString());
 
-              Derivative = m_DerivativeBuilder->Derive(*I, plan);
+              Result = m_DerivativeBuilder->Derive(*I, *plan);
             }
-            collector.UpdatePlan(Derivative, &*plan);
+            collector.UpdatePlan(Result, &*plan);
             if (I + 1 == plan->end()) // The last element
-               plan->updateCall(Derivative, m_CI.getSema());
+               plan->updateCall(Result, m_CI.getSema());
 
             // if enabled, print source code of the derived functions
             if (m_DO.DumpDerivedFn) {
-               Derivative->print(llvm::outs(), Policy);
+               Result->print(llvm::outs(), Policy);
             }
             // if enabled, print ASTs of the derived functions
             if (m_DO.DumpDerivedAST) {
-               Derivative->dumpColor();
+               Result->dumpColor();
             }
             // if enabled, print the derivatives in a file.
             if (m_DO.GenerateSourceFile) {
                std::error_code err;
                llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                       llvm::sys::fs::F_Append);
-               Derivative->print(f, Policy);
+               Result->print(f, Policy);
                f.flush();
             }
-            if (Derivative) {
+            if (Result) {
               // Call CodeGen only if the produced decl is a top-most decl.
-              if (Derivative->getDeclContext()
+              if (Result->getDeclContext()
                   == m_CI.getASTContext().getTranslationUnitDecl())
-                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Derivative));
+                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Result));
             }
       }
       return true; // Happiness

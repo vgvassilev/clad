@@ -13,6 +13,11 @@ namespace clang {
 
 namespace clad {
 
+  enum class DiffMode {
+    forward,
+    reverse
+  };
+
   ///\brief A pair function, independent variable.
   ///
   class FunctionDeclInfo {
@@ -23,7 +28,18 @@ namespace clad {
     FunctionDeclInfo(clang::FunctionDecl* FD, clang::ParmVarDecl* PVD);
     clang::FunctionDecl* getFD() const { return m_FD; }
     clang::ParmVarDecl* getPVD() const { return m_PVD; }
-    bool isValid() const { return m_FD && m_PVD; }
+    bool isValidInMode(DiffMode mode) const {
+      if (mode == DiffMode::forward)
+        // We are calling clad::differentiate,
+        // we need both function and independent variable.
+        return m_FD && m_PVD;
+      else if (mode == DiffMode::reverse)
+        // We are calling clad::gradient,
+        // there is no independent variable.
+        return m_FD && !m_PVD;
+      else
+        return false;
+    }
     LLVM_DUMP_METHOD void dump() const;
   };
 
@@ -38,17 +54,28 @@ namespace clad {
     unsigned m_RequestedDerivativeOrder;
     unsigned m_CurrentDerivativeOrder;
     unsigned m_ArgIndex;
+    DiffMode m_Mode;
   public:
     DiffPlan() : m_CallToUpdate(0), m_RequestedDerivativeOrder(1),
                  m_CurrentDerivativeOrder(1), m_ArgIndex(0) { }
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
-    unsigned getRequestedDerivativeOrder() { return m_RequestedDerivativeOrder;}
+
+    DiffMode getMode() const {
+      return m_Mode;
+    }
+    void setMode(DiffMode mode) {
+      m_Mode = mode;
+    }
+    unsigned getRequestedDerivativeOrder() const {
+      return m_RequestedDerivativeOrder;
+   }
     void setCurrentDerivativeOrder(unsigned val) {
       m_CurrentDerivativeOrder = val;
     }
-    unsigned getCurrentDerivativeOrder() { return m_CurrentDerivativeOrder;}
-
+    unsigned getCurrentDerivativeOrder() const {
+      return m_CurrentDerivativeOrder;
+    }
     void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
     iterator begin() { return m_Functions.begin(); }
     iterator end() { return m_Functions.end(); }
@@ -58,7 +85,7 @@ namespace clad {
     void setCallToUpdate(clang::CallExpr* CE) { m_CallToUpdate = CE; }
     void updateCall(clang::FunctionDecl* FD, clang::Sema& SemaRef);
     LLVM_DUMP_METHOD void dump();
-    unsigned getArgIndex() { return m_ArgIndex;}
+    unsigned getArgIndex() const { return m_ArgIndex;}
     void setArgIndex(unsigned val) { m_ArgIndex = val; }
 
     friend class DiffCollector;

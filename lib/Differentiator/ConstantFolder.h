@@ -19,7 +19,8 @@ namespace clang {
 }
 
 namespace clad {
-  class ConstantFolder: public clang::StmtVisitor<ConstantFolder, clang::Expr*> {
+  class ConstantFolder:
+    public clang::StmtVisitor<ConstantFolder, clang::Expr*> {
   private:
     clang::ASTContext& m_Context;
     bool m_Enabled;
