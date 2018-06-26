@@ -156,6 +156,9 @@ namespace clad {
       clang::Expr* R) {
       return m_Builder.BuildOp(OpCode, L, R);
     }
+
+    clang::CompoundStmt* MakeCompoundStmt(
+      const llvm::SmallVector<clang::Stmt*, 16> & Stmts);
   };
     
   /// A visitor for processing the function code in forward mode.
@@ -197,6 +200,7 @@ namespace clad {
     NodeContext VisitCallExpr(const clang::CallExpr* CE);
     NodeContext VisitDeclStmt(const clang::DeclStmt* DS);
     NodeContext VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    NodeContext VisitConditionalOperator(const clang::ConditionalOperator* CO);
   };
 
   /// A visitor for processing the function code in reverse mode.
@@ -206,6 +210,8 @@ namespace clad {
       public VisitorBase {
   private:
 
+    using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
+ 
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
@@ -222,9 +228,25 @@ namespace clad {
     /// m_VariableIdx = {{"x", 0}, {"y", 1}, {"z", 2}}.
     std::unordered_map<std::string, unsigned> m_VariableIdx;
  
-    /// A vector that is used to store all the statements
-    /// for the gradient function body.
-    llvm::SmallVector<clang::Stmt*, 16> m_BodyStmts;
+    /// A stack of all the blocks where the statements of the gradient function
+    /// are stored (e.g., function body, if statement blocks).
+    std::stack<Stmts> m_Blocks;
+    /// Get the latest block of code (i.e. place for statements output).
+    Stmts & currentBlock() {
+      return m_Blocks.top();
+    }
+    /// Create new block.
+    Stmts & startBlock() {
+      m_Blocks.push({});
+      return m_Blocks.top();
+    }
+    /// Remove the block from the stack, wrap it in CompoundStmt and return it.
+    clang::CompoundStmt* finishBlock() {
+      auto CS = MakeCompoundStmt(currentBlock());
+      m_Blocks.pop();
+      return CS;
+    }
+ 
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
     // Shorthands that delegate their functionality to DerviativeBuilder.
@@ -257,6 +279,7 @@ namespace clad {
     void VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     void VisitCallExpr(const clang::CallExpr* CE);
     void VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    void VisitConditionalOperator(const clang::ConditionalOperator* CO);
   };
 } // end namespace clad
 

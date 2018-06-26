@@ -127,6 +127,82 @@ double f_rosenbrock(double x, double y) {
 // CHECK-NEXT: }
 void f_rosenbrock_grad(double x, double y, double *_result);
 
+double f_cond1(double x, double y) {
+  return (x > y ? x : y);
+}
+
+// CHECK: void f_cond1_grad(double x, double y, double *_result) {
+// CHECK-NEXT:     _result[0UL] += (x > y ? 1. : 0.);
+// CHECK-NEXT:     _result[1UL] += (x > y ? 0. : 1.);
+// CHECK-NEXT: }
+
+void f_cond1_grad(double x, double y, double *_result);
+
+double f_cond2(double x, double y) {
+  return (x > y ? x : (y > 0 ? y : -y));
+}
+
+// CHECK: void f_cond2_grad(double x, double y, double *_result) {
+// CHECK-NEXT:    _result[0UL] += (x > y ? 1. : 0.);
+// CHECK-NEXT:    _result[1UL] += (y > 0 ? (x > y ? 0. : 1.) : 0.);
+// CHECK-NEXT:    _result[1UL] += -(y > 0 ? 0. : (x > y ? 0. : 1.));
+// CHECK-NEXT:}
+
+void f_cond2_grad(double x, double y, double *_result);
+
+double f_cond3(double x, double c) {
+  return (c > 0 ? x + c : x - c);
+}
+
+// CHECK: void f_cond3_grad(double x, double c, double *_result) {
+// CHECK-NEXT:    _result[0UL] += (c > 0 ? 1. : 0.);
+// CHECK-NEXT:    _result[1UL] += (c > 0 ? 1. : 0.);
+// CHECK-NEXT:    _result[0UL] += (c > 0 ? 0. : 1.);
+// CHECK-NEXT:    _result[1UL] += -(c > 0 ? 0. : 1.);
+// CHECK-NEXT:}
+
+double f_cond3_grad(double x, double c, double *_result);
+
+double f_if1(double x, double y) {
+  if (x > y)
+    return x;
+  else
+    return y;
+}
+
+// CHECK: void f_if1_grad(double x, double y, double *_result) {
+// CHECK-NEXT:     if (x > y) {
+// CHECK-NEXT:         _result[0UL] += 1.;
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:         _result[1UL] += 1.;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f_if1_grad(double x, double y, double *_result);
+
+double f_if2(double x, double y) {
+  if (x > y)
+    return x;
+  else if (y > 0)
+    return y;
+  else
+    return -y;
+}
+
+// CHECK: void f_if2_grad(double x, double y, double *_result) {
+// CHECK-NEXT:     if (x > y) {
+// CHECK-NEXT:         _result[0UL] += 1.;
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:         if (y > 0) {
+// CHECK-NEXT:             _result[1UL] += 1.;
+// CHECK-NEXT:         } else {
+// CHECK-NEXT:             _result[1UL] += -1.;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+void f_if2_grad(double x, double y, double *_result);
+
 unsigned f_types(int x, float y, double z) {
   return x + y + z;
 }
@@ -159,6 +235,11 @@ int main() { // expected-no-diagnostics
   TEST(f_div2, 1, 1); // CHECK-EXEC: Result is = {0.75, -0.75}
   TEST(f_c, 1, 1); // CHECK-EXEC: Result is = {-1.00, -1.00}
   TEST(f_rosenbrock, 1, 1); // CHECK-EXEC: Result is = {0.00, 0.00}
+  TEST(f_cond1, 3, 2); // CHECK-EXEC: Result is = {1.00, 0.00}
+  TEST(f_cond2, 3, -1); // CHECK-EXEC: Result is = {1.00, 0.00}
+  TEST(f_cond3, 3, -1); // CHECK-EXEC: Result is = {1.00, -1.00}
+  TEST(f_if1, 3, 2); // CHECK-EXEC: Result is = {1.00, 0.00}
+  TEST(f_if2, -5, -4); // CHECK-EXEC: Result is = {0.00, -1.00}
   clad::gradient(f_types);
 }
 
