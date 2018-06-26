@@ -82,6 +82,16 @@ namespace clad {
     return result;
   }
 
+  CompoundStmt* VisitorBase::MakeCompoundStmt(
+    const llvm::SmallVector<clang::Stmt*, 16> & Stmts) {
+    auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
+    return new (m_Context) clang::CompoundStmt(
+      m_Context,
+      Stmts_ref,
+      noLoc,
+      noLoc);
+  }
+
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
     VisitorBase(builder) {}
 
@@ -249,6 +259,33 @@ namespace clad {
     if (clonedIf->getElse())
       clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
     return NodeContext(clonedIf);
+  }
+
+  NodeContext ForwardModeVisitor::VisitConditionalOperator(
+    const ConditionalOperator* CO) {
+    auto cond = Clone(CO->getCond()).getExpr();
+    auto ifTrue = Visit(CO->getTrueExpr()).getExpr();
+    auto ifFalse = Visit(CO->getFalseExpr()).getExpr();
+
+    auto condExpr =
+      new (m_Context) ConditionalOperator(
+        cond,
+        noLoc,
+        ifTrue,
+        noLoc,
+        ifFalse,
+        ifTrue->getType(),
+        VK_RValue, // FIXME: check if we do not need lvalue sometimes
+        OK_Ordinary);
+    // For some reason clang would not geterate parentheses to keep the correct
+    // order.
+    auto parens =
+      new (m_Context) ParenExpr(
+        noLoc,
+        noLoc,
+        condExpr);
+
+    return NodeContext(parens);
   }
 
   NodeContext ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
@@ -599,7 +636,6 @@ namespace clad {
     FunctionDeclInfo& FDI, const DiffPlan& plan) {
     auto FD = FDI.getFD();
     m_VariableIdx.clear();
-    m_BodyStmts.clear();
     // Fill the {name, idx} map.
     for (unsigned i = 0; i < FD->getNumParams (); i++)
       m_VariableIdx.emplace(FD->getParamDecl(i)->getNameAsString(), i);
@@ -613,7 +649,7 @@ namespace clad {
     // A vector of types of the gradient function parameters.
     llvm::SmallVector<QualType, 16> paramTypes(FD->getNumParams() + 1);
     std::transform(FD->param_begin(), FD->param_end(), std::begin(paramTypes),
-      [] (const ParmVarDecl * PVD) {
+      [] (const ParmVarDecl* PVD) {
         return PVD->getType();
       });
     // The last parameter is the output parameter of the R* type.
@@ -644,7 +680,7 @@ namespace clad {
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
     std::transform(FD->param_begin(), FD->param_end(), std::begin(params),
-      [&] (const ParmVarDecl * PVD) {
+      [&] (const ParmVarDecl* PVD) {
         auto VD = ParmVarDecl::Create(
           m_Context,
           gradientFD,
@@ -693,17 +729,12 @@ namespace clad {
     // Initially, df/df = 1.
     auto dfdf =
       ConstantFolder::synthesizeLiteral(FD->getReturnType(), m_Context, 1.0);
-    // Start the visitation process which the statements in the m_BodyStmts.
-    Visit(FD->getMostRecentDecl()->getBody(), dfdf);
 
-    llvm::ArrayRef<Stmt*> stmtsRef =
-      llvm::makeArrayRef(m_BodyStmts.data(), m_BodyStmts.size());
+    auto bodyStmts = startBlock();
+    // Start the visitation process which the statements in the current block.
+    Visit(FD->getMostRecentDecl()->getBody(), dfdf);
     // Create the body of the function.
-    Stmt* gradientBody = new (m_Context) CompoundStmt( //::Create(???
-      m_Context,
-      stmtsRef,
-      noLoc,
-      noLoc);
+    auto gradientBody = finishBlock();
 
     gradientFD->setBody(gradientBody);
     // Cleanup the IdResolver chain.
@@ -725,7 +756,81 @@ namespace clad {
   }
 
   void ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
-    assert(false && "not supported yet");
+    if (If->getConditionVariable())
+        // FIXME:Visit(If->getConditionVariableDeclStmt(), dfdx());
+        assert(false && "variable declarations are not currently supported");
+    auto cond = Clone(If->getCond());
+    auto thenStmt = If->getThen();
+    auto elseStmt = If->getElse();
+   
+    Stmt* thenBody = nullptr;
+    Stmt* elseBody = nullptr;
+    if (thenStmt) {
+      auto thenBlock = startBlock();
+      Visit(thenStmt, dfdx());
+      thenBody = finishBlock();
+    }
+    if (elseStmt) {
+      auto elseBlock = startBlock();
+      Visit(elseStmt, dfdx());
+      elseBody = finishBlock();
+    }
+
+    auto ifStmt = new (m_Context) IfStmt(
+      m_Context,
+      noLoc,
+      If->isConstexpr(),
+      nullptr, // FIXME: add init for condition variable
+      nullptr, // FIXME: add condition variable decl
+      cond,
+      thenBody, noLoc,
+      elseBody);
+    currentBlock().push_back(ifStmt);  
+  }
+
+  void ReverseModeVisitor::VisitConditionalOperator(
+    const clang::ConditionalOperator* CO) {
+    auto cond = Clone(CO->getCond());
+    auto ifTrue = CO->getTrueExpr();
+    auto ifFalse = CO->getFalseExpr();
+
+    auto VisitBranch =
+      [&] (Stmt* branch, Expr* ifTrue, Expr* ifFalse) {
+        if (!branch)
+          return;
+        auto condExpr =
+          new (m_Context) ConditionalOperator(
+            cond,
+            noLoc,
+            ifTrue,
+            noLoc,
+            ifFalse,
+            ifTrue->getType(),
+            VK_RValue,
+            OK_Ordinary);
+        // For some reason clang would not geterate parentheses to keep the correct
+        // order.
+        auto dStmt =
+          new (m_Context) ParenExpr(
+            noLoc,
+            noLoc,
+            condExpr);
+
+        Visit(branch, dStmt);
+    };
+   
+    // FIXME: not optimal, creates two (condExpr ? ... : ...) expressions,
+    // so cond is unnesarily checked twice. 
+    // Can be improved by storing the result of condExpr in a temporary.
+
+    auto zero = ConstantFolder::synthesizeLiteral(dfdx()->getType(), m_Context, 0);
+    //xi = (cond ? ifTrue : ifFalse)
+    //dxi/d ifTrue = (cond ? 1 : 0)
+    //df/d ifTrue += df/dxi * dxi/d ifTrue = (cond ? df/dxi : 0)
+    VisitBranch(ifTrue, dfdx(), zero);
+    //dxi/d ifFalse = (cond ? 0 : 1)
+    //df/d ifFalse += df/dxi * dxi/d ifFalse = (cond ? 0 : df/dxi)
+    VisitBranch(ifFalse, zero, dfdx());
   }
 
   void ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
@@ -762,7 +867,7 @@ namespace clad {
     // Create the (_result[idx] += dfdx) statement.
     auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
     // Add it to the body statements.
-    m_BodyStmts.push_back(add_assign);
+    currentBlock().push_back(add_assign);
   }
 
   void ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
