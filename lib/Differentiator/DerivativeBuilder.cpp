@@ -321,8 +321,7 @@ namespace clad {
   NodeContext ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = Clone(DRE).getAs<DeclRefExpr>();
     QualType Ty = DRE->getType();
-    if (clonedDRE->getDecl()->getNameAsString() ==
-        m_IndependentVar->getNameAsString())
+    if (clonedDRE->getDecl() == m_IndependentVar)
       // Return 1 literal if this is the independent variable.
       return ConstantFolder::synthesizeLiteral(Ty, m_Context, 1);
     return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
@@ -634,26 +633,22 @@ namespace clad {
 
   FunctionDecl* ReverseModeVisitor::Derive(
     FunctionDeclInfo& FDI, const DiffPlan& plan) {
-    auto FD = FDI.getFD();
-    m_VariableIdx.clear();
-    // Fill the {name, idx} map.
-    for (unsigned i = 0; i < FD->getNumParams (); i++)
-      m_VariableIdx.emplace(FD->getParamDecl(i)->getNameAsString(), i);
-    assert(FD && "Must not be null.");
+    m_Function = FDI.getFD();
+    assert(m_Function && "Must not be null.");
    
     // We name the gradient of f as f_grad.
-    auto derivativeBaseName = FD->getNameAsString();
+    auto derivativeBaseName = m_Function->getNameAsString();
     IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_grad");
     DeclarationNameInfo name(II, noLoc);
 
     // A vector of types of the gradient function parameters.
-    llvm::SmallVector<QualType, 16> paramTypes(FD->getNumParams() + 1);
-    std::transform(FD->param_begin(), FD->param_end(), std::begin(paramTypes),
+    llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
+    std::transform(m_Function->param_begin(), m_Function->param_end(), std::begin(paramTypes),
       [] (const ParmVarDecl* PVD) {
         return PVD->getType();
       });
     // The last parameter is the output parameter of the R* type.
-    paramTypes.back() = m_Context.getPointerType(FD->getReturnType());
+    paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
     auto gradientFunctionType = m_Context.getFunctionType(
@@ -664,22 +659,22 @@ namespace clad {
     // Create the gradient function declaration.
     auto gradientFD = FunctionDecl::Create(
       m_Context,
-      FD->getDeclContext(),
+      m_Function->getDeclContext(),
       noLoc,
       name,
       gradientFunctionType,
-      FD->getTypeSourceInfo(), // What is TypeSourceInfo for?
-      FD->getStorageClass(),
-      FD->isInlineSpecified(),
-      FD->hasWrittenPrototype(),
-      FD->isConstexpr());
+      m_Function->getTypeSourceInfo(), // What is TypeSourceInfo for?
+      m_Function->getStorageClass(),
+      m_Function->isInlineSpecified(),
+      m_Function->hasWrittenPrototype(),
+      m_Function->isConstexpr());
 
     m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
                                m_Sema.getDiagnostics()));
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
-    std::transform(FD->param_begin(), FD->param_end(), std::begin(params),
+    std::transform(m_Function->param_begin(), m_Function->param_end(), std::begin(params),
       [&] (const ParmVarDecl* PVD) {
         auto VD = ParmVarDecl::Create(
           m_Context,
@@ -728,11 +723,16 @@ namespace clad {
       noLoc).get();
     // Initially, df/df = 1.
     auto dfdf =
-      ConstantFolder::synthesizeLiteral(FD->getReturnType(), m_Context, 1.0);
+      ConstantFolder::synthesizeLiteral(
+        m_Function->getReturnType(),
+        m_Context,
+        1.0);
 
     auto bodyStmts = startBlock();
-    // Start the visitation process which the statements in the current block.
-    Visit(FD->getMostRecentDecl()->getBody(), dfdf);
+    // Start the visitation process which outputs the statements in the current
+    // block.
+    auto functionBody = m_Function->getMostRecentDecl()->getBody();
+    Visit(functionBody, dfdf);
     // Create the body of the function.
     auto gradientBody = finishBlock();
 
@@ -752,7 +752,7 @@ namespace clad {
   void ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     for (CompoundStmt::const_body_iterator I = CS->body_begin(),
            E = CS->body_end(); I != E; ++I)
-        Visit(Clone(*I), dfdx());
+        Visit(*I, dfdx());
   }
 
   void ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
@@ -834,20 +834,26 @@ namespace clad {
   }
 
   void ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
-    Visit(Clone(RS->getRetValue()), dfdx());
+    Visit(RS->getRetValue(), dfdx());
   }
   
   void ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
-    Visit(Clone(PE->getSubExpr()), dfdx());
+    Visit(PE->getSubExpr(), dfdx());
   }
 
   void ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    auto declName = DRE->getDecl()->getNameAsString();
-    // Find the variable index.
-    auto it = m_VariableIdx.find(declName);
-    if (it == std::end(m_VariableIdx))
-        assert(false && "ref to something unsupported");
-    auto idx = it->second;
+    auto decl = DRE->getDecl();
+    // Check DeclRefExpr is a reference to an independent variable.
+    auto it = std::find(
+        m_Function->param_begin(),
+        m_Function->param_end(),
+        decl);
+
+    if (it == m_Function->param_end())
+        assert(false && "Only references to function args are currently supported");
+    auto idx = std::distance(
+        m_Function->param_begin(),
+        it);
     auto size_type = m_Context.getSizeType();
     auto size_type_bits = m_Context.getIntWidth(size_type);
     // Create the idx literal.
@@ -888,13 +894,13 @@ namespace clad {
       //xi = +xj
       //dxi/dxj = +1.0
       //df/dxj += df/dxi * dxi/dxj = df/dxi
-      Visit(Clone(UnOp->getSubExpr()), dfdx());
+      Visit(UnOp->getSubExpr(), dfdx());
     else if (opCode == UO_Minus) {
       //xi = -xj
       //dxi/dxj = -1.0
       //df/dxj += df/dxi * dxi/dxj = -df/dxi
       auto d = BuildOp(UO_Minus, dfdx());
-      Visit(Clone(UnOp->getSubExpr()), d);
+      Visit(UnOp->getSubExpr(), d);
     }
     else
       assert(false && "unsupported unary operator");
@@ -903,8 +909,8 @@ namespace clad {
   void ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     auto opCode = BinOp->getOpcode();
 
-    auto L = Clone(BinOp->getLHS());
-    auto R = Clone(BinOp->getRHS());
+    auto L = BinOp->getLHS();
+    auto R = BinOp->getRHS();
 
     if (opCode == BO_Add) {
       //xi = xl + xr
@@ -929,11 +935,11 @@ namespace clad {
       //xi = xl * xr
       //dxi/xl = xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * xr
-      auto dl = BuildOp(BO_Mul, dfdx(), R);
+      auto dl = BuildOp(BO_Mul, dfdx(), Clone(R));
       Visit(L, dl);
       //dxi/xr = xl
       //df/dxr += df/dxi * dxi/xr = df/dxi * xl
-      auto dr = BuildOp(BO_Mul, L, dfdx());
+      auto dr = BuildOp(BO_Mul, Clone(L), dfdx());
       Visit(R, dr);
     }
     else if (opCode == BO_Div) {
@@ -941,11 +947,15 @@ namespace clad {
       //dxi/xl = 1 / xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
       auto one = ConstantFolder::synthesizeLiteral(R->getType(), m_Context, 1.0);
-      auto dl = BuildOp(BO_Div, one, R);
+      auto clonedR = Clone(R);
+      auto dl = BuildOp(BO_Div, one, clonedR);
       Visit(L, dl);
-      //dxi/xr = xl / (xr * xr)
-      //df/dxl += df/dxi * dxi/xr = df/dxi * (xl /(xr * xr))
-      auto dr = BuildOp(UO_Minus, BuildOp(BO_Div, L, BuildOp(BO_Mul, R, R)));
+      //dxi/xr = -xl / (xr * xr)
+      //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
+      auto RxR = BuildOp(BO_Mul, clonedR, clonedR);
+      auto dr = BuildOp(
+        UO_Minus,
+        BuildOp(BO_Div, Clone(L), RxR));
       Visit(R, dr);
     }
     else
@@ -957,7 +967,7 @@ namespace clad {
   }
 
   void ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
-    Visit(Clone(ICE->getSubExpr()), dfdx());
+    Visit(ICE->getSubExpr(), dfdx());
   }
 
   void ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
