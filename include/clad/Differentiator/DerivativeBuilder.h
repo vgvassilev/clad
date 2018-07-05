@@ -223,10 +223,8 @@ namespace clad {
         clang::ConstStmtVisitor<ReverseModeVisitor, void>::Visit(stmt);
         m_Stack.pop();
     }
-    /// A map that contains the names and positions of all function parameters,
-    /// e.g for f(x, y, z) we have
-    /// m_VariableIdx = {{"x", 0}, {"y", 1}, {"z", 2}}.
-    std::unordered_map<std::string, unsigned> m_VariableIdx;
+    /// The function that is currently differentiated.
+    clang::FunctionDecl* m_Function;
  
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
