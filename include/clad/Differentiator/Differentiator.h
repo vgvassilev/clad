@@ -105,19 +105,6 @@ namespace clad {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<true, R, C, Args...>(f, code);
   }
-
-  template <typename R, typename ... Args>
-  using grad_ptr_t = void (*)(Args..., R*);
-
-  /// A function used to detect the placeholder f and replace it with generated code.
-  template <typename Ptr, typename R, typename ... Args>
-  CladFunction<false, void, Args..., R*> __attribute__((annotate("GR")))
-  make_gradient(Ptr f, const char * code = "") {
-    return CladFunction<false, void, Args..., R*>(f, code);
-  }
-  /// A placeholder that will be replaced by a new code.
-  template <typename ... Args>
-  void result_placeholder(Args ...) {}
   
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
@@ -126,10 +113,18 @@ namespace clad {
   CladFunction<false, void, Args..., R*> __attribute__((annotate("G")))
   gradient(R (*f)(Args...), const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return
-      make_gradient<grad_ptr_t<R, Args...>, R, Args...>(
-       result_placeholder<Args..., R*>,
-       code);
+    return CladFunction<false, void, Args..., R*>(
+      reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by gradient*/,
+      code);
+  }
+
+  template<typename R, typename C, typename... Args>
+  CladFunction<true, void, C, Args..., R*> __attribute__((annotate("G")))
+  gradient(R (C::*f)(Args...), const char* code = "") {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<true, void, C, Args..., R*>(
+      reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by gradient*/,
+      code);
   }
 }
 #endif // CLAD_DIFFERENTIATOR
