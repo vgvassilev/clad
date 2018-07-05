@@ -6,14 +6,7 @@
 using namespace clang;
 
 namespace clad {
-  // FIXME:
-  // Currently, the global variable is used to store the pointer to the last
-  // call which requires update.
-  // This is needed to share this information between different invocations of
-  // CladPlugin::HandleTopLevelDecl in which clad::gradient and make_gradient
-  // are processed (see Differentiator.h).
-  clang::CallExpr* global_GradientToUpdate = nullptr;
-
+  static SourceLocation noLoc;
   FunctionDeclInfo::FunctionDeclInfo(FunctionDecl* FD, ParmVarDecl* PVD)
     : m_FD(FD), m_PVD(PVD) {
 #ifndef NDEBUG
@@ -42,27 +35,62 @@ namespace clad {
   }
 
   void DiffPlan::updateCall(FunctionDecl* FD, Sema& SemaRef) {
-    auto call =
-      (getMode() == DiffMode::forward) ?
-       m_CallToUpdate :
-       global_GradientToUpdate;
+    auto call = m_CallToUpdate;
     // Index of "code" parameter:
     // 2 for clad::differentiate, 1 for clad::gradient.
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
     assert(call && "Must be set");
-    DeclRefExpr* DRE = 0;
-    if (ImplicitCastExpr* ICE
-        = dyn_cast<ImplicitCastExpr>(call->getArg(0))){
-      DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+
+    DeclRefExpr* oldDRE = nullptr;
+    // Handle the case of function pointer.
+    if (auto ICE = dyn_cast<ImplicitCastExpr>(call->getArg(0))){
+      oldDRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
     }
     // Handle the case of member function.
-    else if (UnaryOperator* UnOp
-             = dyn_cast<UnaryOperator>(call->getArg(0))){
-      DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+    else if (auto UnOp = dyn_cast<UnaryOperator>(call->getArg(0))){
+      oldDRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
     }
-    // Set the new declaration.
-    if (DRE)
-      DRE->setDecl(FD);
+    else 
+      llvm_unreachable("Trying to differentiate something unsupported");
+    
+    ASTContext& C = SemaRef.getASTContext();
+    // Create ref to generated FD.
+    auto DRE = DeclRefExpr::Create(C,
+                                   // same namespace qualifier
+                                   oldDRE->getQualifierLoc(),
+                                   noLoc,
+                                   FD,
+                                   false,
+                                   FD->getNameInfo(),
+                                   FD->getType(),
+                                   VK_LValue);
+   
+    // FIXME: I am not sure if the following part is necessary:
+    // using call->setArg(0, DRE) seems to be sufficient,
+    // though the real AST allways contains the ImplicitCastExpr (function -> 
+    // function ptr cast) or UnaryOp (method ptr call).
+    auto oldArg = call->getArg(0);
+    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArg)) {
+      // Cast function to function pointer.
+      auto newCast = ImplicitCastExpr::Create(C,
+                                              C.getPointerType(FD->getType()),
+                                              oldCast->getCastKind(),
+                                              DRE,
+                                              nullptr,
+                                              oldCast->getValueKind());
+      call->setArg(0, newCast);
+    }
+    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArg)) {
+      // Add the "&" operator
+      auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
+                                          noLoc,
+                                          oldUnOp->getOpcode(),
+                                          DRE).get();
+      call->setArg(0, newUnOp);
+    } 
+    else 
+      llvm_unreachable("Trying to differentiate something unsupported");
+    
     // Update the code parameter.
     if (CXXDefaultArgExpr* Arg
         = dyn_cast<CXXDefaultArgExpr>(call->getArg(codeArgIdx))) {
@@ -76,32 +104,28 @@ namespace clad {
       Out.flush();
 
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
-      ASTContext& C = SemaRef.getASTContext();
       QualType CharTyConst = C.CharTy;
       CharTyConst.addConst();
       // Get an array type for the string, according to C99 6.4.5. This includes
       // the nul terminator character as well as the string length for pascal
       // strings.
       QualType StrTy =
-        C.getConstantArrayType(
-         CharTyConst,
-         llvm::APInt(32, Out.str().size() + 1),
-         ArrayType::Normal,
-         /*IndexTypeQuals*/0);
+        C.getConstantArrayType(CharTyConst,
+                               llvm::APInt(32, Out.str().size() + 1),
+                               ArrayType::Normal,
+                               /*IndexTypeQuals*/0);
 
       StringLiteral* SL =
-        StringLiteral::Create(
-         C,
-         Out.str(),
-         StringLiteral::Ascii,
-         /*Pascal*/false,
-         StrTy,
-         SourceLocation());
+        StringLiteral::Create(C,
+                              Out.str(),
+                              StringLiteral::Ascii,
+                              /*Pascal*/false,
+                              StrTy,
+                              noLoc);
       Expr* newArg =
-        SemaRef.ImpCastExprToType(
-          SL,
-          Arg->getType(),
-          CK_ArrayToPointerDecay).get();
+        SemaRef.ImpCastExprToType(SL,
+                                  Arg->getType(),
+                                  CK_ArrayToPointerDecay).get();
       call->setArg(codeArgIdx, newArg);
     }
   }
@@ -127,9 +151,9 @@ namespace clad {
       //TODO: Implement the argument checks in the DerivativeBuilder
       if (argNum == 0) {
         unsigned DiagID
-          = Diags.getCustomDiagID(
-              DiagnosticsEngine::Error,
-              "Trying to differentiate function '%0' taking no arguments");
+          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                  "Trying to differentiate function '%0' taking"
+                                  " no arguments");
         Diags.Report(argExpr->getLocStart(), DiagID)
           << FD->getNameAsString();
         return 0;
@@ -138,9 +162,9 @@ namespace clad {
       else if (argIndex >= argNum || argIndex < 0) {
         isIndexOutOfRange = true;
         unsigned DiagID
-          = Diags.getCustomDiagID(
-            DiagnosticsEngine::Error,
-            "Invalid argument index %0 among %1 argument(s)");
+          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                  "Invalid argument index %0 among %1 "
+                                  "argument(s)");
         Diags.Report(argExpr->getLocStart(), DiagID)
           << (int)argIndex
           << (int)argNum;
@@ -235,14 +259,9 @@ namespace clad {
 
             m_DiffPlans.push_back(DiffPlan());
             getCurrentPlan().setMode(DiffMode::reverse);
-
+            getCurrentPlan().setCallToUpdate(E);
             FunctionDeclInfo FDI(cast<FunctionDecl>(DRE->getDecl()), nullptr);
             getCurrentPlan().push_back(FDI);
-          }
-          else if (label.equals("GR")) {
-            // A call to make_gradient was found.
-
-            global_GradientToUpdate = E;
           }
         }
       }  
