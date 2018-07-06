@@ -203,6 +203,20 @@ double f_if2(double x, double y) {
 
 void f_if2_grad(double x, double y, double *_result);
 
+struct S {
+  double c1;
+  double c2;
+  double f(double x, double y) {
+    return c1 * x + c2 * y;
+  }
+   
+  // CHECK: void f_grad(double x, double y, double *_result) {
+  // CHECK-NEXT:  _result[0UL] += this->c1 * 1.;
+  // CHECK-NEXT:  _result[1UL] += this->c2 * 1.;
+  // CHECK-NEXT: }
+
+};
+
 unsigned f_types(int x, float y, double z) {
   return x + y + z;
 }
@@ -240,6 +254,7 @@ int main() { // expected-no-diagnostics
   TEST(f_cond3, 3, -1); // CHECK-EXEC: Result is = {1.00, -1.00}
   TEST(f_if1, 3, 2); // CHECK-EXEC: Result is = {1.00, 0.00}
   TEST(f_if2, -5, -4); // CHECK-EXEC: Result is = {0.00, -1.00}
+  clad::gradient(&S::f);
   clad::gradient(f_types);
 }
 
