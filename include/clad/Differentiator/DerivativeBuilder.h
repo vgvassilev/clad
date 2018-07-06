@@ -145,6 +145,10 @@ namespace clad {
     clang::ASTContext& m_Context;
     std::unique_ptr<clang::Scope> & m_CurScope;
     bool m_DerivativeInFlight;
+    /// The Derivative function that is being generated.
+    clang::FunctionDecl* m_Derivative;
+    /// The function that is currently differentiated.
+    clang::FunctionDecl* m_Function;
 
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E) {
       return m_Builder.BuildOp(OpCode, E);
@@ -223,8 +227,6 @@ namespace clad {
         clang::ConstStmtVisitor<ReverseModeVisitor, void>::Visit(stmt);
         m_Stack.pop();
     }
-    /// The function that is currently differentiated.
-    clang::FunctionDecl* m_Function;
  
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
