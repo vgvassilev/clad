@@ -225,6 +225,12 @@ namespace clad {
         m_Sema.IdResolver.AddDecl(newPVD);
       }
     }
+    /// Store dx/dx = 1 in the variables map.
+    m_Variables[m_IndependentVar] =
+      ConstantFolder::synthesizeLiteral(m_IndependentVar->getType(),
+                                        m_Context,
+                                        1);
+
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
     derivedFD->setParams(paramsRef);
@@ -350,9 +356,16 @@ namespace clad {
   NodeContext ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = Clone(DRE).getAs<DeclRefExpr>();
     QualType Ty = DRE->getType();
-    if (clonedDRE->getDecl() == m_IndependentVar)
-      // Return 1 literal if this is the independent variable.
-      return ConstantFolder::synthesizeLiteral(Ty, m_Context, 1);
+    if (auto VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
+      // If DRE references a variable, try to find if we know something about
+      // how it is related to the independent variable.
+      auto it = m_Variables.find(VD);
+      if (it != std::end(m_Variables))
+        // If a record was found, use the recorded derivative.
+        return NodeContext(it->second);
+    }
+    // Is not a variable or is a reference to something unrelated to independent
+    // variable. Derivative is 0.
     return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
   }
 
@@ -657,6 +670,12 @@ namespace clad {
         //TODO: clean the idResolver chain!!!!!
         if (VD->getIdentifier())
           m_Sema.IdResolver.AddDecl(VD);
+        // If variable is initialized with some expression, derive the
+        // expression and store it in the table.
+        if (!VD->hasInit())
+          continue;
+        auto dV = Visit(VD->getInit()).getExpr();
+        m_Variables.emplace(VD, dV);
       }
     }
     return NodeContext(clonedDS);
@@ -967,8 +986,7 @@ namespace clad {
       // Is not an independent variable, ignored.
       return;
     }
-    auto idx = std::distance(m_Function->param_begin(),
-                             it);
+    auto idx = std::distance(m_Function->param_begin(), it);
     auto size_type = m_Context.getSizeType();
     auto size_type_bits = m_Context.getIntWidth(size_type);
     // Create the idx literal.
