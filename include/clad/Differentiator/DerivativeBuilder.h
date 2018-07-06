@@ -185,7 +185,10 @@ namespace clad {
     : public clang::ConstStmtVisitor<ForwardModeVisitor, NodeContext>,
       public VisitorBase {
   private:
-    clang::ValueDecl* m_IndependentVar;
+    clang::VarDecl* m_IndependentVar;
+    /// Map used to keep track of variable declarations and match them
+    /// with their derivatives.
+    std::unordered_map<clang::VarDecl*, clang::Expr*> m_Variables;
     unsigned m_DerivativeOrder;
     unsigned m_ArgIndex;
 
