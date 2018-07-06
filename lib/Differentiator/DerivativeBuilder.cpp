@@ -56,9 +56,8 @@ namespace clad {
 
   }
 
-  FunctionDecl* DerivativeBuilder::Derive(
-    FunctionDeclInfo& FDI,
-    const DiffPlan& plan) {
+  FunctionDecl* DerivativeBuilder::Derive(FunctionDeclInfo& FDI,
+                                          const DiffPlan& plan) {
     FunctionDecl* result = nullptr;
     if (plan.getMode() == DiffMode::forward) {
       ForwardModeVisitor V(*this);
@@ -72,6 +71,47 @@ namespace clad {
     if (result)
       registerDerivative(result, m_Sema);
     return result;
+  }
+
+  VarDecl* VisitorBase::BuildVarDecl(QualType Type,
+                                     IdentifierInfo* Identifier,
+                                     Expr* Init) {
+
+    auto VD = VarDecl::Create(m_Context,
+                              m_Derivative,
+                              noLoc,
+                              noLoc,
+                              Identifier,
+                              Type,
+                              nullptr, // FIXME: Should there be any TypeInfo?
+                              SC_None);
+    VD->setInit(Init);
+    return VD;
+  }
+
+  Stmt* VisitorBase::BuildDeclStmt(VarDecl* VD) {
+    return m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(VD),
+                                noLoc,
+                                noLoc).get();
+  }
+
+  IdentifierInfo* VisitorBase::CreateUniqueIdentifier(const char * name_base,
+                                                      std::size_t id) {
+  
+    for (;;) {
+      auto name = &m_Context.Idents.get(name_base + std::to_string(id));
+      LookupResult R(m_Sema,
+                     DeclarationName(name),
+                     noLoc,
+                     Sema::LookupOrdinaryName);
+      m_Sema.LookupName(R, m_CurScope.get(), false);
+      if (R.empty()) {
+        m_tmpId = id + 1;
+        return name;
+      }
+      else
+        id += 1;
+    }
   }
 
   CompoundStmt* VisitorBase::MakeCompoundStmt(
@@ -219,7 +259,10 @@ namespace clad {
   }
 
   Expr* DerivativeBuilder::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
-    return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get();
+    return m_Sema.BuildUnaryOp(m_CurScope.get(),
+                               noLoc,
+                               OpCode,
+                               E).get();
   }
   Expr* DerivativeBuilder::BuildOp(clang::BinaryOperatorKind OpCode,
                                    Expr* L, Expr* R) {
@@ -643,6 +686,24 @@ namespace clad {
     return m_Builder.Clone(e);
   }
 
+  Expr* ReverseModeVisitor::StoreAndRef(clang::Expr* E, const char * prefix) {
+    // Creates temporary variable and stores the result of the expression in it.
+
+    // Create variable declaration.
+    auto Var = BuildVarDecl(E->getType(),
+                            CreateUniqueIdentifier(prefix, m_tmpId),
+                            E);
+    
+    // Add the declaration to the body of the gradient function.
+    currentBlock().push_back(BuildDeclStmt(Var));
+
+    // Return reference to the declaration instead of original expression.
+    return m_Sema.BuildDeclRefExpr(Var,
+                                   E->getType(),
+                                   VK_LValue,
+                                   noLoc).get();
+  }
+
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder):
     VisitorBase(builder) {}
 
@@ -739,12 +800,12 @@ namespace clad {
                                            (PVD->hasDefaultArg() ?  
                                              Clone(PVD->getDefaultArg()) :
                                              nullptr));
-        if (VD->getIdentifier()) {
-          m_CurScope->AddDecl(VD);
-          m_Sema.IdResolver.AddDecl(VD);
-        }
-        return VD;
-      });
+                     if (VD->getIdentifier()) {
+                       m_CurScope->AddDecl(VD);
+                       m_Sema.IdResolver.AddDecl(VD);
+                     }
+                     return VD;
+                   });
     // The output paremeter "_result".
     params.back() =
       ParmVarDecl::Create(m_Context,
@@ -843,7 +904,7 @@ namespace clad {
 
   void ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    auto cond = Clone(CO->getCond());
+    auto cond = StoreAndRef(Clone(CO->getCond()));
     auto ifTrue = CO->getTrueExpr();
     auto ifFalse = CO->getFalseExpr();
 
@@ -982,11 +1043,13 @@ namespace clad {
       //dxi/xl = xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * xr
       auto dl = BuildOp(BO_Mul, dfdx(), Clone(R));
-      Visit(L, dl);
+      auto dlTmp = StoreAndRef(dl);
+      Visit(L, dlTmp);
       //dxi/xr = xl
       //df/dxr += df/dxi * dxi/xr = df/dxi * xl
       auto dr = BuildOp(BO_Mul, Clone(L), dfdx());
-      Visit(R, dr);
+      auto drTmp = StoreAndRef(dr);
+      Visit(R, drTmp);
     }
     else if (opCode == BO_Div) {
       //xi = xl / xr
@@ -997,7 +1060,8 @@ namespace clad {
                                                    1.0);
       auto clonedR = Clone(R);
       auto dl = BuildOp(BO_Div, one, clonedR);
-      Visit(L, dl);
+      auto dlTmp = StoreAndRef(dl);
+      Visit(L, dlTmp);
       //dxi/xr = -xl / (xr * xr)
       //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       auto RxR = BuildOp(BO_Mul, clonedR, clonedR);

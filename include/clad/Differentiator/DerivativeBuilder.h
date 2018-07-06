@@ -154,12 +154,26 @@ namespace clad {
       return m_Builder.BuildOp(OpCode, E);
     }
 
-    clang::Expr* BuildOp(
-      clang::BinaryOperatorKind OpCode,
-      clang::Expr* L,
-      clang::Expr* R) {
+    clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode,
+                         clang::Expr* L,
+                         clang::Expr* R) {
       return m_Builder.BuildOp(OpCode, L, R);
     }
+    /// Builds variable declaration to be used inside the derivative body
+    clang::VarDecl* BuildVarDecl(clang::QualType Type,
+                                 clang::IdentifierInfo* Identifier,
+                                 clang::Expr* Init = nullptr);
+
+    /// Wraps variable declaration in DeclStmt
+    clang::Stmt* BuildDeclStmt(clang::VarDecl* VD);
+
+    /// Conuter used to create unique identifiers for temporaries
+    std::size_t m_tmpId = 0;
+    
+    /// Creates unique identifier of the form "_t<number>" that is guaranteed
+    /// not to collide with anything in the current scope
+    clang::IdentifierInfo* CreateUniqueIdentifier(const char * name_base,
+                                                  std::size_t id);
 
     clang::CompoundStmt* MakeCompoundStmt(
       const llvm::SmallVector<clang::Stmt*, 16> & Stmts);
@@ -246,6 +260,9 @@ namespace clad {
       m_Blocks.pop();
       return CS;
     }
+    /// Stores the result of an expression in a temporary variable and
+    /// returns a reference to it.
+    clang::Expr* StoreAndRef(clang::Expr* E, const char* prefix = "_t");
  
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
