@@ -100,6 +100,7 @@ namespace clad {
     FunctionDeclInfo& FDI,
     const DiffPlan& plan) {
     FunctionDecl* FD = FDI.getFD();
+    m_Function = FD;
     assert(FD && "Must not be null.");
     assert(!m_DerivativeInFlight
            && "Doesn't support recursive diff. Use DiffPlan.");
@@ -157,6 +158,7 @@ namespace clad {
                                        FD->isConstexpr()
                                        );
     }
+    m_Derivative = derivedFD;
 
     llvm::SmallVector<ParmVarDecl*, 4> params;
     ParmVarDecl* newPVD = 0;
@@ -227,10 +229,8 @@ namespace clad {
   Expr* DerivativeBuilder::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
     return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get();
   }
-  Expr* DerivativeBuilder::BuildOp(
-    clang::BinaryOperatorKind OpCode,
-    Expr* L,
-    Expr* R) {
+  Expr* DerivativeBuilder::BuildOp(clang::BinaryOperatorKind OpCode,
+                                   Expr* L, Expr* R) {
     return m_Sema.BuildBinOp(nullptr, noLoc, OpCode, L, R).get();
   }
 
@@ -441,9 +441,26 @@ namespace clad {
       return NodeContext(OverloadedDerivedFn);
     }
 
+    if (CE->getDirectCallee() == m_Function) {
+      // The differentiated function is called recursively.
+      auto derivativeRef =
+        m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
+                                        m_Derivative->getNameInfo(),
+                                        m_Derivative).get();
+      auto selfCall =
+        m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
+                             derivativeRef,
+                             noLoc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs),
+                             noLoc).get();
+      if (Multiplier)
+        return BuildOp(BO_Mul, selfCall, Multiplier);
+      return NodeContext(selfCall);
+    }  
+
     Expr* OverloadedFnInFile
-       = m_Builder.findOverloadedDefinition(
-           CE->getDirectCallee()->getNameInfo(), CallArgs);
+      = m_Builder.findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(),
+                                           CallArgs);
 
     if (OverloadedFnInFile) {
       // Take the function to derive from the source.
@@ -692,6 +709,7 @@ namespace clad {
         << m_Function->getNameAsString();
       return nullptr;
     }
+    m_Derivative = gradientFD;
          
     m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
                                m_Sema.getDiagnostics()));
@@ -977,9 +995,8 @@ namespace clad {
       //dxi/xr = -xl / (xr * xr)
       //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       auto RxR = BuildOp(BO_Mul, clonedR, clonedR);
-      auto dr = BuildOp(
-        UO_Minus,
-        BuildOp(BO_Div, Clone(L), RxR));
+      auto dr = BuildOp(UO_Minus,
+                        BuildOp(BO_Div, Clone(L), RxR));
       Visit(R, dr);
     }
     else
