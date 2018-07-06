@@ -85,11 +85,10 @@ namespace clad {
   CompoundStmt* VisitorBase::MakeCompoundStmt(
     const llvm::SmallVector<clang::Stmt*, 16> & Stmts) {
     auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
-    return new (m_Context) clang::CompoundStmt(
-      m_Context,
-      Stmts_ref,
-      noLoc,
-      noLoc);
+    return new (m_Context) clang::CompoundStmt(m_Context,
+                                               Stmts_ref,
+                                               noLoc,
+                                               noLoc);
   }
 
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
@@ -267,24 +266,20 @@ namespace clad {
     auto ifTrue = Visit(CO->getTrueExpr()).getExpr();
     auto ifFalse = Visit(CO->getFalseExpr()).getExpr();
 
-    auto condExpr =
-      new (m_Context) ConditionalOperator(
-        cond,
-        noLoc,
-        ifTrue,
-        noLoc,
-        ifFalse,
-        ifTrue->getType(),
-        VK_RValue, // FIXME: check if we do not need lvalue sometimes
-        OK_Ordinary);
+    auto condExpr = new (m_Context) ConditionalOperator(cond,
+                                                        noLoc,
+                                                        ifTrue,
+                                                        noLoc,
+                                                        ifFalse,
+                                                        ifTrue->getType(),
+                                                        // FIXME: check if we do
+                                                        // not need lvalue in 
+                                                        // some cases
+                                                        VK_RValue, 
+                                                        OK_Ordinary);
     // For some reason clang would not geterate parentheses to keep the correct
     // order.
-    auto parens =
-      new (m_Context) ParenExpr(
-        noLoc,
-        noLoc,
-        condExpr);
-
+    auto parens = new (m_Context) ParenExpr(noLoc, noLoc, condExpr);
     return NodeContext(parens);
   }
 
@@ -294,10 +289,9 @@ namespace clad {
 
     // Note here getCurScope is the TU unit, since we've done parsing and there
     // is no active scope.
-    Stmt* clonedStmt = m_Sema.ActOnReturnStmt(
-      noLoc,
-      retVal,
-      m_Sema.getCurScope()).get();
+    Stmt* clonedStmt = m_Sema.ActOnReturnStmt(noLoc,
+                                              retVal,
+                                              m_Sema.getCurScope()).get();
     return NodeContext(clonedStmt);
   }
   
@@ -368,9 +362,9 @@ namespace clad {
           
           OverloadCandidateSet::iterator Best;
           OverloadingResult OverloadResult =
-          CandidateSet.BestViableFunction(
-            m_Sema,
-            UnresolvedLookup->getLocStart(), Best);
+            CandidateSet.BestViableFunction(m_Sema,
+                                            UnresolvedLookup->getLocStart(),
+                                            Best);
           if (OverloadResult) // No overloads were found.
             return true;
         }
@@ -643,67 +637,103 @@ namespace clad {
 
     // A vector of types of the gradient function parameters.
     llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
-    std::transform(m_Function->param_begin(), m_Function->param_end(), std::begin(paramTypes),
-      [] (const ParmVarDecl* PVD) {
-        return PVD->getType();
-      });
+    std::transform(m_Function->param_begin(),
+                   m_Function->param_end(),
+                   std::begin(paramTypes),
+                   [] (const ParmVarDecl* PVD) {
+                     return PVD->getType();
+                   });
     // The last parameter is the output parameter of the R* type.
     paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
-    auto gradientFunctionType = m_Context.getFunctionType(
-      m_Context.VoidTy,
-      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
-      FunctionProtoType::ExtProtoInfo()); // Should we do something with ExtProtoInfo?
+    auto gradientFunctionType = 
+      m_Context.getFunctionType(m_Context.VoidTy,
+                                llvm::ArrayRef<QualType>(paramTypes.data(),
+                                                         paramTypes.size()),
+                                // Cast to function pointer.
+                                FunctionProtoType::ExtProtoInfo());
 
     // Create the gradient function declaration.
-    auto gradientFD = FunctionDecl::Create(
-      m_Context,
-      m_Function->getDeclContext(),
-      noLoc,
-      name,
-      gradientFunctionType,
-      m_Function->getTypeSourceInfo(), // What is TypeSourceInfo for?
-      m_Function->getStorageClass(),
-      m_Function->isInlineSpecified(),
-      m_Function->hasWrittenPrototype(),
-      m_Function->isConstexpr());
-
+    FunctionDecl* gradientFD = nullptr;
+    if (isa<CXXMethodDecl>(m_Function)) {
+      auto CXXRD = cast<CXXRecordDecl>(m_Function->getDeclContext());
+      gradientFD = CXXMethodDecl::Create(m_Context,
+                                         CXXRD,
+                                         noLoc,
+                                         name,
+                                         gradientFunctionType,
+                                         m_Function->getTypeSourceInfo(),
+                                         m_Function->getStorageClass(),
+                                         m_Function->isInlineSpecified(),
+                                         m_Function->isConstexpr(),
+                                         noLoc);
+      gradientFD->setAccess(m_Function->getAccess());
+    }
+    else if (isa<FunctionDecl>(m_Function)) {
+      gradientFD = FunctionDecl::Create(m_Context,
+                                        m_Function->getDeclContext(),
+                                        noLoc,
+                                        name,
+                                        gradientFunctionType,
+                                        m_Function->getTypeSourceInfo(),
+                                        m_Function->getStorageClass(),
+                                        m_Function->isInlineSpecified(),
+                                        m_Function->hasWrittenPrototype(),
+                                        m_Function->isConstexpr());
+    }
+    else {
+      SourceLocation IdentifierLoc = m_Function->getLocEnd();
+      unsigned err_differentiating_unsupported
+        = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                       "attempted differention of "
+                                       "'%0', which is of unsupported type");
+      m_Sema.Diag(IdentifierLoc, err_differentiating_unsupported)
+        << m_Function->getNameAsString();
+      return nullptr;
+    }
+         
     m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
                                m_Sema.getDiagnostics()));
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
-    std::transform(m_Function->param_begin(), m_Function->param_end(), std::begin(params),
-      [&] (const ParmVarDecl* PVD) {
-        auto VD = ParmVarDecl::Create(
-          m_Context,
-          gradientFD,
-          noLoc,
-          noLoc,
-          PVD->getIdentifier(),
-          PVD->getType(),
-          PVD->getTypeSourceInfo(), // Is it OK?
-          PVD->getStorageClass(),
-          nullptr); // No default values.
+    std::transform(m_Function->param_begin(),
+                   m_Function->param_end(),
+                   std::begin(params),
+                   [&] (const ParmVarDecl* PVD) {
+                     auto VD = 
+                       ParmVarDecl::Create(m_Context,
+                                           gradientFD,
+                                           noLoc,
+                                           noLoc,
+                                           PVD->getIdentifier(),
+                                           PVD->getType(),
+                                           PVD->getTypeSourceInfo(),
+                                           PVD->getStorageClass(),
+                                           // Clone default arg if present.
+                                           (PVD->hasDefaultArg() ?  
+                                             Clone(PVD->getDefaultArg()) :
+                                             nullptr));
         if (VD->getIdentifier()) {
           m_CurScope->AddDecl(VD);
           m_Sema.IdResolver.AddDecl(VD);
         }
         return VD;
       });
-    // The output paremeter.
+    // The output paremeter "_result".
     params.back() =
-      ParmVarDecl::Create(
-        m_Context,
-        gradientFD,
-        noLoc,
-        noLoc,
-        &m_Context.Idents.get("_result"), // We name it "_result".
-        paramTypes.back(),
-        m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
-        params.front()->getStorageClass(),
-        nullptr); // No default value.
+      ParmVarDecl::Create(m_Context,
+                          gradientFD,
+                          noLoc,
+                          noLoc,
+                          &m_Context.Idents.get("_result"),
+                          paramTypes.back(),
+                          m_Context.getTrivialTypeSourceInfo(paramTypes.back(),
+                                                             noLoc),
+                          params.front()->getStorageClass(),
+                          // No default value.
+                          nullptr);
     if (params.back()->getIdentifier()) {
       m_CurScope->AddDecl(params.back());
       m_Sema.IdResolver.AddDecl(params.back());
@@ -716,17 +746,14 @@ namespace clad {
 
     Sema::SynthesizedFunctionScope Scope(m_Sema, gradientFD);
     // Reference to the output parameter.
-    m_Result = m_Sema.BuildDeclRefExpr(
-      params.back(),
-      paramTypes.back(),
-      VK_LValue,
-      noLoc).get();
+    m_Result = m_Sema.BuildDeclRefExpr(params.back(),
+                                       paramTypes.back(),
+                                       VK_LValue,
+                                       noLoc).get();
     // Initially, df/df = 1.
-    auto dfdf =
-      ConstantFolder::synthesizeLiteral(
-        m_Function->getReturnType(),
-        m_Context,
-        1.0);
+    auto dfdf = ConstantFolder::synthesizeLiteral(m_Function->getReturnType(),
+                                                  m_Context,
+                                                  1.0);
 
     auto bodyStmts = startBlock();
     // Start the visitation process which outputs the statements in the current
@@ -758,7 +785,7 @@ namespace clad {
   void ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
     if (If->getConditionVariable())
         // FIXME:Visit(If->getConditionVariableDeclStmt(), dfdx());
-        assert(false && "variable declarations are not currently supported");
+        llvm_unreachable("variable declarations are not currently supported");
     auto cond = Clone(If->getCond());
     auto thenStmt = If->getThen();
     auto elseStmt = If->getElse();
@@ -776,15 +803,17 @@ namespace clad {
       elseBody = finishBlock();
     }
 
-    auto ifStmt = new (m_Context) IfStmt(
-      m_Context,
-      noLoc,
-      If->isConstexpr(),
-      nullptr, // FIXME: add init for condition variable
-      nullptr, // FIXME: add condition variable decl
-      cond,
-      thenBody, noLoc,
-      elseBody);
+    auto ifStmt = new (m_Context) IfStmt(m_Context,
+                                         noLoc,
+                                         If->isConstexpr(),
+                                         // FIXME: add init for condition variable
+                                         nullptr,
+                                         // FIXME: add condition variable decl
+                                         nullptr,
+                                         cond,
+                                         thenBody,
+                                         noLoc,
+                                         elseBody);
     currentBlock().push_back(ifStmt);  
   }
 
@@ -799,23 +828,18 @@ namespace clad {
         if (!branch)
           return;
         auto condExpr =
-          new (m_Context) ConditionalOperator(
-            cond,
-            noLoc,
-            ifTrue,
-            noLoc,
-            ifFalse,
-            ifTrue->getType(),
-            VK_RValue,
-            OK_Ordinary);
-        // For some reason clang would not geterate parentheses to keep the correct
-        // order.
-        auto dStmt =
-          new (m_Context) ParenExpr(
-            noLoc,
-            noLoc,
-            condExpr);
-
+          new (m_Context) ConditionalOperator(cond,
+                                              noLoc,
+                                              ifTrue,
+                                              noLoc,
+                                              ifFalse,
+                                              ifTrue->getType(),
+                                              VK_RValue,
+                                              OK_Ordinary);
+        
+        auto dStmt = new (m_Context) ParenExpr(noLoc,
+                                               noLoc,
+                                               condExpr);
         Visit(branch, dStmt);
     };
    
@@ -823,7 +847,9 @@ namespace clad {
     // so cond is unnesarily checked twice. 
     // Can be improved by storing the result of condExpr in a temporary.
 
-    auto zero = ConstantFolder::synthesizeLiteral(dfdx()->getType(), m_Context, 0);
+    auto zero = ConstantFolder::synthesizeLiteral(dfdx()->getType(),
+                                                  m_Context,
+                                                  0);
     //xi = (cond ? ifTrue : ifFalse)
     //dxi/d ifTrue = (cond ? 1 : 0)
     //df/d ifTrue += df/dxi * dxi/d ifTrue = (cond ? df/dxi : 0)
@@ -844,32 +870,28 @@ namespace clad {
   void ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     auto decl = DRE->getDecl();
     // Check DeclRefExpr is a reference to an independent variable.
-    auto it = std::find(
-        m_Function->param_begin(),
-        m_Function->param_end(),
-        decl);
-
-    if (it == m_Function->param_end())
-        assert(false && "Only references to function args are currently supported");
-    auto idx = std::distance(
-        m_Function->param_begin(),
-        it);
+    auto it = std::find(m_Function->param_begin(),
+                        m_Function->param_end(),
+                        decl);
+    if (it == m_Function->param_end()) {
+      // Is not an independent variable, ignored.
+      return;
+    }
+    auto idx = std::distance(m_Function->param_begin(),
+                             it);
     auto size_type = m_Context.getSizeType();
     auto size_type_bits = m_Context.getIntWidth(size_type);
     // Create the idx literal.
-    auto i =
-      IntegerLiteral::Create(
-        m_Context,
-        llvm::APInt(size_type_bits, idx),
-        size_type,
-        noLoc);
+    auto i = IntegerLiteral::Create(m_Context,
+                                    llvm::APInt(size_type_bits, idx),
+                                    size_type,
+                                    noLoc);
     // Create the _result[idx] expression.
     auto result_at_i =
-      m_Sema.CreateBuiltinArraySubscriptExpr(
-        m_Result,
-        noLoc,
-        i,
-        noLoc).get();
+      m_Sema.CreateBuiltinArraySubscriptExpr(m_Result,
+                                             noLoc,
+                                             i,
+                                             noLoc).get();
     // Create the (_result[idx] += dfdx) statement.
     auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
     // Add it to the body statements.
@@ -885,7 +907,7 @@ namespace clad {
   }
   
   void ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
-    assert(false && "calling functions is not supported yet");
+    llvm_unreachable("calling functions is not supported yet");
   }
 
   void ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
@@ -903,7 +925,7 @@ namespace clad {
       Visit(UnOp->getSubExpr(), d);
     }
     else
-      assert(false && "unsupported unary operator");
+      llvm_unreachable("unsupported unary operator");
   }
 
   void ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
@@ -946,7 +968,9 @@ namespace clad {
       //xi = xl / xr
       //dxi/xl = 1 / xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
-      auto one = ConstantFolder::synthesizeLiteral(R->getType(), m_Context, 1.0);
+      auto one = ConstantFolder::synthesizeLiteral(R->getType(),
+                                                   m_Context,
+                                                   1.0);
       auto clonedR = Clone(R);
       auto dl = BuildOp(BO_Div, one, clonedR);
       Visit(L, dl);
@@ -959,11 +983,11 @@ namespace clad {
       Visit(R, dr);
     }
     else
-      assert(false && "unsupported binary operator");
+      llvm_unreachable("unsupported binary operator");
   }
 
   void ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
-    assert(false && "declarations are not supported yet");
+    llvm_unreachable("declarations are not supported yet");
   }
 
   void ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
@@ -971,7 +995,8 @@ namespace clad {
   }
 
   void ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    assert(false && "not supported yet");
+    // We do not treat struct members as independent variables, so they are not
+    // differentiated.
   }
 
   
