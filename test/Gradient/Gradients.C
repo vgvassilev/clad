@@ -1,9 +1,10 @@
-// RUN: %cladclang %s -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
 // RUN: ./Gradients.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
+#include <cmath>
 
 double f_add1(double x, double y) {
   return x + y;
@@ -110,7 +111,8 @@ double f_div1(double x, double y) {
 // CHECK: void f_div1_grad(double x, double y, double *_result) {
 // CHECK-NEXT:    double _t0 = 1. / y;
 // CHECK-NEXT:    _result[0UL] += _t0;
-// CHECK-NEXT:    _result[1UL] += -x / y * y;
+// CHECK-NEXT:    double _t1 = 1. * -x / (y * y);
+// CHECK-NEXT:    _result[1UL] += _t1;
 // CHECK-NEXT: }
 
 void f_div1_grad(double x, double y, double *_result);
@@ -124,9 +126,10 @@ double f_div2(double x, double y) {
 // CHECK-NEXT:    double _t1 = _t0 * x;
 // CHECK-NEXT:    double _t2 = 3 * _t0;
 // CHECK-NEXT:    _result[0UL] += _t2;
-// CHECK-NEXT:    double _t3 = -3 * x / (4 * y) * (4 * y) * y;
-// CHECK-NEXT:    double _t4 = 4 * -3 * x / (4 * y) * (4 * y);
-// CHECK-NEXT:    _result[1UL] += _t4;
+// CHECK-NEXT:    double _t3 = 1. * -3 * x / ((4 * y) * (4 * y));
+// CHECK-NEXT:    double _t4 = _t3 * y;
+// CHECK-NEXT:    double _t5 = 4 * _t3;
+// CHECK-NEXT:    _result[1UL] += _t5;
 // CHECK-NEXT: }
 
 void f_div2_grad(double x, double y, double *_result);
@@ -144,13 +147,14 @@ double f_c(double x, double y) {
 // CHECK-NEXT:    _result[0UL] += _t2;
 // CHECK-NEXT:    _result[1UL] += _t2;
 // CHECK-NEXT:    double _t3 = (x + y) * 1.;
-// CHECK-NEXT:    double _t4 = 1. / y;
+// CHECK-NEXT:    double _t4 = _t3 / y;
 // CHECK-NEXT:    _result[0UL] += _t4;
-// CHECK-NEXT:    _result[1UL] += -x / y * y;
-// CHECK-NEXT:    double _t5 = -1. * x;
-// CHECK-NEXT:    _result[0UL] += _t5;
-// CHECK-NEXT:    double _t6 = x * -1.;
+// CHECK-NEXT:    double _t5 = _t3 * -x / (y * y);
+// CHECK-NEXT:    _result[1UL] += _t5;
+// CHECK-NEXT:    double _t6 = -1. * x;
 // CHECK-NEXT:    _result[0UL] += _t6;
+// CHECK-NEXT:    double _t7 = x * -1.;
+// CHECK-NEXT:    _result[0UL] += _t7;
 // CHECK-NEXT: }
 
 void f_c_grad(double x, double y, double *_result);
@@ -281,6 +285,64 @@ struct S {
   void f_grad(double x, double y, double *_result);
 };
 
+double sum_of_powers(double x, double y, double z, double p) {
+  return std::pow(x, p) + std::pow(y, p) + std::pow(z, p);
+}
+
+namespace custom_derivatives {
+  void sum_of_powers_grad(double x, double y, double z, double p, double* result) {
+    result[0] += pow_darg0(x, p);
+    result[3] += pow_darg1(x, p);
+    result[1] += pow_darg0(y, p);
+    result[3] += pow_darg1(y, p);
+    result[2] += pow_darg0(z, p);
+    result[3] += pow_darg1(z, p);
+  }
+}
+
+double f_norm(double x, double y, double z, double d) {
+  return std::pow(sum_of_powers(x, y, z, d), 1/d);
+}
+
+void f_norm_grad(double x, double y, double z, double d, double* _result);
+// CHECK: void f_norm_grad(double x, double y, double z, double d, double *_result) {
+// CHECK-NEXT:     double _grad0[2] = {};
+// CHECK-NEXT:     pow_grad(sum_of_powers(x, y, z, d), 1 / d, _grad0);
+// CHECK-NEXT:     double _t1 = 1. * _grad0[0UL];
+// CHECK-NEXT:     double _grad2[4] = {};
+// CHECK-NEXT:     sum_of_powers_grad(x, y, z, d, _grad2);
+// CHECK-NEXT:     double _t3 = _t1 * _grad2[0UL];
+// CHECK-NEXT:     _result[0UL] += _t3;
+// CHECK-NEXT:     double _t4 = _t1 * _grad2[1UL];
+// CHECK-NEXT:     _result[1UL] += _t4;
+// CHECK-NEXT:     double _t5 = _t1 * _grad2[2UL];
+// CHECK-NEXT:     _result[2UL] += _t5;
+// CHECK-NEXT:     double _t6 = _t1 * _grad2[3UL];
+// CHECK-NEXT:     _result[3UL] += _t6;
+// CHECK-NEXT:     double _t7 = 1. * _grad0[1UL];
+// CHECK-NEXT:     double _t8 = _t7 / d;
+// CHECK-NEXT:     double _t9 = _t7 * -1 / (d * d);
+// CHECK-NEXT:     _result[3UL] += _t9;
+// CHECK-NEXT: }
+
+double f_sin(double x, double y) {
+  return (std::sin(x) + std::sin(y))*(x + y);
+}
+
+void f_sin_grad(double x, double y, double* _result);
+// CHECK: void f_sin_grad(double x, double y, double *_result) {
+// CHECK-NEXT:     double _t0 = 1. * (x + y);
+// CHECK-NEXT:     double _t1 = sin_darg0(x);
+// CHECK-NEXT:     double _t2 = _t0 * _t1;
+// CHECK-NEXT:     _result[0UL] += _t2;
+// CHECK-NEXT:     double _t3 = sin_darg0(y);
+// CHECK-NEXT:     double _t4 = _t0 * _t3;
+// CHECK-NEXT:     _result[1UL] += _t4;
+// CHECK-NEXT:     double _t5 = (sin(x) + sin(y)) * 1.;
+// CHECK-NEXT:     _result[0UL] += _t5;
+// CHECK-NEXT:     _result[1UL] += _t5;
+// CHECK-NEXT: }
+
 unsigned f_types(int x, float y, double z) {
   return x + y + z;
 }
@@ -311,7 +373,7 @@ int main() { // expected-no-diagnostics
   TEST(f_mult2, 1, 1); // CHECK-EXEC: Result is = {12.00, 12.00}
   TEST(f_div1, 1, 1); // CHECK-EXEC: Result is = {1.00, -1.00}
   TEST(f_div2, 1, 1); // CHECK-EXEC: Result is = {0.75, -0.75}
-  TEST(f_c, 1, 1); // CHECK-EXEC: Result is = {-1.00, -1.00}
+  TEST(f_c, 1, 1); // CHECK-EXEC: Result is = {0.00, -2.00}
   TEST(f_rosenbrock, 1, 1); // CHECK-EXEC: Result is = {0.00, 0.00}
   TEST(f_cond1, 3, 2); // CHECK-EXEC: Result is = {1.00, 0.00}
   TEST(f_cond2, 3, -1); // CHECK-EXEC: Result is = {1.00, 0.00}
@@ -319,6 +381,8 @@ int main() { // expected-no-diagnostics
   TEST(f_if1, 3, 2); // CHECK-EXEC: Result is = {1.00, 0.00}
   TEST(f_if2, -5, -4); // CHECK-EXEC: Result is = {0.00, -1.00}
   clad::gradient(&S::f);
+  clad::gradient(f_norm);
+  clad::gradient(f_sin);
   clad::gradient(f_types);
 }
 
