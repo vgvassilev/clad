@@ -24,11 +24,12 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
 3. Building from source  
   ```
     LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q --no-check-certificate)
+    LAST_KNOWN_GOOD_CLANG=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodClangRevision.txt -O - -q --no-check-certificate)
     git clone https://github.com/llvm-mirror/llvm.git src
     cd src; git checkout $LAST_KNOWN_GOOD_LLVM
     cd tools
     git clone https://github.com/llvm-mirror/clang.git clang
-    cd clang ; git checkout $LAST_KNOWN_GOOD_LLVM
+    cd clang ; git checkout $LAST_KNOWN_GOOD_CLANG
     cd ../
     git clone https://github.com/vgvassilev/clad.git clad
     cd ../
