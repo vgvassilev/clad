@@ -112,7 +112,7 @@ namespace clad {
       clang::Expr* R);
 
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
-                            llvm::SmallVector<clang::Expr*, 4> CallArgs);
+                            llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
     bool overloadExists(clang::Expr* UnresolvedLookup,
                             llvm::MutableArrayRef<clang::Expr*> ARargs);
 

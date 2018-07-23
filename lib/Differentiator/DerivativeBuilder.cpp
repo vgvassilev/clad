@@ -372,9 +372,9 @@ namespace clad {
     }
     return false;
   }
-  
-  Expr* DerivativeBuilder::findOverloadedDefinition
-  (DeclarationNameInfo DNI, llvm::SmallVector<Expr*, 4> CallArgs) {
+
+  Expr* DerivativeBuilder::findOverloadedDefinition(DeclarationNameInfo DNI,
+                                       llvm::SmallVectorImpl<Expr*>& CallArgs) {
     LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
     m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
                                /*allowBuiltinCreation*/ false);
