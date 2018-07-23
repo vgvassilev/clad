@@ -271,7 +271,6 @@ namespace clad {
     void VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     void VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     void VisitDeclStmt(const clang::DeclStmt* DS);
-    void VisitStmt(const clang::Stmt* S);
     void VisitMemberExpr(const clang::MemberExpr* ME);
     void VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     void VisitParenExpr(const clang::ParenExpr* PE);
