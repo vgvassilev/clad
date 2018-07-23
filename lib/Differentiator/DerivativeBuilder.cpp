@@ -33,19 +33,11 @@ namespace clad {
     clang::SourceLocation noLoc;
     return new (C) clang::CompoundStmt(C, stmts, noLoc, noLoc);
   }
-  
+
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
     : m_Sema(S), m_Context(S.getASTContext()),
-      m_NodeCloner(new utils::StmtClone(m_Context)) {
-    // Find the builtin derivatives namespace
-    DeclarationName Name = &m_Context.Idents.get("custom_derivatives");
-    LookupResult R(m_Sema, Name, SourceLocation(), Sema::LookupNamespaceName,
-                   Sema::ForRedeclaration);
-    m_Sema.LookupQualifiedName(R, m_Context.getTranslationUnitDecl(),
-                               /*allowBuiltinCreation*/ false);
-    assert(!R.empty() && "Cannot find builtin derivatives!");
-    m_BuiltinDerivativesNSD = cast<NamespaceDecl>(R.getFoundDecl());
-  }
+      m_NodeCloner(new utils::StmtClone(m_Context)),
+      m_BuiltinDerivativesNSD(nullptr) {}
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
@@ -373,8 +365,22 @@ namespace clad {
     return false;
   }
 
+  static NamespaceDecl* LookupBuiltinDerivativesNSD(ASTContext &C, Sema& S) {
+    // Find the builtin derivatives namespace
+    DeclarationName Name = &C.Idents.get("custom_derivatives");
+    LookupResult R(S, Name, SourceLocation(), Sema::LookupNamespaceName,
+                   Sema::ForRedeclaration);
+    S.LookupQualifiedName(R, C.getTranslationUnitDecl(),
+                          /*allowBuiltinCreation*/ false);
+    assert(!R.empty() && "Cannot find builtin derivatives!");
+    return cast<NamespaceDecl>(R.getFoundDecl());
+  }
+
   Expr* DerivativeBuilder::findOverloadedDefinition(DeclarationNameInfo DNI,
                                        llvm::SmallVectorImpl<Expr*>& CallArgs) {
+    if (!m_BuiltinDerivativesNSD)
+      m_BuiltinDerivativesNSD = LookupBuiltinDerivativesNSD(m_Context, m_Sema);
+
     LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
     m_Sema.LookupQualifiedName(R, m_BuiltinDerivativesNSD,
                                /*allowBuiltinCreation*/ false);
