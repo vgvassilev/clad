@@ -63,7 +63,7 @@ namespace clad {
                                    false,
                                    FD->getNameInfo(),
                                    FD->getType(),
-                                   VK_LValue);
+                                   oldDRE->getValueKind());
    
     // FIXME: I am not sure if the following part is necessary:
     // using call->setArg(0, DRE) seems to be sufficient,
