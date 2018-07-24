@@ -42,6 +42,16 @@ matrix:
     - os: linux
 
   include:
+    # OSX Clang and XCode 8.3
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Release
+      osx_image: xcode8.3
+      compiler: clang
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Debug
+      osx_image: xcode8.3
+      compiler: clang
+
     # GCC 5
     - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug
       compiler: gcc
@@ -113,8 +123,22 @@ matrix:
           sources: *sources
           packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
 
+
 install:
-  - sudo easy_install lit # LLVM lit is not part of the llvm releases...
+  - |
+    export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-5.0/
+    if [ $TRAVIS_OS_NAME == 'osx' ]; then
+      brew install ccache python coreutils
+      # Update openssl on osx because the current one is deprecated by python.
+      curl https://bootstrap.pypa.io/get-pip.py | sudo python
+      PATH="/usr/local/opt/ccache/libexec:$PATH"
+      # Install clang-5.0 to run the plugin with.
+      brew install llvm@5
+      TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
+    fi
+    # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
+    # directory is not owned by the current user and the cache has been disabled.
+    sudo -H pip install lit # LLVM lit is not part of the llvm releases...
 
 before_script:
   # travis untars clang-5.0 in /usr/local/clang-5.0.0/ which confuses the build.
@@ -124,20 +148,26 @@ before_script:
   - $CXX --version
   - mkdir ../obj
   - |
-    # LLVM utils such as FileCheck and not are not part of the llvm release.
-    cd tools && for tool in FileCheck not; do
+    if [ $TRAVIS_OS_NAME != 'osx' ]; then
+      # LLVM utils such as FileCheck and not are not part of the llvm release on unix.
+      cd tools && for tool in FileCheck not; do
         svn export \
           http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
           echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
       done
-  - cd ../../obj
-  - cmake -DCLAD_PATH_TO_LLVM_BUILD="/usr/lib/llvm-5.0/" ../clad
+      cd ../
+    fi
+  - cd ../obj
+  - cmake -DCLAD_PATH_TO_LLVM_BUILD="$TRAVIS_PATH_TO_LLVM_BUILD" ../clad
 script:
   - |
     cmake --build . --target FileCheck -- -j4
     # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
     # This expands FileCheck to the location of installed llvm.
-    sudo ln -s `pwd`/bin/FileCheck /usr/lib/llvm-5.0/bin/FileCheck
+    # On OSX we are fine because FileCheck is part of the brew formula.
+    if [ $TRAVIS_OS_NAME != 'osx' ]; then
+      sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+    fi
   - cmake --build . --target check-clad -- -j4
 
 branches:
