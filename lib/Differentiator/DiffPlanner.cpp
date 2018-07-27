@@ -2,6 +2,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/TemplateDeduction.h"
 
 using namespace clang;
 
@@ -27,7 +28,7 @@ namespace clad {
       m_FD->dump();
     else
       llvm::errs() << "<invalid> FD: " << m_FD << '\n';
-    
+
     if (m_PVD)
       m_PVD->dump();
     else
@@ -50,9 +51,9 @@ namespace clad {
     else if (auto UnOp = dyn_cast<UnaryOperator>(call->getArg(0))){
       oldDRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
     }
-    else 
+    else
       llvm_unreachable("Trying to differentiate something unsupported");
-    
+
     ASTContext& C = SemaRef.getASTContext();
     // Create ref to generated FD.
     auto DRE = DeclRefExpr::Create(C,
@@ -64,10 +65,10 @@ namespace clad {
                                    FD->getNameInfo(),
                                    FD->getType(),
                                    oldDRE->getValueKind());
-   
+
     // FIXME: I am not sure if the following part is necessary:
     // using call->setArg(0, DRE) seems to be sufficient,
-    // though the real AST allways contains the ImplicitCastExpr (function -> 
+    // though the real AST allways contains the ImplicitCastExpr (function ->
     // function ptr cast) or UnaryOp (method ptr call).
     auto oldArg = call->getArg(0);
     if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArg)) {
@@ -87,10 +88,10 @@ namespace clad {
                                           oldUnOp->getOpcode(),
                                           DRE).get();
       call->setArg(0, newUnOp);
-    } 
-    else 
+    }
+    else
       llvm_unreachable("Trying to differentiate something unsupported");
-    
+
     // Update the code parameter.
     if (CXXDefaultArgExpr* Arg
         = dyn_cast<CXXDefaultArgExpr>(call->getArg(codeArgIdx))) {
@@ -128,6 +129,41 @@ namespace clad {
                                   CK_ArrayToPointerDecay).get();
       call->setArg(codeArgIdx, newArg);
     }
+
+    // Replace old specialization of clad::gradient with a new one that matches
+    // the type of new argument.
+
+    auto CladGradientFDeclOld = call->getDirectCallee();
+    auto CladGradientExprOld = call->getCallee();
+    auto CladGradientFTemplate = CladGradientFDeclOld->getPrimaryTemplate();
+
+    FunctionDecl* CladGradientFDeclNew = nullptr;
+    sema::TemplateDeductionInfo Info(noLoc);
+    // Create/get template specialization of clad::gradient that matches
+    // argument types. Result is stored to CladGradientFDeclNew.
+    SemaRef.DeduceTemplateArguments(CladGradientFTemplate,
+                                    /* ExplicitTemplateArgs */ nullptr,
+                                    /* Args */
+                                    llvm::ArrayRef<Expr*>(call->getArgs(),
+                                                          call->getNumArgs()),
+                                    /* Specialization */ CladGradientFDeclNew,
+                                    Info,
+                                    /* PartialOverloading */ false,
+                                    /* CheckNonDependent */
+                                    [] (llvm::ArrayRef<QualType>) {
+                                      return false;
+                                    });
+    // DeclRefExpr for new specialization.
+    auto CladGradientExprNew =
+      SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
+                               CladGradientFDeclNew->getType(),
+                               CladGradientExprOld->getValueKind(),
+                               CladGradientExprOld->getLocEnd()).get();
+    // Add function to pointer cast.
+    CladGradientExprNew =
+      SemaRef.CallExprUnaryConversions(CladGradientExprNew).get();
+    // Replace the old clad::gradient by the new one.
+    call->setCallee(CladGradientExprNew);
   }
 
   LLVM_DUMP_METHOD void DiffPlan::dump() {
@@ -189,7 +225,7 @@ namespace clad {
   }
 
   void DiffCollector::UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan) {
-    if (plan->getCurrentDerivativeOrder() == 
+    if (plan->getCurrentDerivativeOrder() ==
         plan->getRequestedDerivativeOrder())
       return;
     assert(plan->getRequestedDerivativeOrder() > 1
@@ -230,7 +266,7 @@ namespace clad {
         else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
           DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
         }
-        if (DRE) {          
+        if (DRE) {
           auto && label = A->getAnnotation();
           if (label.equals("D")) {
             // A call to clad::differentiate was found.
@@ -264,7 +300,7 @@ namespace clad {
             getCurrentPlan().push_back(FDI);
           }
         }
-      }  
+      }
     }
     return true;     // return false to abort visiting.
   }

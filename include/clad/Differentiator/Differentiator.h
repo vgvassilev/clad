@@ -105,7 +105,7 @@ namespace clad {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<true, R, C, Args...>(f, code);
   }
-  
+
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
   /// returns a CladFunction for it.
