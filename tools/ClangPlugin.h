@@ -33,13 +33,15 @@ namespace clad {
     struct DifferentiationOptions {
       DifferentiationOptions()
         : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-          DumpDerivedAST(false), GenerateSourceFile(false) { }
+          DumpDerivedAST(false), GenerateSourceFile(false),
+          ValidateClangVersion(false) { }
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
       bool DumpDerivedFn : 1;
       bool DumpDerivedAST : 1;
       bool GenerateSourceFile : 1;
+      bool ValidateClangVersion : 1;
     };
 
     class CladPlugin : public clang::ASTConsumer {
@@ -47,7 +49,7 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
-      bool m_CheckRuntime;
+      bool m_HasRuntime;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
@@ -66,8 +68,7 @@ namespace clad {
         return std::unique_ptr<clang::ASTConsumer>(new ConsumerType(CI, m_DO));
       }
 
-      bool ParseArgs(const clang::CompilerInstance &CI,
-                     const std::vector<std::string>& args) {
+      static bool IsRunningOnExpectedClangVersion() {
         // FIXME: The check does more damage than good. We need to make it much
         // more sophisticated to work as expected. For example, clang can be
         // checked out from svn or git; the compatible revision can be a range;
@@ -80,6 +81,11 @@ namespace clad {
                        << clad::getClangCompatRevision() << " )\n";
           return false;
         }
+        return true;
+      }
+
+      bool ParseArgs(const clang::CompilerInstance &CI,
+                     const std::vector<std::string>& args) {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
           if (args[i] == "-fdump-source-fn") {
             m_DO.DumpSourceFn = true;
@@ -95,6 +101,11 @@ namespace clad {
           }
           else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
+          }
+          else if (args[i] == "-fvalidate-clang-version") {
+            m_DO.ValidateClangVersion = true;
+            if (!IsRunningOnExpectedClangVersion())
+              return false; // Tells clang not to create the plugin.
           }
           else if (args[i] == "-help") {
             // Print some help info.

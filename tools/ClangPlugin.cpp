@@ -60,37 +60,25 @@ namespace {
 namespace clad {
   namespace plugin {
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-      : m_CI(CI), m_DO(DO), m_CheckRuntime(true) { }
+      : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
     CladPlugin::~CladPlugin() {}
 
-    static bool CheckRuntime(Sema& SemaR) {
+    static bool HasRuntime(Sema& SemaR) {
       ASTContext& C = SemaR.getASTContext();
       DeclarationName Name = &C.Idents.get("custom_derivatives");
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
                      Sema::ForRedeclaration);
       SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
                                 /*allowBuiltinCreation*/ false);
-      if (R.empty()) {
-        DiagnosticsEngine::Level L = DiagnosticsEngine::Level::Error;
-        SourceLocation noLoc;
-        unsigned id
-          = SemaR.Diags.getCustomDiagID(L,
-            "clad runtime missing. Did you #include \
-             \"clad/Differentiator/Differentiator.h\"\
-             at a first place?");
-        SemaR.Diags.Report(noLoc, id);
-        return false;
-      }
-
-      return true;
+      return !R.empty();
     }
 
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
-      if (m_CheckRuntime) {
-        if (!CheckRuntime(m_CI.getSema()))
-          return false;
-        m_CheckRuntime = false;
-      }
+      m_HasRuntime |= HasRuntime(m_CI.getSema());
+      // If we have not included "clad/Differentiator/Differentiator.h" exit.
+      if (!m_HasRuntime)
+        return true;
+
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
 
