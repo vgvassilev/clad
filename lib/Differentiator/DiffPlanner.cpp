@@ -7,6 +7,14 @@ using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
+  // FIXME:
+  // Currently, the global variable is used to store the pointer to the last
+  // call which requires update.
+  // This is needed to share this information between different invocations of
+  // CladPlugin::HandleTopLevelDecl in which clad::gradient and make_gradient
+  // are processed (see Differentiator.h).
+  clang::CallExpr* g_LastGradientToUpdate = nullptr;
+
   FunctionDeclInfo::FunctionDeclInfo(FunctionDecl* FD, ParmVarDecl* PVD)
     : m_FD(FD), m_PVD(PVD) {
 #ifndef NDEBUG
@@ -35,42 +43,34 @@ namespace clad {
   }
 
   void DiffPlan::updateCall(FunctionDecl* FD, Sema& SemaRef) {
-    auto call = m_CallToUpdate;
+    auto call =
+      (getMode() == DiffMode::forward) ?
+        m_CallToUpdate :
+        g_LastGradientToUpdate;
+
+    assert(call && "Must be set");     
+
     // Index of "code" parameter:
     // 2 for clad::differentiate, 1 for clad::gradient.
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
-    assert(call && "Must be set");
-
-    DeclRefExpr* oldDRE = nullptr;
-    // Handle the case of function pointer.
-    if (auto ICE = dyn_cast<ImplicitCastExpr>(call->getArg(0))){
-      oldDRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-    }
-    // Handle the case of member function.
-    else if (auto UnOp = dyn_cast<UnaryOperator>(call->getArg(0))){
-      oldDRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-    }
-    else 
-      llvm_unreachable("Trying to differentiate something unsupported");
     
     ASTContext& C = SemaRef.getASTContext();
     // Create ref to generated FD.
     auto DRE = DeclRefExpr::Create(C,
                                    // same namespace qualifier
-                                   oldDRE->getQualifierLoc(),
+                                   m_OldDRE->getQualifierLoc(),
                                    noLoc,
                                    FD,
                                    false,
                                    FD->getNameInfo(),
                                    FD->getType(),
-                                   oldDRE->getValueKind());
+                                   m_OldDRE->getValueKind());
    
     // FIXME: I am not sure if the following part is necessary:
     // using call->setArg(0, DRE) seems to be sufficient,
     // though the real AST allways contains the ImplicitCastExpr (function -> 
     // function ptr cast) or UnaryOp (method ptr call).
-    auto oldArg = call->getArg(0);
-    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArg)) {
+    if (auto oldCast = dyn_cast<ImplicitCastExpr>(m_OldArg)) {
       // Cast function to function pointer.
       auto newCast = ImplicitCastExpr::Create(C,
                                               C.getPointerType(FD->getType()),
@@ -80,7 +80,7 @@ namespace clad {
                                               oldCast->getValueKind());
       call->setArg(0, newCast);
     }
-    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArg)) {
+    else if (auto oldUnOp = dyn_cast<UnaryOperator>(m_OldArg)) {
       // Add the "&" operator
       auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
                                           noLoc,
@@ -230,39 +230,48 @@ namespace clad {
         else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
           DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
         }
-        if (DRE) {          
-          auto && label = A->getAnnotation();
-          if (label.equals("D")) {
-            // A call to clad::differentiate was found.
+                
+        auto && label = A->getAnnotation();
+        if (label.equals("D")) {
+          // A call to clad::differentiate was found.
 
-            m_DiffPlans.push_back(DiffPlan());
-            getCurrentPlan().setMode(DiffMode::forward);
+          m_DiffPlans.push_back(DiffPlan());
+          getCurrentPlan().setMode(DiffMode::forward);
 
-            llvm::APSInt derivativeOrderAPSInt
-              = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
-            // We know the first template spec argument is of unsigned type
-            assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
-            unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
-            getCurrentPlan().m_RequestedDerivativeOrder = derivativeOrder;
+          llvm::APSInt derivativeOrderAPSInt
+            = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
+          // We know the first template spec argument is of unsigned type
+          assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
+          unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
+          getCurrentPlan().m_RequestedDerivativeOrder = derivativeOrder;
 
-            getCurrentPlan().setCallToUpdate(E);
-            FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
-            ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
-            FunctionDeclInfo FDI(cand, candPVD);
-            m_TopMostFDI = &FDI;
-            TraverseDecl(cand);
-            m_TopMostFDI = 0;
-            getCurrentPlan().push_back(FDI);
-          }
-          else if (label.equals("G")) {
-            // A call to clad::gradient was found.
+          getCurrentPlan().setCallToUpdate(E);
+          assert(DRE && "clad::differentiate is called on something that is not"
+                        " a function pointer");
+          FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
+          ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
+          FunctionDeclInfo FDI(cand, candPVD);
+          m_TopMostFDI = &FDI;
+          TraverseDecl(cand);
+          m_TopMostFDI = 0;
+          getCurrentPlan().push_back(FDI);
+          getCurrentPlan().m_OldDRE = DRE;
+          getCurrentPlan().m_OldArg = E->getArg(0);
+        }
+        else if (label.equals("G")) {
+          // A call to clad::gradient was found.
 
-            m_DiffPlans.push_back(DiffPlan());
-            getCurrentPlan().setMode(DiffMode::reverse);
-            getCurrentPlan().setCallToUpdate(E);
-            FunctionDeclInfo FDI(cast<FunctionDecl>(DRE->getDecl()), nullptr);
-            getCurrentPlan().push_back(FDI);
-          }
+          m_DiffPlans.push_back(DiffPlan());
+          getCurrentPlan().setMode(DiffMode::reverse);
+          assert(DRE && "clad::gradient is called on something that is not a "
+                        "function pointer");
+          FunctionDeclInfo FDI(cast<FunctionDecl>(DRE->getDecl()), nullptr);
+          getCurrentPlan().push_back(FDI);
+          getCurrentPlan().m_OldDRE = DRE;
+          getCurrentPlan().m_OldArg = E->getArg(0);
+        }
+        else if (label.equals("GR")) {
+          g_LastGradientToUpdate = E;
         }
       }  
     }

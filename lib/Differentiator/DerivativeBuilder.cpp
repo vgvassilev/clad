@@ -904,7 +904,12 @@ namespace clad {
 
   void ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    auto cond = StoreAndRef(Clone(CO->getCond()));
+    auto condVar = StoreAndRef(Clone(CO->getCond()));
+    auto cond =
+      m_Sema.ActOnCondition(m_CurScope.get(),
+                            noLoc,
+                            condVar,
+                            Sema::ConditionKind::Boolean).get().second;
     auto ifTrue = CO->getTrueExpr();
     auto ifFalse = CO->getFalseExpr();
 
@@ -992,7 +997,135 @@ namespace clad {
   }
   
   void ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
-    llvm_unreachable("calling functions is not supported yet");
+    auto FD = CE->getDirectCallee();
+    if (!FD) {
+       unsigned unsupported_call
+         = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Warning,
+                                        "attempted differentiation of something"
+                                        " that is not a direct call to a"
+                                        " function and is not supported yet." 
+                                        " Ignored.");
+        m_Sema.Diag(noLoc, unsupported_call);
+       return;
+    }
+    IdentifierInfo* II = nullptr;
+    auto NArgs = FD->getNumParams();
+    // If the function has no args then we assume that it is not related
+    // to independent variables and does not contribute to gradient.
+    if (!NArgs)
+      return;
+
+    llvm::SmallVector<Expr*, 16> CallArgs(CE->getNumArgs());
+    std::transform(CE->arg_begin(), CE->arg_end(), std::begin(CallArgs),
+      [this](const Expr* Arg) { return Clone(Arg); });
+
+    VarDecl* ResultDecl = nullptr;
+    Expr* Result = nullptr;
+    // If the function has a single arg, we look for a derivative w.r.t. to 
+    // this arg (it is unlikely that we need gradient of a one-dimensional'
+    // function).
+    if (NArgs == 1)
+      II = &m_Context.Idents.get(FD->getNameAsString() + "_darg0");
+    // If it has more args, we look for its gradient.
+    else {
+      II = &m_Context.Idents.get(FD->getNameAsString() + "_grad");
+      // We also need to create an array to store the result of gradient call.
+      auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());    
+      auto ArrayType =
+        m_Context.getConstantArrayType(CE->getType(),
+                                       llvm::APInt(size_type_bits, NArgs),
+                                       ArrayType::ArraySizeModifier::Normal,
+                                       0); // No IndexTypeQualifiers
+
+      // Create {} array initializer to fill it with zeroes.
+      auto ZeroInitBraces = new (m_Context) InitListExpr(Stmt::EmptyShell());
+      ZeroInitBraces->setArrayFiller(
+        new (m_Context) ImplicitValueInitExpr(CE->getType()));
+      ZeroInitBraces->setType(ArrayType);
+    
+      // Declare: Type _gradX[Nargs] = {};
+      ResultDecl = BuildVarDecl(ArrayType,
+                                CreateUniqueIdentifier("_grad", m_tmpId),
+                                ZeroInitBraces);
+      Result = m_Sema.BuildDeclRefExpr(ResultDecl,
+                                       ArrayType,
+                                       VK_LValue,
+                                       noLoc).get();
+      // Pass the array as the last parameter for gradient.
+      CallArgs.push_back(Result);
+    }
+      
+    // Try to find it in builtin derivatives
+    DeclarationName name(II);
+    DeclarationNameInfo DNInfo(name, noLoc);
+    auto OverloadedDerivedFn =
+      m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+
+    // Derivative was not found, check if it is a recursive call
+    if (!OverloadedDerivedFn) {
+      if (FD != m_Function) {
+        // Not a recursive call, derivative was not found, ignore.
+        // Issue a warning.
+        SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
+        unsigned warn_function_not_declared_in_custom_derivatives
+          = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Warning,
+                                     "function '%0' was not differentiated "
+                                     "because it is not declared in namespace "
+                                     "'custom_derivatives'");
+        m_Sema.Diag(IdentifierLoc,
+                    warn_function_not_declared_in_custom_derivatives)
+          << FD->getNameAsString();
+        return;
+      }
+      // Recursive call.
+      auto selfRef = m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
+                                                     m_Derivative->getNameInfo(),
+                                                     m_Derivative).get();
+
+      OverloadedDerivedFn =
+        m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
+                             selfRef,
+                             noLoc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs),
+                             noLoc).get(); 
+    }
+
+    if (OverloadedDerivedFn) {
+      // Derivative was found.
+      if (NArgs == 1) {
+        // If function has a single arg, call it and store a result.
+        Result = StoreAndRef(OverloadedDerivedFn);
+        auto d = BuildOp(BO_Mul, dfdx(), Result);
+        auto dTmp = StoreAndRef(d);
+        Visit(CE->getArg(0), dTmp);
+      }
+      else {
+        // Put Result array declaration in the function body.
+        currentBlock().push_back(BuildDeclStmt(ResultDecl));
+        // Call the gradient, passing Result as the last Arg.
+        currentBlock().push_back(OverloadedDerivedFn);
+        // Visit each arg with df/dargi = df/dxi * Result[i].
+        for (unsigned i = 0; i < CE->getNumArgs(); i++) {
+          auto size_type = m_Context.getSizeType();
+          auto size_type_bits = m_Context.getIntWidth(size_type);
+          // Create the idx literal.
+          auto I =
+            IntegerLiteral::Create(m_Context,
+                                   llvm::APInt(size_type_bits, i),
+                                   size_type,
+                                   noLoc);
+          // Create the Result[I] expression.
+          auto ithResult =
+            m_Sema.CreateBuiltinArraySubscriptExpr(Result,
+                                                   noLoc,
+                                                   I,
+                                                   noLoc).get();
+          auto di = BuildOp(BO_Mul, dfdx(), ithResult);
+          auto diTmp = StoreAndRef(di);
+          Visit(CE->getArg(i), diTmp);
+        }
+      }
+    }
   }
 
   void ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
@@ -1055,19 +1188,25 @@ namespace clad {
       //xi = xl / xr
       //dxi/xl = 1 / xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
-      auto one = ConstantFolder::synthesizeLiteral(R->getType(),
-                                                   m_Context,
-                                                   1.0);
       auto clonedR = Clone(R);
-      auto dl = BuildOp(BO_Div, one, clonedR);
+      auto dl = BuildOp(BO_Div, dfdx(), clonedR);
       auto dlTmp = StoreAndRef(dl);
       Visit(L, dlTmp);
       //dxi/xr = -xl / (xr * xr)
       //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
-      auto RxR = BuildOp(BO_Mul, clonedR, clonedR);
-      auto dr = BuildOp(UO_Minus,
-                        BuildOp(BO_Div, Clone(L), RxR));
-      Visit(R, dr);
+      // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
+      // produced instead of 1 / (R * R).
+      auto RxR =
+        m_Sema.ActOnParenExpr(noLoc,
+                              noLoc,
+                              BuildOp(BO_Mul, clonedR, clonedR)).get();
+      auto dr =
+        BuildOp(BO_Mul,
+                dfdx(),
+                BuildOp(UO_Minus,
+                        BuildOp(BO_Div, Clone(L), RxR)));
+      auto drTmp = StoreAndRef(dr);
+      Visit(R, drTmp);
     }
     else
       llvm_unreachable("unsupported binary operator");

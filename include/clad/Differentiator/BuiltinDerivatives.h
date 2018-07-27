@@ -77,6 +77,17 @@ namespace custom_derivatives {
     return exponent * pow(x, exponent-((T)1));
   }
 
+  template <typename T>
+  T pow_darg1(T x, T exponent) {
+    return pow(x, exponent) * log(x);
+  }
+
+  template <typename T>
+  void pow_grad(T x, T exponent, T* result) {
+    result[0] += pow_darg0(x, exponent);
+    result[1] += pow_darg1(x, exponent);
+  }
+
 } // end namespace builtin_derivatives
 
 #endif //CLAD_BUILTIN_DERIVATIVES
