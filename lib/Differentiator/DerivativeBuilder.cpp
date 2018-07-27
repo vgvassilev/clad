@@ -904,7 +904,12 @@ namespace clad {
 
   void ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    auto cond = StoreAndRef(Clone(CO->getCond()));
+    auto condVar = StoreAndRef(Clone(CO->getCond()));
+    auto cond =
+      m_Sema.ActOnCondition(m_CurScope.get(),
+                            noLoc,
+                            condVar,
+                            Sema::ConditionKind::Boolean).get().second;
     auto ifTrue = CO->getTrueExpr();
     auto ifFalse = CO->getFalseExpr();
 
