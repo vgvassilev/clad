@@ -51,6 +51,8 @@ namespace clad {
     typedef llvm::SmallVector<FunctionDeclInfo, 16> Functions;
     Functions m_Functions;
     clang::CallExpr* m_CallToUpdate;
+    clang::DeclRefExpr* m_OldDRE;
+    clang::Expr* m_OldArg;
     unsigned m_RequestedDerivativeOrder;
     unsigned m_CurrentDerivativeOrder;
     unsigned m_ArgIndex;

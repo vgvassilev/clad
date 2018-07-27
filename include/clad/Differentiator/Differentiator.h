@@ -105,6 +105,24 @@ namespace clad {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<true, R, C, Args...>(f, code);
   }
+
+  template <typename R, typename ... Args>
+  using grad_fn_ptr_t = void (*)(Args..., R*);
+
+  template <typename C, typename R, typename ... Args>
+  using grad_mem_ptr_t = void (C::*) (Args..., R*);
+
+  template <typename Ptr, typename R, typename ... Args>
+  CladFunction<false, void, Args..., R*> __attribute__((annotate("GR"))) 
+  make_gradient_fn(Ptr f, const char* code = "") {
+    return CladFunction<false, void, Args..., R*> (f, code);
+  }
+
+  template <typename Ptr, typename R, typename C, typename ... Args>
+  CladFunction<true, void, C, Args..., R*> __attribute__((annotate("GR"))) 
+  make_gradient_mem_fn(Ptr f, const char* code = "") {
+    return CladFunction<true, void, C, Args..., R*> (f, code);
+  }
   
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
@@ -113,18 +131,22 @@ namespace clad {
   CladFunction<false, void, Args..., R*> __attribute__((annotate("G")))
   gradient(R (*f)(Args...), const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<false, void, Args..., R*>(
-      reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by gradient*/,
-      code);
+    using ptr_type = grad_fn_ptr_t<R, Args...>;
+    return
+      make_gradient_fn<ptr_type, R, Args...>(
+       static_cast<ptr_type>(nullptr), // will be replaced by gradient
+       code);
   }
 
   template<typename R, typename C, typename... Args>
   CladFunction<true, void, C, Args..., R*> __attribute__((annotate("G")))
   gradient(R (C::*f)(Args...), const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<true, void, C, Args..., R*>(
-      reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by gradient*/,
-      code);
+    using ptr_type = grad_mem_ptr_t<C, R, Args...>;
+    return
+      make_gradient_mem_fn<ptr_type, R, C, Args...>(
+       static_cast<ptr_type>(nullptr), // will be replaced by gradient
+       code);
   }
 }
 #endif // CLAD_DIFFERENTIATOR
