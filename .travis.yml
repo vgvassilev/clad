@@ -180,11 +180,11 @@ before_script:
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE ../clad
 script:
   - |
-    cmake --build . --target FileCheck -- -j4
     # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
     # This expands FileCheck to the location of installed llvm.
     # On OSX we are fine because FileCheck is part of the brew formula.
     if [ $TRAVIS_OS_NAME != 'osx' ]; then
+      cmake --build . --target FileCheck -- -j4
       sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
     fi
   - cmake --build . --target check-clad -- -j4
