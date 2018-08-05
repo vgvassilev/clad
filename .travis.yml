@@ -16,6 +16,14 @@ addons: &addons
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty-4.0
       - llvm-toolchain-trusty-5.0
+  coverity_scan:
+    project:
+      name: "vgvassilev/clad"
+      description: "Clad build submitted via Travis CI"
+    notification_email: v.g.vassilev@gmail.com
+    build_command_prepend: "(rm -rf $TRAVIS_BUILD_DIR/build ; mkdir $TRAVIS_BUILD_DIR/build ; cd $TRAVIS_BUILD_DIR/build ; cmake -DCMAKE_BUILD_TYPE=Release $TRAVIS_BUILD_DIR)"
+    build_command: "make -C $TRAVIS_BUILD_DIR/build"
+    branch_pattern: coverity_scan
 
 cache:
   pip: true
@@ -30,6 +38,10 @@ env:
     - CCACHE_COMPRESS=1
     - CCACHE_MAXSIZE=500M
     - CCACHE_CPP2=1
+    # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+    # via the "travis encrypt" command using the project repo's public key
+    - secure: "PbMYxWLO9qiirrQSp6VrTgsptn/Exn+aMQmlejtRfbHvWbqrCNbaUQq1DIXpsojxb/a991TNDNdxn4R3TQXeM37AQWlkA5Q0ETI+0UZHBmQcVxqB9oI8eonfaQ8/Kg4vqPgmZMquNrVfKueNbudNKTMgkZRe+/UyFFO/ati5dBg="
+
 
 matrix:
   # Abort all builds on a single failing matrix entry.
@@ -123,6 +135,12 @@ matrix:
           sources: *sources
           packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
 
+before_install:
+  - |
+    if [ $COVERITY_SCAN_BRANCH == '1' ]; then
+      echo -n | openssl s_client -connect https://scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+    fi
+
 
 install:
   - |
@@ -174,6 +192,7 @@ script:
 branches:
   only:
     - master
+    - coverity_scan
 
 notifications:
   recipients:
