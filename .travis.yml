@@ -115,7 +115,7 @@ matrix:
           sources: *sources
           packages: [*common_deps, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
     - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release
-      compiler: gcc
+      compiler: clang
       addons:
         apt:
           sources: *sources
