@@ -138,8 +138,8 @@ matrix:
 before_install:
   - export
   - |
-    if [ $COVERITY_SCAN_BRANCH == 1 ]; then
-      if [ $RUN_COVERITY != 1 ]; then
+    if [ "$COVERITY_SCAN_BRANCH" == 1 ]; then
+      if [ "$RUN_COVERITY" != 1 ]; then
         # Exit from all other build nodes which are not responsible for dealing
         # with coverity.
         exit 0
