@@ -5,7 +5,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   cmake_minimum_required(VERSION 3.4.3)
   find_package(Subversion)
 
-  find_package(LLVM 5.0 REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD})
+  find_package(LLVM 5.0 REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD} NO_DEFAULT_PATH)
 
   # We cannot use find_package(Clang) or include(ClangConfig) because we require
   # a specific version (currently 5.0) and ClangConfig.cmake tries to do
