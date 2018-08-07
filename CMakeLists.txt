@@ -112,11 +112,18 @@ include(VersionFromVCS)
 # DUMMY_VAR contains a version string which we don't care about.
 add_version_info_from_vcs(DUMMY_VAR)
 
+option(CLAD_BUILD_STATIC_ONLY "Does not build shared libraries. Useful when we have LLVM_ENABLE_PLUGINS=OFF (eg. Win or CYGWIN)" OFF)
+if (NOT CLAD_BUILD_STATIC_ONLY AND NOT LLVM_ENABLE_PLUGINS)
+  message(FATAL_ERROR "LLVM_ENABLE_PLUGINS is set to OFF. Please build clad with -DCLAD_BUILD_STATIC_ONLY=ON.")
+endif()
+
 add_subdirectory(lib)
 add_subdirectory(tools)
 
 # TODO: docs.
-add_subdirectory(test)
+if (NOT CLAD_BUILD_STATIC_ONLY)
+  add_subdirectory(test)
+endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell
 # FIXME: This could be removed with future version of CMake.

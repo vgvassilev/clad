@@ -6,14 +6,15 @@ add_llvm_library(cladPlugin
   ClangPlugin.cpp
   RequiredSymbols.cpp
   )
-add_llvm_loadable_module(clad
-  ClangPlugin.cpp
-  RequiredSymbols.cpp
-  PLUGIN_TOOL
-  clang
+if (NOT CLAD_BUILD_STATIC_ONLY)
+  add_llvm_loadable_module(clad
+    ClangPlugin.cpp
+    RequiredSymbols.cpp
+    PLUGIN_TOOL
+    clang
   )
 
-target_link_libraries(clad PRIVATE
-  cladDifferentiator
+  target_link_libraries(clad PRIVATE
+    cladDifferentiator
   )
-
+endif()
