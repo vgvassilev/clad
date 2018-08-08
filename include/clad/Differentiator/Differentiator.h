@@ -15,7 +15,7 @@ extern "C" {
   int printf(const char* fmt, ...);
   char* strcpy (char* destination, const char* source);
   size_t strlen(const char*);
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_MSC_VER)
   void* malloc(size_t);
   void free(void *ptr);
 #else
