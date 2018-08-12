@@ -68,10 +68,10 @@ double f_sin(double x, double y) {
 }
 
 // CHECK: double f_sin_darg0(double x, double y) {
-// CHECK-NEXT:     double _d_xsin = sin_darg0(x) * 1.;
-// CHECK-NEXT:     double xsin = sin(x);
-// CHECK-NEXT:     double _d_ysin = sin_darg0(y) * 0.;
-// CHECK-NEXT:     double ysin = sin(y);
+// CHECK-NEXT:     double _d_xsin = custom_derivatives::sin_darg0(x) * 1.;
+// CHECK-NEXT:     double xsin = std::sin(x);
+// CHECK-NEXT:     double _d_ysin = custom_derivatives::sin_darg0(y) * 0.;
+// CHECK-NEXT:     double ysin = std::sin(y);
 // CHECK-NEXT:     double _d_xt = _d_xsin * xsin + xsin * _d_xsin;
 // CHECK-NEXT:     double xt = xsin * xsin;
 // CHECK-NEXT:     double _d_yt = _d_ysin * ysin + ysin * _d_ysin;
