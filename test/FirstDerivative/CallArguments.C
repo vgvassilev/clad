@@ -19,7 +19,7 @@ float g(float x) {
 
 // CHECK: float g_darg0(float x) {
 // CHECK: float _t0 = x * x;
-// CHECK-NEXT: f_darg0(_t0 * x) * ((1.F * x + x * 1.F) * x + _t0 * 1.F);
+// CHECK-NEXT: custom_derivatives::f_darg0(_t0 * x) * ((1.F * x + x * 1.F) * x + _t0 * 1.F);
 // CHECK-NEXT: }
 
 float sqrt_func(float x, float y) {
@@ -27,7 +27,7 @@ float sqrt_func(float x, float y) {
 }
 
 // CHECK: float sqrt_func_darg0(float x, float y) {
-// CHECK-NEXT: return sqrt_darg0(x * x + y * y) * (1.F * x + x * 1.F + 0.F * y + y * 0.F) - 0.F;
+// CHECK-NEXT: return custom_derivatives::sqrt_darg0(x * x + y * y) * (1.F * x + x * 1.F + 0.F * y + y * 0.F) - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_1(const float x, const float y) {

@@ -43,7 +43,11 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 
 DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->getFPFeatures()))
 DEFINE_CLONE_EXPR(UnaryOperator, (Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc()))
-DEFINE_CLONE_EXPR(DeclRefExpr, (Node->getDecl(), Node->refersToEnclosingVariableOrCapture(), Node->getType(), Node->getValueKind(), Node->getLocation()))
+Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
+  TemplateArgumentListInfo TAListInfo;
+  Node->copyTemplateArgumentsInto(TAListInfo);
+  return DeclRefExpr::Create(Ctx, Node->getQualifierLoc(), Node->getTemplateKeywordLoc(), Node->getDecl(), Node->refersToEnclosingVariableOrCapture(), Node->getNameInfo(), Node->getType(), Node->getValueKind(), Node->getFoundDecl(), &TAListInfo);
+}
 DEFINE_CREATE_EXPR(IntegerLiteral, (Ctx, Node->getValue(), Node->getType(), Node->getLocation()))
 DEFINE_CLONE_EXPR(PredefinedExpr, (Node->getLocation(), Node->getType(), Node->getIdentType(), Node->getFunctionName()))
 DEFINE_CLONE_EXPR(CharacterLiteral, (Node->getValue(), Node->getKind(), Node->getType(), Node->getLocation()))

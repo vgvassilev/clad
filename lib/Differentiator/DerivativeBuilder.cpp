@@ -166,7 +166,7 @@ namespace clad {
       // in storing it as there is no evaluation going on.
       Expr* B = E->IgnoreParenImpCasts();
       // FIXME: find a more general way to determine that or add more options.
-      if (isa<DeclRefExpr>(B) || isa<FloatingLiteral>(B) || 
+      if (isa<DeclRefExpr>(B) || isa<FloatingLiteral>(B) ||
           isa<IntegerLiteral>(B))
         return E;
     }
@@ -478,7 +478,7 @@ namespace clad {
                                                ifTrueDiff.getExpr(),
                                                ifFalseDiff.getExpr()).get();
 
-    Expr* condExprDiff = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, 
+    Expr* condExprDiff = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
                                                    ifTrueDiff.getExpr_dx(),
                                                    ifFalseDiff.getExpr_dx()).
                                                    get();
@@ -541,7 +541,7 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitFloatingLiteral(
     const FloatingLiteral* FL) {
     llvm::APFloat zero = llvm::APFloat::getZero(FL->getSemantics());
-    auto constant0 = FloatingLiteral::Create(m_Context, zero, true, 
+    auto constant0 = FloatingLiteral::Create(m_Context, zero, true,
                                              FL->getType(), noLoc);
     return StmtDiff(Clone(FL), constant0);
   }
@@ -603,6 +603,7 @@ namespace clad {
     Expr* OverloadedFn = 0;
     if (!R.empty()) {
       CXXScopeSpec CSS;
+      CSS.Extend(m_Context, m_BuiltinDerivativesNSD, noLoc, noLoc);
       Expr* UnresolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
 
@@ -734,6 +735,7 @@ namespace clad {
         assert(!R.empty() && "Must be reachable");
       }      // Update function name in the source.
       CXXScopeSpec CSS;
+      CSS.Extend(m_Context, m_Builder.m_BuiltinDerivativesNSD, noLoc, noLoc);
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
       CallExpr* clonedCE = dyn_cast<CallExpr>(Clone(CE));
@@ -825,17 +827,14 @@ namespace clad {
     else if (opCode == BO_Add)
       opDiff = BuildOp(BO_Add, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
     else if (opCode == BO_Sub)
-      opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(), 
+      opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(),
                        BuildParens(Rdiff.getExpr_dx()));
     else {
       //FIXME: add support for other binary operators
       diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
            "attempt to differentiate unsupported binary operator, derivative \
             set to 0");
-      opDiff =
-        ConstantFolder::synthesizeLiteral(BinOp->getType(),
-                                          m_Context,
-                                          0);
+      opDiff = ConstantFolder::synthesizeLiteral(BinOp->getType(), m_Context, 0);
     }
     opDiff = folder.fold(opDiff);
     // Recover the original operation from the Ldiff and Rdiff instead of
