@@ -13,9 +13,17 @@ float basic_1(int x) {
   return (y + x) / (x - z) * ((x * y * z) / 5); // == y * z * (x * x - 2 * x * z - y * z) / (5 * (x - z) * (x - z))
 }
 // CHECK: float basic_1_darg0(int x) {
+// CHECK-NEXT: int _d_y = 0;
 // CHECK-NEXT: int y = 4;
+// CHECK-NEXT: int _d_z = 0;
 // CHECK-NEXT: int z = 3;
-// CHECK-NEXT: return (((0 + (1)) * (x - z) - (y + x) * (1 - (0))) / ((x - z) * (x - z)) * ((x * y * z) / 5) + (y + x) / (x - z) * (((((1 * y + x * 0) * z + x * y * 0)) * 5 - (x * y * z) * 0) / (5 * 5)));
+// CHECK-NEXT: int _t0 = (y + x);
+// CHECK-NEXT: int _t1 = (x - z);
+// CHECK-NEXT: int _t2 = x * y;
+// CHECK-NEXT: int _t3 = (_t2 * z);
+// CHECK-NEXT: int _t4 = _t0 / _t1;
+// CHECK-NEXT: int _t5 = (_t3 / 5);
+// CHECK-NEXT: return (((_d_y + 1) * _t1 - _t0 * (1 - _d_z)) / (_t1 * _t1)) * _t5 + _t4 * ((((1 * y + x * _d_y) * z + _t2 * _d_z) * 5 - _t3 * 0) / (5 * 5));
 // CHECK-NEXT: }
 
 float basic_1_darg0(int x);

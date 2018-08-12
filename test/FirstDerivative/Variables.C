@@ -12,9 +12,11 @@ double f_x(double x) {
 }
 
 // CHECK: double f_x_darg0(double x) {
+// CHECK-NEXT:    double _d_t0 = 1.;
 // CHECK-NEXT:    double t0 = x;
+// CHECK-NEXT:    double _d_t1 = _d_t0;
 // CHECK-NEXT:    double t1 = t0;
-// CHECK-NEXT:    return 1.;
+// CHECK-NEXT:    return _d_t1;
 // CHECK-NEXT: }
 
 double f_ops1(double x) {
@@ -26,11 +28,15 @@ double f_ops1(double x) {
 }
 
 // CHECK: double f_ops1_darg0(double x) {
+// CHECK-NEXT:    double _d_t0 = 1.;
 // CHECK-NEXT:    double t0 = x;
+// CHECK-NEXT:    double _d_t1 = 0 * x + 2 * 1.;
 // CHECK-NEXT:    double t1 = 2 * x;
+// CHECK-NEXT:    double _d_t2 = 0;
 // CHECK-NEXT:    double t2 = 0;
+// CHECK-NEXT:    double _d_t3 = _d_t1 * 2 + t1 * 0 + _d_t2;
 // CHECK-NEXT:    double t3 = t1 * 2 + t2;
-// CHECK-NEXT:    return ((0 * x + 2 * 1.) * 2 + t1 * 0) + (0);
+// CHECK-NEXT:    return _d_t3;
 // CHECK-NEXT: }
 
 double f_ops2(double x) {
@@ -42,11 +48,15 @@ double f_ops2(double x) {
 }
 
 // CHECK: double f_ops2_darg0(double x) {
+// CHECK-NEXT:    double _d_t0 = 1.;
 // CHECK-NEXT:    double t0 = x;
+// CHECK-NEXT:    double _d_t1 = 0 * x + 2 * 1.;
 // CHECK-NEXT:    double t1 = 2 * x;
+// CHECK-NEXT:    double _d_t2 = 0;
 // CHECK-NEXT:    double t2 = 5;
+// CHECK-NEXT:    double _d_t3 = _d_t1 * x + t1 * 1. + _d_t2;
 // CHECK-NEXT:    double t3 = t1 * x + t2;
-// CHECK-NEXT:    return ((0 * x + 2 * 1.) * x + t1 * 1.) + (0);
+// CHECK-NEXT:    return _d_t3;
 // CHECK-NEXT: }
 
 double f_sin(double x, double y) {
@@ -58,11 +68,15 @@ double f_sin(double x, double y) {
 }
 
 // CHECK: double f_sin_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_xsin = sin_darg0(x) * 1.;
 // CHECK-NEXT:     double xsin = sin(x);
+// CHECK-NEXT:     double _d_ysin = sin_darg0(y) * 0.;
 // CHECK-NEXT:     double ysin = sin(y);
-// CHECK-NEXT:     auto xt = xsin * xsin;
-// CHECK-NEXT:     auto yt = ysin * ysin;
-// CHECK-NEXT:     return (sin_darg0(x) * (1.) * xsin + xsin * sin_darg0(x) * (1.)) + ((sin_darg0(y) * (0.) * ysin + ysin * sin_darg0(y) * (0.)));
+// CHECK-NEXT:     double _d_xt = _d_xsin * xsin + xsin * _d_xsin;
+// CHECK-NEXT:     double xt = xsin * xsin;
+// CHECK-NEXT:     double _d_yt = _d_ysin * ysin + ysin * _d_ysin;
+// CHECK-NEXT:     double yt = ysin * ysin;
+// CHECK-NEXT:     return _d_xt + _d_yt;
 // CHECK-NEXT: }
 
 

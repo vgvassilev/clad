@@ -15,10 +15,11 @@ int f_pow(int arg, int p) {
 }
 
 // CHECK: int f_pow_darg0(int arg, int p) {
-// CHECK-NEXT:  if (p == 0)
+// CHECK-NEXT:  if (p == 0) {
 // CHECK-NEXT:    return 0;
-// CHECK-NEXT:  else
-// CHECK-NEXT:    return (1 * f_pow(arg, p - 1) + arg * f_pow_darg0(arg, p - 1) * (1 + 0 - (0)));
+// CHECK-NEXT:  } else {
+// CHECK-NEXT:    int _t0 = f_pow(arg, p - 1);
+// CHECK-NEXT:    return 1 * _t0 + arg * (f_pow_darg0(arg, p - 1) * (1 + 0 - 0));
 // CHECK-NEXT: }
 
 int f_pow_darg0(int arg, int p);

@@ -306,23 +306,23 @@ double f_norm(double x, double y, double z, double d) {
 
 void f_norm_grad(double x, double y, double z, double d, double* _result);
 // CHECK: void f_norm_grad(double x, double y, double z, double d, double *_result) {
-// CHECK-NEXT:     double _grad0[2] = {};
-// CHECK-NEXT:     pow_grad(sum_of_powers(x, y, z, d), 1 / d, _grad0);
-// CHECK-NEXT:     double _t1 = 1. * _grad0[0UL];
-// CHECK-NEXT:     double _grad2[4] = {};
-// CHECK-NEXT:     sum_of_powers_grad(x, y, z, d, _grad2);
-// CHECK-NEXT:     double _t3 = _t1 * _grad2[0UL];
-// CHECK-NEXT:     _result[0UL] += _t3;
-// CHECK-NEXT:     double _t4 = _t1 * _grad2[1UL];
-// CHECK-NEXT:     _result[1UL] += _t4;
-// CHECK-NEXT:     double _t5 = _t1 * _grad2[2UL];
-// CHECK-NEXT:     _result[2UL] += _t5;
-// CHECK-NEXT:     double _t6 = _t1 * _grad2[3UL];
-// CHECK-NEXT:     _result[3UL] += _t6;
-// CHECK-NEXT:     double _t7 = 1. * _grad0[1UL];
-// CHECK-NEXT:     double _t8 = _t7 / d;
-// CHECK-NEXT:     double _t9 = _t7 * -1 / (d * d);
-// CHECK-NEXT:     _result[3UL] += _t9;
+// CHECK-NEXT:     double _grad[2] = {};
+// CHECK-NEXT:     pow_grad(sum_of_powers(x, y, z, d), 1 / d, _grad);
+// CHECK-NEXT:     double _t0 = 1. * _grad[0UL];
+// CHECK-NEXT:     double _grad1[4] = {};
+// CHECK-NEXT:     sum_of_powers_grad(x, y, z, d, _grad1);
+// CHECK-NEXT:     double _t2 = _t0 * _grad1[0UL];
+// CHECK-NEXT:     _result[0UL] += _t2;
+// CHECK-NEXT:     double _t3 = _t0 * _grad1[1UL];
+// CHECK-NEXT:     _result[1UL] += _t3;
+// CHECK-NEXT:     double _t4 = _t0 * _grad1[2UL];
+// CHECK-NEXT:     _result[2UL] += _t4;
+// CHECK-NEXT:     double _t5 = _t0 * _grad1[3UL];
+// CHECK-NEXT:     _result[3UL] += _t5;
+// CHECK-NEXT:     double _t6 = 1. * _grad[1UL];
+// CHECK-NEXT:     double _t7 = _t6 / d;
+// CHECK-NEXT:     double _t8 = _t6 * -1 / (d * d);
+// CHECK-NEXT:     _result[3UL] += _t8;
 // CHECK-NEXT: }
 
 double f_sin(double x, double y) {

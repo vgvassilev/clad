@@ -16,9 +16,11 @@ int f(int x) {
   return x*x;
 }
 // CHECK: int f_darg0(int x) {
-// CHECK-NEXT: if (x < 0)
-// CHECK-NEXT:   return (-1 * x + -x * 1);
-// CHECK-NEXT: return (1 * x + x * 1);
+// CHECK-NEXT: if (x < 0) {
+// CHECK-NEXT:   int _t0 = -x;
+// CHECK-NEXT:   return -1 * x + _t0 * 1;
+// CHECK-NEXT: }
+// CHECK-NEXT: return 1 * x + x * 1;
 // CHECK-NEXT: }
 
 // Semantically equivallent to f(x), but implemented differently.
@@ -29,10 +31,12 @@ int f1(int x) {
     return x*x;
 }
 // CHECK: int f1_darg0(int x) {
-// CHECK-NEXT: if (x < 0)
-// CHECK-NEXT:   return (-1 * x + -x * 1);
-// CHECK-NEXT: else
-// CHECK-NEXT:   return (1 * x + x * 1);
+// CHECK-NEXT:  if (x < 0) {
+// CHECK-NEXT:    int _t0 = -x;
+// CHECK-NEXT:    return -1 * x + _t0 * 1;
+// CHECK-NEXT:  } else {
+// CHECK-NEXT:    return 1 * x + x * 1;
+// CHECK-NEXT:  }
 // CHECK-NEXT: }
 
 // g(y) = | 1, y >= 0
@@ -47,12 +51,12 @@ int g(long y) {
     return 2;
 }
 // CHECK: int g_darg0(long y) {
-// CHECK-NEXT: if (y)
+// CHECK-NEXT: if (y) {
 // CHECK-NEXT:   return 0;
-// CHECK-NEXT: else
+// CHECK-NEXT:  } else {
 // CHECK-NEXT:   return 0;
+// CHECK-NEXT:  }
 // CHECK-NEXT: }
-
 int f_darg0(int x);
 int f1_darg0(int x);
 int g_darg0(long y);

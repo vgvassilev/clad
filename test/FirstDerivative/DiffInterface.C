@@ -12,8 +12,10 @@ int f_1(float y) {
 }
 
 // CHECK: int f_1_darg0(float y) {
+// CHECK-NEXT: int _d_x = 0, _d_z = 0;
 // CHECK-NEXT: int x = 1, z = 3;
-// CHECK-NEXT: return ((0 * y + x * 1.F) * z + x * y * 0);
+// CHECK-NEXT: float _t0 = x * y;
+// CHECK-NEXT: return (_d_x * y + x * 1.F) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 int f_2(int x, float y, int z) {
@@ -21,17 +23,20 @@ int f_2(int x, float y, int z) {
 }
 
 // CHECK: int f_2_darg0(int x, float y, int z) {
-// CHECK-NEXT: return ((1 * y + x * 0.F) * z + x * y * 0);
+// CHECK-NEXT: float _t0 = x * y;
+// CHECK-NEXT: return (1 * y + x * 0.F) * z + _t0 * 0;
 // CHECK-NEXT: }
 
 // x * z
 // CHECK: int f_2_darg1(int x, float y, int z) {
-// CHECK-NEXT: return ((0 * y + x * 1.F) * z + x * y * 0);
+// CHECK-NEXT: float _t0 = x * y;
+// CHECK-NEXT: return (0 * y + x * 1.F) * z + _t0 * 0;
 // CHECK-NEXT: }
 
 // x * y
 // CHECK: int f_2_darg2(int x, float y, int z) {
-// CHECK-NEXT: return ((0 * y + x * 0.F) * z + x * y * 1);
+// CHECK-NEXT: float _t0 = x * y;
+// CHECK-NEXT: return (0 * y + x * 0.F) * z + _t0 * 1;
 // CHECK-NEXT: }
 
 int f_3() {
@@ -39,6 +44,34 @@ int f_3() {
   float y = 2;
   return x * y * z; // should not be differentiated
 }
+
+int f_no_definition(int x); // expected-error {{attempted differentiation of function 'f_no_definition', which does not have a definition}}
+
+int f_redeclared(int x) {
+    return x;
+}
+
+int f_redeclared(int x);
+
+// CHECK: int f_redeclared_darg0(int x) {
+// CHECK-NEXT:  return 1;
+// CHECK: }
+
+int f_try_catch(int x)
+  try {
+    return x;
+  }
+  catch (int) {
+    return 0;
+  } // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
+
+// CHECK: int f_try_catch_darg0(int x) {
+// CHECK-NEXT:    try {
+// CHECK-NEXT:        return x;
+// CHECK-NEXT:    } catch (int) {
+// CHECK-NEXT:        return 0;
+// CHECK-NEXT:    }
+// CHECK-NEXT: }
 
 int main () {
   int x = 4 * 5;
@@ -68,6 +101,12 @@ int main () {
 
   float one = 1.0;
   clad::differentiate(f_2, one); // expected-error {{Must be an integral value}}
+
+  clad::differentiate(f_no_definition, 0);
+
+  clad::differentiate(f_redeclared, 0);
+
+  clad::differentiate(f_try_catch, 0);
 
   return 0;
 }

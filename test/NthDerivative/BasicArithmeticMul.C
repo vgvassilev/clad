@@ -11,23 +11,23 @@ float test_2(float x, float y) {
 }
 
 // CHECK: float test_2_darg0(float x, float y) {
-// CHECK-NEXT: return (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F;
 // CHECK-NEXT: }
 
 // CHECK: float test_2_d2arg0(float x, float y) {
-// CHECK-NEXT: return ((0.F * x + 1.F * 1.F) + ((1.F * 1.F + x * 0.F))) + ((((0.F * y + 0.F * 0.F) + ((0.F * 0.F + y * 0.F)))));
+// CHECK-NEXT: return 0.F * x + 1.F * 1.F + 1.F * 1.F + x * 0.F + 0.F * y + 0.F * 0.F + 0.F * 0.F + y * 0.F;
 // CHECK-NEXT: }
 
 // CHECK: float test_2_darg1(float x, float y) {
-// CHECK-NEXT: return (0.F * x + x * 0.F) + ((1.F * y + y * 1.F));
+// CHECK-NEXT: return 0.F * x + x * 0.F + 1.F * y + y * 1.F;
 // CHECK-NEXT: }
 
 // CHECK: float test_2_d2arg1(float x, float y) {
-// CHECK-NEXT: return ((0.F * x + 0.F * 0.F) + ((0.F * 0.F + x * 0.F))) + ((((0.F * y + 1.F * 1.F) + ((1.F * 1.F + y * 0.F)))));
+// CHECK-NEXT: return 0.F * x + 0.F * 0.F + 0.F * 0.F + x * 0.F + 0.F * y + 1.F * 1.F + 1.F * 1.F + y * 0.F;
 // CHECK-NEXT: }
 
 // CHECK: float test_2_d3arg1(float x, float y) {
-// CHECK-NEXT: return (((0.F * x + 0.F * 0.F) + ((0.F * 0.F + 0.F * 0.F))) + ((((0.F * 0.F + 0.F * 0.F) + ((0.F * 0.F + x * 0.F)))))) + ((((((0.F * y + 0.F * 1.F) + ((0.F * 1.F + 1.F * 0.F))) + ((((0.F * 1.F + 1.F * 0.F) + ((1.F * 0.F + y * 0.F)))))))));
+// CHECK-NEXT: return 0.F * x + 0.F * 0.F + 0.F * 0.F + 0.F * 0.F + 0.F * 0.F + 0.F * 0.F + 0.F * 0.F + x * 0.F + 0.F * y + 0.F * 1.F + 0.F * 1.F + 1.F * 0.F + 0.F * 1.F + 1.F * 0.F + 1.F * 0.F + y * 0.F;
 // CHECK-NEXT: }
 
 float test_1_darg0(float x);

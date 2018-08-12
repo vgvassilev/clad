@@ -38,32 +38,32 @@ int main () {
 
   clad::differentiate(addition<int>, 0);
   // CHECK: int addition_darg0(int x) {
-  // CHECK-NEXT: return 1 + (1);
+  // CHECK-NEXT: return 1 + 1;
   // CHECK-NEXT: }
 
   clad::differentiate(addition<float>, 0);
   // CHECK: float addition_darg0(float x) {
-  // CHECK-NEXT: return 1.F + (1.F);
+  // CHECK-NEXT: return 1.F + 1.F;
   // CHECK-NEXT: }
 
   clad::differentiate(addition<double>, 0);
   // CHECK: double addition_darg0(double x) {
-  // CHECK-NEXT: return 1. + (1.);
+  // CHECK-NEXT: return 1. + 1.;
   // CHECK-NEXT: }
 
   clad::differentiate(multiplication<int>, 0);
   // CHECK: int multiplication_darg0(int x) {
-  // CHECK-NEXT: return (1 * x + x * 1);
+  // CHECK-NEXT: return 1 * x + x * 1;
   // CHECK-NEXT: }
 
   clad::differentiate(multiplication<float>, 0);
   // CHECK: float multiplication_darg0(float x) {
-  // CHECK-NEXT: return (1.F * x + x * 1.F);
+  // CHECK-NEXT: return 1.F * x + x * 1.F;
   // CHECK-NEXT: }
 
   clad::differentiate(multiplication<double>, 0);
   // CHECK: double multiplication_darg0(double x) {
-  // CHECK-NEXT: return (1. * x + x * 1.);
+  // CHECK-NEXT: return 1. * x + x * 1.;
   // CHECK-NEXT: }
 
   return 0;
