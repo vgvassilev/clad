@@ -306,6 +306,7 @@ namespace clad {
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitForStmt(const clang::ForStmt* FS);
     // Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
   };
