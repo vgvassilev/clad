@@ -12,7 +12,8 @@ public:
   }
 
   // CHECK: int f_darg0(int x) {
-  // CHECK-NEXT: return 1;
+  // CHECK-NEXT: int _d_x = 1;
+  // CHECK-NEXT: return _d_x;
   // CHECK-NEXT: }
 
   int g_1(int x, int y) {
@@ -20,11 +21,15 @@ public:
   }
 
   // CHECK: int g_1_darg0(int x, int y) {
-  // CHECK-NEXT: return 1 * x + x * 1 + 0;
+  // CHECK-NEXT: int _d_x = 1;
+  // CHECK-NEXT: int _d_y = 0;
+  // CHECK-NEXT: return _d_x * x + x * _d_x + _d_y;
   // CHECK-NEXT: }
 
   // CHECK: int g_1_darg1(int x, int y) {
-  // CHECK-NEXT: return 0 * x + x * 0 + 1;
+  // CHECK-NEXT: int _d_x = 0;
+  // CHECK-NEXT: int _d_y = 1;
+  // CHECK-NEXT: return _d_x * x + x * _d_x + _d_y;
   // CHECK-NEXT: }
 
   int g_2(int x, int y) {
@@ -32,11 +37,15 @@ public:
   }
 
   // CHECK: int g_2_darg0(int x, int y) {
-  // CHECK-NEXT: return 1 + 0 * y + y * 0;
+  // CHECK-NEXT: int _d_x = 1;
+  // CHECK-NEXT: int _d_y = 0;
+  // CHECK-NEXT: return _d_x + _d_y * y + y * _d_y;
   // CHECK-NEXT: }
 
   // CHECK: int g_2_darg1(int x, int y) {
-  // CHECK-NEXT: return 0 + 1 * y + y * 1;
+  // CHECK-NEXT: int _d_x = 0;
+  // CHECK-NEXT: int _d_y = 1;
+  // CHECK-NEXT: return _d_x + _d_y * y + y * _d_y;
   // CHECK-NEXT: }
 
 

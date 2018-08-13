@@ -18,8 +18,9 @@ float g(float x) {
 }
 
 // CHECK: float g_darg0(float x) {
+// CHECK-NEXT: float _d_x = 1;
 // CHECK: float _t0 = x * x;
-// CHECK-NEXT: custom_derivatives::f_darg0(_t0 * x) * ((1.F * x + x * 1.F) * x + _t0 * 1.F);
+// CHECK-NEXT: custom_derivatives::f_darg0(_t0 * x) * ((_d_x * x + x * _d_x) * x + _t0 * _d_x);
 // CHECK-NEXT: }
 
 float sqrt_func(float x, float y) {
@@ -27,7 +28,9 @@ float sqrt_func(float x, float y) {
 }
 
 // CHECK: float sqrt_func_darg0(float x, float y) {
-// CHECK-NEXT: return custom_derivatives::sqrt_darg0(x * x + y * y) * (1.F * x + x * 1.F + 0.F * y + y * 0.F) - 0.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return custom_derivatives::sqrt_darg0(x * x + y * y) * (_d_x * x + x * _d_x + _d_y * y + y * _d_y) - _d_y;
 // CHECK-NEXT: }
 
 float f_const_args_func_1(const float x, const float y) {
@@ -35,7 +38,9 @@ float f_const_args_func_1(const float x, const float y) {
 }
 
 // CHECK: float f_const_args_func_1_darg0(const float x, const float y) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
+// CHECK-NEXT: const float _d_x = 1;
+// CHECK-NEXT: const float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_2(float x, const float y) {
@@ -43,7 +48,9 @@ float f_const_args_func_2(float x, const float y) {
 }
 
 // CHECK: float f_const_args_func_2_darg0(float x, const float y) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: const float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_3(const float x, float y) {
@@ -51,7 +58,9 @@ float f_const_args_func_3(const float x, float y) {
 }
 
 // CHECK: float f_const_args_func_3_darg0(const float x, float y) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
+// CHECK-NEXT: const float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
 // CHECK-NEXT: }
 
 struct Vec { float x,y,z; };
@@ -60,7 +69,9 @@ float f_const_args_func_4(float x, float y, const Vec v) {
 }
 
 // CHECK: float f_const_args_func_4_darg0(float x, float y, const Vec v) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_5(float x, float y, const Vec &v) {
@@ -68,7 +79,9 @@ float f_const_args_func_5(float x, float y, const Vec &v) {
 }
 
 // CHECK: float f_const_args_func_5_darg0(float x, float y, const Vec &v) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_6(const float x, const float y, const Vec &v) {
@@ -76,7 +89,9 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 }
 
 // CHECK: float f_const_args_func_6_darg0(const float x, const float y, const Vec &v) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
+// CHECK-NEXT: const float _d_x = 1;
+// CHECK-NEXT: const float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - 0.F;
 // CHECK-NEXT: }
 
 float f_const_helper(const float x) {
@@ -88,7 +103,9 @@ float f_const_args_func_7(const float x, const float y) {
 }
 
 // CHECKTODO: float f_const_args_func_7_darg0(const float x, const float y) {
-// CHECKTODO-NEXT: f_const_helper_darg0(x) + (f_const_helper_darg0(y)) - (0.F)
+// CHECKTODO-NEXT: const float _d_x = 1;
+// CHECKTODO-NEXT: const float _d_y = 0;
+// CHECKTODO-NEXT: f_const_helper_darg0(x) + (f_const_helper_darg0(y)) - (_d_y)
 // CHECKTODO-NEXT: }
 
 float f_const_args_func_8(const float x, float y) {
@@ -96,7 +113,9 @@ float f_const_args_func_8(const float x, float y) {
 }
 
 // CHECKTODO: float f_const_args_func_8_darg0(const float x, float y) {
-// CHECKTODO-NEXT: f_const_helper_darg0(x) + (f_const_helper_darg0(y)) - (0.F)
+// CHECKTODO-NEXT: const float _d_x = 1;
+// CHECKTODO-NEXT: float _d_y = 0;
+// CHECKTODO-NEXT: f_const_helper_darg0(x) + (f_const_helper_darg0(y)) - (_d_y)
 // CHECKTODO-NEXT: }
 
 extern "C" int printf(const char* fmt, ...);

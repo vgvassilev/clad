@@ -189,6 +189,12 @@ namespace clad {
     FunctionDeclInfo& FDI,
     const DiffPlan& plan) {
     FunctionDecl* FD = FDI.getFD();
+    if (!FD->getDefinition()) {
+      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
+           "attempted differentiation of function '%0', which does not have a "
+           "definition", { FD->getNameAsString() });
+      return nullptr;
+    }
     m_Function = FD;
     assert(FD && "Must not be null.");
     assert(!m_DerivativeInFlight
@@ -308,21 +314,25 @@ namespace clad {
       }
       // If param is independent variable, its derivative is 1, otherwise 0.
       int dValue = (param == m_IndependentVar);
-      auto dParam = ConstantFolder::synthesizeLiteral(param->getType(),
-                                                      m_Context,
-                                                      dValue);
+      auto dParam = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                      m_Context, dValue);
+      // For each function arg, create a variable _d_arg to store derivatives
+      // of potential reassignments, e.g.:
+      // double f_darg0(double x, double y) {
+      //   double _d_x = 1;
+      //   double _d_y = 0;
+      //   ...
+      auto dParamDecl = BuildVarDecl(param->getType(),
+                                     "_d_" + param->getNameAsString(),
+                                     dParam);
+      addToCurrentBlock(BuildDeclStmt(dParamDecl));
+      dParam = BuildDeclRef(dParamDecl);
       // Memorize the derivative of param, i.e. whenever the param is visited
       // in the future, it's derivative dParam is found (unless reassigned with
       // something new).
       m_Variables[param] = dParam;
     }
 
-    if (!FD->getDefinition()) {
-      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
-           "attempted differentiation of function '%0', which does not have a "
-           "definition", { FD->getNameAsString() });
-      return nullptr;
-    }
     Stmt* BodyDiff = Visit(FD->getDefinition()->getBody()).getStmt();
     if (isa<CompoundStmt>(BodyDiff))
       for (Stmt* S : cast<CompoundStmt>(BodyDiff)->body())
@@ -526,7 +536,18 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    auto clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    DeclRefExpr* clonedDRE = nullptr;
+    // Check if referenced Decl was "replaced" with another identifier inside
+    // the derivative
+    if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      auto it = m_DeclReplacements.find(VD);
+      if (it != std::end(m_DeclReplacements))
+        clonedDRE = BuildDeclRef(it->second);
+      else
+        clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    }
+    else
+      clonedDRE = cast<DeclRefExpr>(Clone(DRE));
     if (auto VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       // If DRE references a variable, try to find if we know something about
       // how it is related to the independent variable.
@@ -718,7 +739,7 @@ namespace clad {
         diag(DiagnosticsEngine::Error, FD->getLocEnd(),
              "attempted differentiation of function '%0', which does not have a \
               definition", { FD->getNameAsString() });
-        auto zero = ConstantFolder::synthesizeLiteral(call->getType(),
+        auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                       m_Context, 0);
         return StmtDiff(call, zero);
       }
@@ -788,10 +809,8 @@ namespace clad {
       diag(DiagnosticsEngine::Warning, UnOp->getLocEnd(),
            "attempt to differentiate unsupported unary operator, derivative \
             set to 0");
-      auto zero =
-        ConstantFolder::synthesizeLiteral(op->getType(),
-                                          m_Context,
-                                          0);
+      auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                    m_Context, 0);
       return StmtDiff(op, zero);
     }
   }
@@ -842,12 +861,24 @@ namespace clad {
     else if (opCode == BO_Sub)
       opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(),
                        BuildParens(Rdiff.getExpr_dx()));
+    else if (opCode == BO_Assign) {
+      if (!Ldiff.getExpr_dx()->isGLValue()) {
+        diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
+             "derivative of an assignment attempts to assign to unassignable "
+             "expr, assignment ignored");
+      }
+      else {
+        opDiff = BuildOp(BO_Assign,
+                         Ldiff.getExpr_dx(),
+                         Rdiff.getExpr_dx());
+      }
+    }
     else {
       //FIXME: add support for other binary operators
       diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
            "attempt to differentiate unsupported binary operator, derivative \
             set to 0");
-      opDiff = ConstantFolder::synthesizeLiteral(BinOp->getType(), m_Context, 0);
+      opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     }
     opDiff = folder.fold(opDiff);
     // Recover the original operation from the Ldiff and Rdiff instead of
@@ -860,23 +891,46 @@ namespace clad {
   VarDeclDiff ForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
     VarDecl* VDClone = BuildVarDecl(VD->getType(),
-                                    VD->getIdentifier(),
+                                    VD->getNameAsString(),
                                     initDiff.getExpr(),
                                     VD->isDirectInit());
     VarDecl* VDDerived = BuildVarDecl(VD->getType(),
                                       "_d_" + VD->getNameAsString(),
                                       initDiff.getExpr_dx());
-    if (initDiff.getExpr_dx())
-      m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
     return VarDeclDiff(VDClone, VDDerived);
   }
 
   StmtDiff ForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
+    // For each variable declaration v, create another declaration _d_v to
+    // store derivatives for potential reassignments. E.g.
+    // double y = x;
+    // ->
+    // double _d_y = _d_x; double y = x;
     for (auto D : DS->decls()) {
       if (auto VD = dyn_cast<VarDecl>(D)) {
         VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
+        // Check if decl's name is the same as before. The name may be changed
+        // if decl name collides with something in the derivative body.
+        // This can happen in rare cases, e.g. when the original function
+        // has both y and _d_y (here _d_y collides with the name produced by
+        // the derivation process), e.g.
+        // double f(double x) {
+        //   double y = x;
+        //   double _d_y = x;
+        // } 
+        // ->
+        // double f_darg0(double x) {
+        //   double _d_x = 1;
+        //   double _d_y = _d_x; // produced as a derivative for y
+        //   double y = x;
+        //   double _d__d_y = _d_x;
+        //   double _d_y = x; // copied from original funcion, collides with _d_y
+        // }
+        if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
+          m_DeclReplacements[VD] = VDDiff.getDecl();
         decls.push_back(VDDiff.getDecl());
         declsDiff.push_back(VDDiff.getDecl_dx());
       } else {
@@ -1032,13 +1086,10 @@ namespace clad {
     gradientFD->setParams(paramsRef);
     gradientFD->setBody(nullptr);
 
-    Sema::SynthesizedFunctionScope Scope(m_Sema, gradientFD);
     // Reference to the output parameter.
     m_Result = BuildDeclRef(params.back());
     // Initially, df/df = 1.
-    auto dfdf = ConstantFolder::synthesizeLiteral(m_Function->getReturnType(),
-                                                  m_Context,
-                                                  1.0);
+    auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
 
     // Function body scope.
     beginScope(Scope::FnScope | Scope::DeclScope);
