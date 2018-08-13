@@ -80,7 +80,7 @@ namespace clad {
     if (Init)
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
     // Add the identifier to the scope and IdResolver
-    m_Sema.PushOnScopeChains(VD, m_CurScope, /*AddToContext*/ false);
+    m_Sema.PushOnScopeChains(VD, currentScope(), /*AddToContext*/ false);
     return VD;
   }
 
@@ -252,10 +252,12 @@ namespace clad {
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
 
-    std::unique_ptr<Scope> FnScope { new Scope(m_Sema.TUScope, Scope::FnScope,
-                                               m_Sema.getDiagnostics()) };
-    m_CurScope = FnScope.get();
-    m_Sema.CurContext = m_Derivative;
+    // Function declaration scope
+    enterScope(Scope::FunctionPrototypeScope |
+               Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(currentScope(), m_Derivative);
 
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
@@ -279,7 +281,7 @@ namespace clad {
       // Add the args in the scope and id chain so that they could be found.
       if (newPVD->getIdentifier())
         m_Sema.PushOnScopeChains(newPVD,
-                                 m_CurScope,
+                                 currentScope(),
                                  /*AddToContext*/ false);
     }
 
@@ -288,8 +290,8 @@ namespace clad {
     derivedFD->setParams(paramsRef);
     derivedFD->setBody(nullptr);
 
-    Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
-    // Begin function body.
+    // Function body scope
+    enterScope(Scope::FnScope | Scope::DeclScope);
     beginBlock();
     // For each function parameter variable, store its derivative value.
     for (auto param : params) {
@@ -330,6 +332,11 @@ namespace clad {
     Stmt* derivativeBody = endBlock();
     derivedFD->setBody(derivativeBody);
 
+    exitScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    exitScope(); // Function decl scope
+
     m_DerivativeInFlight = false;
     return derivedFD;
   }
@@ -364,6 +371,7 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
+    enterScope(Scope::DeclScope);
     beginBlock();
     for (Stmt* S : CS->body()) {
       StmtDiff SDiff = Visit(S);
@@ -372,6 +380,7 @@ namespace clad {
       addToCurrentBlock(SDiff.getStmt());
     }
     CompoundStmt* Result = endBlock();
+    exitScope();
     // Differentation of CompundStmt produces another CompoundStmt with both
     // original and derived statements, i.e. Stmt() is Result and Stmt_dx() is
     // null.
@@ -379,6 +388,9 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
+    // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
+    // to this scope.
+    enterScope(Scope::DeclScope | Scope::ControlScope);
     // Create a block "around" if statement, e.g:
     // {
     //   ...
@@ -455,6 +467,7 @@ namespace clad {
     addToCurrentBlock(ifDiff);
     CompoundStmt* Block = endBlock();
     // If IfStmt is the only statement in the block, remove the block:
+    exitScope();
     // {
     //   if (...) {...}
     // }
@@ -758,7 +771,7 @@ namespace clad {
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
     utils::ReferencesUpdater up(m_Sema,
                                 m_Builder.m_NodeCloner.get(),
-                                m_CurScope);
+                                currentScope());
     up.TraverseStmt(InSubtree);
   }
 
@@ -964,10 +977,12 @@ namespace clad {
     }
     m_Derivative = gradientFD;
 
-    std::unique_ptr<Scope> FnScope { new Scope(m_Sema.TUScope, Scope::FnScope,
-                                               m_Sema.getDiagnostics()) };
-    m_CurScope = FnScope.get();
-    m_Sema.CurContext = m_Derivative;
+    // Function declaration scope
+    enterScope(Scope::FunctionPrototypeScope |
+               Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(currentScope(), m_Derivative);
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
@@ -990,7 +1005,7 @@ namespace clad {
                                              nullptr));
                      if (VD->getIdentifier())
                        m_Sema.PushOnScopeChains(VD,
-                                                m_CurScope,
+                                                currentScope(),
                                                 /*AddToContext*/ false);
                      return VD;
                    });
@@ -1009,7 +1024,7 @@ namespace clad {
                           nullptr);
     if (params.back()->getIdentifier())
       m_Sema.PushOnScopeChains(params.back(),
-                               m_CurScope,
+                               currentScope(),
                                /*AddToContext*/ false);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
@@ -1025,6 +1040,8 @@ namespace clad {
                                                   m_Context,
                                                   1.0);
 
+    // Function body scope.
+    enterScope(Scope::FnScope | Scope::DeclScope);
     beginBlock();
     // Start the visitation process which outputs the statements in the current
     // block.
@@ -1032,23 +1049,22 @@ namespace clad {
     Visit(functionBody, dfdf);
     // Create the body of the function.
     Stmt* gradientBody = endBlock();
+    m_Derivative->setBody(gradientBody);
 
-    gradientFD->setBody(gradientBody);
-    // Cleanup the IdResolver chain.
-    for(FunctionDecl::param_iterator I = gradientFD->param_begin(),
-        E = gradientFD->param_end(); I != E; ++I) {
-      if ((*I)->getIdentifier()) {
-        m_CurScope->RemoveDecl(*I);
-        //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
-      }
-    }
+    exitScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    exitScope(); // Function decl scope
+
     return gradientFD;
   }
 
   void ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
+    enterScope(Scope::DeclScope);
     for (CompoundStmt::const_body_iterator I = CS->body_begin(),
            E = CS->body_end(); I != E; ++I)
         Visit(*I, dfdx());
+    exitScope();
   }
 
   void ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
@@ -1091,7 +1107,7 @@ namespace clad {
     const clang::ConditionalOperator* CO) {
     Expr* condVar = StoreAndRef(Clone(CO->getCond()), "_t", /*force*/ true);
     auto cond =
-      m_Sema.ActOnCondition(m_CurScope,
+      m_Sema.ActOnCondition(currentScope(),
                             noLoc,
                             condVar,
                             Sema::ConditionKind::Boolean).get().second;

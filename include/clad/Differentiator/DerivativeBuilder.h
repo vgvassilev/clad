@@ -123,6 +123,25 @@ namespace clad {
       getCurrentBlock().push_back(S);
     }
 
+    /// Get a current scope.
+    clang::Scope* currentScope() {
+      return m_CurScope;
+    }
+    /// Enters a new scope.
+    void enterScope(unsigned ScopeFlags) {
+      // FIXME: since Sema::CurScope is private, we cannot access it and have
+      // to use separate member variable m_CurScope. The only options to set
+      // CurScope of Sema seemt to be through Parser or ContextAndScopeRAII.
+      m_CurScope = new clang::Scope(currentScope(), ScopeFlags, m_Sema.Diags);
+    }
+    void exitScope() {
+      // This will remove all the decls in the scope from the IdResolver. 
+      m_Sema.ActOnPopScope(noLoc, m_CurScope);
+      auto oldScope = m_CurScope;
+      m_CurScope = oldScope->getParent();
+      delete oldScope;
+    }
+
     /// A shorthand to simplify syntax for creation of new expressions.
     /// Uses m_Sema.BuildUnOp internally.
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E);
