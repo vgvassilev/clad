@@ -509,6 +509,122 @@ namespace clad {
     return StmtDiff(condExpr, condExprDiff);
   }
 
+  StmtDiff ForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
+    beginScope(Scope::DeclScope |
+               Scope::ControlScope |
+               Scope::BreakScope |
+               Scope::ContinueScope);
+    beginBlock();
+    const Stmt* init = FS->getInit();
+    StmtDiff initDiff = init ? Visit(init) : StmtDiff{};
+    if (initDiff.getStmt_dx())
+      addToCurrentBlock(initDiff.getStmt_dx());
+    VarDecl* condVarDecl = FS->getConditionVariable();
+    VarDecl* condVarClone = nullptr;
+    if (condVarDecl) {
+       VarDeclDiff condVarResult = DifferentiateVarDecl(condVarDecl);
+       condVarClone = condVarResult.getDecl();
+       if (condVarResult.getDecl_dx())
+         addToCurrentBlock(BuildDeclStmt(condVarResult.getDecl_dx()));
+    }
+    Expr* cond = FS->getCond() ? Clone(FS->getCond()) : nullptr;
+    const Expr* inc = FS->getInc();
+
+    // Differentiate the increment expression of the for loop
+    beginBlock();
+    StmtDiff incDiff = inc ? Visit(inc) : StmtDiff{};
+    CompoundStmt* decls = endBlock();
+    Expr* incResult = nullptr;
+    if (decls->size()) {
+      // If differentiation of the increment produces a statement for
+      // temporary variable declaration, enclose the increment in lambda
+      // since only expressions are allowed in the increment part of the for
+      // loop. E.g.:
+      // for (...; ...; x = x * std::sin(x))
+      // ->
+      // for (int i = 0; i < 10; [&] {
+      //  double _t1 = std::sin(x);
+      //  _d_x = _d_x * _t1 + x * custom_derivatives::sin_darg0(x) * (_d_x);
+      //  x = x * _t1;
+      // }())
+
+      // FIXME: Here we make use some of the things that are used from Parser, it
+      // seems to be the easiest way to create lambda
+      LambdaIntroducer Intro;
+      Intro.Default = LCD_ByRef;
+      // FIXME: Using noLoc here results in assert failure. Any other valid
+      // SourceLocation seems to work fine.
+      Intro.Range.setBegin(inc->getLocStart());
+      Intro.Range.setEnd(inc->getLocEnd());
+      AttributeFactory AttrFactory;
+      DeclSpec DS(AttrFactory);
+      Declarator D(DS, Declarator::LambdaExprContext);
+      m_Sema.PushLambdaScope();
+      beginScope(Scope::BlockScope |
+                 Scope::FnScope |
+                 Scope::DeclScope);
+      m_Sema.ActOnStartOfLambdaDefinition(Intro, D, getCurrentScope());
+      beginBlock();
+      StmtDiff incDiff = inc ? Visit(inc) : StmtDiff{};
+      if (incDiff.getStmt_dx())
+        addToCurrentBlock(incDiff.getStmt_dx());
+      if (incDiff.getStmt())
+        addToCurrentBlock(incDiff.getStmt());
+      CompoundStmt* incBody = endBlock();
+      Expr* lambda = 
+        m_Sema.ActOnLambdaExpr(noLoc, incBody, getCurrentScope()).get();
+      endScope();
+      incResult =
+        m_Sema.ActOnCallExpr(getCurrentScope(),
+                             lambda,
+                             noLoc,
+                             {},
+                             noLoc).get(); 
+    }
+    else if (incDiff.getExpr_dx() && incDiff.getExpr()) {
+      // If no declarations are required and only two Expressions are produced,
+      // join them with comma expression.
+      incResult = BuildOp(BO_Comma,
+                          BuildParens(incDiff.getExpr_dx()),
+                          BuildParens(incDiff.getExpr()));
+    }
+    else if (incDiff.getExpr()) {
+      incResult = incDiff.getExpr();
+    }
+    
+    const Stmt* body = FS->getBody();
+    beginScope(Scope::DeclScope);
+    Stmt* bodyResult = nullptr;
+    if (isa<CompoundStmt>(body)) {
+      bodyResult = Visit(body).getStmt();
+    }
+    else {
+      beginBlock();
+      StmtDiff Result = Visit(body);
+      for (Stmt* S : Result.getBothStmts())
+        if (S)
+          addToCurrentBlock(S);
+      CompoundStmt* Block = endBlock();
+      if (Block->size() == 1)
+        bodyResult = Block->body_front();
+      else
+        bodyResult = Block; 
+    }
+    endScope();
+ 
+    Stmt* forStmtDiff =
+      new (m_Context) ForStmt(m_Context, initDiff.getStmt(), cond, condVarClone,
+                              incResult, bodyResult, noLoc, noLoc, noLoc);
+  
+    addToCurrentBlock(forStmtDiff);
+    CompoundStmt* Block = endBlock();
+    endScope();
+
+    StmtDiff Result = (Block->size() == 1) ?
+      StmtDiff(forStmtDiff) : StmtDiff(Block);
+    return Result;
+  }
+
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     Stmt* returnStmt =
@@ -545,17 +661,30 @@ namespace clad {
         clonedDRE = BuildDeclRef(it->second);
       else
         clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+        // If current context is different than the context of the original
+        // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
+        // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
+        // Sema::BuildDeclRefExpr is responsible for adding captured fields
+        // to the underlying struct of a lambda.
+        if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
+          auto referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
+          clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
+        }
     }
-    else
-      clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    
     if (auto VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       // If DRE references a variable, try to find if we know something about
       // how it is related to the independent variable.
       auto it = m_Variables.find(VD);
       if (it != std::end(m_Variables)) {
         // If a record was found, use the recorded derivative.
-        Expr* dVarDRE = it->second;
-        return StmtDiff(clonedDRE, dVarDRE);
+        auto dExpr = it->second;
+        if (auto dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
+          auto dVar = cast<VarDecl>(dVarDRE->getDecl());
+          if (dVar->getDeclContext() != m_Sema.CurContext)
+            dExpr = BuildDeclRef(dVar);
+        }
+        return StmtDiff(clonedDRE, dExpr);
       }
     }
     // Is not a variable or is a reference to something unrelated to independent
