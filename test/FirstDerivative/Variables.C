@@ -12,7 +12,8 @@ double f_x(double x) {
 }
 
 // CHECK: double f_x_darg0(double x) {
-// CHECK-NEXT:    double _d_t0 = 1.;
+// CHECK-NEXT:    double _d_x = 1;
+// CHECK-NEXT:    double _d_t0 = _d_x;
 // CHECK-NEXT:    double t0 = x;
 // CHECK-NEXT:    double _d_t1 = _d_t0;
 // CHECK-NEXT:    double t1 = t0;
@@ -28,9 +29,10 @@ double f_ops1(double x) {
 }
 
 // CHECK: double f_ops1_darg0(double x) {
-// CHECK-NEXT:    double _d_t0 = 1.;
+// CHECK-NEXT:    double _d_x = 1;
+// CHECK-NEXT:    double _d_t0 = _d_x;
 // CHECK-NEXT:    double t0 = x;
-// CHECK-NEXT:    double _d_t1 = 0 * x + 2 * 1.;
+// CHECK-NEXT:    double _d_t1 = 0 * x + 2 * _d_x;
 // CHECK-NEXT:    double t1 = 2 * x;
 // CHECK-NEXT:    double _d_t2 = 0;
 // CHECK-NEXT:    double t2 = 0;
@@ -48,13 +50,14 @@ double f_ops2(double x) {
 }
 
 // CHECK: double f_ops2_darg0(double x) {
-// CHECK-NEXT:    double _d_t0 = 1.;
+// CHECK-NEXT:    double _d_x = 1;
+// CHECK-NEXT:    double _d_t0 = _d_x;
 // CHECK-NEXT:    double t0 = x;
-// CHECK-NEXT:    double _d_t1 = 0 * x + 2 * 1.;
+// CHECK-NEXT:    double _d_t1 = 0 * x + 2 * _d_x;
 // CHECK-NEXT:    double t1 = 2 * x;
 // CHECK-NEXT:    double _d_t2 = 0;
 // CHECK-NEXT:    double t2 = 5;
-// CHECK-NEXT:    double _d_t3 = _d_t1 * x + t1 * 1. + _d_t2;
+// CHECK-NEXT:    double _d_t3 = _d_t1 * x + t1 * _d_x + _d_t2;
 // CHECK-NEXT:    double t3 = t1 * x + t2;
 // CHECK-NEXT:    return _d_t3;
 // CHECK-NEXT: }
@@ -68,9 +71,11 @@ double f_sin(double x, double y) {
 }
 
 // CHECK: double f_sin_darg0(double x, double y) {
-// CHECK-NEXT:     double _d_xsin = custom_derivatives::sin_darg0(x) * 1.;
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     double _d_xsin = custom_derivatives::sin_darg0(x) * _d_x;
 // CHECK-NEXT:     double xsin = std::sin(x);
-// CHECK-NEXT:     double _d_ysin = custom_derivatives::sin_darg0(y) * 0.;
+// CHECK-NEXT:     double _d_ysin = custom_derivatives::sin_darg0(y) * _d_y;
 // CHECK-NEXT:     double ysin = std::sin(y);
 // CHECK-NEXT:     double _d_xt = _d_xsin * xsin + xsin * _d_xsin;
 // CHECK-NEXT:     double xt = xsin * xsin;

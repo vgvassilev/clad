@@ -12,10 +12,11 @@ int f_1(float y) {
 }
 
 // CHECK: int f_1_darg0(float y) {
+// CHECK-NEXT: float _d_y = 1;
 // CHECK-NEXT: int _d_x = 0, _d_z = 0;
 // CHECK-NEXT: int x = 1, z = 3;
 // CHECK-NEXT: float _t0 = x * y;
-// CHECK-NEXT: return (_d_x * y + x * 1.F) * z + _t0 * _d_z;
+// CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 int f_2(int x, float y, int z) {
@@ -23,20 +24,29 @@ int f_2(int x, float y, int z) {
 }
 
 // CHECK: int f_2_darg0(int x, float y, int z) {
+// CHECK-NEXT: int _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: int _d_z = 0;
 // CHECK-NEXT: float _t0 = x * y;
-// CHECK-NEXT: return (1 * y + x * 0.F) * z + _t0 * 0;
+// CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 // x * z
 // CHECK: int f_2_darg1(int x, float y, int z) {
+// CHECK-NEXT: int _d_x = 0;
+// CHECK-NEXT: float _d_y = 1;
+// CHECK-NEXT: int _d_z = 0;
 // CHECK-NEXT: float _t0 = x * y;
-// CHECK-NEXT: return (0 * y + x * 1.F) * z + _t0 * 0;
+// CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 // x * y
 // CHECK: int f_2_darg2(int x, float y, int z) {
+// CHECK-NEXT: int _d_x = 0;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: int _d_z = 1;
 // CHECK-NEXT: float _t0 = x * y;
-// CHECK-NEXT: return (0 * y + x * 0.F) * z + _t0 * 1;
+// CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 int f_3() {
@@ -54,7 +64,8 @@ int f_redeclared(int x) {
 int f_redeclared(int x);
 
 // CHECK: int f_redeclared_darg0(int x) {
-// CHECK-NEXT:  return 1;
+// CHECK-NEXT:   int _d_x = 1;
+// CHECK-NEXT:   return _d_x;
 // CHECK: }
 
 int f_try_catch(int x)
@@ -66,6 +77,7 @@ int f_try_catch(int x)
   } // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
 
 // CHECK: int f_try_catch_darg0(int x) {
+// CHECK-NEXT:    int _d_x = 1;
 // CHECK-NEXT:    try {
 // CHECK-NEXT:        return x;
 // CHECK-NEXT:    } catch (int) {

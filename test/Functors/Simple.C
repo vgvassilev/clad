@@ -34,11 +34,15 @@ public:
 };
 
 // CHECK: float operator_call_darg0(float x, float y) {
-// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
 // CHECK: float operator_call_darg1(float x, float y) {
-// CHECK-NEXT: return 0.F * x + x * 0.F + 1.F * y + y * 1.F;
+// CHECK-NEXT: float _d_x = 0;
+// CHECK-NEXT: float _d_y = 1;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
 float f(float x) {

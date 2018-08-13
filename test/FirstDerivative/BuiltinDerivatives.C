@@ -12,7 +12,8 @@ float f1(float x) {
 }
 
 // CHECK: float f1_darg0(float x) {
-// CHECK-NEXT: return custom_derivatives::sin_darg0(x) * 1.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: return custom_derivatives::sin_darg0(x) * _d_x;
 // CHECK-NEXT: }
 
 float f2(float x) {
@@ -20,7 +21,8 @@ float f2(float x) {
 }
 
 // CHECK: float f2_darg0(float x) {
-// CHECK-NEXT: custom_derivatives::cos_darg0(x) * 1.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: custom_derivatives::cos_darg0(x) * _d_x;
 // CHECK-NEXT: }
 
 float f3(float x, float y) {
@@ -28,11 +30,15 @@ float f3(float x, float y) {
 }
 
 // CHECK: float f3_darg0(float x, float y) {
-// CHECK-NEXT: return custom_derivatives::sin_darg0(x) * 1.F + custom_derivatives::sin_darg0(y) * 0.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return custom_derivatives::sin_darg0(x) * _d_x + custom_derivatives::sin_darg0(y) * _d_y;
 // CHECK-NEXT: }
 
 // CHECK: float f3_darg1(float x, float y) {
-// CHECK-NEXT: return custom_derivatives::sin_darg0(x) * 0.F + custom_derivatives::sin_darg0(y) * 1.F;
+// CHECK-NEXT: float _d_x = 0;
+// CHECK-NEXT: float _d_y = 1;
+// CHECK-NEXT: return custom_derivatives::sin_darg0(x) * _d_x + custom_derivatives::sin_darg0(y) * _d_y;
 // CHECK-NEXT: }
 
 float f4(float x, float y) {
@@ -40,11 +46,15 @@ float f4(float x, float y) {
 }
 
 // CHECK: float f4_darg0(float x, float y) {
-// CHECK-NEXT: return custom_derivatives::sin_darg0(x * x) * (1.F * x + x * 1.F) + custom_derivatives::sin_darg0(y * y) * (0.F * y + y * 0.F);
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: return custom_derivatives::sin_darg0(x * x) * (_d_x * x + x * _d_x) + custom_derivatives::sin_darg0(y * y) * (_d_y * y + y * _d_y);
 // CHECK-NEXT: }
 
 // CHECK: float f4_darg1(float x, float y) {
-// CHECK-NEXT: return custom_derivatives::sin_darg0(x * x) * (0.F * x + x * 0.F) + custom_derivatives::sin_darg0(y * y) * (1.F * y + y * 1.F);
+// CHECK-NEXT: float _d_x = 0;
+// CHECK-NEXT: float _d_y = 1;
+// CHECK-NEXT: return custom_derivatives::sin_darg0(x * x) * (_d_x * x + x * _d_x) + custom_derivatives::sin_darg0(y * y) * (_d_y * y + y * _d_y);
 // CHECK-NEXT: }
 
 float f5(float x) {
@@ -52,7 +62,8 @@ float f5(float x) {
 }
 
 // CHECK: float f5_darg0(float x) {
-// CHECK-NEXT: return custom_derivatives::exp_darg0(x) * 1.F;
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: return custom_derivatives::exp_darg0(x) * _d_x;
 // CHECK-NEXT: }
 
 float f6(float x) {
@@ -60,7 +71,8 @@ float f6(float x) {
 }
 
 // CHECK: float f6_darg0(float x) {
-// CHECK-NEXT: return custom_derivatives::exp_darg0(x * x) * (1.F * x + x * 1.F);
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: return custom_derivatives::exp_darg0(x * x) * (_d_x * x + x * _d_x);
 // CHECK-NEXT: }
 
 
