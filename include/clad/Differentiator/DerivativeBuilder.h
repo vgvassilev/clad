@@ -8,8 +8,8 @@
 #define CLAD_DERIVATIVE_BUILDER_H
 
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Sema/Sema.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Sema/Sema.h"
 
 #include <array>
 #include <stack>
@@ -104,11 +104,11 @@ namespace clad {
     }
 
     /// Get the latest block of code (i.e. place for statements output).
-    Stmts & getCurrentBlock() {
+    Stmts& getCurrentBlock() {
       return m_Blocks.top();
     }
     /// Create new block.
-    Stmts & beginBlock() {
+    Stmts& beginBlock() {
       m_Blocks.push({});
       return m_Blocks.top();
     }
@@ -169,7 +169,12 @@ namespace clad {
     template <std::size_t N>
     void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
               const char (&format)[N],
-              llvm::ArrayRef<llvm::StringRef> args = {},
+              llvm::ArrayRef<llvm::StringRef> args,
+              clang::SourceLocation loc = {});
+
+    template <std::size_t N>
+    void diag(clang::DiagnosticsEngine::Level level,
+              const char (&format)[N],
               clang::SourceLocation loc = {});
 
     /// Conuter used to create unique identifiers for temporaries
@@ -211,7 +216,7 @@ namespace clad {
       return llvm::cast_or_null<clang::Expr>(getStmt_dx());
     }
     // Stmt_dx goes first!
-    std::array<clang::Stmt*, 2> & getBothStmts() {
+    std::array<clang::Stmt*, 2>& getBothStmts() {
       return data;
     }
   };
@@ -229,7 +234,7 @@ namespace clad {
     clang::VarDecl* getDecl() { return data[1]; }
     clang::VarDecl* getDecl_dx() { return data[0]; }
     // Decl_dx goes first!
-    std::array<clang::VarDecl*, 2> & getBothDecls() {
+    std::array<clang::VarDecl*, 2>& getBothDecls() {
       return data;
     }
   };
@@ -310,7 +315,7 @@ namespace clad {
     ///
     ///\returns The gradient of the function
     ///
-    clang::FunctionDecl* Derive(FunctionDeclInfo & FDI, const DiffPlan& plan);
+    clang::FunctionDecl* Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
     void VisitCompoundStmt(const clang::CompoundStmt* CS);
     void VisitIfStmt(const clang::IfStmt* If);
     void VisitReturnStmt(const clang::ReturnStmt* RS);

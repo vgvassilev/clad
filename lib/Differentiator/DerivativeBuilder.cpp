@@ -136,8 +136,7 @@ namespace clad {
       if (R.empty()) {
         m_tmpId = id;
         return name;
-      }
-      else {
+      } else {
         idStr = std::to_string(id);
         id += 1;
       }
@@ -167,6 +166,13 @@ namespace clad {
     Sema::SemaDiagnosticBuilder stream = m_Sema.Diag(loc, diagID);
     for (auto arg : args)
       stream << arg;
+  }
+
+  template <std::size_t N>
+  void VisitorBase::diag(clang::DiagnosticsEngine::Level level,
+                         const char (&format)[N],
+                         clang::SourceLocation loc) {
+    diag(level, format, {}, loc);
   }
 
   Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
@@ -250,8 +256,7 @@ namespace clad {
                                         FD->isInlineSpecified(),
                                         FD->isConstexpr(), noLoc);
       derivedFD->setAccess(FD->getAccess());
-    }
-    else {
+    } else {
       assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
       derivedFD = FunctionDecl::Create(m_Context,
                                        FD->getDeclContext(), noLoc,
@@ -315,15 +320,14 @@ namespace clad {
       // differentiate it.
       // FIXME: we should support custom numeric types in the future.
       if (!param->getType()->isRealType()) {
-        if (param == m_IndependentVar) {
-          diag(DiagnosticsEngine::Error,
-             "attempted differentiation w.r.t. a parameter ('%0') which is not of "
-             "a real type",
-             { m_IndependentVar->getNameAsString() });
-          return nullptr;
-        }
-        else
+        if (param != m_IndependentVar)
           continue;
+        diag(DiagnosticsEngine::Error,
+             "attempted differentiation w.r.t. a parameter ('%0') which is not "
+             "of a real type",
+             { m_IndependentVar->getNameAsString() },
+             PVD->getLocEnd());
+        return nullptr;
       }
       // If param is independent variable, its derivative is 1, otherwise 0.
       int dValue = (param == m_IndependentVar);
@@ -345,10 +349,11 @@ namespace clad {
       return nullptr;
     }
     Stmt* BodyDiff = Visit(FD->getDefinition()->getBody()).getStmt();
-    if (!isa<CompoundStmt>(BodyDiff))
-      BodyDiff = MakeCompoundStmt(llvm::ArrayRef<Stmt*>(BodyDiff));
-    for (Stmt* S : cast<CompoundStmt>(BodyDiff)->body())
-      addToCurrentBlock(S);
+    if (isa<CompoundStmt>(BodyDiff))
+      for (Stmt* S : cast<CompoundStmt>(BodyDiff)->body())
+        addToCurrentBlock(S);
+    else
+      addToCurrentBlock(BodyDiff);
     Stmt* derivativeBody = endBlock();
     derivedFD->setBody(derivativeBody);
 
@@ -381,7 +386,6 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning,
          "attempted to differentiate unsupported statement, no changes applied",
-         {},
          S->getLocEnd());
     // Unknown stmt, just clone it.
     return StmtDiff(Clone(S));
@@ -413,7 +417,7 @@ namespace clad {
     StmtDiff initResult = init ? Visit(init) : StmtDiff{};
     // If there is Init, it's derivative will be output in the block before if:
     // E.g., for:
-    // if (x = 1; ...) {...}
+    // if (int x = 1; ...) {...}
     // result will be:
     // {
     //   int _d_x = 0;
@@ -423,9 +427,8 @@ namespace clad {
     if (initResult.getStmt_dx())
       addToCurrentBlock(initResult.getStmt_dx());
 
-    VarDecl* condVarDecl = If->getConditionVariable();
     VarDecl* condVarClone = nullptr;
-    if (condVarDecl) {
+    if (VarDecl* condVarDecl = If->getConditionVariable()) {
       VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
       condVarClone = condVarDeclDiff.getDecl();
       if (condVarDeclDiff.getDecl_dx())
@@ -451,13 +454,17 @@ namespace clad {
         if (isa<CompoundStmt>(Branch)) {
           StmtDiff BranchDiff = Visit(Branch);
           return BranchDiff.getStmt();
-        }
-        else {
+        } else {
           beginBlock();
           StmtDiff BranchDiff = Visit(Branch);
           for (Stmt* S : BranchDiff.getBothStmts())
-            if (S) addToCurrentBlock(S);
-          return endBlock();
+            if (S)
+              addToCurrentBlock(S);
+          CompoundStmt* Block = endBlock();
+          if (Block->size() == 1)
+            return Block->body_front();
+          else
+            return Block;
         }
       };
 
@@ -481,11 +488,7 @@ namespace clad {
     // }
     // ->
     // if (...) {...}
-    StmtDiff Result{};
-    if (Block->size() == 1)
-      Result = { ifDiff };
-    else
-      Result = { Block };
+    StmtDiff Result = (Block->size() == 1) ? StmtDiff(ifDiff) : StmtDiff(Block);
     return Result;
   }
 
@@ -496,9 +499,7 @@ namespace clad {
     StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
 
     cond = StoreAndRef(cond);
-    cond = m_Sema.ActOnCondition(m_CurScope,
-                                 noLoc,
-                                 cond,
+    cond = m_Sema.ActOnCondition(m_CurScope, noLoc, cond,
                                  Sema::ConditionKind::Boolean).get().second;
 
     Expr* condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
@@ -797,17 +798,12 @@ namespace clad {
     // If opKind is unary plus or minus, apply that op to derivative.
     // Otherwise, the derivative is 0.
     // FIXME: add support for other unary operators
-    if (opKind == UO_Plus || opKind == UO_Minus) {
-      return {
-        op,
-        BuildOp(opKind, diff.getExpr_dx())
-      };
-    }
+    if (opKind == UO_Plus || opKind == UO_Minus)
+      return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     else {
       diag(DiagnosticsEngine::Warning,
            "attempt to differentiate unsupported unary operator, derivative \
             set to 0",
-           {},
            UnOp->getLocEnd());
       auto zero =
         ConstantFolder::synthesizeLiteral(op->getType(),
@@ -833,13 +829,11 @@ namespace clad {
       Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
       Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
 
-      Expr* LHS = BuildOp(BO_Mul,
-                         BuildParens(Ldiff.getExpr_dx()),
-                         BuildParens(Rdiff.getExpr()));
+      Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
+                          BuildParens(Rdiff.getExpr()));
 
-      Expr* RHS = BuildOp(BO_Mul,
-                         BuildParens(Ldiff.getExpr()),
-                         BuildParens(Rdiff.getExpr_dx()));
+      Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+                          BuildParens(Rdiff.getExpr_dx()));
 
       opDiff = BuildOp(BO_Add, LHS, RHS);
     }
@@ -847,13 +841,11 @@ namespace clad {
       Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
       Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
 
-      Expr* LHS = BuildOp(BO_Mul,
-                         BuildParens(Ldiff.getExpr_dx()),
-                         BuildParens(Rdiff.getExpr()));
+      Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
+                          BuildParens(Rdiff.getExpr()));
 
-      Expr* RHS = BuildOp(BO_Mul,
-                         BuildParens(Ldiff.getExpr()),
-                         BuildParens(Rdiff.getExpr_dx()));
+      Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+                          BuildParens(Rdiff.getExpr_dx()));
 
       Expr* nominator = BuildOp(BO_Sub, LHS, RHS);
 
@@ -862,22 +854,16 @@ namespace clad {
 
       opDiff = BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
     }
-    else if (opCode == BO_Add) {
-      opDiff = BuildOp(BO_Add,
-                       Ldiff.getExpr_dx(),
-                       Rdiff.getExpr_dx());
-    }
-    else if (opCode == BO_Sub) {
-      opDiff = BuildOp(BO_Sub,
-                       Ldiff.getExpr_dx(),
+    else if (opCode == BO_Add)
+      opDiff = BuildOp(BO_Add, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
+    else if (opCode == BO_Sub)
+      opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(), 
                        BuildParens(Rdiff.getExpr_dx()));
-    }
     else {
       //FIXME: add support for other binary operators
       diag(DiagnosticsEngine::Warning,
            "attempt to differentiate unsupported binary operator, derivative \
             set to 0",
-           {},
            BinOp->getLocEnd());
       opDiff =
         ConstantFolder::synthesizeLiteral(BinOp->getType(),
@@ -911,14 +897,11 @@ namespace clad {
     llvm::SmallVector<Decl*, 4> declsDiff;
     for (auto D : DS->decls()) {
       if (auto VD = dyn_cast<VarDecl>(D)) {
-        auto VDDiff = DifferentiateVarDecl(VD);
+        VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
         decls.push_back(VDDiff.getDecl());
         declsDiff.push_back(VDDiff.getDecl_dx());
-      }
-      else {
-        diag(DiagnosticsEngine::Warning,
-             "Unsupported declaration",
-             {},
+      } else {
+        diag(DiagnosticsEngine::Warning, "Unsupported declaration", 
              D->getLocEnd());
       }
     }
@@ -943,7 +926,6 @@ namespace clad {
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
     diag(DiagnosticsEngine::Error,
          "We don't support overloaded operators yet!",
-         {},
          OpCall->getLocEnd());
     return {};
   }
@@ -1009,8 +991,7 @@ namespace clad {
                                         m_Function->isInlineSpecified(),
                                         m_Function->hasWrittenPrototype(),
                                         m_Function->isConstexpr());
-    }
-    else {
+    } else {
       diag(DiagnosticsEngine::Error,
            "attempted differentiation of '%0' which is of unsupported type",
            { m_Function->getNameAsString() },
@@ -1144,8 +1125,7 @@ namespace clad {
 
   void ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    Expr* condVar = StoreAndRef(Clone(CO->getCond()), "_t",
-                               /*force*/ true);
+    Expr* condVar = StoreAndRef(Clone(CO->getCond()), "_t", /*force*/ true);
     auto cond =
       m_Sema.ActOnCondition(m_CurScope,
                             noLoc,
@@ -1173,10 +1153,6 @@ namespace clad {
                                                condExpr);
         Visit(branch, dStmt);
     };
-
-    // FIXME: not optimal, creates two (condExpr ? ... : ...) expressions,
-    // so cond is unnesarily checked twice.
-    // Can be improved by storing the result of condExpr in a temporary.
 
     auto zero = ConstantFolder::synthesizeLiteral(dfdx()->getType(),
                                                   m_Context,
@@ -1240,8 +1216,7 @@ namespace clad {
     auto FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning,
-           "attempted differentiation of something that is not a direct call \
-            to a function and is not supported yet. Ignored.");
+           "Differentiation of only direct calls is supported. Ignored");
       return;
     }
     IdentifierInfo* II = nullptr;
@@ -1274,16 +1249,11 @@ namespace clad {
                                        0); // No IndexTypeQualifiers
 
       // Create {} array initializer to fill it with zeroes.
-      auto ZeroInitBraces = m_Sema.ActOnInitList(noLoc,
-                                                 {},
-                                                 noLoc).get();
-      // Declare: Type _gradX[Nargs];
+      auto ZeroInitBraces = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
+      // Declare: Type _gradX[Nargs] = {};
       ResultDecl = BuildVarDecl(ArrayType,
-                                CreateUniqueIdentifier("_grad", m_tmpId));
-      // Add zero-initializer : Type _gradX[Nargs] = {};
-      m_Sema.AddInitializerToDecl(ResultDecl,
-                                  ZeroInitBraces,
-                                  /* DirectInit */ false);
+                                CreateUniqueIdentifier("_grad", m_tmpId),
+                                ZeroInitBraces);
       Result = BuildDeclRef(ResultDecl);
       // Pass the array as the last parameter for gradient.
       CallArgs.push_back(Result);
@@ -1328,8 +1298,7 @@ namespace clad {
         auto d = BuildOp(BO_Mul, dfdx(), Result);
         auto dTmp = StoreAndRef(d);
         Visit(CE->getArg(0), dTmp);
-      }
-      else {
+      } else {
         // Put Result array declaration in the function body.
         getCurrentBlock().push_back(BuildDeclStmt(ResultDecl));
         // Call the gradient, passing Result as the last Arg.
