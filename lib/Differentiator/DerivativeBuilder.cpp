@@ -94,24 +94,20 @@ namespace clad {
                         DirectInit);
   }
 
-  Stmt* VisitorBase::BuildDeclStmt(Decl* D) {
-    return m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D),
-                                noLoc,
-                                noLoc).get();
+  DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
+    Stmt* DS = m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D), noLoc,
+                                    noLoc).get();
+    return cast<DeclStmt>(DS);
   }
 
-  Stmt* VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<Decl*> DS) {
-    auto DGR = DeclGroupRef::Create(m_Context, DS.data(), DS.size());
-    return new (m_Context) DeclStmt(DGR,
-                                    noLoc,
-                                    noLoc);
+  DeclStmt* VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<Decl*> Decls) {
+    auto DGR = DeclGroupRef::Create(m_Context, Decls.data(), Decls.size());
+    return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
   }
 
-  Expr* VisitorBase::BuildDeclRef(VarDecl* D) {
-    return m_Sema.BuildDeclRefExpr(D,
-                                   D->getType(),
-                                   VK_LValue,
-                                   noLoc).get();
+  DeclRefExpr* VisitorBase::BuildDeclRef(VarDecl* D) {
+    Expr* DRE = m_Sema.BuildDeclRefExpr(D, D->getType(), VK_LValue, noLoc).get();
+    return cast<DeclRefExpr>(DRE);
   }
 
   IdentifierInfo*

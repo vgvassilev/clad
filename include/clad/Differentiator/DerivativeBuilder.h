@@ -144,11 +144,11 @@ namespace clad {
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false);
     /// Wraps a declaration in DeclStmt.
-    clang::Stmt* BuildDeclStmt(clang::Decl* D);
-    clang::Stmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
+    clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
+    clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
 
     /// Builds a DeclRefExpr to a given Decl.
-    clang::Expr* BuildDeclRef(clang::VarDecl* D);
+    clang::DeclRefExpr* BuildDeclRef(clang::VarDecl* D);
 
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
