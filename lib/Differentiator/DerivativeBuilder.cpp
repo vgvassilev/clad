@@ -156,25 +156,6 @@ namespace clad {
       return E;
   }
 
-  template <std::size_t N>
-  void VisitorBase::diag(clang::DiagnosticsEngine::Level level,
-                         const char (&format)[N],
-                         llvm::ArrayRef<llvm::StringRef> args,
-                         clang::SourceLocation loc) {
-    unsigned diagID
-      = m_Sema.Diags.getCustomDiagID(level, format);
-    Sema::SemaDiagnosticBuilder stream = m_Sema.Diag(loc, diagID);
-    for (auto arg : args)
-      stream << arg;
-  }
-
-  template <std::size_t N>
-  void VisitorBase::diag(clang::DiagnosticsEngine::Level level,
-                         const char (&format)[N],
-                         clang::SourceLocation loc) {
-    diag(level, format, {}, loc);
-  }
-
   Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     return StoreAndRef(E, E->getType(), prefix, forceDeclCreation);
@@ -322,11 +303,9 @@ namespace clad {
       if (!param->getType()->isRealType()) {
         if (param != m_IndependentVar)
           continue;
-        diag(DiagnosticsEngine::Error,
+        diag(DiagnosticsEngine::Error, PVD->getLocEnd(),
              "attempted differentiation w.r.t. a parameter ('%0') which is not "
-             "of a real type",
-             { m_IndependentVar->getNameAsString() },
-             PVD->getLocEnd());
+             "of a real type", { m_IndependentVar->getNameAsString() });
         return nullptr;
       }
       // If param is independent variable, its derivative is 1, otherwise 0.
@@ -341,11 +320,9 @@ namespace clad {
     }
 
     if (!FD->getDefinition()) {
-      diag(DiagnosticsEngine::Error,
+      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
            "attempted differentiation of function '%0', which does not have a "
-           "definition",
-           { FD->getNameAsString() },
-           FD->getLocEnd());
+           "definition", { FD->getNameAsString() });
       return nullptr;
     }
     Stmt* BodyDiff = Visit(FD->getDefinition()->getBody()).getStmt();
@@ -384,9 +361,8 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
-    diag(DiagnosticsEngine::Warning,
-         "attempted to differentiate unsupported statement, no changes applied",
-         S->getLocEnd());
+    diag(DiagnosticsEngine::Warning, S->getLocEnd(),
+         "attempted to differentiate unsupported statement, no changes applied");
     // Unknown stmt, just clone it.
     return StmtDiff(Clone(S));
   }
@@ -729,11 +705,9 @@ namespace clad {
         mostRecentFD = mostRecentFD->getPreviousDecl();
       }
       if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
-        diag(DiagnosticsEngine::Error,
+        diag(DiagnosticsEngine::Error, FD->getLocEnd(),
              "attempted differentiation of function '%0', which does not have a \
-              definition",
-             { FD->getNameAsString() },
-             FD->getLocEnd());
+              definition", { FD->getNameAsString() });
         auto zero = ConstantFolder::synthesizeLiteral(call->getType(),
                                                       m_Context, 0);
         return StmtDiff(call, zero);
@@ -774,11 +748,10 @@ namespace clad {
     }
 
     // Function was not derived => issue a warning.
-    diag(DiagnosticsEngine::Warning,
+    diag(DiagnosticsEngine::Warning, CE->getDirectCallee()->getLocEnd(),
          "function '%0' was not differentiated because it is not declared in "
          "namespace 'custom_derivatives'",
-         { CE->getDirectCallee()->getNameAsString() },
-         CE->getDirectCallee()->getLocEnd());
+         { CE->getDirectCallee()->getNameAsString() });
 
     auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     return StmtDiff(call, zero);
@@ -801,10 +774,9 @@ namespace clad {
     if (opKind == UO_Plus || opKind == UO_Minus)
       return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     else {
-      diag(DiagnosticsEngine::Warning,
+      diag(DiagnosticsEngine::Warning, UnOp->getLocEnd(),
            "attempt to differentiate unsupported unary operator, derivative \
-            set to 0",
-           UnOp->getLocEnd());
+            set to 0");
       auto zero =
         ConstantFolder::synthesizeLiteral(op->getType(),
                                           m_Context,
@@ -861,10 +833,9 @@ namespace clad {
                        BuildParens(Rdiff.getExpr_dx()));
     else {
       //FIXME: add support for other binary operators
-      diag(DiagnosticsEngine::Warning,
+      diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
            "attempt to differentiate unsupported binary operator, derivative \
-            set to 0",
-           BinOp->getLocEnd());
+            set to 0");
       opDiff =
         ConstantFolder::synthesizeLiteral(BinOp->getType(),
                                           m_Context,
@@ -901,8 +872,8 @@ namespace clad {
         decls.push_back(VDDiff.getDecl());
         declsDiff.push_back(VDDiff.getDecl_dx());
       } else {
-        diag(DiagnosticsEngine::Warning, "Unsupported declaration", 
-             D->getLocEnd());
+        diag(DiagnosticsEngine::Warning, D->getLocEnd(),
+             "Unsupported declaration");
       }
     }
 
@@ -924,9 +895,8 @@ namespace clad {
   VisitCXXOperatorCallExpr(const CXXOperatorCallExpr* OpCall) {
     // This operator gets emitted when there is a binary operation containing
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
-    diag(DiagnosticsEngine::Error,
-         "We don't support overloaded operators yet!",
-         OpCall->getLocEnd());
+    diag(DiagnosticsEngine::Error, OpCall->getLocEnd(),
+         "We don't support overloaded operators yet!");
     return {};
   }
 
@@ -992,10 +962,9 @@ namespace clad {
                                         m_Function->hasWrittenPrototype(),
                                         m_Function->isConstexpr());
     } else {
-      diag(DiagnosticsEngine::Error,
+      diag(DiagnosticsEngine::Error, m_Function->getLocEnd(),
            "attempted differentiation of '%0' which is of unsupported type",
-           { m_Function->getNameAsString() },
-           m_Function->getLocEnd());
+           { m_Function->getNameAsString() });
       return nullptr;
     }
     m_Derivative = gradientFD;
@@ -1215,7 +1184,7 @@ namespace clad {
   void ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     auto FD = CE->getDirectCallee();
     if (!FD) {
-      diag(DiagnosticsEngine::Warning,
+      diag(DiagnosticsEngine::Warning, CE->getLocEnd(),
            "Differentiation of only direct calls is supported. Ignored");
       return;
     }
@@ -1270,11 +1239,10 @@ namespace clad {
       if (FD != m_Function) {
         // Not a recursive call, derivative was not found, ignore.
         // Issue a warning.
-        diag(DiagnosticsEngine::Warning,
+        diag(DiagnosticsEngine::Warning, CE->getDirectCallee()->getLocEnd(),
              "function '%0' was not differentiated because it is not declared \
               in namespace 'custom_derivatives'",
-             { FD->getNameAsString() },
-             CE->getDirectCallee()->getLocEnd());
+             { FD->getNameAsString() });
         return;
       }
       // Recursive call.

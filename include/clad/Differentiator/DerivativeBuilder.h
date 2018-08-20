@@ -168,14 +168,15 @@ namespace clad {
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
     void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
+              clang::SourceLocation loc,
               const char (&format)[N],
-              llvm::ArrayRef<llvm::StringRef> args,
-              clang::SourceLocation loc = {});
-
-    template <std::size_t N>
-    void diag(clang::DiagnosticsEngine::Level level,
-              const char (&format)[N],
-              clang::SourceLocation loc = {});
+              llvm::ArrayRef<llvm::StringRef> args = {}) {
+      unsigned diagID
+        = m_Sema.Diags.getCustomDiagID(level, format);
+      clang::Sema::SemaDiagnosticBuilder stream = m_Sema.Diag(loc, diagID);
+      for (auto arg : args)
+        stream << arg;
+    }
 
     /// Conuter used to create unique identifiers for temporaries
     std::size_t m_tmpId = 0;
