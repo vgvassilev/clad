@@ -12,15 +12,15 @@ float f_simple(float x) {
 }
 
 //CHECK:float f_simple_darg0(float x) {
-//CHECK-NEXT:    return (1.F * x + x * 1.F);
+//CHECK-NEXT:    return 1.F * x + x * 1.F;
 //CHECK-NEXT:}
 
 //CHECK:float f_simple_d2arg0(float x) {
-//CHECK-NEXT:    return ((0.F * x + 1.F * 1.F) + ((1.F * 1.F + x * 0.F)));
+//CHECK-NEXT:    return 0.F * x + 1.F * 1.F + 1.F * 1.F + x * 0.F;
 //CHECK-NEXT:}
 
 //CHECK:float f_simple_d3arg0(float x) {
-//CHECK-NEXT:    return (((0.F * x + 0.F * 1.F) + ((0.F * 1.F + 1.F * 0.F))) + ((((0.F * 1.F + 1.F * 0.F) + ((1.F * 0.F + x * 0.F))))));
+//CHECK-NEXT:    return 0.F * x + 0.F * 1.F + 0.F * 1.F + 1.F * 0.F + 0.F * 1.F + 1.F * 0.F + 1.F * 0.F + x * 0.F;
 //CHECK-NEXT:}
 
 int f_simple_negative(int x) {
@@ -28,7 +28,8 @@ int f_simple_negative(int x) {
   return -x*x;
 }
 // CHECK: int f_simple_negative_darg0(int x) {
-// CHECK-NEXT: return (-1 * x + -x * 1);
+// CHECK-NEXT: int _t0 = -x;
+// CHECK-NEXT: return -1 * x + _t0 * 1;
 // CHECK-NEXT: }
 
 int main () {

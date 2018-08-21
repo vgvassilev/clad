@@ -120,27 +120,27 @@ namespace clad {
 
               Result = m_DerivativeBuilder->Derive(*I, *plan);
             }
-            collector.UpdatePlan(Result, &*plan);
-            if (I + 1 == plan->end()) // The last element
-               plan->updateCall(Result, m_CI.getSema());
-
-            // if enabled, print source code of the derived functions
-            if (m_DO.DumpDerivedFn) {
-               Result->print(llvm::outs(), Policy);
-            }
-            // if enabled, print ASTs of the derived functions
-            if (m_DO.DumpDerivedAST) {
-               Result->dumpColor();
-            }
-            // if enabled, print the derivatives in a file.
-            if (m_DO.GenerateSourceFile) {
-               std::error_code err;
-               llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                      llvm::sys::fs::F_Append);
-               Result->print(f, Policy);
-               f.flush();
-            }
             if (Result) {
+              collector.UpdatePlan(Result, &*plan);
+              if (I + 1 == plan->end()) // The last element
+                plan->updateCall(Result, m_CI.getSema());
+
+              // if enabled, print source code of the derived functions
+              if (m_DO.DumpDerivedFn) {
+                 Result->print(llvm::outs(), Policy);
+              }
+              // if enabled, print ASTs of the derived functions
+              if (m_DO.DumpDerivedAST) {
+                 Result->dumpColor();
+              }
+              // if enabled, print the derivatives in a file.
+              if (m_DO.GenerateSourceFile) {
+                 std::error_code err;
+                 llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                                        llvm::sys::fs::F_Append);
+                 Result->print(f, Policy);
+                 f.flush();
+              }
               // Call CodeGen only if the produced decl is a top-most decl.
               if (Result->getDeclContext()
                   == m_CI.getASTContext().getTranslationUnitDecl())

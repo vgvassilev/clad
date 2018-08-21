@@ -20,11 +20,11 @@ public:
   }
 
   // CHECK: int g_1_darg0(int x, int y) {
-  // CHECK-NEXT: return (1 * x + x * 1) + (0);
+  // CHECK-NEXT: return 1 * x + x * 1 + 0;
   // CHECK-NEXT: }
 
   // CHECK: int g_1_darg1(int x, int y) {
-  // CHECK-NEXT: return (0 * x + x * 0) + (1);
+  // CHECK-NEXT: return 0 * x + x * 0 + 1;
   // CHECK-NEXT: }
 
   int g_2(int x, int y) {
@@ -32,11 +32,11 @@ public:
   }
 
   // CHECK: int g_2_darg0(int x, int y) {
-  // CHECK-NEXT: return 1 + ((0 * y + y * 0));
+  // CHECK-NEXT: return 1 + 0 * y + y * 0;
   // CHECK-NEXT: }
 
   // CHECK: int g_2_darg1(int x, int y) {
-  // CHECK-NEXT: return 0 + ((1 * y + y * 1));
+  // CHECK-NEXT: return 0 + 1 * y + y * 1;
   // CHECK-NEXT: }
 
 

@@ -24,16 +24,6 @@ using namespace clang;
 
 
 namespace clad {
-  static SourceLocation noLoc{};
-
-  CompoundStmt* NodeContext::wrapInCompoundStmt(clang::ASTContext& C) const {
-    assert(!isSingleStmt() && "Must be more than 1");
-    llvm::ArrayRef<Stmt*> stmts
-    = llvm::makeArrayRef(m_Stmts.data(), m_Stmts.size());
-    clang::SourceLocation noLoc;
-    return new (C) clang::CompoundStmt(C, stmts, noLoc, noLoc);
-  }
-
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
     : m_Sema(S), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Context)),
@@ -75,52 +65,119 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type,
                                      IdentifierInfo* Identifier,
-                                     Expr* Init) {
+                                     Expr* Init,
+                                     bool DirectInit) {
 
     auto VD = VarDecl::Create(m_Context,
-                              m_Derivative,
+                              m_Sema.CurContext,
                               noLoc,
                               noLoc,
                               Identifier,
                               Type,
                               nullptr, // FIXME: Should there be any TypeInfo?
                               SC_None);
-    VD->setInit(Init);
+
+    if (Init)
+      m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
+    // Add the identifier to the scope and IdResolver
+    m_Sema.PushOnScopeChains(VD, m_CurScope, /*AddToContext*/ false);
     return VD;
   }
 
-  Stmt* VisitorBase::BuildDeclStmt(VarDecl* VD) {
-    return m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(VD),
-                                noLoc,
-                                noLoc).get();
+  VarDecl* VisitorBase::BuildVarDecl(QualType Type,
+                                     llvm::StringRef prefix,
+                                     Expr* Init,
+                                     bool DirectInit) {
+    return BuildVarDecl(Type,
+                        CreateUniqueIdentifier(prefix, m_tmpId),
+                        Init,
+                        DirectInit);
   }
 
-  IdentifierInfo* VisitorBase::CreateUniqueIdentifier(const char * name_base,
-                                                      std::size_t id) {
-  
+  DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
+    Stmt* DS = m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D), noLoc,
+                                    noLoc).get();
+    return cast<DeclStmt>(DS);
+  }
+
+  DeclStmt* VisitorBase::BuildDeclStmt(llvm::MutableArrayRef<Decl*> Decls) {
+    auto DGR = DeclGroupRef::Create(m_Context, Decls.data(), Decls.size());
+    return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
+  }
+
+  DeclRefExpr* VisitorBase::BuildDeclRef(VarDecl* D) {
+    Expr* DRE = m_Sema.BuildDeclRefExpr(D, D->getType(), VK_LValue, noLoc).get();
+    return cast<DeclRefExpr>(DRE);
+  }
+
+  IdentifierInfo*
+  VisitorBase::CreateUniqueIdentifier(llvm::StringRef nameBase,
+                                      std::size_t id) {
+
+    // For intermediate variables, use numbered names (_t0), for everything
+    // else first try a name without number (e.g. first try to use _d_x and
+    // use _d_x0 only if _d_x is taken).
+    std::string idStr = "";
+    if (nameBase == "_t") {
+      idStr = std::to_string(id);
+      id += 1;
+    }
     for (;;) {
-      auto name = &m_Context.Idents.get(name_base + std::to_string(id));
+      IdentifierInfo* name = &m_Context.Idents.get(nameBase.str() + idStr);
       LookupResult R(m_Sema,
                      DeclarationName(name),
                      noLoc,
                      Sema::LookupOrdinaryName);
-      m_Sema.LookupName(R, m_CurScope.get(), false);
+      m_Sema.LookupName(R, m_CurScope, /*AllowBuiltinCreation*/ false);
       if (R.empty()) {
-        m_tmpId = id + 1;
+        m_tmpId = id;
         return name;
-      }
-      else
+      } else {
+        idStr = std::to_string(id);
         id += 1;
+      }
     }
   }
 
-  CompoundStmt* VisitorBase::MakeCompoundStmt(
-    const llvm::SmallVector<clang::Stmt*, 16> & Stmts) {
-    auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
-    return new (m_Context) clang::CompoundStmt(m_Context,
-                                               Stmts_ref,
-                                               noLoc,
-                                               noLoc);
+   Expr* VisitorBase::BuildParens(Expr* E) {
+    Expr* ENoCasts = E->IgnoreCasts();
+    // In our case, there is no reason to build parentheses around something
+    // that is not a binary or ternary operator.
+    if (isa<BinaryOperator>(ENoCasts) ||
+        (isa<CXXOperatorCallExpr>(ENoCasts) &&
+         cast<CXXOperatorCallExpr>(ENoCasts)->getNumArgs() == 2) ||
+        isa<ConditionalOperator>(ENoCasts))
+      return m_Sema.ActOnParenExpr(noLoc, noLoc, E).get();
+    else
+      return E;
+  }
+
+  Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
+                                 bool forceDeclCreation) {
+    return StoreAndRef(E, E->getType(), prefix, forceDeclCreation);
+  }
+
+  Expr* VisitorBase::StoreAndRef(Expr* E,
+                                 QualType Type,
+                                 llvm::StringRef prefix,
+                                 bool forceDeclCreation) {
+    if (!forceDeclCreation) {
+      // If Expr is simple (i.e. a reference or a literal), there is no point
+      // in storing it as there is no evaluation going on.
+      Expr* B = E->IgnoreParenImpCasts();
+      // FIXME: find a more general way to determine that or add more options.
+      if (isa<DeclRefExpr>(B) || isa<FloatingLiteral>(B) || 
+          isa<IntegerLiteral>(B))
+        return E;
+    }
+    // Create variable declaration.
+    VarDecl* Var = BuildVarDecl(Type, CreateUniqueIdentifier(prefix, m_tmpId), E);
+
+    // Add the declaration to the body of the gradient function.
+    addToCurrentBlock(BuildDeclStmt(Var));
+
+    // Return reference to the declaration instead of original expression.
+    return BuildDeclRef(Var);
   }
 
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
@@ -176,8 +233,7 @@ namespace clad {
                                         FD->isInlineSpecified(),
                                         FD->isConstexpr(), noLoc);
       derivedFD->setAccess(FD->getAccess());
-    }
-    else {
+    } else {
       assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
       derivedFD = FunctionDecl::Create(m_Context,
                                        FD->getDeclContext(), noLoc,
@@ -196,18 +252,19 @@ namespace clad {
     ParmVarDecl* newPVD = 0;
     ParmVarDecl* PVD = 0;
 
-    // We will use the m_CurScope to do the needed lookups.
-    m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
-                               m_Sema.getDiagnostics()));
+    std::unique_ptr<Scope> FnScope { new Scope(m_Sema.TUScope, Scope::FnScope,
+                                               m_Sema.getDiagnostics()) };
+    m_CurScope = FnScope.get();
+    m_Sema.CurContext = m_Derivative;
 
     // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
     for(size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
       PVD = FD->getParamDecl(i);
       Expr* clonedPVDDefaultArg = 0;
       if (PVD->hasDefaultArg())
-        clonedPVDDefaultArg = Clone(PVD->getDefaultArg()).getExpr();
+        clonedPVDDefaultArg = Clone(PVD->getDefaultArg());
 
-      newPVD = ParmVarDecl::Create(m_Context, derivedFD, noLoc, noLoc,
+      newPVD = ParmVarDecl::Create(m_Context, m_Sema.CurContext, noLoc, noLoc,
                                    PVD->getIdentifier(), PVD->getType(),
                                    PVD->getTypeSourceInfo(),
                                    PVD->getStorageClass(),
@@ -220,183 +277,286 @@ namespace clad {
 
       params.push_back(newPVD);
       // Add the args in the scope and id chain so that they could be found.
-      if (newPVD->getIdentifier()) {
-        m_CurScope->AddDecl(newPVD);
-        m_Sema.IdResolver.AddDecl(newPVD);
-      }
+      if (newPVD->getIdentifier())
+        m_Sema.PushOnScopeChains(newPVD,
+                                 m_CurScope,
+                                 /*AddToContext*/ false);
     }
-    /// Store dx/dx = 1 in the variables map.
-    m_Variables[m_IndependentVar] =
-      ConstantFolder::synthesizeLiteral(m_IndependentVar->getType(),
-                                        m_Context,
-                                        1);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef
       = llvm::makeArrayRef(params.data(), params.size());
     derivedFD->setParams(paramsRef);
-    derivedFD->setBody(0);
+    derivedFD->setBody(nullptr);
 
-    // This is creating a 'fake' function scope. See SemaDeclCXX.cpp
     Sema::SynthesizedFunctionScope Scope(m_Sema, derivedFD);
-    Stmt* derivativeBody = Visit(FD->getMostRecentDecl()->getBody()).getStmt();
-
-    derivedFD->setBody(derivativeBody);
-    // Cleanup the IdResolver chain.
-    for(FunctionDecl::param_iterator I = derivedFD->param_begin(),
-        E = derivedFD->param_end(); I != E; ++I) {
-      if ((*I)->getIdentifier()) {
-        m_CurScope->RemoveDecl(*I);
-        //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
+    // Begin function body.
+    beginBlock();
+    // For each function parameter variable, store its derivative value.
+    for (auto param : params) {
+      // If param is not real (i.e. floating point or integral), we cannot
+      // differentiate it.
+      // FIXME: we should support custom numeric types in the future.
+      if (!param->getType()->isRealType()) {
+        if (param != m_IndependentVar)
+          continue;
+        diag(DiagnosticsEngine::Error, PVD->getLocEnd(),
+             "attempted differentiation w.r.t. a parameter ('%0') which is not "
+             "of a real type", { m_IndependentVar->getNameAsString() });
+        return nullptr;
       }
+      // If param is independent variable, its derivative is 1, otherwise 0.
+      int dValue = (param == m_IndependentVar);
+      auto dParam = ConstantFolder::synthesizeLiteral(param->getType(),
+                                                      m_Context,
+                                                      dValue);
+      // Memorize the derivative of param, i.e. whenever the param is visited
+      // in the future, it's derivative dParam is found (unless reassigned with
+      // something new).
+      m_Variables[param] = dParam;
     }
+
+    if (!FD->getDefinition()) {
+      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
+           "attempted differentiation of function '%0', which does not have a "
+           "definition", { FD->getNameAsString() });
+      return nullptr;
+    }
+    Stmt* BodyDiff = Visit(FD->getDefinition()->getBody()).getStmt();
+    if (isa<CompoundStmt>(BodyDiff))
+      for (Stmt* S : cast<CompoundStmt>(BodyDiff)->body())
+        addToCurrentBlock(S);
+    else
+      addToCurrentBlock(BodyDiff);
+    Stmt* derivativeBody = endBlock();
+    derivedFD->setBody(derivativeBody);
 
     m_DerivativeInFlight = false;
     return derivedFD;
   }
 
-  Stmt* DerivativeBuilder::Clone(const Stmt* S) {
-    Stmt* clonedStmt = m_NodeCloner->Clone(S);
+  Stmt* VisitorBase::Clone(const Stmt* S) {
+    Stmt* clonedStmt = m_Builder.m_NodeCloner->Clone(S);
     updateReferencesOf(clonedStmt);
     return clonedStmt;
   }
-  Expr* DerivativeBuilder::Clone(const Expr* E) {
+  Expr* VisitorBase::Clone(const Expr* E) {
     const Stmt* S = E;
     return llvm::cast<Expr>(Clone(S));
   }
 
-  Expr* DerivativeBuilder::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
-    return m_Sema.BuildUnaryOp(m_CurScope.get(),
+  Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
+    return m_Sema.BuildUnaryOp(nullptr,
                                noLoc,
                                OpCode,
                                E).get();
   }
-  Expr* DerivativeBuilder::BuildOp(clang::BinaryOperatorKind OpCode,
+
+  Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode,
                                    Expr* L, Expr* R) {
     return m_Sema.BuildBinOp(nullptr, noLoc, OpCode, L, R).get();
   }
 
-  NodeContext ForwardModeVisitor::Clone(const Stmt* S) {
-    return NodeContext(m_Builder.Clone(S));
+  StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
+    diag(DiagnosticsEngine::Warning, S->getLocEnd(),
+         "attempted to differentiate unsupported statement, no changes applied");
+    // Unknown stmt, just clone it.
+    return StmtDiff(Clone(S));
   }
 
-  NodeContext ForwardModeVisitor::VisitStmt(const Stmt* S) {
-    return Clone(S);
+  StmtDiff ForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
+    beginBlock();
+    for (Stmt* S : CS->body()) {
+      StmtDiff SDiff = Visit(S);
+      if (SDiff.getStmt_dx())
+        addToCurrentBlock(SDiff.getStmt_dx());
+      addToCurrentBlock(SDiff.getStmt());
+    }
+    CompoundStmt* Result = endBlock();
+    // Differentation of CompundStmt produces another CompoundStmt with both
+    // original and derived statements, i.e. Stmt() is Result and Stmt_dx() is
+    // null.
+    return StmtDiff(Result);
   }
 
-  NodeContext ForwardModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
-    llvm::SmallVector<Stmt*, 16> stmts;
-    for (CompoundStmt::const_body_iterator I = CS->body_begin(),
-           E = CS->body_end(); I != E; ++I)
-      stmts.push_back(Visit(*I).getStmt());
+  StmtDiff ForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
+    // Create a block "around" if statement, e.g:
+    // {
+    //   ...
+    //  if (...) {...}
+    // }
+    beginBlock();
+    const Stmt* init = If->getInit();
+    StmtDiff initResult = init ? Visit(init) : StmtDiff{};
+    // If there is Init, it's derivative will be output in the block before if:
+    // E.g., for:
+    // if (int x = 1; ...) {...}
+    // result will be:
+    // {
+    //   int _d_x = 0;
+    //   if (int x = 1; ...) {...}
+    // }
+    // This is done to avoid variable names clashes.
+    if (initResult.getStmt_dx())
+      addToCurrentBlock(initResult.getStmt_dx());
 
-    llvm::ArrayRef<Stmt*> stmtsRef(stmts.data(), stmts.size());
-    return new (m_Context) CompoundStmt(m_Context, stmtsRef, noLoc, noLoc);
+    VarDecl* condVarClone = nullptr;
+    if (VarDecl* condVarDecl = If->getConditionVariable()) {
+      VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
+      condVarClone = condVarDeclDiff.getDecl();
+      if (condVarDeclDiff.getDecl_dx())
+        addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
+    }
+
+    // Condition is just cloned as it is, not derived.
+    // FIXME: if condition changes one of the variables, it may be reasonable
+    // to derive it, e.g.
+    // if (x += x) {...}
+    // should result in:
+    // {
+    //   _d_y += _d_x
+    //   if (y += x) {...}
+    // }
+    Expr* cond = Clone(If->getCond());
+
+    auto VisitBranch =
+      [this] (const Stmt* Branch) -> Stmt* {
+        if (!Branch)
+          return nullptr;
+
+        if (isa<CompoundStmt>(Branch)) {
+          StmtDiff BranchDiff = Visit(Branch);
+          return BranchDiff.getStmt();
+        } else {
+          beginBlock();
+          StmtDiff BranchDiff = Visit(Branch);
+          for (Stmt* S : BranchDiff.getBothStmts())
+            if (S)
+              addToCurrentBlock(S);
+          CompoundStmt* Block = endBlock();
+          if (Block->size() == 1)
+            return Block->body_front();
+          else
+            return Block;
+        }
+      };
+
+    Stmt* thenDiff = VisitBranch(If->getThen());
+    Stmt* elseDiff = VisitBranch(If->getElse());
+
+    Stmt* ifDiff = new (m_Context) IfStmt(m_Context,
+                                         noLoc,
+                                         If->isConstexpr(),
+                                         initResult.getStmt(),
+                                         condVarClone,
+                                         cond,
+                                         thenDiff,
+                                         noLoc,
+                                         elseDiff);
+    addToCurrentBlock(ifDiff);
+    CompoundStmt* Block = endBlock();
+    // If IfStmt is the only statement in the block, remove the block:
+    // {
+    //   if (...) {...}
+    // }
+    // ->
+    // if (...) {...}
+    StmtDiff Result = (Block->size() == 1) ? StmtDiff(ifDiff) : StmtDiff(Block);
+    return Result;
   }
 
-  NodeContext ForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
-    IfStmt* clonedIf = Clone(If).getAs<IfStmt>();
-    clonedIf->setThen(Visit(clonedIf->getThen()).getStmt());
-    if (clonedIf->getElse())
-      clonedIf->setElse(Visit(clonedIf->getElse()).getStmt());
-    return NodeContext(clonedIf);
+  StmtDiff
+  ForwardModeVisitor::VisitConditionalOperator(const ConditionalOperator* CO) {
+    Expr* cond = Clone(CO->getCond());
+    StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
+    StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
+
+    cond = StoreAndRef(cond);
+    cond = m_Sema.ActOnCondition(m_CurScope, noLoc, cond,
+                                 Sema::ConditionKind::Boolean).get().second;
+
+    Expr* condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
+                                               ifTrueDiff.getExpr(),
+                                               ifFalseDiff.getExpr()).get();
+
+    Expr* condExprDiff = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, 
+                                                   ifTrueDiff.getExpr_dx(),
+                                                   ifFalseDiff.getExpr_dx()).
+                                                   get();
+
+    return StmtDiff(condExpr, condExprDiff);
   }
 
-  NodeContext ForwardModeVisitor::VisitConditionalOperator(
-    const ConditionalOperator* CO) {
-    auto cond = Clone(CO->getCond()).getExpr();
-    auto ifTrue = Visit(CO->getTrueExpr()).getExpr();
-    auto ifFalse = Visit(CO->getFalseExpr()).getExpr();
-
-    auto condExpr = new (m_Context) ConditionalOperator(cond,
-                                                        noLoc,
-                                                        ifTrue,
-                                                        noLoc,
-                                                        ifFalse,
-                                                        ifTrue->getType(),
-                                                        // FIXME: check if we do
-                                                        // not need lvalue in 
-                                                        // some cases
-                                                        VK_RValue, 
-                                                        OK_Ordinary);
-    // For some reason clang would not geterate parentheses to keep the correct
-    // order.
-    auto parens = new (m_Context) ParenExpr(noLoc, noLoc, condExpr);
-    return NodeContext(parens);
+  StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
+    StmtDiff retValDiff = Visit(RS->getRetValue());
+    Stmt* returnStmt =
+      m_Sema.ActOnReturnStmt(noLoc,
+                             retValDiff.getExpr_dx(), // return the derivative
+                             m_CurScope).get();
+    return StmtDiff(returnStmt);
   }
 
-  NodeContext ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
-     //ReturnStmt* clonedStmt = m_NodeCloner->Clone(RS);
-    Expr* retVal = Visit(Clone(RS->getRetValue()).getExpr()).getExpr();
-
-    // Note here getCurScope is the TU unit, since we've done parsing and there
-    // is no active scope.
-    Stmt* clonedStmt = m_Sema.ActOnReturnStmt(noLoc,
-                                              retVal,
-                                              m_Sema.getCurScope()).get();
-    return NodeContext(clonedStmt);
-  }
-  
-  NodeContext ForwardModeVisitor::VisitParenExpr(const ParenExpr* PE) {
-    ParenExpr* clonedPE = Clone(PE).getAs<ParenExpr>();
-    Expr* retVal = Visit(clonedPE->getSubExpr()).getExpr();
-    clonedPE->setSubExpr(retVal);
-    clonedPE->setType(retVal->getType());
-    return NodeContext(clonedPE);
+  StmtDiff ForwardModeVisitor::VisitParenExpr(const ParenExpr* PE) {
+    StmtDiff subStmtDiff = Visit(PE->getSubExpr());
+    return StmtDiff(BuildParens(subStmtDiff.getExpr()),
+                    BuildParens(subStmtDiff.getExpr_dx()));
   }
 
-  NodeContext ForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    MemberExpr* clonedME = Clone(ME).getAs<MemberExpr>();
+  StmtDiff ForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
+    auto clonedME = dyn_cast<MemberExpr>(Clone(ME));
     // Copy paste from VisitDeclRefExpr.
     QualType Ty = ME->getType();
     if (clonedME->getMemberDecl() == m_IndependentVar)
-      return ConstantFolder::synthesizeLiteral(Ty, m_Context, 1);
-    return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
+      return StmtDiff(clonedME,
+                      ConstantFolder::synthesizeLiteral(Ty, m_Context, 1));
+    return StmtDiff(clonedME,
+                    ConstantFolder::synthesizeLiteral(Ty, m_Context, 0));
   }
 
-  NodeContext ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    DeclRefExpr* clonedDRE = Clone(DRE).getAs<DeclRefExpr>();
-    QualType Ty = DRE->getType();
+  StmtDiff ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+    auto clonedDRE = cast<DeclRefExpr>(Clone(DRE));
     if (auto VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       // If DRE references a variable, try to find if we know something about
       // how it is related to the independent variable.
       auto it = m_Variables.find(VD);
-      if (it != std::end(m_Variables))
+      if (it != std::end(m_Variables)) {
         // If a record was found, use the recorded derivative.
-        return NodeContext(it->second);
+        Expr* dVarDRE = it->second;
+        return StmtDiff(clonedDRE, dVarDRE);
+      }
     }
     // Is not a variable or is a reference to something unrelated to independent
     // variable. Derivative is 0.
-    return ConstantFolder::synthesizeLiteral(Ty, m_Context, 0);
+    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    return StmtDiff(clonedDRE, zero);
   }
 
-  NodeContext ForwardModeVisitor::VisitIntegerLiteral(
+  StmtDiff ForwardModeVisitor::VisitIntegerLiteral(
     const IntegerLiteral* IL) {
     llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
-    IntegerLiteral* constant0 = IntegerLiteral::Create(m_Context, zero,
-                                                       m_Context.IntTy,
-                                                       noLoc);
-    return NodeContext(constant0);
+    auto constant0 = IntegerLiteral::Create(m_Context, zero, m_Context.IntTy,
+                                            noLoc);
+    return StmtDiff(Clone(IL), constant0);
   }
 
-  NodeContext ForwardModeVisitor::VisitFloatingLiteral(
+  StmtDiff ForwardModeVisitor::VisitFloatingLiteral(
     const FloatingLiteral* FL) {
-    FloatingLiteral* clonedStmt = Clone(FL).getAs<FloatingLiteral>();
-    llvm::APFloat zero = llvm::APFloat::getZero(clonedStmt->getSemantics());
-    clonedStmt->setValue(m_Context, zero);
-    return NodeContext(clonedStmt);
+    llvm::APFloat zero = llvm::APFloat::getZero(FL->getSemantics());
+    auto constant0 = FloatingLiteral::Create(m_Context, zero, true, 
+                                             FL->getType(), noLoc);
+    return StmtDiff(Clone(FL), constant0);
   }
 
-  // This method is derived from the source code of both 
+  // This method is derived from the source code of both
   // buildOverloadedCallSet() in SemaOverload.cpp
   // and ActOnCallExpr() in SemaExpr.cpp.
   bool DerivativeBuilder::overloadExists(Expr* UnresolvedLookup,
                                          llvm::MutableArrayRef<Expr*> ARargs) {
     if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
       OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
-      
+
       if (!find.HasFormOfMemberPointer) {
         OverloadExpr *ovl = find.Expression;
-        
+
         if (isa<UnresolvedLookupExpr>(ovl)) {
           ExprResult result;
           SourceLocation Loc;
@@ -407,7 +567,7 @@ namespace clad {
           // Populate CandidateSet.
           m_Sema.buildOverloadedCallSet(S, UnresolvedLookup, ULE, ARargs, Loc,
                                         &CandidateSet, &result);
-          
+
           OverloadCandidateSet::iterator Best;
           OverloadingResult OverloadResult =
             CandidateSet.BestViableFunction(m_Sema,
@@ -448,21 +608,21 @@ namespace clad {
 
       llvm::MutableArrayRef<Expr*> MARargs
         = llvm::MutableArrayRef<Expr*>(CallArgs);
-            
+
       SourceLocation Loc;
       Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
-      
+
       if (overloadExists(UnresolvedLookup, MARargs)) {
         return 0;
       }
-      
+
       OverloadedFn = m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc,
                                           MARargs, Loc).get();
     }
     return OverloadedFn;
   }
-  
-  NodeContext ForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+
+  StmtDiff ForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // Find the built-in derivatives namespace.
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
@@ -483,42 +643,50 @@ namespace clad {
     // For f(g(x)) = f'(x) * g'(x)
     Expr* Multiplier = 0;
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
+      StmtDiff argDiff = Visit(CE->getArg(i));
       if (!Multiplier)
-        Multiplier = Visit(CE->getArg(i)).getExpr();
+        Multiplier = argDiff.getExpr_dx();
       else {
         Multiplier =
-          BuildOp(BO_Add, Multiplier, Visit(CE->getArg(i)).getExpr());
+          BuildOp(BO_Add, Multiplier, argDiff.getExpr_dx());
       }
-      CallArgs.push_back(Clone(CE->getArg(i)).getExpr());
+      CallArgs.push_back(argDiff.getExpr());
     }
 
-    if (Multiplier)
-      Multiplier = m_Sema.ActOnParenExpr(noLoc, noLoc, Multiplier).get();
+    Expr* call =
+      m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
+                           Clone(CE->getCallee()),
+                           noLoc,
+                           llvm::MutableArrayRef<Expr*>(CallArgs),
+                           noLoc).get();
 
-    Expr* OverloadedDerivedFn =
+    Expr* callDiff =
       m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
-    if (OverloadedDerivedFn) {
-      if (Multiplier)
-        return BuildOp(BO_Mul, OverloadedDerivedFn, Multiplier);
-      return NodeContext(OverloadedDerivedFn);
-    }
 
-    if (CE->getDirectCallee() == m_Function) {
+
+    // Check if it is a recursive call.
+    if (!callDiff && (CE->getDirectCallee() == m_Function)) {
       // The differentiated function is called recursively.
-      auto derivativeRef =
+      Expr* derivativeRef =
         m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
                                         m_Derivative->getNameInfo(),
                                         m_Derivative).get();
-      auto selfCall =
+      callDiff =
         m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
                              derivativeRef,
                              noLoc,
                              llvm::MutableArrayRef<Expr*>(CallArgs),
                              noLoc).get();
+    }
+
+    if (callDiff) {
+      // f_darg0 function was found.
       if (Multiplier)
-        return BuildOp(BO_Mul, selfCall, Multiplier);
-      return NodeContext(selfCall);
-    }  
+        callDiff = BuildOp(BO_Mul,
+                           callDiff,
+                           BuildParens(Multiplier));
+      return StmtDiff(call, callDiff);
+    }
 
     Expr* OverloadedFnInFile
       = m_Builder.findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(),
@@ -533,14 +701,12 @@ namespace clad {
         mostRecentFD = mostRecentFD->getPreviousDecl();
       }
       if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
-        SourceLocation IdentifierLoc = FD->getLocEnd();
-        unsigned err_differentiating_undefined_function
-          = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                         "attempted differention of function "
-                                      "'%0', which does not have a definition");
-        m_Sema.Diag(IdentifierLoc, err_differentiating_undefined_function)
-          << FD->getNameAsString();
-        return NodeContext(0);
+        diag(DiagnosticsEngine::Error, FD->getLocEnd(),
+             "attempted differentiation of function '%0', which does not have a \
+              definition", { FD->getNameAsString() });
+        auto zero = ConstantFolder::synthesizeLiteral(call->getType(),
+                                                      m_Context, 0);
+        return StmtDiff(call, zero);
       }
 
       // Look for a declaration of a function to differentiate
@@ -570,157 +736,164 @@ namespace clad {
       CXXScopeSpec CSS;
       Expr* ResolvedLookup
         = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
-      CallExpr* clonedCE = Clone(CE).getAs<CallExpr>();
+      CallExpr* clonedCE = dyn_cast<CallExpr>(Clone(CE));
       clonedCE->setCallee(ResolvedLookup);
-      return NodeContext(clonedCE);
+      // FIXME: What is this part doing? Is it reachable at all?
+      // Shouldn't it be multiplied by arg derivatives?
+      return StmtDiff(call, clonedCE);
     }
 
     // Function was not derived => issue a warning.
-    SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
-    unsigned warn_function_not_declared_in_custom_derivatives
-      = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Warning,
-                                     "function '%0' was not differentiated "
-                                     "because it is not declared in namespace "
-                                     "'custom_derivatives' attempted "
-                                     "differention of function '%0', which "
-                                     "does not have a definition");
-    m_Sema.Diag(IdentifierLoc, warn_function_not_declared_in_custom_derivatives)
-      << CE->getDirectCallee()->getNameAsString();
-    return Clone(CE);
+    diag(DiagnosticsEngine::Warning, CE->getDirectCallee()->getLocEnd(),
+         "function '%0' was not differentiated because it is not declared in "
+         "namespace 'custom_derivatives'",
+         { CE->getDirectCallee()->getNameAsString() });
+
+    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    return StmtDiff(call, zero);
   }
-  
-  void DerivativeBuilder::updateReferencesOf(Stmt* InSubtree) {
-    utils::ReferencesUpdater up(m_Sema, m_NodeCloner.get(), m_CurScope.get());
+
+  void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
+    utils::ReferencesUpdater up(m_Sema,
+                                m_Builder.m_NodeCloner.get(),
+                                m_CurScope);
     up.TraverseStmt(InSubtree);
   }
 
-  NodeContext ForwardModeVisitor::VisitUnaryOperator(
-    const UnaryOperator* UnOp) {
-    UnaryOperator* clonedUnOp = Clone(UnOp).getAs<UnaryOperator>();
-    clonedUnOp->setSubExpr(Visit(clonedUnOp->getSubExpr()).getExpr());
-    return NodeContext(clonedUnOp);
+  StmtDiff ForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
+    StmtDiff diff = Visit(UnOp->getSubExpr());
+    auto opKind = UnOp->getOpcode();
+    Expr* op = BuildOp(opKind, diff.getExpr());
+    // If opKind is unary plus or minus, apply that op to derivative.
+    // Otherwise, the derivative is 0.
+    // FIXME: add support for other unary operators
+    if (opKind == UO_Plus || opKind == UO_Minus)
+      return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    else {
+      diag(DiagnosticsEngine::Warning, UnOp->getLocEnd(),
+           "attempt to differentiate unsupported unary operator, derivative \
+            set to 0");
+      auto zero =
+        ConstantFolder::synthesizeLiteral(op->getType(),
+                                          m_Context,
+                                          0);
+      return StmtDiff(op, zero);
+    }
   }
 
-  NodeContext ForwardModeVisitor::VisitBinaryOperator(
+  StmtDiff ForwardModeVisitor::VisitBinaryOperator(
     const BinaryOperator* BinOp) {
-    BinaryOperator* clonedBO = Clone(BinOp).getAs<BinaryOperator>();
-    m_Builder.updateReferencesOf(clonedBO->getRHS());
-    m_Builder.updateReferencesOf(clonedBO->getLHS());
 
-    Expr* lhs_derived = Visit(clonedBO->getLHS()).getExpr();
-    Expr* rhs_derived = Visit(clonedBO->getRHS()).getExpr();
+    StmtDiff Ldiff = Visit(BinOp->getLHS());
+    StmtDiff Rdiff = Visit(BinOp->getRHS());
 
     ConstantFolder folder(m_Context);
-    BinaryOperatorKind opCode = clonedBO->getOpcode();
-    if (opCode == BO_Mul || opCode == BO_Div) {
-      Expr* newBOLHS = BuildOp(BO_Mul, lhs_derived, clonedBO->getRHS());
-      //newBOLHS = folder.fold(cast<BinaryOperator>(newBOLHS));
-      Expr* newBORHS = BuildOp(BO_Mul, clonedBO->getLHS(), rhs_derived);
-      //newBORHS = folder.fold(cast<BinaryOperator>(newBORHS));
-      if (opCode == BO_Mul) {
-        Expr* newBO_Add = BuildOp(BO_Add, newBOLHS, newBORHS);
+    auto opCode = BinOp->getOpcode();
+    Expr* opDiff = nullptr;
 
+    if (opCode == BO_Mul) {
+      // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
+      // expressions in variables to avoid reevaluation.
+      Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
+      Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
 
-        Expr* PE = m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Add).get();
-        return NodeContext(folder.fold(PE));
-      }
-      else if (opCode == BO_Div) {
-        Expr* newBO_Sub = BuildOp(BO_Sub, newBOLHS, newBORHS);
+      Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
+                          BuildParens(Rdiff.getExpr()));
 
-        Expr* newBO_Mul_denom =
-          BuildOp(BO_Mul, clonedBO->getRHS(), clonedBO->getRHS());
+      Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+                          BuildParens(Rdiff.getExpr_dx()));
 
-        Expr* PE_lhs =
-          m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Sub).get();
-        Expr* PE_rhs =
-          m_Sema.ActOnParenExpr(noLoc, noLoc, newBO_Mul_denom).get();
-
-        Expr* newBO_Div = BuildOp(BO_Div, PE_lhs, PE_rhs);
-
-        return NodeContext(folder.fold(newBO_Div));
-      }
+      opDiff = BuildOp(BO_Add, LHS, RHS);
     }
-    else if (opCode == BO_Add || opCode == BO_Sub) {
-      // enforce precedence for substraction
-      rhs_derived = m_Sema.ActOnParenExpr(noLoc, noLoc, rhs_derived).get();
-      BinaryOperator* newBO =
-        dyn_cast<BinaryOperator>(BuildOp(opCode, lhs_derived, rhs_derived));
-      assert(m_Context.hasSameUnqualifiedType(newBO->getLHS()->getType(),
-                                              newBO->getRHS()->getType())
-             && "Must be the same types.");
+    else if (opCode == BO_Div) {
+      Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
+      Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
 
+      Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
+                          BuildParens(Rdiff.getExpr()));
 
-      return NodeContext(folder.fold(newBO));
+      Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+                          BuildParens(Rdiff.getExpr_dx()));
+
+      Expr* nominator = BuildOp(BO_Sub, LHS, RHS);
+
+      Expr* RParens = BuildParens(Rdiff.getExpr());
+      Expr* denominator = BuildOp(BO_Mul, RParens, RParens);
+
+      opDiff = BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
     }
+    else if (opCode == BO_Add)
+      opDiff = BuildOp(BO_Add, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
+    else if (opCode == BO_Sub)
+      opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(), 
+                       BuildParens(Rdiff.getExpr_dx()));
+    else {
+      //FIXME: add support for other binary operators
+      diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
+           "attempt to differentiate unsupported binary operator, derivative \
+            set to 0");
+      opDiff =
+        ConstantFolder::synthesizeLiteral(BinOp->getType(),
+                                          m_Context,
+                                          0);
+    }
+    opDiff = folder.fold(opDiff);
+    // Recover the original operation from the Ldiff and Rdiff instead of
+    // cloning the tree.
+    Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
 
-    if (!clonedBO->isAssignmentOp()) // Skip LHS in assignments.
-      clonedBO->setLHS(lhs_derived);
-    clonedBO->setRHS(rhs_derived);
-
-    return NodeContext(folder.fold(clonedBO));
+    return StmtDiff(op, opDiff);
   }
 
-  NodeContext ForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
-    DeclStmt* clonedDS = Clone(DS).getAs<DeclStmt>();
-    // Iterate through the declaration(s) contained in DS.
-    for (DeclStmt::decl_iterator I = clonedDS->decl_begin(),
-         E = clonedDS->decl_end(); I != E; ++I) {
-      if (VarDecl* VD = dyn_cast<VarDecl>(*I)) {
-        m_CurScope->AddDecl(VD);
-        //TODO: clean the idResolver chain!!!!!
-        if (VD->getIdentifier())
-          m_Sema.IdResolver.AddDecl(VD);
-        // If variable is initialized with some expression, derive the
-        // expression and store it in the table.
-        if (!VD->hasInit())
-          continue;
-        auto dV = Visit(VD->getInit()).getExpr();
-        m_Variables.emplace(VD, dV);
+  VarDeclDiff ForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+    StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
+    VarDecl* VDClone = BuildVarDecl(VD->getType(),
+                                    VD->getIdentifier(),
+                                    initDiff.getExpr(),
+                                    VD->isDirectInit());
+    VarDecl* VDDerived = BuildVarDecl(VD->getType(),
+                                      "_d_" + VD->getNameAsString(),
+                                      initDiff.getExpr_dx());
+    if (initDiff.getExpr_dx())
+      m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    return VarDeclDiff(VDClone, VDDerived);
+  }
+
+  StmtDiff ForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    llvm::SmallVector<Decl*, 4> decls;
+    llvm::SmallVector<Decl*, 4> declsDiff;
+    for (auto D : DS->decls()) {
+      if (auto VD = dyn_cast<VarDecl>(D)) {
+        VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
+        decls.push_back(VDDiff.getDecl());
+        declsDiff.push_back(VDDiff.getDecl_dx());
+      } else {
+        diag(DiagnosticsEngine::Warning, D->getLocEnd(),
+             "Unsupported declaration");
       }
     }
-    return NodeContext(clonedDS);
+
+    Stmt* DSClone = BuildDeclStmt(decls);
+    Stmt* DSDiff = BuildDeclStmt(declsDiff);
+    return StmtDiff(DSClone, DSDiff);
   }
 
-  NodeContext ForwardModeVisitor::VisitImplicitCastExpr(
-    const ImplicitCastExpr* ICE) {
-    NodeContext result = Visit(ICE->getSubExpr());
-    if (result.getExpr() == ICE->getSubExpr())
-      return NodeContext(Clone(ICE).getExpr());
-    return NodeContext(result.getExpr());
+  StmtDiff
+  ForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
+    StmtDiff subExprDiff = Visit(ICE->getSubExpr());
+    // Casts should be handled automatically when the result is used by
+    // Sema::ActOn.../Build...
+    return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
   }
 
-  NodeContext
-  ForwardModeVisitor::VisitCXXOperatorCallExpr(
-    const CXXOperatorCallExpr* OpCall) {
+  StmtDiff
+  ForwardModeVisitor::
+  VisitCXXOperatorCallExpr(const CXXOperatorCallExpr* OpCall) {
     // This operator gets emitted when there is a binary operation containing
     // overloaded operators. Eg. x+y, where operator+ is overloaded.
-    assert(0 && "We don't support overloaded operators yet!");
-    return Clone(OpCall);
-  }
-
-  Stmt* ReverseModeVisitor::Clone(const Stmt* s) {
-    return m_Builder.Clone(s);
-  }
-  Expr* ReverseModeVisitor::Clone(const Expr* e) {
-    return m_Builder.Clone(e);
-  }
-
-  Expr* ReverseModeVisitor::StoreAndRef(clang::Expr* E, const char * prefix) {
-    // Creates temporary variable and stores the result of the expression in it.
-
-    // Create variable declaration.
-    auto Var = BuildVarDecl(E->getType(),
-                            CreateUniqueIdentifier(prefix, m_tmpId),
-                            E);
-    
-    // Add the declaration to the body of the gradient function.
-    currentBlock().push_back(BuildDeclStmt(Var));
-
-    // Return reference to the declaration instead of original expression.
-    return m_Sema.BuildDeclRefExpr(Var,
-                                   E->getType(),
-                                   VK_LValue,
-                                   noLoc).get();
+    diag(DiagnosticsEngine::Error, OpCall->getLocEnd(),
+         "We don't support overloaded operators yet!");
+    return {};
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder):
@@ -732,7 +905,7 @@ namespace clad {
     FunctionDeclInfo& FDI, const DiffPlan& plan) {
     m_Function = FDI.getFD();
     assert(m_Function && "Must not be null.");
-   
+
     // We name the gradient of f as f_grad.
     auto derivativeBaseName = m_Function->getNameAsString();
     IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_grad");
@@ -750,7 +923,7 @@ namespace clad {
     paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
-    auto gradientFunctionType = 
+    QualType gradientFunctionType =
       m_Context.getFunctionType(m_Context.VoidTy,
                                 llvm::ArrayRef<QualType>(paramTypes.data(),
                                                          paramTypes.size()),
@@ -784,21 +957,18 @@ namespace clad {
                                         m_Function->isInlineSpecified(),
                                         m_Function->hasWrittenPrototype(),
                                         m_Function->isConstexpr());
-    }
-    else {
-      SourceLocation IdentifierLoc = m_Function->getLocEnd();
-      unsigned err_differentiating_unsupported
-        = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                       "attempted differention of "
-                                       "'%0', which is of unsupported type");
-      m_Sema.Diag(IdentifierLoc, err_differentiating_unsupported)
-        << m_Function->getNameAsString();
+    } else {
+      diag(DiagnosticsEngine::Error, m_Function->getLocEnd(),
+           "attempted differentiation of '%0' which is of unsupported type",
+           { m_Function->getNameAsString() });
       return nullptr;
     }
     m_Derivative = gradientFD;
-         
-    m_CurScope.reset(new Scope(m_Sema.TUScope, Scope::FnScope,
-                               m_Sema.getDiagnostics()));
+
+    std::unique_ptr<Scope> FnScope { new Scope(m_Sema.TUScope, Scope::FnScope,
+                                               m_Sema.getDiagnostics()) };
+    m_CurScope = FnScope.get();
+    m_Sema.CurContext = m_Derivative;
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
@@ -806,7 +976,7 @@ namespace clad {
                    m_Function->param_end(),
                    std::begin(params),
                    [&] (const ParmVarDecl* PVD) {
-                     auto VD = 
+                     auto VD =
                        ParmVarDecl::Create(m_Context,
                                            gradientFD,
                                            noLoc,
@@ -816,13 +986,13 @@ namespace clad {
                                            PVD->getTypeSourceInfo(),
                                            PVD->getStorageClass(),
                                            // Clone default arg if present.
-                                           (PVD->hasDefaultArg() ?  
+                                           (PVD->hasDefaultArg() ?
                                              Clone(PVD->getDefaultArg()) :
                                              nullptr));
-                     if (VD->getIdentifier()) {
-                       m_CurScope->AddDecl(VD);
-                       m_Sema.IdResolver.AddDecl(VD);
-                     }
+                     if (VD->getIdentifier())
+                       m_Sema.PushOnScopeChains(VD,
+                                                m_CurScope,
+                                                /*AddToContext*/ false);
                      return VD;
                    });
     // The output paremeter "_result".
@@ -838,10 +1008,10 @@ namespace clad {
                           params.front()->getStorageClass(),
                           // No default value.
                           nullptr);
-    if (params.back()->getIdentifier()) {
-      m_CurScope->AddDecl(params.back());
-      m_Sema.IdResolver.AddDecl(params.back());
-    }
+    if (params.back()->getIdentifier())
+      m_Sema.PushOnScopeChains(params.back(),
+                               m_CurScope,
+                               /*AddToContext*/ false);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
       llvm::makeArrayRef(params.data(), params.size());
@@ -850,22 +1020,19 @@ namespace clad {
 
     Sema::SynthesizedFunctionScope Scope(m_Sema, gradientFD);
     // Reference to the output parameter.
-    m_Result = m_Sema.BuildDeclRefExpr(params.back(),
-                                       paramTypes.back(),
-                                       VK_LValue,
-                                       noLoc).get();
+    m_Result = BuildDeclRef(params.back());
     // Initially, df/df = 1.
     auto dfdf = ConstantFolder::synthesizeLiteral(m_Function->getReturnType(),
                                                   m_Context,
                                                   1.0);
 
-    auto bodyStmts = startBlock();
+    beginBlock();
     // Start the visitation process which outputs the statements in the current
     // block.
-    auto functionBody = m_Function->getMostRecentDecl()->getBody();
+    Stmt* functionBody = m_Function->getMostRecentDecl()->getBody();
     Visit(functionBody, dfdf);
     // Create the body of the function.
-    auto gradientBody = finishBlock();
+    Stmt* gradientBody = endBlock();
 
     gradientFD->setBody(gradientBody);
     // Cleanup the IdResolver chain.
@@ -876,7 +1043,6 @@ namespace clad {
         //m_Sema.IdResolver.RemoveDecl(*I); // FIXME: Understand why that's bad
       }
     }
-
     return gradientFD;
   }
 
@@ -890,42 +1056,43 @@ namespace clad {
     if (If->getConditionVariable())
         // FIXME:Visit(If->getConditionVariableDeclStmt(), dfdx());
         llvm_unreachable("variable declarations are not currently supported");
-    auto cond = Clone(If->getCond());
-    auto thenStmt = If->getThen();
-    auto elseStmt = If->getElse();
-   
+    Expr* cond = Clone(If->getCond());
+    const Stmt* thenStmt = If->getThen();
+    const Stmt* elseStmt = If->getElse();
+
     Stmt* thenBody = nullptr;
     Stmt* elseBody = nullptr;
     if (thenStmt) {
-      auto thenBlock = startBlock();
+      beginBlock();
       Visit(thenStmt, dfdx());
-      thenBody = finishBlock();
+      thenBody = endBlock();
     }
     if (elseStmt) {
-      auto elseBlock = startBlock();
+      beginBlock();
       Visit(elseStmt, dfdx());
-      elseBody = finishBlock();
+      elseBody = endBlock();
     }
 
-    auto ifStmt = new (m_Context) IfStmt(m_Context,
-                                         noLoc,
-                                         If->isConstexpr(),
-                                         // FIXME: add init for condition variable
-                                         nullptr,
-                                         // FIXME: add condition variable decl
-                                         nullptr,
-                                         cond,
-                                         thenBody,
-                                         noLoc,
-                                         elseBody);
-    currentBlock().push_back(ifStmt);  
+    IfStmt* ifStmt =
+      new (m_Context) IfStmt(m_Context,
+                             noLoc,
+                             If->isConstexpr(),
+                             // FIXME: add init for condition variable
+                             nullptr,
+                             // FIXME: add condition variable decl
+                             nullptr,
+                             cond,
+                             thenBody,
+                             noLoc,
+                             elseBody);
+    getCurrentBlock().push_back(ifStmt);
   }
 
   void ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    auto condVar = StoreAndRef(Clone(CO->getCond()));
+    Expr* condVar = StoreAndRef(Clone(CO->getCond()), "_t", /*force*/ true);
     auto cond =
-      m_Sema.ActOnCondition(m_CurScope.get(),
+      m_Sema.ActOnCondition(m_CurScope,
                             noLoc,
                             condVar,
                             Sema::ConditionKind::Boolean).get().second;
@@ -945,16 +1112,12 @@ namespace clad {
                                               ifTrue->getType(),
                                               VK_RValue,
                                               OK_Ordinary);
-        
+
         auto dStmt = new (m_Context) ParenExpr(noLoc,
                                                noLoc,
                                                condExpr);
         Visit(branch, dStmt);
     };
-   
-    // FIXME: not optimal, creates two (condExpr ? ... : ...) expressions,
-    // so cond is unnesarily checked twice. 
-    // Can be improved by storing the result of condExpr in a temporary.
 
     auto zero = ConstantFolder::synthesizeLiteral(dfdx()->getType(),
                                                   m_Context,
@@ -971,7 +1134,7 @@ namespace clad {
   void ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     Visit(RS->getRetValue(), dfdx());
   }
-  
+
   void ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
     Visit(PE->getSubExpr(), dfdx());
   }
@@ -1003,7 +1166,7 @@ namespace clad {
     // Create the (_result[idx] += dfdx) statement.
     auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
     // Add it to the body statements.
-    currentBlock().push_back(add_assign);
+    getCurrentBlock().push_back(add_assign);
   }
 
   void ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -1013,18 +1176,13 @@ namespace clad {
   void ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
     // Nothing to do with it.
   }
-  
+
   void ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     auto FD = CE->getDirectCallee();
     if (!FD) {
-       unsigned unsupported_call
-         = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Warning,
-                                        "attempted differentiation of something"
-                                        " that is not a direct call to a"
-                                        " function and is not supported yet." 
-                                        " Ignored.");
-        m_Sema.Diag(noLoc, unsupported_call);
-       return;
+      diag(DiagnosticsEngine::Warning, CE->getLocEnd(),
+           "Differentiation of only direct calls is supported. Ignored");
+      return;
     }
     IdentifierInfo* II = nullptr;
     auto NArgs = FD->getNumParams();
@@ -1039,7 +1197,7 @@ namespace clad {
 
     VarDecl* ResultDecl = nullptr;
     Expr* Result = nullptr;
-    // If the function has a single arg, we look for a derivative w.r.t. to 
+    // If the function has a single arg, we look for a derivative w.r.t. to
     // this arg (it is unlikely that we need gradient of a one-dimensional'
     // function).
     if (NArgs == 1)
@@ -1048,7 +1206,7 @@ namespace clad {
     else {
       II = &m_Context.Idents.get(FD->getNameAsString() + "_grad");
       // We also need to create an array to store the result of gradient call.
-      auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());    
+      auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
       auto ArrayType =
         m_Context.getConstantArrayType(CE->getType(),
                                        llvm::APInt(size_type_bits, NArgs),
@@ -1056,24 +1214,16 @@ namespace clad {
                                        0); // No IndexTypeQualifiers
 
       // Create {} array initializer to fill it with zeroes.
-      auto ZeroInitBraces = m_Sema.ActOnInitList(noLoc,
-                                                 {},
-                                                 noLoc).get();
-      // Declare: Type _gradX[Nargs];
+      auto ZeroInitBraces = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
+      // Declare: Type _gradX[Nargs] = {};
       ResultDecl = BuildVarDecl(ArrayType,
-                                CreateUniqueIdentifier("_grad", m_tmpId));
-      // Add zero-initializer : Type _gradX[Nargs] = {};
-      m_Sema.AddInitializerToDecl(ResultDecl,
-                                  ZeroInitBraces,
-                                  /* DirectInit */ false);
-      Result = m_Sema.BuildDeclRefExpr(ResultDecl,
-                                       ArrayType,
-                                       VK_LValue,
-                                       noLoc).get();
+                                CreateUniqueIdentifier("_grad", m_tmpId),
+                                ZeroInitBraces);
+      Result = BuildDeclRef(ResultDecl);
       // Pass the array as the last parameter for gradient.
       CallArgs.push_back(Result);
     }
-      
+
     // Try to find it in builtin derivatives
     DeclarationName name(II);
     DeclarationNameInfo DNInfo(name, noLoc);
@@ -1085,15 +1235,10 @@ namespace clad {
       if (FD != m_Function) {
         // Not a recursive call, derivative was not found, ignore.
         // Issue a warning.
-        SourceLocation IdentifierLoc = CE->getDirectCallee()->getLocEnd();
-        unsigned warn_function_not_declared_in_custom_derivatives
-          = m_Sema.Diags.getCustomDiagID(DiagnosticsEngine::Warning,
-                                     "function '%0' was not differentiated "
-                                     "because it is not declared in namespace "
-                                     "'custom_derivatives'");
-        m_Sema.Diag(IdentifierLoc,
-                    warn_function_not_declared_in_custom_derivatives)
-          << FD->getNameAsString();
+        diag(DiagnosticsEngine::Warning, CE->getDirectCallee()->getLocEnd(),
+             "function '%0' was not differentiated because it is not declared \
+              in namespace 'custom_derivatives'",
+             { FD->getNameAsString() });
         return;
       }
       // Recursive call.
@@ -1106,7 +1251,7 @@ namespace clad {
                              selfRef,
                              noLoc,
                              llvm::MutableArrayRef<Expr*>(CallArgs),
-                             noLoc).get(); 
+                             noLoc).get();
     }
 
     if (OverloadedDerivedFn) {
@@ -1117,12 +1262,11 @@ namespace clad {
         auto d = BuildOp(BO_Mul, dfdx(), Result);
         auto dTmp = StoreAndRef(d);
         Visit(CE->getArg(0), dTmp);
-      }
-      else {
+      } else {
         // Put Result array declaration in the function body.
-        currentBlock().push_back(BuildDeclStmt(ResultDecl));
+        getCurrentBlock().push_back(BuildDeclStmt(ResultDecl));
         // Call the gradient, passing Result as the last Arg.
-        currentBlock().push_back(OverloadedDerivedFn);
+        getCurrentBlock().push_back(OverloadedDerivedFn);
         // Visit each arg with df/dargi = df/dxi * Result[i].
         for (unsigned i = 0; i < CE->getNumArgs(); i++) {
           auto size_type = m_Context.getSizeType();
@@ -1244,5 +1388,5 @@ namespace clad {
     // differentiated.
   }
 
-  
+
 } // end namespace clad

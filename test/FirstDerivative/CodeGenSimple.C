@@ -6,12 +6,13 @@
 #include "clad/Differentiator/Differentiator.h"
 extern "C" int printf(const char* fmt, ...); //expected-warning{{function 'printf' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
 int f_1(int x) {
-   printf("I am being run!\n");
+   printf("I am being run!\n"); //expected-warning{{attempted to differentiate unsupported statement, no changes applied}}
    return x * x;
 }
 // CHECK: int f_1_darg0(int x) {
+// CHECK-NEXT: 0;
 // CHECK-NEXT: printf("I am being run!\n");
-// CHECK-NEXT: return (1 * x + x * 1);
+// CHECK-NEXT: return 1 * x + x * 1;
 // CHECK-NEXT: }
 
 

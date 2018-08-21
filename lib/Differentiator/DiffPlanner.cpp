@@ -41,6 +41,7 @@ namespace clad {
     // 2 for clad::differentiate, 1 for clad::gradient.
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
     assert(call && "Must be set");
+    assert(FD && "Trying to update with null FunctionDecl");
 
     DeclRefExpr* oldDRE = nullptr;
     // Handle the case of function pointer.

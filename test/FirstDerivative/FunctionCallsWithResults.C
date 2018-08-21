@@ -51,7 +51,7 @@ float test_1(float x) {
 }
 
 // CHECK: float test_1_darg0(float x) {
-// CHECK-NEXT: return overloaded_darg0(x) * (1.F) + (custom_fn_darg0(x) * (1.F));
+// CHECK-NEXT: return overloaded_darg0(x) * 1.F + custom_fn_darg0(x) * 1.F;
 // CHECK-NEXT: }
 
 float test_2(float x) {
@@ -59,7 +59,7 @@ float test_2(float x) {
 }
 
 // CHECK: float test_2_darg0(float x) {
-// CHECK-NEXT: return overloaded_darg0(x) * (1.F) + (custom_fn_darg0(x) * (1.F));
+// CHECK-NEXT: return overloaded_darg0(x) * 1.F + custom_fn_darg0(x) * 1.F;
 // CHECK-NEXT: }
 
 float test_4(float x) {

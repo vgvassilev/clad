@@ -34,11 +34,11 @@ public:
 };
 
 // CHECK: float operator_call_darg0(float x, float y) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F;
 // CHECK-NEXT: }
 
 // CHECK: float operator_call_darg1(float x, float y) {
-// CHECK-NEXT: (0.F * x + x * 0.F) + ((1.F * y + y * 1.F));
+// CHECK-NEXT: return 0.F * x + x * 0.F + 1.F * y + y * 1.F;
 // CHECK-NEXT: }
 
 float f(float x) {

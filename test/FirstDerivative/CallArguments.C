@@ -18,7 +18,8 @@ float g(float x) {
 }
 
 // CHECK: float g_darg0(float x) {
-// CHECK-NEXT: return f_darg0(x * x * x)  * (((1.F * x + x * 1.F) * x + x * x * 1.F));
+// CHECK: float _t0 = x * x;
+// CHECK-NEXT: f_darg0(_t0 * x) * ((1.F * x + x * 1.F) * x + _t0 * 1.F);
 // CHECK-NEXT: }
 
 float sqrt_func(float x, float y) {
@@ -26,7 +27,7 @@ float sqrt_func(float x, float y) {
 }
 
 // CHECK: float sqrt_func_darg0(float x, float y) {
-// CHECK-NEXT: sqrt_darg0(x * x + y * y) * ((1.F * x + x * 1.F) + ((0.F * y + y * 0.F))) - (0.F);
+// CHECK-NEXT: return sqrt_darg0(x * x + y * y) * (1.F * x + x * 1.F + 0.F * y + y * 0.F) - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_1(const float x, const float y) {
@@ -34,7 +35,7 @@ float f_const_args_func_1(const float x, const float y) {
 }
 
 // CHECK: float f_const_args_func_1_darg0(const float x, const float y) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_2(float x, const float y) {
@@ -42,7 +43,7 @@ float f_const_args_func_2(float x, const float y) {
 }
 
 // CHECK: float f_const_args_func_2_darg0(float x, const float y) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_3(const float x, float y) {
@@ -50,7 +51,7 @@ float f_const_args_func_3(const float x, float y) {
 }
 
 // CHECK: float f_const_args_func_3_darg0(const float x, float y) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
 // CHECK-NEXT: }
 
 struct Vec { float x,y,z; };
@@ -59,7 +60,7 @@ float f_const_args_func_4(float x, float y, const Vec v) {
 }
 
 // CHECK: float f_const_args_func_4_darg0(float x, float y, const Vec v) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_5(float x, float y, const Vec &v) {
@@ -67,7 +68,7 @@ float f_const_args_func_5(float x, float y, const Vec &v) {
 }
 
 // CHECK: float f_const_args_func_5_darg0(float x, float y, const Vec &v) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
 // CHECK-NEXT: }
 
 float f_const_args_func_6(const float x, const float y, const Vec &v) {
@@ -75,7 +76,7 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 }
 
 // CHECK: float f_const_args_func_6_darg0(const float x, const float y, const Vec &v) {
-// CHECK-NEXT: (1.F * x + x * 1.F) + ((0.F * y + y * 0.F)) - (0.F)
+// CHECK-NEXT: return 1.F * x + x * 1.F + 0.F * y + y * 0.F - 0.F;
 // CHECK-NEXT: }
 
 float f_const_helper(const float x) {
