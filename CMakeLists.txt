@@ -25,6 +25,10 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+  # In rare cases we might want to have clang installed in a different place
+  # than llvm and the header files should be found first (even though the
+  # LLVM_INCLUDE_DIRS) contain clang headers, too.
+  include_directories(${CLANG_INCLUDE_DIRS})
   include_directories(${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 

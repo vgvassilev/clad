@@ -65,6 +65,12 @@ namespace clad {
 
     static bool HasRuntime(Sema& SemaR) {
       ASTContext& C = SemaR.getASTContext();
+      // The plugin has a lot of different ways to be compiled: in-tree,
+      // out-of-tree and hybrid. When we pick up the wrong header files we
+      // usually see a problem with C.Idents not being properly initialized.
+      // This assert tries to catch such situations heuristically.
+      assert(&C.Idents == &SemaR.getPreprocessor().getIdentifierTable()
+             && "Miscompiled?");
       DeclarationName Name = &C.Idents.get("custom_derivatives");
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
                      Sema::ForRedeclaration);
