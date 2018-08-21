@@ -124,17 +124,17 @@ namespace clad {
     }
 
     /// Get a current scope.
-    clang::Scope* currentScope() {
+    clang::Scope* getCurrentScope() {
       return m_CurScope;
     }
     /// Enters a new scope.
-    void enterScope(unsigned ScopeFlags) {
+    void beginScope(unsigned ScopeFlags) {
       // FIXME: since Sema::CurScope is private, we cannot access it and have
       // to use separate member variable m_CurScope. The only options to set
       // CurScope of Sema seemt to be through Parser or ContextAndScopeRAII.
-      m_CurScope = new clang::Scope(currentScope(), ScopeFlags, m_Sema.Diags);
+      m_CurScope = new clang::Scope(getCurrentScope(), ScopeFlags, m_Sema.Diags);
     }
-    void exitScope() {
+    void endScope() {
       // This will remove all the decls in the scope from the IdResolver. 
       m_Sema.ActOnPopScope(noLoc, m_CurScope);
       auto oldScope = m_CurScope;
