@@ -118,10 +118,12 @@ namespace clad {
       m_Blocks.pop();
       return CS;
     }
-    /// Output a statement to the current block.
-    void addToCurrentBlock(clang::Stmt* S) {
-      getCurrentBlock().push_back(S);
-    }
+
+    // Check if result of the expression is unused.
+    bool isUnusedResult(const clang::Expr* E);
+    /// Output a statement to the current block. If Stmt is null or is an unused
+    /// expression, it is not output and false is returned. 
+    bool addToCurrentBlock(clang::Stmt* S);
 
     /// Get a current scope.
     clang::Scope* getCurrentScope() {
