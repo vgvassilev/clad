@@ -63,6 +63,25 @@ namespace clad {
     return result;
   }
 
+  bool VisitorBase::isUnusedResult(const Expr* E) {
+    const Expr* ignoreExpr;
+    SourceLocation ignoreLoc;
+    SourceRange ignoreRange;
+    return E->isUnusedResultAWarning(ignoreExpr, ignoreLoc, ignoreRange,
+                                     ignoreRange, m_Context);
+  }
+
+  bool VisitorBase::addToCurrentBlock(Stmt* S) {
+    if (!S)
+      return false;
+    if (Expr* E = dyn_cast<Expr>(S)) {
+      if (isUnusedResult(E))
+        return false;
+    }
+    getCurrentBlock().push_back(S);
+    return true;
+  }
+
   VarDecl* VisitorBase::BuildVarDecl(QualType Type,
                                      IdentifierInfo* Identifier,
                                      Expr* Init,
@@ -362,10 +381,7 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
-    return m_Sema.BuildUnaryOp(nullptr,
-                               noLoc,
-                               OpCode,
-                               E).get();
+    return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get(); 
   }
 
   Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode,
@@ -385,8 +401,7 @@ namespace clad {
     beginBlock();
     for (Stmt* S : CS->body()) {
       StmtDiff SDiff = Visit(S);
-      if (SDiff.getStmt_dx())
-        addToCurrentBlock(SDiff.getStmt_dx());
+      addToCurrentBlock(SDiff.getStmt_dx());
       addToCurrentBlock(SDiff.getStmt());
     }
     CompoundStmt* Result = endBlock();
@@ -418,8 +433,7 @@ namespace clad {
     //   if (int x = 1; ...) {...}
     // }
     // This is done to avoid variable names clashes.
-    if (initResult.getStmt_dx())
-      addToCurrentBlock(initResult.getStmt_dx());
+    addToCurrentBlock(initResult.getStmt_dx());
 
     VarDecl* condVarClone = nullptr;
     if (VarDecl* condVarDecl = If->getConditionVariable()) {
@@ -452,8 +466,7 @@ namespace clad {
           beginBlock();
           StmtDiff BranchDiff = Visit(Branch);
           for (Stmt* S : BranchDiff.getBothStmts())
-            if (S)
-              addToCurrentBlock(S);
+            addToCurrentBlock(S);
           CompoundStmt* Block = endBlock();
           if (Block->size() == 1)
             return Block->body_front();
@@ -517,8 +530,7 @@ namespace clad {
     beginBlock();
     const Stmt* init = FS->getInit();
     StmtDiff initDiff = init ? Visit(init) : StmtDiff{};
-    if (initDiff.getStmt_dx())
-      addToCurrentBlock(initDiff.getStmt_dx());
+    addToCurrentBlock(initDiff.getStmt_dx());
     VarDecl* condVarDecl = FS->getConditionVariable();
     VarDecl* condVarClone = nullptr;
     if (condVarDecl) {
@@ -566,10 +578,8 @@ namespace clad {
       m_Sema.ActOnStartOfLambdaDefinition(Intro, D, getCurrentScope());
       beginBlock();
       StmtDiff incDiff = inc ? Visit(inc) : StmtDiff{};
-      if (incDiff.getStmt_dx())
-        addToCurrentBlock(incDiff.getStmt_dx());
-      if (incDiff.getStmt())
-        addToCurrentBlock(incDiff.getStmt());
+      addToCurrentBlock(incDiff.getStmt_dx());
+      addToCurrentBlock(incDiff.getStmt());
       CompoundStmt* incBody = endBlock();
       Expr* lambda = 
         m_Sema.ActOnLambdaExpr(noLoc, incBody, getCurrentScope()).get();
@@ -584,9 +594,11 @@ namespace clad {
     else if (incDiff.getExpr_dx() && incDiff.getExpr()) {
       // If no declarations are required and only two Expressions are produced,
       // join them with comma expression.
-      incResult = BuildOp(BO_Comma,
-                          BuildParens(incDiff.getExpr_dx()),
-                          BuildParens(incDiff.getExpr()));
+      if (!isUnusedResult(incDiff.getExpr_dx()))
+        incResult = BuildOp(BO_Comma, BuildParens(incDiff.getExpr_dx()),
+                            BuildParens(incDiff.getExpr()));
+      else
+        incResult = incDiff.getExpr();
     }
     else if (incDiff.getExpr()) {
       incResult = incDiff.getExpr();
@@ -602,8 +614,7 @@ namespace clad {
       beginBlock();
       StmtDiff Result = Visit(body);
       for (Stmt* S : Result.getBothStmts())
-        if (S)
-          addToCurrentBlock(S);
+        addToCurrentBlock(S);
       CompoundStmt* Block = endBlock();
       if (Block->size() == 1)
         bodyResult = Block->body_front();
@@ -934,6 +945,10 @@ namespace clad {
     // FIXME: add support for other unary operators
     if (opKind == UO_Plus || opKind == UO_Minus)
       return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    else if (opKind == UO_PostInc || opKind == UO_PostDec ||
+             opKind == UO_PreInc || opKind == UO_PreDec) {
+      return StmtDiff(op, diff.getExpr_dx());
+    }
     else {
       diag(DiagnosticsEngine::Warning, UnOp->getLocEnd(),
            "attempt to differentiate unsupported unary operator, derivative \
@@ -954,24 +969,17 @@ namespace clad {
     auto opCode = BinOp->getOpcode();
     Expr* opDiff = nullptr;
 
-    if (opCode == BO_Mul) {
-      // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
-      // expressions in variables to avoid reevaluation.
-      Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
-      Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
-
+    auto deriveMul = [this] (StmtDiff& Ldiff, StmtDiff& Rdiff) {
       Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
                           BuildParens(Rdiff.getExpr()));
 
       Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
                           BuildParens(Rdiff.getExpr_dx()));
 
-      opDiff = BuildOp(BO_Add, LHS, RHS);
-    }
-    else if (opCode == BO_Div) {
-      Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
-      Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
+      return BuildOp(BO_Add, LHS, RHS);
+    };
 
+    auto deriveDiv = [this] (StmtDiff& Ldiff, StmtDiff& Rdiff) {
       Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
                           BuildParens(Rdiff.getExpr()));
 
@@ -983,26 +991,57 @@ namespace clad {
       Expr* RParens = BuildParens(Rdiff.getExpr());
       Expr* denominator = BuildOp(BO_Mul, RParens, RParens);
 
-      opDiff = BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
+      return BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
+    };
+        
+    if (opCode == BO_Mul) {
+      // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
+      // expressions in variables to avoid reevaluation.
+      Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
+      Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
+
+      opDiff = deriveMul(Ldiff, Rdiff);
+    }
+    else if (opCode == BO_Div) {
+      Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
+      Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
+
+      opDiff = deriveDiv(Ldiff, Rdiff);
     }
     else if (opCode == BO_Add)
       opDiff = BuildOp(BO_Add, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
     else if (opCode == BO_Sub)
       opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(),
                        BuildParens(Rdiff.getExpr_dx()));
-    else if (opCode == BO_Assign) {
+    else if (BinOp->isAssignmentOp()) {
       if (!Ldiff.getExpr_dx()->isGLValue()) {
         diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
              "derivative of an assignment attempts to assign to unassignable "
              "expr, assignment ignored");
+        opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       }
-      else {
-        opDiff = BuildOp(BO_Assign,
-                         Ldiff.getExpr_dx(),
-                         Rdiff.getExpr_dx());
+      else if (opCode == BO_Assign || opCode == BO_AddAssign ||
+               opCode == BO_SubAssign)
+        opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
+      else if (opCode == BO_MulAssign) {
+        Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
+        Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
+        opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(), deriveMul(Ldiff, Rdiff));
+      }
+      else if (opCode == BO_DivAssign) {
+        Ldiff = { StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx() };
+        Rdiff = { StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx() };
+        opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(), deriveDiv(Ldiff, Rdiff));
       }
     }
-    else {
+    else if (opCode == BO_Comma) {
+      if (!isUnusedResult(Ldiff.getExpr_dx()))
+        opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr_dx()),
+                         BuildParens(Rdiff.getExpr_dx()));
+      else
+        opDiff = Rdiff.getExpr_dx();
+    }
+    if (!opDiff) {
       //FIXME: add support for other binary operators
       diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
            "attempt to differentiate unsupported binary operator, derivative \
