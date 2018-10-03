@@ -1373,6 +1373,41 @@ namespace clad {
     Visit(PE->getSubExpr(), dfdx());
   }
 
+  void ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
+    const Expr* B = ASE->getBase();
+    const Expr* I = ASE->getIdx();
+    const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(B->IgnoreParenImpCasts());
+    if (!DRE)
+      return;
+    // Check DeclRefExpr is a reference to an independent variable.
+    auto it = std::find(m_Function->param_begin(),
+                        m_Function->param_end(),
+                        DRE->getDecl());
+    if (it == m_Function->param_end())
+      // Is not an independent variable, ignored.
+      return;
+    const ValueDecl* VD = DRE->getDecl();
+    // FIXME: implement proper detection
+    if (VD->getName() != "p")
+      return;
+    const IntegerLiteral* IL = dyn_cast<IntegerLiteral>(I->IgnoreParenImpCasts());
+    if (!IL)
+      return;
+    //llvm::APSInt IVal;
+    //if (!I->EvaluateAsInt(IVal, m_Context))
+    //  return;
+    // Create the _result[idx] expression.
+    auto result_at_i =
+      m_Sema.CreateBuiltinArraySubscriptExpr(m_Result,
+                                             noLoc,
+                                             Clone(IL),
+                                             noLoc).get();
+    // Create the (_result[idx] += dfdx) statement.
+    auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
+    // Add it to the body statements.
+    addToCurrentBlock(add_assign);
+  }    
+
   void ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     auto decl = DRE->getDecl();
     // Check DeclRefExpr is a reference to an independent variable.
