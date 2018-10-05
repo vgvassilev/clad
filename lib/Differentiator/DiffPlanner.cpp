@@ -57,16 +57,9 @@ namespace clad {
 
     ASTContext& C = SemaRef.getASTContext();
     // Create ref to generated FD.
-    auto DRE = DeclRefExpr::Create(C,
-                                   // same namespace qualifier
-                                   oldDRE->getQualifierLoc(),
-                                   noLoc,
-                                   FD,
-                                   false,
-                                   FD->getNameInfo(),
-                                   FD->getType(),
-                                   oldDRE->getValueKind());
-
+    Expr* DRE = DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc,
+                                    FD, false, FD->getNameInfo(), FD->getType(),
+                                    oldDRE->getValueKind());
     // FIXME: I am not sure if the following part is necessary:
     // using call->setArg(0, DRE) seems to be sufficient,
     // though the real AST allways contains the ImplicitCastExpr (function ->

@@ -35,6 +35,9 @@ namespace clad {
 }
 
 namespace clad {
+  /// A pair of FunctionDecl and potential enclosing context, e.g. a function
+  // in nested namespaces
+  using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
   static clang::SourceLocation noLoc{};
   class DiffPlan;
   /// The main builder class which then uses either ForwardModeVisitor or
@@ -64,9 +67,10 @@ namespace clad {
     ///
     ///\param[in] FD - the function that will be differentiated.
     ///
-    ///\returns The differentiated function.
+    ///\returns The differentiated function and potentially created enclosing
+    /// context.
     ///
-    clang::FunctionDecl* Derive(FunctionDeclInfo& FDI, const DiffPlan & plan);
+    DeclWithContext Derive(FunctionDeclInfo& FDI, const DiffPlan & plan);
   };
 
   /// A base class for all common functionality for visitors
@@ -164,6 +168,12 @@ namespace clad {
                                  llvm::StringRef prefix = "_t",
                                  clang::Expr* Init = nullptr,
                                  bool DirectInit = false);
+    /// Creates a namespace declaration and enters its context. All subsequent
+    /// Stmts are built inside that namespace, until m_Sema.PopDeclContextIsUsed.
+    clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
+                                             bool isInline);
+    /// Rebuild a sequence of nested namespaces ending with DC.
+    clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
     /// Wraps a declaration in DeclStmt.
     clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
     clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
@@ -288,9 +298,10 @@ namespace clad {
     ///
     ///\param[in] FD - the function that will be differentiated.
     ///
-    ///\returns The differentiated function.
+    ///\returns The differentiated and potentially created enclosing
+    /// context.
     ///
-    clang::FunctionDecl* Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
+    DeclWithContext Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
 
     StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
@@ -342,9 +353,10 @@ namespace clad {
     ///
     ///\param[in] FD - the function that will be differentiated.
     ///
-    ///\returns The gradient of the function
+    ///\returns The gradient of the function and potentially created enclosing
+    /// context.
     ///
-    clang::FunctionDecl* Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
+    DeclWithContext Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
     void VisitCompoundStmt(const clang::CompoundStmt* CS);
     void VisitIfStmt(const clang::IfStmt* If);
     void VisitReturnStmt(const clang::ReturnStmt* RS);

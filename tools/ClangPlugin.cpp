@@ -114,7 +114,8 @@ namespace clad {
                I->getFD()->dumpColor();
             }
 
-            FunctionDecl* Result = nullptr;
+            FunctionDecl* DerivativeDecl = nullptr;
+            Decl* DerivativeDeclContext = nullptr;
             {
               // FIXME: Move the timing inside the DerivativeBuilder. This would
               // require to pass in the DifferentiationOptions in the DiffPlan.
@@ -124,33 +125,37 @@ namespace clad {
               Timer.setOutput("Generation time for "
                               + plan->begin()->getFD()->getNameAsString());
 
-              Result = m_DerivativeBuilder->Derive(*I, *plan);
+              std::tie(DerivativeDecl, DerivativeDeclContext) =
+                m_DerivativeBuilder->Derive(*I, *plan);
             }
-            if (Result) {
-              collector.UpdatePlan(Result, &*plan);
+                
+            if (DerivativeDecl) {
+              collector.UpdatePlan(DerivativeDecl, &*plan);
               if (I + 1 == plan->end()) // The last element
-                plan->updateCall(Result, m_CI.getSema());
+                plan->updateCall(DerivativeDecl, m_CI.getSema());
 
               // if enabled, print source code of the derived functions
               if (m_DO.DumpDerivedFn) {
-                 Result->print(llvm::outs(), Policy);
+                 DerivativeDecl->print(llvm::outs(), Policy);
               }
               // if enabled, print ASTs of the derived functions
               if (m_DO.DumpDerivedAST) {
-                 Result->dumpColor();
+                 DerivativeDecl->dumpColor();
               }
               // if enabled, print the derivatives in a file.
               if (m_DO.GenerateSourceFile) {
                  std::error_code err;
                  llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                         llvm::sys::fs::F_Append);
-                 Result->print(f, Policy);
+                 DerivativeDecl->print(f, Policy);
                  f.flush();
               }
               // Call CodeGen only if the produced decl is a top-most decl.
-              if (Result->getDeclContext()
+              Decl* OutputStmt = DerivativeDeclContext ?
+                DerivativeDeclContext : DerivativeDecl;
+              if (OutputStmt->getDeclContext()
                   == m_CI.getASTContext().getTranslationUnitDecl())
-                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(Result));
+                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(OutputStmt));
             }
       }
       return true; // Happiness
