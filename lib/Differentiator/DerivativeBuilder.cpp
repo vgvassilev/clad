@@ -20,8 +20,9 @@
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/SemaInternal.h"
 
-using namespace clang;
+#include "llvm/Support/SaveAndRestore.h"
 
+using namespace clang;
 
 namespace clad {
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
@@ -46,9 +47,10 @@ namespace clad {
 
   }
 
-  FunctionDecl* DerivativeBuilder::Derive(FunctionDeclInfo& FDI,
+  DeclWithContext DerivativeBuilder::Derive(FunctionDeclInfo& FDI,
                                           const DiffPlan& plan) {
-    FunctionDecl* result = nullptr;
+    //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
+    DeclWithContext result{};
     if (plan.getMode() == DiffMode::forward) {
       ForwardModeVisitor V(*this);
       result = V.Derive(FDI, plan);
@@ -58,8 +60,8 @@ namespace clad {
       result = V.Derive(FDI, plan);
     }
 
-    if (result)
-      registerDerivative(result, m_Sema);
+    if (result.first)
+      registerDerivative(result.first, m_Sema);
     return result;
   }
 
@@ -111,6 +113,70 @@ namespace clad {
                         CreateUniqueIdentifier(prefix, m_tmpId),
                         Init,
                         DirectInit);
+  }
+
+  NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
+                                                 bool isInline) {
+    // Check if the namespace is being redeclared.
+    NamespaceDecl* PrevNS = nullptr;
+    // From Sema::ActOnStartNamespaceDef:
+    if (II) {
+      LookupResult R(m_Sema, II, noLoc, Sema::LookupOrdinaryName,
+                     Sema::ForRedeclaration);
+      m_Sema.LookupQualifiedName(R, m_Sema.CurContext->getRedeclContext());
+      NamedDecl* FoundDecl =
+        R.isSingleResult() ? R.getRepresentativeDecl() : nullptr;
+      PrevNS = dyn_cast_or_null<NamespaceDecl>(FoundDecl);
+    }
+    else {
+      // Is anonymous namespace.
+      DeclContext *Parent = m_Sema.CurContext->getRedeclContext();
+      if (TranslationUnitDecl *TU = dyn_cast<TranslationUnitDecl>(Parent)) {
+        PrevNS = TU->getAnonymousNamespace();
+      } else {
+        NamespaceDecl *ND = cast<NamespaceDecl>(Parent);
+        PrevNS = ND->getAnonymousNamespace();
+      }
+    }
+    NamespaceDecl* NDecl = NamespaceDecl::Create(m_Context, m_Sema.CurContext,
+                                                 isInline, noLoc, noLoc, II,
+                                                 PrevNS);
+    if (II)
+      m_Sema.PushOnScopeChains(NDecl, m_CurScope);
+    else {
+      // Link the anonymous namespace into its parent.
+      // From Sema::ActOnStartNamespaceDef:
+      DeclContext *Parent = m_Sema.CurContext->getRedeclContext();
+      if (TranslationUnitDecl *TU = dyn_cast<TranslationUnitDecl>(Parent)) {
+        TU->setAnonymousNamespace(NDecl);
+      } else {
+        cast<NamespaceDecl>(Parent)->setAnonymousNamespace(NDecl);
+      }
+      m_Sema.CurContext->addDecl(NDecl);
+      if (!PrevNS) {
+        UsingDirectiveDecl* UD =
+          UsingDirectiveDecl::Create(m_Context, Parent, noLoc, noLoc,
+                                     NestedNameSpecifierLoc(), noLoc,
+                                     NDecl, Parent);
+        UD->setImplicit();
+        Parent->addDecl(UD);
+      }
+    }
+    // Namespace scope and declcontext. Must be exited by the user.
+    beginScope(Scope::DeclScope);
+    m_Sema.PushDeclContext(m_CurScope, NDecl);
+    return NDecl;
+  }
+
+  NamespaceDecl* VisitorBase::RebuildEnclosingNamespaces(DeclContext* DC) {
+    if (NamespaceDecl* ND = dyn_cast_or_null<NamespaceDecl>(DC)) {
+      NamespaceDecl* Head = RebuildEnclosingNamespaces(ND->getDeclContext());
+      NamespaceDecl* NewD = BuildNamespaceDecl(ND->getIdentifier(),
+                                               ND->isInline());
+      return Head ? Head : NewD;
+    }
+    else
+      return nullptr;
   }
 
   DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
@@ -204,7 +270,7 @@ namespace clad {
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
-  FunctionDecl* ForwardModeVisitor::Derive(
+  DeclWithContext ForwardModeVisitor::Derive(
     FunctionDeclInfo& FDI,
     const DiffPlan& plan) {
     FunctionDecl* FD = FDI.getFD();
@@ -212,7 +278,7 @@ namespace clad {
       diag(DiagnosticsEngine::Error, FD->getLocEnd(),
            "attempted differentiation of function '%0', which does not have a "
            "definition", { FD->getNameAsString() });
-      return nullptr;
+      return {};
     }
     m_Function = FD;
     assert(FD && "Must not be null.");
@@ -249,7 +315,10 @@ namespace clad {
     IdentifierInfo* II = &m_Context.Idents.get(
       derivativeBaseName + "_d" + s + "arg" + std::to_string(m_ArgIndex));
     DeclarationNameInfo name(II, noLoc);
-    FunctionDecl* derivedFD = 0;
+    FunctionDecl* derivedFD = nullptr;
+    NamespaceDecl* enclosingNS = nullptr;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(FD->getDeclContext());
       derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
@@ -260,8 +329,9 @@ namespace clad {
       derivedFD->setAccess(FD->getAccess());
     } else {
       assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
+      enclosingNS = RebuildEnclosingNamespaces(FD->getDeclContext());
       derivedFD = FunctionDecl::Create(m_Context,
-                                       FD->getDeclContext(), noLoc,
+                                       m_Sema.CurContext, noLoc,
                                        name, FD->getType(),
                                        FD->getTypeSourceInfo(),
                                        FD->getStorageClass(),
@@ -329,7 +399,7 @@ namespace clad {
         diag(DiagnosticsEngine::Error, PVD->getLocEnd(),
              "attempted differentiation w.r.t. a parameter ('%0') which is not "
              "of a real type", { m_IndependentVar->getNameAsString() });
-        return nullptr;
+        return {};
       }
       // If param is independent variable, its derivative is 1, otherwise 0.
       int dValue = (param == m_IndependentVar);
@@ -367,7 +437,7 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_DerivativeInFlight = false;
-    return derivedFD;
+    return { derivedFD, enclosingNS };
   }
 
   Stmt* VisitorBase::Clone(const Stmt* S) {
@@ -1135,7 +1205,7 @@ namespace clad {
 
   ReverseModeVisitor::~ReverseModeVisitor() {}
 
-  FunctionDecl* ReverseModeVisitor::Derive(
+  DeclWithContext ReverseModeVisitor::Derive(
     FunctionDeclInfo& FDI, const DiffPlan& plan) {
     m_Function = FDI.getFD();
     assert(m_Function && "Must not be null.");
@@ -1166,6 +1236,9 @@ namespace clad {
 
     // Create the gradient function declaration.
     FunctionDecl* gradientFD = nullptr;
+    NamespaceDecl* enclosingNS = nullptr;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     if (isa<CXXMethodDecl>(m_Function)) {
       auto CXXRD = cast<CXXRecordDecl>(m_Function->getDeclContext());
       gradientFD = CXXMethodDecl::Create(m_Context,
@@ -1181,6 +1254,7 @@ namespace clad {
       gradientFD->setAccess(m_Function->getAccess());
     }
     else if (isa<FunctionDecl>(m_Function)) {
+      enclosingNS = RebuildEnclosingNamespaces(m_Function->getDeclContext());
       gradientFD = FunctionDecl::Create(m_Context,
                                         m_Function->getDeclContext(),
                                         noLoc,
@@ -1195,7 +1269,7 @@ namespace clad {
       diag(DiagnosticsEngine::Error, m_Function->getLocEnd(),
            "attempted differentiation of '%0' which is of unsupported type",
            { m_Function->getNameAsString() });
-      return nullptr;
+      return {};
     }
     m_Derivative = gradientFD;
 
@@ -1275,7 +1349,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return gradientFD;
+    return { gradientFD, enclosingNS };
   }
 
   void ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
