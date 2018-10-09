@@ -20,6 +20,8 @@
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/SemaInternal.h"
 
+#include "llvm/Support/SaveAndRestore.h"
+
 using namespace clang;
 
 namespace clad {
@@ -315,8 +317,8 @@ namespace clad {
     DeclarationNameInfo name(II, noLoc);
     FunctionDecl* derivedFD = nullptr;
     NamespaceDecl* enclosingNS = nullptr;
-    DeclContext* oldContext = m_Sema.CurContext;
-    Scope* oldScope = m_CurScope;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(FD->getDeclContext());
       derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
@@ -433,10 +435,6 @@ namespace clad {
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
-
-    // Revert state changes of RebuildEnclosingNamespace
-    m_Sema.CurContext = oldContext;
-    m_CurScope = oldScope;
 
     m_DerivativeInFlight = false;
     return { derivedFD, enclosingNS };
@@ -1239,8 +1237,8 @@ namespace clad {
     // Create the gradient function declaration.
     FunctionDecl* gradientFD = nullptr;
     NamespaceDecl* enclosingNS = nullptr;
-    DeclContext* oldContext = m_Sema.CurContext;
-    Scope* oldScope = m_CurScope;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     if (isa<CXXMethodDecl>(m_Function)) {
       auto CXXRD = cast<CXXRecordDecl>(m_Function->getDeclContext());
       gradientFD = CXXMethodDecl::Create(m_Context,
@@ -1350,10 +1348,6 @@ namespace clad {
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
-
-    // Revert state changes of RebuildEnclosingNamespace
-    m_Sema.CurContext = oldContext;
-    m_CurScope = oldScope;
 
     return { gradientFD, enclosingNS };
   }

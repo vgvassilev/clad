@@ -151,11 +151,12 @@ namespace clad {
                  f.flush();
               }
               // Call CodeGen only if the produced decl is a top-most decl.
-              Decl* OutputStmt = DerivativeDeclContext ?
+              Decl* DerivativeDeclOrEnclosingContext = DerivativeDeclContext ?
                 DerivativeDeclContext : DerivativeDecl;
-              if (OutputStmt->getDeclContext()
+              if (DerivativeDeclOrEnclosingContext->getDeclContext()
                   == m_CI.getASTContext().getTranslationUnitDecl())
-                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(OutputStmt));
+                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
+                  DerivativeDeclOrEnclosingContext));
             }
       }
       return true; // Happiness
