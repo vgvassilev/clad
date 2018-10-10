@@ -58,11 +58,21 @@ namespace clad {
     CladFunctionType m_Function;
     char* m_Code;
   public:
-    CladFunction(CladFunctionType f, const char* code)
-      : m_Function(f) {
+    CladFunction(CladFunctionType f, const char* code) {
       assert(f && "Must pass a non-0 argument.");
-      m_Code = (char*)malloc(strlen(code) + 1);
-      strcpy(m_Code, code);
+      if (size_t length = strlen(code)) {
+        m_Function = f;
+        m_Code = (char*)malloc(length + 1);
+        strcpy(m_Code, code);
+      } else {
+        // clad did not place the derivative in this object. This can happen
+        // upon error of if clad was disabled. Diagnose.
+        printf("clad failed to place the generated derivative in the object\n");
+
+        // Invalidate the placeholders.
+        m_Function = nullptr;
+        m_Code = nullptr;
+      }
     }
 
     // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
@@ -73,13 +83,20 @@ namespace clad {
 
     template<typename ...Args>
     ReturnResult execute(Args&&... args) {
+      if (!m_Function) {
+        printf("CladFunction is invalid\n");
+        return static_cast<ReturnResult>(0);
+      }
       return FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>
         // static_cast == std::forward, i.e convert the Args to ArgTypes
         ::execute(m_Function, static_cast<ArgTypes>(args)...);
     }
 
     void dump() const {
-      printf("The code is: %s\n", m_Code);
+      if (m_Code)
+        printf("The code is: %s\n", m_Code);
+      else
+        printf("<invalid>\n");
     }
   };
 
