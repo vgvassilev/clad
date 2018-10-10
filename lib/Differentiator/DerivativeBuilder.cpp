@@ -175,8 +175,10 @@ namespace clad {
                                                ND->isInline());
       return Head ? Head : NewD;
     }
-    else
+    else {
+      m_Sema.CurContext = DC;
       return nullptr;
+    }
   }
 
   DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
@@ -319,6 +321,7 @@ namespace clad {
     NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    m_Sema.CurContext = m_Function->getDeclContext();
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(FD->getDeclContext());
       derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
@@ -1239,6 +1242,7 @@ namespace clad {
     NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    m_Sema.CurContext = m_Function->getDeclContext();
     if (isa<CXXMethodDecl>(m_Function)) {
       auto CXXRD = cast<CXXRecordDecl>(m_Function->getDeclContext());
       gradientFD = CXXMethodDecl::Create(m_Context,
