@@ -49,12 +49,14 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
-      bool m_HasRuntime;
+      bool m_HasRuntime = false;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
 
       virtual bool HandleTopLevelDecl(clang::DeclGroupRef DGR);
+    private:
+      bool ShouldProcessDecl(clang::DeclGroupRef DGR);
     };
 
     template<typename ConsumerType>

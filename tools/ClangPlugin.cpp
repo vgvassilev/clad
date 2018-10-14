@@ -19,6 +19,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Lex/LexDiagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Lookup.h"
 
@@ -63,26 +64,8 @@ namespace clad {
       : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
     CladPlugin::~CladPlugin() {}
 
-    static bool HasRuntime(Sema& SemaR) {
-      ASTContext& C = SemaR.getASTContext();
-      // The plugin has a lot of different ways to be compiled: in-tree,
-      // out-of-tree and hybrid. When we pick up the wrong header files we
-      // usually see a problem with C.Idents not being properly initialized.
-      // This assert tries to catch such situations heuristically.
-      assert(&C.Idents == &SemaR.getPreprocessor().getIdentifierTable()
-             && "Miscompiled?");
-      DeclarationName Name = &C.Idents.get("custom_derivatives");
-      LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     Sema::ForRedeclaration);
-      SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
-                                /*allowBuiltinCreation*/ false);
-      return !R.empty();
-    }
-
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
-      m_HasRuntime |= HasRuntime(m_CI.getSema());
-      // If we have not included "clad/Differentiator/Differentiator.h" exit.
-      if (!m_HasRuntime)
+      if (!ShouldProcessDecl(DGR))
         return true;
 
       if (!m_DerivativeBuilder)
@@ -128,7 +111,7 @@ namespace clad {
               std::tie(DerivativeDecl, DerivativeDeclContext) =
                 m_DerivativeBuilder->Derive(*I, *plan);
             }
-                
+
             if (DerivativeDecl) {
               collector.UpdatePlan(DerivativeDecl, &*plan);
               if (I + 1 == plan->end()) // The last element
@@ -153,18 +136,81 @@ namespace clad {
               // Call CodeGen only if the produced decl is a top-most decl.
               Decl* DerivativeDeclOrEnclosingContext = DerivativeDeclContext ?
                 DerivativeDeclContext : DerivativeDecl;
-              if (DerivativeDeclOrEnclosingContext->getDeclContext()
-                  == m_CI.getASTContext().getTranslationUnitDecl())
+              bool isTU =
+                DerivativeDeclOrEnclosingContext->getDeclContext()->isTranslationUnit();
+              if (isTU) {
                 m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
                   DerivativeDeclOrEnclosingContext));
+              }
             }
       }
       return true; // Happiness
     }
+
+    /// Keeps track if we encountered #pragma clad on/off.
+    // FIXME: Figure out how to make it a member of CladPlugin.
+    SourceLocation CladPragmaEnabledLoc = SourceLocation();
+
+    bool CladPlugin::ShouldProcessDecl(DeclGroupRef DGR) {
+      if (CladPragmaEnabledLoc.isValid()) {
+        SourceLocation DGREndLoc = (*DGR.begin())->getLocEnd();
+        SourceManager& SM = m_CI.getSourceManager();
+        return SM.isBeforeInTranslationUnit(CladPragmaEnabledLoc, DGREndLoc);
+      }
+      // If we have included "clad/Differentiator/Differentiator.h" return here.
+      if (m_HasRuntime)
+        return true;
+
+      ASTContext& C = m_CI.getASTContext();
+      // The plugin has a lot of different ways to be compiled: in-tree,
+      // out-of-tree and hybrid. When we pick up the wrong header files we
+      // usually see a problem with C.Idents not being properly initialized.
+      // This assert tries to catch such situations heuristically.
+      assert(&C.Idents == &m_CI.getPreprocessor().getIdentifierTable()
+             && "Miscompiled?");
+      DeclarationName Name = &C.Idents.get("custom_derivatives");
+      Sema &SemaR = m_CI.getSema();
+      LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
+                     Sema::ForRedeclaration);
+      SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
+                                /*allowBuiltinCreation*/ false);
+      m_HasRuntime = !R.empty();
+      return m_HasRuntime;
+    }
+
+
+    // Define a pragma handler for #pragma clad
+    class CladPragmaHandler : public PragmaHandler {
+    public:
+      CladPragmaHandler() : PragmaHandler("clad") { }
+      void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                        Token &PragmaTok) {
+        // Handle #pragma clad ON/OFF/DEFAULT
+        if (PragmaTok.isNot(tok::identifier)) {
+          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
+          return;
+        }
+        IdentifierInfo *II = PragmaTok.getIdentifierInfo();
+        assert(II->isStr("clad"));
+
+        tok::OnOffSwitch OOS;
+        if (PP.LexOnOffSwitch(OOS))
+          return; // failure
+
+        if (OOS == tok::OOS_ON)
+          CladPragmaEnabledLoc = PragmaTok.getLocation();
+        else // tok::OOS_OFF or tok::OOS_DEFAULT
+          CladPragmaEnabledLoc = SourceLocation();
+      }
+    };
+
   } // end namespace plugin
 } // end namespace clad
 
 using namespace clad::plugin;
 // register the PluginASTAction in the registry.
 static clang::FrontendPluginRegistry::Add<Action<CladPlugin> >
-X("clad","Produces derivatives or arbitrary functions");
+X("clad", "Produces derivatives or arbitrary functions");
+
+static PragmaHandlerRegistry::Add<CladPragmaHandler>
+Y("clad", "Clad pragma directives handler.");
