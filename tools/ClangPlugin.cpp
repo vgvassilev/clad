@@ -168,7 +168,7 @@ namespace clad {
       // This assert tries to catch such situations heuristically.
       assert(&C.Idents == &m_CI.getPreprocessor().getIdentifierTable()
              && "Miscompiled?");
-      DeclarationName Name = &C.Idents.get("custom_derivatives");
+      DeclarationName Name = &C.Idents.get("clad");
       Sema &SemaR = m_CI.getSema();
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
                      Sema::ForRedeclaration);
