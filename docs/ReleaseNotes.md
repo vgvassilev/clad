@@ -20,20 +20,32 @@ described first.
 
 External Dependencies
 ---------------------
-*
+* clang-5.0
+
+Forward Mode
+------------
+* Support `x += y`, `x -= y`, `x *= y`, `x /= y`, `x++`, `x--`, `++x`, `--x`.
+* Reduce emission of unused expressions -- in a few (trivial) cases we know if
+  the expression is unused and clang will produce a warning. We use the same
+  heuristics to detect such cases and produce less code.
+
+Reverse Mode
+------------
+* Improve integration with CERN's data analysis framework [ROOT](https://github.com/root-project/root).
 
 Misc
 ----
-* 
-
-Experimental Features
----------------------
-* 
+* Generate the derivatives in the correct namespace.
+* Improve error handling in the cases we failed to produce a derivative.
+* Reduce amount of clang libraries we link against.
+* Exclude code which clad sees but knows has no derivatives.
+* Add a special `#pragma clad ON/OFF/DEFAULT` to annotate regions which contain
+  derivatives.
 
 Fixed Bugs
 ----------
 
-[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
+[Issue 97](https://github.com/vgvassilev/clad/issues/97)
 
 <!---Uniquify by sort ReleaseNotes.md | uniq -c | grep -v '1 ' --->
 <!---Get release bugs
@@ -54,6 +66,7 @@ listed in the form of Firstname Lastname (#contributions):
 FirstName LastName (#commits)
 
 Vassil Vassilev (7)
+Aleksandr Efremov (4)
 
 <!---Find contributor list for this release
 git log --pretty=format:"%an"  v0.3...master | sort | uniq -c | sort -rn
