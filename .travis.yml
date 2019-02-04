@@ -16,14 +16,6 @@ addons: &addons
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty-4.0
       - llvm-toolchain-trusty-5.0
-  coverity_scan:
-    project:
-      name: "vgvassilev/clad"
-      description: "Clad build submitted via Travis CI"
-    notification_email: v.g.vassilev@gmail.com
-    build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCLAD_PATH_TO_LLVM_BUILD=\"$TRAVIS_PATH_TO_LLVM_BUILD\" $TRAVIS_BUILD_DIR)"
-    build_command: "cmake --build . --target check-clad"
-    branch_pattern: coverity_scan
 
 cache:
   pip: true
@@ -85,6 +77,16 @@ matrix:
         apt:
           sources: *sources
           packages: [*common_deps, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+        coverity_scan:
+          project:
+            name: "$TRAVIS_REPO_SLUG"
+            version: "$TRAVIS_COMMIT"
+            description: "Clad build submitted via Travis CI"
+          notification_email: "v.g.vassilev@gmail.com"
+          build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCLAD_PATH_TO_LLVM_BUILD=\"$TRAVIS_PATH_TO_LLVM_BUILD\"  -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR && cov-configure --comptype gcc --compiler gcc-6 --template"
+          build_command: "cmake --build .  -- -j4"
+          branch_pattern: "coverity_scan"
+
     - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release
       compiler: gcc
       addons:
@@ -138,7 +140,7 @@ matrix:
 before_install:
   - export
   - |
-    if [ "$COVERITY_SCAN_BRANCH" == 1 ]; then
+    if [ "${TRAVIS_BRANCH}" == 'coverity_scan' ]; then
       if [ "$RUN_COVERITY" != 1 ]; then
         # Exit from all other build nodes which are not responsible for dealing
         # with coverity.
@@ -170,7 +172,6 @@ before_script:
   - cmake --version
   - $CC --version
   - $CXX --version
-  - mkdir ../obj
   - |
     if [ $TRAVIS_OS_NAME != 'osx' ]; then
       # LLVM utils such as FileCheck and not are not part of the llvm release on unix.
@@ -181,7 +182,7 @@ before_script:
       done
       cd ../
     fi
-  - cd ../obj
+  - mkdir obj && cd obj
   - cmake -DCLAD_PATH_TO_LLVM_BUILD="$TRAVIS_PATH_TO_LLVM_BUILD" \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR
 script:
