@@ -57,9 +57,7 @@ For more details see:
 Founder of the project is Vassil Vassilev as part of his research interests and vision. He holds the exclusive copyright and other related rights, described in Copyright.txt.
 
 3. Contributors  
-We have quite a few contributors, whose contribution is described briefly in
-Credits.txt. If you don't find your name among the list of contributors, please
-contact us!
+We have quite a few contributors, whose contribution is described briefly in Credits.txt. If you don't find your name among the list of contributors, please contact us!
 
 4. License  
 clad is an open source project, licensed by GNU LESSER GENERAL PUBLIC 
