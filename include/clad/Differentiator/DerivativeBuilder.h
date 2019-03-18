@@ -31,13 +31,15 @@ namespace clad {
   namespace utils {
     class StmtClone;
   }
-  class FunctionDeclInfo;
 }
 
 namespace clad {
   /// A pair of FunctionDecl and potential enclosing context, e.g. a function
   // in nested namespaces
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
+
+  using DiffParams = llvm::SmallVector<clang::VarDecl*, 16>;
+
   static clang::SourceLocation noLoc{};
   class DiffPlan;
   /// The main builder class which then uses either ForwardModeVisitor or
@@ -57,7 +59,17 @@ namespace clad {
                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
     bool overloadExists(clang::Expr* UnresolvedLookup,
                             llvm::MutableArrayRef<clang::Expr*> ARargs);
-
+    /// Shorthand to issues a warning or error.
+    template <std::size_t N>
+    void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
+              clang::SourceLocation loc,
+              const char (&format)[N],
+              llvm::ArrayRef<llvm::StringRef> args = {}) {
+      unsigned diagID = m_Sema.Diags.getCustomDiagID(level, format);
+      clang::Sema::SemaDiagnosticBuilder stream = m_Sema.Diag(loc, diagID);
+      for (auto arg : args)
+        stream << arg;
+    }
   public:
     DerivativeBuilder(clang::Sema& S);
     ~DerivativeBuilder();
@@ -70,7 +82,7 @@ namespace clad {
     ///\returns The differentiated function and potentially created enclosing
     /// context.
     ///
-    DeclWithContext Derive(FunctionDeclInfo& FDI, const DiffPlan & plan);
+    DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan & plan);
   };
 
   /// A base class for all common functionality for visitors
@@ -202,11 +214,7 @@ namespace clad {
               clang::SourceLocation loc,
               const char (&format)[N],
               llvm::ArrayRef<llvm::StringRef> args = {}) {
-      unsigned diagID
-        = m_Sema.Diags.getCustomDiagID(level, format);
-      clang::Sema::SemaDiagnosticBuilder stream = m_Sema.Diag(loc, diagID);
-      for (auto arg : args)
-        stream << arg;
+      m_Builder.diag(level, loc, format, args);
     }
 
     /// Conuter used to create unique identifiers for temporaries
@@ -223,6 +231,18 @@ namespace clad {
     clang::Stmt* Clone(const clang::Stmt* S);
     /// A shorthand to simplify cloning of expressions.
     clang::Expr* Clone(const clang::Expr* E);
+
+    /// Parses the argument expression for the clad::differentiate/clad::gradient
+    /// call. The argument is used to specify independent parameter(s) for
+    /// differentiation. There are three valid options for the argument expression:
+    ///   1) A string literal, containing comma-separated names of function's parameters,
+    ///      as defined in function's defintion. The function will be differentiated
+    ///      w.r.t. all the specified parameters.
+    ///   2) A numeric literal. The function will be differentiated w.r.t. to the
+    ///      parameter corresponding to literal's value index.
+    ///   3) If no argument is provided, a default argument is used. The function
+    ///      will be differentiated w.r.t. to its every parameter.
+    DiffParams parseDiffArgs(const clang::Expr* diffArgs, clang::FunctionDecl* FD);
   };
 
   /// A class that represents the result of Visit of ForwardModeVisitor.
@@ -301,7 +321,7 @@ namespace clad {
     ///\returns The differentiated and potentially created enclosing
     /// context.
     ///
-    DeclWithContext Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
+    DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan& plan);
 
     StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
@@ -330,6 +350,7 @@ namespace clad {
     : public clang::ConstStmtVisitor<ReverseModeVisitor, void>,
       public VisitorBase {
   private:
+    llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
@@ -356,7 +377,20 @@ namespace clad {
     ///\returns The gradient of the function and potentially created enclosing
     /// context.
     ///
-    DeclWithContext Derive(FunctionDeclInfo& FDI, const DiffPlan& plan);
+    /// We name the gradient of f as 'f_grad'.
+    /// If the gradient of the same function is requested several times
+    /// with different parameters, but same parameter types, every such request
+    /// will create f_grad function with the same signature, which will be
+    /// ambiguous. E.g.
+    ///   double f(double x, double y, double z) { ... }
+    ///   clad::gradient(f, "x, y");
+    ///   clad::gradient(f, "x, z");
+    /// will create 2 definitions for f_grad with the same signature.
+    ///
+    /// Improved naming scheme is required. Hence, we append the indices to of the
+    /// requested parameters to 'f_grad', i.e. in the previous example "x, y" will
+    /// give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
+    DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan& plan);
     void VisitCompoundStmt(const clang::CompoundStmt* CS);
     void VisitIfStmt(const clang::IfStmt* If);
     void VisitReturnStmt(const clang::ReturnStmt* RS);

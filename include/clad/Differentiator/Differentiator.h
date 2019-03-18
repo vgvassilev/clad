@@ -109,16 +109,16 @@ namespace clad {
 
   ///\brief N is the derivative order.
   ///
-  template<unsigned N = 1, typename R, typename... Args>
+  template<unsigned N = 1, typename ArgSpec = const char *, typename R, typename... Args>
   CladFunction <false, R, Args...> __attribute__((annotate("D")))
-  differentiate(R (*f)(Args...), unsigned independentArg, const char* code = "") {
+  differentiate(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<false, R, Args...>(f, code);
   }
 
-  template<unsigned N = 1, typename R, class C, typename... Args>
+  template<unsigned N = 1, typename ArgSpec = const char *, typename R, class C, typename... Args>
   CladFunction<true, R, C, Args...> __attribute__((annotate("D")))
-  differentiate(R (C::*f)(Args...), unsigned independentArg, const char* code = "") {
+  differentiate(R (C::*f)(Args...), ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<true, R, C, Args...>(f, code);
   }
@@ -126,18 +126,18 @@ namespace clad {
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
   /// returns a CladFunction for it.
-  template<typename R, typename... Args>
+  template<typename ArgSpec = const char *, typename R, typename... Args>
   CladFunction<false, void, Args..., R*> __attribute__((annotate("G")))
-  gradient(R (*f)(Args...), const char* code = "") {
+  gradient(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<false, void, Args..., R*>(
       reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by gradient*/,
       code);
   }
 
-  template<typename R, typename C, typename... Args>
+  template<typename ArgSpec = const char *, typename R, typename C, typename... Args>
   CladFunction<true, void, C, Args..., R*> __attribute__((annotate("G")))
-  gradient(R (C::*f)(Args...), const char* code = "") {
+  gradient(R (C::*f)(Args...), ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<true, void, C, Args..., R*>(
       reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by gradient*/,

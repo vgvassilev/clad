@@ -96,8 +96,6 @@ int main () {
   clad::differentiate(f_2, 2);
 
   clad::differentiate(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
-  // expected-note@clad/Differentiator/Differentiator.h:114 {{candidate function not viable: no known conversion from 'int (int, float, int)' to 'unsigned int' for 2nd argument}}
-  // expected-note@clad/Differentiator/Differentiator.h:121 {{candidate template ignored: could not match 'R (C::*)(Args...)' against 'int (*)(int, float, int)'}}
 
   clad::differentiate(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
 
@@ -105,20 +103,28 @@ int main () {
 
   clad::differentiate(f_2, 9); // expected-error {{Invalid argument index 9 among 3 argument(s)}}
 
-  clad::differentiate(f_2, x); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_2, x); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
-  clad::differentiate(f_2, f_2); // expected-error {{no matching function for call to 'differentiate'}}
+  clad::differentiate(f_2, f_2); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
-  clad::differentiate(f_3, 0); // expected-error {{Trying to differentiate function 'f_3' taking no arguments}}
+  clad::differentiate(f_3, 0); // expected-error {{Invalid argument index 0 among 0 argument(s)}}
 
   float one = 1.0;
-  clad::differentiate(f_2, one); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_2, one); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
   clad::differentiate(f_no_definition, 0);
 
   clad::differentiate(f_redeclared, 0);
 
   clad::differentiate(f_try_catch, 0);
+
+  clad::differentiate(f_2, "x");
+  clad::differentiate(f_2, " y ");
+  clad::differentiate(f_2, "z");
+
+  clad::differentiate(f_2, "x, y"); // expected-error {{Forward mode differentiation w.r.t. several parameters at once is not supported, call 'clad::differentiate' for each parameter separately}}
+  clad::differentiate(f_2, "t"); // expected-error {{Requested parameter name 't' was not found among function parameters}}
+  clad::differentiate(f_2, "x, x"); // expected-error {{Requested parameter 'x' was specified multiple times}}
 
   return 0;
 }

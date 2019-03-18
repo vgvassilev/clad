@@ -18,46 +18,19 @@ namespace clad {
     reverse
   };
 
-  ///\brief A pair function, independent variable.
-  ///
-  class FunctionDeclInfo {
-  private:
-    clang::FunctionDecl* m_FD;
-    clang::ParmVarDecl* m_PVD;
-  public:
-    FunctionDeclInfo(clang::FunctionDecl* FD, clang::ParmVarDecl* PVD);
-    clang::FunctionDecl* getFD() const { return m_FD; }
-    clang::ParmVarDecl* getPVD() const { return m_PVD; }
-    bool isValidInMode(DiffMode mode) const {
-      if (mode == DiffMode::forward)
-        // We are calling clad::differentiate,
-        // we need both function and independent variable.
-        return m_FD && m_PVD;
-      else if (mode == DiffMode::reverse)
-        // We are calling clad::gradient,
-        // there is no independent variable.
-        return m_FD && !m_PVD;
-      else
-        return false;
-    }
-    LLVM_DUMP_METHOD void dump() const;
-  };
-
   ///\brief The list of the dependent functions which also need differentiation
   /// because they are called by the function we are asked to differentitate.
   ///
   class DiffPlan {
   private:
-    typedef llvm::SmallVector<FunctionDeclInfo, 16> Functions;
+    typedef llvm::SmallVector<clang::FunctionDecl*, 16> Functions;
     Functions m_Functions;
-    clang::CallExpr* m_CallToUpdate;
-    unsigned m_RequestedDerivativeOrder;
-    unsigned m_CurrentDerivativeOrder;
-    unsigned m_ArgIndex;
+    clang::CallExpr* m_CallToUpdate = nullptr;
+    unsigned m_RequestedDerivativeOrder = 1;
+    unsigned m_CurrentDerivativeOrder = 1;
+    clang::Expr* m_DiffArgs = nullptr;
     DiffMode m_Mode;
   public:
-    DiffPlan() : m_CallToUpdate(0), m_RequestedDerivativeOrder(1),
-                 m_CurrentDerivativeOrder(1), m_ArgIndex(0) { }
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
 
@@ -76,7 +49,7 @@ namespace clad {
     unsigned getCurrentDerivativeOrder() const {
       return m_CurrentDerivativeOrder;
     }
-    void push_back(FunctionDeclInfo FDI) { m_Functions.push_back(FDI); }
+    void push_back(clang::FunctionDecl* FD) { m_Functions.push_back(FD); }
     iterator begin() { return m_Functions.begin(); }
     iterator end() { return m_Functions.end(); }
     const_iterator begin() const { return m_Functions.begin(); }
@@ -84,9 +57,8 @@ namespace clad {
     size_t size() const { return m_Functions.size(); }
     void setCallToUpdate(clang::CallExpr* CE) { m_CallToUpdate = CE; }
     void updateCall(clang::FunctionDecl* FD, clang::Sema& SemaRef);
+    clang::Expr* getArgs() const { return m_DiffArgs; }
     LLVM_DUMP_METHOD void dump();
-    unsigned getArgIndex() const { return m_ArgIndex;}
-    void setArgIndex(unsigned val) { m_ArgIndex = val; }
 
     friend class DiffCollector;
   };
@@ -102,17 +74,12 @@ namespace clad {
     ///\brief If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
-    FunctionDeclInfo* m_TopMostFDI;
+    clang::FunctionDecl* m_TopMostFD;
 
     clang::Sema& m_Sema;
 
     DiffPlan& getCurrentPlan() { return m_DiffPlans.back(); }
 
-    ///\brief Tries to find the independent variable of explicitly diffed
-    /// functions.
-    ///
-    clang::ParmVarDecl* getIndependentArg(clang::Expr* argExpr,
-                                          clang::FunctionDecl* FD);
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffPlans& plans, clang::Sema& S);
     void UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan);

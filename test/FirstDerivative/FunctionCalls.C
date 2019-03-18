@@ -94,7 +94,7 @@ float test_5(int x) {
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
-  clad::differentiate(test_3, 0); //expected-error {{Trying to differentiate function 'test_3' taking no arguments}}
+  clad::differentiate(test_3, 0); //expected-error {{Invalid argument index 0 among 0 argument(s)}}
   clad::differentiate(test_4, 0);
   clad::differentiate(test_5, 0);
 
