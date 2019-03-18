@@ -46,7 +46,7 @@ int f_simple_negative(int x) {
 
 int main () {
   int x = 4;
-  clad::differentiate(f_simple, x); // expected-error {{Must be an integral value}}
+  clad::differentiate(f_simple, x); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
   // Here the second arg denotes the differentiation of f with respect to the
   // given arg.
   //clad::differentiate(f_simple, 1);

@@ -22,6 +22,8 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include <algorithm>
+
 using namespace clang;
 
 namespace clad {
@@ -47,22 +49,116 @@ namespace clad {
 
   }
 
-  DeclWithContext DerivativeBuilder::Derive(FunctionDeclInfo& FDI,
-                                          const DiffPlan& plan) {
+  DeclWithContext DerivativeBuilder::Derive(FunctionDecl* FD,
+                                            const DiffPlan& plan) {
     //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
+    assert(FD && "Must not be null.");
+    // If FD is only a declaration, try to find its definition.
+    if (!FD->getDefinition()) {
+      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
+           "attempted differentiation of function '%0', which does not have a "
+           "definition", { FD->getNameAsString() });
+      return {};
+    }
+    FD = FD->getDefinition();
     DeclWithContext result{};
     if (plan.getMode() == DiffMode::forward) {
       ForwardModeVisitor V(*this);
-      result = V.Derive(FDI, plan);
+      result = V.Derive(FD, plan);
     }
     else if (plan.getMode() == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
-      result = V.Derive(FDI, plan);
+      result = V.Derive(FD, plan);
     }
 
     if (result.first)
       registerDerivative(result.first, m_Sema);
     return result;
+  }
+
+  DiffParams VisitorBase::parseDiffArgs(const Expr* diffArgs, FunctionDecl* FD) {
+    DiffParams params{};
+    auto E = diffArgs->IgnoreParenImpCasts();
+    // Case 1)
+    if (auto SL = dyn_cast<StringLiteral>(E)) {
+      llvm::StringRef string = SL->getString().trim();
+      if (string.empty()) {
+        diag(DiagnosticsEngine::Error, diffArgs->getLocEnd(),
+             "No parameters were provided");
+        return {};
+      }
+      // Split the string by ',' charachters, trim whitespaces.
+      llvm::SmallVector<llvm::StringRef, 16> names{};
+      llvm::StringRef name{};
+      do {
+        std::tie(name, string) = string.split(',');
+        names.push_back(name.trim());
+      } while (!string.empty());
+      // Find function's parameters corresponding to the specified names.
+      llvm::SmallVector<std::pair<llvm::StringRef, VarDecl*>, 16> param_names_map{};
+      for (auto PVD : FD->parameters())
+        param_names_map.emplace_back(PVD->getName(), PVD);
+      for (const auto & name: names) {
+        auto it = std::find_if(std::begin(param_names_map),
+                    std::end(param_names_map),
+                    [&name] (const std::pair<llvm::StringRef, VarDecl*> & p) {
+                      return p.first == name; });
+        if (it == std::end(param_names_map)) {
+          // Fail if the function has no parameter with specified name.
+          diag(DiagnosticsEngine::Error, diffArgs->getLocEnd(),
+            "Requested parameter name '%0' was not found among function parameters",
+            { name });
+          return {};
+        }
+        params.push_back(it->second);
+      }
+      // Check if the same parameter was specified multiple times, fail if so.
+      DiffParams unique_params{};
+      for (const auto param : params) {
+        auto it = std::find(std::begin(unique_params), std::end(unique_params), param);
+        if (it != std::end(unique_params)) {
+          diag(DiagnosticsEngine::Error, diffArgs->getLocEnd(),
+            "Requested parameter '%0' was specified multiple times",
+            { param->getName() });
+          return {};
+        }
+        unique_params.push_back(param);
+      }
+      // Return a sequence of function's parameters.
+      return unique_params;
+    }
+    // Case 2)
+    // Check if the provided literal can be evaluated as an integral value.
+    llvm::APSInt intValue;
+    if (E->EvaluateAsInt(intValue, m_Context)) {
+      auto idx = intValue.getExtValue();
+      // Fail if the specified index is invalid.
+      if ((idx < 0) || (idx >= FD->getNumParams())) {
+        diag(DiagnosticsEngine::Error, diffArgs->getLocEnd(),
+          "Invalid argument index %0 among %1 argument(s)",
+          { std::to_string(idx), std::to_string(FD->getNumParams()) });
+        return {};
+      }
+      params.push_back(FD->getParamDecl(idx));
+      // Returns a single parameter.
+      return params;
+    }
+    // Case 3)
+    // Threat the default (unspecified) argument as a special case, as if all
+    // function's arguments were requested.
+    if (isa<CXXDefaultArgExpr>(E)) {
+      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(params));
+      // If the function has no parameters, then we cannot differentiate it."
+      if (params.empty())
+        diag(DiagnosticsEngine::Error, diffArgs->getLocEnd(),
+             "Attempted to differentiate a function without parameters");
+      // Returns the sequence with all the function's parameters.
+      return params;
+    }
+    // Fail if the argument is not a string or numeric literal.
+    diag(DiagnosticsEngine::Error, diffArgs->getLocEnd(),
+         "Failed to parse the parameters, must be a string or numeric literal");
+    return {};
   }
 
   bool VisitorBase::isUnusedResult(const Expr* E) {
@@ -272,33 +368,24 @@ namespace clad {
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
-  DeclWithContext ForwardModeVisitor::Derive(
-    FunctionDeclInfo& FDI,
-    const DiffPlan& plan) {
-    FunctionDecl* FD = FDI.getFD();
-    if (!FD->getDefinition()) {
-      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
-           "attempted differentiation of function '%0', which does not have a "
-           "definition", { FD->getNameAsString() });
-      return {};
-    }
+  DeclWithContext ForwardModeVisitor::Derive(FunctionDecl* FD,
+                                             const DiffPlan& plan) {
     m_Function = FD;
-    assert(FD && "Must not be null.");
     assert(!m_DerivativeInFlight
            && "Doesn't support recursive diff. Use DiffPlan.");
     m_DerivativeInFlight = true;
-#ifndef NDEBUG
-    bool notInArgs = true;
-    for (unsigned i = 0; i < FD->getNumParams(); ++i)
-      if (FDI.getPVD() == FD->getParamDecl(i)) {
-        notInArgs = false;
-        break;
-      }
-    assert(!notInArgs && "Must pass in a param of the FD.");
-#endif
 
+    DiffParams args = parseDiffArgs(plan.getArgs(), FD);
+    if (args.empty())
+      return {};
+    if (args.size() > 1) {
+      diag(DiagnosticsEngine::Error, plan.getArgs()->getLocEnd(),
+        "Forward mode differentiation w.r.t. several parameters at once is not "
+        "supported, call 'clad::differentiate' for each parameter separately");
+      return {};
+    }
 
-    m_IndependentVar = FDI.getPVD(); // FIXME: Use only one var.
+    m_IndependentVar = args.back();
     m_DerivativeOrder = plan.getCurrentDerivativeOrder();
     std::string s = std::to_string(m_DerivativeOrder);
     std::string derivativeBaseName;
@@ -306,14 +393,15 @@ namespace clad {
       s = "";
     switch (FD->getOverloadedOperator()) {
     default:
-      derivativeBaseName = plan.begin()->getFD()->getNameAsString();
+      derivativeBaseName = (*plan.begin())->getNameAsString();
       break;
     case OO_Call:
       derivativeBaseName = "operator_call";
       break;
     }
 
-    m_ArgIndex = plan.getArgIndex();
+    m_ArgIndex = std::distance(FD->param_begin(),
+      std::find(FD->param_begin(), FD->param_end(), m_IndependentVar));
     IdentifierInfo* II = &m_Context.Idents.get(
       derivativeBaseName + "_d" + s + "arg" + std::to_string(m_ArgIndex));
     DeclarationNameInfo name(II, noLoc);
@@ -341,8 +429,7 @@ namespace clad {
                                        /*default*/
                                        FD->isInlineSpecified(),
                                        FD->hasWrittenPrototype(),
-                                       FD->isConstexpr()
-                                       );
+                                       FD->isConstexpr());
     }
     m_Derivative = derivedFD;
 
@@ -425,7 +512,7 @@ namespace clad {
       m_Variables[param] = dParam;
     }
 
-    Stmt* BodyDiff = Visit(FD->getDefinition()->getBody()).getStmt();
+    Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
     if (isa<CompoundStmt>(BodyDiff))
       for (Stmt* S : cast<CompoundStmt>(BodyDiff)->body())
         addToCurrentBlock(S);
@@ -1209,13 +1296,24 @@ namespace clad {
   ReverseModeVisitor::~ReverseModeVisitor() {}
 
   DeclWithContext ReverseModeVisitor::Derive(
-    FunctionDeclInfo& FDI, const DiffPlan& plan) {
-    m_Function = FDI.getFD();
+    FunctionDecl* FD, const DiffPlan& plan) {
+    m_Function = FD;
     assert(m_Function && "Must not be null.");
 
-    // We name the gradient of f as f_grad.
+    DiffParams args = parseDiffArgs(plan.getArgs(), FD);
+    if (args.empty())
+      return {};
     auto derivativeBaseName = m_Function->getNameAsString();
-    IdentifierInfo* II = &m_Context.Idents.get(derivativeBaseName + "_grad");
+    std::string gradientName = derivativeBaseName + "_grad";
+    // To be consistent with older tests, nothing is appended to 'f_grad' if 
+    // we differentiate w.r.t. all the parameters at once.
+    if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))
+      for (auto arg : args) {
+        auto it = std::find(FD->param_begin(), FD->param_end(), arg);
+        auto idx = std::distance(FD->param_begin(), it);
+        gradientName += ('_' + std::to_string(idx));
+      }
+    IdentifierInfo* II = &m_Context.Idents.get(gradientName);
     DeclarationNameInfo name(II, noLoc);
 
     // A vector of types of the gradient function parameters.
@@ -1286,29 +1384,21 @@ namespace clad {
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
-    std::transform(m_Function->param_begin(),
-                   m_Function->param_end(),
-                   std::begin(params),
-                   [&] (const ParmVarDecl* PVD) {
-                     auto VD =
-                       ParmVarDecl::Create(m_Context,
-                                           gradientFD,
-                                           noLoc,
-                                           noLoc,
-                                           PVD->getIdentifier(),
-                                           PVD->getType(),
-                                           PVD->getTypeSourceInfo(),
-                                           PVD->getStorageClass(),
-                                           // Clone default arg if present.
-                                           (PVD->hasDefaultArg() ?
-                                             Clone(PVD->getDefaultArg()) :
-                                             nullptr));
-                     if (VD->getIdentifier())
-                       m_Sema.PushOnScopeChains(VD,
-                                                getCurrentScope(),
-                                                /*AddToContext*/ false);
-                     return VD;
-                   });
+    std::transform(m_Function->param_begin(), m_Function->param_end(), 
+      std::begin(params),
+      [&] (const ParmVarDecl* PVD) {
+        auto VD = ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
+                                      PVD->getIdentifier(), PVD->getType(),
+                                      PVD->getTypeSourceInfo(),
+                                      PVD->getStorageClass(),
+                                      // Clone default arg if present.
+                                      (PVD->hasDefaultArg() ?
+                                        Clone(PVD->getDefaultArg()) : nullptr));
+        if (VD->getIdentifier())
+          m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
+        return VD;
+    });
+    m_IndependentVars = std::move(args);
     // The output paremeter "_result".
     params.back() =
       ParmVarDecl::Create(m_Context,
@@ -1489,14 +1579,13 @@ namespace clad {
   void ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     auto decl = DRE->getDecl();
     // Check DeclRefExpr is a reference to an independent variable.
-    auto it = std::find(m_Function->param_begin(),
-                        m_Function->param_end(),
+    auto it = std::find(std::begin(m_IndependentVars), std::end(m_IndependentVars),
                         decl);
-    if (it == m_Function->param_end()) {
+    if (it == std::end(m_IndependentVars)) {
       // Is not an independent variable, ignored.
       return;
     }
-    auto idx = std::distance(m_Function->param_begin(), it);
+    auto idx = std::distance(std::begin(m_IndependentVars), it);
     auto size_type = m_Context.getSizeType();
     auto size_type_bits = m_Context.getIntWidth(size_type);
     // Create the idx literal.

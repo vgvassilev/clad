@@ -8,37 +8,10 @@ using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
-  FunctionDeclInfo::FunctionDeclInfo(FunctionDecl* FD, ParmVarDecl* PVD)
-    : m_FD(FD), m_PVD(PVD) {
-#ifndef NDEBUG
-    if (!PVD) // Can happen if there was error deducing the argument
-      return;
-    bool inArgs = false;
-    for (unsigned i = 0; i < FD->getNumParams(); ++i)
-      if (PVD == FD->getParamDecl(i)) {
-        inArgs = true;
-        break;
-      }
-    assert(inArgs && "Must pass in a param of the FD.");
-#endif
-  }
-
-  LLVM_DUMP_METHOD void FunctionDeclInfo::dump() const {
-    if (m_FD)
-      m_FD->dump();
-    else
-      llvm::errs() << "<invalid> FD: " << m_FD << '\n';
-
-    if (m_PVD)
-      m_PVD->dump();
-    else
-      llvm::errs() << "<invalid> PVD: " << m_PVD << '\n';
-  }
 
   void DiffPlan::updateCall(FunctionDecl* FD, Sema& SemaRef) {
     auto call = m_CallToUpdate;
     // Index of "code" parameter:
-    // 2 for clad::differentiate, 1 for clad::gradient.
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
@@ -162,58 +135,13 @@ namespace clad {
 
   LLVM_DUMP_METHOD void DiffPlan::dump() {
     for (const_iterator I = begin(), E = end(); I != E; ++I) {
-      I->dump();
+      (*I)->dump();
       llvm::errs() << "\n";
     }
   }
 
-  ParmVarDecl* DiffCollector::getIndependentArg(
-    Expr* argExpr, FunctionDecl* FD) {
-    assert(!m_TopMostFDI && "Must be not in implicit fn collecting mode.");
-    bool isIndexOutOfRange = false;
-    llvm::APSInt result;
-    ASTContext& C = m_Sema.getASTContext();
-    DiagnosticsEngine& Diags = m_Sema.Diags;
-    if (argExpr->EvaluateAsInt(result, C)) {
-      const int64_t argIndex = result.getSExtValue();
-      getCurrentPlan().setArgIndex(argIndex);
-      const int64_t argNum = FD->getNumParams();
-      //TODO: Implement the argument checks in the DerivativeBuilder
-      if (argNum == 0) {
-        unsigned DiagID
-          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                  "Trying to differentiate function '%0' taking"
-                                  " no arguments");
-        Diags.Report(argExpr->getLocStart(), DiagID)
-          << FD->getNameAsString();
-        return 0;
-      }
-      //if arg is int but do not exists print error
-      else if (argIndex >= argNum || argIndex < 0) {
-        isIndexOutOfRange = true;
-        unsigned DiagID
-          = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                  "Invalid argument index %0 among %1 "
-                                  "argument(s)");
-        Diags.Report(argExpr->getLocStart(), DiagID)
-          << (int)argIndex
-          << (int)argNum;
-        return 0;
-      }
-      else
-        return FD->getParamDecl(argIndex);
-    }
-    else if (!isIndexOutOfRange){
-      unsigned DiagID
-        = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                "Must be an integral value");
-      Diags.Report(argExpr->getLocStart(), DiagID);
-      return 0;
-    }
-    return 0;
-  }
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffPlans& plans, Sema& S)
-     : m_DiffPlans(plans), m_TopMostFDI(0), m_Sema(S) {
+     : m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
     if (DGR.isSingleDecl())
       TraverseDecl(DGR.getSingleDecl());
   }
@@ -225,8 +153,7 @@ namespace clad {
     assert(plan->getRequestedDerivativeOrder() > 1
            && "Must be called on high order derivatives");
     plan->setCurrentDerivativeOrder(plan->getCurrentDerivativeOrder() + 1);
-    plan->push_back(
-      FunctionDeclInfo(FD, FD->getParamDecl(plan->getArgIndex())));
+    plan->push_back(FD);
     m_DiffPlans.push_back(*plan);
     TraverseDecl(FD);
     m_DiffPlans.pop_back();
@@ -234,22 +161,9 @@ namespace clad {
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     if (FunctionDecl *FD = E->getDirectCallee()) {
-      if (m_TopMostFDI) {
-        int index = -1;
-        for (unsigned i = 0; i < m_TopMostFDI->getFD()->getNumParams(); ++i)
-          if (index != -1)
-            if (FD->getParamDecl(index) == m_TopMostFDI->getPVD()) {
-              index = i - 1; // Decrement by 1, adapting to FD's 0 param list.
-              break;
-            }
-        if (index > -1) {
-          FunctionDeclInfo FDI(FD, FD->getParamDecl(index));
-          getCurrentPlan().push_back(FDI);
-        }
-      }
       // We need to find our 'special' diff annotated such:
       // clad::differentiate(...) __attribute__((annotate("D")))
-      else if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>()) {
+      if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>()) {
         DeclRefExpr* DRE = nullptr;
 
         // Handle the case of function.
@@ -276,13 +190,12 @@ namespace clad {
             getCurrentPlan().m_RequestedDerivativeOrder = derivativeOrder;
 
             getCurrentPlan().setCallToUpdate(E);
-            FunctionDecl* cand = cast<FunctionDecl>(DRE->getDecl());
-            ParmVarDecl* candPVD = getIndependentArg(E->getArg(1), cand);
-            FunctionDeclInfo FDI(cand, candPVD);
-            m_TopMostFDI = &FDI;
-            TraverseDecl(cand);
-            m_TopMostFDI = 0;
-            getCurrentPlan().push_back(FDI);
+            auto FD = cast<FunctionDecl>(DRE->getDecl());
+            m_TopMostFD = FD;
+            TraverseDecl(FD);
+            m_TopMostFD = nullptr;
+            getCurrentPlan().push_back(FD);
+            getCurrentPlan().m_DiffArgs = E->getArg(1);
           }
           else if (label.equals("G")) {
             // A call to clad::gradient was found.
@@ -290,8 +203,9 @@ namespace clad {
             m_DiffPlans.push_back(DiffPlan());
             getCurrentPlan().setMode(DiffMode::reverse);
             getCurrentPlan().setCallToUpdate(E);
-            FunctionDeclInfo FDI(cast<FunctionDecl>(DRE->getDecl()), nullptr);
-            getCurrentPlan().push_back(FDI);
+            auto FD = cast<FunctionDecl>(DRE->getDecl());
+            getCurrentPlan().push_back(FD);
+            getCurrentPlan().m_DiffArgs = E->getArg(1);
           }
         }
       }

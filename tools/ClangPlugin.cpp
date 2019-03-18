@@ -85,16 +85,13 @@ namespace clad {
       for (DiffPlans::iterator plan = plans.begin(), planE = plans.end();
            plan != planE; ++plan)
          for (DiffPlan::iterator I = plan->begin(); I != plan->end(); ++I) {
-            if (!I->isValidInMode(plan->getMode()))
-                // Some error happened, ignore this plan.
-                continue;
             // if enabled, print source code of the original functions
             if (m_DO.DumpSourceFn) {
-               I->getFD()->print(llvm::outs(), Policy);
+               (*I)->print(llvm::outs(), Policy);
             }
             // if enabled, print ASTs of the original functions
             if (m_DO.DumpSourceFnAST) {
-               I->getFD()->dumpColor();
+               (*I)->dumpColor();
             }
 
             FunctionDecl* DerivativeDecl = nullptr;
@@ -106,7 +103,7 @@ namespace clad {
               bool WantTiming = getenv("LIBCLAD_TIMING");
               SimpleTimer Timer(WantTiming);
               Timer.setOutput("Generation time for "
-                              + plan->begin()->getFD()->getNameAsString());
+                              + (*plan->begin())->getNameAsString());
 
               std::tie(DerivativeDecl, DerivativeDeclContext) =
                 m_DerivativeBuilder->Derive(*I, *plan);
