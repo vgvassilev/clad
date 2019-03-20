@@ -29,7 +29,7 @@ using namespace clang;
 namespace clad {
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
     : m_Sema(S), m_Context(S.getASTContext()),
-      m_NodeCloner(new utils::StmtClone(m_Context)),
+      m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr) {}
 
   DerivativeBuilder::~DerivativeBuilder() {}
@@ -169,15 +169,19 @@ namespace clad {
                                      ignoreRange, m_Context);
   }
 
-  bool VisitorBase::addToCurrentBlock(Stmt* S) {
+  bool VisitorBase::addToBlock(Stmt* S, Stmts& block) {
     if (!S)
       return false;
     if (Expr* E = dyn_cast<Expr>(S)) {
       if (isUnusedResult(E))
         return false;
     }
-    getCurrentBlock().push_back(S);
+    block.push_back(S);
     return true;
+  }
+
+  bool VisitorBase::addToCurrentBlock(Stmt* S) {
+    return addToBlock(S, getCurrentBlock());
   }
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type,
@@ -337,13 +341,15 @@ namespace clad {
 
   Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
                                  bool forceDeclCreation) {
-    return StoreAndRef(E, E->getType(), prefix, forceDeclCreation);
+    return StoreAndRef(E, getCurrentBlock(), prefix, forceDeclCreation);
+  }
+  Expr* VisitorBase::StoreAndRef(Expr* E, Stmts& block, llvm::StringRef prefix,
+                                 bool forceDeclCreation) {
+    return StoreAndRef(E, E->getType(), block, prefix, forceDeclCreation);
   }
 
-  Expr* VisitorBase::StoreAndRef(Expr* E,
-                                 QualType Type,
-                                 llvm::StringRef prefix,
-                                 bool forceDeclCreation) {
+  Expr* VisitorBase::StoreAndRef(Expr* E, QualType Type, Stmts& block,
+                                 llvm::StringRef prefix, bool forceDeclCreation) {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
       // in storing it as there is no evaluation going on.
@@ -357,7 +363,7 @@ namespace clad {
     VarDecl* Var = BuildVarDecl(Type, CreateUniqueIdentifier(prefix, m_tmpId), E);
 
     // Add the declaration to the body of the gradient function.
-    addToCurrentBlock(BuildDeclStmt(Var));
+    addToBlock(BuildDeclStmt(Var), block);
 
     // Return reference to the declaration instead of original expression.
     return BuildDeclRef(Var);
@@ -513,8 +519,8 @@ namespace clad {
     }
 
     Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
-    if (isa<CompoundStmt>(BodyDiff))
-      for (Stmt* S : cast<CompoundStmt>(BodyDiff)->body())
+    if (auto CS = dyn_cast<CompoundStmt>(BodyDiff))
+      for (Stmt* S : CS->body())
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
@@ -624,10 +630,12 @@ namespace clad {
           return BranchDiff.getStmt();
         } else {
           beginBlock();
+          beginScope(Scope::DeclScope);
           StmtDiff BranchDiff = Visit(Branch);
           for (Stmt* S : BranchDiff.getBothStmts())
             addToCurrentBlock(S);
           CompoundStmt* Block = endBlock();
+          endScope();
           if (Block->size() == 1)
             return Block->body_front();
           else
@@ -638,15 +646,9 @@ namespace clad {
     Stmt* thenDiff = VisitBranch(If->getThen());
     Stmt* elseDiff = VisitBranch(If->getElse());
 
-    Stmt* ifDiff = new (m_Context) IfStmt(m_Context,
-                                         noLoc,
-                                         If->isConstexpr(),
-                                         initResult.getStmt(),
-                                         condVarClone,
-                                         cond,
-                                         thenDiff,
-                                         noLoc,
-                                         elseDiff);
+    Stmt* ifDiff = new (m_Context) IfStmt(m_Context, noLoc, If->isConstexpr(),
+                                          initResult.getStmt(), condVarClone,
+                                          cond, thenDiff, noLoc, elseDiff);
     addToCurrentBlock(ifDiff);
     CompoundStmt* Block = endBlock();
     // If IfStmt is the only statement in the block, remove the block:
@@ -832,15 +834,15 @@ namespace clad {
         clonedDRE = BuildDeclRef(it->second);
       else
         clonedDRE = cast<DeclRefExpr>(Clone(DRE));
-        // If current context is different than the context of the original
-        // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
-        // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
-        // Sema::BuildDeclRefExpr is responsible for adding captured fields
-        // to the underlying struct of a lambda.
-        if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
-          auto referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
-          clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
-        }
+      // If current context is different than the context of the original
+      // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
+      // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
+      // Sema::BuildDeclRefExpr is responsible for adding captured fields
+      // to the underlying struct of a lambda.
+      if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
+        auto referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
+        clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
+      }
     }
     
     if (auto VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
@@ -864,16 +866,14 @@ namespace clad {
     return StmtDiff(clonedDRE, zero);
   }
 
-  StmtDiff ForwardModeVisitor::VisitIntegerLiteral(
-    const IntegerLiteral* IL) {
+  StmtDiff ForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
     llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
     auto constant0 = IntegerLiteral::Create(m_Context, zero, m_Context.IntTy,
                                             noLoc);
     return StmtDiff(Clone(IL), constant0);
   }
 
-  StmtDiff ForwardModeVisitor::VisitFloatingLiteral(
-    const FloatingLiteral* FL) {
+  StmtDiff ForwardModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
     llvm::APFloat zero = llvm::APFloat::getZero(FL->getSemantics());
     auto constant0 = FloatingLiteral::Create(m_Context, zero, true,
                                              FL->getType(), noLoc);
@@ -1119,9 +1119,7 @@ namespace clad {
     }
   }
 
-  StmtDiff ForwardModeVisitor::VisitBinaryOperator(
-    const BinaryOperator* BinOp) {
-
+  StmtDiff ForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     StmtDiff Ldiff = Visit(BinOp->getLHS());
     StmtDiff Rdiff = Visit(BinOp->getRHS());
 
@@ -1396,44 +1394,56 @@ namespace clad {
                                         Clone(PVD->getDefaultArg()) : nullptr));
         if (VD->getIdentifier())
           m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
+        auto it = std::find(std::begin(args), std::end(args), PVD);
+        if (it != std::end(args))
+          *it = VD;
         return VD;
     });
-    m_IndependentVars = std::move(args);
     // The output paremeter "_result".
-    params.back() =
-      ParmVarDecl::Create(m_Context,
-                          gradientFD,
-                          noLoc,
-                          noLoc,
-                          &m_Context.Idents.get("_result"),
-                          paramTypes.back(),
-                          m_Context.getTrivialTypeSourceInfo(paramTypes.back(),
-                                                             noLoc),
-                          params.front()->getStorageClass(),
-                          // No default value.
-                          nullptr);
+    params.back() = ParmVarDecl::Create(m_Context, gradientFD, noLoc,
+                                        noLoc, &m_Context.Idents.get("_result"),
+                                        paramTypes.back(),
+                                        m_Context.getTrivialTypeSourceInfo(
+                                          paramTypes.back(), noLoc),
+                                        params.front()->getStorageClass(),
+                                        /* No default value */ nullptr);
     if (params.back()->getIdentifier())
-      m_Sema.PushOnScopeChains(params.back(),
-                               getCurrentScope(),
+      m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
                                /*AddToContext*/ false);
 
-    llvm::ArrayRef<ParmVarDecl*> paramsRef =
-      llvm::makeArrayRef(params.data(), params.size());
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = llvm::makeArrayRef(params.data(),
+                                                                params.size());
     gradientFD->setParams(paramsRef);
     gradientFD->setBody(nullptr);
 
     // Reference to the output parameter.
     m_Result = BuildDeclRef(params.back());
-    // Initially, df/df = 1.
-    auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
+
+    auto idx = 0;
+    for (auto arg : args) {
+      auto size_type = m_Context.getSizeType();
+      auto size_type_bits = m_Context.getIntWidth(size_type);
+      // Create the idx literal.
+      auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
+                                      size_type, noLoc);
+      // Create the _result[idx] expression.
+      auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                                i, noLoc).get();
+      m_Variables[arg] = result_at_i;
+      idx += 1;
+    }
 
     // Function body scope.
     beginScope(Scope::FnScope | Scope::DeclScope);
     beginBlock();
     // Start the visitation process which outputs the statements in the current
     // block.
-    Stmt* functionBody = m_Function->getMostRecentDecl()->getBody();
-    Visit(functionBody, dfdf);
+    Stmt* BodyDiffForward = Visit(FD->getBody()).getStmt();
+    if (auto CS = dyn_cast<CompoundStmt>(BodyDiffForward))
+      for (Stmt* S : CS->body())
+        addToCurrentBlock(S);
+    else
+      addToCurrentBlock(BodyDiffForward);
     // Create the body of the function.
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
@@ -1446,186 +1456,263 @@ namespace clad {
     return { gradientFD, enclosingNS };
   }
 
-  void ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
+  StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     beginScope(Scope::DeclScope);
-    for (CompoundStmt::const_body_iterator I = CS->body_begin(),
-           E = CS->body_end(); I != E; ++I)
-        Visit(*I, dfdx());
+    beginBlock(forward);
+    beginBlock(reverse);
+    for (Stmt* S : CS->body()) {
+      // Add new block per each statement to enforce correct order during
+      // outputReverse().
+      beginBlock(reverse);
+      StmtDiff SDiff = Visit(S);
+      //addToCurrentBlock(SDiff.getStmt_dx(), reverse);
+      addToCurrentBlock(SDiff.getStmt_dx(), forward);
+      addToCurrentBlock(SDiff.getStmt(), forward);
+    }
+    // Pop created blocks.
+    for (unsigned i = 0; i < CS->size(); i++)
+      endBlock(reverse);
+    CompoundStmt* Forward = endBlock(forward);
+    endBlock(reverse);
     endScope();
+    // Differentation of CompundStmt produces another CompoundStmt with both
+    // original and derived statements, i.e. Stmt() is Result and Stmt_dx() is
+    // null.
+    return StmtDiff(Forward);
   }
 
-  void ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
-    if (If->getConditionVariable())
-        // FIXME:Visit(If->getConditionVariableDeclStmt(), dfdx());
-        llvm_unreachable("variable declarations are not currently supported");
+  StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
+    // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
+    // to this scope.
+    beginScope(Scope::DeclScope | Scope::ControlScope);
+    // Create a block "around" if statement, e.g:
+    // {
+    //   ...
+    //  if (...) {...}
+    // }
+    beginBlock(forward);
+    const Stmt* init = If->getInit();
+    StmtDiff initResult = init ? Visit(init) : StmtDiff{};
+    // If there is Init, it's derivative will be output in the block before if:
+    // E.g., for:
+    // if (int x = 1; ...) {...}
+    // result will be:
+    // {
+    //   int _d_x = 0;
+    //   if (int x = 1; ...) {...}
+    // }
+    // This is done to avoid variable names clashes.
+    addToCurrentBlock(initResult.getStmt_dx());
+
+    VarDecl* condVarClone = nullptr;
+    if (VarDecl* condVarDecl = If->getConditionVariable()) {
+      VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
+      condVarClone = condVarDeclDiff.getDecl();
+      if (condVarDeclDiff.getDecl_dx())
+        addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
+    }
+
+    // Condition is just cloned as it is, not derived.
+    // FIXME: if condition changes one of the variables, it may be reasonable
+    // to derive it, e.g.
+    // if (x += x) {...}
+    // should result in:
+    // {
+    //   _d_y += _d_x
+    //   if (y += x) {...}
+    // }
     Expr* cond = Clone(If->getCond());
-    const Stmt* thenStmt = If->getThen();
-    const Stmt* elseStmt = If->getElse();
 
-    Stmt* thenBody = nullptr;
-    Stmt* elseBody = nullptr;
-    if (thenStmt) {
-      beginBlock();
-      Visit(thenStmt, dfdx());
-      thenBody = endBlock();
-    }
-    if (elseStmt) {
-      beginBlock();
-      Visit(elseStmt, dfdx());
-      elseBody = endBlock();
-    }
+    auto unwrapIfSingleStmt = [] (CompoundStmt* CS) -> Stmt* {
+      if (CS->size() == 1)
+        return CS->body_front();
+      else
+        return CS;
+    };
+    auto VisitBranch =
+      [&] (const Stmt* Branch) -> StmtDiff {
+        if (!Branch)
+          return {};
 
-    IfStmt* ifStmt =
-      new (m_Context) IfStmt(m_Context,
-                             noLoc,
-                             If->isConstexpr(),
-                             // FIXME: add init for condition variable
-                             nullptr,
-                             // FIXME: add condition variable decl
-                             nullptr,
-                             cond,
-                             thenBody,
-                             noLoc,
-                             elseBody);
-    getCurrentBlock().push_back(ifStmt);
+        if (isa<CompoundStmt>(Branch)) {
+          StmtDiff BranchDiff = Visit(Branch);
+          return BranchDiff;
+        } else {
+          beginBlock(forward);
+          beginBlock(reverse);
+          StmtDiff BranchDiff = Visit(Branch);
+          addToCurrentBlock(BranchDiff.getStmt(), forward);
+          //addToCurrentBlock(BranchDiff.getStmt_dx(), reverse);
+          CompoundStmt* Forward = endBlock(forward);
+          CompoundStmt* Reverse = endBlock(reverse);
+          return StmtDiff(unwrapIfSingleStmt(Forward), unwrapIfSingleStmt(Reverse));
+        }
+      };
+
+    StmtDiff thenDiff = VisitBranch(If->getThen());
+    StmtDiff elseDiff = VisitBranch(If->getElse());
+
+    cond = m_Sema.ActOnCondition(m_CurScope, noLoc, cond,
+                                 Sema::ConditionKind::Boolean).get().second;
+    Stmt* Forward = new (m_Context) IfStmt(m_Context, noLoc, If->isConstexpr(),
+                                           initResult.getStmt(), condVarClone,
+                                           cond, thenDiff.getStmt(), noLoc,
+                                           elseDiff.getStmt());
+    //Stmt* Reverse = m_Sema.BuildIfStmt(noLoc, If->isConstexpr(),
+    //                                   /*init*/ nullptr, Cond,
+    //                                   thenDiff.getStmt_dx(), noLoc,
+    //                                   elseDiff.getStmt_dx()).get();
+    addToCurrentBlock(Forward);
+    CompoundStmt* Block = endBlock(forward);
+    endScope();
+    return StmtDiff(unwrapIfSingleStmt(Block));
   }
 
-  void ReverseModeVisitor::VisitConditionalOperator(
+  StmtDiff ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    Expr* condVar = StoreAndRef(Clone(CO->getCond()), "_t", /*force*/ true);
-    auto cond =
-      m_Sema.ActOnCondition(getCurrentScope(),
-                            noLoc,
-                            condVar,
-                            Sema::ConditionKind::Boolean).get().second;
+    Expr* cond = Clone(CO->getCond());
+
+    cond = StoreAndRef(cond, forward, "_t", /*force*/ true);
+    cond = m_Sema.ActOnCondition(m_CurScope, noLoc, cond,
+                                 Sema::ConditionKind::Boolean).get().second;
+
     auto ifTrue = CO->getTrueExpr();
     auto ifFalse = CO->getFalseExpr();
 
     auto VisitBranch =
       [&] (Stmt* branch, Expr* ifTrue, Expr* ifFalse) {
         if (!branch)
-          return;
-        auto condExpr =
-          new (m_Context) ConditionalOperator(cond,
-                                              noLoc,
-                                              ifTrue,
-                                              noLoc,
-                                              ifFalse,
-                                              ifTrue->getType(),
-                                              VK_RValue,
-                                              OK_Ordinary);
+          return StmtDiff{};
+        auto condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, ifTrue,
+                                                  ifFalse).get();
 
-        auto dStmt = new (m_Context) ParenExpr(noLoc,
-                                               noLoc,
-                                               condExpr);
-        Visit(branch, dStmt);
+        auto dStmt = BuildParens(condExpr);
+        return Visit(branch, dStmt);
     };
 
-    auto zero = ConstantFolder::synthesizeLiteral(dfdx()->getType(),
-                                                  m_Context,
-                                                  0);
-    //xi = (cond ? ifTrue : ifFalse)
-    //dxi/d ifTrue = (cond ? 1 : 0)
-    //df/d ifTrue += df/dxi * dxi/d ifTrue = (cond ? df/dxi : 0)
-    VisitBranch(ifTrue, dfdx(), zero);
-    //dxi/d ifFalse = (cond ? 0 : 1)
-    //df/d ifFalse += df/dxi * dxi/d ifFalse = (cond ? 0 : df/dxi)
-    VisitBranch(ifFalse, zero, dfdx());
+    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+
+    StmtDiff ifTrueDiff = VisitBranch(ifTrue, dfdx(), zero);
+    StmtDiff ifFalseDiff = VisitBranch(ifFalse, zero, dfdx());
+
+    Expr* condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
+                                               ifTrueDiff.getExpr(),
+                                               ifFalseDiff.getExpr()).get();
+
+    return StmtDiff(condExpr);
   }
 
-  void ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
-    Visit(RS->getRetValue(), dfdx());
+  StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
+    // Initially, df/df = 1.
+    const Expr* value = RS->getRetValue();
+    QualType type = value->getType();
+    auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
+    ExprResult tmp = dfdf;
+    dfdf = m_Sema.ImpCastExprToType(tmp.get(), type, m_Sema.PrepareScalarCast(tmp, type)).get();
+    Visit(value, dfdf);
+    // Execute the reverse pass before returning from the function.
+    outputReverse();
+    return m_Sema.BuildReturnStmt(noLoc, nullptr).get();
   }
 
-  void ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
-    Visit(PE->getSubExpr(), dfdx());
+  StmtDiff ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
+    StmtDiff subStmtDiff = Visit(PE->getSubExpr(), dfdx());
+    return StmtDiff(BuildParens(subStmtDiff.getExpr()));
   }
 
-  void ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
-    const Expr* B = ASE->getBase();
-    const Expr* I = ASE->getIdx();
-    const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(B->IgnoreParenImpCasts());
+  StmtDiff ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
+    Expr* B = Clone(ASE->getBase());
+    Expr* I = Clone(ASE->getIdx());
+    DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(B->IgnoreParenImpCasts());
+    auto cloned = m_Sema.CreateBuiltinArraySubscriptExpr(B, noLoc, I, noLoc).get();
     if (!DRE)
-      return;
+      return StmtDiff(cloned);
+    auto VD = dyn_cast<VarDecl>(DRE->getDecl());
+    if (!VD)
+      return StmtDiff(cloned);
     // Check DeclRefExpr is a reference to an independent variable.
-    auto it = std::find(m_Function->param_begin(),
-                        m_Function->param_end(),
-                        DRE->getDecl());
-    if (it == m_Function->param_end())
+    auto it = m_Variables.find(VD);
+    if (it == std::end(m_Variables)) {
       // Is not an independent variable, ignored.
-      return;
-    const ValueDecl* VD = DRE->getDecl();
+      return StmtDiff(cloned);
+    }
     // FIXME: implement proper detection
     if (VD->getName() != "p")
-      return;
+      return StmtDiff(cloned);
     const IntegerLiteral* IL = dyn_cast<IntegerLiteral>(I->IgnoreParenImpCasts());
     if (!IL)
-      return;
+      return StmtDiff(cloned);
     //llvm::APSInt IVal;
     //if (!I->EvaluateAsInt(IVal, m_Context))
     //  return;
     // Create the _result[idx] expression.
-    auto result_at_i =
-      m_Sema.CreateBuiltinArraySubscriptExpr(m_Result,
-                                             noLoc,
-                                             Clone(IL),
-                                             noLoc).get();
+    auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                              Clone(IL), noLoc).get();
     // Create the (_result[idx] += dfdx) statement.
     auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
     // Add it to the body statements.
-    addToCurrentBlock(add_assign);
+    addToCurrentBlock(add_assign, reverse);
+    return StmtDiff(cloned);
   }    
 
-  void ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    auto decl = DRE->getDecl();
-    // Check DeclRefExpr is a reference to an independent variable.
-    auto it = std::find(std::begin(m_IndependentVars), std::end(m_IndependentVars),
-                        decl);
-    if (it == std::end(m_IndependentVars)) {
-      // Is not an independent variable, ignored.
-      return;
+  StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+    DeclRefExpr* clonedDRE = nullptr;
+    // Check if referenced Decl was "replaced" with another identifier inside
+    // the derivative
+    if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      auto it = m_DeclReplacements.find(VD);
+      if (it != std::end(m_DeclReplacements))
+        clonedDRE = BuildDeclRef(it->second);
+      else
+        clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+      // If current context is different than the context of the original
+      // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
+      // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
+      // Sema::BuildDeclRefExpr is responsible for adding captured fields
+      // to the underlying struct of a lambda.
+      if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
+        auto referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
+        clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
+      }
     }
-    auto idx = std::distance(std::begin(m_IndependentVars), it);
-    auto size_type = m_Context.getSizeType();
-    auto size_type_bits = m_Context.getIntWidth(size_type);
-    // Create the idx literal.
-    auto i = IntegerLiteral::Create(m_Context,
-                                    llvm::APInt(size_type_bits, idx),
-                                    size_type,
-                                    noLoc);
-    // Create the _result[idx] expression.
-    auto result_at_i =
-      m_Sema.CreateBuiltinArraySubscriptExpr(m_Result,
-                                             noLoc,
-                                             i,
-                                             noLoc).get();
-    // Create the (_result[idx] += dfdx) statement.
-    auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
-    // Add it to the body statements.
-    getCurrentBlock().push_back(add_assign);
+
+    if (auto decl = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
+      // Check DeclRefExpr is a reference to an independent variable.
+      auto it = m_Variables.find(decl);
+      if (it == std::end(m_Variables)) {
+        // Is not an independent variable, ignored.
+        return StmtDiff(clonedDRE);
+      }
+      // Create the (_result[idx] += dfdx) statement.
+      auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+      // Add it to the body statements.
+      addToCurrentBlock(add_assign, reverse);
+    }
+    
+    return StmtDiff(clonedDRE);
   }
 
-  void ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
-    // Nothing to do with it.
+  StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
+    return StmtDiff(Clone(IL));
   }
 
-  void ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
-    // Nothing to do with it.
+  StmtDiff ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
+    return StmtDiff(Clone(FL));
   }
 
-  void ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+  StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     auto FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning, CE->getLocEnd(),
            "Differentiation of only direct calls is supported. Ignored");
-      return;
+      return StmtDiff(Clone(CE));
     }
     IdentifierInfo* II = nullptr;
     auto NArgs = FD->getNumParams();
     // If the function has no args then we assume that it is not related
     // to independent variables and does not contribute to gradient.
     if (!NArgs)
-      return;
+      return StmtDiff(Clone(CE));
 
     llvm::SmallVector<Expr*, 16> CallArgs(CE->getNumArgs());
     std::transform(CE->arg_begin(), CE->arg_end(), std::begin(CallArgs),
@@ -1675,7 +1762,7 @@ namespace clad {
              "function '%0' was not differentiated because it is not declared \
               in namespace 'custom_derivatives'",
              { FD->getNameAsString() });
-        return;
+        return StmtDiff(Clone(CE));
       }
       // Recursive call.
       auto selfRef = m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
@@ -1694,60 +1781,60 @@ namespace clad {
       // Derivative was found.
       if (NArgs == 1) {
         // If function has a single arg, call it and store a result.
-        Result = StoreAndRef(OverloadedDerivedFn);
+        Result = StoreAndRef(OverloadedDerivedFn, reverse);
         auto d = BuildOp(BO_Mul, dfdx(), Result);
-        auto dTmp = StoreAndRef(d);
+        auto dTmp = StoreAndRef(d, reverse);
         Visit(CE->getArg(0), dTmp);
       } else {
         // Put Result array declaration in the function body.
-        getCurrentBlock().push_back(BuildDeclStmt(ResultDecl));
+        addToCurrentBlock(BuildDeclStmt(ResultDecl), reverse);
         // Call the gradient, passing Result as the last Arg.
-        getCurrentBlock().push_back(OverloadedDerivedFn);
+        addToCurrentBlock(OverloadedDerivedFn, reverse);
         // Visit each arg with df/dargi = df/dxi * Result[i].
         for (unsigned i = 0; i < CE->getNumArgs(); i++) {
           auto size_type = m_Context.getSizeType();
           auto size_type_bits = m_Context.getIntWidth(size_type);
           // Create the idx literal.
-          auto I =
-            IntegerLiteral::Create(m_Context,
-                                   llvm::APInt(size_type_bits, i),
-                                   size_type,
-                                   noLoc);
+          auto I = IntegerLiteral::Create(m_Context,
+                                          llvm::APInt(size_type_bits, i),
+                                          size_type, noLoc);
           // Create the Result[I] expression.
-          auto ithResult =
-            m_Sema.CreateBuiltinArraySubscriptExpr(Result,
-                                                   noLoc,
-                                                   I,
-                                                   noLoc).get();
+          auto ithResult = m_Sema.CreateBuiltinArraySubscriptExpr(Result, noLoc,
+                                                                  I, noLoc).get();
           auto di = BuildOp(BO_Mul, dfdx(), ithResult);
-          auto diTmp = StoreAndRef(di);
+          auto diTmp = StoreAndRef(di, reverse);
           Visit(CE->getArg(i), diTmp);
         }
       }
     }
+    return StmtDiff(Clone(CE));
   }
 
-  void ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
-    auto opCode = UnOp->getOpcode();
+  StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
+    auto opCode  = UnOp->getOpcode();
+    StmtDiff diff{};
     if (opCode == UO_Plus)
       //xi = +xj
       //dxi/dxj = +1.0
       //df/dxj += df/dxi * dxi/dxj = df/dxi
-      Visit(UnOp->getSubExpr(), dfdx());
+      diff = Visit(UnOp->getSubExpr(), dfdx());
     else if (opCode == UO_Minus) {
       //xi = -xj
       //dxi/dxj = -1.0
       //df/dxj += df/dxi * dxi/dxj = -df/dxi
       auto d = BuildOp(UO_Minus, dfdx());
-      Visit(UnOp->getSubExpr(), d);
+      diff = Visit(UnOp->getSubExpr(), d);
     }
     else
       llvm_unreachable("unsupported unary operator");
+    Expr* op = BuildOp(opCode, diff.getExpr());
+    return StmtDiff(op);
   }
 
-  void ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
+  StmtDiff ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     auto opCode = BinOp->getOpcode();
-
+    StmtDiff Ldiff{};
+    StmtDiff Rdiff{};
     auto L = BinOp->getLHS();
     auto R = BinOp->getRHS();
 
@@ -1755,33 +1842,33 @@ namespace clad {
       //xi = xl + xr
       //dxi/xl = 1.0
       //df/dxl += df/dxi * dxi/xl = df/dxi
-      Visit(L, dfdx());
+      Ldiff = Visit(L, dfdx());
       //dxi/xr = 1.0
       //df/dxr += df/dxi * dxi/xr = df/dxi
-      Visit(R, dfdx());
+      Rdiff = Visit(R, dfdx());
     }
     else if (opCode == BO_Sub) {
       //xi = xl - xr
       //dxi/xl = 1.0
       //df/dxl += df/dxi * dxi/xl = df/dxi
-      Visit(L, dfdx());
+      Ldiff = Visit(L, dfdx());
       //dxi/xr = -1.0
       //df/dxl += df/dxi * dxi/xr = -df/dxi
       auto dr = BuildOp(UO_Minus, dfdx());
-      Visit(R, dr);
+      Rdiff = Visit(R, dr);
     }
     else if (opCode == BO_Mul) {
       //xi = xl * xr
       //dxi/xl = xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * xr
       auto dl = BuildOp(BO_Mul, dfdx(), Clone(R));
-      auto dlTmp = StoreAndRef(dl);
-      Visit(L, dlTmp);
+      auto dlTmp = StoreAndRef(dl, reverse);
+      Ldiff = Visit(L, dlTmp);
       //dxi/xr = xl
       //df/dxr += df/dxi * dxi/xr = df/dxi * xl
-      auto dr = BuildOp(BO_Mul, Clone(L), dfdx());
-      auto drTmp = StoreAndRef(dr);
-      Visit(R, drTmp);
+      auto dr = BuildOp(BO_Mul, Ldiff.getExpr(), dfdx());
+      auto drTmp = StoreAndRef(dr, reverse);
+      Rdiff = Visit(R, drTmp);
     }
     else if (opCode == BO_Div) {
       //xi = xl / xr
@@ -1789,8 +1876,8 @@ namespace clad {
       //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
       auto clonedR = Clone(R);
       auto dl = BuildOp(BO_Div, dfdx(), clonedR);
-      auto dlTmp = StoreAndRef(dl);
-      Visit(L, dlTmp);
+      auto dlTmp = StoreAndRef(dl, reverse);
+      Ldiff = Visit(L, dlTmp);
       //dxi/xr = -xl / (xr * xr)
       //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
@@ -1803,26 +1890,114 @@ namespace clad {
         BuildOp(BO_Mul,
                 dfdx(),
                 BuildOp(UO_Minus,
-                        BuildOp(BO_Div, Clone(L), RxR)));
-      auto drTmp = StoreAndRef(dr);
-      Visit(R, drTmp);
+                        BuildOp(BO_Div, Ldiff.getExpr(), RxR)));
+      auto drTmp = StoreAndRef(dr, reverse);
+      Rdiff = Visit(R, drTmp);
     }
     else
       llvm_unreachable("unsupported binary operator");
+    Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
+    return StmtDiff(op);
   }
 
-  void ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
-    llvm_unreachable("declarations are not supported yet");
+  VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    VarDecl* VDDerived = BuildVarDecl(VD->getType(),
+                                      "_d_" + VD->getNameAsString(), zero);
+    StmtDiff initDiff = VD->getInit() ?
+                          Visit(VD->getInit(), BuildDeclRef(VDDerived)) :
+                          StmtDiff{};
+    VarDecl* VDClone = BuildVarDecl(VD->getType(),VD->getNameAsString(),
+                                    initDiff.getExpr(), VD->isDirectInit());
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    return VarDeclDiff(VDClone, VDDerived);
   }
 
-  void ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
-    Visit(ICE->getSubExpr(), dfdx());
+  StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    llvm::SmallVector<Decl*, 4> decls;
+    llvm::SmallVector<Decl*, 4> declsDiff;
+    // For each variable declaration v, create another declaration _d_v to
+    // store derivatives for potential reassignments. E.g.
+    // double y = x;
+    // ->
+    // double _d_y = _d_x; double y = x;
+    for (auto D : DS->decls()) {
+      if (auto VD = dyn_cast<VarDecl>(D)) {
+        VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
+        // Check if decl's name is the same as before. The name may be changed
+        // if decl name collides with something in the derivative body.
+        // This can happen in rare cases, e.g. when the original function
+        // has both y and _d_y (here _d_y collides with the name produced by
+        // the derivation process), e.g.
+        // double f(double x) {
+        //   double y = x;
+        //   double _d_y = x;
+        // } 
+        // ->
+        // double f_darg0(double x) {
+        //   double _d_x = 1;
+        //   double _d_y = _d_x; // produced as a derivative for y
+        //   double y = x;
+        //   double _d__d_y = _d_x;
+        //   double _d_y = x; // copied from original funcion, collides with _d_y
+        // }
+        if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
+          m_DeclReplacements[VD] = VDDiff.getDecl();
+        decls.push_back(VDDiff.getDecl());
+        declsDiff.push_back(VDDiff.getDecl_dx());
+      } else {
+        diag(DiagnosticsEngine::Warning, D->getLocEnd(),
+             "Unsupported declaration");
+      }
+    }
+
+    Stmt* DSClone = BuildDeclStmt(decls);
+    Stmt* DSDiff = BuildDeclStmt(declsDiff);
+    return StmtDiff(DSClone, DSDiff);
   }
 
-  void ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
+  StmtDiff ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
+    StmtDiff subExprDiff = Visit(ICE->getSubExpr(), dfdx());
+    // Casts should be handled automatically when the result is used by
+    // Sema::ActOn.../Build...
+    return StmtDiff(subExprDiff.getExpr());
+  }
+
+  StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     // We do not treat struct members as independent variables, so they are not
     // differentiated.
+    return StmtDiff(Clone(ME));
   }
+
+  void ReverseModeVisitor::outputReverse() {
+    // Separate blocks in the reverse pass are traversed in the reverse order.
+    std::for_each(m_Reverse.rbegin(), m_Reverse.rend(),
+      [&] (const Stmts & block) {
+        for (auto S : block) {
+          // Even though the reverse Stmts were created in the context
+          // of the gradient function body, they need to be recreated before
+          // they are put into the body, to avoid node duplication and
+          // rebuild them in the correct scope.
+          if (auto DS = llvm::dyn_cast<clang::DeclStmt>(S)) {
+            for (auto D : DS->decls())
+              // Remove declarations from previous scope, since they will
+              // be rebuilt and references to them must be updated.
+              if (auto VD = llvm::dyn_cast<clang::VarDecl>(D))
+                getCurrentScope()->RemoveDecl(VD);
+           }
+           // Rebuild the statement.
+           auto CS = Clone(S);
+           if (auto DS = llvm::dyn_cast<clang::DeclStmt>(CS)) {
+             for (auto D : DS->decls())
+               // Place declarations into the correct scope.
+               if (auto VD = llvm::dyn_cast<clang::VarDecl>(D))
+                 m_Sema.PushOnScopeChains(VD, getCurrentScope(),
+                                          /*AddToContext*/ false);
+           }
+           addToCurrentBlock(CS, forward);
+        }
+      });
+    }
 
 
 } // end namespace clad

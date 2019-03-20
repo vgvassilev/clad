@@ -110,9 +110,7 @@ Stmt* StmtClone::VisitInitListExpr(InitListExpr* Node) {
   SourceLocation lBrace = Node->getLBraceLoc();
   SourceLocation rBrace = Node->getRBraceLoc();
 
-  InitListExpr* result 
-    = initExprs.empty() ? new (Ctx) InitListExpr(Ctx, lBrace, 0, rBrace) 
-    : new (Ctx) InitListExpr(Ctx, lBrace, initExprs, rBrace);
+  InitListExpr* result = llvm::cast<InitListExpr>(m_Sema.ActOnInitList(lBrace, initExprs, rBrace).get());
 
   result->setInitializedFieldInUnion(Node->getInitializedFieldInUnion());
   // FIXME: clone the syntactic form, can this become recursive?
@@ -302,7 +300,8 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
                                            VD->getIdentifier(), VD->getType(), 
                                            VD->getTypeSourceInfo(), 
                                            VD->getStorageClass());
-    cloned_Decl->setInit(Clone(VD->getInit()));
+    if (VD->getInit())
+      m_Sema.AddInitializerToDecl(cloned_Decl, Clone(VD->getInit()), VD->isDirectInit());
     cloned_Decl->setTSCSpec(VD->getTSCSpec());
     //cloned_Decl->setDeclaredInCondition(VD->isDeclaredInCondition());
     if (m_OriginalToClonedStmts != 0) 
@@ -342,9 +341,9 @@ ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C, Scope* 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // If the declaration's decl context encloses the derivative's decl
   // context we must not update anything.
-  if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
-    return true;
-  }
+  //if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
+  //  return true;
+  //}
   DeclarationNameInfo DNI = DRE->getNameInfo();
 
   LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
