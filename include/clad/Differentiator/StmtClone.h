@@ -34,7 +34,8 @@ namespace utils {
     typedef llvm::DenseMap<clang::ValueDecl*, clang::ValueDecl*> DeclMapping; 
     typedef StmtCloneMapping Mapping; 
 
-  private:  
+  private:
+    clang::Sema& m_Sema;
     clang::ASTContext& Ctx;
     Mapping* m_OriginalToClonedStmts;
 
@@ -42,8 +43,8 @@ namespace utils {
     clang::VarDecl* CloneDeclOrNull(clang::VarDecl* Node);
 
   public:
-    StmtClone(clang::ASTContext& ctx, Mapping* originalToClonedStmts = 0)
-      : Ctx(ctx), m_OriginalToClonedStmts(originalToClonedStmts) {}
+    StmtClone(clang::Sema& sema, clang::ASTContext& ctx, Mapping* originalToClonedStmts = 0)
+      : m_Sema(sema), Ctx(ctx), m_OriginalToClonedStmts(originalToClonedStmts) {}
 
     template<class StmtTy>
     StmtTy* Clone(const StmtTy* S);

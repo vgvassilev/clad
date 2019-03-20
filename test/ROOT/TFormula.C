@@ -38,6 +38,7 @@ void TFormula_example_grad(Double_t *x, Double_t *p, Double_t *_result);
 //CHECK-NEXT:       Double_t _t4 = custom_derivatives::Abs_darg0(p[1]);
 //CHECK-NEXT:       double _t5 = 1 * _t4;
 //CHECK-NEXT:       _result[1] += _t5;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
       
 int main() {

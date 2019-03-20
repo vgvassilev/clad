@@ -106,9 +106,19 @@ namespace clad {
     clang::FunctionDecl* m_Derivative;
     /// The function that is currently differentiated.
     clang::FunctionDecl* m_Function;
+
+    /// Map used to keep track of variable declarations and match them
+    /// with their derivatives.
+    std::unordered_map<clang::VarDecl*, clang::Expr*> m_Variables;
+    /// Map contains variable declarations replacements. If the original
+    /// function contains a declaration which name collides with something
+    /// already created inside derivative's body, the declaration is replaced
+    /// with a new one.
+    /// See the example inside ForwardModeVisitor::VisitDeclStmt.
+    std::unordered_map<const clang::VarDecl*, clang::VarDecl*> m_DeclReplacements;
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
-    std::stack<Stmts> m_Blocks;
+    std::vector<Stmts> m_Blocks;
 
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
@@ -121,17 +131,17 @@ namespace clad {
 
     /// Get the latest block of code (i.e. place for statements output).
     Stmts& getCurrentBlock() {
-      return m_Blocks.top();
+      return m_Blocks.back();
     }
     /// Create new block.
     Stmts& beginBlock() {
-      m_Blocks.push({});
-      return m_Blocks.top();
+      m_Blocks.push_back({});
+      return m_Blocks.back();
     }
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
     clang::CompoundStmt* endBlock() {
       auto CS = MakeCompoundStmt(getCurrentBlock());
-      m_Blocks.pop();
+      m_Blocks.pop_back();
       return CS;
     }
 
@@ -140,6 +150,7 @@ namespace clad {
     /// Output a statement to the current block. If Stmt is null or is an unused
     /// expression, it is not output and false is returned. 
     bool addToCurrentBlock(clang::Stmt* S);
+    bool addToBlock(clang::Stmt* S, Stmts& block);
 
     /// Get a current scope.
     clang::Scope* getCurrentScope() {
@@ -199,12 +210,15 @@ namespace clad {
     /// variable declaration. Otherwise, temporary variable is created only 
     /// if E requires evaluation (e.g. there is no point to store literals or
     /// direct references in intermediate variables)
+    clang::Expr* StoreAndRef(clang::Expr* E, Stmts& block,
+                             llvm::StringRef prefix = "_t",
+                             bool forceDeclCreation = false);
+    /// A shorthand to store directly to the current block.
     clang::Expr* StoreAndRef(clang::Expr* E,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false);
     /// An overload allowing to specify the type for the variable.
-    clang::Expr* StoreAndRef(clang::Expr* E,
-                             clang::QualType Type,
+    clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false);
 
@@ -298,15 +312,6 @@ namespace clad {
       public VisitorBase {
   private:
     clang::VarDecl* m_IndependentVar;
-    /// Map used to keep track of variable declarations and match them
-    /// with their derivatives.
-    std::unordered_map<clang::VarDecl*, clang::Expr*> m_Variables;
-    /// Map contains variable declarations replacements. If the original
-    /// function contains a declaration which name collides with something
-    /// already created inside derivative's body, the declaration is replaced
-    /// with a new one.
-    /// See the example inside ForwardModeVisitor::VisitDeclStmt.
-    std::unordered_map<const clang::VarDecl*, clang::VarDecl*> m_DeclReplacements;
     unsigned m_DerivativeOrder;
     unsigned m_ArgIndex;
 
@@ -322,24 +327,23 @@ namespace clad {
     /// context.
     ///
     DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan& plan);
-
-    StmtDiff VisitStmt(const clang::Stmt* S);
-    StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
-    StmtDiff VisitIfStmt(const clang::IfStmt* If);
-    StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
-    StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+    StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+    StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
+    StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
     StmtDiff VisitCXXOperatorCallExpr(const clang::CXXOperatorCallExpr* OpCall);
     StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
-    StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
-    StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
-    StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
-    StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
-    StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
-    StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
-    StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
+    StmtDiff VisitIfStmt(const clang::IfStmt* If);
+    StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
+    StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
+    StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
+    StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
+    StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     // Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
   };
@@ -347,7 +351,7 @@ namespace clad {
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
-    : public clang::ConstStmtVisitor<ReverseModeVisitor, void>,
+    : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
       public VisitorBase {
   private:
     llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
@@ -355,13 +359,85 @@ namespace clad {
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
     clang::Expr* dfdx () {
-        return m_Stack.top ();
+      if (m_Stack.empty()) {
+        auto IntTy = m_Context.IntTy;
+        llvm::APInt zero(m_Context.getIntWidth(IntTy), 0, /*isSigned*/ true); 
+        return clang::IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
+      }
+      return m_Stack.top();
     }
-    void Visit(const clang::Stmt* stmt, clang::Expr* expr) {
+    StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* expr = nullptr) {
+      if (expr)
         m_Stack.push(expr);
-        clang::ConstStmtVisitor<ReverseModeVisitor, void>::Visit(stmt);
+      auto result = clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
+      if (expr)
         m_Stack.pop();
+      return result;
     }
+
+    /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
+    /// the reverse mode we also accumulate Stmts for the reverse pass which
+    /// will be executed on return.
+    std::vector<Stmts> m_Reverse;
+    /// An enum to operate between forward and reverse passes.
+    enum direction { forward, reverse };
+    /// Get the latest block of code (i.e. place for statements output).
+    Stmts& getCurrentBlock(direction d = forward) {
+      if (d == forward)
+        return m_Blocks.back();
+      else
+        return m_Reverse.back();
+    }
+    /// Create new block.
+    Stmts& beginBlock(direction d = forward) {
+      if (d == forward)
+        m_Blocks.push_back({});
+      else
+        m_Reverse.push_back({});
+      return getCurrentBlock(d);
+    }
+    /// Remove the block from the stack, wrap it in CompoundStmt and return it.
+    clang::CompoundStmt* endBlock(direction d = forward) {
+      if (d == forward) {
+        auto CS = MakeCompoundStmt(getCurrentBlock(forward));
+        m_Blocks.pop_back();
+        return CS;
+      } else {
+        auto R = getCurrentBlock(reverse);
+        std::reverse(std::begin(R), std::end(R));
+        auto CS = MakeCompoundStmt(R);
+        m_Reverse.pop_back();
+        return CS;
+      }
+    }
+    /// Output a statement to the current block. If Stmt is null or is an unused
+    /// expression, it is not output and false is returned. 
+    bool addToCurrentBlock(clang::Stmt* S, direction d = forward) {
+      return addToBlock(S, getCurrentBlock(d));
+    }
+
+    /// Stores the result of an expression in a temporary variable (of the same
+    /// type as is the result of the expression) and returns a reference to it.
+    /// If force decl creation is true, this will allways create a temporary
+    /// variable declaration. Otherwise, temporary variable is created only 
+    /// if E requires evaluation (e.g. there is no point to store literals or
+    /// direct references in intermediate variables)
+    clang::Expr* StoreAndRef(clang::Expr* E, direction d = forward,
+                             llvm::StringRef prefix = "_t",
+                             bool forceDeclCreation = false) {
+      return VisitorBase::StoreAndRef(E, getCurrentBlock(d), prefix, forceDeclCreation);
+    }
+    
+    /// An overload allowing to specify the type for the variable.
+    clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type,
+                             direction d = forward,
+                             llvm::StringRef prefix = "_t",
+                             bool forceDeclCreation = false) {
+      return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix, forceDeclCreation);
+    }
+    /// Outputs the Stmts in the reverse pass to current block, intended to be
+    /// executed once return is reached.
+    void outputReverse();
 
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
@@ -391,21 +467,23 @@ namespace clad {
     /// requested parameters to 'f_grad', i.e. in the previous example "x, y" will
     /// give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
     DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan& plan);
-    void VisitCompoundStmt(const clang::CompoundStmt* CS);
-    void VisitIfStmt(const clang::IfStmt* If);
-    void VisitReturnStmt(const clang::ReturnStmt* RS);
-    void VisitUnaryOperator(const clang::UnaryOperator* UnOp);
-    void VisitBinaryOperator(const clang::BinaryOperator* BinOp);
-    void VisitDeclStmt(const clang::DeclStmt* DS);
-    void VisitMemberExpr(const clang::MemberExpr* ME);
-    void VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
-    void VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
-    void VisitParenExpr(const clang::ParenExpr* PE);
-    void VisitIntegerLiteral(const clang::IntegerLiteral* IL);
-    void VisitFloatingLiteral(const clang::FloatingLiteral* FL);
-    void VisitCallExpr(const clang::CallExpr* CE);
-    void VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
-    void VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
+    StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+    StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+    StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
+    StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
+    StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
+    StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
+    StmtDiff VisitIfStmt(const clang::IfStmt* If);
+    StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
+    StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
+    StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
+    StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
+    StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+    // Decl is not Stmt, so it cannot be visited directly.
+    VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
   };
 } // end namespace clad
 

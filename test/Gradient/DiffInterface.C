@@ -22,6 +22,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
 //CHECK-NEXT:       _result[2UL] += _t5;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // x
@@ -33,6 +34,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _t3 = 1 * 1;
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // y
@@ -44,6 +46,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _result[0UL] += _t3;
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // z
@@ -55,6 +58,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
 //CHECK-NEXT:       _result[0UL] += _t5;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // x, y
@@ -67,6 +71,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _result[1UL] += _t3;
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // y, x
@@ -79,6 +84,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _result[0UL] += _t3;
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // x, y, z
@@ -92,6 +98,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
 //CHECK-NEXT:       _result[2UL] += _t5;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 // z, y, z
@@ -105,6 +112,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _t4 = 1 * z;
 //CHECK-NEXT:       double _t5 = 2 * 1;
 //CHECK-NEXT:       _result[0UL] += _t5;
+//CHECK-NEXT:       return;
 //CHECK-NEXT:   }
 
 #define TEST(F) { \
