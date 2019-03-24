@@ -14,6 +14,7 @@ namespace clang {
 namespace clad {
 
   enum class DiffMode {
+    unknown = 0,
     forward,
     reverse
   };
@@ -29,12 +30,13 @@ namespace clad {
     unsigned m_RequestedDerivativeOrder = 1;
     unsigned m_CurrentDerivativeOrder = 1;
     clang::Expr* m_DiffArgs = nullptr;
-    DiffMode m_Mode;
+    DiffMode m_Mode = DiffMode::unknown;
   public:
     typedef Functions::iterator iterator;
     typedef Functions::const_iterator const_iterator;
 
     DiffMode getMode() const {
+      assert(m_Mode != DiffMode::unknown && "Must be set!");
       return m_Mode;
     }
     void setMode(DiffMode mode) {
