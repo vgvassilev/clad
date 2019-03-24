@@ -313,9 +313,9 @@ namespace clad {
     : public clang::ConstStmtVisitor<ForwardModeVisitor, StmtDiff>,
       public VisitorBase {
   private:
-    clang::VarDecl* m_IndependentVar;
-    unsigned m_DerivativeOrder;
-    unsigned m_ArgIndex;
+    clang::VarDecl* m_IndependentVar = nullptr;
+    unsigned m_DerivativeOrder = ~0;
+    unsigned m_ArgIndex = ~0;
 
   public:
     ForwardModeVisitor(DerivativeBuilder& builder);
