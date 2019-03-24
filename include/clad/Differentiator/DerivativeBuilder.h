@@ -93,7 +93,9 @@ namespace clad {
       m_Sema(builder.m_Sema),
       m_Context(builder.m_Context),
       m_CurScope(m_Sema.TUScope),
-      m_DerivativeInFlight(false) {}
+      m_DerivativeInFlight(false),
+      m_Derivative(nullptr),
+      m_Function(nullptr) {}
 
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
 
