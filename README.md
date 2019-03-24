@@ -1,4 +1,6 @@
-Linux & OSX: [![Linux & Osx Status](http://img.shields.io/travis/vgvassilev/clad.svg?style=flat-square)](https://travis-ci.org/vgvassilev/clad)
+| Linux & OSX: | Coverity |
+|:---:|:---:|
+[![Linux & Osx Status](http://img.shields.io/travis/vgvassilev/clad.svg?style=flat-square)](https://travis-ci.org/vgvassilev/clad) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>|
 
 ##  What is clad
 clad is a C++ plugin for clang that implements automatic differentiation of
