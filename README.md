@@ -67,6 +67,7 @@ For more details see:
 [LLVM Poster](http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf)  
 [Violeta's GSoC2013 Final Report](http://prezi.com/g1iggppw76wl/autodiff/)
 [DIANA-HEP Meeting 2018](https://indico.cern.ch/event/760152/contributions/3153263/attachments/1730121/2795841/Clad-DIANA-HEP.pdf)
+[Demo at CERN](https://indico.cern.ch/event/808843/contributions/3368929/attachments/1817666/2971512/clad_demo.pdf)
 
 ##  Founders
 Founder of the project is Vassil Vassilev as part of his research interests and vision. He holds the exclusive copyright and other related rights, described in Copyright.txt.
