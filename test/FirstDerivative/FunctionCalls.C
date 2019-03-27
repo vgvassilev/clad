@@ -47,7 +47,7 @@ int overloaded(float x) {
 
 int overloaded() {
   return 3;
-} // expected-warning {{function 'overloaded' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
+}
 
 float test_1(float x) {
   return overloaded(x) + custom_fn(x);
@@ -74,7 +74,7 @@ float test_3() {
 // CHECK-NOT: float test_3_darg0() {
 
 float test_4(int x) {
-  return overloaded();
+  return overloaded(); // expected-warning {{function 'overloaded' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
 }
 
 // CHECK: float test_4_darg0(int x) {
@@ -97,6 +97,5 @@ int main () {
   clad::differentiate(test_3, 0); //expected-error {{Invalid argument index 0 among 0 argument(s)}}
   clad::differentiate(test_4, 0);
   clad::differentiate(test_5, 0);
-
   return 0;
 }

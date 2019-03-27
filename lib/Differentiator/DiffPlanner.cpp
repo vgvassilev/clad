@@ -4,13 +4,15 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/Support/SaveAndRestore.h"
+
 using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
 
-  void DiffPlan::updateCall(FunctionDecl* FD, Sema& SemaRef) {
-    auto call = m_CallToUpdate;
+  void DiffRequest::updateCall(FunctionDecl* FD, Sema& SemaRef) {
+    CallExpr* call = this->CallContext;
     // Index of "code" parameter:
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
     assert(call && "Must be set");
@@ -133,83 +135,74 @@ namespace clad {
     call->setCallee(CladGradientExprNew);
   }
 
-  LLVM_DUMP_METHOD void DiffPlan::dump() {
-    for (const_iterator I = begin(), E = end(); I != E; ++I) {
-      (*I)->dump();
-      llvm::errs() << "\n";
-    }
-  }
-
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffPlans& plans, Sema& S)
+  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffSchedule& plans, Sema& S)
      : m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
     if (DGR.isSingleDecl())
       TraverseDecl(DGR.getSingleDecl());
   }
 
-  void DiffCollector::UpdatePlan(clang::FunctionDecl* FD, DiffPlan* plan) {
-    if (plan->getCurrentDerivativeOrder() ==
-        plan->getRequestedDerivativeOrder())
-      return;
-    assert(plan->getRequestedDerivativeOrder() > 1
-           && "Must be called on high order derivatives");
-    plan->setCurrentDerivativeOrder(plan->getCurrentDerivativeOrder() + 1);
-    plan->push_back(FD);
-    m_DiffPlans.push_back(*plan);
-    TraverseDecl(FD);
-    m_DiffPlans.pop_back();
+  DeclRefExpr* getArgFunction(CallExpr* E) {
+    if (E->getNumArgs() == 0)
+      return nullptr;
+    Expr* arg = E->getArg(0);
+    // Handle the case of function.
+    if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(arg))
+      return dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+    // Handle the case of member function.
+    else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(arg))
+      return dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
+    else
+      return nullptr;
   }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
-    if (FunctionDecl *FD = E->getDirectCallee()) {
-      // We need to find our 'special' diff annotated such:
-      // clad::differentiate(...) __attribute__((annotate("D")))
-      if (const AnnotateAttr* A = FD->getAttr<AnnotateAttr>()) {
-        DeclRefExpr* DRE = nullptr;
+    FunctionDecl* FD = E->getDirectCallee();
+    if (!FD)
+      return true;
+    // We need to find our 'special' diff annotated such:
+    // clad::differentiate(...) __attribute__((annotate("D")))
+    // TODO: why not check for its name? clad::differentiate/gradient?
+    const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
+    if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G"))) {
+      // A call to clad::differentiate or clad::gradient was found.
+      DeclRefExpr* DRE = getArgFunction(E);
+      if (!DRE)
+        return true;
+      DiffRequest request{};
 
-        // Handle the case of function.
-        if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(E->getArg(0))){
-           DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-        }
-        // Handle the case of member function.
-        else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(E->getArg(0))){
-          DRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-        }
-        if (DRE) {
-          auto && label = A->getAnnotation();
-          if (label.equals("D")) {
-            // A call to clad::differentiate was found.
-
-            m_DiffPlans.push_back(DiffPlan());
-            getCurrentPlan().setMode(DiffMode::forward);
-
-            llvm::APSInt derivativeOrderAPSInt
-              = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
-            // We know the first template spec argument is of unsigned type
-            assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
-            unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
-            getCurrentPlan().m_RequestedDerivativeOrder = derivativeOrder;
-
-            getCurrentPlan().setCallToUpdate(E);
-            auto FD = cast<FunctionDecl>(DRE->getDecl());
-            m_TopMostFD = FD;
-            TraverseDecl(FD);
-            m_TopMostFD = nullptr;
-            getCurrentPlan().push_back(FD);
-            getCurrentPlan().m_DiffArgs = E->getArg(1);
-          }
-          else if (label.equals("G")) {
-            // A call to clad::gradient was found.
-
-            m_DiffPlans.push_back(DiffPlan());
-            getCurrentPlan().setMode(DiffMode::reverse);
-            getCurrentPlan().setCallToUpdate(E);
-            auto FD = cast<FunctionDecl>(DRE->getDecl());
-            getCurrentPlan().push_back(FD);
-            getCurrentPlan().m_DiffArgs = E->getArg(1);
-          }
-        }
+      if (A->getAnnotation().equals("D")) {
+        request.Mode = DiffMode::forward;
+        llvm::APSInt derivativeOrderAPSInt
+          = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
+        // We know the first template spec argument is of unsigned type
+        assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
+        unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
+        request.RequestedDerivativeOrder = derivativeOrder;
       }
+      else {
+        request.Mode = DiffMode::reverse;
+      }
+      request.CallContext = E;
+      request.CallUpdateRequired = true;
+      request.VerboseDiags = true;
+      request.Args = E->getArg(1);
+      auto derivedFD = cast<FunctionDecl>(DRE->getDecl());
+      request.Function = derivedFD;
+      request.BaseFunctionName = derivedFD->getNameAsString();
+
+      // FIXME: add support for nested calls to clad::differentiate/gradient
+      // inside differentiated functions
+      assert(!m_TopMostFD &&
+             "nested clad::differentiate/gradient are not yet supported");
+      llvm::SaveAndRestore<const FunctionDecl*> saveTopMost = m_TopMostFD;
+      m_TopMostFD = FD;
+      TraverseDecl(derivedFD);
+      m_DiffPlans.push_back(std::move(request));
     }
+    /*else if (m_TopMostFD) {
+      // If another function is called inside differentiated function,
+      // this will be handled by Forward/ReverseModeVisitor::Derive.
+    }*/
     return true;     // return false to abort visiting.
   }
 } // end namespace

@@ -27,8 +27,8 @@
 using namespace clang;
 
 namespace clad {
-  DerivativeBuilder::DerivativeBuilder(clang::Sema& S)
-    : m_Sema(S), m_Context(S.getASTContext()),
+  DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
+    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr) {}
 
@@ -49,26 +49,27 @@ namespace clad {
 
   }
 
-  DeclWithContext DerivativeBuilder::Derive(FunctionDecl* FD,
-                                            const DiffPlan& plan) {
+  DeclWithContext DerivativeBuilder::Derive(const FunctionDecl* FD,
+                                            const DiffRequest& request) {
     //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
     assert(FD && "Must not be null.");
     // If FD is only a declaration, try to find its definition.
     if (!FD->getDefinition()) {
-      diag(DiagnosticsEngine::Error, FD->getLocEnd(),
-           "attempted differentiation of function '%0', which does not have a "
-           "definition", { FD->getNameAsString() });
+      if (request.VerboseDiags)
+        diag(DiagnosticsEngine::Error, request.CallContext->getLocStart(),
+             "attempted differentiation of function '%0', which does not have a "
+             "definition", { FD->getNameAsString() });
       return {};
     }
     FD = FD->getDefinition();
     DeclWithContext result{};
-    if (plan.getMode() == DiffMode::forward) {
+    if (request.Mode == DiffMode::forward) {
       ForwardModeVisitor V(*this);
-      result = V.Derive(FD, plan);
+      result = V.Derive(FD, request);
     }
-    else if (plan.getMode() == DiffMode::reverse) {
+    else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
-      result = V.Derive(FD, plan);
+      result = V.Derive(FD, request);
     }
 
     if (result.first)
@@ -76,7 +77,8 @@ namespace clad {
     return result;
   }
 
-  DiffParams VisitorBase::parseDiffArgs(const Expr* diffArgs, FunctionDecl* FD) {
+  DiffParams VisitorBase::parseDiffArgs(const Expr* diffArgs,
+                                        const FunctionDecl* FD) {
     DiffParams params{};
     auto E = diffArgs->IgnoreParenImpCasts();
     // Case 1)
@@ -292,7 +294,7 @@ namespace clad {
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
   }
 
-  DeclRefExpr* VisitorBase::BuildDeclRef(VarDecl* D) {
+  DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D) {
     Expr* DRE = m_Sema.BuildDeclRefExpr(D, D->getType(), VK_LValue, noLoc).get();
     return cast<DeclRefExpr>(DRE);
   }
@@ -374,18 +376,27 @@ namespace clad {
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
-  DeclWithContext ForwardModeVisitor::Derive(FunctionDecl* FD,
-                                             const DiffPlan& plan) {
+  DeclWithContext ForwardModeVisitor::Derive(const FunctionDecl* FD,
+                                             const DiffRequest& request) {
+    silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     assert(!m_DerivativeInFlight
            && "Doesn't support recursive diff. Use DiffPlan.");
     m_DerivativeInFlight = true;
 
-    DiffParams args = parseDiffArgs(plan.getArgs(), FD);
+    DiffParams args{};
+    if (request.Args)
+      args = parseDiffArgs(request.Args, FD);
+    else {
+      //FIXME: implement gradient-vector products to fix the issue.
+      assert((FD->getNumParams() <= 1) &&
+             "nested forward mode differentiation for several args is broken");
+      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
+    }
     if (args.empty())
       return {};
     if (args.size() > 1) {
-      diag(DiagnosticsEngine::Error, plan.getArgs()->getLocEnd(),
+      diag(DiagnosticsEngine::Error, request.Args->getLocEnd(),
         "Forward mode differentiation w.r.t. several parameters at once is not "
         "supported, call 'clad::differentiate' for each parameter separately");
       return {};
@@ -401,14 +412,14 @@ namespace clad {
             "of a real type", { m_IndependentVar->getNameAsString() });
       return {};
     }
-    m_DerivativeOrder = plan.getCurrentDerivativeOrder();
+    m_DerivativeOrder = request.CurrentDerivativeOrder;
     std::string s = std::to_string(m_DerivativeOrder);
     std::string derivativeBaseName;
     if (m_DerivativeOrder == 1)
       s = "";
     switch (FD->getOverloadedOperator()) {
     default:
-      derivativeBaseName = (*plan.begin())->getNameAsString();
+      derivativeBaseName = request.BaseFunctionName;
       break;
     case OO_Call:
       derivativeBaseName = "operator_call";
@@ -424,9 +435,10 @@ namespace clad {
     NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
-    m_Sema.CurContext = m_Function->getDeclContext();
+    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    m_Sema.CurContext = DC;
     if (isa<CXXMethodDecl>(FD)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(FD->getDeclContext());
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
       derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
                                         FD->getType(), FD->getTypeSourceInfo(),
                                         FD->getStorageClass(),
@@ -435,7 +447,7 @@ namespace clad {
       derivedFD->setAccess(FD->getAccess());
     } else {
       assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
-      enclosingNS = RebuildEnclosingNamespaces(FD->getDeclContext());
+      enclosingNS = RebuildEnclosingNamespaces(DC);
       derivedFD = FunctionDecl::Create(m_Context,
                                        m_Sema.CurContext, noLoc,
                                        name, FD->getType(),
@@ -449,8 +461,8 @@ namespace clad {
     m_Derivative = derivedFD;
 
     llvm::SmallVector<ParmVarDecl*, 4> params;
-    ParmVarDecl* newPVD = 0;
-    ParmVarDecl* PVD = 0;
+    ParmVarDecl* newPVD = nullptr;
+    const ParmVarDecl* PVD = nullptr;
 
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope |
@@ -556,7 +568,7 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
-    diag(DiagnosticsEngine::Warning, S->getLocEnd(),
+    diag(DiagnosticsEngine::Warning, S->getLocStart(),
          "attempted to differentiate unsupported statement, no changes applied");
     // Unknown stmt, just clone it.
     return StmtDiff(Clone(S));
@@ -959,25 +971,29 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    const FunctionDecl* FD = CE->getDirectCallee();
+    if (!FD) {
+      diag(DiagnosticsEngine::Warning, CE->getLocStart(),
+           "Differentiation of only direct calls is supported. Ignored");
+      return StmtDiff(Clone(CE));
+    }
     // Find the built-in derivatives namespace.
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
       s = "";
-    IdentifierInfo* II = 0;
-    if (m_ArgIndex == 1)
-      II = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                                 "_d" + s + "arg0");
-    else
-      II = &m_Context.Idents.get(CE->getDirectCallee()->getNameAsString() +
-                                 "_d" + s + "arg" + std::to_string(m_ArgIndex));
+    // FIXME: add gradient-vector products to fix that.
+    assert((CE->getNumArgs() <= 1) &&
+           "forward differentiation of multi-arg calls is currently broken");
+    IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
+                                               s + "arg0");
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
 
     SourceLocation noLoc;
-    llvm::SmallVector<Expr*, 4> CallArgs;
+    llvm::SmallVector<Expr*, 4> CallArgs{};
     // For f(g(x)) = f'(x) * g'(x)
-    Expr* Multiplier = 0;
+    Expr* Multiplier = nullptr;
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
       StmtDiff argDiff = Visit(CE->getArg(i));
       if (!Multiplier)
@@ -989,19 +1005,15 @@ namespace clad {
       CallArgs.push_back(argDiff.getExpr());
     }
 
-    Expr* call =
-      m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                           Clone(CE->getCallee()),
-                           noLoc,
-                           llvm::MutableArrayRef<Expr*>(CallArgs),
-                           noLoc).get();
+    Expr* call = m_Sema.ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                      noLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
+                                      noLoc).get();
 
-    Expr* callDiff =
-      m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
-
+    // Try to find an overloaded derivative in 'custom_derivatives'
+    Expr* callDiff = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
 
     // Check if it is a recursive call.
-    if (!callDiff && (CE->getDirectCallee() == m_Function)) {
+    if (!callDiff && (FD == m_Function)) {
       // The differentiated function is called recursively.
       Expr* derivativeRef =
         m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
@@ -1015,79 +1027,38 @@ namespace clad {
                              noLoc).get();
     }
 
-    if (callDiff) {
-      // f_darg0 function was found.
-      if (Multiplier)
-        callDiff = BuildOp(BO_Mul,
-                           callDiff,
-                           BuildParens(Multiplier));
-      return StmtDiff(call, callDiff);
-    }
+    if (!callDiff) {
+      // Overloaded derivative was not found, request the CladPlugin to 
+      // derive the called function.
+      DiffRequest request{};
+      request.Function = FD;
+      request.BaseFunctionName = FD->getNameAsString();
+      request.Mode = DiffMode::forward;
+      // Silence diag outputs in nested derivation process.
+      request.VerboseDiags = false;
 
-    Expr* OverloadedFnInFile
-      = m_Builder.findOverloadedDefinition(CE->getDirectCallee()->getNameInfo(),
-                                           CallArgs);
+      FunctionDecl* derivedFD = plugin::ProcessDiffRequest(m_CladPlugin, request);
+      // Clad failed to derive it.
+      if (!derivedFD) {
+        // Function was not derived => issue a warning.
+        diag(DiagnosticsEngine::Warning, CE->getLocStart(),
+             "function '%0' was not differentiated because clad failed to "
+             "differentiate it and no suitable overload was found in "
+             "namespace 'custom_derivatives'",
+             { FD->getNameAsString() });
 
-    if (OverloadedFnInFile) {
-      // Take the function to derive from the source.
-      const FunctionDecl* FD = CE->getDirectCallee();
-      // Get the definition, if any.
-      const FunctionDecl* mostRecentFD = FD->getMostRecentDecl();
-      while (mostRecentFD && !mostRecentFD->isThisDeclarationADefinition()) {
-        mostRecentFD = mostRecentFD->getPreviousDecl();
-      }
-      if (!mostRecentFD || !mostRecentFD->isThisDeclarationADefinition()) {
-        diag(DiagnosticsEngine::Error, FD->getLocEnd(),
-             "attempted differentiation of function '%0', which does not have a \
-              definition", { FD->getNameAsString() });
-        auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                      m_Context, 0);
+        auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
         return StmtDiff(call, zero);
       }
 
-      // Look for a declaration of a function to differentiate
-      // in the derivatives namespace.
-      LookupResult R(m_Sema, CE->getDirectCallee()->getNameInfo(),
-                     Sema::LookupOrdinaryName);
-      m_Sema.LookupQualifiedName(R, m_Builder.m_BuiltinDerivativesNSD,
-                                 /*allowBuiltinCreation*/ false);
-      {
-        DeclContext::lookup_result res
-          = m_Context.getTranslationUnitDecl()->lookup(name);
-        bool shouldAdd = true;
-        for (DeclContext::lookup_iterator I = res.begin(), E = res.end();
-             I != E; ++I) {
-          for (LookupResult::iterator J = R.begin(), E = R.end(); J != E; ++J)
-            if (cast<ValueDecl>(*I)->getType().getTypePtr()
-                == cast<ValueDecl>(J.getDecl())->getType().getTypePtr()) {
-              shouldAdd = false;
-              break;
-            }
-          if (shouldAdd)
-            R.addDecl(*I);
-          shouldAdd = true;
-        }
-        assert(!R.empty() && "Must be reachable");
-      }      // Update function name in the source.
-      CXXScopeSpec CSS;
-      CSS.Extend(m_Context, m_Builder.m_BuiltinDerivativesNSD, noLoc, noLoc);
-      Expr* ResolvedLookup
-        = m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
-      CallExpr* clonedCE = dyn_cast<CallExpr>(Clone(CE));
-      clonedCE->setCallee(ResolvedLookup);
-      // FIXME: What is this part doing? Is it reachable at all?
-      // Shouldn't it be multiplied by arg derivatives?
-      return StmtDiff(call, clonedCE);
+      callDiff = m_Sema.ActOnCallExpr(getCurrentScope(), BuildDeclRef(derivedFD),
+                                      noLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
+                                      noLoc).get();
     }
-
-    // Function was not derived => issue a warning.
-    diag(DiagnosticsEngine::Warning, CE->getDirectCallee()->getLocEnd(),
-         "function '%0' was not differentiated because it is not declared in "
-         "namespace 'custom_derivatives'",
-         { CE->getDirectCallee()->getNameAsString() });
-
-    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    return StmtDiff(call, zero);
+ 
+    if (Multiplier)
+      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
+    return StmtDiff(call, callDiff);
   }
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
@@ -1294,12 +1265,17 @@ namespace clad {
 
   ReverseModeVisitor::~ReverseModeVisitor() {}
 
-  DeclWithContext ReverseModeVisitor::Derive(
-    FunctionDecl* FD, const DiffPlan& plan) {
+  DeclWithContext ReverseModeVisitor::Derive(const FunctionDecl* FD,
+                                             const DiffRequest& request) {
+    silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     assert(m_Function && "Must not be null.");
 
-    DiffParams args = parseDiffArgs(plan.getArgs(), FD);
+    DiffParams args {};
+    if (request.Args)
+      args = parseDiffArgs(request.Args, FD);
+    else
+      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));      
     if (args.empty())
       return {};
     auto derivativeBaseName = m_Function->getNameAsString();
@@ -1339,9 +1315,10 @@ namespace clad {
     NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
-    m_Sema.CurContext = m_Function->getDeclContext();
+    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    m_Sema.CurContext = DC;
     if (isa<CXXMethodDecl>(m_Function)) {
-      auto CXXRD = cast<CXXRecordDecl>(m_Function->getDeclContext());
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
       gradientFD = CXXMethodDecl::Create(m_Context,
                                          CXXRD,
                                          noLoc,
@@ -1355,12 +1332,9 @@ namespace clad {
       gradientFD->setAccess(m_Function->getAccess());
     }
     else if (isa<FunctionDecl>(m_Function)) {
-      enclosingNS = RebuildEnclosingNamespaces(m_Function->getDeclContext());
-      gradientFD = FunctionDecl::Create(m_Context,
-                                        m_Function->getDeclContext(),
-                                        noLoc,
-                                        name,
-                                        gradientFunctionType,
+      enclosingNS = RebuildEnclosingNamespaces(DC);
+      gradientFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
+                                        name, gradientFunctionType,
                                         m_Function->getTypeSourceInfo(),
                                         m_Function->getStorageClass(),
                                         m_Function->isInlineSpecified(),
@@ -1703,13 +1677,13 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
-    auto FD = CE->getDirectCallee();
+    const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning, CE->getLocEnd(),
            "Differentiation of only direct calls is supported. Ignored");
       return StmtDiff(Clone(CE));
     }
-    IdentifierInfo* II = nullptr;
+    
     auto NArgs = FD->getNumParams();
     // If the function has no args then we assume that it is not related
     // to independent variables and does not contribute to gradient.
@@ -1722,14 +1696,23 @@ namespace clad {
 
     VarDecl* ResultDecl = nullptr;
     Expr* Result = nullptr;
+    Expr* OverloadedDerivedFn = nullptr;
     // If the function has a single arg, we look for a derivative w.r.t. to
     // this arg (it is unlikely that we need gradient of a one-dimensional'
     // function).
-    if (NArgs == 1)
-      II = &m_Context.Idents.get(FD->getNameAsString() + "_darg0");
-    // If it has more args, we look for its gradient.
-    else {
-      II = &m_Context.Idents.get(FD->getNameAsString() + "_grad");
+    bool asGrad = true;
+    if (NArgs == 1) {
+      IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_darg0");
+      // Try to find it in builtin derivatives
+      DeclarationName name(II);
+      DeclarationNameInfo DNInfo(name, noLoc);
+      OverloadedDerivedFn = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+      if (OverloadedDerivedFn)
+        asGrad = false;
+    }
+    // If it has more args or f_darg0 was not found, we look for its gradient.
+    if (!OverloadedDerivedFn) {
+      IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_grad");
       // We also need to create an array to store the result of gradient call.
       auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
       auto ArrayType =
@@ -1747,42 +1730,57 @@ namespace clad {
       Result = BuildDeclRef(ResultDecl);
       // Pass the array as the last parameter for gradient.
       CallArgs.push_back(Result);
+
+      // Try to find it in builtin derivatives
+      DeclarationName name(II);
+      DeclarationNameInfo DNInfo(name, noLoc);
+      OverloadedDerivedFn = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
     }
-
-    // Try to find it in builtin derivatives
-    DeclarationName name(II);
-    DeclarationNameInfo DNInfo(name, noLoc);
-    auto OverloadedDerivedFn =
-      m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
-
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
-      if (FD != m_Function) {
-        // Not a recursive call, derivative was not found, ignore.
-        // Issue a warning.
-        diag(DiagnosticsEngine::Warning, CE->getDirectCallee()->getLocEnd(),
-             "function '%0' was not differentiated because it is not declared \
-              in namespace 'custom_derivatives'",
-             { FD->getNameAsString() });
-        return StmtDiff(Clone(CE));
-      }
-      // Recursive call.
-      auto selfRef = m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
-                                                     m_Derivative->getNameInfo(),
-                                                     m_Derivative).get();
+      if (FD == m_Function) {
+        // Recursive call.
+        auto selfRef = m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
+                                                       m_Derivative->getNameInfo(),
+                                                       m_Derivative).get();
 
-      OverloadedDerivedFn =
-        m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                             selfRef,
-                             noLoc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs),
-                             noLoc).get();
+        OverloadedDerivedFn = m_Sema.ActOnCallExpr(getCurrentScope(), selfRef,
+                                                   noLoc,
+                                                   llvm::MutableArrayRef<Expr*>(CallArgs),
+                                                   noLoc).get();
+      } else {
+        // Overloaded derivative was not found, request the CladPlugin to 
+        // derive the called function.
+        DiffRequest request{};
+        request.Function = FD;
+        request.BaseFunctionName = FD->getNameAsString();
+        request.Mode = DiffMode::reverse;
+        // Silence diag outputs in nested derivation process.
+        request.VerboseDiags = false;
+
+        FunctionDecl* derivedFD = plugin::ProcessDiffRequest(m_CladPlugin, request);
+        // Clad failed to derive it.
+        if (!derivedFD) {
+          // Function was not derived => issue a warning.
+         diag(DiagnosticsEngine::Warning, CE->getLocStart(),
+              "function '%0' was not differentiated because clad failed to "
+              "differentiate it and no suitable overload was found in "
+              "namespace 'custom_derivatives'",
+              { FD->getNameAsString() });
+         return StmtDiff(Clone(CE));
+        }
+        OverloadedDerivedFn = m_Sema.ActOnCallExpr(getCurrentScope(),
+                                                   BuildDeclRef(derivedFD),
+                                                   noLoc,
+                                                   llvm::MutableArrayRef<Expr*>(CallArgs),
+                                                   noLoc).get();
+      }
     }
 
     if (OverloadedDerivedFn) {
       // Derivative was found.
-      if (NArgs == 1) {
-        // If function has a single arg, call it and store a result.
+      if (!asGrad) {
+        // If the derivative is called through _darg0 instead of _grad.
         Result = StoreAndRef(OverloadedDerivedFn, reverse);
         auto d = BuildOp(BO_Mul, dfdx(), Result);
         auto dTmp = StoreAndRef(d, reverse);
@@ -1896,8 +1894,9 @@ namespace clad {
       auto drTmp = StoreAndRef(dr, reverse);
       Rdiff = Visit(R, drTmp);
     }
-    else
+    else {
       llvm_unreachable("unsupported binary operator");
+    }
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
     return StmtDiff(op);
   }

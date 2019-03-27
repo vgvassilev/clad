@@ -31,6 +31,11 @@ namespace clad {
   namespace utils {
     class StmtClone;
   }
+  class DiffRequest;
+  namespace plugin {
+    class CladPlugin;
+    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P, DiffRequest& request);
+  }
 }
 
 namespace clad {
@@ -38,10 +43,9 @@ namespace clad {
   // in nested namespaces
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
 
-  using DiffParams = llvm::SmallVector<clang::VarDecl*, 16>;
+  using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
 
   static clang::SourceLocation noLoc{};
-  class DiffPlan;
   /// The main builder class which then uses either ForwardModeVisitor or
   /// ReverseModeVisitor based on the required mode.
   class DerivativeBuilder {
@@ -51,6 +55,7 @@ namespace clad {
     friend class ReverseModeVisitor;
 
     clang::Sema& m_Sema;
+    plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
@@ -71,7 +76,7 @@ namespace clad {
         stream << arg;
     }
   public:
-    DerivativeBuilder(clang::Sema& S);
+    DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P);
     ~DerivativeBuilder();
 
     ///\brief Produces the derivative of a given function
@@ -82,7 +87,8 @@ namespace clad {
     ///\returns The differentiated function and potentially created enclosing
     /// context.
     ///
-    DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan & plan);
+    DeclWithContext Derive(const clang::FunctionDecl* FD,
+                           const DiffRequest & request);
   };
 
   /// A base class for all common functionality for visitors
@@ -91,6 +97,7 @@ namespace clad {
     VisitorBase(DerivativeBuilder& builder) :
       m_Builder(builder),
       m_Sema(builder.m_Sema),
+      m_CladPlugin(builder.m_CladPlugin),
       m_Context(builder.m_Context),
       m_CurScope(m_Sema.TUScope),
       m_DerivativeInFlight(false),
@@ -101,17 +108,18 @@ namespace clad {
 
     DerivativeBuilder& m_Builder;
     clang::Sema& m_Sema;
+    plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
     clang::Scope* m_CurScope;
     bool m_DerivativeInFlight;
     /// The Derivative function that is being generated.
     clang::FunctionDecl* m_Derivative;
     /// The function that is currently differentiated.
-    clang::FunctionDecl* m_Function;
+    const clang::FunctionDecl* m_Function;
 
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
-    std::unordered_map<clang::VarDecl*, clang::Expr*> m_Variables;
+    std::unordered_map<const clang::VarDecl*, clang::Expr*> m_Variables;
     /// Map contains variable declarations replacements. If the original
     /// function contains a declaration which name collides with something
     /// already created inside derivative's body, the declaration is replaced
@@ -204,7 +212,7 @@ namespace clad {
     clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
 
     /// Builds a DeclRefExpr to a given Decl.
-    clang::DeclRefExpr* BuildDeclRef(clang::VarDecl* D);
+    clang::DeclRefExpr* BuildDeclRef(clang::DeclaratorDecl* D);
 
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
@@ -223,14 +231,16 @@ namespace clad {
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false);
-
+    /// A flag for silencing warnings/errors output by diag function.
+    bool silenceDiags = false;
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
     void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
               clang::SourceLocation loc,
               const char (&format)[N],
               llvm::ArrayRef<llvm::StringRef> args = {}) {
-      m_Builder.diag(level, loc, format, args);
+      if (!silenceDiags)
+        m_Builder.diag(level, loc, format, args);
     }
 
     /// Conuter used to create unique identifiers for temporaries
@@ -247,7 +257,6 @@ namespace clad {
     clang::Stmt* Clone(const clang::Stmt* S);
     /// A shorthand to simplify cloning of expressions.
     clang::Expr* Clone(const clang::Expr* E);
-
     /// Parses the argument expression for the clad::differentiate/clad::gradient
     /// call. The argument is used to specify independent parameter(s) for
     /// differentiation. There are three valid options for the argument expression:
@@ -258,7 +267,8 @@ namespace clad {
     ///      parameter corresponding to literal's value index.
     ///   3) If no argument is provided, a default argument is used. The function
     ///      will be differentiated w.r.t. to its every parameter.
-    DiffParams parseDiffArgs(const clang::Expr* diffArgs, clang::FunctionDecl* FD);
+    DiffParams parseDiffArgs(const clang::Expr* diffArgs,
+                             const clang::FunctionDecl* FD);
   };
 
   /// A class that represents the result of Visit of ForwardModeVisitor.
@@ -313,7 +323,7 @@ namespace clad {
     : public clang::ConstStmtVisitor<ForwardModeVisitor, StmtDiff>,
       public VisitorBase {
   private:
-    clang::VarDecl* m_IndependentVar = nullptr;
+    const clang::VarDecl* m_IndependentVar = nullptr;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
 
@@ -328,7 +338,8 @@ namespace clad {
     ///\returns The differentiated and potentially created enclosing
     /// context.
     ///
-    DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan& plan);
+    DeclWithContext Derive(const clang::FunctionDecl* FD,
+                           const DiffRequest& request);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
@@ -468,7 +479,8 @@ namespace clad {
     /// Improved naming scheme is required. Hence, we append the indices to of the
     /// requested parameters to 'f_grad', i.e. in the previous example "x, y" will
     /// give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
-    DeclWithContext Derive(clang::FunctionDecl* FD, const DiffPlan& plan);
+    DeclWithContext Derive(const clang::FunctionDecl* FD,
+                           const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);

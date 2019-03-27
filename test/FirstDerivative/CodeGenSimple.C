@@ -4,9 +4,10 @@
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
-extern "C" int printf(const char* fmt, ...); //expected-warning{{function 'printf' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
+extern "C" int printf(const char* fmt, ...);
+
 int f_1(int x) {
-   printf("I am being run!\n"); //expected-warning{{attempted to differentiate unsupported statement, no changes applied}}
+   printf("I am being run!\n"); //expected-warning{{attempted to differentiate unsupported statement, no changes applied}} //expected-warning{{function 'printf' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
    return x * x;
 }
 // CHECK: int f_1_darg0(int x) {
