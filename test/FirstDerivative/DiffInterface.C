@@ -55,7 +55,7 @@ int f_3() {
   return x * y * z; // should not be differentiated
 }
 
-int f_no_definition(int x); // expected-error {{attempted differentiation of function 'f_no_definition', which does not have a definition}}
+int f_no_definition(int x);
 
 int f_redeclared(int x) {
     return x;
@@ -69,12 +69,12 @@ int f_redeclared(int x);
 // CHECK: }
 
 int f_try_catch(int x)
-  try {
+  try { // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
     return x;
   }
   catch (int) {
     return 0;
-  } // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
+  }
 
 // CHECK: int f_try_catch_darg0(int x) {
 // CHECK-NEXT:    int _d_x = 1;
@@ -112,7 +112,7 @@ int main () {
   float one = 1.0;
   clad::differentiate(f_2, one); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
-  clad::differentiate(f_no_definition, 0);
+  clad::differentiate(f_no_definition, 0); // expected-error {{attempted differentiation of function 'f_no_definition', which does not have a definition}}
 
   clad::differentiate(f_redeclared, 0);
 

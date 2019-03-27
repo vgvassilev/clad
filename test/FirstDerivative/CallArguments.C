@@ -19,7 +19,7 @@ float g(float x) {
 
 // CHECK: float g_darg0(float x) {
 // CHECK-NEXT: float _d_x = 1;
-// CHECK: float _t0 = x * x;
+// CHECK-NEXT: float _t0 = x * x;
 // CHECK-NEXT: custom_derivatives::f_darg0(_t0 * x) * ((_d_x * x + x * _d_x) * x + _t0 * _d_x);
 // CHECK-NEXT: }
 
@@ -96,7 +96,7 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 
 float f_const_helper(const float x) {
   return x * x;
-} // expected-warning 4 {{function 'f_const_helper' was not differentiated because it is not declared in namespace 'custom_derivatives'}}
+}
 
 float f_const_args_func_7(const float x, const float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
@@ -105,7 +105,7 @@ float f_const_args_func_7(const float x, const float y) {
 // CHECKTODO: float f_const_args_func_7_darg0(const float x, const float y) {
 // CHECKTODO-NEXT: const float _d_x = 1;
 // CHECKTODO-NEXT: const float _d_y = 0;
-// CHECKTODO-NEXT: f_const_helper_darg0(x) + (f_const_helper_darg0(y)) - (_d_y)
+// CHECKTODO-NEXT: f_const_helper_darg0(x) * _d_x + f_const_helper_darg0(y) * _d_y - _d_y;
 // CHECKTODO-NEXT: }
 
 float f_const_args_func_8(const float x, float y) {
@@ -115,11 +115,11 @@ float f_const_args_func_8(const float x, float y) {
 // CHECKTODO: float f_const_args_func_8_darg0(const float x, float y) {
 // CHECKTODO-NEXT: const float _d_x = 1;
 // CHECKTODO-NEXT: float _d_y = 0;
-// CHECKTODO-NEXT: f_const_helper_darg0(x) + (f_const_helper_darg0(y)) - (_d_y)
+// CHECKTODO-NEXT: f_const_helper_darg0(x) * _d_x + f_const_helper_darg0(y) * _d_y - _d_y;
 // CHECKTODO-NEXT: }
 
 extern "C" int printf(const char* fmt, ...);
-int main () {
+int main () { // expected-no-diagnostics
   auto f = clad::differentiate(g, 0);
   printf("g_darg0=%f\n", f.execute(1));
   //CHECK-EXEC: g_darg0=6.000000
@@ -146,11 +146,11 @@ int main () {
   //CHECK-EXEC: f6_darg0=2.000000
   auto f7 = clad::differentiate(f_const_args_func_7, 0);
   printf("f7_darg0=%f\n", f7.execute(1.F,2.F));
-  //CHECKTODO-EXEC: f7_darg0=2.000000
+  //CHECK-EXEC: f7_darg0=2.000000
   auto f8 = clad::differentiate(f_const_args_func_8, 0);
   const float f8x = 1.F;
   printf("f8_darg0=%f\n", f8.execute(f8x,2.F));
-  //CHECKTODO-EXEC: f8_darg0=2.000000
+  //CHECK-EXEC: f8_darg0=2.000000
 
   return 0;
 }

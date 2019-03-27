@@ -69,80 +69,94 @@ namespace clad {
         return true;
 
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema()));
+        m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
 
       // Instantiate all pending for instantiations templates, because we will
       // need the full bodies to produce derivatives.
       m_CI.getSema().PerformPendingInstantiations();
 
-      DiffPlans plans;
-      DiffCollector collector(DGR, plans, m_CI.getSema());
+      DiffSchedule requests{};
+      DiffCollector collector(DGR, requests, m_CI.getSema());
 
+      for (DiffRequest& request : requests)
+        ProcessDiffRequest(request);
+      return true; // Happiness
+    }
+
+    FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
+      const FunctionDecl* FD = request.Function;
       //set up printing policy
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
-      for (DiffPlans::iterator plan = plans.begin(), planE = plans.end();
-           plan != planE; ++plan)
-         for (DiffPlan::iterator I = plan->begin(); I != plan->end(); ++I) {
-            // if enabled, print source code of the original functions
-            if (m_DO.DumpSourceFn) {
-               (*I)->print(llvm::outs(), Policy);
-            }
-            // if enabled, print ASTs of the original functions
-            if (m_DO.DumpSourceFnAST) {
-               (*I)->dumpColor();
-            }
-
-            FunctionDecl* DerivativeDecl = nullptr;
-            Decl* DerivativeDeclContext = nullptr;
-            {
-              // FIXME: Move the timing inside the DerivativeBuilder. This would
-              // require to pass in the DifferentiationOptions in the DiffPlan.
-              // derive the collected functions
-              bool WantTiming = getenv("LIBCLAD_TIMING");
-              SimpleTimer Timer(WantTiming);
-              Timer.setOutput("Generation time for "
-                              + (*plan->begin())->getNameAsString());
-
-              std::tie(DerivativeDecl, DerivativeDeclContext) =
-                m_DerivativeBuilder->Derive(*I, *plan);
-            }
-
-            if (DerivativeDecl) {
-              collector.UpdatePlan(DerivativeDecl, &*plan);
-              if (I + 1 == plan->end()) // The last element
-                plan->updateCall(DerivativeDecl, m_CI.getSema());
-
-              // if enabled, print source code of the derived functions
-              if (m_DO.DumpDerivedFn) {
-                 DerivativeDecl->print(llvm::outs(), Policy);
-              }
-              // if enabled, print ASTs of the derived functions
-              if (m_DO.DumpDerivedAST) {
-                 DerivativeDecl->dumpColor();
-              }
-              // if enabled, print the derivatives in a file.
-              if (m_DO.GenerateSourceFile) {
-                 std::error_code err;
-                 llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                        llvm::sys::fs::F_Append);
-                 DerivativeDecl->print(f, Policy);
-                 f.flush();
-              }
-              // Call CodeGen only if the produced decl is a top-most decl.
-              Decl* DerivativeDeclOrEnclosingContext = DerivativeDeclContext ?
-                DerivativeDeclContext : DerivativeDecl;
-              bool isTU =
-                DerivativeDeclOrEnclosingContext->getDeclContext()->isTranslationUnit();
-              if (isTU) {
-                m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
-                  DerivativeDeclOrEnclosingContext));
-              }
-            }
+      // if enabled, print source code of the original functions
+      if (m_DO.DumpSourceFn) {
+        FD->print(llvm::outs(), Policy);
       }
-      return true; // Happiness
+      // if enabled, print ASTs of the original functions
+      if (m_DO.DumpSourceFnAST) {
+        FD->dumpColor();
+      }
+
+      FunctionDecl* DerivativeDecl = nullptr;
+      Decl* DerivativeDeclContext = nullptr;
+      {
+        // FIXME: Move the timing inside the DerivativeBuilder. This would
+        // require to pass in the DifferentiationOptions in the DiffPlan.
+        // derive the collected functions
+        bool WantTiming = getenv("LIBCLAD_TIMING");
+        SimpleTimer Timer(WantTiming);
+        Timer.setOutput("Generation time for " + FD->getNameAsString());
+
+        std::tie(DerivativeDecl, DerivativeDeclContext) =
+          m_DerivativeBuilder->Derive(FD, request);
+      }
+
+      if (DerivativeDecl) {
+        bool lastDerivativeOrder = 
+          (request.CurrentDerivativeOrder == request.RequestedDerivativeOrder);
+        // If this is the last required derivative order, replace the function
+        // inside a call to clad::differentiate/gradient with its derivative.
+        if (request.CallUpdateRequired && lastDerivativeOrder)
+          request.updateCall(DerivativeDecl, m_CI.getSema());
+                  
+        // if enabled, print source code of the derived functions
+        if (m_DO.DumpDerivedFn) {
+          DerivativeDecl->print(llvm::outs(), Policy);
+        }
+        // if enabled, print ASTs of the derived functions
+        if (m_DO.DumpDerivedAST) {
+          DerivativeDecl->dumpColor();
+        }
+        // if enabled, print the derivatives in a file.
+        if (m_DO.GenerateSourceFile) {
+          std::error_code err;
+          llvm::raw_fd_ostream f("Derivatives.cpp", err, llvm::sys::fs::F_Append);
+          DerivativeDecl->print(f, Policy);
+          f.flush();
+        }
+        // Call CodeGen only if the produced decl is a top-most decl.
+        Decl* DerivativeDeclOrEnclosingContext = DerivativeDeclContext ?
+          DerivativeDeclContext : DerivativeDecl;
+        bool isTU = DerivativeDeclOrEnclosingContext->getDeclContext()->
+          isTranslationUnit();
+        if (isTU) {
+          m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
+            DerivativeDeclOrEnclosingContext));
+        }
+        
+        // Last requested order was computed, return the result.
+        if (lastDerivativeOrder)
+          return DerivativeDecl;
+        // If higher order derivatives are required, proceed to compute them
+        // recursively.
+        request.Function = DerivativeDecl;
+        request.CurrentDerivativeOrder += 1;
+        return ProcessDiffRequest(request);
+      }
+      return nullptr;
     }
+     
 
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.

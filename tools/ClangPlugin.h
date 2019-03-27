@@ -29,6 +29,7 @@ namespace clang {
 }
 
 namespace clad {
+  class DiffRequest;
   namespace plugin {
     struct DifferentiationOptions {
       DifferentiationOptions()
@@ -55,9 +56,15 @@ namespace clad {
       ~CladPlugin();
 
       virtual bool HandleTopLevelDecl(clang::DeclGroupRef DGR);
+      clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
     private:
       bool ShouldProcessDecl(clang::DeclGroupRef DGR);
     };
+
+    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
+                                            DiffRequest& request) {
+      return P.ProcessDiffRequest(request);
+    }
 
     template<typename ConsumerType>
     class Action : public clang::PluginASTAction {
