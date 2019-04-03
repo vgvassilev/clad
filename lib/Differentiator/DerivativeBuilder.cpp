@@ -567,6 +567,13 @@ namespace clad {
     return m_Sema.BuildBinOp(nullptr, noLoc, OpCode, L, R).get();
   }
 
+  Expr* VisitorBase::getZeroInit(QualType T) {
+    if (T->isScalarType())
+      return ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    else
+      return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
+  }
+
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getLocStart(),
          "attempted to differentiate unsupported statement, no changes applied");
@@ -836,6 +843,51 @@ namespace clad {
                     ConstantFolder::synthesizeLiteral(Ty, m_Context, 0));
   }
 
+  StmtDiff ForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
+    llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
+    llvm::SmallVector<Expr*, 16> derivedExprs(ILE->getNumInits());
+    for (unsigned i = 0; i < ILE->getNumInits(); i++) {
+      StmtDiff ResultI = Visit(ILE->getInit(i));
+      clonedExprs[i] = ResultI.getExpr();
+      derivedExprs[i] = ResultI.getExpr_dx();
+    }
+
+    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+    Expr* derivedILE = m_Sema.ActOnInitList(noLoc, derivedExprs, noLoc).get();
+    return StmtDiff(clonedILE, derivedILE);
+  } 
+
+  StmtDiff ForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
+    Expr* B = Clone(ASE->getBase());
+    Expr* I = Clone(ASE->getIdx());
+    DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(B->IgnoreParenImpCasts());
+    auto cloned = m_Sema.CreateBuiltinArraySubscriptExpr(B, noLoc, I, noLoc).get();
+    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    if (!DRE)
+      return StmtDiff(cloned, zero);
+    auto VD = dyn_cast<VarDecl>(DRE->getDecl());
+    if (!VD)
+      return StmtDiff(cloned, zero);
+    // Check DeclRefExpr is a reference to an independent variable.
+    auto it = m_Variables.find(VD);
+    if (it == std::end(m_Variables)) {
+      // Is not an independent variable, ignored.
+      return StmtDiff(cloned, zero);
+    }
+
+    Expr* target = it->second;
+    // FIXME: fix when adding array inputs
+    if (!target->getType()->isArrayType() && !target->getType()->isPointerType())
+      return StmtDiff(cloned, zero);
+    //llvm::APSInt IVal;
+    //if (!I->EvaluateAsInt(IVal, m_Context))
+    //  return;
+    // Create the _result[idx] expression.
+    auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(target, noLoc, I,
+                                                              noLoc).get();
+    return StmtDiff(cloned, result_at_i);
+  }
+   
   StmtDiff ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = nullptr;
     // Check if referenced Decl was "replaced" with another identifier inside
@@ -1595,6 +1647,20 @@ namespace clad {
     return StmtDiff(BuildParens(subStmtDiff.getExpr()));
   }
 
+  StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
+    llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
+    for (unsigned i = 0; i < ILE->getNumInits(); i++) {
+      Expr* I = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
+      Expr* array_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(dfdx(), noLoc,
+                                                               I, noLoc).get();
+      Expr* clonedEI = Visit(ILE->getInit(i), array_at_i).getExpr();
+      clonedExprs[i] = clonedEI;
+    }
+
+    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+    return StmtDiff(clonedILE);
+  } 
+
   StmtDiff ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     Expr* B = Clone(ASE->getBase());
     Expr* I = Clone(ASE->getIdx());
@@ -1611,18 +1677,20 @@ namespace clad {
       // Is not an independent variable, ignored.
       return StmtDiff(cloned);
     }
+
+    Expr* target = it->second;
     // FIXME: implement proper detection
-    if (VD->getName() != "p")
-      return StmtDiff(cloned);
-    const IntegerLiteral* IL = dyn_cast<IntegerLiteral>(I->IgnoreParenImpCasts());
-    if (!IL)
+    if (VD->getName() == "p")
+      target = m_Result;
+    // FIXME: fix when adding array inputs
+    if (!target->getType()->isArrayType() && !target->getType()->isPointerType())
       return StmtDiff(cloned);
     //llvm::APSInt IVal;
     //if (!I->EvaluateAsInt(IVal, m_Context))
     //  return;
     // Create the _result[idx] expression.
-    auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
-                                                              Clone(IL), noLoc).get();
+    auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(target, noLoc, I,
+                                                              noLoc).get();
     // Create the (_result[idx] += dfdx) statement.
     auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
     // Add it to the body statements.
@@ -1902,7 +1970,7 @@ namespace clad {
   }
 
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
-    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    auto zero = getZeroInit(VD->getType());
     VarDecl* VDDerived = BuildVarDecl(VD->getType(),
                                       "_d_" + VD->getNameAsString(), zero);
     StmtDiff initDiff = VD->getInit() ?
