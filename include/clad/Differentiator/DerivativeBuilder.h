@@ -273,8 +273,17 @@ namespace clad {
     /// Get an expression used to zero-initialize given type.
     /// Returns 0 for scalar types, otherwise {}.
     clang::Expr* getZeroInit(clang::QualType T);
-  };
 
+    /// Split an array subscript expression into a pair of base expr and 
+    /// a vector of all indices.
+    std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
+    SplitArraySubscript(const clang::ArraySubscriptExpr* ASE);
+
+    /// Build an array subscript expression with a given base expression and
+    /// a sequence of indices.
+    clang::Expr* BuildArraySubscript(clang::Expr* Base,
+                                     const llvm::SmallVector<clang::Expr*, 4> & IS);
+  };
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
   /// to access its derivative (if exists, otherwise null). If Visit produces
