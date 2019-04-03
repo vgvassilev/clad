@@ -574,6 +574,26 @@ namespace clad {
       return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
   }
 
+  std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
+  VisitorBase::SplitArraySubscript(const ArraySubscriptExpr* ASE) {
+    llvm::SmallVector<const clang::Expr*, 4> Indices{};
+    const Expr* E = ASE;
+    while (auto S = dyn_cast<ArraySubscriptExpr>(E)) {
+      Indices.push_back(S->getIdx());
+      E = S->getBase()->IgnoreImpCasts();
+    }
+    std::reverse(std::begin(Indices), std::end(Indices));
+    return std::make_pair(E, std::move(Indices));
+  }
+
+  Expr* VisitorBase::BuildArraySubscript(Expr* Base,
+    const llvm::SmallVector<clang::Expr*, 4>& Indices) {
+    Expr* result = Base;
+    for (Expr* I : Indices)
+      result = m_Sema.CreateBuiltinArraySubscriptExpr(result, noLoc, I, noLoc).get();
+    return result;
+  }
+
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getLocStart(),
          "attempted to differentiate unsupported statement, no changes applied");
@@ -846,7 +866,7 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
     llvm::SmallVector<Expr*, 16> derivedExprs(ILE->getNumInits());
-    for (unsigned i = 0; i < ILE->getNumInits(); i++) {
+    for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
       StmtDiff ResultI = Visit(ILE->getInit(i));
       clonedExprs[i] = ResultI.getExpr();
       derivedExprs[i] = ResultI.getExpr_dx();
@@ -858,22 +878,27 @@ namespace clad {
   } 
 
   StmtDiff ForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
-    Expr* B = Clone(ASE->getBase());
-    Expr* I = Clone(ASE->getIdx());
-    DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(B->IgnoreParenImpCasts());
-    auto cloned = m_Sema.CreateBuiltinArraySubscriptExpr(B, noLoc, I, noLoc).get();
+    auto ASI = SplitArraySubscript(ASE);
+    const Expr* Base = ASI.first;
+    const auto& Indices = ASI.second;
+    Expr* clonedBase = Clone(Base);
+    llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
+    std::transform(std::begin(Indices), std::end(Indices), std::begin(clonedIndices),
+      [this](const Expr* E) { return Clone(E); });
+    auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
+
     auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    if (!DRE)
+    if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
       return StmtDiff(cloned, zero);
-    auto VD = dyn_cast<VarDecl>(DRE->getDecl());
-    if (!VD)
+    auto DRE = cast<DeclRefExpr>(clonedBase->IgnoreParenImpCasts());
+    if (!isa<VarDecl>(DRE->getDecl()))
       return StmtDiff(cloned, zero);
+    auto VD = cast<VarDecl>(DRE->getDecl());
     // Check DeclRefExpr is a reference to an independent variable.
     auto it = m_Variables.find(VD);
-    if (it == std::end(m_Variables)) {
+    if (it == std::end(m_Variables))
       // Is not an independent variable, ignored.
       return StmtDiff(cloned, zero);
-    }
 
     Expr* target = it->second;
     // FIXME: fix when adding array inputs
@@ -883,9 +908,8 @@ namespace clad {
     //if (!I->EvaluateAsInt(IVal, m_Context))
     //  return;
     // Create the _result[idx] expression.
-    auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(target, noLoc, I,
-                                                              noLoc).get();
-    return StmtDiff(cloned, result_at_i);
+    auto result_at_is = BuildArraySubscript(target, clonedIndices);
+    return StmtDiff(cloned, result_at_is);
   }
    
   StmtDiff ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
@@ -1649,7 +1673,7 @@ namespace clad {
 
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
-    for (unsigned i = 0; i < ILE->getNumInits(); i++) {
+    for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
       Expr* I = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
       Expr* array_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(dfdx(), noLoc,
                                                                I, noLoc).get();
@@ -1662,15 +1686,21 @@ namespace clad {
   } 
 
   StmtDiff ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
-    Expr* B = Clone(ASE->getBase());
-    Expr* I = Clone(ASE->getIdx());
-    DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(B->IgnoreParenImpCasts());
-    auto cloned = m_Sema.CreateBuiltinArraySubscriptExpr(B, noLoc, I, noLoc).get();
-    if (!DRE)
+    auto ASI = SplitArraySubscript(ASE);
+    const Expr* Base = ASI.first;
+    const auto& Indices = ASI.second;
+    Expr* clonedBase = Clone(Base);
+    llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
+    std::transform(std::begin(Indices), std::end(Indices), std::begin(clonedIndices),
+      [this](const Expr* E) { return Clone(E); });
+    auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
+    
+    if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
       return StmtDiff(cloned);
-    auto VD = dyn_cast<VarDecl>(DRE->getDecl());
-    if (!VD)
+    auto DRE = cast<DeclRefExpr>(clonedBase->IgnoreParenImpCasts());
+    if (!isa<VarDecl>(DRE->getDecl()))
       return StmtDiff(cloned);
+    auto VD = cast<VarDecl>(DRE->getDecl());
     // Check DeclRefExpr is a reference to an independent variable.
     auto it = m_Variables.find(VD);
     if (it == std::end(m_Variables)) {
@@ -1689,10 +1719,9 @@ namespace clad {
     //if (!I->EvaluateAsInt(IVal, m_Context))
     //  return;
     // Create the _result[idx] expression.
-    auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(target, noLoc, I,
-                                                              noLoc).get();
+    auto result_at_is = BuildArraySubscript(target, clonedIndices);
     // Create the (_result[idx] += dfdx) statement.
-    auto add_assign = BuildOp(BO_AddAssign, result_at_i, dfdx());
+    auto add_assign = BuildOp(BO_AddAssign, result_at_is, dfdx());
     // Add it to the body statements.
     addToCurrentBlock(add_assign, reverse);
     return StmtDiff(cloned);
