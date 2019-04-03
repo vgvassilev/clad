@@ -269,6 +269,10 @@ namespace clad {
     ///      will be differentiated w.r.t. to its every parameter.
     DiffParams parseDiffArgs(const clang::Expr* diffArgs,
                              const clang::FunctionDecl* FD);
+
+    /// Get an expression used to zero-initialize given type.
+    /// Returns 0 for scalar types, otherwise {}.
+    clang::Expr* getZeroInit(clang::QualType T);
   };
 
   /// A class that represents the result of Visit of ForwardModeVisitor.
@@ -340,6 +344,7 @@ namespace clad {
     ///
     DeclWithContext Derive(const clang::FunctionDecl* FD,
                            const DiffRequest& request);
+    StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
@@ -351,6 +356,7 @@ namespace clad {
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
@@ -491,6 +497,7 @@ namespace clad {
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
+    StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
