@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -lstdc++ -oClassMethods.out 2>&1 | FileCheck %s
 // RUN: ./ClassMethods.out | FileCheck -check-prefix=CHECK-EXEC %s
-//XFAIL:*
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -16,34 +15,43 @@ public:
     return x;
   }
 
-  // CHECK: int f_darg0(int x) {
-  // CHECK-NEXT: return 1;
-  // CHECK-NEXT: }
+  //CHECK:   int f_darg0(int x) {
+  //CHECK-NEXT:       int _d_x = 1;
+  //CHECK-NEXT:       return _d_x;
+  //CHECK-NEXT:   }
 
   int g_1(int x, int y) {
     return x*x + y;
   }
 
-  // CHECK: int g_1_darg0(int x, int y) {
-  // CHECK-NEXT: return (1 * x + x * 1) + (0);
-  // CHECK-NEXT: }
+  //CHECK:   int g_1_darg0(int x, int y) {
+  //CHECK-NEXT:       int _d_x = 1;
+  //CHECK-NEXT:       int _d_y = 0;
+  //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y;
+  //CHECK-NEXT:   }
 
-  // CHECK: int g_1_darg1(int x, int y) {
-  // CHECK-NEXT: return (0 * x + x * 0) + (1);
-  // CHECK-NEXT: }
+
+  //CHECK:   int g_1_darg1(int x, int y) {
+  //CHECK-NEXT:       int _d_x = 0;
+  //CHECK-NEXT:       int _d_y = 1;
+  //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y;
+  //CHECK-NEXT:   }
 
   int g_2(int x, int y) {
     return x + y*y;
   }
 
-  // CHECK: int g_2_darg0(int x, int y) {
-  // CHECK-NEXT: return 1 + ((0 * y + y * 0));
-  // CHECK-NEXT: }
+  //CHECK:   int g_2_darg0(int x, int y) {
+  //CHECK-NEXT:       int _d_x = 1;
+  //CHECK-NEXT:       int _d_y = 0;
+  //CHECK-NEXT:       return _d_x + _d_y * y + y * _d_y;
+  //CHECK-NEXT:   }
 
-  // CHECK: int g_2_darg1(int x, int y) {
-  // CHECK-NEXT: return 0 + ((1 * y + y * 1));
-  // CHECK-NEXT: }
-
+  //CHECK:   int g_2_darg1(int x, int y) {
+  //CHECK-NEXT:       int _d_x = 0;
+  //CHECK-NEXT:       int _d_y = 1;
+  //CHECK-NEXT:       return _d_x + _d_y * y + y * _d_y;
+  //CHECK-NEXT:   }
 
   int m(int x, int y) {
     return f(x) + g_1(x, y);
@@ -53,9 +61,12 @@ public:
     return x + y;
   }
 
-  // CHECK: float vm_darg0(float x, float y) {
-  // CHECK-NEXT: return 1.F + (0.F);
-  // CHECK-NEXT: }
+  float vm_darg0(float x, float y);
+  //CHECK:   float vm_darg0(float x, float y) {
+  //CHECK-NEXT:       float _d_x = 1;
+  //CHECK-NEXT:       float _d_y = 0;
+  //CHECK-NEXT:       return _d_x + _d_y;
+  //CHECK-NEXT:   }
 
 };
 
@@ -67,9 +78,13 @@ public:
     return x*x + y*y;
   }
 
-  // CHECK: float vm_darg0(float x, float y) {
-  // CHECK-NEXT: return (1.F * x + x * 1.F) + ((0.F * y + y * 0.F));
-  // CHECK-NEXT: }
+  float vm_darg0(float x, float y);
+  //CHECK:   float vm_darg0(float x, float y) {
+  //CHECK-NEXT:       float _d_x = 1;
+  //CHECK-NEXT:       float _d_y = 0;
+  //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
+  //CHECK-NEXT:   }
+
 
 };
 
