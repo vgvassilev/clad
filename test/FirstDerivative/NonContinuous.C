@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oNonContinuous.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -I%S/../../include -oNonContinuous.out 2>&1 | FileCheck %s
 // RUN: ./NonContinuous.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

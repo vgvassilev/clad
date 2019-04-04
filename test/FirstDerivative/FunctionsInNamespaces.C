@@ -1,4 +1,8 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
+<<<<<<< HEAD
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify 2>&1 | FileCheck %s
+=======
+// RUN: %cladclang %s -I%S/../../include 2>&1 | FileCheck %s
+>>>>>>> Implement reverse pass, store forward pass subexpressions, reduce
 //CHECK-NOT: {{.*error:.*}}
 //XFAIL:*
 #include "clad/Differentiator/Differentiator.h"

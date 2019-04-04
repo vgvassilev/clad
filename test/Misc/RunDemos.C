@@ -1,14 +1,14 @@
-// RUN: %cladclang %S/../../demos/BasicUsage.cpp -I%S/../../include -fsyntax-only 2>&1
-// RUN: %cladclang %S/../../demos/ControlFlow.cpp -I%S/../../include -fsyntax-only 2>&1
-// RUN: %cladclang %S/../../demos/DebuggingClad.cpp -I%S/../../include -fsyntax-only 2>&1
-// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include -fsyntax-only 2>&1
+// RUN: %cladclang %S/../../demos/BasicUsage.cpp -lm -I%S/../../include 2>&1
+// RUN: %cladclang %S/../../demos/ControlFlow.cpp -lm -I%S/../../include 2>&1
+// RUN: %cladclang %S/../../demos/DebuggingClad.cpp -lm -I%S/../../include 2>&1
+// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -lm -I%S/../../include 2>&1
 
 
 //-----------------------------------------------------------------------------/
 //  Demo: Gradient.cpp
 //-----------------------------------------------------------------------------/
 
-// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out 2>&1 | FileCheck -check-prefix CHECK_GRADIENT %s 
+// RUN: %cladclang %S/../../demos/Gradient.cpp -lm -I%S/../../include -oGradient.out 2>&1 | FileCheck -check-prefix CHECK_GRADIENT %s 
 // CHECK_GRADIENT-NOT:{{.*error|warning|note:.*}}
 // CHECK_GRADIENT:float sphere_implicit_func_darg0(float x, float y, float z, float xc, float yc, float zc, float r) {
 // CHECK_GRADIENT: float _d_x = 1;
@@ -67,7 +67,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Rosenbrock Function
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include -oRosenbrockFunction.out 2>&1 | FileCheck -check-prefix CHECK_ROSENBROCK %s
+// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -lm -I%S/../../include -oRosenbrockFunction.out 2>&1 | FileCheck -check-prefix CHECK_ROSENBROCK %s
 // CHECK_ROSENBROCK-NOT:{{.*error|warning|note:.*}}
 // CHECK_ROSENBROCK:double rosenbrock_func_darg0(double x, double y) {
 // CHECK_ROSENBROCK: double _d_x = 1;

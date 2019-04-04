@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oCodeGenSimple.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -I%S/../../include -oCodeGenSimple.out -Xclang -verify 2>&1 | FileCheck %s
 // RUN: ./CodeGenSimple.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out -lm 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oBuiltinDerivatives.out -lm 2>&1 | FileCheck %s
 // RUN: ./BuiltinDerivatives.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

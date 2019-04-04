@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -lstdc++ -oClassMethods.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -I%S/../../include -lstdc++ -oClassMethods.out 2>&1 | FileCheck %s
 // RUN: ./ClassMethods.out | FileCheck -check-prefix=CHECK-EXEC %s
 //XFAIL:*
 //CHECK-NOT: {{.*error|warning|note:.*}}

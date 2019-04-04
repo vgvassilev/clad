@@ -11,7 +11,7 @@
 // should go.
 namespace custom_derivatives{}
 
-#include <math.h>
+#include <cmath>
 
 namespace custom_derivatives {
   // define functions' derivatives from std
@@ -72,18 +72,15 @@ namespace custom_derivatives {
   }
 #endif
 
-  template<typename T>
-  T pow_darg0(T x, T exponent) {
-    return exponent * pow(x, exponent-((T)1));
+  double pow_darg0(double x, double exponent) {
+    return exponent * ::std::pow(x, exponent-1);
   }
 
-  template <typename T>
-  T pow_darg1(T x, T exponent) {
-    return pow(x, exponent) * log(x);
+  double pow_darg1(double x, double exponent) {
+    return ::std::pow(x, exponent) * ::std::log(x);
   }
 
-  template <typename T>
-  void pow_grad(T x, T exponent, T* result) {
+  void pow_grad(double x, double exponent, double* result) {
     result[0] += pow_darg0(x, exponent);
     result[1] += pow_darg1(x, exponent);
   }

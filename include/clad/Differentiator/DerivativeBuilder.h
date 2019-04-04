@@ -110,7 +110,10 @@ namespace clad {
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
+    /// Current Scope at the point of visiting.
     clang::Scope* m_CurScope;
+    /// Pointer to the topmost Scope in the created derivative function.
+    clang::Scope* m_DerivativeFnScope;
     bool m_DerivativeInFlight;
     /// The Derivative function that is being generated.
     clang::FunctionDecl* m_Derivative;
@@ -243,13 +246,10 @@ namespace clad {
         m_Builder.diag(level, loc, format, args);
     }
 
-    /// Conuter used to create unique identifiers for temporaries
-    std::size_t m_tmpId = 0;
-
-    /// Creates unique identifier of the form "_t<number>" that is guaranteed
-    /// not to collide with anything in the current scope
-    clang::IdentifierInfo* CreateUniqueIdentifier(llvm::StringRef nameBase,
-                                                  std::size_t id);
+    /// Creates unique identifier of the form "_nameBase<number>" that is
+    /// guaranteed not to collide with anything in the current scope.
+    clang::IdentifierInfo* CreateUniqueIdentifier(llvm::StringRef nameBase);
+    std::unordered_map<std::string, std::size_t> m_idCtr;
 
     /// Updates references in newly cloned statements.
     void updateReferencesOf(clang::Stmt* InSubtree);
@@ -431,9 +431,8 @@ namespace clad {
         m_Blocks.pop_back();
         return CS;
       } else {
-        auto R = getCurrentBlock(reverse);
-        std::reverse(std::begin(R), std::end(R));
-        auto CS = MakeCompoundStmt(R);
+        auto CS = MakeCompoundStmt(getCurrentBlock(reverse));
+        std::reverse(CS->body_begin(), CS->body_end());
         m_Reverse.pop_back();
         return CS;
       }
@@ -453,7 +452,8 @@ namespace clad {
     clang::Expr* StoreAndRef(clang::Expr* E, direction d = forward,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false) {
-      return VisitorBase::StoreAndRef(E, getCurrentBlock(d), prefix, forceDeclCreation);
+      assert(E && "cannot infer type from null expression");
+      return StoreAndRef(E, E->getType(), d, prefix, forceDeclCreation);
     }
     
     /// An overload allowing to specify the type for the variable.
@@ -461,11 +461,25 @@ namespace clad {
                              direction d = forward,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false) {
-      return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix, forceDeclCreation);
+      // Name reverse temporaries as "_r" instead of "_t".
+      if ((d == reverse) && (prefix == "_t"))
+        prefix = "_r";
+      return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix,
+                                      forceDeclCreation);
     }
-    /// Outputs the Stmts in the reverse pass to current block, intended to be
-    /// executed once return is reached.
-    void outputReverse();
+
+    /// A sequence of DeclStmts containing "tape" variable declarations
+    /// that will be put immediately in the beginning of derivative function
+    /// block.
+    Stmts m_Globals;
+    /// Creates a (global in the function scope) variable declaration, puts
+    /// it into m_Globals block (to be inserted into the beginning of fn's
+    /// body). Returns reference R to the created declaration. If E is not null,
+    /// puts an additional assignment statement (R = E) in the forward block.
+    clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
+                                   llvm::StringRef prefix = "_t");
+    clang::Expr* GlobalStoreAndRef(clang::Expr* E,
+                                   llvm::StringRef prefix = "_t");
 
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
@@ -512,8 +526,15 @@ namespace clad {
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
     StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
-    // Decl is not Stmt, so it cannot be visited directly.
+    /// Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+    /// A helper method to differentiate a single Stmt in the reverse mode.
+    /// Internally, calls Visit(S, expr). Its result is wrapped into a 
+    /// CompoundStmt (if several statements are created) and proper Stmt
+    /// order is maintained.
+    StmtDiff DifferentiateSingleStmt(const clang::Stmt* S,
+                                     clang::Expr* expr = nullptr);
+
   };
 } // end namespace clad
 

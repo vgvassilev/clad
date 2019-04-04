@@ -99,25 +99,42 @@ double const_dot_product(double x, double y, double z) {
 
 //CHECK:   void const_dot_product_grad(double x, double y, double z, double *_result) {
 //CHECK-NEXT:       double _d_vars[3] = {};
-//CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double _d_consts[3] = {};
+//CHECK-NEXT:       double _t0;
+//CHECK-NEXT:       double _t1;
+//CHECK-NEXT:       double _t2;
+//CHECK-NEXT:       double _t3;
+//CHECK-NEXT:       double _t4;
+//CHECK-NEXT:       double _t5;
+//CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
-//CHECK-NEXT:       double _t0 = 1 * consts[0];
-//CHECK-NEXT:       _d_vars[0] += _t0;
-//CHECK-NEXT:       double _t1 = vars[0] * 1;
-//CHECK-NEXT:       _d_consts[0] += _t1;
-//CHECK-NEXT:       double _t2 = 1 * consts[1];
-//CHECK-NEXT:       _d_vars[1] += _t2;
-//CHECK-NEXT:       double _t3 = vars[1] * 1;
-//CHECK-NEXT:       _d_consts[1] += _t3;
-//CHECK-NEXT:       double _t4 = 1 * consts[2];
-//CHECK-NEXT:       _d_vars[2] += _t4;
-//CHECK-NEXT:       double _t5 = vars[2] * 1;
-//CHECK-NEXT:       _d_consts[2] += _t5;
-//CHECK-NEXT:       _result[0UL] += _d_vars[0];
-//CHECK-NEXT:       _result[1UL] += _d_vars[1];
-//CHECK-NEXT:       _result[2UL] += _d_vars[2];
-//CHECK-NEXT:       return;
+//CHECK-NEXT:       _t1 = vars[0];
+//CHECK-NEXT:       _t0 = consts[0];
+//CHECK-NEXT:       _t3 = vars[1];
+//CHECK-NEXT:       _t2 = consts[1];
+//CHECK-NEXT:       _t5 = vars[2];
+//CHECK-NEXT:       _t4 = consts[2];
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           double _r0 = 1 * _t0;
+//CHECK-NEXT:           _d_vars[0] += _r0;
+//CHECK-NEXT:           double _r1 = _t1 * 1;
+//CHECK-NEXT:           _d_consts[0] += _r1;
+//CHECK-NEXT:           double _r2 = 1 * _t2;
+//CHECK-NEXT:           _d_vars[1] += _r2;
+//CHECK-NEXT:           double _r3 = _t3 * 1;
+//CHECK-NEXT:           _d_consts[1] += _r3;
+//CHECK-NEXT:           double _r4 = 1 * _t4;
+//CHECK-NEXT:           _d_vars[2] += _r4;
+//CHECK-NEXT:           double _r5 = _t5 * 1;
+//CHECK-NEXT:           _d_consts[2] += _r5;
+//CHECK-NEXT:       }
+//CHECK-NEXT:       {
+//CHECK-NEXT:           _result[0UL] += _d_vars[0];
+//CHECK-NEXT:           _result[1UL] += _d_vars[1];
+//CHECK-NEXT:           _result[2UL] += _d_vars[2];
+//CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 double const_matmul_sum(double a, double b, double c, double d) {
@@ -162,53 +179,92 @@ double const_matmul_sum(double a, double b, double c, double d) {
 
 //CHECK:   void const_matmul_sum_grad(double a, double b, double c, double d, double *_result) {
 //CHECK-NEXT:       double _d_A[2][2] = {};
-//CHECK-NEXT:       double A[2][2] = {{[{][{]}}a, b}, {c, d}};
 //CHECK-NEXT:       double _d_B[2][2] = {};
-//CHECK-NEXT:       double B[2][2] = {{[{][{]}}1, 2}, {3, 4}};
+//CHECK-NEXT:       double _t0;
+//CHECK-NEXT:       double _t1;
+//CHECK-NEXT:       double _t2;
+//CHECK-NEXT:       double _t3;
+//CHECK-NEXT:       double _t4;
+//CHECK-NEXT:       double _t5;
+//CHECK-NEXT:       double _t6;
+//CHECK-NEXT:       double _t7;
+//CHECK-NEXT:       double _t8;
+//CHECK-NEXT:       double _t9;
+//CHECK-NEXT:       double _t10;
+//CHECK-NEXT:       double _t11;
+//CHECK-NEXT:       double _t12;
+//CHECK-NEXT:       double _t13;
+//CHECK-NEXT:       double _t14;
+//CHECK-NEXT:       double _t15;
 //CHECK-NEXT:       double _d_C[2][2] = {};
-//CHECK-NEXT:       double C[2][2] = {{[{][{]}}A[0][0] * B[0][0] + A[0][1] * B[1][0], A[0][0] * B[0][1] + A[0][1] * B[1][1]}, {A[1][0] * B[0][0] + A[1][1] * B[1][0], A[1][0] * B[0][1] + A[1][1] * B[1][1]}};
-//CHECK-NEXT:       _d_C[0][0] += 1;
-//CHECK-NEXT:       _d_C[0][1] += 1;
-//CHECK-NEXT:       _d_C[1][0] += 1;
-//CHECK-NEXT:       _d_C[1][1] += 1;
-//CHECK-NEXT:       double _t0 = _d_C[0][0] * B[0][0];
-//CHECK-NEXT:       _d_A[0][0] += _t0;
-//CHECK-NEXT:       double _t1 = A[0][0] * _d_C[0][0];
-//CHECK-NEXT:       _d_B[0][0] += _t1;
-//CHECK-NEXT:       double _t2 = _d_C[0][0] * B[1][0];
-//CHECK-NEXT:       _d_A[0][1] += _t2;
-//CHECK-NEXT:       double _t3 = A[0][1] * _d_C[0][0];
-//CHECK-NEXT:       _d_B[1][0] += _t3;
-//CHECK-NEXT:       double _t4 = _d_C[0][1] * B[0][1];
-//CHECK-NEXT:       _d_A[0][0] += _t4;
-//CHECK-NEXT:       double _t5 = A[0][0] * _d_C[0][1];
-//CHECK-NEXT:       _d_B[0][1] += _t5;
-//CHECK-NEXT:       double _t6 = _d_C[0][1] * B[1][1];
-//CHECK-NEXT:       _d_A[0][1] += _t6;
-//CHECK-NEXT:       double _t7 = A[0][1] * _d_C[0][1];
-//CHECK-NEXT:       _d_B[1][1] += _t7;
-//CHECK-NEXT:       double _t8 = _d_C[1][0] * B[0][0];
-//CHECK-NEXT:       _d_A[1][0] += _t8;
-//CHECK-NEXT:       double _t9 = A[1][0] * _d_C[1][0];
-//CHECK-NEXT:       _d_B[0][0] += _t9;
-//CHECK-NEXT:       double _t10 = _d_C[1][0] * B[1][0];
-//CHECK-NEXT:       _d_A[1][1] += _t10;
-//CHECK-NEXT:       double _t11 = A[1][1] * _d_C[1][0];
-//CHECK-NEXT:       _d_B[1][0] += _t11;
-//CHECK-NEXT:       double _t12 = _d_C[1][1] * B[0][1];
-//CHECK-NEXT:       _d_A[1][0] += _t12;
-//CHECK-NEXT:       double _t13 = A[1][0] * _d_C[1][1];
-//CHECK-NEXT:       _d_B[0][1] += _t13;
-//CHECK-NEXT:       double _t14 = _d_C[1][1] * B[1][1];
-//CHECK-NEXT:       _d_A[1][1] += _t14;
-//CHECK-NEXT:       double _t15 = A[1][1] * _d_C[1][1];
-//CHECK-NEXT:       _d_B[1][1] += _t15;
-//CHECK-NEXT:       _result[0UL] += _d_A[0][0];
-//CHECK-NEXT:       _result[1UL] += _d_A[0][1];
-//CHECK-NEXT:       _result[2UL] += _d_A[1][0];
-//CHECK-NEXT:       _result[3UL] += _d_A[1][1];
-//CHECK-NEXT:       return;
-//CHECK-NEXT:   }
+//CHECK-NEXT:       double A[2][2] = {{[{][{]}}a, b}, {c, d}};
+//CHECK-NEXT:       double B[2][2] = {{[{][{]}}1, 2}, {3, 4}};
+//CHECK-NEXT:       _t1 = A[0][0];
+//CHECK-NEXT:       _t0 = B[0][0];
+//CHECK-NEXT:       _t3 = A[0][1];
+//CHECK-NEXT:       _t2 = B[1][0];
+//CHECK-NEXT:       _t5 = A[0][0];
+//CHECK-NEXT:       _t4 = B[0][1];
+//CHECK-NEXT:       _t7 = A[0][1];
+//CHECK-NEXT:       _t6 = B[1][1];
+//CHECK-NEXT:       _t9 = A[1][0];
+//CHECK-NEXT:       _t8 = B[0][0];
+//CHECK-NEXT:       _t11 = A[1][1];
+//CHECK-NEXT:       _t10 = B[1][0];
+//CHECK-NEXT:       _t13 = A[1][0];
+//CHECK-NEXT:       _t12 = B[0][1];
+//CHECK-NEXT:       _t15 = A[1][1];
+//CHECK-NEXT:       _t14 = B[1][1];
+//CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * B[0][0] + _t3 * B[1][0], _t5 * B[0][1] + _t7 * B[1][1]}, {_t9 * B[0][0] + _t11 * B[1][0], _t13 * B[0][1] + _t15 * B[1][1]}};
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           _d_C[0][0] += 1;
+//CHECK-NEXT:           _d_C[0][1] += 1;
+//CHECK-NEXT:           _d_C[1][0] += 1;
+//CHECK-NEXT:           _d_C[1][1] += 1;
+//CHECK-NEXT:       }
+//CHECK-NEXT:       {
+//CHECK-NEXT:           double _r0 = _d_C[0][0] * _t0;
+//CHECK-NEXT:           _d_A[0][0] += _r0;
+//CHECK-NEXT:           double _r1 = _t1 * _d_C[0][0];
+//CHECK-NEXT:           _d_B[0][0] += _r1;
+//CHECK-NEXT:           double _r2 = _d_C[0][0] * _t2;
+//CHECK-NEXT:           _d_A[0][1] += _r2;
+//CHECK-NEXT:           double _r3 = _t3 * _d_C[0][0];
+//CHECK-NEXT:           _d_B[1][0] += _r3;
+//CHECK-NEXT:           double _r4 = _d_C[0][1] * _t4;
+//CHECK-NEXT:           _d_A[0][0] += _r4;
+//CHECK-NEXT:           double _r5 = _t5 * _d_C[0][1];
+//CHECK-NEXT:           _d_B[0][1] += _r5;
+//CHECK-NEXT:           double _r6 = _d_C[0][1] * _t6;
+//CHECK-NEXT:           _d_A[0][1] += _r6;
+//CHECK-NEXT:           double _r7 = _t7 * _d_C[0][1];
+//CHECK-NEXT:           _d_B[1][1] += _r7;
+//CHECK-NEXT:           double _r8 = _d_C[1][0] * _t8;
+//CHECK-NEXT:           _d_A[1][0] += _r8;
+//CHECK-NEXT:           double _r9 = _t9 * _d_C[1][0];
+//CHECK-NEXT:           _d_B[0][0] += _r9;
+//CHECK-NEXT:           double _r10 = _d_C[1][0] * _t10;
+//CHECK-NEXT:           _d_A[1][1] += _r10;
+//CHECK-NEXT:           double _r11 = _t11 * _d_C[1][0];
+//CHECK-NEXT:           _d_B[1][0] += _r11;
+//CHECK-NEXT:           double _r12 = _d_C[1][1] * _t12;
+//CHECK-NEXT:           _d_A[1][0] += _r12;
+//CHECK-NEXT:           double _r13 = _t13 * _d_C[1][1];
+//CHECK-NEXT:           _d_B[0][1] += _r13;
+//CHECK-NEXT:           double _r14 = _d_C[1][1] * _t14;
+//CHECK-NEXT:           _d_A[1][1] += _r14;
+//CHECK-NEXT:           double _r15 = _t15 * _d_C[1][1];
+//CHECK-NEXT:           _d_B[1][1] += _r15;
+//CHECK-NEXT:       }
+//CHECK-NEXT:       {
+//CHECK-NEXT:           _result[0UL] += _d_A[0][0];
+//CHECK-NEXT:           _result[1UL] += _d_A[0][1];
+//CHECK-NEXT:           _result[2UL] += _d_A[1][0];
+//CHECK-NEXT:           _result[3UL] += _d_A[1][1];
+//CHECK-NEXT:       }
+//CHECK-NEXT:   } 
 
 int main () { // expected-no-diagnostics
   auto dsum = clad::differentiate(sum, 0);

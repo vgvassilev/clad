@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1
+// RUN: %cladclang %s -lm -I%S/../../include 2>&1
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"

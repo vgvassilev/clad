@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -I%S/../../include 2>&1 | FileCheck %s
 // XFAIL:*
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

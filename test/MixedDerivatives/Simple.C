@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oSimple.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -I%S/../../include -oSimple.out -Xclang -verify 2>&1 | FileCheck %s
 // RUN: ./Simple.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -17,15 +17,15 @@ float f1(float x, float y) {
 // CHECK-NEXT:    return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
-// CHECK: float f1_darg0_darg1(float x, float y) {
-// CHECK-NEXT:    float _d_x = 0;
-// CHECK-NEXT:    float _d_y = 1;
-// CHECK-NEXT:    float _d__d_x = 0;
-// CHECK-NEXT:    float _d_x0 = 1;
-// CHECK-NEXT:    float _d__d_y = 0;
-// CHECK-NEXT:    float _d_y1 = 0;
-// CHECK-NEXT:    return _d__d_x * x + _d_x0 * _d_x + _d_x * _d_x0 + x * _d__d_x + _d__d_y * y + _d_y1 * _d_y + _d_y * _d_y1 + y * _d__d_y;
-// CHECK-NEXT: }
+//CHECK:   float f1_darg0_darg1(float x, float y) {
+//CHECK-NEXT:       float _d_x = 0;
+//CHECK-NEXT:       float _d_y = 1;
+//CHECK-NEXT:       float _d__d_x = 0;
+//CHECK-NEXT:       float _d_x0 = 1;
+//CHECK-NEXT:       float _d__d_y = 0;
+//CHECK-NEXT:       float _d_y0 = 0;
+//CHECK-NEXT:       return _d__d_x * x + _d_x0 * _d_x + _d_x * _d_x0 + x * _d__d_x + _d__d_y * y + _d_y0 * _d_y + _d_y * _d_y0 + y * _d__d_y;
+//CHECK-NEXT:   }
 
 float f1_darg0(float x, float y);
 
