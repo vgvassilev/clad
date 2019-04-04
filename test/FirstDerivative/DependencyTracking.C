@@ -1,5 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
-// XFAIL:*
+// RUN: %cladclang %s -I%S/../../include 2>&1 -fsyntax-only | FileCheck %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
@@ -19,14 +18,20 @@ double f(double x) {
   return result;
 }
 
-// CHECK: double f_darg0(double x) {
-// CHECK-NEXT: double result = 0.;
-// CHECK-NEXT: if (x < 0)
-// CHECK-NEXT:   result = (-1. * x + -x * 1.);
-// CHECK-NEXT: else
-// CHECK-NEXT:   result = (1. * x + x * 1.);
-// CHECK-NEXT: return result; // Now returns 0.
-// CHECK-NEXT: }
+//CHECK:   double f_darg0(double x) {
+//CHECK-NEXT:       double _d_x = 1;
+//CHECK-NEXT:       double _d_result = 0.;
+//CHECK-NEXT:       double result = 0.;
+//CHECK-NEXT:       if (x < 0) {
+//CHECK-NEXT:           double _t0 = -x;
+//CHECK-NEXT:           _d_result = -_d_x * x + _t0 * _d_x;
+//CHECK-NEXT:           result = _t0 * x;
+//CHECK-NEXT:       } else {
+//CHECK-NEXT:           _d_result = _d_x * x + x * _d_x;
+//CHECK-NEXT:           result = x * x;
+//CHECK-NEXT:       }
+//CHECK-NEXT:       return _d_result;
+//CHECK-NEXT:   }
 
 int main () {
   clad::differentiate(f, 0);
