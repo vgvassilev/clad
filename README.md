@@ -23,6 +23,28 @@ global analysis. This elegant but laborious process is greatly aided by
 Cling (http://cern.ch/cling) which does not only provide the necessary facilities
  for code transformation, but also serves as a basis for the plugin.
 
+## Citing Clad
+```latex
+% Peer-Reviewed Publication
+%
+% 16th International workshop on Advanced Computing and Analysis Techniques
+% in physics research (ACAT), 1-5 September, 2014, Prague, The Czech Republic
+%
+@inproceedings{Vassilev_Clad,
+  author = {Vassilev,V. and Vassilev,M. and Penev,A. and Moneta,L. and Ilieva,V.},
+  title = {{Clad -- Automatic Differentiation Using Clang and LLVM}},
+  journal = {Journal of Physics: Conference Series},
+  year = 2015,
+  month = {may},
+  volume = {608},
+  number = {1},
+  pages = {012055},
+  doi = {10.1088/1742-6596/608/1/012055},
+  url = {https://iopscience.iop.org/article/10.1088/1742-6596/608/1/012055/pdf},
+  publisher = {{IOP} Publishing}
+}
+```
+
 ##  Building from source LLVM, Clang and clad (development environment)
   ```
     LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q --no-check-certificate)
