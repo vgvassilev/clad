@@ -89,6 +89,7 @@ namespace clad {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
+      Policy.Bool = true;
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
         FD->print(llvm::outs(), Policy);

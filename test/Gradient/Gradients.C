@@ -331,7 +331,7 @@ double f_cond1(double x, double y) {
 }
 
 //CHECK:   void f_cond1_grad(double x, double y, double *_result) {
-//CHECK-NEXT:       _Bool _cond0;
+//CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
@@ -348,8 +348,8 @@ double f_cond2(double x, double y) {
 }
 
 //CHECK:   void f_cond2_grad(double x, double y, double *_result) {
-//CHECK-NEXT:       _Bool _cond0;
-//CHECK-NEXT:       _Bool _cond1;
+//CHECK-NEXT:       bool _cond0;
+//CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       _cond1 = y > 0;
 //CHECK-NEXT:       goto _label0;
@@ -368,7 +368,7 @@ double f_cond3(double x, double c) {
 }
 
 //CHECK:   void f_cond3_grad(double x, double c, double *_result) {
-//CHECK-NEXT:       _Bool _cond0;
+//CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = c > 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
@@ -390,7 +390,7 @@ double f_if1(double x, double y) {
 }
 
 //CHECK:   void f_if1_grad(double x, double y, double *_result) {
-//CHECK-NEXT:       _Bool _cond0;
+//CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           goto _label0;
@@ -416,8 +416,8 @@ double f_if2(double x, double y) {
 }
 
 //CHECK:   void f_if2_grad(double x, double y, double *_result) {
-//CHECK-NEXT:       _Bool _cond0;
-//CHECK-NEXT:       _Bool _cond1;
+//CHECK-NEXT:       bool _cond0;
+//CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           goto _label0;
@@ -704,10 +704,10 @@ void f_decls3_grad(double x, double y, double* _result);
 //CHECK-NEXT:       double _t2;
 //CHECK-NEXT:       int _t3;
 //CHECK-NEXT:       double _d_c = 0;
-//CHECK-NEXT:       _Bool _cond0;
+//CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       double _t4;
 //CHECK-NEXT:       int _t5;
-//CHECK-NEXT:       _Bool _cond1;
+//CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       double _t6;
 //CHECK-NEXT:       int _t7;
 //CHECK-NEXT:       double _t8;
