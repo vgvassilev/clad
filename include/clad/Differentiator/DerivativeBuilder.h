@@ -358,6 +358,8 @@ namespace clad {
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
+    StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
     StmtDiff VisitCXXOperatorCallExpr(const clang::CXXOperatorCallExpr* OpCall);
     StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
@@ -515,6 +517,8 @@ namespace clad {
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+    StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
+    StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
     StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);

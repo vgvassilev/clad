@@ -47,6 +47,14 @@ namespace custom_derivatives {
   }// end namespace std
 
   template<typename T>
+  T abs_darg0(T x) {
+    if (x >= 0)
+      return 1;
+    else
+      return -1;
+  }
+
+  template<typename T>
   T exp_darg0(T x) {
     return exp(x);
   }
