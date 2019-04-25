@@ -56,7 +56,8 @@ namespace clad {
     // If FD is only a declaration, try to find its definition.
     if (!FD->getDefinition()) {
       if (request.VerboseDiags)
-        diag(DiagnosticsEngine::Error, request.CallContext->getLocStart(),
+        diag(DiagnosticsEngine::Error, 
+             request.CallContext ? request.CallContext->getLocStart() : noLoc,
              "attempted differentiation of function '%0', which does not have a "
              "definition", { FD->getNameAsString() });
       return {};
@@ -1338,6 +1339,17 @@ namespace clad {
     return {};
   }
 
+  StmtDiff ForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
+    return Visit(DE->getExpr());
+  }
+  
+  StmtDiff ForwardModeVisitor::VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr* BL) {
+    llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
+    auto constant0 = IntegerLiteral::Create(m_Context, zero, m_Context.IntTy,
+                                            noLoc);
+    return StmtDiff(Clone(BL), constant0);
+  }
+
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder):
     VisitorBase(builder) {}
 
@@ -1667,6 +1679,14 @@ namespace clad {
                                                ifFalseDiff.getExpr()).get();
 
     return StmtDiff(condExpr);
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
+    return Visit(DE->getExpr());
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr* BL) {
+    return Clone(BL);
   }
 
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
@@ -2060,6 +2080,34 @@ namespace clad {
       RCloned = Rdiff.getExpr();
       Ldiff = LCloned;
       Rdiff = RCloned;
+    }
+    else if (opCode == BO_Assign) {
+      if (!isa<DeclRefExpr>(L->IgnoreParenImpCasts())) {
+        diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
+             "Unsupported assignment, only direct assignments to variables are "
+             "supported.");
+        return Clone(BinOp);
+      }
+      Expr* LCloned = Clone(L);
+      auto DRE = cast<DeclRefExpr>(LCloned->IgnoreParenImpCasts());
+      auto VD = cast<VarDecl>(DRE->getDecl());
+      // Find expression corresponding to the deriviative of LHS.
+      auto it = m_Variables.find(VD);
+      if (it == std::end(m_Variables))
+        return Clone(BinOp);
+      Expr* AssignedDiff = it->second;
+      // Create temporary variable for the derivative of LHS, to avoid problems
+      // with cases like x = x.
+      auto tmpDiff = StoreAndRef(getZeroInit(VD->getType()), VD->getType(),
+                                 reverse, "_r_d_" + VD->getNameAsString(),
+                                 /* force */ true);
+      // Use temporary variable while visiting, then restore the original.
+      it->second = tmpDiff;
+      Rdiff = Visit(R, AssignedDiff);
+      it->second = AssignedDiff;
+      // Update the derivative.
+      addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, tmpDiff), reverse);
+      Ldiff = LCloned;           
     }
     else {
       llvm_unreachable("unsupported binary operator");
