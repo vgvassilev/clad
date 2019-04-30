@@ -87,8 +87,8 @@ For more details see:
 [ACAT 2014 Slides](https://indico.cern.ch/event/258092/session/8/contribution/90/material/slides/0.pdf)  
 [Martin's GSoC2014 Final Report](https://indico.cern.ch/event/337174/contribution/2/material/slides/0.pdf)  
 [LLVM Poster](http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf)  
-[Violeta's GSoC2013 Final Report](http://prezi.com/g1iggppw76wl/autodiff/)
-[DIANA-HEP Meeting 2018](https://indico.cern.ch/event/760152/contributions/3153263/attachments/1730121/2795841/Clad-DIANA-HEP.pdf)
+[Violeta's GSoC2013 Final Report](http://prezi.com/g1iggppw76wl/autodiff/)  
+[DIANA-HEP Meeting 2018](https://indico.cern.ch/event/760152/contributions/3153263/attachments/1730121/2795841/Clad-DIANA-HEP.pdf)  
 [Demo at CERN](https://indico.cern.ch/event/808843/contributions/3368929/attachments/1817666/2971512/clad_demo.pdf)
 
 ##  Founders
