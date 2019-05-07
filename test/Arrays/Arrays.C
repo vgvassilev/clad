@@ -215,7 +215,7 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:       _t12 = B[0][1];
 //CHECK-NEXT:       _t15 = A[1][1];
 //CHECK-NEXT:       _t14 = B[1][1];
-//CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * B[0][0] + _t3 * B[1][0], _t5 * B[0][1] + _t7 * B[1][1]}, {_t9 * B[0][0] + _t11 * B[1][0], _t13 * B[0][1] + _t15 * B[1][1]}};
+//CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -264,7 +264,7 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:           _result[2UL] += _d_A[1][0];
 //CHECK-NEXT:           _result[3UL] += _d_A[1][1];
 //CHECK-NEXT:       }
-//CHECK-NEXT:   } 
+//CHECK-NEXT:   }
 
 int main () { // expected-no-diagnostics
   auto dsum = clad::differentiate(sum, 0);

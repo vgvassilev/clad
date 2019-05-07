@@ -73,9 +73,9 @@ double f(double x, double y) {
 //CHECK-NEXT:       double _t2;
 //CHECK-NEXT:       double _t3;
 //CHECK-NEXT:       _t0 = x;
-//CHECK-NEXT:       _t1 = std::sin(x);
+//CHECK-NEXT:       _t1 = std::sin(_t0);
 //CHECK-NEXT:       _t2 = x;
-//CHECK-NEXT:       _t3 = std::cos(x);
+//CHECK-NEXT:       _t3 = std::cos(_t2);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -98,7 +98,7 @@ double f(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
 //CHECK-NEXT:       _t0 = x;
-//CHECK-NEXT:       double t = one(x);
+//CHECK-NEXT:       double t = one(_t0);
 //CHECK-NEXT:       _t2 = t;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       goto _label0;

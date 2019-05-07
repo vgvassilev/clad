@@ -277,12 +277,12 @@ namespace clad {
     /// Split an array subscript expression into a pair of base expr and 
     /// a vector of all indices.
     std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
-    SplitArraySubscript(const clang::ArraySubscriptExpr* ASE);
+    SplitArraySubscript(const clang::Expr* ASE);
 
     /// Build an array subscript expression with a given base expression and
     /// a sequence of indices.
     clang::Expr* BuildArraySubscript(clang::Expr* Base,
-                                     const llvm::SmallVector<clang::Expr*, 4> & IS);
+                                     const llvm::SmallVectorImpl<clang::Expr*> & IS);
   };
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
@@ -389,14 +389,14 @@ namespace clad {
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
     clang::Expr* dfdx () {
-      if (m_Stack.empty()) {
-        auto IntTy = m_Context.IntTy;
-        llvm::APInt zero(m_Context.getIntWidth(IntTy), 0, /*isSigned*/ true); 
-        return clang::IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
-      }
+      if (m_Stack.empty())
+        return nullptr;
       return m_Stack.top();
     }
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* expr = nullptr) {
+      // No need to push the same expr multiple times.
+      if (!m_Stack.empty() && (expr == m_Stack.top()))
+        expr = nullptr;
       if (expr)
         m_Stack.push(expr);
       auto result = clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
@@ -529,6 +529,7 @@ namespace clad {
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
     StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
+    StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     /// Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
