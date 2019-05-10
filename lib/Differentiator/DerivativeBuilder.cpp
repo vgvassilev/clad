@@ -1351,7 +1351,7 @@ namespace clad {
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder):
-    VisitorBase(builder) {}
+    VisitorBase(builder), m_Result(nullptr) {}
 
   ReverseModeVisitor::~ReverseModeVisitor() {}
 

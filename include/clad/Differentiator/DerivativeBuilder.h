@@ -100,6 +100,7 @@ namespace clad {
       m_CladPlugin(builder.m_CladPlugin),
       m_Context(builder.m_Context),
       m_CurScope(m_Sema.TUScope),
+      m_DerivativeFnScope(nullptr),
       m_DerivativeInFlight(false),
       m_Derivative(nullptr),
       m_Function(nullptr) {}
