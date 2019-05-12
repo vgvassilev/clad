@@ -40,8 +40,7 @@ int f_simple_negative(int x) {
 }
 // CHECK: int f_simple_negative_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: int _t0 = -x;
-// CHECK-NEXT: return -_d_x * x + _t0 * _d_x;
+// CHECK-NEXT: return -_d_x * x + -x * _d_x;
 // CHECK-NEXT: }
 
 int main () {

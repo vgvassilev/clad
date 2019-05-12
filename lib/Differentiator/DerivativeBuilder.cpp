@@ -346,16 +346,33 @@ namespace clad {
   Expr* VisitorBase::StoreAndRef(Expr* E, Stmts& block, llvm::StringRef prefix,
                                  bool forceDeclCreation) {
     assert(E && "cannot infer type from null expression");
-    return StoreAndRef(E, E->getType(), block, prefix, forceDeclCreation);
+    QualType Type = E->getType();
+    if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
+      Type = m_Context.getLValueReferenceType(Type);
+    return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
   }
- 
-  bool UsefulToStore(Expr* E) {
+
+  /// For an expr E, decides if it is useful to store it in a temporary variable
+  /// and replace E's further usage by a reference to that variable to avoid
+  /// recomputiation.
+  static bool UsefulToStore(Expr* E) {
     if (!E)
       return false;
     Expr* B = E->IgnoreParenImpCasts();
     // FIXME: find a more general way to determine that or add more options.
     if (isa<DeclRefExpr>(B) || isa<FloatingLiteral>(B) || isa<IntegerLiteral>(B))
       return false;
+    if (isa<UnaryOperator>(B)) {
+      auto UO = cast<UnaryOperator>(B);
+      auto OpKind = UO->getOpcode();
+      if (OpKind == UO_Plus || OpKind == UO_Minus)
+        return UsefulToStore(UO->getSubExpr());
+      return false;
+    }
+    if (isa<ArraySubscriptExpr>(B)) {
+      auto ASE = cast<ArraySubscriptExpr>(B);
+      return UsefulToStore(ASE->getBase()) || UsefulToStore(ASE->getIdx());
+    }
     return true;
   }
 
@@ -711,6 +728,7 @@ namespace clad {
   StmtDiff
   ForwardModeVisitor::VisitConditionalOperator(const ConditionalOperator* CO) {
     Expr* cond = Clone(CO->getCond());
+    // FIXME: fix potential side-effects from evaluating both sides of conditional.
     StmtDiff ifTrueDiff = Visit(CO->getTrueExpr());
     StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
 
@@ -1227,7 +1245,7 @@ namespace clad {
       opDiff = BuildOp(BO_Sub, Ldiff.getExpr_dx(),
                        BuildParens(Rdiff.getExpr_dx()));
     else if (BinOp->isAssignmentOp()) {
-      if (!Ldiff.getExpr_dx()->isGLValue()) {
+      if (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
         diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
              "derivative of an assignment attempts to assign to unassignable "
              "expr, assignment ignored");
@@ -1566,6 +1584,18 @@ namespace clad {
     return StmtDiff(Forward, Reverse);
   }
 
+  static Stmt* unwrapIfSingleStmt(Stmt* S) {
+    if (!isa<CompoundStmt>(S))
+      return S;
+    auto CS = cast<CompoundStmt>(S);
+    if (CS->size() == 0)
+      return nullptr;
+    else if (CS->size() == 1)
+      return CS->body_front();
+    else
+      return CS;
+  };
+
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
     // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
     // to this scope.
@@ -1611,16 +1641,6 @@ namespace clad {
     //   _d_y += _d_x
     //   if (y += x) {...}
     // }
-
-    auto unwrapIfSingleStmt = [] (Stmt* S) -> Stmt* {
-      if (!isa<CompoundStmt>(S))
-        return S;
-      auto CS = cast<CompoundStmt>(S);
-      if (CS->size() == 1)
-        return CS->body_front();
-      else
-        return CS;
-    };
 
     auto VisitBranch =
       [&] (const Stmt* Branch) -> StmtDiff {
@@ -1676,32 +1696,52 @@ namespace clad {
     auto ifFalse = CO->getFalseExpr();
 
     auto VisitBranch =
-      [&] (Stmt* branch, Expr* ifTrue, Expr* ifFalse) {
-        if (!branch)
-          return StmtDiff{};
-        auto condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond, ifTrue,
-                                                  ifFalse).get();
-
-        auto dStmt = BuildParens(condExpr);
-        return Visit(branch, dStmt);
+      [&] (const Expr* Branch, Expr* dfdx) -> std::pair<StmtDiff, StmtDiff> {
+        auto Result = DifferentiateSingleExpr(Branch, dfdx);
+        StmtDiff BranchDiff = Result.first;
+        StmtDiff ExprDiff = Result.second;
+        Stmt* Forward = unwrapIfSingleStmt(BranchDiff.getStmt());
+        Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
+        return { StmtDiff(Forward, Reverse), ExprDiff };
     };
 
-    auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    StmtDiff ifTrueDiff;
+    StmtDiff ifTrueExprDiff;
+    StmtDiff ifFalseDiff;
+    StmtDiff ifFalseExprDiff;
 
-    StmtDiff ifTrueDiff = VisitBranch(ifTrue, dfdx(), zero);
-    StmtDiff ifFalseDiff = VisitBranch(ifFalse, zero, dfdx());
+    std::tie(ifTrueDiff, ifTrueExprDiff) = VisitBranch(ifTrue, dfdx());
+    std::tie(ifFalseDiff, ifFalseExprDiff) = VisitBranch(ifFalse, dfdx());
+
+    auto BuildIf = 
+      [&] (Expr* Cond, Stmt* Then, Stmt* Else) -> Stmt* {
+        if (!Then && !Else)
+          return nullptr;
+        if (!Then)
+          Then = m_Sema.ActOnNullStmt(noLoc).get();
+        return new (m_Context) IfStmt(m_Context, noLoc, false, nullptr,  nullptr,
+                                      Cond, Then, noLoc, Else);
+      };
+  
+    Stmt* Forward = BuildIf(cond, ifTrueDiff.getStmt(), ifFalseDiff.getStmt());
+    Stmt* Reverse = BuildIf(cond, ifTrueDiff.getStmt_dx(), ifFalseDiff.getStmt_dx());
+    if (Forward)
+      addToCurrentBlock(Forward, forward);
+    if (Reverse)
+      addToCurrentBlock(Reverse, reverse);
 
     Expr* condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
-                                               ifTrueDiff.getExpr(),
-                                               ifFalseDiff.getExpr()).get();
+                                               ifTrueExprDiff.getExpr(),
+                                               ifFalseExprDiff.getExpr()).get();
     // If result is a glvalue, we should keep it as it can potentially be assigned
     // as in (c ? a : b) = x;
-    if (ifTrueDiff.getExpr_dx() && ifFalseDiff.getExpr_dx() &&
-        ifTrueDiff.getExpr_dx()->isGLValue() &&
-        ifFalseDiff.getExpr_dx()->isGLValue() && CO->isGLValue()) {
+    if ((CO->isModifiableLvalue(m_Context) == Expr::MLV_Valid) &&
+        ifTrueExprDiff.getExpr_dx() && ifFalseExprDiff.getExpr_dx()) {
       Expr* ResultRef = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
-                                                  ifTrueDiff.getExpr_dx(),
-                                                  ifFalseDiff.getExpr_dx()).get();
+                                                  ifTrueExprDiff.getExpr_dx(),
+                                                  ifFalseExprDiff.getExpr_dx()).get();
+      if (ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
+        ResultRef = nullptr;
       return StmtDiff(condExpr, ResultRef);
     }
     return StmtDiff(condExpr);
@@ -2104,35 +2144,40 @@ namespace clad {
       // to reduce cloning complexity and only clones once. Storing it in a 
       // global variable allows to save current result and make it accessible
       // in the reverse pass.
-      Expr* RStored = GlobalStoreAndRef(nullptr, R->getType());
+      auto RDelayed = DelayedGlobalStoreAndRef(R);
       Expr* dl = nullptr;
       if (dfdx()) {
-        dl = BuildOp(BO_Mul, dfdx(), RStored);
+        dl = BuildOp(BO_Mul, dfdx(), RDelayed.Result);
         dl = StoreAndRef(dl, reverse);
       }
       Ldiff = Visit(L, dl);
       //dxi/xr = xl
       //df/dxr += df/dxi * dxi/xr = df/dxi * xl
       // Store left multiplier and assign it with L.
-      Expr* LStored = GlobalStoreAndRef(Ldiff.getExpr());
-      Expr* dr = nullptr;
-      if (dfdx()) {
-        dr = BuildOp(BO_Mul, LStored, dfdx());
-        dr = StoreAndRef(dr, reverse);
+      Expr* LStored = Ldiff.getExpr();
+      // RDelayed.isConstant == true implies that R is a constant expression,
+      // therefore we can skip visiting it.
+      if (!RDelayed.isConstant) {
+        Expr* dr = nullptr;
+        if (dfdx()) {
+          LStored = GlobalStoreAndRef(LStored);
+          dr = BuildOp(BO_Mul, LStored, dfdx());
+          dr = StoreAndRef(dr, reverse);
+        }
+        Rdiff = Visit(R, dr);
+        // Assign right multiplier's variable with R.
+        RDelayed.Finalize(Rdiff.getExpr());
       }
-      Rdiff = Visit(R, dr);
-      // Assign right multiplier's variable with R.
-      addToCurrentBlock(BuildOp(BO_Assign, RStored, Rdiff.getExpr()), forward);
-      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RStored);
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RDelayed.Result);
     }
     else if (opCode == BO_Div) {
       //xi = xl / xr
       //dxi/xl = 1 / xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
-      Expr* RStored = GlobalStoreAndRef(nullptr, R->getType());
+      auto RDelayed = DelayedGlobalStoreAndRef(R);
       Expr* dl = nullptr;
       if (dfdx()) {
-        dl = BuildOp(BO_Div, dfdx(), RStored);
+        dl = BuildOp(BO_Div, dfdx(), RDelayed.Result);
         dl = StoreAndRef(dl, reverse);
       }
       Ldiff = Visit(L, dl);
@@ -2140,21 +2185,25 @@ namespace clad {
       //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
       // produced instead of 1 / (R * R).
-      Expr* LStored = GlobalStoreAndRef(Ldiff.getExpr());
-      Expr* dr = nullptr;
-      if (dfdx()) {
-        Expr* RxR = m_Sema.ActOnParenExpr(noLoc, noLoc,
-                                          BuildOp(BO_Mul, RStored, RStored)).get();
-        dr = BuildOp(BO_Mul, dfdx(),
-                           BuildOp(UO_Minus, BuildOp(BO_Div, LStored, RxR)));
-        dr = StoreAndRef(dr, reverse);
+      Expr* LStored = Ldiff.getExpr();
+      if (!RDelayed.isConstant) {
+        Expr* dr = nullptr;
+        if (dfdx()) {
+          LStored = GlobalStoreAndRef(LStored);
+          Expr* RxR = m_Sema.ActOnParenExpr(noLoc, noLoc,
+                                            BuildOp(BO_Mul, RDelayed.Result,
+                                                    RDelayed.Result)).get();
+          dr = BuildOp(BO_Mul, dfdx(),
+                       BuildOp(UO_Minus, BuildOp(BO_Div, LStored, RxR)));
+          dr = StoreAndRef(dr, reverse);
+        }
+        Rdiff = Visit(R, dr);
+        RDelayed.Finalize(Rdiff.getExpr());
       }
-      Rdiff = Visit(R, dr);
-      addToCurrentBlock(BuildOp(BO_Assign, RStored, Rdiff.getExpr()), forward);
-      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RStored);
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RDelayed.Result);
     }
     else if (BinOp->isAssignmentOp()) {
-      if (!L->isGLValue()) {
+      if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
         diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
              "derivative of an assignment attempts to assign to unassignable "
              "expr, assignment ignored");
@@ -2173,8 +2222,12 @@ namespace clad {
         return Clone(BinOp);
       ResultRef = AssignedDiff;
       // If assigned expr is dependent, first update its derivative;
-      if (Lblock->body_back())
-        addToCurrentBlock(Lblock->body_back(), reverse);
+      auto Lblock_begin = Lblock->body_rbegin();
+      auto Lblock_end = Lblock->body_rend();
+      if (dfdx() && Lblock->size()) {
+        addToCurrentBlock(*Lblock_begin, reverse);
+        Lblock_begin = std::next(Lblock_begin);
+      }
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
       auto oldValue = StoreAndRef(AssignedDiff, reverse, "_r_d", /*force*/ true);
@@ -2190,57 +2243,66 @@ namespace clad {
         Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
       }
       else if (opCode == BO_MulAssign) {
-        Expr* RStored = GlobalStoreAndRef(nullptr, R->getType());
+        auto RDelayed = DelayedGlobalStoreAndRef(R);
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
-                                  BuildOp(BO_Mul, oldValue, RStored)), reverse);
-        // Create a reference variable to keep the result of LHS, since it must
-        // be used on 2 places: when storing to a global variable accessible from
-        // the reverse pass, and when rebuilding the original expression for the
-        // forward pass. This allows to avoid executing same expression with
-        // side effects twice. E.g., on
-        //   double r = (x *= y) *= z;
-        // instead of:
-        //   _t0 = (x *= y);
-        //   double r = (x *= y) *= z;
-        // which modifies x twice, we get:
-        //   double & _ref0 = (x *= y);
-        //   _t0 = _ref0;
-        //   double r = _ref0 *= z;
-        QualType RefType = m_Context.getLValueReferenceType(L->getType());
-        Expr* LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
-        Expr* LStored = GlobalStoreAndRef(LRef);
-        Expr* dr = BuildOp(BO_Mul, LStored, oldValue);
-        dr = StoreAndRef(dr, reverse);
-        Rdiff = Visit(R, dr);
-        addToCurrentBlock(BuildOp(BO_Assign, RStored, Rdiff.getExpr()), forward);
-        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RStored);
+                                  BuildOp(BO_Mul, oldValue, RDelayed.Result)), reverse);
+        Expr* LRef = LCloned;
+        if (!RDelayed.isConstant) {
+          // Create a reference variable to keep the result of LHS, since it must
+          // be used on 2 places: when storing to a global variable accessible from
+          // the reverse pass, and when rebuilding the original expression for the
+          // forward pass. This allows to avoid executing same expression with
+          // side effects twice. E.g., on
+          //   double r = (x *= y) *= z;
+          // instead of:
+          //   _t0 = (x *= y);
+          //   double r = (x *= y) *= z;
+          // which modifies x twice, we get:
+          //   double & _ref0 = (x *= y);
+          //   _t0 = _ref0;
+          //   double r = _ref0 *= z;
+          if (LCloned->HasSideEffects(m_Context)) {
+            QualType RefType = m_Context.getLValueReferenceType(L->getType());
+            LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
+          }
+          Expr* LStored = GlobalStoreAndRef(LRef);
+          Expr* dr = BuildOp(BO_Mul, LStored, oldValue);
+          dr = StoreAndRef(dr, reverse);
+          Rdiff = Visit(R, dr);
+          RDelayed.Finalize(Rdiff.getExpr());
+        }
+        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RDelayed.Result);
       }
       else if (opCode == BO_DivAssign) {
-        Expr* RStored = GlobalStoreAndRef(nullptr, R->getType());
+        auto RDelayed = DelayedGlobalStoreAndRef(R);
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
-                                  BuildOp(BO_Div, oldValue, RStored)), reverse);
-        QualType RefType = m_Context.getLValueReferenceType(L->getType());
-        Expr* LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
-        Expr* LStored = GlobalStoreAndRef(LRef);
-        Expr* RxR = m_Sema.ActOnParenExpr(noLoc, noLoc, BuildOp(BO_Mul, RStored,
-                                                                RStored)).get();
-        Expr* dr = BuildOp(BO_Mul, oldValue, BuildOp(UO_Minus,
-                                                     BuildOp(BO_Div, LStored, RxR)));
-        dr = StoreAndRef(dr, reverse);
-        Rdiff = Visit(R, dr);
-        addToCurrentBlock(BuildOp(BO_Assign, RStored, Rdiff.getExpr()), forward);
-        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RStored);
+                                  BuildOp(BO_Div, oldValue, RDelayed.Result)), reverse);
+        Expr* LRef = LCloned;
+        if (!RDelayed.isConstant) {
+          if (LCloned->HasSideEffects(m_Context)) {
+            QualType RefType = m_Context.getLValueReferenceType(L->getType());
+            LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
+          }
+          Expr* LStored = GlobalStoreAndRef(LRef);
+          Expr* RxR = m_Sema.ActOnParenExpr(noLoc, noLoc, BuildOp(BO_Mul,
+                                                                  RDelayed.Result,
+                                                                  RDelayed.Result))
+                                                                  .get();
+          Expr* dr = BuildOp(BO_Mul, oldValue, BuildOp(UO_Minus,
+                                                       BuildOp(BO_Div, LStored, RxR)));
+          dr = StoreAndRef(dr, reverse);
+          Rdiff = Visit(R, dr);
+          RDelayed.Finalize(Rdiff.getExpr());
+        }
+        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RDelayed.Result);
       }
       else
         llvm_unreachable("unknown assignment opCode");
       // Update the derivative.
       addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), reverse);
       // Output statements from Visit(L).
-      auto begin = Lblock->body_rbegin();
-      auto end = Lblock->body_rend();
-      if (begin != end)
-        for (auto it = std::next(begin); it != end; ++it)
-          addToCurrentBlock(*it, reverse);
+      for (auto it = Lblock_begin; it != Lblock_end; ++it)
+        addToCurrentBlock(*it, reverse);
     }
     else if (opCode == BO_Comma) {
       auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
@@ -2271,21 +2333,26 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
-                                                       Expr* expr) {
+                                                       Expr* dfdS) {
     beginBlock(reverse);
-    StmtDiff SDiff = Visit(S, expr);
+    StmtDiff SDiff = Visit(S, dfdS);
     addToCurrentBlock(SDiff.getStmt_dx(), reverse);
     CompoundStmt* RCS = endBlock(reverse);
-    Stmt* ReverseResult = nullptr;
-    if (RCS->body_empty())
-      ReverseResult = nullptr;
-    else if (RCS->size() == 1)
-      ReverseResult = RCS->body_front();
-    else {
-      std::reverse(RCS->body_begin(), RCS->body_end());
-      ReverseResult = RCS;
-    }
+    std::reverse(RCS->body_begin(), RCS->body_end());
+    Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
     return StmtDiff(SDiff.getStmt(), ReverseResult);
+  }
+
+  std::pair<StmtDiff, StmtDiff> ReverseModeVisitor::DifferentiateSingleExpr(
+    const Expr* E, Expr* dfdE) {
+    beginBlock(forward);
+    beginBlock(reverse);
+    StmtDiff EDiff = Visit(E, dfdE);
+    CompoundStmt* RCS = endBlock(reverse);
+    Stmt* ForwardResult = endBlock(forward);
+    std::reverse(RCS->body_begin(), RCS->body_end());
+    Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
+    return { StmtDiff(ForwardResult, ReverseResult), EDiff };
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
@@ -2345,8 +2412,35 @@ namespace clad {
     return StmtDiff(Clone(ME));
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
-                                              llvm::StringRef prefix) {
+  /// For an expr E, decides if it is useful to store it in a global temporary
+  /// variable and replace E's further usage by a reference to that variable to 
+  /// avoid recomputiation.
+  static bool UsefulToStoreGlobal(Expr* E) {
+    // FIXME : it may be worth to be more strict and use this, when storing in a
+    // stack inside for-loop. IsEvaluatable is also true for arithmetical
+    // expression consisting of constants, e.g. (1 + 2)*3. For now it is more
+    // efficient to store them in a global variable instead of doing
+    // isEvaluatable check and cloning, but it is likely worth doing it if we
+    // will avoid pushing into stack:
+    // return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
+    if (!E)
+      return false;
+    Expr* B = E->IgnoreParenImpCasts();
+    // FIXME: find a more general way to determine that or add more options.
+    if (isa<FloatingLiteral>(B) || isa<IntegerLiteral>(B))
+      return false;
+    if (isa<UnaryOperator>(B)) {
+      auto UO = cast<UnaryOperator>(B);
+      auto OpKind = UO->getOpcode();
+      if (OpKind == UO_Plus || OpKind == UO_Minus)
+        return UsefulToStoreGlobal(UO->getSubExpr());
+      return true;
+    }
+    return true;
+  }
+
+  Expr* ReverseModeVisitor::GlobalStoreImpl(Expr* E, QualType Type,
+                                            llvm::StringRef prefix) {
     // Save current scope and temporarily go to topmost function scope.
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     assert(m_DerivativeFnScope && "must be set");
@@ -2357,6 +2451,16 @@ namespace clad {
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);
     Expr* Ref = BuildDeclRef(Var);
+    return Ref;
+  }
+
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
+                                              llvm::StringRef prefix) {
+    assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
+    if (!UsefulToStoreGlobal(E))
+      return E;
+
+    Expr* Ref = GlobalStoreImpl(E, Type, prefix);
     if (E) {
       Expr* Set = BuildOp(BO_Assign, Ref, E);
       addToCurrentBlock(Set, forward);
@@ -2365,10 +2469,22 @@ namespace clad {
     // Return reference to the declaration instead of original expression.
     return Ref;
   }
-    
+
   Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix) {
     assert(E && "cannot infer type");
     return GlobalStoreAndRef(E, E->getType(), prefix);
+  }
+
+  ReverseModeVisitor::DelayedStoreResult
+  ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E, llvm::StringRef prefix) {
+    assert(E && "must be provided");
+    if (!UsefulToStoreGlobal(E))
+      return DelayedStoreResult{*this, Clone(E), /*isConstant*/ true};
+
+    Expr* Ref = GlobalStoreImpl(E, E->getType(), prefix);
+
+    // Return reference to the declaration instead of original expression.
+    return DelayedStoreResult{*this, Ref, /*isConstant*/ false};
   }
 
 } // end namespace clad

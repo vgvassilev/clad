@@ -56,10 +56,8 @@ double sum_squares(double x, double y, double z) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           int _d_i = 0;
 //CHECK-NEXT:           for (int i = 0; i < 3; i++) {
-//CHECK-NEXT:               double _t0 = vars[i];
-//CHECK-NEXT:               double _t1 = vars[i];
-//CHECK-NEXT:               _d_squares[i] = _d_vars[i] * _t1 + _t0 * _d_vars[i];
-//CHECK-NEXT:               squares[i] = _t0 * _t1;
+//CHECK-NEXT:               _d_squares[i] = _d_vars[i] * vars[i] + vars[i] * _d_vars[i];
+//CHECK-NEXT:               squares[i] = vars[i] * vars[i];
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       double _d_s = 0;
@@ -88,13 +86,7 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double _d_consts[3] = {0, 0, 0};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
-//CHECK-NEXT:       double _t0 = vars[0];
-//CHECK-NEXT:       double _t1 = consts[0];
-//CHECK-NEXT:       double _t2 = vars[1];
-//CHECK-NEXT:       double _t3 = consts[1];
-//CHECK-NEXT:       double _t4 = vars[2];
-//CHECK-NEXT:       double _t5 = consts[2];
-//CHECK-NEXT:       return _d_vars[0] * _t1 + _t0 * _d_consts[0] + _d_vars[1] * _t3 + _t2 * _d_consts[1] + _d_vars[2] * _t5 + _t4 * _d_consts[2];
+//CHECK-NEXT:       return _d_vars[0] * consts[0] + vars[0] * _d_consts[0] + _d_vars[1] * consts[1] + vars[1] * _d_consts[1] + _d_vars[2] * consts[2] + vars[2] * _d_consts[2];
 //CHECK-NEXT:   }
 
 //CHECK:   void const_dot_product_grad(double x, double y, double z, double *_result) {
@@ -156,24 +148,8 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:       double A[2][2] = {{[{][{]}}a, b}, {c, d}};
 //CHECK-NEXT:       double _d_B[2][2] = {{[{][{]}}0, 0}, {0, 0}};
 //CHECK-NEXT:       double B[2][2] = {{[{][{]}}1, 2}, {3, 4}};
-//CHECK-NEXT:       double _t0 = A[0][0];
-//CHECK-NEXT:       double _t1 = B[0][0];
-//CHECK-NEXT:       double _t2 = A[0][1];
-//CHECK-NEXT:       double _t3 = B[1][0];
-//CHECK-NEXT:       double _t4 = A[0][0];
-//CHECK-NEXT:       double _t5 = B[0][1];
-//CHECK-NEXT:       double _t6 = A[0][1];
-//CHECK-NEXT:       double _t7 = B[1][1];
-//CHECK-NEXT:       double _t8 = A[1][0];
-//CHECK-NEXT:       double _t9 = B[0][0];
-//CHECK-NEXT:       double _t10 = A[1][1];
-//CHECK-NEXT:       double _t11 = B[1][0];
-//CHECK-NEXT:       double _t12 = A[1][0];
-//CHECK-NEXT:       double _t13 = B[0][1];
-//CHECK-NEXT:       double _t14 = A[1][1];
-//CHECK-NEXT:       double _t15 = B[1][1];
-//CHECK-NEXT:       double _d_C[2][2] = {{[{][{]}}_d_A[0][0] * _t1 + _t0 * _d_B[0][0] + _d_A[0][1] * _t3 + _t2 * _d_B[1][0], _d_A[0][0] * _t5 + _t4 * _d_B[0][1] + _d_A[0][1] * _t7 + _t6 * _d_B[1][1]}, {_d_A[1][0] * _t9 + _t8 * _d_B[0][0] + _d_A[1][1] * _t11 + _t10 * _d_B[1][0], _d_A[1][0] * _t13 + _t12 * _d_B[0][1] + _d_A[1][1] * _t15 + _t14 * _d_B[1][1]}};
-//CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t0 * _t1 + _t2 * _t3, _t4 * _t5 + _t6 * _t7}, {_t8 * _t9 + _t10 * _t11, _t12 * _t13 + _t14 * _t15}};
+//CHECK-NEXT:       double _d_C[2][2] = {{[{][{]}}_d_A[0][0] * B[0][0] + A[0][0] * _d_B[0][0] + _d_A[0][1] * B[1][0] + A[0][1] * _d_B[1][0], _d_A[0][0] * B[0][1] + A[0][0] * _d_B[0][1] + _d_A[0][1] * B[1][1] + A[0][1] * _d_B[1][1]}, {_d_A[1][0] * B[0][0] + A[1][0] * _d_B[0][0] + _d_A[1][1] * B[1][0] + A[1][1] * _d_B[1][0], _d_A[1][0] * B[0][1] + A[1][0] * _d_B[0][1] + _d_A[1][1] * B[1][1] + A[1][1] * _d_B[1][1]}};
+//CHECK-NEXT:       double C[2][2] = {{[{][{]}}A[0][0] * B[0][0] + A[0][1] * B[1][0], A[0][0] * B[0][1] + A[0][1] * B[1][1]}, {A[1][0] * B[0][0] + A[1][1] * B[1][0], A[1][0] * B[0][1] + A[1][1] * B[1][1]}};
 //CHECK-NEXT:       return _d_C[0][0] + _d_C[0][1] + _d_C[1][0] + _d_C[1][1];
 //CHECK-NEXT:   }
 

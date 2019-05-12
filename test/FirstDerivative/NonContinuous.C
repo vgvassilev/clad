@@ -17,10 +17,8 @@ int f(int x) {
 }
 // CHECK: int f_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: if (x < 0) {
-// CHECK-NEXT:   int _t0 = -x;
-// CHECK-NEXT:   return -_d_x * x + _t0 * _d_x;
-// CHECK-NEXT: }
+// CHECK-NEXT: if (x < 0)
+// CHECK-NEXT:   return -_d_x * x + -x * _d_x;
 // CHECK-NEXT: return _d_x * x + x * _d_x;
 // CHECK-NEXT: }
 
@@ -33,10 +31,9 @@ int f1(int x) {
 }
 // CHECK: int f1_darg0(int x) {
 // CHECK-NEXT:  int _d_x = 1;
-// CHECK-NEXT:  if (x < 0) {
-// CHECK-NEXT:    int _t0 = -x;
-// CHECK-NEXT:    return -_d_x * x + _t0 * _d_x;
-// CHECK-NEXT:  } else
+// CHECK-NEXT:  if (x < 0)
+// CHECK-NEXT:    return -_d_x * x + -x * _d_x;
+// CHECK-NEXT:  else
 // CHECK-NEXT:    return _d_x * x + x * _d_x;
 // CHECK-NEXT: }
 
