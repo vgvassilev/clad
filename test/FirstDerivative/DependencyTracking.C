@@ -23,9 +23,8 @@ double f(double x) {
 //CHECK-NEXT:       double _d_result = 0.;
 //CHECK-NEXT:       double result = 0.;
 //CHECK-NEXT:       if (x < 0) {
-//CHECK-NEXT:           double _t0 = -x;
-//CHECK-NEXT:           _d_result = -_d_x * x + _t0 * _d_x;
-//CHECK-NEXT:           result = _t0 * x;
+//CHECK-NEXT:           _d_result = -_d_x * x + -x * _d_x;
+//CHECK-NEXT:           result = -x * x;
 //CHECK-NEXT:       } else {
 //CHECK-NEXT:           _d_result = _d_x * x + x * _d_x;
 //CHECK-NEXT:           result = x * x;

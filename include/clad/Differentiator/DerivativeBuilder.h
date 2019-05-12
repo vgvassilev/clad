@@ -133,7 +133,7 @@ namespace clad {
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
-
+  public:
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
       auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
@@ -386,30 +386,37 @@ namespace clad {
       public VisitorBase {
   private:
     llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
+    /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
+    /// the reverse mode we also accumulate Stmts for the reverse pass which
+    /// will be executed on return.
+    std::vector<Stmts> m_Reverse;
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
+    /// A sequence of DeclStmts containing "tape" variable declarations
+    /// that will be put immediately in the beginning of derivative function
+    /// block.
+    Stmts m_Globals;
+    //// A reference to the output parameter of the gradient function.
+    clang::Expr* m_Result;
+  public:
     clang::Expr* dfdx () {
       if (m_Stack.empty())
         return nullptr;
       return m_Stack.top();
     }
-    StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* expr = nullptr) {
+    StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
       // No need to push the same expr multiple times.
-      if (!m_Stack.empty() && (expr == m_Stack.top()))
-        expr = nullptr;
-      if (expr)
-        m_Stack.push(expr);
+      if (!m_Stack.empty() && (dfdS == m_Stack.top()))
+        dfdS = nullptr;
+      if (dfdS)
+        m_Stack.push(dfdS);
       auto result = clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
-      if (expr)
+      if (dfdS)
         m_Stack.pop();
       return result;
     }
 
-    /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
-    /// the reverse mode we also accumulate Stmts for the reverse pass which
-    /// will be executed on return.
-    std::vector<Stmts> m_Reverse;
     /// An enum to operate between forward and reverse passes.
     enum direction { forward, reverse };
     /// Get the latest block of code (i.e. place for statements output).
@@ -471,10 +478,8 @@ namespace clad {
                                       forceDeclCreation);
     }
 
-    /// A sequence of DeclStmts containing "tape" variable declarations
-    /// that will be put immediately in the beginning of derivative function
-    /// block.
-    Stmts m_Globals;
+    clang::Expr* GlobalStoreImpl(clang::Expr* E, clang::QualType Type,
+                                 llvm::StringRef prefix);
     /// Creates a (global in the function scope) variable declaration, puts
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
@@ -484,8 +489,34 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t");
 
-    //// A reference to the output parameter of the gradient function.
-    clang::Expr* m_Result;
+    //// A type returned by DelayedGlobalStoreAndRef
+    /// .Result is a reference to the created (yet uninitialized) global variable.
+    /// When the expression is finally visited and rebuilt, .Finalize must be
+    /// called with new rebuilt expression, to initialize the global variable.
+    /// Alternatively, expression may be not worth storing in a global varialbe 
+    /// and is  easy to clone (e.g. it is a constant literal). Then .Result is 
+    /// cloned E, .isConstant is true and .Finalize does nothing.
+    struct DelayedStoreResult {
+      ReverseModeVisitor& V;
+      clang::Expr* Result;
+      bool isConstant;
+      void Finalize(clang::Expr* New) {
+       if (isConstant)
+         return;
+       V.addToCurrentBlock(V.BuildOp(clang::BO_Assign, Result, New),
+                           ReverseModeVisitor::forward);
+      }
+    };
+    /// Sometimes (e.g. when visiting multiplication/division operator), we
+    /// need to allocate global variable for an expression (e.g. for RHS) before
+    /// we visit that expression for efficiency reasons, since we may use that
+    /// global variable for visiting another expression (e.g. LHS) instead of
+    /// cloning LHS. The global variable will be assigned with the actual
+    /// expression only later, after the expression is visited and rebuilt.
+    /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
+    /// original (uncloned) expression.
+    DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
+                                                llvm::StringRef prefix = "_t");
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder);
@@ -539,7 +570,13 @@ namespace clad {
     /// CompoundStmt (if several statements are created) and proper Stmt
     /// order is maintained.
     StmtDiff DifferentiateSingleStmt(const clang::Stmt* S,
-                                     clang::Expr* expr = nullptr);
+                                     clang::Expr* dfdS = nullptr);
+    /// A helper method used to keep substatements created by Visit(E, expr) in
+    /// separate forward/reverse blocks instead of putting them into current
+    /// blocks. First result is a StmtDiff of forward/reverse blocks with 
+    /// additionally created Stmts, second is a direct result of call to Visit.
+    std::pair<StmtDiff, StmtDiff> 
+    DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
 
   };
 } // end namespace clad
