@@ -2,28 +2,161 @@
 |:---:|:---:|
 [![Linux & Osx Status](http://img.shields.io/travis/vgvassilev/clad.svg?style=flat-square)](https://travis-ci.org/vgvassilev/clad) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>|
 
-##  What is clad
-clad is a C++ plugin for clang that implements automatic differentiation of
-user-defined functions by employing the chain rule in forward mode, coupled with
-source code transformation and AST constant fold.
+# Clad
+Clad enables [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) for C++. It is based on LLVM compiler infrastructure and is a plugin for [Clang compiler](http://clang.llvm.org/). Clad is based on source code transformation. Given C++ source code of a mathematical function, it can automatically generate C++ code for computing derivatives of the function. It supports both forward-mode and reverse-mode AD.
+## How to use Clad
+Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libdclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
+```
+clang -cc1 -x c++ -std=c++11 -load libclad.so -plugin SourceFile.cpp
+```
+Clad provides two API functions:
+- `clad::differentiate` to use forward-mode AD
+- `clad::gradient` to use reverse-mode AD
 
-##  Description
-In mathematics and computer algebra, automatic differentiation (AD) is a set of
-techniques to numerically evaluate the derivative of a function specified by a
-computer program. Automatic differentiation is an alternative technique to
-Symbolic differentiation and Numerical differentiation (the method of finite
-differences) that yields exact derivatives even of complicated functions.
-The goal of the presented plugin is to extend the Cling functionality in order
-to make it possible for the tool to differentiate non-trivial functions and
-find partial derivatives for trivial cases. Our implementation approach is to
-employ source code transformation, which consists of explicitly building a
-new source code through a compiler-like process that includes parsing the
-original program, constructing an internal representation, and performing
-global analysis. This elegant but laborious process is greatly aided by
-Cling (http://cern.ch/cling) which does not only provide the necessary facilities
- for code transformation, but also serves as a basis for the plugin.
+API functions are used to label an existing function for differentiation. 
+Both functions return a functor object containing the generated derivative which can be called via `.execute` method, which forwards provided arguments to the generated derivative function. Example:
+```cpp
+#include "clad/Differentiator/Differentiator.h"
+#include <iostream>
 
-## Citing Clad
+double f(double x, double y) { return x * y; }
+
+int main() {
+  auto f_dx = clad::differentiate(f, "x");
+  std::cout << f_dx.execute(3, 4) << std::endl; // prints: 4
+  f_dx.dump(); // prints:
+  /* double f_darg0(double x, double y) {
+       double _d_x = 1; double _d_y = 0;
+       return _d_x * y + x * _d_y;
+     } */ 
+}
+```
+### Forward mode
+For a function `f` of several inputs and single (scalar) output, forward mode AD can be used to compute (or, in case of Clad, create a function) computing a directional derivative of `f` with respect to a *single* specified input variable. Derivative function created by the forward-mode AD is guaranteed to have *at most* a constant factor (around 2-3) more arithmetical operations compared to the original function.
+
+`clad::differentiate(f, ARGS)` takes 2 arguments:
+1. `f` is a pointer to a function or a method to be differentiated
+2. `ARGS` is either: 
+  * a single numerical literal indicating an index of independent variable (e.g. `0` for `x`, `1` for `y`)
+  * a string literal with the name of independent variable (as stated in the *definition* of `f`, e.g. `"x"` or `"y"`)
+  
+Generated derivative function has the same signature as the original function `f`, however its return value is the value of the derivative.
+
+### Reverse mode
+When a function has many inputs and derivatives w.r.t. every input (i.e. gradient vector) are required, reverse-mode AD is a better alternative to the forward-mode. Reverse-mode AD allows to compute the gradient of `f` using *at most* a constant factor (around 4) more arithmetical operations compared to the original function. While its constant factor and memory overhead is higher than that of the forward-mode, it is independent of the number of inputs. E.g. for a function having N inputs and consisting of T arithmetical operations, computing its gradient takes a single execution of the reverse-mode AD and around 4\*T operations, while it would take N executions of the forward-mode, this requiring up to N\*3\*T operations.
+
+`clad::gradient(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
+1. `f` is a pointer to a function or a method to be differentiated
+2. `ARGS` is either: 
+  * not provided, then `f` is differentiated w.r.t. its every argument
+  * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`)
+  
+Since a vector of derivatives must be returned from a function generated by the reverse mode, its signature is slightly different. The generated function has `void` return type and same input arguments. The function has additional, last input argument of the type `T*`, where `T` is the return type of `f`. This is the "result" argument which has to point to the beginning of the vector where the gradient will be stored. *The caller is responsible for allocating and zeroing-out the gradient storage*. Example:
+```cpp
+auto f_grad = clad::gradient(f);
+double result1[2] = {};
+f_grad.execute(x, y, result1);
+std::cout << "dx: " << result1[0] << ' ' << "dy: " << result1[1] << std::endl;
+
+auto f_dx_dy = clad::gradient(f, "x, y"); // same effect as before
+
+auto f_dy_dx = clad::gradient(f, "y, x");
+double result2[2] = {};
+f_dy_dx.execute(x, y, result2);
+// note that the derivatives are mapped to the "result" indices in the same order as they were specified in the argument:
+std::cout << "dy: " << result2[0] << ' ' << "dx: " << result2[1] << std::endl;
+```
+Note: *we are working on improving the gradient interface*.
+## What can be differentiated
+Clad is based on compile-time analysis and transformation of C++ abstract syntax tree (Clang AST). This means that Clad must be able to see the body of a function to differentiate it (e.g. if a function is defined in an external library there is no way for Clad to get its AST).
+
+We aim to support every piece of modern C++ syntax, however at the moment only the a subset of C++ is supported and there are some constraints on functions that can be differentiated with Clad:
+* Only builtin C++ scalar numeric types (e.g. `double`, `float`, `int`) are fully supported
+* Differentiated functions must return a single value of supported scalar numeric type
+* Differentiated functions can have arbitrary number or inputs of supported scalar numeric types
+* Clad can also differentiate `struct`/`class` methods, however at the moment there is no way to differentiate them w.r.t. member fields
+
+Note: *we are currently working on vector inputs*
+
+The following subset of C++ syntax is supported at the moment:
+* Numerical literals, builtin arithmetic operators `+`, `-`, `*`, `/`
+* Variable declarations of supported types (including local variables in `{}` blocks)
+* Inside functions, builtin arrays (e.g. `double x[1][2][3];`) of supported types and subscript operator `x[i]`
+* Direct assignments to variables via `=` and `+=`, `-=`, `*=`, `/=`, `++`, `--`
+* Conditional operator `?:` and boolean expressions
+* Comma operator `,`
+* Control flow: `if` statements and `for` loops (*work on loops in the reverse-mode is in progress*)
+* Calls to other functions, including recursion
+
+## Specifying custom derivatives
+Sometimes Clad may be unable to differentiate your function (e.g. if its definition is in a library and source code is not available). Alternatively, an efficient/more numerically stable expression for derivatives may be know. In such cases, it is useful to be able to specify a custom derivatives for your function.
+
+Clad supports that functionality by allowing to specify your own derivatives in `namespace custom_derivatives`. For a function named `FNAME` you can specify:
+* a custom derivative w.r.t `I`-th argument by defining a function `FNAME_dargI` inside `namespace custom_derivatives`
+* a custom gradient w.r.t every argument by defining a function `FNAME_grad` inside `namespace custom_derivatives`
+
+When Clad will encounter a function `FNAME`, it will first do a lookup inside the `custom_derivatives` namespace to try to find a suitable custom function, and only if none is found will proceed to automatically derive it.
+
+Example:
+* Suppose that you have a function `my_pow(x, y)` which computes `x` to the power of `y`. However, Clad is not able to differentiate `my_pow`'s body (e.g. it calls an external library or uses some non-differentiable approximation):
+```cpp
+double my_pow(double x, double y) { // something non-differentiable here... }
+```
+However, you know analytical formulas of its derivatives, and you can easily specify custom derivatives:
+```cpp
+namespace custom_derivatives {
+  double my_pow_darg0(double x, double y) { return y * my_pow(x, y - 1); }
+  double my_pow_darg1(dobule x, double y) { return my_pow(x, y) * std::log(x); }
+}
+```
+You can also specify a custom gradient:
+```cpp 
+namespace custom_derivatives {
+  void my_pow_grad(double x, double y, double* result) { 
+     double t = my_pow(x, y - 1);
+     result[0] = y * t;
+     result[1] = x * t * std::log(x);
+   }
+}
+```
+Whenever Clad will encounter `my_pow` inside differentiated function, it will find and use provided custom funtions instead of attempting to differentiate it.
+
+Note: Clad provides custom derivatives for some mathematical functions from `<cmath>` inside `clad/Differentiator/BuiltinDerivatives.h`.
+
+Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
+
+## How to install
+At the moment, only LLVM/Clang 5.0.x is supported.
+###  Building from source (example was tested on Ubuntu 18.04 LTS, tests are disabled)
+  ```
+    sudo apt install clang-5.0 llvm-5.0 clang-5.0-dev llvm-5.0-dev libllvm5.0 llvm-5.0-runtime
+    sudo -H pip install lit 
+    git clone https://github.com/vgvassilev/clad.git clad
+    mkdir build_dir inst; cd build_dir
+    cmake ../clad -DLLVM_DIR=/usr/lib/llvm-5.0/lib/cmake/llvm/ -DCMAKE_INSTALL_PREFIX=../inst
+    make && make install
+  ```
+###  Building from source LLVM, Clang and clad (development environment)
+  ```
+    LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q --no-check-certificate)
+    LAST_KNOWN_GOOD_CLANG=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodClangRevision.txt -O - -q --no-check-certificate)
+    git clone https://github.com/llvm-mirror/llvm.git src
+    cd src; git checkout $LAST_KNOWN_GOOD_LLVM
+    cd tools
+    git clone https://github.com/llvm-mirror/clang.git clang
+    cd clang ; git checkout $LAST_KNOWN_GOOD_CLANG
+    cd ../
+    git clone https://github.com/vgvassilev/clad.git clad
+    cd ../
+    cat patches tools/clad/patches/*.diff | patch -p0
+    cd ../
+    mkdir obj inst
+    cd obj
+    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst ../src/
+    make && make install
+  ```
+  
+  ## Citing Clad
 ```latex
 % Peer-Reviewed Publication
 %
@@ -45,45 +178,7 @@ Cling (http://cern.ch/cling) which does not only provide the necessary facilitie
 }
 ```
 
-##  Building from source LLVM, Clang and clad (development environment)
-  ```
-    LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q --no-check-certificate)
-    LAST_KNOWN_GOOD_CLANG=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodClangRevision.txt -O - -q --no-check-certificate)
-    git clone https://github.com/llvm-mirror/llvm.git src
-    cd src; git checkout $LAST_KNOWN_GOOD_LLVM
-    cd tools
-    git clone https://github.com/llvm-mirror/clang.git clang
-    cd clang ; git checkout $LAST_KNOWN_GOOD_CLANG
-    cd ../
-    git clone https://github.com/vgvassilev/clad.git clad
-    cd ../
-    cat patches tools/clad/patches/*.diff | patch -p0
-    cd ../
-    mkdir obj inst
-    cd obj
-    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst ../src/
-    make && make install
-  ```
-
-##  Building from source (example was tested on Ubuntu 18.04 LTS, tests are disabled)
-  ```
-    # clad is supporting only LLVM/Clang 5.0.x
-    sudo apt install clang-5.0 llvm-5.0 clang-5.0-dev llvm-5.0-dev libllvm5.0 llvm-5.0-runtime
-    sudo -H pip install lit 
-    git clone https://github.com/vgvassilev/clad.git clad
-    mkdir build_dir inst; cd build_dir
-    cmake ../clad -DLLVM_DIR=/usr/lib/llvm-5.0/lib/cmake/llvm/ -DCMAKE_INSTALL_PREFIX=../inst
-    make && make install
-  ```
-
-##  Usage
-After a successful build libclad.so or libclad.dylib will be created
-in llvm's lib (inst/lib) directory. One can attach the plugin to clang invocation
-like this:
-  ```
- clang -cc1 -x c++ -std=c++11 -load libclad.dylib -plugin clad -plugin-arg-clad -help SourceFile.cpp
-  ```
-For more details see:  
+## Additional references 
 [ACAT 2014 Slides](https://indico.cern.ch/event/258092/session/8/contribution/90/material/slides/0.pdf)  
 [Martin's GSoC2014 Final Report](https://indico.cern.ch/event/337174/contribution/2/material/slides/0.pdf)  
 [LLVM Poster](http://llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf)  
