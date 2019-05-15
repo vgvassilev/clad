@@ -8,6 +8,8 @@
 #define CLAD_DIFFERENTIATOR
 
 #include "BuiltinDerivatives.h"
+#include "Tape.h"
+
 #include <assert.h>
 #include <stddef.h>
 
@@ -25,6 +27,30 @@ extern "C" {
 }
 
 namespace clad {
+  /// Tape type used for storing values in reverse-mode AD inside loops.
+  template <typename T>
+  using tape = tape_impl<T>;
+
+  /// Add value to the end of the tape, return the same value.
+  template <typename T>
+  T push(tape<T>& to, T val) {
+    to.emplace_back(val);
+    return val;
+  }
+
+  /// Remove the last value from the tape, return it.
+  template <typename T>
+  T pop(tape<T>& to) {
+    T val = to.back();
+    to.pop_back();
+    return val;
+  }
+
+  /// Access return the last value in the tape.
+  template <typename T>
+  T& back(tape<T>& of) {
+    return of.back();
+  }
 
   // Provide the accurate type for standalone functions and members.
   template<bool isMemFn, typename ReturnResult, typename... ArgTypes>

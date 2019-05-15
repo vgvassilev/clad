@@ -199,12 +199,14 @@ namespace clad {
     clang::VarDecl* BuildVarDecl(clang::QualType Type,
                                  clang::IdentifierInfo* Identifier,
                                  clang::Expr* Init = nullptr,
-                                 bool DirectInit = false);
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr);
 
     clang::VarDecl* BuildVarDecl(clang::QualType Type,
                                  llvm::StringRef prefix = "_t",
                                  clang::Expr* Init = nullptr,
-                                 bool DirectInit = false);
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until m_Sema.PopDeclContextIsUsed.
     clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
@@ -284,6 +286,20 @@ namespace clad {
     /// a sequence of indices.
     clang::Expr* BuildArraySubscript(clang::Expr* Base,
                                      const llvm::SmallVectorImpl<clang::Expr*> & IS);
+    /// Find namespace clad declaration.
+    clang::NamespaceDecl* GetCladNamespace();
+    /// Find declaration of clad::tape templated type.
+    clang::TemplateDecl* GetCladTapeDecl();
+    /// Perform a lookup into clad namespace for an entity with given name.
+    clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
+    /// Perform lookup into clad namespace for push/pop/back. Returns 
+    /// LookupResult, which is will be resolved later (which is handy since they
+    /// are templates).
+    clang::LookupResult& GetCladTapePush();
+    clang::LookupResult& GetCladTapePop();
+    clang::LookupResult& GetCladTapeBack();
+    /// Instantiate clad::tape<T> type.
+    clang::QualType GetCladTapeOfType(clang::QualType T);
   };
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
@@ -399,6 +415,8 @@ namespace clad {
     Stmts m_Globals;
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
+    /// A flag indicating if the Stmt we are currently visiting is inside loop.
+    bool isInsideLoop = false;
   public:
     clang::Expr* dfdx () {
       if (m_Stack.empty())
@@ -407,12 +425,11 @@ namespace clad {
     }
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
       // No need to push the same expr multiple times.
-      if (!m_Stack.empty() && (dfdS == m_Stack.top()))
-        dfdS = nullptr;
-      if (dfdS)
+      bool push = !(!m_Stack.empty() && (dfdS == dfdx()));
+      if (push)
         m_Stack.push(dfdS);
       auto result = clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
-      if (dfdS)
+      if (push)
         m_Stack.pop();
       return result;
     }
@@ -478,16 +495,23 @@ namespace clad {
                                       forceDeclCreation);
     }
 
-    clang::Expr* GlobalStoreImpl(clang::Expr* E, clang::QualType Type,
-                                 llvm::StringRef prefix);
+    /// For an expr E, decides if it is useful to store it in a global temporary
+    /// variable and replace E's further usage by a reference to that variable to 
+    /// avoid recomputiation.
+    bool UsefulToStoreGlobal(clang::Expr* E);
+    clang::VarDecl* GlobalStoreImpl(clang::QualType Type, llvm::StringRef prefix);
     /// Creates a (global in the function scope) variable declaration, puts
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
     /// puts an additional assignment statement (R = E) in the forward block.
-    clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
-                                   llvm::StringRef prefix = "_t");
-    clang::Expr* GlobalStoreAndRef(clang::Expr* E,
-                                   llvm::StringRef prefix = "_t");
+    /// Alternatively, if isInsideLoop is true, stores E in a stack. Returns
+    /// StmtDiff, where .getExpr() is intended to be used in forward pass and
+    /// .getExpr_dx() in the reverse pass. Two expressions can be different in
+    /// some cases, e.g. clad::push/pop inside loops.
+    StmtDiff GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
+                               llvm::StringRef prefix = "_t", bool force = false);
+    StmtDiff GlobalStoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
+                               bool force = false);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global variable.
@@ -498,15 +522,12 @@ namespace clad {
     /// cloned E, .isConstant is true and .Finalize does nothing.
     struct DelayedStoreResult {
       ReverseModeVisitor& V;
-      clang::Expr* Result;
+      StmtDiff Result;
       bool isConstant;
-      void Finalize(clang::Expr* New) {
-       if (isConstant)
-         return;
-       V.addToCurrentBlock(V.BuildOp(clang::BO_Assign, Result, New),
-                           ReverseModeVisitor::forward);
-      }
+      bool isInsideLoop;
+      void Finalize(clang::Expr* New);
     };
+
     /// Sometimes (e.g. when visiting multiplication/division operator), we
     /// need to allocate global variable for an expression (e.g. for RHS) before
     /// we visit that expression for efficiency reasons, since we may use that
@@ -517,6 +538,22 @@ namespace clad {
     /// original (uncloned) expression.
     DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
                                                 llvm::StringRef prefix = "_t");
+
+    struct CladTapeResult {
+      ReverseModeVisitor& V;
+      clang::Expr* Push;
+      clang::Expr* Pop;
+      clang::Expr* Ref;
+      /// A request to get expr accessing last element in the tape
+      /// (clad::back(Ref)). Since it is required only rarely, it is built on
+      /// demand in the method.
+      clang::Expr* Last();
+    };
+
+    /// If E is supposed to be stored in a tape, will create a global declaration
+    /// of tape of corresponding type and return a result struct with reference
+    /// to the tape and constructed calls to push/pop methods.
+    CladTapeResult MakeCladTapeFor(clang::Expr* E);
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder);
@@ -554,6 +591,7 @@ namespace clad {
     StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
+    StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
     StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);

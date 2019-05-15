@@ -14,15 +14,18 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/TemplateBase.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/Template.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <numeric>
 
 using namespace clang;
 
@@ -190,7 +193,8 @@ namespace clad {
   VarDecl* VisitorBase::BuildVarDecl(QualType Type,
                                      IdentifierInfo* Identifier,
                                      Expr* Init,
-                                     bool DirectInit) {
+                                     bool DirectInit,
+                                     TypeSourceInfo* TSI) {
 
     auto VD = VarDecl::Create(m_Context,
                               m_Sema.CurContext,
@@ -198,7 +202,7 @@ namespace clad {
                               noLoc,
                               Identifier,
                               Type,
-                              nullptr, // FIXME: Should there be any TypeInfo?
+                              TSI,
                               SC_None);
 
     if (Init)
@@ -211,8 +215,9 @@ namespace clad {
   VarDecl* VisitorBase::BuildVarDecl(QualType Type,
                                      llvm::StringRef prefix,
                                      Expr* Init,
-                                     bool DirectInit) {
-    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit);
+                                     bool DirectInit,
+                                     TypeSourceInfo* TSI) {
+    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit, TSI);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -618,6 +623,123 @@ namespace clad {
     return result;
   }
 
+  NamespaceDecl* VisitorBase::GetCladNamespace() {
+    static NamespaceDecl* Result = nullptr;
+    if (Result)
+      return Result;
+    DeclarationName CladName = &m_Context.Idents.get("clad");
+    LookupResult CladR(m_Sema, CladName, noLoc, Sema::LookupNamespaceName,
+                       Sema::ForRedeclaration);
+    m_Sema.LookupQualifiedName(CladR, m_Context.getTranslationUnitDecl());
+    assert(!CladR.empty() && "cannot find clad namespace");
+    Result = cast<NamespaceDecl>(CladR.getFoundDecl());
+    return Result;
+  }
+ 
+  TemplateDecl* VisitorBase::GetCladTapeDecl() {
+    static TemplateDecl* Result = nullptr;
+    if (Result)
+      return Result;
+    NamespaceDecl* CladNS = GetCladNamespace();
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
+    DeclarationName TapeName = &m_Context.Idents.get("tape");
+    LookupResult TapeR(m_Sema, TapeName, noLoc, Sema::LookupUsingDeclName,
+                       Sema::ForRedeclaration);
+    m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
+    assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
+           "cannot find clad::tape");
+    Result = cast<TemplateDecl>(TapeR.getFoundDecl());
+    return Result;
+  }
+
+  LookupResult VisitorBase::LookupCladTapeMethod(llvm::StringRef name) {
+    NamespaceDecl* CladNS = GetCladNamespace();
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
+    DeclarationName Name = &m_Context.Idents.get(name);
+    LookupResult R(m_Sema, Name, noLoc, Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(R, CladNS, CSS);
+    assert(!R.empty() && isa<FunctionTemplateDecl>(R.getRepresentativeDecl()) &&
+           "cannot find requested name");
+    return R;
+  }
+
+  LookupResult& VisitorBase::GetCladTapePush() {
+    static llvm::Optional<LookupResult> Result{};
+    if (Result)
+      return Result.getValue();
+    Result = LookupCladTapeMethod("push");
+    return Result.getValue();
+  }
+
+  LookupResult& VisitorBase::GetCladTapePop() {
+    static llvm::Optional<LookupResult> Result{};
+    if (Result)
+      return Result.getValue();
+    Result = LookupCladTapeMethod("pop");
+    return Result.getValue();
+  }
+
+  LookupResult& VisitorBase::GetCladTapeBack() {
+    static llvm::Optional<LookupResult> Result{};
+    if (Result)
+      return Result.getValue();
+    Result = LookupCladTapeMethod("back");
+    return Result.getValue();
+  }
+
+  QualType VisitorBase::GetCladTapeOfType(QualType T) {
+    // Get declaration of clad::tape template.
+    TemplateDecl* CladTapeDecl = GetCladTapeDecl();
+    // Create a list of template arguments: single argument <T> in that case.
+    TemplateArgument TA = T;
+    TemplateArgumentListInfo TLI{};
+    TLI.addArgument(TemplateArgumentLoc(TA, m_Context.CreateTypeSourceInfo(T)));
+    // This will instantiate tape<T> type and return it.
+    QualType TT = m_Sema.CheckTemplateIdType(TemplateName(CladTapeDecl), noLoc,
+                                             TLI);
+    // Get clad napespace and its identifier clad::.
+    IdentifierInfo* CladId = GetCladNamespace()->getIdentifier();
+    NestedNameSpecifier* NS = NestedNameSpecifier::Create(m_Context, CladId);
+    // Create elaborated type with namespace specifier, i.e. tape<T> -> clad::tape<T>
+    return m_Context.getElaboratedType(ETK_None, NS, TT);
+  }
+
+  Expr* ReverseModeVisitor::CladTapeResult::Last() {
+    LookupResult& Back = V.GetCladTapeBack();
+    CXXScopeSpec CSS;
+    CSS.Extend(V.m_Context, V.GetCladNamespace(), noLoc, noLoc);
+    Expr* BackDRE = V.m_Sema.BuildDeclarationNameExpr(CSS, Back,
+                                                      /*ADL*/ false).get();
+    Expr* Call = V.m_Sema.ActOnCallExpr(V.getCurrentScope(), BackDRE, noLoc, Ref,
+                                        noLoc).get();
+    return Call;
+  }
+
+  ReverseModeVisitor::CladTapeResult ReverseModeVisitor::MakeCladTapeFor(Expr* E) {
+    assert(E && "must be provided");
+    QualType TapeType = GetCladTapeOfType(E->getType());
+    LookupResult& Push = GetCladTapePush();
+    LookupResult& Pop = GetCladTapePop();
+    Expr* TapeRef = BuildDeclRef(GlobalStoreImpl(TapeType, "_t"));
+    auto VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
+    // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
+    VD->setLocation(m_Function->getLocation());
+    m_Sema.AddInitializerToDecl(VD, getZeroInit(TapeType), false);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    auto PopDRE = m_Sema.BuildDeclarationNameExpr(CSS, Pop, /*ADL*/ false).get();
+    auto PushDRE = m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false).get();
+    Expr* PopExpr = m_Sema.ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, TapeRef,
+                                         noLoc).get();
+    Expr* CallArgs[] = { TapeRef, E };
+    Expr* PushExpr = m_Sema.ActOnCallExpr(getCurrentScope(), PushDRE, noLoc,
+                                          CallArgs, noLoc).get();
+    return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
+  }
+    
+
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getLocStart(),
          "attempted to differentiate unsupported statement, no changes applied");
@@ -748,6 +870,34 @@ namespace clad {
     return StmtDiff(condExpr, condExprDiff);
   }
 
+  // A function used to wrap result of visiting E in a lambda. Returns a call
+  // to the built lambda. Func is a functor that will be invoked inside lambda
+  // scope and block. Statements inside lambda are expected to be added by
+  // addToCurrentBlock from func invocation.
+  template <typename F>
+  static Expr* wrapInLambda(VisitorBase& V, Sema& S, const Expr* E, F&& func) {
+    // FIXME: Here we use some of the things that are used from Parser, it
+    // seems to be the easiest way to create lambda.
+    LambdaIntroducer Intro;
+    Intro.Default = LCD_ByRef;
+    // FIXME: Using noLoc here results in assert failure. Any other valid
+    // SourceLocation seems to work fine.
+    Intro.Range.setBegin(E->getLocStart());
+    Intro.Range.setEnd(E->getLocEnd());
+    AttributeFactory AttrFactory;
+    DeclSpec DS(AttrFactory);
+    Declarator D(DS, Declarator::LambdaExprContext);
+    S.PushLambdaScope();
+    V.beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope);
+    S.ActOnStartOfLambdaDefinition(Intro, D, V.getCurrentScope());
+    V.beginBlock();
+    func();
+    CompoundStmt* body = V.endBlock();
+    Expr* lambda = S.ActOnLambdaExpr(noLoc, body, V.getCurrentScope()).get();
+    V.endScope();
+    return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc).get(); 
+  }
+
   StmtDiff ForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginScope(Scope::DeclScope |
                Scope::ControlScope |
@@ -786,36 +936,12 @@ namespace clad {
       //  x = x * _t1;
       // }())
 
-      // FIXME: Here we make use some of the things that are used from Parser, it
-      // seems to be the easiest way to create lambda
-      LambdaIntroducer Intro;
-      Intro.Default = LCD_ByRef;
-      // FIXME: Using noLoc here results in assert failure. Any other valid
-      // SourceLocation seems to work fine.
-      Intro.Range.setBegin(inc->getLocStart());
-      Intro.Range.setEnd(inc->getLocEnd());
-      AttributeFactory AttrFactory;
-      DeclSpec DS(AttrFactory);
-      Declarator D(DS, Declarator::LambdaExprContext);
-      m_Sema.PushLambdaScope();
-      beginScope(Scope::BlockScope |
-                 Scope::FnScope |
-                 Scope::DeclScope);
-      m_Sema.ActOnStartOfLambdaDefinition(Intro, D, getCurrentScope());
-      beginBlock();
-      StmtDiff incDiff = inc ? Visit(inc) : StmtDiff{};
-      addToCurrentBlock(incDiff.getStmt_dx());
-      addToCurrentBlock(incDiff.getStmt());
-      CompoundStmt* incBody = endBlock();
-      Expr* lambda = 
-        m_Sema.ActOnLambdaExpr(noLoc, incBody, getCurrentScope()).get();
-      endScope();
-      incResult =
-        m_Sema.ActOnCallExpr(getCurrentScope(),
-                             lambda,
-                             noLoc,
-                             {},
-                             noLoc).get(); 
+      incResult = wrapInLambda(*this, m_Sema, inc,
+        [&] {
+          StmtDiff incDiff = inc ? Visit(inc) : StmtDiff{};
+          addToCurrentBlock(incDiff.getStmt_dx());
+          addToCurrentBlock(incDiff.getStmt());
+        });
     }
     else if (incDiff.getExpr_dx() && incDiff.getExpr()) {
       // If no declarations are required and only two Expressions are produced,
@@ -1511,6 +1637,8 @@ namespace clad {
       // FIXME: fix when adding array inputs, now we are just skipping all
       // array/pointer inputs (not treating them as independent variables).
       if (arg->getType()->isArrayType() || arg->getType()->isPointerType()) {
+        if (arg->getName() == "p")
+          m_Variables[arg] = m_Result;
         idx += 1;
         continue;
       }
@@ -1585,6 +1713,8 @@ namespace clad {
   }
 
   static Stmt* unwrapIfSingleStmt(Stmt* S) {
+    if (!S)
+      return nullptr;
     if (!isa<CompoundStmt>(S))
       return S;
     auto CS = cast<CompoundStmt>(S);
@@ -1594,16 +1724,45 @@ namespace clad {
       return CS->body_front();
     else
       return CS;
-  };
+  }
 
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
     // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
     // to this scope.
     beginScope(Scope::DeclScope | Scope::ControlScope);
-    Expr* cond = Clone(If->getCond());
+
+    StmtDiff cond = Clone(If->getCond());
     // Condition has to be stored as a "global" variable, to take the correct
     // branch in the reverse pass.
-    cond = GlobalStoreAndRef(cond, "_cond");
+    // If we are inside loop, the condition has to be stored in a stack after
+    // the if statement.
+    Expr* PushCond = nullptr;
+    Expr* PopCond = nullptr;
+    if (isInsideLoop) {
+      // If we are inside for loop, cond will be stored in the following way:
+      // forward:
+      // _t = cond;
+      // if (_t) { ... }
+      // clad::push(..., _t);
+      // reverse:
+      // if (clad::pop(...)) { ... }
+      // Simply doing
+      // if (clad::push(..., _t) { ... }
+      // is incorrect when if contains return statement inside: return will
+      // skip corresponding push.
+      cond = StoreAndRef(cond.getExpr(), forward, "_t", /*force*/ true);
+      StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
+      PushCond = condPushPop.getExpr();
+      PopCond = condPushPop.getExpr_dx();
+    }
+    else
+      cond = GlobalStoreAndRef(cond.getExpr(), "_cond");
+    // Convert cond to boolean condition. We are modifying each Stmt in StmtDiff.
+    for (Stmt*& S : cond.getBothStmts())
+      if (S)
+        S = m_Sema.ActOnCondition(m_CurScope, noLoc, cast<Expr>(S),
+                                  Sema::ConditionKind::Boolean).get().second;
+
     // Create a block "around" if statement, e.g:
     // {
     //   ...
@@ -1664,19 +1823,23 @@ namespace clad {
 
     // It is problematic to specify both condVarDecl and cond thorugh 
     // Sema::ActOnIfStmt, therefore we directly use the IfStmt constructor.
-    cond = m_Sema.ActOnCondition(m_CurScope, noLoc, cond,
-                                 Sema::ConditionKind::Boolean).get().second;
     Stmt* Forward = new (m_Context) IfStmt(m_Context, noLoc, If->isConstexpr(),
                                            initResult.getStmt(), condVarClone,
-                                           cond, thenDiff.getStmt(), noLoc,
-                                           elseDiff.getStmt());
+                                           cond.getExpr(), thenDiff.getStmt(),
+                                           noLoc, elseDiff.getStmt());
+    addToCurrentBlock(Forward, forward);
+
+    Expr* reverseCond = cond.getExpr_dx();
+    if (isInsideLoop) {
+      addToCurrentBlock(PushCond, forward);
+      reverseCond = PopCond;
+    }
     Stmt* Reverse = new (m_Context) IfStmt(m_Context, noLoc, If->isConstexpr(),
                                            initResult.getStmt_dx(), condVarClone,
-                                           cond, thenDiff.getStmt_dx(), noLoc,
-                                           elseDiff.getStmt_dx());
-    addToCurrentBlock(Forward, forward);
-    CompoundStmt* ForwardBlock = endBlock(forward);
+                                           reverseCond, thenDiff.getStmt_dx(),
+                                           noLoc, elseDiff.getStmt_dx());
     addToCurrentBlock(Reverse, reverse);
+    CompoundStmt* ForwardBlock = endBlock(forward);
     CompoundStmt* ReverseBlock = endBlock(reverse);
     endScope();
     return StmtDiff(unwrapIfSingleStmt(ForwardBlock),
@@ -1685,12 +1848,14 @@ namespace clad {
 
   StmtDiff ReverseModeVisitor::VisitConditionalOperator(
     const clang::ConditionalOperator* CO) {
-    Expr* cond = Clone(CO->getCond());
+    StmtDiff cond = Clone(CO->getCond());
     // Condition has to be stored as a "global" variable, to take the correct
     // branch in the reverse pass.
-    cond = GlobalStoreAndRef(cond, "_cond");
-    cond = m_Sema.ActOnCondition(m_CurScope, noLoc, cond,
-                                 Sema::ConditionKind::Boolean).get().second;
+    cond = GlobalStoreAndRef(cond.getExpr(), "_cond");
+    // Convert cond to boolean condition. We are modifying each Stmt in StmtDiff.
+    for (Stmt*& S : cond.getBothStmts())
+      S = m_Sema.ActOnCondition(m_CurScope, noLoc, cast<Expr>(S),
+                                Sema::ConditionKind::Boolean).get().second;
 
     auto ifTrue = CO->getTrueExpr();
     auto ifFalse = CO->getFalseExpr();
@@ -1723,21 +1888,23 @@ namespace clad {
                                       Cond, Then, noLoc, Else);
       };
   
-    Stmt* Forward = BuildIf(cond, ifTrueDiff.getStmt(), ifFalseDiff.getStmt());
-    Stmt* Reverse = BuildIf(cond, ifTrueDiff.getStmt_dx(), ifFalseDiff.getStmt_dx());
+    Stmt* Forward = BuildIf(cond.getExpr(), ifTrueDiff.getStmt(),
+                            ifFalseDiff.getStmt());
+    Stmt* Reverse = BuildIf(cond.getExpr_dx(), ifTrueDiff.getStmt_dx(),
+                            ifFalseDiff.getStmt_dx());
     if (Forward)
       addToCurrentBlock(Forward, forward);
     if (Reverse)
       addToCurrentBlock(Reverse, reverse);
 
-    Expr* condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
+    Expr* condExpr = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond.getExpr(),
                                                ifTrueExprDiff.getExpr(),
                                                ifFalseExprDiff.getExpr()).get();
     // If result is a glvalue, we should keep it as it can potentially be assigned
     // as in (c ? a : b) = x;
     if ((CO->isModifiableLvalue(m_Context) == Expr::MLV_Valid) &&
         ifTrueExprDiff.getExpr_dx() && ifFalseExprDiff.getExpr_dx()) {
-      Expr* ResultRef = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond,
+      Expr* ResultRef = m_Sema.ActOnConditionalOp(noLoc, noLoc, cond.getExpr_dx(),
                                                   ifTrueExprDiff.getExpr_dx(),
                                                   ifFalseExprDiff.getExpr_dx()).get();
       if (ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
@@ -1747,8 +1914,148 @@ namespace clad {
     return StmtDiff(condExpr);
   }
 
+  StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
+    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
+               Scope::ContinueScope);
+    // Counter that is used to count number of executed iterations of the loop,
+    // to be able to use the same number of iterations in reverse pass.
+    Expr* Counter = nullptr;
+    Expr* Pop = nullptr;
+    // If current loop is inside another loop, counter also has to be stored
+    // in a tape.
+    if (isInsideLoop) {
+      auto zero = ConstantFolder::synthesizeLiteral(m_Context.getSizeType(),
+                                                    m_Context, 0);
+      auto CounterTape = MakeCladTapeFor(zero);
+      addToCurrentBlock(CounterTape.Push, forward);
+      Counter = CounterTape.Last();
+      Pop = CounterTape.Pop;
+    }
+    else
+      Counter = GlobalStoreAndRef(getZeroInit(m_Context.IntTy),
+                                  m_Context.getSizeType(), "_t",
+                                  /*force*/ true).getExpr();
+    beginBlock(forward);
+    beginBlock(reverse);
+    const Stmt* init = FS->getInit();
+    StmtDiff initResult = init ? Visit(init) : StmtDiff{};
+
+    VarDecl* condVarDecl = FS->getConditionVariable();
+    VarDecl* condVarClone = nullptr;
+    if (condVarDecl) {
+       VarDeclDiff condVarResult = DifferentiateVarDecl(condVarDecl);
+       condVarClone = condVarResult.getDecl();
+       // If there is a variable declared, store its derivative as a global,
+       // as we usually do with declarations in reverse mode.
+       if (condVarResult.getDecl_dx())
+         addToBlock(BuildDeclStmt(condVarResult.getDecl_dx()), m_Globals);
+    }
+
+    // FIXME: for now we assume that cond has no differentiable effects,
+    // but it is not generally true, e.g. for (...; (x = y); ...)...
+    StmtDiff cond;
+    if (FS->getCond())
+      cond = Clone(FS->getCond());
+    const Expr* inc = FS->getInc();
+
+    // Save the isInsideLoop value (we may be inside another loop).
+    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
+    isInsideLoop = true;
+
+    Expr* CounterIncrement = BuildOp(UO_PostInc, Counter);
+    // Differentiate the increment expression of the for loop
+    // incExprDiff.getExpr() is the reconstructed expression, incDiff.getStmt()
+    // a block with all the intermediate statements used to reconstruct it on
+    // the forward pass, incDiff.getStmt_dx() is the reverse pass block.
+    StmtDiff incDiff;
+    StmtDiff incExprDiff;
+    if (inc)
+      std::tie(incDiff, incExprDiff) = DifferentiateSingleExpr(inc);
+    Expr* incResult = nullptr;
+    // If any additional statements were created, enclose them into lambda.
+    CompoundStmt* Additional = cast<CompoundStmt>(incDiff.getStmt());
+    bool anyNonExpr = std::any_of(Additional->body_begin(), Additional->body_end(),
+      [] (Stmt* S) { return !isa<Expr>(S); });
+    if (anyNonExpr) {
+      incResult = wrapInLambda(*this, m_Sema, inc,
+        [&] {
+          std::tie(incDiff, incExprDiff) = DifferentiateSingleExpr(inc);
+          for (Stmt* S : cast<CompoundStmt>(incDiff.getStmt())->body())
+            addToCurrentBlock(S);
+          addToCurrentBlock(incDiff.getExpr());
+        });
+    }
+    // Otherwise, join all exprs by comma operator.
+    else if (incExprDiff.getExpr()) {
+      auto CommaJoin = [this] (Expr* Acc, Stmt* S) {
+        Expr* E = cast<Expr>(S);
+        return BuildOp(BO_Comma, E, BuildParens(Acc));
+      };
+      incResult = std::accumulate(Additional->body_rbegin(),
+                                  Additional->body_rend(), incExprDiff.getExpr(),
+                                  CommaJoin);
+    }
+
+    const Stmt* body = FS->getBody();
+    StmtDiff BodyDiff;
+    if (isa<CompoundStmt>(body)) {
+      BodyDiff = Visit(body);
+      beginBlock(forward);
+      // Add loop increment in in the first place in the body.
+      addToCurrentBlock(CounterIncrement);
+      for (Stmt* S : cast<CompoundStmt>(BodyDiff.getStmt())->body())
+        addToCurrentBlock(S);
+      BodyDiff = { endBlock(forward), BodyDiff.getStmt_dx() };
+    }
+    else {
+      beginScope(Scope::DeclScope);
+      beginBlock(forward);
+      // Add loop increment in in the first place in the body.
+      addToCurrentBlock(CounterIncrement);
+      BodyDiff = DifferentiateSingleStmt(body);
+      addToCurrentBlock(BodyDiff.getStmt(), forward);
+      Stmt* Forward = endBlock(forward);
+      Stmt* Reverse = unwrapIfSingleStmt(BodyDiff.getStmt_dx());
+      BodyDiff = { Forward, Reverse };
+      endScope();
+    }
+
+    Stmt* Forward = new (m_Context) ForStmt(m_Context, initResult.getStmt(),
+                                            cond.getExpr(), condVarClone,
+                                            incResult, BodyDiff.getStmt(),
+                                            noLoc, noLoc, noLoc);
+
+    // Create a condition testing counter for being zero, and its decrement.
+    // To match the number of iterations in the forward pass, the reverse loop
+    // will look like: for(; Counter; Counter--) ...
+    Expr* CounterCondition = m_Sema.ActOnCondition(m_CurScope, noLoc, Counter,
+                                                   Sema::ConditionKind::Boolean).
+                                                   get().second;
+    Expr* CounterDecrement = BuildOp(UO_PostDec, Counter);
+
+    beginBlock(reverse);
+    // First, reverse the original loop increment expression, then loop's body.
+    addToCurrentBlock(incDiff.getStmt_dx(), reverse);
+    addToCurrentBlock(BodyDiff.getStmt_dx(), reverse);
+    CompoundStmt* ReverseBody = endBlock(reverse);
+    std::reverse(ReverseBody->body_begin(), ReverseBody->body_end());
+    Stmt* ReverseResult = unwrapIfSingleStmt(ReverseBody);
+    Stmt* Reverse = new (m_Context) ForStmt(m_Context, nullptr,
+                                            CounterCondition, condVarClone,
+                                            CounterDecrement, ReverseResult,
+                                            noLoc, noLoc, noLoc);
+    addToCurrentBlock(Forward, forward);
+    Forward = endBlock(forward);
+    addToCurrentBlock(Pop, reverse);
+    addToCurrentBlock(Reverse, reverse);
+    Reverse = endBlock(reverse);
+    endScope();
+
+    return { unwrapIfSingleStmt(Forward), unwrapIfSingleStmt(Reverse) };
+  }
+
   StmtDiff ReverseModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
-    return Visit(DE->getExpr());
+    return Visit(DE->getExpr(), dfdx());
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr* BL) {
@@ -1763,7 +2070,9 @@ namespace clad {
     ExprResult tmp = dfdf;
     dfdf = m_Sema.ImpCastExprToType(tmp.get(), type,
                                     m_Sema.PrepareScalarCast(tmp, type)).get();
-    StmtDiff ReturnDiff = DifferentiateSingleStmt(value, dfdf);
+    auto ReturnResult = DifferentiateSingleExpr(value, dfdf);
+    StmtDiff ReturnDiff = ReturnResult.first;
+    StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be 
@@ -1776,7 +2085,12 @@ namespace clad {
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
     Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
     addToCurrentBlock(LS, reverse);
-    // addToCurrentBlock(ReturnDiff.getStmt(), forward);
+    for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
+      addToCurrentBlock(S, forward);
+    // Since returned expression may have some side effects affecting reverse
+    // computation (e.g. assignments), we also have to emit it to execute it.
+    StoreAndRef(ExprDiff.getExpr(), forward,
+                m_Function->getNameAsString() + "_return", /*force*/ true); 
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
   }
@@ -1805,37 +2119,26 @@ namespace clad {
     auto ASI = SplitArraySubscript(ASE);
     const Expr* Base = ASI.first;
     const auto& Indices = ASI.second;
-    Expr* clonedBase = Clone(Base);
+    StmtDiff BaseDiff = Visit(Base);
     llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
-    std::transform(std::begin(Indices), std::end(Indices), std::begin(clonedIndices),
-      [this](const Expr* E) { return Clone(E); });
-    auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
-    
-    if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
-      return StmtDiff(cloned);
-    auto DRE = cast<DeclRefExpr>(clonedBase->IgnoreParenImpCasts());
-    if (!isa<VarDecl>(DRE->getDecl()))
-      return StmtDiff(cloned);
-    auto VD = cast<VarDecl>(DRE->getDecl());
-    // Check DeclRefExpr is a reference to an independent variable.
-    auto it = m_Variables.find(VD);
-    Expr* target = nullptr;
-    if (it == std::end(m_Variables)) {
-      // FIXME: implement proper detection
-      if (VD->getName() == "p")
-        target = m_Result;
-      else
-      // Is not an independent variable, ignored.
-        return StmtDiff(cloned);
-    } else 
-      target = it->second;
+    llvm::SmallVector<Expr*, 4> reverseIndices(Indices.size());
+    for (std::size_t i = 0; i < Indices.size(); i++) {
+      StmtDiff IdxDiff = Visit(Indices[i]);
+      StmtDiff IdxStored = GlobalStoreAndRef(IdxDiff.getExpr());
+      clonedIndices[i] = IdxStored.getExpr();
+      reverseIndices[i] = IdxStored.getExpr_dx();
+    }
+    auto cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
 
+    Expr* target = BaseDiff.getExpr_dx();
+    if (!target)
+      return cloned;
     Expr* result = nullptr;
     if (!target->getType()->isArrayType() && !target->getType()->isPointerType())
       result = target;
     else
       // Create the _result[idx] expression.
-      result = BuildArraySubscript(target, clonedIndices);
+      result = BuildArraySubscript(target, reverseIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       auto add_assign = BuildOp(BO_AddAssign, result, dfdx());
@@ -1843,7 +2146,7 @@ namespace clad {
       addToCurrentBlock(add_assign, reverse);
     }
     return StmtDiff(cloned, result);
-  }    
+  }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = nullptr;
@@ -1909,12 +2212,13 @@ namespace clad {
       return StmtDiff(Clone(CE));
 
     llvm::SmallVector<Expr*, 16> CallArgs{};
+    llvm::SmallVector<Expr*, 16> ReverseCallArgs{};
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
     if (!dfdx()) {
       for (const Expr* Arg : CE->arguments()) {
-        StmtDiff ArgDiff = Visit(Arg);
+        StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
       }
       Expr* call = m_Sema.ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
@@ -1938,7 +2242,9 @@ namespace clad {
       StmtDiff ArgDiff = Visit(Arg, dArg);
       // Save cloned arg in a "global" variable, so that it is accesible from the
       // reverse pass.
-      CallArgs.push_back(GlobalStoreAndRef(ArgDiff.getExpr()));
+      ArgDiff = GlobalStoreAndRef(ArgDiff.getExpr());
+      CallArgs.push_back(ArgDiff.getExpr());
+      ReverseCallArgs.push_back(ArgDiff.getExpr_dx());
     }
 
     VarDecl* ResultDecl = nullptr;
@@ -1953,7 +2259,7 @@ namespace clad {
       // Try to find it in builtin derivatives
       DeclarationName name(II);
       DeclarationNameInfo DNInfo(name, noLoc);
-      OverloadedDerivedFn = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+      OverloadedDerivedFn = m_Builder.findOverloadedDefinition(DNInfo, ReverseCallArgs);
       if (OverloadedDerivedFn)
         asGrad = false;
     }
@@ -1975,12 +2281,12 @@ namespace clad {
                                 ZeroInitBraces);
       Result = BuildDeclRef(ResultDecl);
       // Pass the array as the last parameter for gradient.
-      CallArgs.push_back(Result);
+      ReverseCallArgs.push_back(Result);
 
       // Try to find it in builtin derivatives
       DeclarationName name(II);
       DeclarationNameInfo DNInfo(name, noLoc);
-      OverloadedDerivedFn = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+      OverloadedDerivedFn = m_Builder.findOverloadedDefinition(DNInfo, ReverseCallArgs);
     }
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
@@ -1993,7 +2299,7 @@ namespace clad {
         OverloadedDerivedFn = m_Sema.ActOnCallExpr(getCurrentScope(), selfRef,
                                                    noLoc,
                                                    llvm::MutableArrayRef<Expr*>(
-                                                     CallArgs),
+                                                     ReverseCallArgs),
                                                    noLoc).get();
       } else {
         // Overloaded derivative was not found, request the CladPlugin to 
@@ -2020,7 +2326,7 @@ namespace clad {
                                                    BuildDeclRef(derivedFD),
                                                    noLoc,
                                                    llvm::MutableArrayRef<Expr*>(
-                                                     CallArgs),
+                                                     ReverseCallArgs),
                                                    noLoc).get();
       }
     }
@@ -2056,9 +2362,6 @@ namespace clad {
       }
     }
 
-    // If additional _result parameter was added, pop it.
-    if (asGrad)
-      CallArgs.pop_back();
     // Re-clone function arguments again, since they are required at 2 places:
     // call to gradient and call to original function.
     // At this point, each arg is either a simple expression or a reference
@@ -2145,9 +2448,10 @@ namespace clad {
       // global variable allows to save current result and make it accessible
       // in the reverse pass.
       auto RDelayed = DelayedGlobalStoreAndRef(R);
+      StmtDiff RResult = RDelayed.Result;
       Expr* dl = nullptr;
       if (dfdx()) {
-        dl = BuildOp(BO_Mul, dfdx(), RDelayed.Result);
+        dl = BuildOp(BO_Mul, dfdx(), RResult.getExpr_dx());
         dl = StoreAndRef(dl, reverse);
       }
       Ldiff = Visit(L, dl);
@@ -2160,24 +2464,27 @@ namespace clad {
       if (!RDelayed.isConstant) {
         Expr* dr = nullptr;
         if (dfdx()) {
-          LStored = GlobalStoreAndRef(LStored);
-          dr = BuildOp(BO_Mul, LStored, dfdx());
+          StmtDiff LResult = GlobalStoreAndRef(LStored);
+          LStored = LResult.getExpr();
+          dr = BuildOp(BO_Mul, LResult.getExpr_dx(), dfdx());
           dr = StoreAndRef(dr, reverse);
         }
         Rdiff = Visit(R, dr);
         // Assign right multiplier's variable with R.
         RDelayed.Finalize(Rdiff.getExpr());
       }
-      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RDelayed.Result);
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
     }
     else if (opCode == BO_Div) {
       //xi = xl / xr
       //dxi/xl = 1 / xr
       //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
       auto RDelayed = DelayedGlobalStoreAndRef(R);
+      StmtDiff RResult = RDelayed.Result;
+      Expr* RStored = StoreAndRef(RResult.getExpr_dx(), reverse);
       Expr* dl = nullptr;
       if (dfdx()) {
-        dl = BuildOp(BO_Div, dfdx(), RDelayed.Result);
+        dl = BuildOp(BO_Div, dfdx(), RStored);
         dl = StoreAndRef(dl, reverse);
       }
       Ldiff = Visit(L, dl);
@@ -2189,18 +2496,17 @@ namespace clad {
       if (!RDelayed.isConstant) {
         Expr* dr = nullptr;
         if (dfdx()) {
-          LStored = GlobalStoreAndRef(LStored);
-          Expr* RxR = m_Sema.ActOnParenExpr(noLoc, noLoc,
-                                            BuildOp(BO_Mul, RDelayed.Result,
-                                                    RDelayed.Result)).get();
+          StmtDiff LResult = GlobalStoreAndRef(LStored);
+          LStored = LResult.getExpr();
+          Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
           dr = BuildOp(BO_Mul, dfdx(),
-                       BuildOp(UO_Minus, BuildOp(BO_Div, LStored, RxR)));
+                       BuildOp(UO_Minus, BuildOp(BO_Div, LResult.getExpr_dx(), RxR)));
           dr = StoreAndRef(dr, reverse);
         }
         Rdiff = Visit(R, dr);
         RDelayed.Finalize(Rdiff.getExpr());
       }
-      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RDelayed.Result);
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
     }
     else if (BinOp->isAssignmentOp()) {
       if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
@@ -2244,8 +2550,10 @@ namespace clad {
       }
       else if (opCode == BO_MulAssign) {
         auto RDelayed = DelayedGlobalStoreAndRef(R);
+        StmtDiff RResult = RDelayed.Result;
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
-                                  BuildOp(BO_Mul, oldValue, RDelayed.Result)), reverse);
+                                  BuildOp(BO_Mul, oldValue, RResult.getExpr_dx())),
+                          reverse);
         Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
           // Create a reference variable to keep the result of LHS, since it must
@@ -2265,36 +2573,40 @@ namespace clad {
             QualType RefType = m_Context.getLValueReferenceType(L->getType());
             LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
           }
-          Expr* LStored = GlobalStoreAndRef(LRef);
-          Expr* dr = BuildOp(BO_Mul, LStored, oldValue);
+          StmtDiff LResult = GlobalStoreAndRef(LRef);
+          if (isInsideLoop)
+            addToCurrentBlock(LResult.getExpr(), forward);
+          Expr* dr = BuildOp(BO_Mul, LResult.getExpr_dx(), oldValue);
           dr = StoreAndRef(dr, reverse);
           Rdiff = Visit(R, dr);
           RDelayed.Finalize(Rdiff.getExpr());
         }
-        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RDelayed.Result);
+        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
       }
       else if (opCode == BO_DivAssign) {
         auto RDelayed = DelayedGlobalStoreAndRef(R);
+        StmtDiff RResult = RDelayed.Result;
+        Expr* RStored = StoreAndRef(RResult.getExpr_dx(), reverse);
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
-                                  BuildOp(BO_Div, oldValue, RDelayed.Result)), reverse);
+                                  BuildOp(BO_Div, oldValue, RStored)), reverse);
         Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
           if (LCloned->HasSideEffects(m_Context)) {
             QualType RefType = m_Context.getLValueReferenceType(L->getType());
             LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
           }
-          Expr* LStored = GlobalStoreAndRef(LRef);
-          Expr* RxR = m_Sema.ActOnParenExpr(noLoc, noLoc, BuildOp(BO_Mul,
-                                                                  RDelayed.Result,
-                                                                  RDelayed.Result))
-                                                                  .get();
-          Expr* dr = BuildOp(BO_Mul, oldValue, BuildOp(UO_Minus,
-                                                       BuildOp(BO_Div, LStored, RxR)));
+          StmtDiff LResult = GlobalStoreAndRef(LRef);
+          if (isInsideLoop)
+            addToCurrentBlock(LResult.getExpr(), forward);
+          Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
+          Expr* dr = BuildOp(BO_Mul, oldValue,
+                             BuildOp(UO_Minus, BuildOp(BO_Div, LResult.getExpr_dx(),
+                                                       RxR)));
           dr = StoreAndRef(dr, reverse);
           Rdiff = Visit(R, dr);
           RDelayed.Finalize(Rdiff.getExpr());
         }
-        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RDelayed.Result);
+        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
       }
       else
         llvm_unreachable("unknown assignment opCode");
@@ -2412,19 +2724,17 @@ namespace clad {
     return StmtDiff(Clone(ME));
   }
 
-  /// For an expr E, decides if it is useful to store it in a global temporary
-  /// variable and replace E's further usage by a reference to that variable to 
-  /// avoid recomputiation.
-  static bool UsefulToStoreGlobal(Expr* E) {
-    // FIXME : it may be worth to be more strict and use this, when storing in a
-    // stack inside for-loop. IsEvaluatable is also true for arithmetical
-    // expression consisting of constants, e.g. (1 + 2)*3. For now it is more
-    // efficient to store them in a global variable instead of doing
-    // isEvaluatable check and cloning, but it is likely worth doing it if we
-    // will avoid pushing into stack:
-    // return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
+  bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
+    if (isInsideLoop)
+      return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
     if (!E)
       return false;
+    // Use stricter policy when inside loops: IsEvaluatable is also true for
+    // arithmetical expressions consisting of constants, e.g. (1 + 2)*3. This
+    // chech is more expensive, but it doesn't make sense to push such constants
+    // into stack.
+    if (isInsideLoop)
+      return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
     Expr* B = E->IgnoreParenImpCasts();
     // FIXME: find a more general way to determine that or add more options.
     if (isa<FloatingLiteral>(B) || isa<IntegerLiteral>(B))
@@ -2439,7 +2749,7 @@ namespace clad {
     return true;
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreImpl(Expr* E, QualType Type,
+  VarDecl* ReverseModeVisitor::GlobalStoreImpl(QualType Type,
                                             llvm::StringRef prefix) {
     // Save current scope and temporarily go to topmost function scope.
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
@@ -2450,41 +2760,70 @@ namespace clad {
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);
-    Expr* Ref = BuildDeclRef(Var);
-    return Ref;
+    return Var;
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
-                                              llvm::StringRef prefix) {
+  StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
+                                                 llvm::StringRef prefix,
+                                                 bool force) {
     assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
-    if (!UsefulToStoreGlobal(E))
-      return E;
+    if (!force && !UsefulToStoreGlobal(E))
+      return { E, E };
 
-    Expr* Ref = GlobalStoreImpl(E, Type, prefix);
-    if (E) {
-      Expr* Set = BuildOp(BO_Assign, Ref, E);
-      addToCurrentBlock(Set, forward);
+    if (isInsideLoop) {
+      auto CladTape = MakeCladTapeFor(E);
+      Expr* Push = CladTape.Push;
+      Expr* Pop = CladTape.Pop;
+      return { Push, Pop };
+    } else {
+      Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix));
+      if (E) {
+        Expr* Set = BuildOp(BO_Assign, Ref, E);
+        addToCurrentBlock(Set, forward);
+      }
+      return { Ref, Ref };
     }
-
-    // Return reference to the declaration instead of original expression.
-    return Ref;
   }
 
-  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix) {
+  StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
+                                                 bool force) {
     assert(E && "cannot infer type");
-    return GlobalStoreAndRef(E, E->getType(), prefix);
+    return GlobalStoreAndRef(E, E->getType(), prefix, force);
+  }
+
+  void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
+    if (isConstant)
+      return;
+    if (isInsideLoop) {
+      auto Push = cast<CallExpr>(Result.getExpr());
+     *std::prev(Push->arg_end()) = V.m_Sema.DefaultLvalueConversion(New).get();
+    } else {
+      V.addToCurrentBlock(V.BuildOp(BO_Assign, Result.getExpr(), New),
+                          ReverseModeVisitor::forward);
+    }
   }
 
   ReverseModeVisitor::DelayedStoreResult
   ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
-    if (!UsefulToStoreGlobal(E))
-      return DelayedStoreResult{*this, Clone(E), /*isConstant*/ true};
-
-    Expr* Ref = GlobalStoreImpl(E, E->getType(), prefix);
-
-    // Return reference to the declaration instead of original expression.
-    return DelayedStoreResult{*this, Ref, /*isConstant*/ false};
+    if (!UsefulToStoreGlobal(E)) {
+      Expr* Cloned = Clone(E);
+      return DelayedStoreResult{*this, StmtDiff{ Cloned, Cloned },
+                                /*isConstant*/ true, /*isInsideLoop*/ false};
+    }
+    if (isInsideLoop) {
+      Expr* dummy = E;
+      auto CladTape = MakeCladTapeFor(dummy);
+      Expr* Push = CladTape.Push;
+      Expr* Pop = CladTape.Pop;
+      return DelayedStoreResult{*this, StmtDiff{ Push, Pop },
+                                /*isConstant*/ false, /*isInsideLoop*/ true};
+    } else {
+      Expr* Ref = BuildDeclRef(GlobalStoreImpl(E->getType(), prefix));
+      // Return reference to the declaration instead of original expression.
+      return DelayedStoreResult{*this, StmtDiff{ Ref, Ref },
+                                /*isConstant*/ false, /*isInsideLoop*/ false};
+    } 
   }
 
 } // end namespace clad

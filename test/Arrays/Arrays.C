@@ -106,6 +106,7 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       _t2 = consts[1];
 //CHECK-NEXT:       _t5 = vars[2];
 //CHECK-NEXT:       _t4 = consts[2];
+//CHECK-NEXT:       double const_dot_product_return = _t1 * _t0 + _t3 * _t2 + _t5 * _t4;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -192,6 +193,7 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:       _t15 = A[1][1];
 //CHECK-NEXT:       _t14 = B[1][1];
 //CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
+//CHECK-NEXT:    double const_matmul_sum_return = C[0][0] + C[0][1] + C[1][0] + C[1][1];
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {

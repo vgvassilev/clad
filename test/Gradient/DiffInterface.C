@@ -19,6 +19,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -42,6 +43,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -63,6 +65,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -84,6 +87,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -105,6 +109,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -127,6 +132,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -149,6 +155,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -172,6 +179,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
+//CHECK-NEXT:       double f_1_return = 0 * _t0 + 1 * _t1 + 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {

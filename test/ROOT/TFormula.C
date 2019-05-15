@@ -35,6 +35,7 @@ void TFormula_example_grad(Double_t *x, Double_t *p, Double_t *_result);
 //CHECK-NEXT:       _t0 = (p[0] + p[1] + p[2]);
 //CHECK-NEXT:       _t2 = -p[0];
 //CHECK-NEXT:       _t3 = p[1];
+//CHECK-NEXT:       double TFormula_example_return = _t1 * _t0 + TMath::Exp(_t2) + TMath::Abs(_t3);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
