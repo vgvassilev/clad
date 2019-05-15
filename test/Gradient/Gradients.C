@@ -11,6 +11,7 @@ double f_add1(double x, double y) {
 }
 
 //CHECK:   void f_add1_grad(double x, double y, double *_result) {
+//CHECK-NEXT:       double f_add1_return = x + y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -30,6 +31,7 @@ double f_add2(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
+//CHECK-NEXT:       double f_add2_return = 3 * _t0 + 4 * _t1;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -53,6 +55,7 @@ double f_add3(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
+//CHECK-NEXT:       double f_add3_return = 3 * _t0 + 4 * _t1 * 4;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -73,6 +76,7 @@ double f_sub1(double x, double y) {
 }
 
 //CHECK:   void f_sub1_grad(double x, double y, double *_result) {
+//CHECK-NEXT:       double f_sub1_return = x - y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -91,6 +95,7 @@ double f_sub2(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
+//CHECK-NEXT:       double f_sub2_return = 3 * _t0 - 4 * _t1;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -114,6 +119,7 @@ double f_mult1(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = y;
+//CHECK-NEXT:       double f_mult1_return = _t1 * _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -137,6 +143,7 @@ double f_mult2(double x, double y) {
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t2 = 3 * _t1 * 4;
 //CHECK-NEXT:       _t0 = y;
+//CHECK-NEXT:       double f_mult2_return = _t2 * _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -161,6 +168,7 @@ double f_div1(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = y;
+//CHECK-NEXT:       double f_div1_return = _t1 / _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -186,6 +194,7 @@ double f_div2(double x, double y) {
 //CHECK-NEXT:       _t2 = 3 * _t1;
 //CHECK-NEXT:       _t3 = y;
 //CHECK-NEXT:       _t0 = (4 * _t3);
+//CHECK-NEXT:       double f_div2_return = _t2 / _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -223,6 +232,7 @@ double f_c(double x, double y) {
 //CHECK-NEXT:       _t2 = (_t5 / _t4);
 //CHECK-NEXT:       _t7 = x;
 //CHECK-NEXT:       _t6 = x;
+//CHECK-NEXT:       double f_c_return = _t1 * _t0 + _t3 * _t2 - _t7 * _t6;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -270,6 +280,7 @@ double f_rosenbrock(double x, double y) {
 //CHECK-NEXT:       _t8 = x;
 //CHECK-NEXT:       _t7 = x;
 //CHECK-NEXT:       _t2 = (y - _t8 * _t7);
+//CHECK-NEXT:       double f_rosenbrock_return = _t1 * _t0 + _t6 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -303,6 +314,7 @@ double f_cond1(double x, double y) {
 //CHECK:   void f_cond1_grad(double x, double y, double *_result) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = x > y;
+//CHECK-NEXT:       double f_cond1_return = (_cond0 ? x : y);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       if (_cond0)
@@ -325,6 +337,7 @@ double f_cond2(double x, double y) {
 //CHECK-NEXT:           ;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           _cond1 = y > 0;
+//CHECK-NEXT:       double f_cond2_return = (_cond0 ? x : (_cond1 ? y : -y));
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       if (_cond0)
@@ -344,6 +357,7 @@ double f_cond3(double x, double c) {
 //CHECK:   void f_cond3_grad(double x, double c, double *_result) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = c > 0;
+//CHECK-NEXT:       double f_cond3_return = (_cond0 ? x + c : x - c);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       if (_cond0) {
@@ -367,10 +381,13 @@ double f_if1(double x, double y) {
 //CHECK:   void f_if1_grad(double x, double y, double *_result) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:       if (_cond0) {
+//CHECK-NEXT:           double f_if1_return = x;
 //CHECK-NEXT:           goto _label0;
-//CHECK-NEXT:       else
+//CHECK-NEXT:       } else {
+//CHECK-NEXT:           double f_if1_return0 = y;
 //CHECK-NEXT:           goto _label1;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:         _label0:
 //CHECK-NEXT:           _result[0UL] += 1;
@@ -394,14 +411,18 @@ double f_if2(double x, double y) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       _cond0 = x > y;
-//CHECK-NEXT:       if (_cond0)
+//CHECK-NEXT:       if (_cond0) {
+//CHECK-NEXT:           double f_if2_return = x;
 //CHECK-NEXT:           goto _label0;
-//CHECK-NEXT:       else {
+//CHECK-NEXT:       } else {
 //CHECK-NEXT:           _cond1 = y > 0;
-//CHECK-NEXT:           if (_cond1)
+//CHECK-NEXT:           if (_cond1) {
+//CHECK-NEXT:               double f_if2_return0 = y;
 //CHECK-NEXT:               goto _label1;
-//CHECK-NEXT:           else
+//CHECK-NEXT:           } else {
+//CHECK-NEXT:               double f_if2_return1 = -y;
 //CHECK-NEXT:               goto _label2;
+//CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:         _label0:
@@ -432,6 +453,7 @@ struct S {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t3 = this->c2;
 //CHECK-NEXT:       _t2 = y;
+//CHECK-NEXT:       double f_return = _t1 * _t0 + _t3 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -481,6 +503,7 @@ void f_norm_grad(double x, double y, double z, double d, double* _result);
 //CHECK-NEXT:       _t4 = sum_of_powers(_t0, _t1, _t2, _t3);
 //CHECK-NEXT:       _t5 = d;
 //CHECK-NEXT:       _t6 = 1 / _t5;
+//CHECK-NEXT:       double f_norm_return = std::pow(_t4, _t6);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -518,6 +541,7 @@ void f_sin_grad(double x, double y, double* _result);
 //CHECK-NEXT:       _t2 = y;
 //CHECK-NEXT:       _t3 = (std::sin(_t1) + std::sin(_t2));
 //CHECK-NEXT:       _t0 = (x + y);
+//CHECK-NEXT:       double f_sin_return = _t3 * _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -537,6 +561,7 @@ unsigned f_types(int x, float y, double z) {
 }
 
 //CHECK:   void f_types_grad(int x, float y, double z, unsigned int *_result) {
+//CHECK-NEXT:       double f_types_return = x + y + z;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -568,6 +593,7 @@ void f_decls1_grad(double x, double y, double* _result);
 //CHECK-NEXT:       double b = 5 * _t1;
 //CHECK-NEXT:       double c = a + b;
 //CHECK-NEXT:       _t2 = c;
+//CHECK-NEXT:       double f_decls1_return = 2 * _t2;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -620,6 +646,7 @@ void f_decls2_grad(double x, double y, double* _result);
 //CHECK-NEXT:       _t4 = y;
 //CHECK-NEXT:       double c = _t5 * _t4;
 //CHECK-NEXT:       _t6 = b;
+//CHECK-NEXT:       double f_decls2_return = a + 2 * _t6 + c;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -680,17 +707,20 @@ void f_decls3_grad(double x, double y, double* _result);
 //CHECK-NEXT:       _cond0 = x > 1;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           _t2 = a;
+//CHECK-NEXT:           double f_decls3_return = 2 * _t2;
 //CHECK-NEXT:           goto _label0;
 //CHECK-NEXT:       } else {
 //CHECK-NEXT:           _cond1 = x < -1;
 //CHECK-NEXT:           if (_cond1) {
 //CHECK-NEXT:               _t3 = a;
+//CHECK-NEXT:               double f_decls3_return0 = -2 * _t3;
 //CHECK-NEXT:               goto _label1;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       _t5 = a;
 //CHECK-NEXT:       _t4 = a;
 //CHECK-NEXT:       double b = _t5 * _t4;
+//CHECK-NEXT:       double f_decls3_return = b;
 //CHECK-NEXT:       goto _label2;
 //CHECK-NEXT:     _label2:
 //CHECK-NEXT:       _d_b += 1;

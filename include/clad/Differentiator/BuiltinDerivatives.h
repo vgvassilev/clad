@@ -96,6 +96,11 @@ namespace custom_derivatives {
     result[1] += pow_darg1(x, exponent);
   }
 
+  template <typename T>
+  T log_darg0(T x) {
+    return 1.0/x;
+  }
+
 } // end namespace builtin_derivatives
 
 #endif //CLAD_BUILTIN_DERIVATIVES
