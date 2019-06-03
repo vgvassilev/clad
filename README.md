@@ -7,7 +7,7 @@ Clad enables [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Auto
 ## How to use Clad
 Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libdclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
 ```
-clang -cc1 -x c++ -std=c++11 -load libclad.so -plugin SourceFile.cpp
+clang -cc1 -x c++ -std=c++11 -load libclad.so -plugin clad SourceFile.cpp
 ```
 Clad provides two API functions:
 - `clad::differentiate` to use forward-mode AD
