@@ -15,6 +15,8 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Lookup.h"
@@ -59,7 +61,7 @@ namespace clad {
     // If FD is only a declaration, try to find its definition.
     if (!FD->getDefinition()) {
       if (request.VerboseDiags)
-        diag(DiagnosticsEngine::Error, 
+        diag(DiagnosticsEngine::Error,
              request.CallContext ? request.CallContext->getLocStart() : noLoc,
              "attempted differentiation of function '%0', which does not have a "
              "definition", { FD->getNameAsString() });
@@ -70,10 +72,12 @@ namespace clad {
     if (request.Mode == DiffMode::forward) {
       ForwardModeVisitor V(*this);
       result = V.Derive(FD, request);
-    }
-    else if (request.Mode == DiffMode::reverse) {
+    } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
       result = V.Derive(FD, request);
+    } else if (request.Mode == DiffMode::hessian) {
+      HessianModeVisitor H(*this);
+      result = H.Derive(FD, request);
     }
 
     if (result.first)
@@ -317,7 +321,7 @@ namespace clad {
       id += 1;
     for (;;) {
       IdentifierInfo* name = &m_Context.Idents.get(nameBase.str() + idStr);
-      LookupResult R(m_Sema, DeclarationName(name), noLoc, 
+      LookupResult R(m_Sema, DeclarationName(name), noLoc,
                      Sema::LookupOrdinaryName);
       m_Sema.LookupName(R, m_CurScope, /*AllowBuiltinCreation*/ false);
       if (R.empty()) {
@@ -397,6 +401,235 @@ namespace clad {
 
     // Return reference to the declaration instead of original expression.
     return BuildDeclRef(Var);
+  }
+
+  HessianModeVisitor::HessianModeVisitor(DerivativeBuilder& builder):
+    VisitorBase(builder) {}
+
+  HessianModeVisitor::~HessianModeVisitor() {}
+
+  DeclWithContext HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
+                         const DiffRequest& request) {
+    int numIndependentArgs = request.Function->getNumParams();
+    std::vector<FunctionDecl*> secondDerivativeColumns;
+
+    // Copied and adapted from clang::Sema::ActOnStringLiteral.
+    QualType CharTyConst = m_Context.CharTy;
+    CharTyConst.addConst();
+    // Get an array type for the string, according to C99 6.4.5. This includes
+    // the nul terminator character as well as the string length for pascal
+    // strings.
+
+    // Generates the second derivative functions corresponding to a column of
+    // a hessian matrix.
+    for (int i = 1; i <= numIndependentArgs; i++)
+    {
+      DiffRequest independentArgRequest = request;
+
+      const ParmVarDecl* independentArg = request.Function->getParamDecl(i-1);
+      QualType StrTy =
+        m_Context.getConstantArrayType(CharTyConst,
+                               llvm::APInt(32,
+                                 independentArg->getNameAsString().size() + 1),
+                               ArrayType::Normal,
+                               /*IndexTypeQuals*/0);
+      StringLiteral* independentArgString =
+            StringLiteral::Create(m_Context,
+                                  independentArg->getName(),
+                                  StringLiteral::Ascii, false, StrTy, noLoc);
+
+      independentArgRequest.Args = independentArgString;
+      independentArgRequest.Mode = DiffMode::forward;
+      independentArgRequest.CallUpdateRequired = false;
+      FunctionDecl* firstDerivative =
+            plugin::ProcessDiffRequest(m_CladPlugin,
+                                       independentArgRequest);
+
+      independentArgRequest.Mode = DiffMode::reverse;
+      independentArgRequest.Function = firstDerivative;
+      independentArgRequest.Args = nullptr;
+      FunctionDecl* secondDerivative =
+            plugin::ProcessDiffRequest(m_CladPlugin,
+                                       independentArgRequest);
+
+      secondDerivativeColumns.push_back(secondDerivative);
+    }
+    return Merge(secondDerivativeColumns, request);
+  }
+
+  // Combines all generated second derivative functions into a
+  // single hessian function
+  DeclWithContext HessianModeVisitor::Merge(std::vector<FunctionDecl*>
+                                              secDerivFuncs,
+                                            const DiffRequest& request) {
+    DiffParams args;
+    // request.Function is original function passed in from clad::hessian
+    m_Function = request.Function;
+    std::copy(m_Function->param_begin(), m_Function->param_end(),
+              std::back_inserter(args));
+
+    std::string hessianFuncName = request.BaseFunctionName + "_hessian";
+    IdentifierInfo* II = &m_Context.Idents.get(hessianFuncName);
+    DeclarationNameInfo name(II, noLoc);
+
+    llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams()
+                                                + 1);
+
+    std::transform(m_Function->param_begin(),
+                  m_Function->param_end(),
+                  std::begin(paramTypes),
+                  [] (const ParmVarDecl* PVD) {
+                    return PVD->getType();
+                  });
+
+    paramTypes.back() =
+                m_Context.getPointerType(m_Function->getReturnType());
+
+    QualType hessianFunctionType =
+                      m_Context.getFunctionType(m_Context.VoidTy,
+                        llvm::ArrayRef<QualType>(paramTypes.data(),
+                        paramTypes.size()),
+                        // Cast to function pointer.
+                        FunctionProtoType::ExtProtoInfo());
+
+    // Create the gradient function declaration.
+    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+
+    FunctionDecl* hessianFD = nullptr;
+    NamespaceDecl* enclosingNS = nullptr;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    m_Sema.CurContext = DC;
+
+    if (isa<CXXMethodDecl>(m_Function)) {
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+      hessianFD = CXXMethodDecl::Create(m_Context,
+                                         CXXRD,
+                                         noLoc,
+                                         name,
+                                         hessianFunctionType,
+                                         m_Function->getTypeSourceInfo(),
+                                         m_Function->getStorageClass(),
+                                         m_Function->isInlineSpecified(),
+                                         m_Function->isConstexpr(),
+                                         noLoc);
+    }
+    else if (isa<FunctionDecl>(m_Function)) {
+      enclosingNS = RebuildEnclosingNamespaces(DC);
+      hessianFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
+        name, hessianFunctionType,
+        m_Function->getTypeSourceInfo(),
+        m_Function->getStorageClass(),
+        m_Function->isInlineSpecified(),
+        m_Function->hasWrittenPrototype(),
+        m_Function->isConstexpr());
+    } else {
+      diag(DiagnosticsEngine::Error, m_Function->getLocEnd(),
+           "attempted differentiation of '%0' which is of unsupported type",
+           { m_Function->getNameAsString() });
+      return {};
+    }
+
+    beginScope(Scope::FunctionPrototypeScope |
+           Scope::FunctionDeclarationScope |
+           Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(getCurrentScope(), hessianFD);
+
+    llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
+    std::transform(m_Function->param_begin(), m_Function->param_end(),
+    std::begin(params),
+    [&] (const ParmVarDecl* PVD) {
+      auto VD = ParmVarDecl::Create(m_Context, hessianFD, noLoc, noLoc,
+            PVD->getIdentifier(), PVD->getType(),
+            PVD->getTypeSourceInfo(),
+            PVD->getStorageClass(),
+            // Clone default arg if present.
+            (PVD->hasDefaultArg() ?
+            Clone(PVD->getDefaultArg()) : nullptr));
+        if (VD->getIdentifier())
+        m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
+        auto it = std::find(std::begin(args), std::end(args), PVD);
+        if (it != std::end(args))
+        *it = VD;
+        return VD;
+      });
+
+    // The output paremeter "_result".
+    params.back() = ParmVarDecl::Create(m_Context, hessianFD, noLoc,
+        noLoc, &m_Context.Idents.get("hessianMatrix"),
+        paramTypes.back(),
+        m_Context.getTrivialTypeSourceInfo(
+          paramTypes.back(), noLoc),
+          params.front()->getStorageClass(),
+          /* No default value */ nullptr);
+
+    if (params.back()->getIdentifier())
+        m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
+                                   /*AddToContext*/ false);
+
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = llvm::makeArrayRef(params.data(),
+          params.size());
+    hessianFD->setParams(paramsRef);
+    Expr* m_Result = BuildDeclRef(params.back());
+    std::vector<Stmt*> CompStmtSave;
+
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+
+    // Creates callExprs to the second derivative functions genereated
+    // and creates maps array elements to input array.
+    int numSecDerivatives = secDerivFuncs.size();
+    for (int i = 0; i < numSecDerivatives; i++)
+    {
+      Expr* exprFunc = BuildDeclRef(secDerivFuncs[i]);
+      int numIndependentArgs = secDerivFuncs[i]->getNumParams();
+
+      auto size_type = m_Context.getSizeType();
+      auto size_type_bits = m_Context.getIntWidth(size_type);
+      // Create the idx literal.
+      auto idx = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits,
+                                        (i * (numIndependentArgs-1))),
+      size_type, noLoc);
+      // Create the hessianMatrix[idx] expression.
+      auto arrayExpr = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+        idx, noLoc).get();
+      // Creates the &hessianMatrix[idx] expression.
+      auto addressArrayExpr = m_Sema.BuildUnaryOp(nullptr, noLoc, UO_AddrOf,
+                                                  arrayExpr).get();
+
+      // Transforms ParmVarDecls into Expr paramters for insertion into function
+      std::vector<Expr*> DeclRefToParams;
+      DeclRefToParams.resize(params.size());
+      std::transform(params.begin(), std::prev(params.end()),
+      std::begin(DeclRefToParams),
+      [&] (ParmVarDecl* PVD) {
+        auto VD = BuildDeclRef(PVD);
+        return VD;
+      });
+      DeclRefToParams.pop_back();
+      DeclRefToParams.push_back(addressArrayExpr);
+
+      Expr* call =
+        m_Sema.ActOnCallExpr(getCurrentScope(), exprFunc, noLoc,
+                             llvm::MutableArrayRef<Expr*>(DeclRefToParams),
+                             noLoc).get();
+      CompStmtSave.push_back(call);
+    }
+
+    auto StmtsRef = llvm::makeArrayRef(CompStmtSave.data(),
+                                       CompStmtSave.size());
+    CompoundStmt* CS = new (m_Context) clang::CompoundStmt(m_Context,
+                                         StmtsRef,
+                                         noLoc,
+                                         noLoc);
+    hessianFD->setBody(CS);
+    endScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    return {hessianFD, enclosingNS};
   }
 
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
@@ -588,7 +821,7 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
-    return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get(); 
+    return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get();
   }
 
   Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode,
@@ -635,7 +868,7 @@ namespace clad {
     Result = cast<NamespaceDecl>(CladR.getFoundDecl());
     return Result;
   }
- 
+
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
     static TemplateDecl* Result = nullptr;
     if (Result)
@@ -738,7 +971,7 @@ namespace clad {
                                           CallArgs, noLoc).get();
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
-    
+
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getLocStart(),
@@ -895,7 +1128,7 @@ namespace clad {
     CompoundStmt* body = V.endBlock();
     Expr* lambda = S.ActOnLambdaExpr(noLoc, body, V.getCurrentScope()).get();
     V.endScope();
-    return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc).get(); 
+    return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc).get();
   }
 
   StmtDiff ForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
@@ -955,7 +1188,7 @@ namespace clad {
     else if (incDiff.getExpr()) {
       incResult = incDiff.getExpr();
     }
-    
+
     const Stmt* body = FS->getBody();
     beginScope(Scope::DeclScope);
     Stmt* bodyResult = nullptr;
@@ -971,14 +1204,14 @@ namespace clad {
       if (Block->size() == 1)
         bodyResult = Block->body_front();
       else
-        bodyResult = Block; 
+        bodyResult = Block;
     }
     endScope();
- 
+
     Stmt* forStmtDiff =
       new (m_Context) ForStmt(m_Context, initDiff.getStmt(), cond, condVarClone,
                               incResult, bodyResult, noLoc, noLoc, noLoc);
-  
+
     addToCurrentBlock(forStmtDiff);
     CompoundStmt* Block = endBlock();
     endScope();
@@ -1026,7 +1259,7 @@ namespace clad {
     Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
     Expr* derivedILE = m_Sema.ActOnInitList(noLoc, derivedExprs, noLoc).get();
     return StmtDiff(clonedILE, derivedILE);
-  } 
+  }
 
   StmtDiff ForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     auto ASI = SplitArraySubscript(ASE);
@@ -1062,7 +1295,7 @@ namespace clad {
     auto result_at_is = BuildArraySubscript(target, clonedIndices);
     return StmtDiff(cloned, result_at_is);
   }
-   
+
   StmtDiff ForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = nullptr;
     // Check if referenced Decl was "replaced" with another identifier inside
@@ -1084,7 +1317,7 @@ namespace clad {
       }
     } else
       clonedDRE = cast<DeclRefExpr>(Clone(DRE));
-    
+
     if (auto VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       // If DRE references a variable, try to find if we know something about
       // how it is related to the independent variable.
@@ -1255,7 +1488,7 @@ namespace clad {
     }
 
     if (!callDiff) {
-      // Overloaded derivative was not found, request the CladPlugin to 
+      // Overloaded derivative was not found, request the CladPlugin to
       // derive the called function.
       DiffRequest request{};
       request.Function = FD;
@@ -1282,7 +1515,7 @@ namespace clad {
                                       noLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
                                       noLoc).get();
     }
- 
+
     if (Multiplier)
       callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
     return StmtDiff(call, callDiff);
@@ -1350,7 +1583,7 @@ namespace clad {
 
       return BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
     };
-        
+
     if (opCode == BO_Mul) {
       // If Ldiff.getExpr() and Rdiff.getExpr() require evaluation, store the
       // expressions in variables to avoid reevaluation.
@@ -1445,7 +1678,7 @@ namespace clad {
         // double f(double x) {
         //   double y = x;
         //   double _d_y = x;
-        // } 
+        // }
         // ->
         // double f_darg0(double x) {
         //   double _d_x = 1;
@@ -1490,7 +1723,7 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
     return Visit(DE->getExpr());
   }
-  
+
   StmtDiff ForwardModeVisitor::VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr* BL) {
     llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/0);
     auto constant0 = IntegerLiteral::Create(m_Context, zero, m_Context.IntTy,
@@ -1513,12 +1746,12 @@ namespace clad {
     if (request.Args)
       args = parseDiffArgs(request.Args, FD);
     else
-      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));      
+      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())
       return {};
     auto derivativeBaseName = m_Function->getNameAsString();
     std::string gradientName = derivativeBaseName + "_grad";
-    // To be consistent with older tests, nothing is appended to 'f_grad' if 
+    // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
     if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))
       for (auto arg : args) {
@@ -1595,7 +1828,7 @@ namespace clad {
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
-    std::transform(m_Function->param_begin(), m_Function->param_end(), 
+    std::transform(m_Function->param_begin(), m_Function->param_end(),
       std::begin(params),
       [&] (const ParmVarDecl* PVD) {
         auto VD = ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
@@ -1689,7 +1922,7 @@ namespace clad {
 
     return { gradientFD, enclosingNS };
   }
-  
+
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getLocStart(),
          "attempted to differentiate unsupported statement, no changes applied");
@@ -1821,7 +2054,7 @@ namespace clad {
     StmtDiff thenDiff = VisitBranch(If->getThen());
     StmtDiff elseDiff = VisitBranch(If->getElse());
 
-    // It is problematic to specify both condVarDecl and cond thorugh 
+    // It is problematic to specify both condVarDecl and cond thorugh
     // Sema::ActOnIfStmt, therefore we directly use the IfStmt constructor.
     Stmt* Forward = new (m_Context) IfStmt(m_Context, noLoc, If->isConstexpr(),
                                            initResult.getStmt(), condVarClone,
@@ -1878,7 +2111,7 @@ namespace clad {
     std::tie(ifTrueDiff, ifTrueExprDiff) = VisitBranch(ifTrue, dfdx());
     std::tie(ifFalseDiff, ifFalseExprDiff) = VisitBranch(ifFalse, dfdx());
 
-    auto BuildIf = 
+    auto BuildIf =
       [&] (Expr* Cond, Stmt* Then, Stmt* Else) -> Stmt* {
         if (!Then && !Else)
           return nullptr;
@@ -1887,7 +2120,7 @@ namespace clad {
         return new (m_Context) IfStmt(m_Context, noLoc, false, nullptr,  nullptr,
                                       Cond, Then, noLoc, Else);
       };
-  
+
     Stmt* Forward = BuildIf(cond.getExpr(), ifTrueDiff.getStmt(),
                             ifFalseDiff.getStmt());
     Stmt* Reverse = BuildIf(cond.getExpr_dx(), ifTrueDiff.getStmt_dx(),
@@ -2075,7 +2308,7 @@ namespace clad {
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
     // If the original function returns at this point, some part of the reverse
-    // pass (corresponding to other branches that do not return here) must be 
+    // pass (corresponding to other branches that do not return here) must be
     // skipped. We create a label in the reverse pass and jump to it via goto.
     LabelDecl* LD = LabelDecl::Create(m_Context, m_Sema.CurContext, noLoc,
                                       CreateUniqueIdentifier("_label"));
@@ -2090,7 +2323,7 @@ namespace clad {
     // Since returned expression may have some side effects affecting reverse
     // computation (e.g. assignments), we also have to emit it to execute it.
     StoreAndRef(ExprDiff.getExpr(), forward,
-                m_Function->getNameAsString() + "_return", /*force*/ true); 
+                m_Function->getNameAsString() + "_return", /*force*/ true);
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
   }
@@ -2113,7 +2346,7 @@ namespace clad {
 
     Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
     return StmtDiff(clonedILE);
-  } 
+  }
 
   StmtDiff ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     auto ASI = SplitArraySubscript(ASE);
@@ -2185,7 +2418,7 @@ namespace clad {
       }
       return StmtDiff(clonedDRE, it->second);
     }
-    
+
     return StmtDiff(clonedDRE);
   }
 
@@ -2302,7 +2535,7 @@ namespace clad {
                                                      ReverseCallArgs),
                                                    noLoc).get();
       } else {
-        // Overloaded derivative was not found, request the CladPlugin to 
+        // Overloaded derivative was not found, request the CladPlugin to
         // derive the called function.
         DiffRequest request{};
         request.Function = FD;
@@ -2378,7 +2611,7 @@ namespace clad {
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     auto opCode  = UnOp->getOpcode();
     StmtDiff diff{};
-    // If it is a post-increment/decrement operator, its result is a reference and 
+    // If it is a post-increment/decrement operator, its result is a reference and
     // we should return it.
     Expr* ResultRef = nullptr;
     if (opCode == UO_Plus)
@@ -2415,7 +2648,7 @@ namespace clad {
     StmtDiff Rdiff{};
     auto L = BinOp->getLHS();
     auto R = BinOp->getRHS();
-    // If it is an assignment operator, its result is a reference to LHS and 
+    // If it is an assignment operator, its result is a reference to LHS and
     // we should return it.
     Expr* ResultRef = nullptr;
 
@@ -2444,7 +2677,7 @@ namespace clad {
       //df/dxl += df/dxi * dxi/xl = df/dxi * xr
       // Create uninitialized "global" variable for the right multiplier.
       // It will be assigned later after R is visited and cloned. This allows
-      // to reduce cloning complexity and only clones once. Storing it in a 
+      // to reduce cloning complexity and only clones once. Storing it in a
       // global variable allows to save current result and make it accessible
       // in the reverse pass.
       auto RDelayed = DelayedGlobalStoreAndRef(R);
@@ -2686,7 +2919,7 @@ namespace clad {
         // double f(double x) {
         //   double y = x;
         //   double _d_y = x;
-        // } 
+        // }
         // ->
         // double f_darg0(double x) {
         //   double _d_x = 1;
@@ -2823,7 +3056,7 @@ namespace clad {
       // Return reference to the declaration instead of original expression.
       return DelayedStoreResult{*this, StmtDiff{ Ref, Ref },
                                 /*isConstant*/ false, /*isInsideLoop*/ false};
-    } 
+    }
   }
 
 } // end namespace clad

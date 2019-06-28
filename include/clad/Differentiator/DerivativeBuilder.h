@@ -162,7 +162,7 @@ namespace clad {
     // Check if result of the expression is unused.
     bool isUnusedResult(const clang::Expr* E);
     /// Output a statement to the current block. If Stmt is null or is an unused
-    /// expression, it is not output and false is returned. 
+    /// expression, it is not output and false is returned.
     bool addToCurrentBlock(clang::Stmt* S);
     bool addToBlock(clang::Stmt* S, Stmts& block);
 
@@ -178,7 +178,7 @@ namespace clad {
       m_CurScope = new clang::Scope(getCurrentScope(), ScopeFlags, m_Sema.Diags);
     }
     void endScope() {
-      // This will remove all the decls in the scope from the IdResolver. 
+      // This will remove all the decls in the scope from the IdResolver.
       m_Sema.ActOnPopScope(noLoc, m_CurScope);
       auto oldScope = m_CurScope;
       m_CurScope = oldScope->getParent();
@@ -223,7 +223,7 @@ namespace clad {
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
     /// If force decl creation is true, this will allways create a temporary
-    /// variable declaration. Otherwise, temporary variable is created only 
+    /// variable declaration. Otherwise, temporary variable is created only
     /// if E requires evaluation (e.g. there is no point to store literals or
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, Stmts& block,
@@ -277,7 +277,7 @@ namespace clad {
     /// Returns 0 for scalar types, otherwise {}.
     clang::Expr* getZeroInit(clang::QualType T);
 
-    /// Split an array subscript expression into a pair of base expr and 
+    /// Split an array subscript expression into a pair of base expr and
     /// a vector of all indices.
     std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
     SplitArraySubscript(const clang::Expr* ASE);
@@ -292,7 +292,7 @@ namespace clad {
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.
     clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
-    /// Perform lookup into clad namespace for push/pop/back. Returns 
+    /// Perform lookup into clad namespace for push/pop/back. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
     /// are templates).
     clang::LookupResult& GetCladTapePush();
@@ -402,7 +402,7 @@ namespace clad {
       public VisitorBase {
   private:
     llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
-    /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
+    /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
@@ -465,7 +465,7 @@ namespace clad {
       }
     }
     /// Output a statement to the current block. If Stmt is null or is an unused
-    /// expression, it is not output and false is returned. 
+    /// expression, it is not output and false is returned.
     bool addToCurrentBlock(clang::Stmt* S, direction d = forward) {
       return addToBlock(S, getCurrentBlock(d));
     }
@@ -473,7 +473,7 @@ namespace clad {
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
     /// If force decl creation is true, this will allways create a temporary
-    /// variable declaration. Otherwise, temporary variable is created only 
+    /// variable declaration. Otherwise, temporary variable is created only
     /// if E requires evaluation (e.g. there is no point to store literals or
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, direction d = forward,
@@ -482,7 +482,7 @@ namespace clad {
       assert(E && "cannot infer type from null expression");
       return StoreAndRef(E, E->getType(), d, prefix, forceDeclCreation);
     }
-    
+
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type,
                              direction d = forward,
@@ -496,7 +496,7 @@ namespace clad {
     }
 
     /// For an expr E, decides if it is useful to store it in a global temporary
-    /// variable and replace E's further usage by a reference to that variable to 
+    /// variable and replace E's further usage by a reference to that variable to
     /// avoid recomputiation.
     bool UsefulToStoreGlobal(clang::Expr* E);
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type, llvm::StringRef prefix);
@@ -517,8 +517,8 @@ namespace clad {
     /// .Result is a reference to the created (yet uninitialized) global variable.
     /// When the expression is finally visited and rebuilt, .Finalize must be
     /// called with new rebuilt expression, to initialize the global variable.
-    /// Alternatively, expression may be not worth storing in a global varialbe 
-    /// and is  easy to clone (e.g. it is a constant literal). Then .Result is 
+    /// Alternatively, expression may be not worth storing in a global varialbe
+    /// and is  easy to clone (e.g. it is a constant literal). Then .Result is
     /// cloned E, .isConstant is true and .Finalize does nothing.
     struct DelayedStoreResult {
       ReverseModeVisitor& V;
@@ -604,18 +604,38 @@ namespace clad {
     /// Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
     /// A helper method to differentiate a single Stmt in the reverse mode.
-    /// Internally, calls Visit(S, expr). Its result is wrapped into a 
+    /// Internally, calls Visit(S, expr). Its result is wrapped into a
     /// CompoundStmt (if several statements are created) and proper Stmt
     /// order is maintained.
     StmtDiff DifferentiateSingleStmt(const clang::Stmt* S,
                                      clang::Expr* dfdS = nullptr);
     /// A helper method used to keep substatements created by Visit(E, expr) in
     /// separate forward/reverse blocks instead of putting them into current
-    /// blocks. First result is a StmtDiff of forward/reverse blocks with 
+    /// blocks. First result is a StmtDiff of forward/reverse blocks with
     /// additionally created Stmts, second is a direct result of call to Visit.
-    std::pair<StmtDiff, StmtDiff> 
+    std::pair<StmtDiff, StmtDiff>
     DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
 
+  };
+
+  /// A visitor for processing the function code to generate hessians
+  /// Used to compute Hessian matrices by clad::hessian.
+  class HessianModeVisitor
+    : public clang::ConstStmtVisitor<HessianModeVisitor, StmtDiff>,
+      public VisitorBase {
+  public:
+    HessianModeVisitor(DerivativeBuilder& builder);
+    ~HessianModeVisitor();
+
+    // Generates second derivatives of the function that correspond to
+    // columns of a Hessian matrix
+    DeclWithContext Derive(const clang::FunctionDecl* FD,
+                           const DiffRequest& request);
+
+    // Combines all the generated second derivatives from derive into a single
+    // function f_hessian
+    DeclWithContext Merge(std::vector<clang::FunctionDecl*> Functions,
+                          const DiffRequest& request);
   };
 } // end namespace clad
 

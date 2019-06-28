@@ -62,8 +62,8 @@ namespace clad {
       llvm_unreachable("Trying to differentiate something unsupported");
 
     // Update the code parameter.
-    if (CXXDefaultArgExpr* Arg
-        = dyn_cast<CXXDefaultArgExpr>(call->getArg(codeArgIdx))) {
+    if (call->getArg(codeArgIdx)->isDefaultArgument() || (codeArgIdx >= 2)) {
+      Expr* Arg = call->getArg(codeArgIdx);
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -163,7 +163,7 @@ namespace clad {
     // clad::differentiate(...) __attribute__((annotate("D")))
     // TODO: why not check for its name? clad::differentiate/gradient?
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-    if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G"))) {
+    if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") || A->getAnnotation().equals("H"))) {
       // A call to clad::differentiate or clad::gradient was found.
       DeclRefExpr* DRE = getArgFunction(E);
       if (!DRE)
@@ -173,13 +173,14 @@ namespace clad {
       if (A->getAnnotation().equals("D")) {
         request.Mode = DiffMode::forward;
         llvm::APSInt derivativeOrderAPSInt
-          = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
+        = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
         // We know the first template spec argument is of unsigned type
         assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
         unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
         request.RequestedDerivativeOrder = derivativeOrder;
-      }
-      else {
+      } else if (A->getAnnotation().equals("H")) {
+        request.Mode = DiffMode::hessian;
+      } else {
         request.Mode = DiffMode::reverse;
       }
       request.CallContext = E;
@@ -193,12 +194,12 @@ namespace clad {
       // FIXME: add support for nested calls to clad::differentiate/gradient
       // inside differentiated functions
       assert(!m_TopMostFD &&
-             "nested clad::differentiate/gradient are not yet supported");
+        "nested clad::differentiate/gradient are not yet supported");
       llvm::SaveAndRestore<const FunctionDecl*> saveTopMost = m_TopMostFD;
       m_TopMostFD = FD;
       TraverseDecl(derivedFD);
       m_DiffPlans.push_back(std::move(request));
-    }
+      }
     /*else if (m_TopMostFD) {
       // If another function is called inside differentiated function,
       // this will be handled by Forward/ReverseModeVisitor::Derive.

@@ -114,13 +114,13 @@ namespace clad {
       }
 
       if (DerivativeDecl) {
-        bool lastDerivativeOrder = 
+        bool lastDerivativeOrder =
           (request.CurrentDerivativeOrder == request.RequestedDerivativeOrder);
         // If this is the last required derivative order, replace the function
         // inside a call to clad::differentiate/gradient with its derivative.
         if (request.CallUpdateRequired && lastDerivativeOrder)
           request.updateCall(DerivativeDecl, m_CI.getSema());
-                  
+
         // if enabled, print source code of the derived functions
         if (m_DO.DumpDerivedFn) {
           DerivativeDecl->print(llvm::outs(), Policy);
@@ -145,7 +145,7 @@ namespace clad {
           m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
             DerivativeDeclOrEnclosingContext));
         }
-        
+
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;
@@ -157,7 +157,7 @@ namespace clad {
       }
       return nullptr;
     }
-     
+
 
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.
