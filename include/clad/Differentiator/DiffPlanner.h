@@ -16,7 +16,8 @@ namespace clad {
   enum class DiffMode {
     unknown = 0,
     forward,
-    reverse
+    reverse,
+    hessian
   };
 
   /// A struct containing information about request to differentiate a function.
