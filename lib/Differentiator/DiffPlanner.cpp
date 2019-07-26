@@ -163,7 +163,8 @@ namespace clad {
     // clad::differentiate(...) __attribute__((annotate("D")))
     // TODO: why not check for its name? clad::differentiate/gradient?
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-    if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G"))) {
+    if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") 
+        || A->getAnnotation().equals("H"))) {
       // A call to clad::differentiate or clad::gradient was found.
       DeclRefExpr* DRE = getArgFunction(E);
       if (!DRE)
@@ -178,8 +179,9 @@ namespace clad {
         assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
         unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
         request.RequestedDerivativeOrder = derivativeOrder;
-      }
-      else {
+      } else if (A->getAnnotation().equals("H")) {
+        request.Mode = DiffMode::hessian;
+      } else {
         request.Mode = DiffMode::reverse;
       }
       request.CallContext = E;

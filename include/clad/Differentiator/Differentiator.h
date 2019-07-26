@@ -169,5 +169,26 @@ namespace clad {
       reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by gradient*/,
       code);
   }
+
+  /// Function for Hessian matrix computation
+  /// Given  a function f, clad::hessian generates all the second derivatives
+  /// of the original function, (they are also columns of a Hessian matrix
+  template<typename ArgSpec = const char *, typename R, typename... Args>
+  CladFunction<false, void, Args..., R*> __attribute__((annotate("H")))
+  hessian(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<false, void, Args..., R*>(
+      reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by Hessian*/,
+      code);
+  }
+    
+  template<typename ArgSpec = const char *, typename R, typename C, typename... Args>
+  CladFunction<true, void, C, Args..., R*> __attribute__((annotate("H")))
+  hessian(R (C::*f)(Args...), ArgSpec args = "", const char* code = "") {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<true, void, C, Args..., R*>(
+      reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by Hessian*/,
+      code);
+  }
 }
 #endif // CLAD_DIFFERENTIATOR
