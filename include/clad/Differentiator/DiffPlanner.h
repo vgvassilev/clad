@@ -17,7 +17,8 @@ namespace clad {
     unknown = 0,
     forward,
     reverse,
-    hessian
+    hessian,
+    jacobian
   };
 
   /// A struct containing information about request to differentiate a function.

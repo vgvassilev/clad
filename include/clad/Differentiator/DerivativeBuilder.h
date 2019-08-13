@@ -54,6 +54,7 @@ namespace clad {
     friend class ForwardModeVisitor;
     friend class ReverseModeVisitor;
     friend class HessianModeVisitor;
+    friend class JacobianModeVisitor;
 
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
@@ -401,7 +402,7 @@ namespace clad {
   class ReverseModeVisitor
     : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
       public VisitorBase {
-  private:
+  protected:    
     llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
     /// the reverse mode we also accumulate Stmts for the reverse pass which
@@ -427,6 +428,14 @@ namespace clad {
     StmtDiff Visit(const clang::Stmt* stmt, clang::Expr* dfdS = nullptr) {
       // No need to push the same expr multiple times.
       bool push = !(!m_Stack.empty() && (dfdS == dfdx()));
+      /*printf("dfdS: ");
+      if (dfdS) {
+        dfdS->dumpPretty(m_Context);
+        printf("\n");
+      }
+      else
+        printf("NULL\n");
+        */
       if (push)
         m_Stack.push(dfdS);
       auto result = clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
@@ -649,6 +658,19 @@ namespace clad {
                            const DiffRequest& request);
 
   };
+  
+  /// A visitor for processing the function code in reverse mode.
+  /// Used to compute derivatives by clad::gradient.
+  class JacobianModeVisitor
+    : public ReverseModeVisitor {
+    public:
+      JacobianModeVisitor(DerivativeBuilder& builder);
+      ~JacobianModeVisitor();
+      
+      DeclWithContext Derive(const clang::FunctionDecl* FD,
+                             const DiffRequest& request);
+      StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+    };
 } // end namespace clad
 
 #endif // CLAD_DERIVATIVE_BUILDER_H

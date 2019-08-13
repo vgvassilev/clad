@@ -77,6 +77,9 @@ namespace clad {
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);
+    } else if (request.Mode == DiffMode::jacobian) {
+      JacobianModeVisitor J(*this);
+      result = J.Derive(FD, request);
     }
 
     if (result.first)
@@ -2299,6 +2302,9 @@ namespace clad {
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
+    // value->dumpPretty(m_Context);
+    // printf("\n");
+    
     QualType type = value->getType();
     auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
     ExprResult tmp = dfdf;
@@ -2308,16 +2314,20 @@ namespace clad {
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
+    // Reverse->dump();
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
     // skipped. We create a label in the reverse pass and jump to it via goto.
     LabelDecl* LD = LabelDecl::Create(m_Context, m_Sema.CurContext, noLoc,
                                       CreateUniqueIdentifier("_label"));
+    // LD->dump();
     m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);
     // Attach label to the last Stmt in the corresponding Reverse Stmt.
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
     Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
+    // LS->dump();
+    // LS->dumpPretty(m_Context);
     addToCurrentBlock(LS, reverse);
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
       addToCurrentBlock(S, forward);
@@ -2416,6 +2426,8 @@ namespace clad {
         auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
         // Add it to the body statements.
         addToCurrentBlock(add_assign, reverse);
+        // add_assign->dumpPretty(m_Context);
+        // printf("\n");
       }
       return StmtDiff(clonedDRE, it->second);
     }
@@ -2432,6 +2444,7 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    printf("hdkgkl\n");
     const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning, CE->getLocEnd(),
@@ -2471,6 +2484,7 @@ namespace clad {
       // will be initialized later after arguments is visited. This is done to
       // reduce cloning complexity and only clone once.
       Expr* dArg = StoreAndRef(nullptr, Arg->getType(), reverse, "_r", /*force*/true);
+      // Arg->dumpPretty(m_Context);
       ArgResultDecls.push_back(cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
       // Visit using unitialized reference.
       StmtDiff ArgDiff = Visit(Arg, dArg);
@@ -2894,7 +2908,10 @@ namespace clad {
     beginBlock(forward);
     beginBlock(reverse);
     StmtDiff EDiff = Visit(E, dfdE);
+    // EDiff.getExpr_dx()->dump();
     CompoundStmt* RCS = endBlock(reverse);
+    // printf("RCS:\n");
+    // RCS->dumpPretty(m_Context);
     Stmt* ForwardResult = endBlock(forward);
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
@@ -3058,6 +3075,423 @@ namespace clad {
       return DelayedStoreResult{*this, StmtDiff{ Ref, Ref },
                                 /*isConstant*/ false, /*isInsideLoop*/ false};
     }
+  }
+  
+  JacobianModeVisitor::JacobianModeVisitor(DerivativeBuilder& builder):
+    ReverseModeVisitor(builder) {}
+
+  JacobianModeVisitor::~JacobianModeVisitor() {}
+
+  DeclWithContext JacobianModeVisitor::Derive(const FunctionDecl* FD,
+                                             const DiffRequest& request) {
+    silenceDiags = !request.VerboseDiags;
+    m_Function = FD;
+    assert(m_Function && "Must not be null.");
+
+    DiffParams args {};
+    if (request.Args)
+      args = parseDiffArgs(request.Args, FD);
+    else
+      std::copy(FD->param_begin(), std::prev(FD->param_end()), std::back_inserter(args));
+    if (args.empty())
+      return {};
+    // Prevents the output array parameter being counted as an independent var
+    else if (FD->getNumParams() == args.size()) {
+      args.pop_back();
+    }
+    auto derivativeBaseName = m_Function->getNameAsString();
+    std::string jacobianName = derivativeBaseName + "_jac";
+    // To be consistent with older tests, nothing is appended to 'f_grad' if
+    // we differentiate w.r.t. all the parameters at once.
+    if (!std::equal(FD->param_begin(), std::prev(FD->param_end()), std::begin(args)))
+      for (auto arg : args) {
+        auto it = std::find(FD->param_begin(), FD->param_end(), arg);
+        auto idx = std::distance(FD->param_begin(), it);
+        jacobianName += ('_' + std::to_string(idx));
+      }
+    IdentifierInfo* II = &m_Context.Idents.get(jacobianName);
+    DeclarationNameInfo name(II, noLoc);
+
+    // A vector of types of the gradient function parameters.
+    llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams());
+    std::transform(m_Function->param_begin(),
+                   (m_Function->param_end()),
+                   std::begin(paramTypes),
+                   [] (const ParmVarDecl* PVD) {
+                     return PVD->getType();
+                   });
+                   
+    // For a function f of type R(A1, A2, ..., An),
+    // the type of the gradient function is void(A1, A2, ..., An, R*).
+    QualType jacobianFunctionType =
+      m_Context.getFunctionType(m_Context.VoidTy,
+                                llvm::ArrayRef<QualType>(paramTypes.data(),
+                                                         paramTypes.size()),
+                                // Cast to function pointer.
+                                FunctionProtoType::ExtProtoInfo());
+
+    // Create the gradient function declaration.
+    FunctionDecl* jacobianFD = nullptr;
+    NamespaceDecl* enclosingNS = nullptr;
+    llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    m_Sema.CurContext = DC;
+    if (isa<CXXMethodDecl>(m_Function)) {
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+      jacobianFD = CXXMethodDecl::Create(m_Context,
+                                         CXXRD,
+                                         noLoc,
+                                         name,
+                                         jacobianFunctionType,
+                                         m_Function->getTypeSourceInfo(),
+                                         m_Function->getStorageClass(),
+                                         m_Function->isInlineSpecified(),
+                                         m_Function->isConstexpr(),
+                                         noLoc);
+      jacobianFD->setAccess(m_Function->getAccess());
+    }
+    else if (isa<FunctionDecl>(m_Function)) {
+      enclosingNS = RebuildEnclosingNamespaces(DC);
+      jacobianFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
+                                        name, jacobianFunctionType,
+                                        m_Function->getTypeSourceInfo(),
+                                        m_Function->getStorageClass(),
+                                        m_Function->isInlineSpecified(),
+                                        m_Function->hasWrittenPrototype(),
+                                        m_Function->isConstexpr());
+    } else {
+      diag(DiagnosticsEngine::Error, m_Function->getLocEnd(),
+           "attempted differentiation of '%0' which is of unsupported type",
+           { m_Function->getNameAsString() });
+      return {};
+    }
+    m_Derivative = jacobianFD;
+
+    // Function declaration scope
+    beginScope(Scope::FunctionPrototypeScope |
+               Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
+
+    // Create parameter declarations.
+    llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
+    std::transform(m_Function->param_begin(), m_Function->param_end(),
+      std::begin(params),
+      [&] (const ParmVarDecl* PVD) {
+        auto VD = ParmVarDecl::Create(m_Context, jacobianFD, noLoc, noLoc,
+                                      PVD->getIdentifier(), PVD->getType(),
+                                      PVD->getTypeSourceInfo(),
+                                      PVD->getStorageClass(),
+                                      // Clone default arg if present.
+                                      (PVD->hasDefaultArg() ?
+                                        Clone(PVD->getDefaultArg()) : nullptr));
+        if (VD->getIdentifier())
+          m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
+        auto it = std::find(std::begin(args), std::end(args), PVD);
+        if (it != std::end(args))
+          *it = VD;
+        return VD;
+    });
+    // The output paremeter "_result".
+    params.back() = ParmVarDecl::Create(m_Context, jacobianFD, noLoc,
+                                        noLoc, &m_Context.Idents.get("_result"),
+                                        paramTypes.back(),
+                                        m_Context.getTrivialTypeSourceInfo(
+                                          paramTypes.back(), noLoc),
+                                        params.front()->getStorageClass(),
+                                        /* No default value */ nullptr);
+    if (params.back()->getIdentifier())
+      m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
+                               /*AddToContext*/ false);
+
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = llvm::makeArrayRef(params.data(),
+                                                                params.size());
+    jacobianFD->setParams(paramsRef);
+    jacobianFD->setBody(nullptr);
+
+    // Reference to the output parameter.
+    m_Result = BuildDeclRef(params.back());
+
+    auto idx = 0;
+    for (auto arg : args) {
+      // FIXME: fix when adding array inputs, now we are just skipping all
+      // array/pointer inputs (not treating them as independent variables).
+      if (arg->getType()->isArrayType() || arg->getType()->isPointerType()) {
+        if (arg->getName() == "p")
+          m_Variables[arg] = m_Result;
+        idx += 1;
+        continue;
+      }
+      auto size_type = m_Context.getSizeType();
+      auto size_type_bits = m_Context.getIntWidth(size_type);
+      // Create the idx literal.
+      auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
+                                      size_type, noLoc);
+      // Create the _result[idx] expression.
+      auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                                i, noLoc).get();
+      m_Variables[arg] = result_at_i;
+      idx += 1;
+    }
+
+    // Function body scope.
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+    beginBlock();
+    // Start the visitation process which outputs the statements in the current
+    // block.
+    StmtDiff BodyDiff = Visit(FD->getBody());
+    Stmt* Forward = BodyDiff.getStmt();
+    Stmt* Reverse = BodyDiff.getStmt_dx();
+    // Create the body of the function.
+    // Firstly, all "global" Stmts are put into fn's body.
+    for (Stmt* S : m_Globals)
+      addToCurrentBlock(S, forward);
+    // Forward pass.
+    if (auto CS = dyn_cast<CompoundStmt>(Forward))
+      for (Stmt* S : CS->body())
+        addToCurrentBlock(S, forward);
+    else
+      addToCurrentBlock(Forward, forward);
+    // Reverse pass.
+    if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
+      for (Stmt* S : RCS->body())
+        addToCurrentBlock(S, forward);
+    else
+      addToCurrentBlock(Reverse, forward);
+    Stmt* gradientBody = endBlock();
+    m_Derivative->setBody(gradientBody);
+
+    endScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    return { jacobianFD, enclosingNS };
+  }
+  
+  StmtDiff Jacobian::VisitBinaryOperator(const BinaryOperator* BinOp) {
+    auto opCode = BinOp->getOpcode();
+    StmtDiff Ldiff{};
+    StmtDiff Rdiff{};
+    auto L = BinOp->getLHS();
+    auto R = BinOp->getRHS();
+    // If it is an assignment operator, its result is a reference to LHS and
+    // we should return it.
+    Expr* ResultRef = nullptr;
+
+    if (opCode == BO_Add) {
+      //xi = xl + xr
+      //dxi/xl = 1.0
+      //df/dxl += df/dxi * dxi/xl = df/dxi
+      Ldiff = Visit(L, dfdx());
+      //dxi/xr = 1.0
+      //df/dxr += df/dxi * dxi/xr = df/dxi
+      Rdiff = Visit(R, dfdx());
+    }
+    else if (opCode == BO_Sub) {
+      //xi = xl - xr
+      //dxi/xl = 1.0
+      //df/dxl += df/dxi * dxi/xl = df/dxi
+      Ldiff = Visit(L, dfdx());
+      //dxi/xr = -1.0
+      //df/dxl += df/dxi * dxi/xr = -df/dxi
+      auto dr = BuildOp(UO_Minus, dfdx());
+      Rdiff = Visit(R, dr);
+    }
+    else if (opCode == BO_Mul) {
+      //xi = xl * xr
+      //dxi/xl = xr
+      //df/dxl += df/dxi * dxi/xl = df/dxi * xr
+      // Create uninitialized "global" variable for the right multiplier.
+      // It will be assigned later after R is visited and cloned. This allows
+      // to reduce cloning complexity and only clones once. Storing it in a
+      // global variable allows to save current result and make it accessible
+      // in the reverse pass.
+      auto RDelayed = DelayedGlobalStoreAndRef(R);
+      StmtDiff RResult = RDelayed.Result;
+      Expr* dl = nullptr;
+      if (dfdx()) {
+        dl = BuildOp(BO_Mul, dfdx(), RResult.getExpr_dx());
+        dl = StoreAndRef(dl, reverse);
+      }
+      Ldiff = Visit(L, dl);
+      //dxi/xr = xl
+      //df/dxr += df/dxi * dxi/xr = df/dxi * xl
+      // Store left multiplier and assign it with L.
+      Expr* LStored = Ldiff.getExpr();
+      // RDelayed.isConstant == true implies that R is a constant expression,
+      // therefore we can skip visiting it.
+      if (!RDelayed.isConstant) {
+        Expr* dr = nullptr;
+        if (dfdx()) {
+          StmtDiff LResult = GlobalStoreAndRef(LStored);
+          LStored = LResult.getExpr();
+          dr = BuildOp(BO_Mul, LResult.getExpr_dx(), dfdx());
+          dr = StoreAndRef(dr, reverse);
+        }
+        Rdiff = Visit(R, dr);
+        // Assign right multiplier's variable with R.
+        RDelayed.Finalize(Rdiff.getExpr());
+      }
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
+    }
+    else if (opCode == BO_Div) {
+      //xi = xl / xr
+      //dxi/xl = 1 / xr
+      //df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
+      auto RDelayed = DelayedGlobalStoreAndRef(R);
+      StmtDiff RResult = RDelayed.Result;
+      Expr* RStored = StoreAndRef(RResult.getExpr_dx(), reverse);
+      Expr* dl = nullptr;
+      if (dfdx()) {
+        dl = BuildOp(BO_Div, dfdx(), RStored);
+        dl = StoreAndRef(dl, reverse);
+      }
+      Ldiff = Visit(L, dl);
+      //dxi/xr = -xl / (xr * xr)
+      //df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
+      // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
+      // produced instead of 1 / (R * R).
+      Expr* LStored = Ldiff.getExpr();
+      if (!RDelayed.isConstant) {
+        Expr* dr = nullptr;
+        if (dfdx()) {
+          StmtDiff LResult = GlobalStoreAndRef(LStored);
+          LStored = LResult.getExpr();
+          Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
+          dr = BuildOp(BO_Mul, dfdx(),
+                       BuildOp(UO_Minus, BuildOp(BO_Div, LResult.getExpr_dx(), RxR)));
+          dr = StoreAndRef(dr, reverse);
+        }
+        Rdiff = Visit(R, dr);
+        RDelayed.Finalize(Rdiff.getExpr());
+      }
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
+    }
+    else if (BinOp->isAssignmentOp()) {
+      if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
+        diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
+             "derivative of an assignment attempts to assign to unassignable "
+             "expr, assignment ignored");
+        return Clone(BinOp);
+      }
+      // Visit LHS, but delay emission of its derivative statements, save them
+      // in Lblock
+      beginBlock(reverse);
+      Ldiff = Visit(L, dfdx());
+      auto Lblock = endBlock(reverse);
+      Expr* LCloned = Ldiff.getExpr();
+      // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
+      // like (x = y) it propagates recursively, so _d_x is also returned.
+      Expr* AssignedDiff = Ldiff.getExpr_dx();
+      if (!AssignedDiff)
+        return Clone(BinOp);
+      ResultRef = AssignedDiff;
+      // If assigned expr is dependent, first update its derivative;
+      auto Lblock_begin = Lblock->body_rbegin();
+      auto Lblock_end = Lblock->body_rend();
+      if (dfdx() && Lblock->size()) {
+        addToCurrentBlock(*Lblock_begin, reverse);
+        Lblock_begin = std::next(Lblock_begin);
+      }
+      // Save old value for the derivative of LHS, to avoid problems with cases
+      // like x = x.
+      auto oldValue = StoreAndRef(AssignedDiff, reverse, "_r_d", /*force*/ true);
+      if (opCode == BO_Assign) {
+        Rdiff = Visit(R, oldValue);
+      }
+      else if (opCode == BO_AddAssign) {
+        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue), reverse);
+        Rdiff = Visit(R, oldValue);
+      }
+      else if (opCode == BO_SubAssign) {
+        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue), reverse);
+        Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
+      }
+      else if (opCode == BO_MulAssign) {
+        auto RDelayed = DelayedGlobalStoreAndRef(R);
+        StmtDiff RResult = RDelayed.Result;
+        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
+                                  BuildOp(BO_Mul, oldValue, RResult.getExpr_dx())),
+                          reverse);
+        Expr* LRef = LCloned;
+        if (!RDelayed.isConstant) {
+          // Create a reference variable to keep the result of LHS, since it must
+          // be used on 2 places: when storing to a global variable accessible from
+          // the reverse pass, and when rebuilding the original expression for the
+          // forward pass. This allows to avoid executing same expression with
+          // side effects twice. E.g., on
+          //   double r = (x *= y) *= z;
+          // instead of:
+          //   _t0 = (x *= y);
+          //   double r = (x *= y) *= z;
+          // which modifies x twice, we get:
+          //   double & _ref0 = (x *= y);
+          //   _t0 = _ref0;
+          //   double r = _ref0 *= z;
+          if (LCloned->HasSideEffects(m_Context)) {
+            QualType RefType = m_Context.getLValueReferenceType(L->getType());
+            LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
+          }
+          StmtDiff LResult = GlobalStoreAndRef(LRef);
+          if (isInsideLoop)
+            addToCurrentBlock(LResult.getExpr(), forward);
+          Expr* dr = BuildOp(BO_Mul, LResult.getExpr_dx(), oldValue);
+          dr = StoreAndRef(dr, reverse);
+          Rdiff = Visit(R, dr);
+          RDelayed.Finalize(Rdiff.getExpr());
+        }
+        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
+      }
+      else if (opCode == BO_DivAssign) {
+        auto RDelayed = DelayedGlobalStoreAndRef(R);
+        StmtDiff RResult = RDelayed.Result;
+        Expr* RStored = StoreAndRef(RResult.getExpr_dx(), reverse);
+        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
+                                  BuildOp(BO_Div, oldValue, RStored)), reverse);
+        Expr* LRef = LCloned;
+        if (!RDelayed.isConstant) {
+          if (LCloned->HasSideEffects(m_Context)) {
+            QualType RefType = m_Context.getLValueReferenceType(L->getType());
+            LRef = StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
+          }
+          StmtDiff LResult = GlobalStoreAndRef(LRef);
+          if (isInsideLoop)
+            addToCurrentBlock(LResult.getExpr(), forward);
+          Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
+          Expr* dr = BuildOp(BO_Mul, oldValue,
+                             BuildOp(UO_Minus, BuildOp(BO_Div, LResult.getExpr_dx(),
+                                                       RxR)));
+          dr = StoreAndRef(dr, reverse);
+          Rdiff = Visit(R, dr);
+          RDelayed.Finalize(Rdiff.getExpr());
+        }
+        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
+      }
+      else
+        llvm_unreachable("unknown assignment opCode");
+      // Update the derivative.
+      addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), reverse);
+      // Output statements from Visit(L).
+      for (auto it = Lblock_begin; it != Lblock_end; ++it)
+        addToCurrentBlock(*it, reverse);
+    }
+    else if (opCode == BO_Comma) {
+      auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+      Ldiff = Visit(L, zero);
+      Rdiff = Visit(R, dfdx());
+      ResultRef = Ldiff.getExpr();
+    }
+    else {
+      diag(DiagnosticsEngine::Warning, BinOp->getLocEnd(),
+           "attempt to differentiate unsupported binary operator, ignored");
+      return Clone(BinOp);
+    }
+    Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
+    return StmtDiff(op, ResultRef);
   }
 
 } // end namespace clad
