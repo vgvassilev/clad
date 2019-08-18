@@ -419,6 +419,8 @@ namespace clad {
     clang::Expr* m_Result;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A string to make note of output array for clad::jacobian
+    std::string outputArrayStr;
   public:
     clang::Expr* dfdx () {
       if (m_Stack.empty())
@@ -658,19 +660,7 @@ namespace clad {
                            const DiffRequest& request);
 
   };
-  
-  /// A visitor for processing the function code in reverse mode.
-  /// Used to compute derivatives by clad::gradient.
-  class JacobianModeVisitor
-    : public ReverseModeVisitor {
-    public:
-      JacobianModeVisitor(DerivativeBuilder& builder);
-      ~JacobianModeVisitor();
-      
-      DeclWithContext Derive(const clang::FunctionDecl* FD,
-                             const DiffRequest& request);
-      StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
-    };
+
 } // end namespace clad
 
 #endif // CLAD_DERIVATIVE_BUILDER_H
