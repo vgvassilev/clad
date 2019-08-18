@@ -1749,11 +1749,11 @@ namespace clad {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())
       return {};
-      
+
     if (request.Mode == DiffMode::jacobian) {
       args.pop_back();
     }
-    
+
     auto derivativeBaseName = m_Function->getNameAsString();
     std::string gradientName = derivativeBaseName + "_grad";
     // To be consistent with older tests, nothing is appended to 'f_grad' if
@@ -1778,7 +1778,8 @@ namespace clad {
     llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
     if (request.Mode == DiffMode::jacobian) {
       paramTypes.resize(m_Function->getNumParams());
-      outputArrayStr = m_Function.getParamDecl((m_Function->getNumParams() - 2))->getNameAsString();
+      outputArrayStr = m_Function->getParamDecl((m_Function->getNumParams() - 1))->getNameAsString();
+      // printf("%s\n", outputArrayStr.c_str());
     }
     std::transform(m_Function->param_begin(),
                    m_Function->param_end(),
@@ -1786,7 +1787,7 @@ namespace clad {
                    [] (const ParmVarDecl* PVD) {
                      return PVD->getType();
                    });
-                   
+
     if (request.Mode != DiffMode::jacobian) {
       // The last parameter is the output parameter of the R* type.
       paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
@@ -2319,7 +2320,7 @@ namespace clad {
     const Expr* value = RS->getRetValue();
     // value->dumpPretty(m_Context);
     // printf("\n");
-    
+
     QualType type = value->getType();
     auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
     ExprResult tmp = dfdf;
@@ -2640,7 +2641,7 @@ namespace clad {
                                       noLoc).get();
     return StmtDiff(call);
   }
-  
+
   void dumpPrettyNewLine(std::string inpStr, Stmt* S, ASTContext& C) {
     printf("%s: ", inpStr.c_str());
     S->dumpPretty(C);
@@ -2787,10 +2788,15 @@ namespace clad {
              "expr, assignment ignored");
         return Clone(BinOp);
       }
-      
-      if (outputArrayStr == dyn_cast<StringLiteral>(L->getBase())->getString().str()) {
-        DifferentiateOutputArray(BinOp);
-        
+
+      if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
+        printf("asd: %s\n", outputArrayStr.c_str());
+        ASE->getBase()->IgnoreImplicit()->dump();
+        printf()
+        // dyn_cast<StringLiteral>(ASE->getBase())->dump();
+        // if (outputArrayStr == (dyn_cast<StringLiteral>(ASE->getBase())->getString().str())) {
+        printf("asd\n");
+        // }
       }
       // Visit LHS, but delay emission of its derivative statements, save them
       // in Lblock
@@ -3105,5 +3111,5 @@ namespace clad {
                                 /*isConstant*/ false, /*isInsideLoop*/ false};
     }
   }
-  
+
 } // end namespace clad

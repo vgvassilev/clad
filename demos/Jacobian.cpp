@@ -18,7 +18,7 @@ void f_0(double a, double b, double c, double output[]) {
     output[0] = ads;
     double f =  c * c - a * a * a;
     output[1] = f;
-    double g = b / (a * a * a); 
+    double g = b / (a * a * a);
     output[2] = g;
 }
 
