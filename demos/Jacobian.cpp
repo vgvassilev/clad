@@ -22,6 +22,12 @@ void f_0(double a, double b, double c, double output[]) {
     output[2] = g;
 }
 
+void f_1(double a, double b, double c, double output[]) {
+  output[0] = a * a * a;
+  output[1] = a * a * a + b * b * b;
+  output[2] = c * c * 10 - a * a;
+}
+
 
 void jac_check(double input[], double output[]) {
   output[0] = 2 * input[0] + input[1] * input[1];
@@ -31,7 +37,7 @@ void jac_check(double input[], double output[]) {
 
 
 int main() {
-  auto g = clad::jacobian(f_0);
+  auto g = clad::jacobian(f_1);
   g.dump();
   // double input_test[] = {5};
   // double result[10];

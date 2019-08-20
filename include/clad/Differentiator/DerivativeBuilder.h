@@ -135,6 +135,8 @@ namespace clad {
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
+    /// For storing multiple values for Jacobians
+    std::unordered_map<const clang::VarDecl*, std::vector<clang::Expr*>> m_JacVariables;
   public:
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
@@ -421,6 +423,7 @@ namespace clad {
     bool isInsideLoop = false;
     /// A string to make note of output array for clad::jacobian
     std::string outputArrayStr;
+    int whichArray = 0;
   public:
     clang::Expr* dfdx () {
       if (m_Stack.empty())

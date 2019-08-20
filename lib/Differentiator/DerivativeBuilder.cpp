@@ -1764,8 +1764,7 @@ namespace clad {
         auto idx = std::distance(FD->param_begin(), it);
         gradientName += ('_' + std::to_string(idx));
       }
-    }
-    else if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))
+    } else if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))
       for (auto arg : args) {
         auto it = std::find(FD->param_begin(), FD->param_end(), arg);
         auto idx = std::distance(FD->param_begin(), it);
@@ -1777,7 +1776,7 @@ namespace clad {
     // A vector of types of the gradient function parameters.
     llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
     if (request.Mode == DiffMode::jacobian) {
-      paramTypes.resize(m_Function->getNumParams());
+      // paramTypes.resize(m_Function->getNumParams());
       outputArrayStr = m_Function->getParamDecl((m_Function->getNumParams() - 1))->getNameAsString();
       // printf("%s\n", outputArrayStr.c_str());
     }
@@ -1788,10 +1787,15 @@ namespace clad {
                      return PVD->getType();
                    });
 
-    if (request.Mode != DiffMode::jacobian) {
-      // The last parameter is the output parameter of the R* type.
+    if (request.Mode == DiffMode::jacobian) {
+      paramTypes.back() = m_Function->getParamDecl((m_Function->getNumParams() - 1))->getOriginalType();
+    } else {
       paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
     }
+    // if (request.Mode != DiffMode::jacobian) {
+      // The last parameter is the output parameter of the R* type.
+      
+    // }
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
     QualType gradientFunctionType =
@@ -1885,6 +1889,8 @@ namespace clad {
     // Reference to the output parameter.
     m_Result = BuildDeclRef(params.back());
 
+    // For normal clad::gradient
+    size_t totalArgs = args.size();
     auto idx = 0;
     for (auto arg : args) {
       // FIXME: fix when adding array inputs, now we are just skipping all
@@ -1897,13 +1903,26 @@ namespace clad {
       }
       auto size_type = m_Context.getSizeType();
       auto size_type_bits = m_Context.getIntWidth(size_type);
-      // Create the idx literal.
-      auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
-                                      size_type, noLoc);
-      // Create the _result[idx] expression.
-      auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
-                                                                i, noLoc).get();
-      m_Variables[arg] = result_at_i;
+      
+      if (request.Mode == DiffMode::jacobian) {
+        std::vector<Expr*> results_at_arg;
+        for (int ii = idx; ii < (idx + totalArgs); ii++) {
+          auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, ii),
+                                          size_type, noLoc);
+          auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                                    i, noLoc).get();
+          results_at_arg.push_back(result_at_i);
+        }
+        m_JacVariables[arg] = results_at_arg;
+      }
+        // Create the idx literal.
+        auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
+                                        size_type, noLoc);
+        // Create the _result[idx] expression.
+        auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                                  i, noLoc).get();
+        m_Variables[arg] = result_at_i;
+      
       idx += 1;
     }
 
@@ -2330,6 +2349,8 @@ namespace clad {
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
+    printf("Haha:\n");
+    Reverse->dump();
     // Reverse->dump();
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
@@ -2376,7 +2397,6 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
-    printf("aksdkadm\n");
     auto ASI = SplitArraySubscript(ASE);
     const Expr* Base = ASI.first;
     const auto& Indices = ASI.second;
@@ -2642,12 +2662,6 @@ namespace clad {
     return StmtDiff(call);
   }
 
-  void dumpPrettyNewLine(std::string inpStr, Stmt* S, ASTContext& C) {
-    printf("%s: ", inpStr.c_str());
-    S->dumpPretty(C);
-    printf("\n");
-  }
-
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     auto opCode  = UnOp->getOpcode();
     StmtDiff diff{};
@@ -2790,13 +2804,25 @@ namespace clad {
       }
 
       if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
+        whichArray = dyn_cast<IntegerLiteral>(ASE->getIdx());
         printf("asd: %s\n", outputArrayStr.c_str());
-        ASE->getBase()->IgnoreImplicit()->dump();
-        printf()
-        // dyn_cast<StringLiteral>(ASE->getBase())->dump();
-        // if (outputArrayStr == (dyn_cast<StringLiteral>(ASE->getBase())->getString().str())) {
-        printf("asd\n");
-        // }
+        auto DRE = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit());
+        // QualType type = m_Context.getDecayedType(DRE->getType());
+        QualType type = DRE->getType()->getPointeeType();
+        std::string DRE_str = DRE->getDecl()->getNameAsString();
+        if (DRE_str == outputArrayStr) {
+          printf("Success\n");
+          auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
+          ExprResult tmp = dfdf;
+          dfdf = m_Sema.ImpCastExprToType(tmp.get(), type,
+                                          m_Sema.PrepareScalarCast(tmp, type)).get();
+          dfdf->dump();
+          auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
+          StmtDiff ReturnDiff = ReturnResult.first;
+          StmtDiff ExprDiff = ReturnResult.second;
+          Stmt* Reverse = ReturnDiff.getStmt_dx();
+          Reverse->dumpPretty(m_Context);
+        }
       }
       // Visit LHS, but delay emission of its derivative statements, save them
       // in Lblock
