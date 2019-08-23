@@ -137,7 +137,7 @@ namespace clad {
     std::vector<Stmts> m_Blocks;
     /// For storing multiple values for Jacobians
     // std::unordered_map<const clang::VarDecl*, std::vector<clang::Expr*>> m_JacVariables;
-    std::vector<std::unordered_map<clang::VarDecl*, clang::Expr*>> m_JacVariables;
+    std::vector<std::unordered_map<const clang::VarDecl*, clang::Expr*>> m_JacVariables;
   public:
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
@@ -406,7 +406,7 @@ namespace clad {
     : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
       public VisitorBase {
   protected:    
-    llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
+    llvm::SmallVector<const clang::VarDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.

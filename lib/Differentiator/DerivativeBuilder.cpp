@@ -1928,7 +1928,8 @@ namespace clad {
       m_Variables[arg] = result_at_i;
       
       idx += 1;
-      m_IndependentVars.push_back(const_cast<VarDecl*>(arg));
+      // VarDecl* argTemp = arg;
+      m_IndependentVars.push_back(arg);
     }
 
     // Function body scope.
@@ -2836,7 +2837,7 @@ namespace clad {
         ASE->getIdx()->EvaluateAsInt(Result, m_Context);
         outputArrayCursor = Result.getExtValue();
         if (DRE_str == outputArrayStr) {
-          std::unordered_map<clang::VarDecl*, clang::Expr*> temp_m_Variables;
+          std::unordered_map<const clang::VarDecl*, clang::Expr*> temp_m_Variables;
           for (int i = 0; i < numParams; i++) {
             auto size_type = m_Context.getSizeType();
             auto size_type_bits = m_Context.getIntWidth(size_type);
