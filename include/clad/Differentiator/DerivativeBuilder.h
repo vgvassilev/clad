@@ -136,7 +136,8 @@ namespace clad {
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
     /// For storing multiple values for Jacobians
-    std::unordered_map<const clang::VarDecl*, std::vector<clang::Expr*>> m_JacVariables;
+    // std::unordered_map<const clang::VarDecl*, std::vector<clang::Expr*>> m_JacVariables;
+    std::vector<std::unordered_map<clang::VarDecl*, clang::Expr*>> m_JacVariables;
   public:
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
@@ -423,7 +424,9 @@ namespace clad {
     bool isInsideLoop = false;
     /// A string to make note of output array for clad::jacobian
     std::string outputArrayStr;
-    int whichArray = 0;
+    int outputArrayCursor = 0;
+    int numParams;
+    bool isJacobianCalc = false;
   public:
     clang::Expr* dfdx () {
       if (m_Stack.empty())

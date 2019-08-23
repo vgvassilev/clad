@@ -1751,6 +1751,7 @@ namespace clad {
       return {};
 
     if (request.Mode == DiffMode::jacobian) {
+      isJacobianCalc = true;
       args.pop_back();
     }
 
@@ -1888,11 +1889,25 @@ namespace clad {
 
     // Reference to the output parameter.
     m_Result = BuildDeclRef(params.back());
-
-    // For normal clad::gradient
-    size_t totalArgs = args.size();
+    
+    // Turns output array dimension input into APSInt
+    auto PVDTotalArgs = m_Function->getParamDecl((m_Function->getNumParams() - 1));
+    auto VD = ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
+                                  PVDTotalArgs->getIdentifier(), PVDTotalArgs->getType(),
+                                  PVDTotalArgs->getTypeSourceInfo(),
+                                  PVDTotalArgs->getStorageClass(),
+                                  // Clone default arg if present.
+                                  (PVDTotalArgs->hasDefaultArg() ?
+                                    Clone(PVDTotalArgs->getDefaultArg()) : nullptr));
+    auto DRETotalArgs = (Expr*) BuildDeclRef(VD);
+    llvm::APSInt Result;
+    DRETotalArgs->EvaluateAsInt(Result, m_Context);
+    numParams = args.size();
+    
+    // Creates the ArraySubscriptExprs for the independent variables
     auto idx = 0;
     for (auto arg : args) {
+      arg->dump();
       // FIXME: fix when adding array inputs, now we are just skipping all
       // array/pointer inputs (not treating them as independent variables).
       if (arg->getType()->isArrayType() || arg->getType()->isPointerType()) {
@@ -1904,26 +1919,16 @@ namespace clad {
       auto size_type = m_Context.getSizeType();
       auto size_type_bits = m_Context.getIntWidth(size_type);
       
-      if (request.Mode == DiffMode::jacobian) {
-        std::vector<Expr*> results_at_arg;
-        for (int ii = idx; ii < (idx + totalArgs); ii++) {
-          auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, ii),
-                                          size_type, noLoc);
-          auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
-                                                                    i, noLoc).get();
-          results_at_arg.push_back(result_at_i);
-        }
-        m_JacVariables[arg] = results_at_arg;
-      }
-        // Create the idx literal.
-        auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
+      // Create the idx literal.
+      auto i = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
                                         size_type, noLoc);
-        // Create the _result[idx] expression.
-        auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+      // Create the _result[idx] expression.
+      auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
                                                                   i, noLoc).get();
-        m_Variables[arg] = result_at_i;
+      m_Variables[arg] = result_at_i;
       
       idx += 1;
+      m_IndependentVars.push_back(const_cast<VarDecl*>(arg));
     }
 
     // Function body scope.
@@ -2349,8 +2354,8 @@ namespace clad {
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
-    printf("Haha:\n");
-    Reverse->dump();
+    // printf("Haha:\n");
+    // Reverse->dump();
     // Reverse->dump();
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
@@ -2454,24 +2459,41 @@ namespace clad {
       clonedDRE = cast<DeclRefExpr>(Clone(DRE));
 
     if (auto decl = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
-      // Check DeclRefExpr is a reference to an independent variable.
-      auto it = m_Variables.find(decl);
-      if (it == std::end(m_Variables)) {
-        // Is not an independent variable, ignored.
-        return StmtDiff(clonedDRE);
+      
+      if (isJacobianCalc) {
+        auto it = m_JacVariables[outputArrayCursor].find(decl);
+        if (it == std::end(m_JacVariables[outputArrayCursor])) {
+          // Is not an independent variable, ignored.
+          return StmtDiff(clonedDRE);
+        }
+        // Create the (_result[idx] += dfdx) statement.
+        if (dfdx()) {
+          auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+          // Add it to the body statements.
+          addToCurrentBlock(add_assign, reverse);
+          // add_assign->dumpPretty(m_Context);
+          // printf("\n");
+        }
+      } else {      
+        // Check DeclRefExpr is a reference to an independent variable.
+        auto it = m_Variables.find(decl);
+        if (it == std::end(m_Variables)) {
+          // Is not an independent variable, ignored.
+          return StmtDiff(clonedDRE);
+        }
+        // Create the (_result[idx] += dfdx) statement.
+        if (dfdx()) {
+          auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+          // Add it to the body statements.
+          addToCurrentBlock(add_assign, reverse);
+          // add_assign->dumpPretty(m_Context);
+          // printf("\n");
+        }
+        return StmtDiff(clonedDRE, it->second);
       }
-      // Create the (_result[idx] += dfdx) statement.
-      if (dfdx()) {
-        auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-        // Add it to the body statements.
-        addToCurrentBlock(add_assign, reverse);
-        // add_assign->dumpPretty(m_Context);
-        // printf("\n");
-      }
-      return StmtDiff(clonedDRE, it->second);
-    }
 
-    return StmtDiff(clonedDRE);
+      return StmtDiff(clonedDRE);
+      }
   }
 
   StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -2804,23 +2826,43 @@ namespace clad {
       }
 
       if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
-        whichArray = dyn_cast<IntegerLiteral>(ASE->getIdx());
+        // whichArray = dyn_cast<IntegerLiteral>(ASE->getIdx());
         printf("asd: %s\n", outputArrayStr.c_str());
         auto DRE = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit());
         // QualType type = m_Context.getDecayedType(DRE->getType());
         QualType type = DRE->getType()->getPointeeType();
         std::string DRE_str = DRE->getDecl()->getNameAsString();
+        llvm::APSInt Result;
+        ASE->getIdx()->EvaluateAsInt(Result, m_Context);
+        outputArrayCursor = Result.getExtValue();
         if (DRE_str == outputArrayStr) {
+          std::unordered_map<clang::VarDecl*, clang::Expr*> temp_m_Variables;
+          for (int i = 0; i < numParams; i++) {
+            auto size_type = m_Context.getSizeType();
+            auto size_type_bits = m_Context.getIntWidth(size_type);
+            auto idx = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, i + (outputArrayCursor*numParams)),
+                                                size_type, noLoc);
+            // Create the _result[idx] expression.
+            auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                                        idx, noLoc).get();
+            temp_m_Variables[m_IndependentVars[i]] = result_at_i;
+          }
+          m_JacVariables.push_back(temp_m_Variables);
+                    
           printf("Success\n");
           auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
           ExprResult tmp = dfdf;
           dfdf = m_Sema.ImpCastExprToType(tmp.get(), type,
                                           m_Sema.PrepareScalarCast(tmp, type)).get();
-          dfdf->dump();
+          // dfdf->dump();
           auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
           StmtDiff ReturnDiff = ReturnResult.first;
           StmtDiff ExprDiff = ReturnResult.second;
           Stmt* Reverse = ReturnDiff.getStmt_dx();
+          addToCurrentBlock(Reverse, reverse);
+          for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
+            addToCurrentBlock(S, forward);
+          
           Reverse->dumpPretty(m_Context);
         }
       }

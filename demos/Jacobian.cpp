@@ -39,8 +39,7 @@ void jac_check(double input[], double output[]) {
 int main() {
   auto g = clad::jacobian(f_1);
   g.dump();
-  // double input_test[] = {5};
-  // double result[10];
-  // g.execute(1, 10, input_test);
-  // printf("%.2f %.2f %.2f %.2f\n", result[0], result[1], result[2], result[3]);
+  double result[20];
+  double outputarr[10];
+  g.execute(10, 5, 7, outputarr, result);
 }
