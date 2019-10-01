@@ -138,10 +138,8 @@ namespace clad {
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
       auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
-      return new (m_Context) clang::CompoundStmt(m_Context,
-                                                 Stmts_ref,
-                                                 noLoc,
-                                                 noLoc);
+      return clang::CompoundStmt::Create(m_Context, Stmts_ref,
+                                         noLoc, noLoc);
     }
 
     /// Get the latest block of code (i.e. place for statements output).
