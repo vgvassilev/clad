@@ -15,15 +15,14 @@
     }
   },
   "clangVersion": {
-    "default": "clang5",
+    "default": "clang6",
     "choices": {
       "clang6": {
-        "short": "Clang 5.0",
-        "long": "Use Clang 5.0",
+        "short": "Clang 6.0",
+        "long": "Use Clang 6.0",
         "settings": {
-          "CMAKE_C_COMPILER": "/usr/bin/clang-5.0",
-          "CMAKE_CXX_COMPILER": "/usr/bin/clang++-5.0",
-          "LLVM_DIR": "/usr/lib/llvm-5.0/lib/cmake/llvm/"
+          "CMAKE_CXX_COMPILER": "/usr/bin/clang++-6.0",
+          "LLVM_DIR": "/usr/lib/llvm-6.0/lib/cmake/llvm/"
         }
       }
     }

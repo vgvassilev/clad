@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //--------------------------------------------------------------------*- C++ -*-
 // clad - the C++ Clang-based Automatic Differentiator
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
@@ -279,8 +280,8 @@ Stmt* StmtClone::VisitCompoundStmt(CompoundStmt *Node) {
 
   llvm::ArrayRef<Stmt*> stmtsRef = llvm::makeArrayRef(clonedBody.data(),
                                                       clonedBody.size());
-  return new (Ctx) CompoundStmt(Ctx, stmtsRef, Node->getLBracLoc(),
-                                Node->getLBracLoc());
+  return CompoundStmt::Create(Ctx, stmtsRef, Node->getLBracLoc(),
+                              Node->getLBracLoc());
 }
 
 VarDecl* StmtClone::CloneDeclOrNull(VarDecl* Node)  {

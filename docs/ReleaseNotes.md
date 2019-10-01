@@ -20,7 +20,7 @@ described first.
 
 External Dependencies
 ---------------------
-* clang-5.0
+* clang-6.0
 
 Forward Mode & Reverse Mode
 ---------------------------
