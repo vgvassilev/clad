@@ -1,0 +1,31 @@
+{
+  "buildType": {
+    "default": "debug",
+    "choices": {
+      "debug": {
+        "short": "Debug",
+        "long": "Emit debug information",
+        "buildType": "Debug"
+      },
+      "release": {
+        "short": "Release",
+        "long": "Optimize generated code",
+        "buildType": "Release"
+      }
+    }
+  },
+  "clangVersion": {
+    "default": "clang5",
+    "choices": {
+      "clang6": {
+        "short": "Clang 5.0",
+        "long": "Use Clang 5.0",
+        "settings": {
+          "CMAKE_C_COMPILER": "/usr/bin/clang-5.0",
+          "CMAKE_CXX_COMPILER": "/usr/bin/clang++-5.0",
+          "LLVM_DIR": "/usr/lib/llvm-5.0/lib/cmake/llvm/"
+        }
+      }
+    }
+  }
+}
