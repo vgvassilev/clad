@@ -2,10 +2,11 @@
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
-  cmake_minimum_required(VERSION 3.4.3)
-  find_package(Subversion)
+  cmake_minimum_required(VERSION 3.7.0)
 
-  find_package(LLVM 6.0 REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD} NO_DEFAULT_PATH)
+  SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
+  SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
+  find_package(LLVM REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD} NO_DEFAULT_PATH)
 
   # We cannot use find_package(Clang) or include(ClangConfig) because we require
   # a specific version (currently 6.0) and ClangConfig.cmake tries to do
@@ -13,7 +14,13 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # wrong LLVM version.
   # FIXME: That may be a bug in ClangConfig.cmake.
 
-  if(NOT LLVM_FOUND)
+message(INFO "Found LLVM:${PACKAGE_FIND_VERSION}")
+
+  if(LLVM_FOUND)
+    message(FATAL "Please set CLAD_PATH_TO_LLVM_BUILD pointing to the llvm build or installation folder")
+  else()
+    find_package(LLVM REQUIRED CONFIG)
+
     message(FATAL "Please set CLAD_PATH_TO_LLVM_BUILD pointing to the llvm build or installation folder")
   endif()
 
