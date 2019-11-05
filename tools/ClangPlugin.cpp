@@ -183,7 +183,7 @@ namespace clad {
       DeclarationName Name = &C.Idents.get("clad");
       Sema &SemaR = m_CI.getSema();
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     Sema::ForVisibleRedeclaration);
+                     clad_compat::Sema_ForVisibleRedeclaration);
       SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
                                 /*allowBuiltinCreation*/ false);
       m_HasRuntime = !R.empty();
