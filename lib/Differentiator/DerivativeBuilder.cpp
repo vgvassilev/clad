@@ -231,7 +231,7 @@ namespace clad {
     // From Sema::ActOnStartNamespaceDef:
     if (II) {
       LookupResult R(m_Sema, II, noLoc, Sema::LookupOrdinaryName,
-                     Sema__ForVisibleRedeclaration);
+                     clad_compat::Sema_ForVisibleRedeclaration);
       m_Sema.LookupQualifiedName(R, m_Sema.CurContext->getRedeclContext());
       NamedDecl* FoundDecl =
         R.isSingleResult() ? R.getRepresentativeDecl() : nullptr;
@@ -621,8 +621,8 @@ namespace clad {
 
     auto StmtsRef = llvm::makeArrayRef(CompStmtSave.data(),
                                      CompStmtSave.size());
-    CompoundStmt* CS = clang__CompoundStmt__Create(m_Context, StmtsRef,
-                                                  noLoc, noLoc);
+    CompoundStmt* CS = clad_compat::CompoundStmt_Create(m_Context, StmtsRef,
+                                                        noLoc, noLoc);
     hessianFD->setBody(CS);
     endScope(); // Function body scope
     m_Sema.PopFunctionScopeInfo();
@@ -862,7 +862,7 @@ namespace clad {
       return Result;
     DeclarationName CladName = &m_Context.Idents.get("clad");
     LookupResult CladR(m_Sema, CladName, noLoc, Sema::LookupNamespaceName,
-                       Sema__ForVisibleRedeclaration);
+                       clad_compat::Sema_ForVisibleRedeclaration);
     m_Sema.LookupQualifiedName(CladR, m_Context.getTranslationUnitDecl());
     assert(!CladR.empty() && "cannot find clad namespace");
     Result = cast<NamespaceDecl>(CladR.getFoundDecl());
@@ -878,7 +878,7 @@ namespace clad {
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
     DeclarationName TapeName = &m_Context.Idents.get("tape");
     LookupResult TapeR(m_Sema, TapeName, noLoc, Sema::LookupUsingDeclName,
-                       Sema__ForVisibleRedeclaration);
+                       clad_compat::Sema_ForVisibleRedeclaration);
     m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
     assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
            "cannot find clad::tape");
@@ -1119,7 +1119,7 @@ namespace clad {
     Intro.Range.setEnd(E->getLocEnd());
     AttributeFactory AttrFactory;
     DeclSpec DS(AttrFactory);
-    Declarator D(DS, DeclaratorContext::LambdaExprContext);
+    Declarator D(DS, clad_compat::DeclaratorContext::LambdaExprContext);
     S.PushLambdaScope();
     V.beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope);
     S.ActOnStartOfLambdaDefinition(Intro, D, V.getCurrentScope());
@@ -1392,7 +1392,7 @@ namespace clad {
     // Find the builtin derivatives namespace
     DeclarationName Name = &C.Idents.get("custom_derivatives");
     LookupResult R(S, Name, SourceLocation(), Sema::LookupNamespaceName,
-                   Sema__ForVisibleRedeclaration);
+                   clad_compat::Sema_ForVisibleRedeclaration);
     S.LookupQualifiedName(R, C.getTranslationUnitDecl(),
                           /*allowBuiltinCreation*/ false);
     assert(!R.empty() && "Cannot find builtin derivatives!");

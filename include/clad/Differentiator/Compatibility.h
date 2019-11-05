@@ -1,64 +1,71 @@
 //--------------------------------------------------------------------*- C++ -*-
 // clad - the C++ Clang-based Automatic Differentiator
 // version: $Id$
-// author:  Vassil Vassilev <vvasilev-at-cern.ch>
+// author:  Alexander Penev <alexander_penev@yahoo.com>
 //------------------------------------------------------------------------------
 
 #ifndef CLAD_COMPATIBILITY
 #define CLAD_COMPATIBILITY
 
 #include "clang/Basic/Version.h"
+#include "llvm/Config/llvm-config.h"
+
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Sema/Sema.h"
+
+// Version.h and llvm-config.h defines:
 //#define CLANG_VERSION 7.0.0
 //#define CLANG_VERSION_STRING "7.0.0"
 //#define CLANG_VERSION_MAJOR 7
 //#define CLANG_VERSION_MINOR 0
 //#define CLANG_VERSION_PATCHLEVEL 0
-#include "llvm/Config/llvm-config.h"
 //#define LLVM_VERSION_MAJOR 7
 //#define LLVM_VERSION_MINOR 0
 //#define LLVM_VERSION_PATCH 0
 //#define LLVM_VERSION_STRING "7.0.0"
 
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/Stmt.h"
+namespace clad_compat {
 
-#if CLANG_VERSION_MAJOR==5
+// Compatibility helper function for creation CompoundStmt. Clang 6 and above use Create.
 
-// Compatibility helper function for creation CompoundStmt
-
-static inline clang::CompoundStmt* clang__CompoundStmt__Create(
+static inline clang::CompoundStmt* CompoundStmt_Create(
         const clang::ASTContext &C, clang::ArrayRef<clang::Stmt *> Stmts,
         clang::SourceLocation LB, clang::SourceLocation RB)
 {
+#if CLANG_VERSION_MAJOR == 5
    return new (C) clang::CompoundStmt(C, Stmts, LB, RB);
-}
-
-//
-#define Sema__ForVisibleRedeclaration Sema::ForRedeclaration
-
-//
-#define DeclaratorContext Declarator
-
-#endif //CLANG_VERSION_MAJOR==5
-
-#if CLANG_VERSION_MAJOR==6
-
-//#define LOOKUP_ARGN B
-
-static inline clang::CompoundStmt* clang__CompoundStmt__Create(
-        const clang::ASTContext &C, clang::ArrayRef<clang::Stmt *> Stmts,
-        clang::SourceLocation LB, clang::SourceLocation RB)
-{
+#elif CLANG_VERSION_MAJOR >= 6
    return clang::CompoundStmt::Create(C, Stmts, LB, RB);
+#endif
 }
 
-//
-#define Sema__ForVisibleRedeclaration Sema::ForVisibleRedeclaration
 
-//
-//#define DeclaratorContext DeclaratorContext
+// Clang 6 rename Sema::ForRedeclaration to Sema::ForVisibleRedeclaration
 
-#endif //CLANG_VERSION_MAJOR==6
+#if CLANG_VERSION_MAJOR == 5
+   const auto Sema_ForVisibleRedeclaration = clang::Sema::ForRedeclaration;
+#elif CLANG_VERSION_MAJOR >= 6
+   const auto Sema_ForVisibleRedeclaration = clang::Sema::ForVisibleRedeclaration;
+#endif
 
+
+// Clang 6 rename Declarator to DeclaratorContext, but Declarator is used
+// as name for another class.
+#if CLANG_VERSION_MAJOR == 5
+   using DeclaratorContext = clang::Declarator;
+#elif CLANG_VERSION_MAJOR >= 6
+   using DeclaratorContext = clang::DeclaratorContext;
+#endif
+
+
+// Clang 7 add one extra param in UnaryOperator constructor.
+#if CLANG_VERSION_MAJOR < 7
+   #define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams /**/
+#elif CLANG_VERSION_MAJOR >= 7
+   #define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams ,Node->canOverflow()
+#endif
+
+} // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY
