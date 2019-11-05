@@ -4,25 +4,98 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
   cmake_minimum_required(VERSION 3.7.0)
 
-  SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
-  SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
-  find_package(LLVM REQUIRED CONFIG PATHS ${CLAD_PATH_TO_LLVM_BUILD} NO_DEFAULT_PATH)
+  set(CLANG_MIN_SUPPORTED 5.0)
+  set(CLANG_MAX_SUPPORTED 7.0)
+  set(LLVM_MIN_SUPPORTED 5.0)
+  set(LLVM_MAX_SUPPORTED 7.0)
 
-  # We cannot use find_package(Clang) or include(ClangConfig) because we require
-  # a specific version (currently 6.0) and ClangConfig.cmake tries to do
-  # find_package(LLVM REQUIRED CONFIG...) which in certain cases resolves to the
-  # wrong LLVM version.
-  # FIXME: That may be a bug in ClangConfig.cmake.
+  ## Find supported Clang
 
-message(INFO "Found LLVM:${PACKAGE_FIND_VERSION}")
+  set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
+  set(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
 
-  if(LLVM_FOUND)
-    message(FATAL "Please set CLAD_PATH_TO_LLVM_BUILD pointing to the llvm build or installation folder")
-  else()
-    find_package(LLVM REQUIRED CONFIG)
+  if (DEFINED CLANG_VERSION)
+    if (CLANG_VERSION VERSION_GREATER CLANG_MAX_SUPPORTED)
+      set(CLANG_VERSION ${CLANG_MAX_SUPPORTED})
+    endif()
+    if (CLANG_VERSION VERSION_LESS CLANG_MIN_SUPPORTED)
+      set(CLANG_VERSION ${CLANG_MIN_SUPPORTED})
+    endif()
 
-    message(FATAL "Please set CLAD_PATH_TO_LLVM_BUILD pointing to the llvm build or installation folder")
+    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG)
   endif()
+
+  if (NOT Clang_FOUND AND DEFINED Clang_DIR)
+    find_package(Clang REQUIRED CONFIG PATHS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake" NO_DEFAULT_PATH)
+  endif()
+
+  if (NOT Clang_FOUND)
+    find_package(Clang REQUIRED CONFIG)
+    endif()
+
+  if (NOT Clang_FOUND)
+    message(FATAL_ERROR "Please set Clang_DIR pointing to the clang build or installation folder")
+  endif()
+
+  set(CLANG_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
+  set(CLANG_VERSION_MINOR ${LLVM_VERSION_MINOR})
+  set(CLANG_VERSION_PATCH ${LLVM_VERSION_PATCH})
+  set(CLANG_PACKAGE_VERSION ${LLVM_PACKAGE_VERSION})
+
+  if (CLANG_PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR CLANG_PACKAGE_VERSION VERSION_GREATER CLANG_MAX_SUPPORTED)
+    message(FATAL_ERROR "Found unsupported version: Clang ${CLANG_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
+  endif()
+
+  message(STATUS "Found supported version: Clang ${CLANG_PACKAGE_VERSION}")
+  message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
+
+  ## Find supported LLVM
+
+  if (LLVM_FOUND)
+    if (LLVM_PACKAGE_VERSION VERSION_LESS LLVM_MIN_SUPPORTED OR LLVM_PACKAGE_VERSION VERSION_GREATER LLVM_MAX_SUPPORTED)
+      unset(LLVM_FOUND)
+      unset(LLVM_VERSION_MAJOR)
+      unset(LLVM_VERSION_MINOR)
+      unset(LLVM_VERSION_PATCH)
+      unset(LLVM_PACKAGE_VERSION)
+    else()
+      if (NOT DEFINED LLVM_VERSION AND NOT DEFINED LLVM_DIR)
+        set(LLVM_VERSION ${LLVM_PACKAGE_VERSION})
+      endif()
+    endif()
+  endif()
+
+  if (NOT LLVM_FOUND AND DEFINED LLVM_VERSION)
+    if (LLVM_VERSION VERSION_GREATER LLVM_MAX_SUPPORTED)
+      set(LLVM_VERSION ${LLVM_MAX_SUPPORTED})
+    endif()
+    if (LLVM_VERSION VERSION_LESS LLVM_MIN_SUPPORTED)
+      set(LLVM_VERSION ${LLVM_MIN_SUPPORTED})
+    endif()
+
+    find_package(LLVM ${LLVM_VERSION} REQUIRED CONFIG)
+  endif()
+
+  if (NOT LLVM_FOUND AND DEFINED LLVM_DIR)
+    find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/clang" "${LLVM_DIR}/cmake" NO_DEFAULT_PATH)
+  endif()
+
+  if (NOT LLVM_FOUND)
+    find_package(LLVM REQUIRED CONFIG)
+  endif()
+
+  if (NOT LLVM_FOUND)
+    message(FATAL_ERROR "Please set LLVM_DIR pointing to the LLVM build or installation folder")
+  endif()
+
+  if (LLVM_PACKAGE_VERSION VERSION_LESS LLVM_MIN_SUPPORTED OR LLVM_PACKAGE_VERSION VERSION_GREATER LLVM_MAX_SUPPORTED)
+    message(FATAL_ERROR "Found unsupported version: LLVM ${LLVM_PACKAGE_VERSION};\nPlease set LLVM_DIR pointing to the llvm version ${LLVM_MIN_SUPPORTED} to ${LLVM_MAX_SUPPORTED} build or installation folder")
+  endif()
+
+  message(STATUS "Found supported version: LLVM ${LLVM_PACKAGE_VERSION}")
+  message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+  ## Init
 
   # In case this was a path to a build folder of llvm still try to find AddLLVM
   list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
@@ -40,7 +113,7 @@ message(INFO "Found LLVM:${PACKAGE_FIND_VERSION}")
   add_definitions(${LLVM_DEFINITIONS})
 
   # If the llvm sources are present add them with higher priority.
-  if(LLVM_BUILD_MAIN_SRC_DIR)
+  if (LLVM_BUILD_MAIN_SRC_DIR)
     # LLVM_INCLUDE_DIRS contains the include paths to both LLVM's source and
     # build directories. Since we cannot just include ClangConfig.cmake (see
     # fixme above) we have to do a little more work to get the right include
@@ -50,7 +123,7 @@ message(INFO "Found LLVM:${PACKAGE_FIND_VERSION}")
     # in llvm_src/tools/clang.
     include_directories(${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/)
 
-    if(NOT LLVM_BUILD_BINARY_DIR)
+    if (NOT LLVM_BUILD_BINARY_DIR)
       message(FATAL "LLVM_BUILD_* values should be available for the build tree")
     endif()
 

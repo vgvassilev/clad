@@ -126,7 +126,7 @@ Note: Clad provides custom derivatives for some mathematical functions from `<cm
 Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
 
 ## How to install
-At the moment, only LLVM/Clang 6.0.x is supported.
+At the moment, only LLVM/Clang 5.0.x and 6.0.x are supported.
 
 ## How Clad works
 Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST ([Clang AST](https://clang.llvm.org/docs/IntroductionToTheClangAST.html)) of user's source code. Then, [CladPlugin](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.h#L48), implemented as `clang::ASTConsumer` analyzes the AST to find differentiation requests for clad and process those requests by building Clang AST for derivative functions. The whole clad's operation sequence is the following:
@@ -140,11 +140,11 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
 * Finally, derivative's AST is [passed](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L145) for further processing by Clang compiler (LLVM IR generation, optimizations, machine code generation, etc.).
 ###  Building from source (example was tested on Ubuntu 18.04 LTS, tests are disabled)
   ```
-    sudo apt install clang-6.0 llvm-6.0 clang-6.0-dev llvm-6.0-dev libllvm6.0 llvm-6.0-runtime
-    sudo -H pip install lit 
+    sudo apt install clang-5.0 llvm-5.0 clang-5.0-dev llvm-5.0-dev libllvm5.0 llvm-5.0-runtime
+    sudo -H pip install lit
     git clone https://github.com/vgvassilev/clad.git clad
     mkdir build_dir inst; cd build_dir
-    cmake ../clad -DLLVM_DIR=/usr/lib/llvm-6.0/lib/cmake/llvm/ -DCMAKE_INSTALL_PREFIX=../inst
+    cmake ../clad -DClad_DIR=/usr/lib/llvm-5.0 -DLLVM_DIR=/usr/lib/llvm-5.0 -DCMAKE_INSTALL_PREFIX=../inst
     make && make install
   ```
 ###  Building from source LLVM, Clang and clad (development environment)
