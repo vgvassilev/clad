@@ -6,6 +6,7 @@
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/Sema/Lookup.h"
@@ -21,7 +22,7 @@ namespace utils {
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 {                                             \
   return new (Ctx) CLASS CTORARGS;            \
-}                 
+}
 
 #define DEFINE_CLONE_EXPR(CLASS, CTORARGS)    \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
@@ -30,7 +31,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
   result->setValueDependent(Node->isValueDependent());  \
   result->setTypeDependent(Node->isTypeDependent());    \
   return result;                              \
-}                 
+}
 
 #define DEFINE_CREATE_EXPR(CLASS, CTORARGS)    \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
@@ -279,7 +280,7 @@ Stmt* StmtClone::VisitCompoundStmt(CompoundStmt *Node) {
 
   llvm::ArrayRef<Stmt*> stmtsRef = llvm::makeArrayRef(clonedBody.data(), 
                                                       clonedBody.size());
-  return CompoundStmt::Create(Ctx, stmtsRef, Node->getLBracLoc(), 
+  return clang__CompoundStmt__Create(Ctx, stmtsRef, Node->getLBracLoc(), 
                               Node->getLBracLoc());
 }
 

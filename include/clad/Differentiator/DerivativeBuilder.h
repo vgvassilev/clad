@@ -7,6 +7,8 @@
 #ifndef CLAD_DERIVATIVE_BUILDER_H
 #define CLAD_DERIVATIVE_BUILDER_H
 
+#include "Compatibility.h"
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -138,7 +140,7 @@ namespace clad {
     template <typename Range>
     clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
       auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
-      return clang::CompoundStmt::Create(m_Context, Stmts_ref,
+      return clang__CompoundStmt__Create(m_Context, Stmts_ref,
                                          noLoc, noLoc);
     }
 
