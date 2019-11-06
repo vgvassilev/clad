@@ -83,7 +83,7 @@ matrix:
             version: "$TRAVIS_COMMIT"
             description: "Clad build submitted via Travis CI"
           notification_email: "v.g.vassilev@gmail.com"
-          build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCLAD_PATH_TO_LLVM_BUILD=\"$TRAVIS_PATH_TO_LLVM_BUILD\"  -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR && cov-configure --comptype gcc --compiler gcc-6 --template"
+          build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCling_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DLLVM_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR && cov-configure --comptype gcc --compiler gcc-6 --template"
           build_command: "cmake --build .  -- -j4"
           branch_pattern: "coverity_scan"
 
@@ -183,9 +183,9 @@ before_script:
       cd ../
     fi
   - mkdir obj && cd obj
-  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" \
-          -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" \
-          -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR
+  - echo "Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
+  - ls -la -R $TRAVIS_PATH_TO_LLVM_BUILD
+  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR
 
 script:
   - |
