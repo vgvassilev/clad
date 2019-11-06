@@ -154,13 +154,19 @@ install:
   - |
     export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-5.0/
     if [ $TRAVIS_OS_NAME == 'osx' ]; then
-      brew install ccache python coreutils
+      brew install ccache python coreutils xz
       # Update openssl on osx because the current one is deprecated by python.
       curl https://bootstrap.pypa.io/get-pip.py | sudo python
       PATH="/usr/local/opt/ccache/libexec:$PATH"
       # Install clang-5.0 to run the plugin with.
-      brew install llvm@5
+      #brew install llvm@5
       TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
+      pushd /usr/local/opt
+      sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+      sudo rm -fr /usr/local/clang*
+      sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
+      sudo ls -la
+      popd
     fi
     # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
     # directory is not owned by the current user and the cache has been disabled.
@@ -183,8 +189,7 @@ before_script:
       cd ../
     fi
   - mkdir obj && cd obj
-  - echo "Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
-  - ls -la -R $TRAVIS_PATH_TO_LLVM_BUILD
+  - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
   - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR
 
 script:
@@ -224,4 +229,6 @@ after_failure:
   - dpkg-query -L clang-5.0
   - dpkg-query -L llvm-5.0-dev
   - find /usr/lib/llvm-5.0/
+  - find /usr/local/opt/llvm@5/
+  - brew search llvm
   - cat /home/travis/build/vgvassilev/clad/obj/CMakeFiles/*.log
