@@ -179,8 +179,8 @@ before_script:
   - $CC --version
   - $CXX --version
   - |
-    if [ $TRAVIS_OS_NAME != 'osx' ]; then
-      # LLVM utils such as FileCheck and not are not part of the llvm release on unix.
+    if [ $TRAVIS_OS_NAME == 'osx' ] || [ $TRAVIS_OS_NAME == 'linux' ]; then
+      # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
       cd tools && for tool in FileCheck not; do
         svn export \
           http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
@@ -196,8 +196,7 @@ script:
   - |
     # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
     # This expands FileCheck to the location of installed llvm.
-    # On OSX we are fine because FileCheck is part of the brew formula.
-    if [ $TRAVIS_OS_NAME != 'osx' ]; then
+    if [ $TRAVIS_OS_NAME == 'osx' ] || [ $TRAVIS_OS_NAME == 'linux' ]; then
       cmake --build . --target FileCheck -- -j4
       sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
     fi
