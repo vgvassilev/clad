@@ -14,8 +14,6 @@ addons: &addons
       - clang-5.0
     sources: &sources
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty-4.0
-      - llvm-toolchain-trusty-5.0
 
 cache:
   pip: true
@@ -153,6 +151,7 @@ before_install:
 install:
   - |
     export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-5.0/
+
     if [ $TRAVIS_OS_NAME == 'osx' ]; then
       brew install ccache python coreutils xz
       # Update openssl on osx because the current one is deprecated by python.
@@ -165,6 +164,19 @@ install:
       sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
       sudo rm -fr /usr/local/clang*
       sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
+      sudo ls -la
+      popd
+    fi
+
+    # Ubuntu 16.04 llvm/clang-5.0 package is broken - install it from binary build.
+    if [ $TRAVIS_OS_NAME == 'linux' ]; then
+      # Install clang-5.0 to run the plugin with.
+      TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-5.0/
+      sudo mkdir -p /usr/local/opt
+      pushd /usr/local/opt
+      sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
+      sudo rm -fr /usr/local/clang*
+      sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04/ llvm-5.0/
       sudo ls -la
       popd
     fi
