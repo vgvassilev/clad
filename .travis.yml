@@ -12,6 +12,7 @@ addons: &addons
       - llvm-5.0-dev
       - libclang-5.0-dev
       - clang-5.0
+      - llvm-5.0-tools
     sources: &sources
       - ubuntu-toolchain-r-test
 
@@ -44,14 +45,14 @@ matrix:
     - os: linux
 
   include:
-    # OSX Clang and XCode 8.3
+    # OSX 10.13, Clang and XCode 8.4
     - os: osx
       env: CXX=clang++ CC=clang BUILD_TYPE=Release
-      osx_image: xcode8.3
+      osx_image: xcode9.4
       compiler: clang
     - os: osx
       env: CXX=clang++ CC=clang BUILD_TYPE=Debug
-      osx_image: xcode8.3
+      osx_image: xcode9.4
       compiler: clang
 
     # GCC 5
@@ -191,7 +192,7 @@ before_script:
   - $CC --version
   - $CXX --version
   - |
-    if [ $TRAVIS_OS_NAME == 'osx' ] || [ $TRAVIS_OS_NAME == 'linux' ]; then
+    if [ $TRAVIS_OS_NAME == 'osx' ]; then
       # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
       cd tools && for tool in FileCheck not; do
         svn export \
@@ -208,9 +209,12 @@ script:
   - |
     # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
     # This expands FileCheck to the location of installed llvm.
-    if [ $TRAVIS_OS_NAME == 'osx' ] || [ $TRAVIS_OS_NAME == 'linux' ]; then
+    if [ $TRAVIS_OS_NAME == 'osx' ]; then
       cmake --build . --target FileCheck -- -j4
       sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+    fi
+    if [ $TRAVIS_OS_NAME == 'linux' ]; then
+      sudo ln -s /usr/lib/llvm-5.0/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
     fi
   - cmake --build . --target check-clad -- -j4
 
