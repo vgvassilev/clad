@@ -95,6 +95,10 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   message(STATUS "Found supported version: LLVM ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
+  # When clad is in debug mode the llvm package thinks it is built with -frtti.
+  # For consistency we should set it to the correct value.
+  set(LLVM_CONFIG_HAS_RTTI NO CACHE BOOL "" FORCE)
+
   ## Init
 
   # In case this was a path to a build folder of llvm still try to find AddLLVM
