@@ -104,6 +104,9 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # In case this was a path to a build folder of llvm still try to find AddLLVM
   list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
 
+  # Fix bug in some AddLLVM.cmake implementation (-rpath "" problem)
+  set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib${LLVM_LIBDIR_SUFFIX})
+
   include(AddLLVM)
   include(HandleLLVMOptions)
 
