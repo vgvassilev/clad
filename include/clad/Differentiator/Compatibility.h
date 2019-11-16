@@ -1,6 +1,5 @@
 //--------------------------------------------------------------------*- C++ -*-
 // clad - the C++ Clang-based Automatic Differentiator
-// version: $Id$
 // author:  Alexander Penev <alexander_penev@yahoo.com>
 //------------------------------------------------------------------------------
 
@@ -13,17 +12,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Sema/Sema.h"
-
-// Version.h and llvm-config.h defines:
-//#define CLANG_VERSION 7.0.0
-//#define CLANG_VERSION_STRING "7.0.0"
-//#define CLANG_VERSION_MAJOR 7
-//#define CLANG_VERSION_MINOR 0
-//#define CLANG_VERSION_PATCHLEVEL 0
-//#define LLVM_VERSION_MAJOR 7
-//#define LLVM_VERSION_MINOR 0
-//#define LLVM_VERSION_PATCH 0
-//#define LLVM_VERSION_STRING "7.0.0"
 
 namespace clad_compat {
 

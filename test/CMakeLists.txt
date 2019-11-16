@@ -18,7 +18,7 @@ if(CLAD_BUILT_STANDALONE)
   # cmake will fall back to LLVM-config (asking llvm-config --obj-root) and this
   # will return a build folder. This information will force lit to look for
   # utils such as FileCheck in /usr/local/... instead of the true location in
-  # /usr/lib/llvm-5.0/
+  # /usr/lib/llvm-*/
   set(LLVM_BINARY_DIR ${LLVM_INSTALL_PREFIX})
   set(LLVM_TOOLS_DIR ${LLVM_INSTALL_PREFIX})
   set(LLVM_LIBS_DIR ${LLVM_INSTALL_PREFIX}/lib/)

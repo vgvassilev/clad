@@ -5,9 +5,16 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   cmake_minimum_required(VERSION 3.7.0)
 
   set(CLANG_MIN_SUPPORTED 5.0)
-  set(CLANG_MAX_SUPPORTED 7.0)
+  set(CLANG_MAX_SUPPORTED 7.1)
   set(LLVM_MIN_SUPPORTED 5.0)
-  set(LLVM_MAX_SUPPORTED 7.0)
+  set(LLVM_MAX_SUPPORTED 7.1)
+
+  if (NOT DEFINED Clang_DIR)
+    set(Clang_DIR ${LLVM_DIR})
+  endif()
+  if (NOT DEFINED LLVM_DIR)
+    set(LLVM_DIR ${Clang_DIR})
+  endif()
 
   ## Find supported Clang
 
@@ -77,7 +84,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   endif()
 
   if (NOT LLVM_FOUND AND DEFINED LLVM_DIR)
-    find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/clang" "${LLVM_DIR}/cmake" NO_DEFAULT_PATH)
+    find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/llvm" "${LLVM_DIR}/cmake" NO_DEFAULT_PATH)
   endif()
 
   if (NOT LLVM_FOUND)

@@ -4,17 +4,125 @@ sudo: true
 # See more: https://github.com/travis-ci/travis-ci/issues/6083
 language: none
 
-addons: &addons
-  apt:
-    packages: &common_deps
+language: none
+
+
+addons: &common-addons
+  apt: &common-apt
+    packages: &common-apt-packages
       - cmake
       - binutils-gold
-      - llvm-5.0-dev
-      - libclang-5.0-dev
-      - clang-5.0
-      - llvm-5.0-tools
-    sources: &sources
-      - ubuntu-toolchain-r-test
+    sources: &common-apt-sources
+      - sourceline: "ppa:ubuntu-toolchain-r/test"
+  homebrew: &common-brew
+    packages: &common-brew-packages
+      - ccache
+      - python
+      - coreutils
+      - xz
+    update: false
+
+# Inherit all from "common-addons" subtree
+#
+# addons-5: &addons-5
+#   <<: *common-addons
+
+# Inherit all from "common-apt" subtree; Nothing from "common-brew" tree
+#
+# addons-5: &addons-5
+#   apt:
+#     <<: *common-apt
+
+# Inherit all from "common-apt" subtree. New "homebrew"
+#
+# addons-5: &addons-5
+#   apt:
+#     <<: *common-apt
+#   homebrew: &brew-5
+#     packages: &brew-packages-5
+#       - ccache-5
+
+# Inherit all from "common-apt" subtree, extend packages; Nothing from "common-brew" subtree
+#
+# addons-5: &addons-5
+#   apt: &apt-5
+#     <<: *common-apt
+#     packages: &apt-packages-5 [*common-apt-packages,
+#       '1',
+#       '2']
+
+# Inherit all from "common-apt" subtree, extend packages; Inherit all from "common-brew" subtree
+#
+# addons-5: &addons-5
+#   apt: &apt-5
+#     <<: *common-apt
+#     packages: [*common-apt-packages,
+#       1,
+#       2]
+#   homebrew: &brew-5
+#     <<: *common-brew
+#
+## or
+#
+# addons-6: &addons-6
+#   <<: *common-addons
+#   apt: &apt-6
+#     <<: *common-apt
+#     packages: [*common-apt-packages,
+#       1,
+#       2]
+
+
+addons-5: &addons-5
+  <<: *common-addons
+  apt: &apt-5
+    <<: *common-apt
+    packages: &apt-packages-5 [*common-apt-packages,
+      'llvm-5.0-dev',
+      'libclang-5.0-dev',
+      'clang-5.0',
+      'llvm-5.0-tools'
+    ]
+  homebrew: &brew-5
+#    <<: *common-brew
+#    packages: &brew-packages-5 [*common-brew-packages,
+#      'llvm@5'
+#    ]
+    packages: &brew-packages-5 []
+
+addons-6: &addons-6
+  <<: *common-addons
+  apt: &apt-6
+    <<: *common-apt
+    packages: &apt-packages-6 [*common-apt-packages,
+      'llvm-6.0-dev',
+      'libclang-6.0-dev',
+      'clang-6.0',
+      'llvm-6.0-tools'
+    ]
+  homebrew: &brew-6
+    <<: *common-brew
+    packages: &brew-packages-6 [*common-brew-packages,
+      'llvm@6'
+    ]
+    update: true
+
+addons-7: &addons-7
+  <<: *common-addons
+  apt: &apt-7
+    <<: *common-apt
+    packages: &apt-packages-7 [*common-apt-packages,
+      'llvm-7-dev',
+      'libclang-7-dev',
+      'clang-7',
+      'llvm-7-tools'
+    ]
+  homebrew: &brew-7
+    <<: *common-brew
+    packages: &brew-packages-7 [*common-brew-packages,
+      'llvm@7'
+    ]
+    update: true
 
 cache:
   pip: true
@@ -45,37 +153,51 @@ matrix:
     - os: linux
 
   include:
-    # OSX 10.13, Clang and XCode 8.4
+    ##################### Clad for clang 5.0 #####################
+    # OSX 10.13, Clang and XCode 9.4
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Release
+      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=5.0
       osx_image: xcode9.4
       compiler: clang
+      addons:
+        <<: *addons-5
+        homebrew:
+          <<: *brew-5
+          packages: [*common-brew]
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Debug
+      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=5.0
       osx_image: xcode9.4
       compiler: clang
+      addons:
+        <<: *addons-5
+        homebrew:
+          <<: *brew-5
+          packages: [*common-brew]
 
-    # GCC 5
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug
+    # Ubuntu, GCC 5
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release
+          <<: *apt-5
+          packages: [*apt-packages-5, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+          <<: *apt-5
+          packages: [*apt-packages-5, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
 
-    # GCC 6
-    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug RUN_COVERITY=1
+    # Ubuntu, GCC 6, Coverity
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0 RUN_COVERITY=1
       compiler: gcc
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+          <<: *apt-5
+          packages: [*apt-packages-5, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
         coverity_scan:
           project:
             name: "$TRAVIS_REPO_SLUG"
@@ -85,59 +207,266 @@ matrix:
           build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCling_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DLLVM_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR && cov-configure --comptype gcc --compiler gcc-6 --template"
           build_command: "cmake --build .  -- -j4"
           branch_pattern: "coverity_scan"
-
-    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
-
+          <<: *apt-5
+          packages: [*apt-packages-5, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
 
     # GCC 7
-    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Debug
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
-    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Release
+          <<: *apt-5
+          packages: [*apt-packages-5, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+          <<: *apt-5
+          packages: [*apt-packages-5, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
 
     # Clang 4
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug CLANG_RUNTIME=5.0
       compiler: clang
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release
+          <<: *apt-5
+          packages: [*apt-packages-5, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=5.0
       compiler: clang
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+          <<: *apt-5
+          packages: [*apt-packages-5, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
 
     # Clang 5
-    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Debug
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Debug CLANG_RUNTIME=5.0
       compiler: clang
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Release
+          <<: *apt-5
+          packages: [*apt-packages-5, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Release CLANG_RUNTIME=5.0
       compiler: clang
       addons:
+        <<: *addons-5
         apt:
-          sources: *sources
-          packages: [*common_deps, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+          <<: *apt-5
+          packages: [*apt-packages-5, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+
+    ##################### Clad for clang 6.0 #####################
+    # OSX 10.13, Clang and XCode 9.4
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=6.0
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-6
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-6
+
+    # Ubuntu, GCC 5
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      compiler: gcc
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=6.0
+      compiler: gcc
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+
+    # Ubuntu, GCC 6
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      compiler: gcc
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=6.0
+      compiler: gcc
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+
+    # GCC 7
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      compiler: gcc
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=6.0
+      compiler: gcc
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+
+    # Clang 4
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      compiler: clang
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=6.0
+      compiler: clang
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 5
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      compiler: clang
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Release CLANG_RUNTIME=6.0
+      compiler: clang
+      addons:
+        <<: *addons-6
+        apt:
+          <<: *apt-6
+          packages: [*apt-packages-6, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+
+    ##################### Clad for clang 7 #####################
+    # OSX 10.13, Clang and XCode 9.4
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=7
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-7
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=7
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-7
+
+    # Ubuntu, GCC 5
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=7
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=7
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+
+    # Ubuntu, GCC 6
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=7
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=7
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+
+    # GCC 7
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=7
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=7
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+
+    # Clang 4
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug CLANG_RUNTIME=7
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=7
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 5
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Debug CLANG_RUNTIME=7
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Release CLANG_RUNTIME=7
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-7
+        apt:
+          <<: *apt-7
+          packages: [*apt-packages-7, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+
 
 before_install:
   - export
+  #- ls -la -R /usr/local
   - |
     if [ "${TRAVIS_BRANCH}" == 'coverity_scan' ]; then
       if [ "$RUN_COVERITY" != 1 ]; then
@@ -151,43 +480,66 @@ before_install:
 
 install:
   - |
-    export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-5.0/
-
     if [ $TRAVIS_OS_NAME == 'osx' ]; then
-      brew install ccache python coreutils xz
       # Update openssl on osx because the current one is deprecated by python.
       curl https://bootstrap.pypa.io/get-pip.py | sudo python
       PATH="/usr/local/opt/ccache/libexec:$PATH"
-      # Install clang-5.0 to run the plugin with.
-      #brew install llvm@5
-      TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
-      pushd /usr/local/opt
-      sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
-      sudo rm -fr /usr/local/clang*
-      sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
-      sudo ls -la
-      popd
+      # Package llvm@5 is not supported on brew. We must install it from binary build.
+      if [ $CLANG_RUNTIME == '5.0' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
+        pushd /usr/local/opt
+        sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
+        sudo ls -la
+        popd
+      fi
+      # Package llvm@6
+      if [ $CLANG_RUNTIME == '6.0' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
+      fi
+      # Package llvm@7
+      if [ $CLANG_RUNTIME == '7' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@7/
+      fi
     fi
-
-    # Ubuntu 16.04 llvm/clang-5.0 package is broken - install it from binary build.
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
-      # Install clang-5.0 to run the plugin with.
-      TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-5.0/
-      sudo mkdir -p /usr/local/opt
-      pushd /usr/local/opt
-      sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
-      sudo rm -fr /usr/local/clang*
-      sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04/ llvm-5.0/
-      sudo ls -la
-      popd
+      export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/llvm-${CLANG_RUNTIME}/
+      # Ubuntu 16.04 & 18.04 llvm/clang-5.0 package is broken - install it from binary build.
+      if [ $CLANG_RUNTIME == '5.0' ]; then
+        # Install clang-5.0 to run the plugin with.
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-${CLANG_RUNTIME}/
+        sudo mkdir -p /usr/local/opt
+        pushd /usr/local/opt
+        sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04/ llvm-5.0/
+        sudo ls -la
+        popd
+      fi
+      # Ubuntu 16.04 & 18.04 llvm/clang-6.0 package is broken - install it from binary build.
+      if [ $CLANG_RUNTIME == '6.0' ]; then
+        # Install clang-6.0 to run the plugin with.
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-${CLANG_RUNTIME}/
+        sudo mkdir -p /usr/local/opt
+        pushd /usr/local/opt
+        sudo curl http://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/ llvm-6.0/
+        sudo ls -la
+        popd
+      fi
+      # Ubuntu 18.04 llvm/clang-7 package.
+      if [ $CLANG_RUNTIME == '7' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/clang-7.0.0/
+      fi
     fi
     # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
     # directory is not owned by the current user and the cache has been disabled.
     sudo -H pip install lit # LLVM lit is not part of the llvm releases...
 
+
 before_script:
-  # travis untars clang-5.0 in /usr/local/clang-5.0.0/ which confuses the build.
-  - sudo rm -fr /usr/local/clang*
   - cmake --version
   - $CC --version
   - $CXX --version
@@ -201,9 +553,14 @@ before_script:
       done
       cd ../
     fi
+  - |
+    if [ $TRAVIS_OS_NAME == 'linux' ]; then
+      # Linux specific commands, fixes and settings
+      :
+    fi
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
-  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR
+  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" $TRAVIS_BUILD_DIR
 
 script:
   - |
@@ -214,7 +571,7 @@ script:
       sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
     fi
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
-      sudo ln -s /usr/lib/llvm-5.0/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+      sudo ln -s /usr/lib/llvm-${CLANG_RUNTIME}/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
     fi
   - cmake --build . --target check-clad -- -j4
 
@@ -245,5 +602,16 @@ after_failure:
   - dpkg-query -L llvm-5.0-dev
   - find /usr/lib/llvm-5.0/
   - find /usr/local/opt/llvm@5/
+  - dpkg-query -L libclang-6.0-dev
+  - dpkg-query -L clang-6.0
+  - dpkg-query -L llvm-6.0-dev
+  - find /usr/lib/llvm-6.0/
+  - find /usr/local/opt/llvm@6/
+  - dpkg-query -L libclang-7-dev
+  - dpkg-query -L clang-7
+  - dpkg-query -L llvm-7-dev
+  - find /usr/lib/llvm-7/
+  - find /usr/local/opt/llvm@7/
   - brew search llvm
+  - pip show lit
   - cat /home/travis/build/vgvassilev/clad/obj/CMakeFiles/*.log
