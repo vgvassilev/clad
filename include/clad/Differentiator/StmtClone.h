@@ -1,6 +1,5 @@
 //--------------------------------------------------------------------*- C++ -*-
 // clad - the C++ Clang-based Automatic Differentiator
-// version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 //
@@ -31,8 +30,8 @@ namespace utils {
   public:
     // first: original stmt, second: appropriate cloned stmt
     typedef llvm::DenseMap<const clang::Stmt*, clang::Stmt*> StmtMapping;
-    typedef llvm::DenseMap<clang::ValueDecl*, clang::ValueDecl*> DeclMapping; 
-    typedef StmtCloneMapping Mapping; 
+    typedef llvm::DenseMap<clang::ValueDecl*, clang::ValueDecl*> DeclMapping;
+    typedef StmtCloneMapping Mapping;
 
   private:
     clang::Sema& m_Sema;
@@ -119,7 +118,7 @@ namespace utils {
 
   // Not a StmtClone member class to make it forwardable:
   struct StmtCloneMapping {
-    StmtClone::StmtMapping m_StmtMapping; 
+    StmtClone::StmtMapping m_StmtMapping;
     StmtClone::DeclMapping m_DeclMapping;
   };
 
