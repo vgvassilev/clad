@@ -1,11 +1,11 @@
 //--------------------------------------------------------------------*- C++ -*-
 // clad - the C++ Clang-based Automatic Differentiator
-// version: $Id$
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/Sema/Lookup.h"
@@ -21,24 +21,24 @@ namespace utils {
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 {                                             \
   return new (Ctx) CLASS CTORARGS;            \
-}                 
+}
 
-#define DEFINE_CLONE_EXPR(CLASS, CTORARGS)    \
-Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
-{                                             \
-  CLASS* result = new (Ctx) CLASS CTORARGS;   \
+#define DEFINE_CLONE_EXPR(CLASS, CTORARGS)              \
+Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
+{                                                       \
+  CLASS* result = new (Ctx) CLASS CTORARGS;             \
   result->setValueDependent(Node->isValueDependent());  \
   result->setTypeDependent(Node->isTypeDependent());    \
-  return result;                              \
-}                 
+  return result;                                        \
+}
 
-#define DEFINE_CREATE_EXPR(CLASS, CTORARGS)    \
-Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
-{                                             \
-  CLASS* result = CLASS::Create CTORARGS;   \
+#define DEFINE_CREATE_EXPR(CLASS, CTORARGS)             \
+Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
+{                                                       \
+  CLASS* result = CLASS::Create CTORARGS;               \
   result->setValueDependent(Node->isValueDependent());  \
   result->setTypeDependent(Node->isTypeDependent());    \
-  return result;                              \
+  return result;                                        \
 }
 
 DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->getFPFeatures()))
@@ -86,9 +86,9 @@ DEFINE_CLONE_EXPR(CXXThrowExpr, (Clone(Node->getSubExpr()), Node->getType(), Nod
 //BlockDeclRefExpr
 
 Stmt* StmtClone::VisitStringLiteral(StringLiteral* Node) {
-  llvm::SmallVector<SourceLocation, 4> concatLocations(Node->tokloc_begin(), 
+  llvm::SmallVector<SourceLocation, 4> concatLocations(Node->tokloc_begin(),
                                                        Node->tokloc_end());
-  return StringLiteral::Create(Ctx, Node->getString(), Node->getKind(), 
+  return StringLiteral::Create(Ctx, Node->getString(), Node->getKind(),
                                Node->isPascal(), Node->getType(),
                                &concatLocations[0], concatLocations.size());
 }
@@ -117,14 +117,14 @@ Stmt* StmtClone::VisitInitListExpr(InitListExpr* Node) {
   return result;
 }
 
-//--------------------------------------------------------- 
+//---------------------------------------------------------
 Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
   llvm::SmallVector<Expr*, 8> indexExprs(Node->getNumSubExprs());
   for (int i = 0, e = indexExprs.size(); i < e; ++i)
     indexExprs[i] = Clone(Node->getSubExpr(i));
 
   // no &indexExprs[1]
-  llvm::ArrayRef<Expr*> indexExprsRef 
+  llvm::ArrayRef<Expr*> indexExprsRef
     = llvm::makeArrayRef(&indexExprs[0] + 1, indexExprs.size() - 1);
 
   return DesignatedInitExpr::Create(Ctx, Node->designators(),
@@ -135,30 +135,30 @@ Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
 
 Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
   if (Node->isArgumentType())
-    return new (Ctx) UnaryExprOrTypeTraitExpr(Node->getKind(), 
-                                              Node->getArgumentTypeInfo(), 
-                                              Node->getType(), 
-                                              Node->getOperatorLoc(), 
+    return new (Ctx) UnaryExprOrTypeTraitExpr(Node->getKind(),
+                                              Node->getArgumentTypeInfo(),
+                                              Node->getType(),
+                                              Node->getOperatorLoc(),
                                               Node->getRParenLoc());
-  return new (Ctx) UnaryExprOrTypeTraitExpr(Node->getKind(), 
-                                            Clone(Node->getArgumentExpr()), 
-                                            Node->getType(), 
-                                            Node->getOperatorLoc(), 
+  return new (Ctx) UnaryExprOrTypeTraitExpr(Node->getKind(),
+                                            Clone(Node->getArgumentExpr()),
+                                            Node->getType(),
+                                            Node->getOperatorLoc(),
                                             Node->getRParenLoc());
 }
 
 Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
-  CallExpr* result = new (Ctx) CallExpr(Ctx, Clone(Node->getCallee()), 
-                                        llvm::ArrayRef<Expr*>(), 
-                                        Node->getType(), 
-                                        Node->getValueKind(), 
+  CallExpr* result = new (Ctx) CallExpr(Ctx, Clone(Node->getCallee()),
+                                        llvm::ArrayRef<Expr*>(),
+                                        Node->getType(),
+                                        Node->getValueKind(),
                                         Node->getRParenLoc());
   result->setNumArgs(Ctx, Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  result->setValueDependent(Node->isValueDependent());  
-  result->setTypeDependent(Node->isTypeDependent());    
+  result->setValueDependent(Node->isValueDependent());
+  result->setTypeDependent(Node->isTypeDependent());
 
   return result;
 }
@@ -183,35 +183,35 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
 }
 
 Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
-  CXXOperatorCallExpr* result 
-    = new (Ctx) CXXOperatorCallExpr(Ctx, Node->getOperator(), 
-                                    Clone(Node->getCallee()), 0, 
-                                    Node->getType(), 
-                                    Node->getValueKind(), 
-                                    Node->getRParenLoc(), 
+  CXXOperatorCallExpr* result
+    = new (Ctx) CXXOperatorCallExpr(Ctx, Node->getOperator(),
+                                    Clone(Node->getCallee()), 0,
+                                    Node->getType(),
+                                    Node->getValueKind(),
+                                    Node->getRParenLoc(),
                                     Node->getFPFeatures());
   result->setNumArgs(Ctx, Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  result->setValueDependent(Node->isValueDependent());  
-  result->setTypeDependent(Node->isTypeDependent());    
+  result->setValueDependent(Node->isValueDependent());
+  result->setTypeDependent(Node->isTypeDependent());
 
   return result;
 }
 
 Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
-  CXXMemberCallExpr* result 
-    = new (Ctx) CXXMemberCallExpr(Ctx, Clone(Node->getCallee()), 0, 
-                                  Node->getType(), 
+  CXXMemberCallExpr* result
+    = new (Ctx) CXXMemberCallExpr(Ctx, Clone(Node->getCallee()), 0,
+                                  Node->getType(),
                                   Node->getValueKind(), Node->getRParenLoc());
   result->setNumArgs(Ctx, Node->getNumArgs());
 
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  result->setValueDependent(Node->isValueDependent());  
-  result->setTypeDependent(Node->isTypeDependent());    
+  result->setValueDependent(Node->isValueDependent());
+  result->setTypeDependent(Node->isTypeDependent());
 
   return result;
 }
@@ -220,25 +220,25 @@ Stmt* StmtClone::VisitShuffleVectorExpr(ShuffleVectorExpr* Node) {
   llvm::SmallVector<Expr*, 8> cloned(std::max(1u, Node->getNumSubExprs()));
   for (unsigned i = 0, e = Node->getNumSubExprs(); i < e; ++i)
     cloned[i] = Clone(Node->getExpr(i));
-  llvm::ArrayRef<Expr*> clonedRef 
+  llvm::ArrayRef<Expr*> clonedRef
     = llvm::makeArrayRef(cloned.data(), cloned.size());
-  return new (Ctx) ShuffleVectorExpr(Ctx, clonedRef, Node->getType(), 
-                                     Node->getBuiltinLoc(), 
+  return new (Ctx) ShuffleVectorExpr(Ctx, clonedRef, Node->getType(),
+                                     Node->getBuiltinLoc(),
                                      Node->getRParenLoc());
 }
 
 Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
-  CaseStmt* result = new (Ctx) CaseStmt(Clone(Node->getLHS()), 
-                                        Clone(Node->getRHS()), 
-                                        Node->getCaseLoc(), 
-                                        Node->getEllipsisLoc(), 
+  CaseStmt* result = new (Ctx) CaseStmt(Clone(Node->getLHS()),
+                                        Clone(Node->getRHS()),
+                                        Node->getCaseLoc(),
+                                        Node->getEllipsisLoc(),
                                         Node->getColonLoc());
   result->setSubStmt(Clone(Node->getSubStmt()));
   return result;
 }
 
 Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
-  SwitchStmt* result 
+  SwitchStmt* result
     = new (Ctx) SwitchStmt(Ctx, Node->getInit(), Node->getConditionVariable(), Node->getCond());
   result->setBody(Clone(Node->getBody()));
   result->setSwitchLoc(Node->getSwitchLoc());
@@ -253,7 +253,7 @@ DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node-
 DEFINE_CLONE_STMT(IfStmt, (Ctx, Node->getIfLoc(), Node->isConstexpr(), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
 DEFINE_CLONE_STMT(LabelStmt, (Node->getIdentLoc(), Node->getDecl(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(NullStmt, (Node->getSemiLoc()))
-DEFINE_CLONE_STMT(ForStmt, (Ctx, Clone(Node->getInit()), Clone(Node->getCond()), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getInc()), Clone(Node->getBody()), 
+DEFINE_CLONE_STMT(ForStmt, (Ctx, Clone(Node->getInit()), Clone(Node->getCond()), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getInc()), Clone(Node->getBody()),
                             Node->getForLoc(), Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_STMT(ContinueStmt, (Node->getContinueLoc()))
 DEFINE_CLONE_STMT(BreakStmt, (Node->getBreakLoc()))
@@ -273,13 +273,13 @@ Stmt* StmtClone::VisitCXXTryStmt(CXXTryStmt* Node) {
 
 Stmt* StmtClone::VisitCompoundStmt(CompoundStmt *Node) {
   llvm::SmallVector<Stmt*, 8> clonedBody;
-  for (CompoundStmt::const_body_iterator i = Node->body_begin(), 
+  for (CompoundStmt::const_body_iterator i = Node->body_begin(),
          e = Node->body_end(); i != e; ++i)
     clonedBody.push_back(Clone(*i));
 
-  llvm::ArrayRef<Stmt*> stmtsRef = llvm::makeArrayRef(clonedBody.data(), 
+  llvm::ArrayRef<Stmt*> stmtsRef = llvm::makeArrayRef(clonedBody.data(),
                                                       clonedBody.size());
-  return new (Ctx) CompoundStmt(Ctx, stmtsRef, Node->getLBracLoc(), 
+  return new (Ctx) CompoundStmt(Ctx, stmtsRef, Node->getLBracLoc(),
                                 Node->getLBracLoc());
 }
 
@@ -294,17 +294,17 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
   if (Node->getKind() == Decl::Var) {
     VarDecl* VD = static_cast<VarDecl*>(Node);
 
-    VarDecl* cloned_Decl = VarDecl::Create(Ctx, VD->getDeclContext(), 
-                                           VD->getLocation(), 
-                                           VD->getInnerLocStart(), 
-                                           VD->getIdentifier(), VD->getType(), 
-                                           VD->getTypeSourceInfo(), 
+    VarDecl* cloned_Decl = VarDecl::Create(Ctx, VD->getDeclContext(),
+                                           VD->getLocation(),
+                                           VD->getInnerLocStart(),
+                                           VD->getIdentifier(), VD->getType(),
+                                           VD->getTypeSourceInfo(),
                                            VD->getStorageClass());
     if (VD->getInit())
       m_Sema.AddInitializerToDecl(cloned_Decl, Clone(VD->getInit()), VD->isDirectInit());
     cloned_Decl->setTSCSpec(VD->getTSCSpec());
     //cloned_Decl->setDeclaredInCondition(VD->isDeclaredInCondition());
-    if (m_OriginalToClonedStmts != 0) 
+    if (m_OriginalToClonedStmts != 0)
       m_OriginalToClonedStmts->m_DeclMapping[VD] = cloned_Decl;
 
     return cloned_Decl;
@@ -313,7 +313,7 @@ Decl* StmtClone::CloneDecl(Decl* Node)  {
   return 0;
 }
 
-Stmt* StmtClone::VisitDeclStmt(DeclStmt* Node) { 
+Stmt* StmtClone::VisitDeclStmt(DeclStmt* Node) {
   DeclGroupRef clonedDecls;
   if (Node->isSingleDecl())
     clonedDecls = DeclGroupRef(CloneDecl(Node->getSingleDecl()));
@@ -323,19 +323,18 @@ Stmt* StmtClone::VisitDeclStmt(DeclStmt* Node) {
     for (DeclGroupRef::const_iterator i = dg.begin(), e = dg.end(); i != e; ++i)
       clonedDeclGroup.push_back(CloneDecl(*i));
 
-    clonedDecls = DeclGroupRef(DeclGroup::Create(Ctx, clonedDeclGroup.data(), 
+    clonedDecls = DeclGroupRef(DeclGroup::Create(Ctx, clonedDeclGroup.data(),
                                                  clonedDeclGroup.size()));
   }
   return new (Ctx) DeclStmt(clonedDecls, Node->getStartLoc(), Node->getEndLoc());
 }
 
-Stmt* StmtClone::VisitStmt(Stmt*) { 
-  assert(0 && "clone not fully implemented"); 
-  return 0; 
+Stmt* StmtClone::VisitStmt(Stmt*) {
+  assert(0 && "clone not fully implemented");
+  return 0;
 }
 
-
-ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C, Scope* S) 
+ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C, Scope* S)
   : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S) {}
 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
@@ -369,6 +368,6 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   return true;
 }
 
-//--------------------------------------------------------- 
+//---------------------------------------------------------
   } // end namespace utils
 } // end namespace clad
