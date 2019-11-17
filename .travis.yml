@@ -4,9 +4,6 @@ sudo: true
 # See more: https://github.com/travis-ci/travis-ci/issues/6083
 language: none
 
-language: none
-
-
 addons: &common-addons
   apt: &common-apt
     packages: &common-apt-packages
@@ -124,12 +121,20 @@ addons-7: &addons-7
     ]
     update: true
 
+
+before_cache:
+  - brew cleanup
+  - rm -f ~/Library/Caches/Homebrew/linkage.db ~/.cache/Homebrew/linkage.db
+
 cache:
   pip: true
   apt: true
   ccache: true
   directories:
     - $HOME/.ccache
+    - /usr/local/Homebrew
+    - $HOME/Library/Caches/Homebrew
+
 
 env:
   global:
