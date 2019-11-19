@@ -149,8 +149,8 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
   ```
 ###  Building from source (example was tested on MacOS Mojave 10.14.1)
   ```
-    sudo brew install llvm@8
-    sudo brew install python
+    brew install llvm@8
+    brew install python
     sudo -H pip install lit
     git clone https://github.com/vgvassilev/clad.git clad
     mkdir build_dir inst; cd build_dir
