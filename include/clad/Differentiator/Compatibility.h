@@ -178,8 +178,9 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 
 // Clang 8 change E->getLocStart() ===> E->getBeginLoc()
 // E->getLocEnd() ===> E->getEndLoc()
+// Clang 7 define both for compatibility
 
-#if CLANG_VERSION_MAJOR < 8
+#if CLANG_VERSION_MAJOR < 7
    #define getBeginLoc() getLocStart()
    #define getEndLoc() getLocEnd()
 #endif
