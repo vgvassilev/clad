@@ -4,10 +4,12 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
   cmake_minimum_required(VERSION 3.7.0)
 
+  ## Define clad supported version of clang and llvm
+
   set(CLANG_MIN_SUPPORTED 5.0)
-  set(CLANG_MAX_SUPPORTED 7.1)
+  set(CLANG_MAX_SUPPORTED 8.0.1)
   set(LLVM_MIN_SUPPORTED 5.0)
-  set(LLVM_MAX_SUPPORTED 7.1)
+  set(LLVM_MAX_SUPPORTED 8.0.1)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
@@ -105,6 +107,22 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # When clad is in debug mode the llvm package thinks it is built with -frtti.
   # For consistency we should set it to the correct value.
   set(LLVM_CONFIG_HAS_RTTI NO CACHE BOOL "" FORCE)
+
+
+  ## Compatibility
+
+  # Clang 8 remove add_llvm_loadable_module for cmake files.
+  # Recomended is use of add_llvm_library with MODULE argument.
+  if (CLANG_PACKAGE_VERSION VERSION_LESS 8.0)
+    macro(clad_compat_add_llvm_loadable_module module_name)
+      add_llvm_loadable_module(${module_name} ${ARGN})
+    endmacro(clad_compat_add_llvm_loadable_module)
+  else()
+    macro(clad_compat_add_llvm_loadable_module module_name)
+      add_llvm_library(${module_name} MODULE ${ARGN})
+    endmacro(clad_compat_add_llvm_loadable_module)
+  endif()
+
 
   ## Init
 

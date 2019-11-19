@@ -126,7 +126,7 @@ Note: Clad provides custom derivatives for some mathematical functions from `<cm
 Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
 
 ## How to install
-At the moment, only LLVM/Clang 5.0.x - 7.1.x are supported.
+At the moment, only LLVM/Clang 5.0.x - 8.0.x are supported.
 
 ## How Clad works
 Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST ([Clang AST](https://clang.llvm.org/docs/IntroductionToTheClangAST.html)) of user's source code. Then, [CladPlugin](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.h#L48), implemented as `clang::ASTConsumer` analyzes the AST to find differentiation requests for clad and process those requests by building Clang AST for derivative functions. The whole clad's operation sequence is the following:
@@ -140,12 +140,23 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
 * Finally, derivative's AST is [passed](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L145) for further processing by Clang compiler (LLVM IR generation, optimizations, machine code generation, etc.).
 ###  Building from source (example was tested on Ubuntu 18.04 LTS, tests are disabled)
   ```
-    sudo apt install clang-7 llvm-7 clang-7-dev llvm-7-dev libllvm7 llvm-7-runtime llvm-7-tools
+    sudo apt install clang-8 llvm-8 clang-8-dev llvm-8-dev libllvm8 llvm-8-runtime llvm-8-tools
     sudo -H pip install lit
     git clone https://github.com/vgvassilev/clad.git clad
     mkdir build_dir inst; cd build_dir
-    cmake ../clad -DClad_DIR=/usr/lib/llvm-7 -DLLVM_DIR=/usr/lib/llvm-7 -DCMAKE_INSTALL_PREFIX=../inst
+    cmake ../clad -DClad_DIR=/usr/lib/llvm-8 -DLLVM_DIR=/usr/lib/llvm-8 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`"
     make && make install
+  ```
+###  Building from source (example was tested on MacOS Mojave 10.14.1)
+  ```
+    sudo brew install llvm@8
+    sudo brew install python
+    sudo -H pip install lit
+    git clone https://github.com/vgvassilev/clad.git clad
+    mkdir build_dir inst; cd build_dir
+    cmake ../clad -DClad_DIR=/usr/local/opt/llvm@8 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`"
+    make && make install
+    make check-clad
   ```
 ###  Building from source LLVM, Clang and clad (development environment)
   ```

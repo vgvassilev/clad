@@ -1,3 +1,4 @@
+#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "clang/AST/ASTContext.h"
@@ -127,7 +128,7 @@ namespace clad {
       SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
                                CladGradientFDeclNew->getType(),
                                CladGradientExprOld->getValueKind(),
-                               CladGradientExprOld->getLocEnd()).get();
+                               CladGradientExprOld->getEndLoc()).get();
     // Add function to pointer cast.
     CladGradientExprNew =
       SemaRef.CallExprUnaryConversions(CladGradientExprNew).get();
