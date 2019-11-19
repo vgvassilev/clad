@@ -666,7 +666,7 @@ install:
       fi
       # Ubuntu 18.04 llvm/clang-8 package.
       if [ $CLANG_RUNTIME == '8' ]; then
-        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/clang-8.0.0/
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/llvm-8/
       fi
     fi
     # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
