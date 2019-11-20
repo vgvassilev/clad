@@ -113,14 +113,24 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
 // Compatibility helper function for creation CallExpr. Clang 8 and above use Create.
 
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
-   QualType Ty, ExprValueKind VK, SourceLocation RParenLoc)
+   QualType Ty, ExprValueKind VK, SourceLocation RParenLoc,
+   unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
 {
 #if CLANG_VERSION_MAJOR < 8
    return new (Ctx) CallExpr(Ctx, Fn, Args, Ty, VK, RParenLoc);
 #elif CLANG_VERSION_MAJOR >= 8
-   return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc);
+   return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, MinNumArgs, UsesADL);
 #endif
 }
+
+
+// Clang 8 add one extra param (Ctx) in some constructors.
+
+#if CLANG_VERSION_MAJOR < 8
+   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams /**/
+#elif CLANG_VERSION_MAJOR >= 7
+   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams Node->getNumArgs(),Node->getADLCallKind()
+#endif
 
 
 // Compatibility helper function for creation CXXOperatorCallExpr. Clang 8 and above use Create.
@@ -200,7 +210,6 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 #if CLANG_VERSION_MAJOR < 8
    #define setNumArgsUnsafe(NUM) setNumArgs(Ctx, NUM)
 #endif
-
 
 } // namespace clad_compat
 

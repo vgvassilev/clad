@@ -168,7 +168,8 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
                                         llvm::ArrayRef<Expr*>(),
                                         Node->getType(),
                                         Node->getValueKind(),
-                                        Node->getRParenLoc());
+                                        Node->getRParenLoc(),
+                                        CLAD_COMPAT_CLANG8_CallExpr_ExtraParams);
   result->setNumArgsUnsafe(Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
