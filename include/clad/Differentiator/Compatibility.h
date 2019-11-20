@@ -112,16 +112,20 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
 
 // Compatibility helper function for creation CallExpr. Clang 8 and above use Create.
 
+#if CLANG_VERSION_MAJOR < 8
+static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
+   QualType Ty, ExprValueKind VK, SourceLocation RParenLoc)
+{
+   return new (Ctx) CallExpr(Ctx, Fn, Args, Ty, VK, RParenLoc);
+}
+#elif CLANG_VERSION_MAJOR >= 8
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
    QualType Ty, ExprValueKind VK, SourceLocation RParenLoc,
    unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
 {
-#if CLANG_VERSION_MAJOR < 8
-   return new (Ctx) CallExpr(Ctx, Fn, Args, Ty, VK, RParenLoc);
-#elif CLANG_VERSION_MAJOR >= 8
    return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, MinNumArgs, UsesADL);
-#endif
 }
+#endif
 
 
 // Clang 8 add one extra param (Ctx) in some constructors.
@@ -129,7 +133,7 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
 #if CLANG_VERSION_MAJOR < 8
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams /**/
 #elif CLANG_VERSION_MAJOR >= 7
-   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams Node->getNumArgs(),Node->getADLCallKind()
+   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getNumArgs(),Node->getADLCallKind()
 #endif
 
 
