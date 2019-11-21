@@ -165,7 +165,7 @@ namespace clad {
 
     bool CladPlugin::ShouldProcessDecl(DeclGroupRef DGR) {
       if (CladPragmaEnabledLoc.isValid()) {
-        SourceLocation DGREndLoc = (*DGR.begin())->getLocEnd();
+        SourceLocation DGREndLoc = (*DGR.begin())->getEndLoc();
         SourceManager& SM = m_CI.getSourceManager();
         return SM.isBeforeInTranslationUnit(CladPragmaEnabledLoc, DGREndLoc);
       }
