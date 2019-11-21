@@ -696,8 +696,19 @@ before_script:
     fi
   - |
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
-      # Linux specific commands, fixes and settings
-      :
+      # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
+      # This expands FileCheck to the location of installed llvm.
+      if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+        # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
+        cd tools && for tool in FileCheck not; do
+          svn export \
+            http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
+            echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
+        done
+        cd ../
+        cmake --build . --target FileCheck -- -j4
+        sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+      fi
     fi
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
