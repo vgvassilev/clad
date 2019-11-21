@@ -82,9 +82,8 @@ addons-5: &addons-5
     ]
   homebrew: &brew-5
     <<: *common-brew
-    packages: &brew-packages-5 [*common-brew-packages,
+    packages: &brew-packages-5 [*common-brew-packages
 #      'llvm@5'
-      'llvm@6'
     ]
     update: true
 
@@ -186,7 +185,8 @@ matrix:
         <<: *addons-5
         homebrew:
           <<: *brew-5
-          packages: [*common-brew]
+          packages: [*common-brew, llvm@6]
+          update: true
     - os: osx
       env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=5.0
       osx_image: xcode9.4
@@ -195,7 +195,8 @@ matrix:
         <<: *addons-5
         homebrew:
           <<: *brew-5
-          packages: [*common-brew]
+          packages: [*common-brew, llvm@6]
+          update: true
 
     # Ubuntu, GCC 5
     - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0
@@ -621,7 +622,7 @@ install:
         sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
           # Use llvm@6 Filecheck
-          sudo ln -s /usr/local/opt/llvm@6/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+          sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
           ls -la /usr/local/opt/llvm@5/bin/
         fi
         popd
