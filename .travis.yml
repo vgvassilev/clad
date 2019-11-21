@@ -657,7 +657,7 @@ install:
       # Ubuntu 16.04 & 18.04 llvm/clang-6.0 package is broken - install it from binary build.
       if [ $CLANG_RUNTIME == '6.0' ]; then
         # Install clang-6.0 to run the plugin with.
-        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-${CLANG_RUNTIME}/
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
         sudo mkdir -p /usr/lib/opt
         pushd /usr/lib/opt
         sudo curl http://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
@@ -670,7 +670,7 @@ install:
       fi
       # Ubuntu 18.04 llvm/clang-7 package.
       if [ $CLANG_RUNTIME == '7' ]; then
-        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/clang-7.0.0/
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/clang-7.0.0/
       fi
       # Ubuntu 18.04 llvm/clang-8 package.
       if [ $CLANG_RUNTIME == '8' ]; then
