@@ -81,11 +81,12 @@ addons-5: &addons-5
       'llvm-5.0-tools'
     ]
   homebrew: &brew-5
-#    <<: *common-brew
-#    packages: &brew-packages-5 [*common-brew-packages,
+    <<: *common-brew
+    packages: &brew-packages-5 [*common-brew-packages,
 #      'llvm@5'
-#    ]
-    packages: &brew-packages-5 []
+      'llvm@6'
+    ]
+    update: true
 
 addons-6: &addons-6
   <<: *common-addons
@@ -618,7 +619,10 @@ install:
         sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
-        sudo ls -la
+        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+          # Use llvm@6 Filecheck
+          sudo ln -s /usr/lib/opt/llvm@6/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+        fi
         popd
       fi
       # Package llvm@6
@@ -645,7 +649,9 @@ install:
         sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04/ llvm-5.0/
-        sudo ls -la
+        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+          sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+        fi
         popd
       fi
       # Ubuntu 16.04 & 18.04 llvm/clang-6.0 package is broken - install it from binary build.
@@ -657,7 +663,9 @@ install:
         sudo curl http://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/ llvm-6.0/
-        sudo ls -la
+        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+          sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+        fi
         popd
       fi
       # Ubuntu 18.04 llvm/clang-7 package.
@@ -673,43 +681,10 @@ install:
     # directory is not owned by the current user and the cache has been disabled.
     sudo -H pip install lit # LLVM lit is not part of the llvm releases...
 
-
 before_script:
   - cmake --version
   - $CC --version
   - $CXX --version
-  - |
-    if [ $TRAVIS_OS_NAME == 'osx' ]; then
-      # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
-      # This expands FileCheck to the location of installed llvm.
-      if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-        # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
-        cd tools && for tool in FileCheck not; do
-          svn export \
-            http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
-            echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
-        done
-        cd ../
-        cmake --build . --target FileCheck -- -j4
-        sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
-      fi
-    fi
-  - |
-    if [ $TRAVIS_OS_NAME == 'linux' ]; then
-      # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
-      # This expands FileCheck to the location of installed llvm.
-      if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-        # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
-        cd tools && for tool in FileCheck not; do
-          svn export \
-            http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
-            echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
-        done
-        cd ../
-        cmake --build . --target FileCheck -- -j4
-        sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
-      fi
-    fi
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
   - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" $TRAVIS_BUILD_DIR
