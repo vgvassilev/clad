@@ -621,7 +621,7 @@ install:
         sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
           # Use llvm@6 Filecheck
-          sudo ln -s /usr/lib/opt/llvm@6/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+          sudo ln -s /usr/local/opt/llvm@6/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
         fi
         popd
       fi
@@ -639,15 +639,15 @@ install:
       fi
     fi
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
-      export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/llvm-${CLANG_RUNTIME}/
+      export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-${CLANG_RUNTIME}/
       # Ubuntu 16.04 & 18.04 llvm/clang-5.0 package is broken - install it from binary build.
       if [ $CLANG_RUNTIME == '5.0' ]; then
         # Install clang-5.0 to run the plugin with.
-        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-${CLANG_RUNTIME}/
-        sudo mkdir -p /usr/local/opt
-        pushd /usr/local/opt
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
+        sudo mkdir -p /usr/lib/opt
+        pushd /usr/lib/opt
         sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
-        sudo rm -fr /usr/local/clang*
+        sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04/ llvm-5.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
           sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
@@ -658,10 +658,10 @@ install:
       if [ $CLANG_RUNTIME == '6.0' ]; then
         # Install clang-6.0 to run the plugin with.
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm-${CLANG_RUNTIME}/
-        sudo mkdir -p /usr/local/opt
-        pushd /usr/local/opt
+        sudo mkdir -p /usr/lib/opt
+        pushd /usr/lib/opt
         sudo curl http://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | sudo xz -d -c | sudo tar -x
-        sudo rm -fr /usr/local/clang*
+        sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-16.04/ llvm-6.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
           sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
