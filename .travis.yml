@@ -595,7 +595,6 @@ matrix:
 
 before_install:
   - export
-  #- ls -la -R /usr/local
   - |
     if [ "${TRAVIS_BRANCH}" == 'coverity_scan' ]; then
       if [ "$RUN_COVERITY" != 1 ]; then
@@ -623,7 +622,6 @@ install:
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
           # Use llvm@6 Filecheck
           sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
-          ls -la /usr/local/opt/llvm@5/bin/
         fi
         popd
       fi
