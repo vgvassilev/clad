@@ -680,13 +680,19 @@ before_script:
   - $CXX --version
   - |
     if [ $TRAVIS_OS_NAME == 'osx' ]; then
-      # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
-      cd tools && for tool in FileCheck not; do
-        svn export \
-          http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
-          echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
-      done
-      cd ../
+      # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
+      # This expands FileCheck to the location of installed llvm.
+      if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+        # LLVM utils such as FileCheck and not are not part of the llvm release on unix and some version for osx.
+        cd tools && for tool in FileCheck not; do
+          svn export \
+            http://llvm.org/svn/llvm-project/llvm/branches/release_50/utils/${tool} ${tool} ;
+            echo "add_subdirectory(\"${tool}\")" >> CMakeLists.txt
+        done
+        cd ../
+        cmake --build . --target FileCheck -- -j4
+        sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+      fi
     fi
   - |
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
@@ -698,16 +704,6 @@ before_script:
   - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" $TRAVIS_BUILD_DIR
 
 script:
-  - |
-    # lit's substitution mechanism will use llvm_obj_root to resolve FileCheck.
-    # This expands FileCheck to the location of installed llvm.
-    if [ $TRAVIS_OS_NAME == 'osx' ]; then
-      cmake --build . --target FileCheck -- -j4
-      sudo ln -s `pwd`/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
-    fi
-    if [ $TRAVIS_OS_NAME == 'linux' ]; then
-      sudo ln -s /usr/lib/llvm-${CLANG_RUNTIME}/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
-    fi
   - cmake --build . --target check-clad -- -j4
 
 branches:
