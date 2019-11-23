@@ -8,7 +8,6 @@
 
 #include "ConstantFolder.h"
 
-#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
 
@@ -27,6 +26,8 @@
 
 #include <algorithm>
 #include <numeric>
+
+#include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
 
@@ -83,6 +84,11 @@ namespace clad {
     if (result.first)
       registerDerivative(result.first, m_Sema);
     return result;
+  }
+
+  clang::CompoundStmt* VisitorBase::MakeCompoundStmt(const Stmts & Stmts) {
+    auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
+    return clad_compat::CompoundStmt_Create(m_Context, Stmts_ref, noLoc, noLoc);
   }
 
   DiffParams VisitorBase::parseDiffArgs(const Expr* diffArgs,
@@ -304,8 +310,9 @@ namespace clad {
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D) {
     QualType T = D->getType();
     T = T.getNonReferenceType();
-    Expr* DRE = m_Sema.BuildDeclRefExpr(D, T, VK_LValue, noLoc).get();
-    return cast<DeclRefExpr>(DRE);
+    return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
+      m_Sema.BuildDeclRefExpr(D, T, VK_LValue, noLoc)
+    ));
   }
 
   IdentifierInfo*
@@ -514,7 +521,7 @@ namespace clad {
                                         m_Function->getTypeSourceInfo(),
                                         m_Function->getStorageClass(),
                                         m_Function->isInlineSpecified(),
-                                        m_Function->isConstexpr(),
+                                        clad_compat::Function_GetConstexprKind(m_Function),
                                         noLoc);
     }
     else if (isa<FunctionDecl>(m_Function)) {
@@ -525,7 +532,7 @@ namespace clad {
         m_Function->getStorageClass(),
         m_Function->isInlineSpecified(),
         m_Function->hasWrittenPrototype(),
-        m_Function->isConstexpr());
+        clad_compat::Function_GetConstexprKind(m_Function));
     } else {
       diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
          "attempted differentiation of '%0' which is of unsupported type",
@@ -704,7 +711,7 @@ namespace clad {
                                         FD->getType(), FD->getTypeSourceInfo(),
                                         FD->getStorageClass(),
                                         FD->isInlineSpecified(),
-                                        FD->isConstexpr(), noLoc);
+                                        clad_compat::Function_GetConstexprKind(FD), noLoc);
       derivedFD->setAccess(FD->getAccess());
     } else {
       assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
@@ -717,7 +724,7 @@ namespace clad {
                                        /*default*/
                                        FD->isInlineSpecified(),
                                        FD->hasWrittenPrototype(),
-                                       FD->isConstexpr());
+                                       clad_compat::Function_GetConstexprKind(FD));
     }
     m_Derivative = derivedFD;
 
@@ -1798,7 +1805,7 @@ namespace clad {
                                          m_Function->getTypeSourceInfo(),
                                          m_Function->getStorageClass(),
                                          m_Function->isInlineSpecified(),
-                                         m_Function->isConstexpr(),
+                                         clad_compat::Function_GetConstexprKind(m_Function),
                                          noLoc);
       gradientFD->setAccess(m_Function->getAccess());
     }
@@ -1810,7 +1817,7 @@ namespace clad {
                                         m_Function->getStorageClass(),
                                         m_Function->isInlineSpecified(),
                                         m_Function->hasWrittenPrototype(),
-                                        m_Function->isConstexpr());
+                                        clad_compat::Function_GetConstexprKind(m_Function));
     } else {
       diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
            "attempted differentiation of '%0' which is of unsupported type",
@@ -3029,7 +3036,8 @@ namespace clad {
       return;
     if (isInsideLoop) {
       auto Push = cast<CallExpr>(Result.getExpr());
-     *std::prev(Push->arg_end()) = V.m_Sema.DefaultLvalueConversion(New).get();
+      unsigned lastArg = Push->getNumArgs() - 1;
+      Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
     } else {
       V.addToCurrentBlock(V.BuildOp(BO_Assign, Result.getExpr(), New),
                           ReverseModeVisitor::forward);

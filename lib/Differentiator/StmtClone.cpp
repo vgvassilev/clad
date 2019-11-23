@@ -5,12 +5,13 @@
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 
-#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/ADT/SmallVector.h"
+
+#include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
 
@@ -58,7 +59,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 }
 
 DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->getFPFeatures()))
-DEFINE_CLONE_EXPR(UnaryOperator, (Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc()CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams))
+DEFINE_CLONE_EXPR(UnaryOperator, (Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc() CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams))
 Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   TemplateArgumentListInfo TAListInfo;
   Node->copyTemplateArgumentsInto(TAListInfo);
@@ -70,7 +71,29 @@ DEFINE_CLONE_EXPR(CharacterLiteral, (Node->getValue(), Node->getKind(), Node->ge
 DEFINE_CLONE_EXPR(ImaginaryLiteral, (Clone(Node->getSubExpr()), Node->getType()))
 DEFINE_CLONE_EXPR(ParenExpr, (Node->getLParen(), Node->getRParen(), Clone(Node->getSubExpr())))
 DEFINE_CLONE_EXPR(ArraySubscriptExpr, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRBracketLoc()))
-DEFINE_CLONE_EXPR(MemberExpr, (Clone(Node->getBase()), Node->isArrow(), Node->getOperatorLoc(), Node->getMemberDecl(), Node->getMemberLoc(), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
+Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
+  TemplateArgumentListInfo TemplateArgs;
+  if (Node->hasExplicitTemplateArgs())
+    Node->copyTemplateArgumentsInto(TemplateArgs);
+  MemberExpr* result = MemberExpr::Create(Ctx,
+                                  Clone(Node->getBase()),
+                                  Node->isArrow(),
+                                  Node->getOperatorLoc(),
+                                  Node->getQualifierLoc(),
+                                  Node->getTemplateKeywordLoc(),
+                                  Node->getMemberDecl(),
+                                  Node->getFoundDecl(),
+                                  Node->getMemberNameInfo(),
+                                  &TemplateArgs,
+                                  Node->getType(),
+                                  Node->getValueKind(),
+                                  Node->getObjectKind()
+                                  CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams
+                                  );
+  result->setValueDependent(Node->isValueDependent());
+  result->setTypeDependent(Node->isTypeDependent());
+  return result;
+}
 DEFINE_CLONE_EXPR(CompoundLiteralExpr, (Node->getLParenLoc(), Node->getTypeSourceInfo(), Node->getType(), Node->getValueKind(), Clone(Node->getInitializer()), Node->isFileScope()))
 DEFINE_CREATE_EXPR(ImplicitCastExpr, (Ctx, Node->getType(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getValueKind()))
 DEFINE_CREATE_EXPR(CStyleCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getLParenLoc(), Node->getRParenLoc()))

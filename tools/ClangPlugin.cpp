@@ -26,6 +26,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Timer.h"
 
+#include "clad/Differentiator/Compatibility.h"
+
 using namespace clang;
 
 namespace {
@@ -120,7 +122,7 @@ namespace clad {
         // inside a call to clad::differentiate/gradient with its derivative.
         if (request.CallUpdateRequired && lastDerivativeOrder)
           request.updateCall(DerivativeDecl, m_CI.getSema());
-                  
+
         // if enabled, print source code of the derived functions
         if (m_DO.DumpDerivedFn) {
           DerivativeDecl->print(llvm::outs(), Policy);
@@ -145,7 +147,7 @@ namespace clad {
           m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
             DerivativeDeclOrEnclosingContext));
         }
-        
+
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;
@@ -157,7 +159,7 @@ namespace clad {
       }
       return nullptr;
     }
-     
+
 
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.
@@ -195,8 +197,8 @@ namespace clad {
     class CladPragmaHandler : public PragmaHandler {
     public:
       CladPragmaHandler() : PragmaHandler("clad") { }
-      void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
-                        Token &PragmaTok) {
+      void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                        Token &PragmaTok) override {
         // Handle #pragma clad ON/OFF/DEFAULT
         if (PragmaTok.isNot(tok::identifier)) {
           PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);

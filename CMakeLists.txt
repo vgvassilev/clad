@@ -7,9 +7,9 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   ## Define clad supported version of clang and llvm
 
   set(CLANG_MIN_SUPPORTED 5.0)
-  set(CLANG_MAX_SUPPORTED 8.0.1)
+  set(CLANG_MAX_SUPPORTED 9.0.1)
   set(LLVM_MIN_SUPPORTED 5.0)
-  set(LLVM_MAX_SUPPORTED 8.0.1)
+  set(LLVM_MAX_SUPPORTED 9.0.1)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
@@ -121,6 +121,14 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     macro(clad_compat_add_llvm_loadable_module module_name)
       add_llvm_library(${module_name} MODULE ${ARGN})
     endmacro(clad_compat_add_llvm_loadable_module)
+  endif()
+
+  # Clang 9 remove add_version_info_from_vcs.
+  # Recomended is use of get_source_info
+  if (NOT CLANG_PACKAGE_VERSION VERSION_LESS 9.0)
+    macro(add_version_info_from_vcs VERS)
+      get_source_info(${CMAKE_CURRENT_SOURCE_DIR} VERS DUMMY_REP)
+    endmacro(add_version_info_from_vcs)
   endif()
 
 
