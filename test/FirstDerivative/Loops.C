@@ -172,8 +172,8 @@ double f4_darg0(double x, int y);
 // CHECK-NEXT:       double _t1 = std::sin(x);
 // CHECK-NEXT:      _d_r = _d_r * _t1 + r * (custom_derivatives::sin_darg0(x) * _d_x);
 // CHECK-NEXT:      r = r * _t1;
-// CHECK-NEXT:    }
-// CHECK-NEXT: ()) {
+// CHECK:        }
+// CHECK:        ()) {
 // CHECK-NEXT:          _d_i = _d_i + 0;
 // CHECK-NEXT:          i = i + 1;
 // CHECK-NEXT:        }
@@ -204,8 +204,8 @@ double f4_inc_darg0(double x, int y);
 //CHECK-NEXT:                   double _t1 = std::sin(x);
 //CHECK-NEXT:                   _d_r = _d_r * _t1 + r * (custom_derivatives::sin_darg0(x) * _d_x);
 //CHECK-NEXT:                   r *= _t1;
-//CHECK-NEXT:               }
-//CHECK-NEXT:   ())
+//CHECK:        }
+//CHECK:        ())
 //CHECK-NEXT:           i++;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       return _d_r;

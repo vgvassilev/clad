@@ -7,8 +7,6 @@
 #ifndef CLAD_DERIVATIVE_BUILDER_H
 #define CLAD_DERIVATIVE_BUILDER_H
 
-#include "Compatibility.h"
-
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -137,12 +135,7 @@ namespace clad {
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
   public:
-    template <typename Range>
-    clang::CompoundStmt* MakeCompoundStmt(const Range & Stmts) {
-      auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
-      return clad_compat::CompoundStmt_Create(m_Context, Stmts_ref,
-                                              noLoc, noLoc);
-    }
+    clang::CompoundStmt* MakeCompoundStmt(const Stmts & Stmts);
 
     /// Get the latest block of code (i.e. place for statements output).
     Stmts& getCurrentBlock() {
