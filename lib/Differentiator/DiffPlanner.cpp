@@ -125,17 +125,6 @@ namespace clad {
                                       return false;
                                     });
     // DeclRefExpr for new specialization.
-//    auto CladGradientExprNew =
-//      clad_compat::ExprResult
-//      Sema.BuildDeclRefExpr(SemaRef,
-//                               CladGradientFDeclNew,
-//                               CladGradientFDeclNew->getType(),
-//                               CladGradientExprOld->getValueKind(),
-//                               CladGradientExprOld->getEndLoc());
-//    // Add function to pointer cast.
-//    CladGradientExprNew =
-//      cast<DeclRefExpr>(SemaRef.CallExprUnaryConversions(CladGradientExprNew).get());
-
     Expr* CladGradientExprNew = clad_compat::GetResult<Expr*>(
       SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
                                CladGradientFDeclNew->getType(),

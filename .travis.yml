@@ -16,7 +16,6 @@ addons: &common-addons
   homebrew: &common-brew
     packages: &common-brew-packages
       - ccache
-      - python
       - coreutils
       - xz
     update: false
