@@ -1,4 +1,3 @@
-#include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "clang/AST/ASTContext.h"
@@ -6,6 +5,8 @@
 #include "clang/Sema/TemplateDeduction.h"
 
 #include "llvm/Support/SaveAndRestore.h"
+
+#include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
 
@@ -124,14 +125,17 @@ namespace clad {
                                       return false;
                                     });
     // DeclRefExpr for new specialization.
-    auto CladGradientExprNew =
+    Expr* CladGradientExprNew = clad_compat::GetResult<Expr*>(
       SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
                                CladGradientFDeclNew->getType(),
                                CladGradientExprOld->getValueKind(),
-                               CladGradientExprOld->getEndLoc()).get();
+                               CladGradientExprOld->getEndLoc())
+    );
     // Add function to pointer cast.
-    CladGradientExprNew =
-      SemaRef.CallExprUnaryConversions(CladGradientExprNew).get();
+    CladGradientExprNew = clad_compat::GetResult<Expr*>(
+      SemaRef.CallExprUnaryConversions(CladGradientExprNew)
+    );
+
     // Replace the old clad::gradient by the new one.
     call->setCallee(CladGradientExprNew);
   }

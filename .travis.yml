@@ -11,10 +11,11 @@ addons: &common-addons
       - binutils-gold
     sources: &common-apt-sources
       - sourceline: "ppa:ubuntu-toolchain-r/test"
+      - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
   homebrew: &common-brew
     packages: &common-brew-packages
       - ccache
-      - python
       - coreutils
       - xz
     update: false
@@ -135,6 +136,23 @@ addons-8: &addons-8
     <<: *common-brew
     packages: &brew-packages-8 [*common-brew-packages,
       'llvm@8'
+    ]
+    update: true
+
+addons-9: &addons-9
+  <<: *common-addons
+  apt: &apt-9
+    <<: *common-apt
+    packages: &apt-packages-9 [*common-apt-packages,
+      'llvm-9-dev',
+      'libclang-9-dev',
+      'clang-9',
+      'llvm-9-tools'
+    ]
+  homebrew: &brew-9
+    <<: *common-brew
+    packages: &brew-packages-9 [*common-brew-packages,
+      'llvm@9'
     ]
     update: true
 
@@ -592,6 +610,111 @@ matrix:
           <<: *apt-8
           packages: [*apt-packages-8, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
 
+    ##################### Clad for clang 9 #####################
+    # OSX 10.13, Clang and XCode 9.4
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=9
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-9
+    - os: osx
+      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=9
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-9
+
+    # Ubuntu, GCC 5
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=9
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+
+    # Ubuntu, GCC 6
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=9
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+
+    # GCC 7
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+    - env: CXX=g++-7 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=9
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-7', 'g++-7-multilib', 'libc6-dbg']
+
+    # Clang 4
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Debug CLANG_RUNTIME=9
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=9
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'clang-4.0', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 5
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Debug CLANG_RUNTIME=9
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+    - env: CXX=clang++-5.0 CC=clang-5.0 BUILD_TYPE=Release CLANG_RUNTIME=9
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'clang-5.0', 'g++-multilib', 'libc6-dbg']
+
 
 before_install:
   - export
@@ -637,6 +760,10 @@ install:
       if [ $CLANG_RUNTIME == '8' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@8/
       fi
+      # Package llvm@9
+      if [ $CLANG_RUNTIME == '9' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@9/
+      fi
     fi
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
       export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-${CLANG_RUNTIME}/
@@ -675,6 +802,10 @@ install:
       # Ubuntu 18.04 llvm/clang-8 package.
       if [ $CLANG_RUNTIME == '8' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-8/
+      fi
+      # Ubuntu 18.04 llvm/clang-9 package.
+      if [ $CLANG_RUNTIME == '9' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-9/
       fi
     fi
     # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
@@ -734,6 +865,11 @@ after_failure:
   - dpkg-query -L llvm-8-dev
   - find /usr/lib/llvm-8/
   - find /usr/local/opt/llvm@8/
+  - dpkg-query -L libclang-9-dev
+  - dpkg-query -L clang-9
+  - dpkg-query -L llvm-9-dev
+  - find /usr/lib/llvm-9/
+  - find /usr/local/opt/llvm@9/
   - brew search llvm
   - pip show lit
   - cat /home/travis/build/vgvassilev/clad/obj/CMakeFiles/*.log

@@ -132,7 +132,7 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
 
 #if CLANG_VERSION_MAJOR < 8
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 7
+#elif CLANG_VERSION_MAJOR >= 8
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getNumArgs(),Node->getADLCallKind()
 #endif
 
@@ -204,7 +204,7 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 
 #if CLANG_VERSION_MAJOR < 8
    #define CLAD_COMPAT_CLANG8_Ctx_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 7
+#elif CLANG_VERSION_MAJOR >= 8
    #define CLAD_COMPAT_CLANG8_Ctx_ExtraParams Ctx,
 #endif
 
@@ -214,6 +214,48 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 #if CLANG_VERSION_MAJOR < 8
    #define setNumArgsUnsafe(NUM) setNumArgs(Ctx, NUM)
 #endif
+
+
+// Compatibility helper function for getConstexprKind(). Clang 9
+
+template<class T>
+static inline T GetResult(ActionResult<T> Res)
+{
+   return Res.get();
+}
+
+
+// Compatibility helper function for getConstexprKind(). Clang 9 define new method
+// ConstexprKind getConstexprKing() and old bool isConstexpr().
+
+#if CLANG_VERSION_MAJOR < 9
+static inline bool Function_GetConstexprKind(const FunctionDecl* F)
+{
+   return F->isConstexpr();
+}
+#elif CLANG_VERSION_MAJOR >= 9
+static inline ConstexprSpecKind Function_GetConstexprKind(const FunctionDecl* F)
+{
+   return F->getConstexprKind();
+}
+#endif
+
+
+// Clang 9 add one extra param (Ctx) in some constructors.
+
+#if CLANG_VERSION_MAJOR < 9
+   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams /**/
+#elif CLANG_VERSION_MAJOR >= 9
+   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams ,Node->isNonOdrUse()
+#endif
+
+
+// Clang 9 change PragmaIntroducerKind ===> PragmaIntroducer.
+
+#if CLANG_VERSION_MAJOR < 9
+   #define PragmaIntroducer PragmaIntroducerKind
+#endif
+
 
 } // namespace clad_compat
 
