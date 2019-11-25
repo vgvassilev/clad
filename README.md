@@ -140,7 +140,7 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
 * Finally, derivative's AST is [passed](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L145) for further processing by Clang compiler (LLVM IR generation, optimizations, machine code generation, etc.).
 ###  Building from source (example was tested on Ubuntu 18.04 LTS)
   ```
-    #sudo apt install clang-9 llvm-9 clang-9-dev llvm-9-dev libllvm9 llvm-9-runtime llvm-9-tools
+    #sudo apt install clang-9 libclang-9-dev llvm-9-tools llvm-9-dev
     sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
     sudo -H pip install lit
     git clone https://github.com/vgvassilev/clad.git clad
