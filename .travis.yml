@@ -76,10 +76,10 @@ addons-5: &addons-5
   apt: &apt-5
     <<: *common-apt
     packages: &apt-packages-5 [*common-apt-packages,
-      'llvm-5.0-dev',
-      'libclang-5.0-dev',
       'clang-5.0',
-      'llvm-5.0-tools'
+      'libclang-5.0-dev',
+      'llvm-5.0-tools',
+      'llvm-5.0-dev'
     ]
   homebrew: &brew-5
     <<: *common-brew
@@ -93,10 +93,10 @@ addons-6: &addons-6
   apt: &apt-6
     <<: *common-apt
     packages: &apt-packages-6 [*common-apt-packages,
-      'llvm-6.0-dev',
-      'libclang-6.0-dev',
       'clang-6.0',
-      'llvm-6.0-tools'
+      'libclang-6.0-dev',
+      'llvm-6.0-tools',
+      'llvm-6.0-dev'
     ]
   homebrew: &brew-6
     <<: *common-brew
@@ -110,10 +110,10 @@ addons-7: &addons-7
   apt: &apt-7
     <<: *common-apt
     packages: &apt-packages-7 [*common-apt-packages,
-      'llvm-7-dev',
-      'libclang-7-dev',
       'clang-7',
-      'llvm-7-tools'
+      'libclang-7-dev',
+      'llvm-7-tools',
+      'llvm-7-dev'
     ]
   homebrew: &brew-7
     <<: *common-brew
@@ -127,10 +127,10 @@ addons-8: &addons-8
   apt: &apt-8
     <<: *common-apt
     packages: &apt-packages-8 [*common-apt-packages,
-      'llvm-8-dev',
-      'libclang-8-dev',
       'clang-8',
-      'llvm-8-tools'
+      'libclang-8-dev',
+      'llvm-8-tools',
+      'llvm-8-dev'
     ]
   homebrew: &brew-8
     <<: *common-brew
@@ -144,10 +144,10 @@ addons-9: &addons-9
   apt: &apt-9
     <<: *common-apt
     packages: &apt-packages-9 [*common-apt-packages,
-      'llvm-9-dev',
-      'libclang-9-dev',
       'clang-9',
-      'llvm-9-tools'
+      'libclang-9-dev',
+      'llvm-9-tools',
+      'llvm-9-dev'
     ]
   homebrew: &brew-9
     <<: *common-brew
