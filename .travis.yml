@@ -179,6 +179,7 @@ env:
     - CCACHE_COMPRESS=1
     - CCACHE_MAXSIZE=500M
     - CCACHE_CPP2=1
+    - CODE_COVERAGE=Off
     # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
     # via the "travis encrypt" command using the project repo's public key
     - secure: "PbMYxWLO9qiirrQSp6VrTgsptn/Exn+aMQmlejtRfbHvWbqrCNbaUQq1DIXpsojxb/a991TNDNdxn4R3TQXeM37AQWlkA5Q0ETI+0UZHBmQcVxqB9oI8eonfaQ8/Kg4vqPgmZMquNrVfKueNbudNKTMgkZRe+/UyFFO/ati5dBg="
@@ -251,14 +252,6 @@ matrix:
           build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCling_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DLLVM_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR && cov-configure --comptype gcc --compiler gcc-6 --template"
           build_command: "cmake --build .  -- -j4"
           branch_pattern: "coverity_scan"
-    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9 CODE_COVERAGE=On
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-9
-        apt:
-          <<: *apt-9
-          packages: [*apt-packages-9, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
     - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
@@ -836,10 +829,6 @@ before_script:
   - $CXX --version
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
-  - |
-    if [ -z "$CODE_COVERAGE" ]; then
-      CODE_COVERAGE=Off
-    fi
   - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" -DCODE_COVERAGE=${CODE_COVERAGE} $TRAVIS_BUILD_DIR
 
 script:
