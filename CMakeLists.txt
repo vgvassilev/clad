@@ -1,8 +1,9 @@
+cmake_minimum_required(VERSION 3.7.0)
+
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
-  cmake_minimum_required(VERSION 3.7.0)
 
   ## Define clad supported version of clang and llvm
 
@@ -175,6 +176,25 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
   set( CLAD_BUILT_STANDALONE 1 )
 endif()
+
+## Code Coverage Configuration
+add_library(coverage_config INTERFACE)
+option(CODE_COVERAGE "Enable coverage reporting" OFF)
+if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  # Add required flags (GCC & LLVM/Clang)
+  target_compile_options(coverage_config INTERFACE
+    -O0        # no optimization
+    -g         # generate debug info
+    --coverage # sets all required flags
+  )
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+    target_link_options(coverage_config INTERFACE --coverage)
+  else()
+    target_link_libraries(coverage_config INTERFACE --coverage)
+  endif()
+endif(CODE_COVERAGE)
+
+##
 
 set(C_INCLUDE_DIRS "" CACHE STRING
   "Colon separated list of directories clad will search for headers.")

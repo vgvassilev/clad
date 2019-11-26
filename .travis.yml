@@ -9,6 +9,7 @@ addons: &common-addons
     packages: &common-apt-packages
       - cmake
       - binutils-gold
+      - lcov
     sources: &common-apt-sources
       - sourceline: "ppa:ubuntu-toolchain-r/test"
       - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main'
@@ -818,7 +819,7 @@ before_script:
   - $CXX --version
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
-  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" $TRAVIS_BUILD_DIR
+  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" -DCODE_COVERAGE=ON $TRAVIS_BUILD_DIR
 
 script:
   - cmake --build . --target check-clad -- -j4
@@ -842,6 +843,19 @@ notifications:
     #- "chat.freenode.net#rubinius"
   template:
     - "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
+
+after_success:
+  # Create lcov report
+  # capture coverage info
+  - lcov --directory . --capture --output-file coverage.info
+  # filter out system and extra files.
+  # To also not include test code in coverage add them with full path to the patterns: '*/tests/*'
+  - lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' "${TRAVIS_BUILD_DIR}"'/test/*' --output-file coverage.info
+  # output coverage data for debugging (optional)
+  - lcov --list coverage.info
+  # Uploading to CodeCov
+  # '-f' specifies file(s) to use and disables manual coverage gathering and file search which has already been done above
+  - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
 
 after_failure:
   - export
