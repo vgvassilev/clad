@@ -180,19 +180,14 @@ endif()
 ## Code Coverage Configuration
 add_library(coverage_config INTERFACE)
 option(CODE_COVERAGE "Enable coverage reporting" OFF)
-if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  # Add required flags (GCC & LLVM/Clang)
-  target_compile_options(coverage_config INTERFACE
-    -O0        # no optimization
-    -g         # generate debug info
-    --coverage # sets all required flags
-  )
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
-    target_link_options(coverage_config INTERFACE --coverage)
-  else()
-    target_link_libraries(coverage_config INTERFACE --coverage)
-  endif()
-endif(CODE_COVERAGE)
+if (CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(GCC_COVERAGE_COMPILE_FLAGS "-g -fprofile-arcs -ftest-coverage")
+  set(GCC_COVERAGE_LINK_FLAGS    "--coverage")
+  set(CMAKE_CXX_FLAGS            "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS     "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
+  set(CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHAREDLINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
+  set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+endif()
 
 ##
 
