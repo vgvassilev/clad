@@ -19,6 +19,7 @@ addons: &common-addons
       - ccache
       - coreutils
       - xz
+      - lcov
     update: false
 
 # Inherit all from "common-addons" subtree
