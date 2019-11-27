@@ -526,15 +526,15 @@ matrix:
           <<: *apt-9
           packages: [*apt-packages-9, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
 
-    # GCC 8 Code Coverage
-    - env: CLANG_RUNTIME=9 CODE_COVERAGE=1 CXX=g++-8 CC=gcc BUILD_TYPE=Debug
+    # GCC 6 Code Coverage
+    - env: CLANG_RUNTIME=9 CODE_COVERAGE=1 CXX=g++-6 CC=gcc BUILD_TYPE=Debug
       compiler: gcc
       dist: bionic
       addons:
         <<: *addons-9
         apt:
           <<: *apt-9
-          packages: [*apt-packages-9, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
+          packages: [*apt-packages-9, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
 
    # GCC 8
     - env: CLANG_RUNTIME=9 CXX=g++-8 CC=gcc
