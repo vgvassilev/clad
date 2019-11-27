@@ -257,6 +257,23 @@ static inline ConstexprSpecKind Function_GetConstexprKind(const FunctionDecl* F)
 #endif
 
 
+// Clang 10 change add new param in getConstantArrayType.
+
+static inline QualType getConstantArrayType(const ASTContext &Ctx,
+   QualType EltTy,
+   const llvm::APInt &ArySize,
+   const Expr* SizeExpr,
+   ArrayType::ArraySizeModifier ASM,
+   unsigned IndexTypeQuals)
+{
+#if CLANG_VERSION_MAJOR < 10
+   return Ctx.getConstantArrayType(EltTy, ArySize, ASM, IndexTypeQuals);
+#elif CLANG_VERSION_MAJOR >= 10
+   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM, IndexTypeQuals);
+#endif
+}
+
+
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY

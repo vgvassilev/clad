@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.7.0)
 
+if(POLICY CMP0075)
+  cmake_policy(SET CMP0075 NEW)
+endif()
+
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
@@ -109,30 +113,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # For consistency we should set it to the correct value.
   set(LLVM_CONFIG_HAS_RTTI NO CACHE BOOL "" FORCE)
 
-
-  ## Compatibility
-
-  # Clang 8 remove add_llvm_loadable_module for cmake files.
-  # Recomended is use of add_llvm_library with MODULE argument.
-  if (CLANG_PACKAGE_VERSION VERSION_LESS 8.0)
-    macro(clad_compat_add_llvm_loadable_module module_name)
-      add_llvm_loadable_module(${module_name} ${ARGN})
-    endmacro(clad_compat_add_llvm_loadable_module)
-  else()
-    macro(clad_compat_add_llvm_loadable_module module_name)
-      add_llvm_library(${module_name} MODULE ${ARGN})
-    endmacro(clad_compat_add_llvm_loadable_module)
-  endif()
-
-  # Clang 9 remove add_version_info_from_vcs.
-  # Recomended is use of get_source_info
-  if (NOT CLANG_PACKAGE_VERSION VERSION_LESS 9.0)
-    macro(add_version_info_from_vcs VERS)
-      get_source_info(${CMAKE_CURRENT_SOURCE_DIR} VERS DUMMY_REP)
-    endmacro(add_version_info_from_vcs)
-  endif()
-
-
   ## Init
 
   # In case this was a path to a build folder of llvm still try to find AddLLVM
@@ -194,6 +174,7 @@ if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 ##
+include(Compatibility.cmake)
 
 set(C_INCLUDE_DIRS "" CACHE STRING
   "Colon separated list of directories clad will search for headers.")

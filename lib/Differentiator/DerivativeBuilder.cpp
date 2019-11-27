@@ -435,9 +435,10 @@ namespace clad {
       // Converts an independent argument from VarDecl to a StringLiteral Expr
       QualType CharTyConst = m_Context.CharTy.withConst();
       QualType StrTy =
-        m_Context.getConstantArrayType(CharTyConst,
+        clad_compat::getConstantArrayType(m_Context, CharTyConst,
                              llvm::APInt(32,
                                independentArg->getNameAsString().size() + 1),
+                             nullptr,
                              ArrayType::Normal,
                              /*IndexTypeQuals*/0);
       StringLiteral* independentArgString =
@@ -2509,8 +2510,9 @@ namespace clad {
       // We also need to create an array to store the result of gradient call.
       auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
       auto ArrayType =
-        m_Context.getConstantArrayType(CE->getType(),
+        clad_compat::getConstantArrayType(m_Context, CE->getType(),
                                        llvm::APInt(size_type_bits, NArgs),
+                                       nullptr,
                                        ArrayType::ArraySizeModifier::Normal,
                                        0); // No IndexTypeQualifiers
 

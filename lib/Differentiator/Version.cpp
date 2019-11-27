@@ -6,8 +6,8 @@
 
 #include "clad/Differentiator/Version.h"
 
-#ifdef HAVE_CLAD_VERSION_INC
-#  include "SVNVersion.inc"
+#ifdef HAVE_VCS_VERSION_INC
+#include "VCSVersion.inc"
 #endif
 
 namespace clad {

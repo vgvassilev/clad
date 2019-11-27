@@ -29,7 +29,7 @@ namespace clang {
 }
 
 namespace clad {
-  class DiffRequest;
+  struct DiffRequest;
   namespace plugin {
     struct DifferentiationOptions {
       DifferentiationOptions()

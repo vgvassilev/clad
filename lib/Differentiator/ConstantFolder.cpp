@@ -126,7 +126,7 @@ namespace clad {
 
   Expr* ConstantFolder::synthesizeLiteral(QualType QT, ASTContext& C,
                                           uint64_t val) {
-    SourceLocation noLoc;
+    //SourceLocation noLoc;
     Expr* Result = 0;
     if (QT->isIntegralType(C)) {
       llvm::APInt APVal(C.getIntWidth(QT), val,

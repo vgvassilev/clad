@@ -31,7 +31,7 @@ namespace clad {
   namespace utils {
     class StmtClone;
   }
-  class DiffRequest;
+  struct DiffRequest;
   namespace plugin {
     class CladPlugin;
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P, DiffRequest& request);

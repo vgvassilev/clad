@@ -82,8 +82,9 @@ namespace clad {
       // the nul terminator character as well as the string length for pascal
       // strings.
       QualType StrTy =
-        C.getConstantArrayType(CharTyConst,
+        clad_compat::getConstantArrayType(C, CharTyConst,
                                llvm::APInt(32, Out.str().size() + 1),
+                               nullptr,
                                ArrayType::Normal,
                                /*IndexTypeQuals*/0);
 
@@ -140,7 +141,7 @@ namespace clad {
     call->setCallee(CladGradientExprNew);
   }
 
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffSchedule& plans, Sema& S)
+  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffSchedule& plans, clang::Sema& S)
      : m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
     if (DGR.isSingleDecl())
       TraverseDecl(DGR.getSingleDecl());
