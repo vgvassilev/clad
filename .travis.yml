@@ -606,7 +606,6 @@ install:
       # Update openssl on osx because the current one is deprecated by python.
       curl https://bootstrap.pypa.io/get-pip.py | sudo python
       PATH="/usr/local/opt/ccache/libexec:$PATH"
-      export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${CLANG_RUNTIME}/
       # Package llvm@5 is not supported on brew. We must install it from binary build.
       if [ $CLANG_RUNTIME == '5.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
@@ -623,6 +622,18 @@ install:
       # Package llvm@6
       if [ $CLANG_RUNTIME == '6.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
+      fi
+      # Package llvm@7
+      if [ $CLANG_RUNTIME == '7' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@7/
+      fi
+      # Package llvm@8
+      if [ $CLANG_RUNTIME == '8' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@8/
+      fi
+      # Package llvm@9
+      if [ $CLANG_RUNTIME == '9' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@9/
       fi
     fi
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
@@ -655,6 +666,18 @@ install:
           sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
         fi
         popd
+      fi
+      # Ubuntu 18.04 llvm/clang-7 package.
+      if [ $CLANG_RUNTIME == '7' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-7/
+      fi
+      # Ubuntu 18.04 llvm/clang-8 package.
+      if [ $CLANG_RUNTIME == '8' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-8/
+      fi
+      # Ubuntu 18.04 llvm/clang-9 package.
+      if [ $CLANG_RUNTIME == '9' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/llvm-9/
       fi
     fi
     # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
@@ -716,11 +739,31 @@ after_failure:
   - export
   - which FileCheck
   - apt-mark showhold
-  - dpkg-query -L libclang-${CLANG_RUNTIME}-dev
-  - dpkg-query -L clang-${CLANG_RUNTIME}
-  - dpkg-query -L llvm-${CLANG_RUNTIME}-dev
-  - find /usr/lib/llvm-${CLANG_RUNTIME}/
-  - find /usr/local/opt/llvm@*/
+  - dpkg-query -L libclang-5.0-dev
+  - dpkg-query -L clang-5.0
+  - dpkg-query -L llvm-5.0-dev
+  - find /usr/lib/llvm-5.0/
+  - find /usr/local/opt/llvm@5/
+  - dpkg-query -L libclang-6.0-dev
+  - dpkg-query -L clang-6.0
+  - dpkg-query -L llvm-6.0-dev
+  - find /usr/lib/llvm-6.0/
+  - find /usr/local/opt/llvm@6/
+  - dpkg-query -L libclang-7-dev
+  - dpkg-query -L clang-7
+  - dpkg-query -L llvm-7-dev
+  - find /usr/lib/llvm-7/
+  - find /usr/local/opt/llvm@7/
+  - dpkg-query -L libclang-8-dev
+  - dpkg-query -L clang-8
+  - dpkg-query -L llvm-8-dev
+  - find /usr/lib/llvm-8/
+  - find /usr/local/opt/llvm@8/
+  - dpkg-query -L libclang-9-dev
+  - dpkg-query -L clang-9
+  - dpkg-query -L llvm-9-dev
+  - find /usr/lib/llvm-9/
+  - find /usr/local/opt/llvm@9/
   - brew search llvm
   - pip show lit
   - cat /home/travis/build/vgvassilev/clad/obj/CMakeCache.txt
