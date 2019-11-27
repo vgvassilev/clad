@@ -9,6 +9,7 @@ addons: &common-addons
     packages: &common-apt-packages
       - cmake
       - binutils-gold
+      - lcov
     sources: &common-apt-sources
       - sourceline: "ppa:ubuntu-toolchain-r/test"
       - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main'
@@ -18,6 +19,7 @@ addons: &common-addons
       - ccache
       - coreutils
       - xz
+      - lcov
     update: false
 
 # Inherit all from "common-addons" subtree
@@ -177,6 +179,7 @@ env:
     - CCACHE_COMPRESS=1
     - CCACHE_MAXSIZE=500M
     - CCACHE_CPP2=1
+    - CODE_COVERAGE=Off
     # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
     # via the "travis encrypt" command using the project repo's public key
     - secure: "PbMYxWLO9qiirrQSp6VrTgsptn/Exn+aMQmlejtRfbHvWbqrCNbaUQq1DIXpsojxb/a991TNDNdxn4R3TQXeM37AQWlkA5Q0ETI+0UZHBmQcVxqB9oI8eonfaQ8/Kg4vqPgmZMquNrVfKueNbudNKTMgkZRe+/UyFFO/ati5dBg="
@@ -644,6 +647,14 @@ matrix:
           packages: [*apt-packages-9, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
 
     # Ubuntu, GCC 6
+    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9 CODE_COVERAGE=On
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-9
+        apt:
+          <<: *apt-9
+          packages: [*apt-packages-9, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
     - env: CXX=g++-6 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
       compiler: gcc
       dist: bionic
@@ -818,7 +829,7 @@ before_script:
   - $CXX --version
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
-  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" $TRAVIS_BUILD_DIR
+  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" -DCODE_COVERAGE=${CODE_COVERAGE} $TRAVIS_BUILD_DIR
 
 script:
   - cmake --build . --target check-clad -- -j4
@@ -842,6 +853,19 @@ notifications:
     #- "chat.freenode.net#rubinius"
   template:
     - "%{repository}/%{branch} (%{commit} - %{author}): %{message}"
+
+after_success:
+  # Create lcov report
+  # capture coverage info
+  - lcov --directory . --capture --output-file coverage.info
+  # filter out system and extra files.
+  # To also not include test code in coverage add them with full path to the patterns: '*/tests/*'
+  - lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' "${TRAVIS_BUILD_DIR}"'/test/*' --output-file coverage.info
+  # output coverage data for debugging (optional)
+  - lcov --list coverage.info
+  # Uploading to CodeCov
+  # '-f' specifies file(s) to use and disables manual coverage gathering and file search which has already been done above
+  - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
 
 after_failure:
   - export
