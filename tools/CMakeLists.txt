@@ -7,7 +7,7 @@ add_llvm_library(cladPlugin
   RequiredSymbols.cpp
   )
 if (NOT CLAD_BUILD_STATIC_ONLY)
-  clad_compat_add_llvm_loadable_module(clad
+  add_llvm_loadable_module(clad
     ClangPlugin.cpp
     RequiredSymbols.cpp
     PLUGIN_TOOL

@@ -161,6 +161,7 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
   ```
 ###  Building from source LLVM, Clang and clad (development environment)
   ```
+    sudo -H pip install lit
     LAST_KNOWN_GOOD_LLVM=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodLLVMRevision.txt -O - -q --no-check-certificate)
     LAST_KNOWN_GOOD_CLANG=$(wget https://raw.githubusercontent.com/vgvassilev/clad/master/LastKnownGoodClangRevision.txt -O - -q --no-check-certificate)
     git clone https://github.com/llvm-mirror/llvm.git src
@@ -175,7 +176,7 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
     cd ../
     mkdir obj inst
     cd obj
-    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst ../src/
+    cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`" ../src/
     make && make install
   ```
   
