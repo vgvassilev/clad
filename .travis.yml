@@ -185,7 +185,7 @@ env:
     - CCACHE_COMPRESS=1
     - CCACHE_MAXSIZE=500M
     - CCACHE_CPP2=1
-    - CODE_COVERAGE=Off
+    - CODE_COVERAGE=0
     # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
     # via the "travis encrypt" command using the project repo's public key
     - secure: "PbMYxWLO9qiirrQSp6VrTgsptn/Exn+aMQmlejtRfbHvWbqrCNbaUQq1DIXpsojxb/a991TNDNdxn4R3TQXeM37AQWlkA5Q0ETI+0UZHBmQcVxqB9oI8eonfaQ8/Kg4vqPgmZMquNrVfKueNbudNKTMgkZRe+/UyFFO/ati5dBg="
@@ -205,17 +205,7 @@ matrix:
     ##################### Clad for clang 5.0 #####################
     # OSX 10.13, Clang and XCode 9.4
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=5.0
-      osx_image: xcode9.4
-      compiler: clang
-      addons:
-        <<: *addons-5
-        homebrew:
-          <<: *brew-5
-          packages: [*common-brew, llvm@6]
-          update: true
-    - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=5.0
+      env: CXX=clang++ CC=clang CLANG_RUNTIME=5.0
       osx_image: xcode9.4
       compiler: clang
       addons:
@@ -226,14 +216,7 @@ matrix:
           update: true
 
     # Ubuntu, GCC 5
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0
-      compiler: gcc
-      addons:
-        <<: *addons-5
-        apt:
-          <<: *apt-5
-          packages: [*apt-packages-5, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=g++-5 CC=gcc CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
         <<: *addons-5
@@ -258,7 +241,7 @@ matrix:
           build_command_prepend: "cd $TRAVIS_BUILD_DIR/obj && cmake -DCling_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DLLVM_DIR=\"$TRAVIS_PATH_TO_LLVM_BUILD\" -DCMAKE_BUILD_TYPE=$BUILD_TYPE $TRAVIS_BUILD_DIR && cov-configure --comptype gcc --compiler gcc-6 --template"
           build_command: "cmake --build .  -- -j4"
           branch_pattern: "coverity_scan"
-    - env: CXX=g++-6 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=g++-6 CC=gcc CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
         <<: *addons-5
@@ -267,14 +250,7 @@ matrix:
           packages: [*apt-packages-5, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
 
     # GCC 8
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0
-      compiler: gcc
-      addons:
-        <<: *addons-5
-        apt:
-          <<: *apt-5
-          packages: [*apt-packages-5, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=g++-8 CC=gcc CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
         <<: *addons-5
@@ -283,14 +259,7 @@ matrix:
           packages: [*apt-packages-5, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
 
     # GCC 9
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=5.0
-      compiler: gcc
-      addons:
-        <<: *addons-5
-        apt:
-          <<: *apt-5
-          packages: [*apt-packages-5, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=g++-9 CC=gcc CLANG_RUNTIME=5.0
       compiler: gcc
       addons:
         <<: *addons-5
@@ -300,7 +269,7 @@ matrix:
 
 
     # Clang 4
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=clang++-4.0 CC=clang-4.0 CLANG_RUNTIME=5.0
       compiler: clang
       addons:
         <<: *addons-5
@@ -309,14 +278,7 @@ matrix:
           packages: [*apt-packages-5, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 8
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Debug CLANG_RUNTIME=5.0
-      compiler: clang
-      addons:
-        <<: *addons-5
-        apt:
-          <<: *apt-5
-          packages: [*apt-packages-5, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=clang++-8 CC=clang-8 CLANG_RUNTIME=5.0
       compiler: clang
       addons:
         <<: *addons-5
@@ -325,18 +287,7 @@ matrix:
           packages: [*apt-packages-5, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Debug CLANG_RUNTIME=5.0
-      compiler: clang
-      addons:
-        <<: *addons-5
-        apt:
-          <<: *apt-5
-          packages: [*apt-packages-5, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
-          sources:
-            - sourceline: "ppa:ubuntu-toolchain-r/test"
-            - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
-              key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Release CLANG_RUNTIME=5.0
+    - env: CXX=clang++-9 CC=clang-9 CLANG_RUNTIME=5.0
       compiler: clang
       addons:
         <<: *addons-5
@@ -352,27 +303,14 @@ matrix:
     ##################### Clad for clang 6.0 #####################
     # OSX 10.13, Clang and XCode 9.4
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=6.0
-      osx_image: xcode9.4
-      compiler: clang
-      addons:
-        <<: *addons-6
-    - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=6.0
+      env: CXX=clang++ CC=clang CLANG_RUNTIME=6.0
       osx_image: xcode9.4
       compiler: clang
       addons:
         <<: *addons-6
 
     # Ubuntu, GCC 5
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=6.0
-      compiler: gcc
-      addons:
-        <<: *addons-6
-        apt:
-          <<: *apt-6
-          packages: [*apt-packages-6, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=6.0
+    - env: CXX=g++-5 CC=gcc CLANG_RUNTIME=6.0
       compiler: gcc
       addons:
         <<: *addons-6
@@ -381,14 +319,7 @@ matrix:
           packages: [*apt-packages-6, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
 
     # GCC 8
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=6.0
-      compiler: gcc
-      addons:
-        <<: *addons-6
-        apt:
-          <<: *apt-6
-          packages: [*apt-packages-6, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=6.0
+    - env: CXX=g++-8 CC=gcc CLANG_RUNTIME=6.0
       compiler: gcc
       addons:
         <<: *addons-6
@@ -397,14 +328,7 @@ matrix:
           packages: [*apt-packages-6, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
 
     # GCC 9
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=6.0
-      compiler: gcc
-      addons:
-        <<: *addons-6
-        apt:
-          <<: *apt-6
-          packages: [*apt-packages-6, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=6.0
+    - env: CXX=g++-9 CC=gcc CLANG_RUNTIME=6.0
       compiler: gcc
       addons:
         <<: *addons-6
@@ -413,7 +337,7 @@ matrix:
           packages: [*apt-packages-6, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
 
     # Clang 4
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=6.0
+    - env: CXX=clang++-4.0 CC=clang-4.0 CLANG_RUNTIME=6.0
       compiler: clang
       addons:
         <<: *addons-6
@@ -422,14 +346,7 @@ matrix:
           packages: [*apt-packages-6, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 8
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Debug CLANG_RUNTIME=6.0
-      compiler: clang
-      addons:
-        <<: *addons-6
-        apt:
-          <<: *apt-6
-          packages: [*apt-packages-6, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Release CLANG_RUNTIME=6.0
+    - env: CXX=clang++-8 CC=clang-8 CLANG_RUNTIME=6.0
       compiler: clang
       addons:
         <<: *addons-6
@@ -438,18 +355,7 @@ matrix:
           packages: [*apt-packages-6, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Debug CLANG_RUNTIME=6.0
-      compiler: clang
-      addons:
-        <<: *addons-6
-        apt:
-          <<: *apt-6
-          packages: [*apt-packages-6, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
-          sources:
-            - sourceline: "ppa:ubuntu-toolchain-r/test"
-            - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
-              key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Release CLANG_RUNTIME=6.0
+    - env: CXX=clang++-9 CC=clang-9 CLANG_RUNTIME=6.0
       compiler: clang
       addons:
         <<: *addons-6
@@ -464,28 +370,14 @@ matrix:
     ##################### Clad for clang 7 #####################
     # OSX 10.13, Clang and XCode 9.4
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=7
-      osx_image: xcode9.4
-      compiler: clang
-      addons:
-        <<: *addons-7
-    - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=7
+      env: CXX=clang++ CC=clang CLANG_RUNTIME=7
       osx_image: xcode9.4
       compiler: clang
       addons:
         <<: *addons-7
 
     # Ubuntu, GCC 5
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=7
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-7
-        apt:
-          <<: *apt-7
-          packages: [*apt-packages-7, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=7
+    - env: CXX=g++-5 CC=gcc CLANG_RUNTIME=7
       compiler: gcc
       dist: bionic
       addons:
@@ -495,15 +387,7 @@ matrix:
           packages: [*apt-packages-7, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
 
     # GCC 8
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=7
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-7
-        apt:
-          <<: *apt-7
-          packages: [*apt-packages-7, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=7
+    - env: CXX=g++-8 CC=gcc CLANG_RUNTIME=7
       compiler: gcc
       dist: bionic
       addons:
@@ -513,15 +397,7 @@ matrix:
           packages: [*apt-packages-7, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
 
     # GCC 9
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=7
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-7
-        apt:
-          <<: *apt-7
-          packages: [*apt-packages-7, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=7
+    - env: CXX=g++-9 CC=gcc CLANG_RUNTIME=7
       compiler: gcc
       dist: bionic
       addons:
@@ -532,7 +408,7 @@ matrix:
 
 
     # Clang 4
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=7
+    - env: CXX=clang++-4.0 CC=clang-4.0 CLANG_RUNTIME=7
       dist: bionic
       compiler: clang
       addons:
@@ -542,15 +418,7 @@ matrix:
           packages: [*apt-packages-7, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 8
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Debug CLANG_RUNTIME=7
-      dist: bionic
-      compiler: clang
-      addons:
-        <<: *addons-7
-        apt:
-          <<: *apt-7
-          packages: [*apt-packages-7, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Release CLANG_RUNTIME=7
+    - env: CXX=clang++-8 CC=clang-8 CLANG_RUNTIME=7
       dist: bionic
       compiler: clang
       addons:
@@ -560,15 +428,7 @@ matrix:
           packages: [*apt-packages-7, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Debug CLANG_RUNTIME=7
-      dist: bionic
-      compiler: clang
-      addons:
-        <<: *addons-7
-        apt:
-          <<: *apt-7
-          packages: [*apt-packages-7, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Release CLANG_RUNTIME=7
+    - env: CXX=clang++-9 CC=clang-9 CLANG_RUNTIME=7
       dist: bionic
       compiler: clang
       addons:
@@ -580,28 +440,14 @@ matrix:
     ##################### Clad for clang 8 #####################
     # OSX 10.13, Clang and XCode 9.4
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=8
-      osx_image: xcode9.4
-      compiler: clang
-      addons:
-        <<: *addons-8
-    - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=8
+      env: CXX=clang++ CC=clang CLANG_RUNTIME=8
       osx_image: xcode9.4
       compiler: clang
       addons:
         <<: *addons-8
 
     # Ubuntu, GCC 5
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=8
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-8
-        apt:
-          <<: *apt-8
-          packages: [*apt-packages-8, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=8
+    - env: CXX=g++-5 CC=gcc CLANG_RUNTIME=8
       compiler: gcc
       dist: bionic
       addons:
@@ -612,15 +458,7 @@ matrix:
 
 
     # GCC 8
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=8
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-5
-        apt:
-          <<: *apt-8
-          packages: [*apt-packages-8, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=8
+    - env: CXX=g++-8 CC=gcc CLANG_RUNTIME=8
       compiler: gcc
       dist: bionic
       addons:
@@ -630,15 +468,7 @@ matrix:
           packages: [*apt-packages-8, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
 
     # GCC 9
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=8
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-8
-        apt:
-          <<: *apt-8
-          packages: [*apt-packages-8, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=8
+    - env: CXX=g++-9 CC=gcc CLANG_RUNTIME=8
       compiler: gcc
       dist: bionic
       addons:
@@ -648,7 +478,7 @@ matrix:
           packages: [*apt-packages-8, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
 
     # Clang 4
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=8
+    - env: CXX=clang++-4.0 CC=clang-4.0 CLANG_RUNTIME=8
       compiler: clang
       dist: bionic
       addons:
@@ -658,15 +488,7 @@ matrix:
           packages: [*apt-packages-8, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 8
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Debug CLANG_RUNTIME=8
-      dist: bionic
-      compiler: clang
-      addons:
-        <<: *addons-8
-        apt:
-          <<: *apt-8
-          packages: [*apt-packages-8, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Release CLANG_RUNTIME=8
+    - env: CXX=clang++-8 CC=clang-8 CLANG_RUNTIME=8
       dist: bionic
       compiler: clang
       addons:
@@ -676,15 +498,7 @@ matrix:
           packages: [*apt-packages-8, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Debug CLANG_RUNTIME=8
-      dist: bionic
-      compiler: clang
-      addons:
-        <<: *addons-8
-        apt:
-          <<: *apt-8
-          packages: [*apt-packages-8, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Release CLANG_RUNTIME=8
+    - env: CXX=clang++-9 CC=clang-9 CLANG_RUNTIME=8
       dist: bionic
       compiler: clang
       addons:
@@ -696,28 +510,14 @@ matrix:
     ##################### Clad for clang 9 #####################
     # OSX 10.13, Clang and XCode 9.4
     - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Release CLANG_RUNTIME=9
-      osx_image: xcode9.4
-      compiler: clang
-      addons:
-        <<: *addons-9
-    - os: osx
-      env: CXX=clang++ CC=clang BUILD_TYPE=Debug CLANG_RUNTIME=9
+      env: CXX=clang++ CC=clang CLANG_RUNTIME=9
       osx_image: xcode9.4
       compiler: clang
       addons:
         <<: *addons-9
 
     # Ubuntu, GCC 5
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-9
-        apt:
-          <<: *apt-9
-          packages: [*apt-packages-9, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
-    - env: CXX=g++-5 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=9
+    - env: CXX=g++-5 CC=gcc CLANG_RUNTIME=9
       compiler: gcc
       dist: bionic
       addons:
@@ -727,7 +527,7 @@ matrix:
           packages: [*apt-packages-9, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
 
     # GCC 8 Code Coverage
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
+    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9 CODE_COVERAGE=1
       compiler: gcc
       dist: bionic
       addons:
@@ -737,15 +537,7 @@ matrix:
           packages: [*apt-packages-9, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
 
    # GCC 8
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-9
-        apt:
-          <<: *apt-9
-          packages: [*apt-packages-9, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
-    - env: CXX=g++-8 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=9
+    - env: CXX=g++-8 CC=gcc CLANG_RUNTIME=9
       compiler: gcc
       dist: bionic
       addons:
@@ -755,15 +547,7 @@ matrix:
           packages: [*apt-packages-9, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
 
     # GCC 9
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Debug CLANG_RUNTIME=9
-      compiler: gcc
-      dist: bionic
-      addons:
-        <<: *addons-9
-        apt:
-          <<: *apt-9
-          packages: [*apt-packages-9, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
-    - env: CXX=g++-9 CC=gcc BUILD_TYPE=Release CLANG_RUNTIME=9
+    - env: CXX=g++-9 CC=gcc CLANG_RUNTIME=9
       compiler: gcc
       dist: bionic
       addons:
@@ -773,7 +557,7 @@ matrix:
           packages: [*apt-packages-9, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
 
     # Clang 4
-    - env: CXX=clang++-4.0 CC=clang-4.0 BUILD_TYPE=Release CLANG_RUNTIME=9
+    - env: CXX=clang++-4.0 CC=clang-4.0 CLANG_RUNTIME=9
       compiler: clang
       dist: bionic
       addons:
@@ -783,15 +567,7 @@ matrix:
           packages: [*apt-packages-9, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 8
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Debug CLANG_RUNTIME=9
-      dist: bionic
-      compiler: clang
-      addons:
-        <<: *addons-9
-        apt:
-          <<: *apt-9
-          packages: [*apt-packages-9, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-8 CC=clang-8 BUILD_TYPE=Release CLANG_RUNTIME=9
+    - env: CXX=clang++-8 CC=clang-8 CLANG_RUNTIME=9
       dist: bionic
       compiler: clang
       addons:
@@ -801,15 +577,7 @@ matrix:
           packages: [*apt-packages-9, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Debug CLANG_RUNTIME=9
-      dist: bionic
-      compiler: clang
-      addons:
-        <<: *addons-9
-        apt:
-          <<: *apt-9
-          packages: [*apt-packages-9, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
-    - env: CXX=clang++-9 CC=clang-9 BUILD_TYPE=Release CLANG_RUNTIME=9
+    - env: CXX=clang++-9 CC=clang-9 CLANG_RUNTIME=9
       dist: bionic
       compiler: clang
       addons:
@@ -922,7 +690,14 @@ before_script:
   - $CXX --version
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
-  - cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DLLVM_EXTERNAL_LIT="`which lit`" -DCODE_COVERAGE=${CODE_COVERAGE} $TRAVIS_BUILD_DIR
+  - echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
+  - |
+    cmake -DClang_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" \
+          -DLLVM_DIR="$TRAVIS_PATH_TO_LLVM_BUILD" \
+          -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
+          -DCODE_COVERAGE=${CODE_COVERAGE}  \
+          -DLLVM_EXTERNAL_LIT="`which lit`" \
+          $TRAVIS_BUILD_DIR
 
 script:
   - cmake --build . --target check-clad -- -j4
@@ -991,4 +766,5 @@ after_failure:
   - find /usr/local/opt/llvm@9/
   - brew search llvm
   - pip show lit
+  - cat /home/travis/build/vgvassilev/clad/obj/CMakeCache.txt
   - cat /home/travis/build/vgvassilev/clad/obj/CMakeFiles/*.log
