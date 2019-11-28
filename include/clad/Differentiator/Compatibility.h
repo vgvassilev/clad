@@ -261,9 +261,9 @@ static inline ConstexprSpecKind Function_GetConstexprKind(const FunctionDecl* F)
 
 static inline QualType getConstantArrayType(const ASTContext &Ctx,
    QualType EltTy,
-   const llvm::APInt &ArySize,
+   const APInt &ArySize,
    const Expr* SizeExpr,
-   ArrayType::ArraySizeModifier ASM,
+   clang::ArrayType::ArraySizeModifier ASM,
    unsigned IndexTypeQuals)
 {
 #if CLANG_VERSION_MAJOR < 10

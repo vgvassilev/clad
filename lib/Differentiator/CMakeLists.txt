@@ -1,21 +1,15 @@
 set(CLANG_SOURCE_DIR ${CLAD_SOURCE_DIR}/../clang/)
+if (NOT EXISTS ${CLANG_SOURCE_DIR})
+  set(CLANG_SOURCE_DIR "${Clang_DIR}/")
+endif()
+
 clad_compat__find_first_existing_vc_file("${CLANG_SOURCE_DIR}" clang_vc)
 clad_compat__find_first_existing_vc_file("${CLAD_SOURCE_DIR}" clad_vc)
 set(last_known_good_rev "${CLAD_SOURCE_DIR}/LastKnownGoodLLVMRevision.txt")
 
 # The VC revision include that we want to generate.
 set(version_inc "${CMAKE_CURRENT_BINARY_DIR}/VCSVersion.inc")
-
-set(generate_vcs_version_script "${LLVM_CMAKE_PATH}/GenerateVersionFromVCS.cmake")
-
-# Create custom target to generate the VC revision include.
-add_custom_command(OUTPUT "${version_inc}"
-  DEPENDS "${clang_vc}" "${clad_vc}" "${generate_vcs_version_script}"
-  COMMAND ${CMAKE_COMMAND} "-DNAMES=\"LLVM;CLANG\""
-                           "-DLLVM_SOURCE_DIR=${llvm_source_dir}"
-                           "-DCLANG_SOURCE_DIR=${clang_source_dir}"
-                           "-DHEADER_FILE=${version_inc}"
-                           -P "${generate_vcs_version_script}")
+clad_compat__DefineCustomCommandVCS("${version_inc}" "${LLVM_CMAKE_DIR}" "${CLANG_SOURCE_DIR}" "${CLAD_SOURCE_DIR}" "${clang_vc}" "${cald_vc}")
 
 # Mark the generated header as being generated.
 set_source_files_properties("${version_inc}"

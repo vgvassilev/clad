@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.7.0)
 if(POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
+if(POLICY CMP0077)
+  cmake_policy(SET CMP0077 NEW)
+endif()
 
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
@@ -230,11 +233,6 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
 add_definitions( -D_GNU_SOURCE
   -DCLAD_SRCDIR_INCL="${CLAD_SOURCE_DIR}/include"
   -DCLAD_INSTDIR_INCL="${CLAD_BINARY_DIR}/include" )
-
-include(VersionFromVCS)
-# SVN_REVISION and GIT_COMMIT get set by the call to add_version_info_from_vcs.
-# DUMMY_VAR contains a version string which we don't care about.
-add_version_info_from_vcs(DUMMY_VAR)
 
 option(CLAD_BUILD_STATIC_ONLY "Does not build shared libraries. Useful when we have LLVM_ENABLE_PLUGINS=OFF (eg. Win or CYGWIN)" OFF)
 if (NOT CLAD_BUILD_STATIC_ONLY AND NOT LLVM_ENABLE_PLUGINS)
