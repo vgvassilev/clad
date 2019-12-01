@@ -235,6 +235,14 @@ jobs:
             coverage: false
             coverity: false
 
+          - name: macos-clang-runtime9-llvmlab
+            os: macos-latest
+            compiler: clang
+            clang-runtime: '9'
+            coverage: false
+            coverity: false
+            llvmlab_id: clang-r354636-b54157
+
           - name: ubuntu-gcc5-runtime9
             os: ubuntu-18.04
             compiler: gcc-5
@@ -676,6 +684,17 @@ jobs:
           -DCODE_COVERAGE=${CODE_COVERAGE}  \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           $GITHUB_WORKSPACE
+
+        # Fetch clang with RelWithDebInfo which is useful as it has asserts on.
+        # This allows us to verify if clad produces correct AST.
+        if [ -n "${{ matrix.llvmlab_id }}" ]; then
+          git clone https://github.com/llvm-mirror/zorg.git zorg
+          cd zorg/llvmbisect
+          sudo python setup.py install
+          llvmlab fetch clang-stage1-configure-RA ${{ matrix.llvmlab_id }}
+          export CLANG=$(pwd)/${{ matrix.llvmlab_id }}/bin/clang
+        fi
+
         cmake --build . --target check-clad -- -j4
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
