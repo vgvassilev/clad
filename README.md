@@ -5,9 +5,9 @@
 # Clad
 Clad enables [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) for C++. It is based on LLVM compiler infrastructure and is a plugin for [Clang compiler](http://clang.llvm.org/). Clad is based on source code transformation. Given C++ source code of a mathematical function, it can automatically generate C++ code for computing derivatives of the function. It supports both forward-mode and reverse-mode AD.
 ## How to use Clad
-Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libdclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
+Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
 ```
-clang -cc1 -x c++ -std=c++11 -load libclad.so -plugin clad SourceFile.cpp
+clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
 ```
 Clad provides two API functions:
 - `clad::differentiate` to use forward-mode AD
