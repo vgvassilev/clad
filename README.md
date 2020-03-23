@@ -171,9 +171,7 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
     cd clang ; git checkout $LAST_KNOWN_GOOD_CLANG
     cd ../
     git clone https://github.com/vgvassilev/clad.git clad
-    cd ../
-    cat patches tools/clad/patches/*.diff | patch -p0
-    cd ../
+    cd ../..
     mkdir obj inst
     cd obj
     cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`" ../src/
