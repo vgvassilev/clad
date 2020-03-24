@@ -756,6 +756,66 @@ void f_decls3_grad(double x, double y, double* _result);
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f_issue138(double x, double y) {
+    double _t1 = 1; // expect it not to collide with _t*
+    return x*x*x*x + y*y*y*y;
+}
+
+void f_issue138_grad(double x, double y, double *_result);
+//CHECK:   void f_issue138_grad(double x, double y, double *_result) {
+//CHECK-NEXT:       double _d__t1 = 0;
+//CHECK-NEXT:       double _t0;
+//CHECK-NEXT:       double _t1;
+//CHECK-NEXT:       double _t2;
+//CHECK-NEXT:       double _t3;
+//CHECK-NEXT:       double _t4;
+//CHECK-NEXT:       double _t5;
+//CHECK-NEXT:       double _t6;
+//CHECK-NEXT:       double _t7;
+//CHECK-NEXT:       double _t8;
+//CHECK-NEXT:       double _t9;
+//CHECK-NEXT:       double _t11;
+//CHECK-NEXT:       double _t12;
+//CHECK-NEXT:       double _t10 = 1;
+//CHECK-NEXT:       _t3 = x;
+//CHECK-NEXT:       _t2 = x;
+//CHECK-NEXT:       _t4 = _t3 * _t2;
+//CHECK-NEXT:       _t1 = x;
+//CHECK-NEXT:       _t5 = _t4 * _t1;
+//CHECK-NEXT:       _t0 = x;
+//CHECK-NEXT:       _t9 = y;
+//CHECK-NEXT:       _t8 = y;
+//CHECK-NEXT:       _t11 = _t9 * _t8;
+//CHECK-NEXT:       _t7 = y;
+//CHECK-NEXT:       _t12 = _t11 * _t7;
+//CHECK-NEXT:       _t6 = y;
+//CHECK-NEXT:       double f_issue138_return = _t5 * _t0 + _t12 * _t6;
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           double _r0 = 1 * _t0;
+//CHECK-NEXT:           double _r1 = _r0 * _t1;
+//CHECK-NEXT:           double _r2 = _r1 * _t2;
+//CHECK-NEXT:           _result[0UL] += _r2;
+//CHECK-NEXT:           double _r3 = _t3 * _r1;
+//CHECK-NEXT:           _result[0UL] += _r3;
+//CHECK-NEXT:           double _r4 = _t4 * _r0;
+//CHECK-NEXT:           _result[0UL] += _r4;
+//CHECK-NEXT:           double _r5 = _t5 * 1;
+//CHECK-NEXT:           _result[0UL] += _r5;
+//CHECK-NEXT:           double _r6 = 1 * _t6;
+//CHECK-NEXT:           double _r7 = _r6 * _t7;
+//CHECK-NEXT:           double _r8 = _r7 * _t8;
+//CHECK-NEXT:           _result[1UL] += _r8;
+//CHECK-NEXT:           double _r9 = _t9 * _r7;
+//CHECK-NEXT:           _result[1UL] += _r9;
+//CHECK-NEXT:           double _r10 = _t11 * _r6;
+//CHECK-NEXT:           _result[1UL] += _r10;
+//CHECK-NEXT:           double _r11 = _t12 * 1;
+//CHECK-NEXT:           _result[1UL] += _r11;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
+
 #define TEST(F, x, y) { \
   result[0] = 0; result[1] = 0;\
   clad::gradient(F);\
@@ -792,5 +852,6 @@ int main() { // expected-no-diagnostics
   TEST(f_decls3, -3, 0); // CHECK-EXEC: Result is = {-6.00, 0.00}
   TEST(f_decls3, 0.5, 0); // CHECK-EXEC: Result is = {9.00, 0.00}
   TEST(f_decls3, 0, 100); // CHECK-EXEC: Result is = {0.00, 0.00}
+  TEST(f_issue138, 1, 2); // CHECK-EXEC: Result is = {4.00, 32.00}
 }
 
