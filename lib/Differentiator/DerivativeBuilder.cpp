@@ -2993,12 +2993,15 @@ namespace clad {
 
   VarDecl* ReverseModeVisitor::GlobalStoreImpl(QualType Type,
                                             llvm::StringRef prefix) {
+    // Create identifier before going to topmost scope
+    // to let Sema::LookupName see the whole scope.
+    auto identifier = CreateUniqueIdentifier(prefix);
     // Save current scope and temporarily go to topmost function scope.
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     assert(m_DerivativeFnScope && "must be set");
     m_CurScope = m_DerivativeFnScope;
 
-    VarDecl* Var = BuildVarDecl(Type, CreateUniqueIdentifier(prefix));
+    VarDecl* Var = BuildVarDecl(Type, identifier);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);
