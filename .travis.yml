@@ -191,7 +191,7 @@ env:
     - secure: "PbMYxWLO9qiirrQSp6VrTgsptn/Exn+aMQmlejtRfbHvWbqrCNbaUQq1DIXpsojxb/a991TNDNdxn4R3TQXeM37AQWlkA5Q0ETI+0UZHBmQcVxqB9oI8eonfaQ8/Kg4vqPgmZMquNrVfKueNbudNKTMgkZRe+/UyFFO/ati5dBg="
 
 
-matrix:
+jobs:
   # Abort all builds on a single failing matrix entry.
   fast_finish: true
 
