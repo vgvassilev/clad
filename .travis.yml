@@ -605,7 +605,7 @@ install:
       if [ $CLANG_RUNTIME == '5.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
         pushd /usr/local/opt
-        sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
@@ -628,7 +628,7 @@ install:
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
         sudo mkdir -p /usr/lib/opt
         pushd /usr/lib/opt
-        sudo curl http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-5.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
@@ -642,7 +642,7 @@ install:
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
         sudo mkdir -p /usr/lib/opt
         pushd /usr/lib/opt
-        sudo curl http://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-6.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
