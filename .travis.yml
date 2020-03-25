@@ -195,12 +195,6 @@ matrix:
   # Abort all builds on a single failing matrix entry.
   fast_finish: true
 
-  exclude:
-    # Note: Workaround travis-ci/travis-ci#4681
-    # Exclude default job which lacks our included environment variables.
-    - os: osx
-    - os: linux
-
   include:
     ##################### Clad for clang 5.0 #####################
     # OSX 10.13, Clang and XCode 9.4
