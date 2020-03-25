@@ -16,6 +16,8 @@ addons: &common-addons
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+      - sourceline: 'deb https://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
@@ -137,7 +139,7 @@ addons-8: &addons-8
     packages: &apt-packages-8 [*common-apt-packages,
       'clang-8',
       'libclang-8-dev',
-      'llvm-8-tools',
+      'llvm-7-tools',
       'llvm-8-dev'
     ]
   homebrew: &brew-8
@@ -278,7 +280,7 @@ jobs:
         <<: *addons-5
         apt:
           <<: *apt-5
-          packages: [*apt-packages-5, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
+          packages: [*apt-packages-5, 'clang-8', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
     - env: CLANG_RUNTIME=5.0 CXX=clang++-9 CC=clang-9
@@ -346,7 +348,7 @@ jobs:
         <<: *addons-6
         apt:
           <<: *apt-6
-          packages: [*apt-packages-6, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
+          packages: [*apt-packages-6, 'clang-8', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
     - env: CLANG_RUNTIME=6.0 CXX=clang++-9 CC=clang-9
@@ -419,7 +421,7 @@ jobs:
         <<: *addons-7
         apt:
           <<: *apt-7
-          packages: [*apt-packages-7, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
+          packages: [*apt-packages-7, 'clang-8', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
     - env: CLANG_RUNTIME=7 CXX=clang++-9 CC=clang-9
@@ -489,7 +491,7 @@ jobs:
         <<: *addons-8
         apt:
           <<: *apt-8
-          packages: [*apt-packages-8, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
+          packages: [*apt-packages-8, 'clang-8', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
     - env: CLANG_RUNTIME=8 CXX=clang++-9 CC=clang-9
@@ -568,7 +570,7 @@ jobs:
         <<: *addons-9
         apt:
           <<: *apt-9
-          packages: [*apt-packages-9, 'clang-8', 'llvm-8-tools', 'g++-multilib', 'libc6-dbg']
+          packages: [*apt-packages-9, 'clang-8', 'g++-multilib', 'libc6-dbg']
 
     # Clang 9
     - env: CLANG_RUNTIME=9 CXX=clang++-9 CC=clang-9
@@ -649,6 +651,12 @@ install:
           sudo ln -s /usr/lib/llvm-$CLANG_RUNTIME/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
         fi
         popd
+      fi
+      # llvm-8-tools is broken as it depends on python2.7 we use FileCheck from llvm-7-tools
+      if [ $CLANG_RUNTIME == '8' ]; then
+        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+          sudo ln -s /usr/lib/llvm-7/bin/FileCheck $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck
+        fi
       fi
     fi
     # Add -H to silence 'The directory '/Users/travis/.../pip/http' or its parent
