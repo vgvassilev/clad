@@ -20,38 +20,26 @@ described first.
 
 External Dependencies
 ---------------------
-* clang-5.0 or clang-6.0
+* Clad now works with clang-5.0, clang-6.0, clang-7.0, clang-8.0 and clang-9.0
 
 Forward Mode & Reverse Mode
 ---------------------------
-*
-
-Forward Mode
-------------
-*
+* Implement hessian matrices via the `clad::hessian` interface.
 
 Reverse Mode
 ------------
-*
+* Reduce the quadratic cloning complexity to linear.
+* Support variable reassignments pontentially depending on control flow.
+* Support operators `+=`, `-=`, `*=`, `/=`, `,`, `++`, `--`.
+* Allow assignments to array subscripts.
+* Support nested assignments in expressions `a = b * ((c ? d : e) = f = g);`
+* Enable differentiation of for-loops
 
-Misc
-----
-* 
 
 Fixed Bugs
 ----------
 
-[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
-
-<!---Uniquify by sort ReleaseNotes.md | uniq -c | grep -v '1 ' --->
-<!---Get release bugs
-git log v0.5..master | grep 'Fixes' | \
-  s,^.*([0-9]+).*$,[\1]\(https://github.com/vgvassilev/clad/issues/\1\),' | uniq
---->
-<!---Standard MarkDown doesn't support neither variables nor <base>
-[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
---->
-
+[Issue 138](https://github.com/vgvassilev/clad/issues/138)
 
 Special Kudos
 =============
@@ -61,9 +49,9 @@ listed in the form of Firstname Lastname (#contributions):
 
 FirstName LastName (#commits)
 
-* Author One (2)
-* Author Two (1)
-
-<!---Find contributor list for this release
-git log --pretty=format:"%an"  v0.5...master | sort | uniq -c | sort -rn
---->
+* Alexander Penev (19)
+* Vassil Vassilev (15)
+* Aleksandr Efremov (11)
+* Shakhov Roman (2)
+* Marco Foco (2)
+* Jack Qiu (1)
