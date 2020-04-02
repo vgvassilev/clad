@@ -2,7 +2,7 @@ Introduction
 ============
 
 This document contains the release notes for the automatic differentiation
-plugin for clang Clad, release 0.6. Clad is built on top of
+plugin for clang Clad, release 0.7. Clad is built on top of
 [Clang](http://clang.llvm.org) and [LLVM](http://llvm.org>) compiler
 infrastructure. Here we describe the status of Clad in some detail, including
 major improvements from the previous release and new feature work.
@@ -11,7 +11,7 @@ Note that if you are reading this file from a git checkout,
 this document applies to the *next* release, not the current one.
 
 
-What's New in Clad 0.6?
+What's New in Clad 0.7?
 ========================
 
 Some of the major new features and improvements to Clad are listed here. Generic
@@ -24,22 +24,34 @@ External Dependencies
 
 Forward Mode & Reverse Mode
 ---------------------------
-* Implement hessian matrices via the `clad::hessian` interface.
+*
+
+Forward Mode
+------------
+*
 
 Reverse Mode
 ------------
-* Reduce the quadratic cloning complexity to linear.
-* Support variable reassignments pontentially depending on control flow.
-* Support operators `+=`, `-=`, `*=`, `/=`, `,`, `++`, `--`.
-* Allow assignments to array subscripts.
-* Support nested assignments in expressions `a = b * ((c ? d : e) = f = g);`
-* Enable differentiation of for-loops
+*
 
+Misc
+----
+* 
 
 Fixed Bugs
 ----------
 
-[Issue 138](https://github.com/vgvassilev/clad/issues/138)
+[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
+
+<!---Uniquify by sort ReleaseNotes.md | uniq -c | grep -v '1 ' --->
+<!---Get release bugs
+git log v0.6..master | grep 'Fixes' | \
+  s,^.*([0-9]+).*$,[\1]\(https://github.com/vgvassilev/clad/issues/\1\),' | uniq
+--->
+<!---Standard MarkDown doesn't support neither variables nor <base>
+[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
+--->
+
 
 Special Kudos
 =============
@@ -49,9 +61,9 @@ listed in the form of Firstname Lastname (#contributions):
 
 FirstName LastName (#commits)
 
-* Alexander Penev (19)
-* Vassil Vassilev (15)
-* Aleksandr Efremov (11)
-* Shakhov Roman (2)
-* Marco Foco (2)
-* Jack Qiu (1)
+* Author One (2)
+* Author Two (1)
+
+<!---Find contributor list for this release
+git log --pretty=format:"%an"  v0.6...master | sort | uniq -c | sort -rn
+--->
