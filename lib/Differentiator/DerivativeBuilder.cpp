@@ -79,6 +79,9 @@ namespace clad {
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);
+    } if (request.Mode == DiffMode::jacobian) {
+      JacobianModeVisitor J(*this);
+      result = J.Derive(FD, request);
     }
 
     if (result.first)
@@ -1757,11 +1760,24 @@ namespace clad {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())
       return {};
+
+    if (request.Mode == DiffMode::jacobian) {
+      isVectorValued = true;
+      args.pop_back();
+    }
+
     auto derivativeBaseName = m_Function->getNameAsString();
-    std::string gradientName = derivativeBaseName + "_grad";
+    std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
-    if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))
+    if (request.Mode == DiffMode::jacobian && !std::equal(FD->param_begin(),
+        FD->param_end(), std::begin(args))) {
+      for (auto arg : args) {
+        auto it = std::find(FD->param_begin(), FD->param_end(), arg);
+        auto idx = std::distance(FD->param_begin(), it);
+        gradientName += ('_' + std::to_string(idx));
+      }
+    } else if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))
       for (auto arg : args) {
         auto it = std::find(FD->param_begin(), FD->param_end(), arg);
         auto idx = std::distance(FD->param_begin(), it);
@@ -1772,14 +1788,23 @@ namespace clad {
 
     // A vector of types of the gradient function parameters.
     llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
+    if (request.Mode == DiffMode::jacobian) {
+      unsigned lastArgN = m_Function->getNumParams() - 1;
+      outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
+    }
     std::transform(m_Function->param_begin(),
                    m_Function->param_end(),
                    std::begin(paramTypes),
                    [] (const ParmVarDecl* PVD) {
                      return PVD->getType();
                    });
-    // The last parameter is the output parameter of the R* type.
-    paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
+    if (request.Mode == DiffMode::jacobian) {
+      unsigned lastArgN = m_Function->getNumParams() - 1;
+      paramTypes.back() = m_Function->getParamDecl(lastArgN)->getType();
+    } else {
+      // The last parameter is the output parameter of the R* type.
+      paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
+    }
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
     QualType gradientFunctionType =
@@ -1855,7 +1880,7 @@ namespace clad {
     });
     // The output paremeter "_result".
     params.back() = ParmVarDecl::Create(m_Context, gradientFD, noLoc,
-                                        noLoc, &m_Context.Idents.get("_result"),
+                                        noLoc, &m_Context.Idents.get(resultArg()),
                                         paramTypes.back(),
                                         m_Context.getTrivialTypeSourceInfo(
                                           paramTypes.back(), noLoc),
@@ -1873,6 +1898,19 @@ namespace clad {
     // Reference to the output parameter.
     m_Result = BuildDeclRef(params.back());
 
+    // Turns output array dimension input into APSInt
+    auto PVDTotalArgs = m_Function->getParamDecl((m_Function->getNumParams() - 1));
+    auto VD = ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
+                                  PVDTotalArgs->getIdentifier(), PVDTotalArgs->getType(),
+                                  PVDTotalArgs->getTypeSourceInfo(),
+                                  PVDTotalArgs->getStorageClass(),
+        // Clone default arg if present.
+                                  (PVDTotalArgs->hasDefaultArg() ?
+                                   Clone(PVDTotalArgs->getDefaultArg()) : nullptr));
+    auto DRETotalArgs = (Expr*) BuildDeclRef(VD);
+    numParams = args.size();
+
+    // Creates the ArraySubscriptExprs for the independent variables
     auto idx = 0;
     for (auto arg : args) {
       // FIXME: fix when adding array inputs, now we are just skipping all
@@ -1893,6 +1931,7 @@ namespace clad {
                                                                 i, noLoc).get();
       m_Variables[arg] = result_at_i;
       idx += 1;
+      m_IndependentVars.push_back(arg);
     }
 
     // Function body scope.
@@ -2412,19 +2451,36 @@ namespace clad {
       clonedDRE = cast<DeclRefExpr>(Clone(DRE));
 
     if (auto decl = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
-      // Check DeclRefExpr is a reference to an independent variable.
-      auto it = m_Variables.find(decl);
-      if (it == std::end(m_Variables)) {
-        // Is not an independent variable, ignored.
-        return StmtDiff(clonedDRE);
+      if (isVectorValued) {
+        if (m_VectorOutput.size() <= outputArrayCursor)
+          return StmtDiff(clonedDRE);
+
+        auto it = m_VectorOutput[outputArrayCursor].find(decl);
+        if (it == std::end(m_VectorOutput[outputArrayCursor])) {
+          // Is not an independent variable, ignored.
+          return StmtDiff(clonedDRE);
+        }
+        // Create the (_result[idx] += dfdx) statement.
+        if (dfdx()) {
+          auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+          // Add it to the body statements.
+          addToCurrentBlock(add_assign, reverse);
+        }
+      } else {
+        // Check DeclRefExpr is a reference to an independent variable.
+        auto it = m_Variables.find(decl);
+        if (it == std::end(m_Variables)) {
+          // Is not an independent variable, ignored.
+          return StmtDiff(clonedDRE);
+        }
+        // Create the (_result[idx] += dfdx) statement.
+        if (dfdx()) {
+          auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+          // Add it to the body statements.
+          addToCurrentBlock(add_assign, reverse);;
+        }
+        return StmtDiff(clonedDRE, it->second);
       }
-      // Create the (_result[idx] += dfdx) statement.
-      if (dfdx()) {
-        auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-        // Add it to the body statements.
-        addToCurrentBlock(add_assign, reverse);
-      }
-      return StmtDiff(clonedDRE, it->second);
     }
 
     return StmtDiff(clonedDRE);
@@ -2506,7 +2562,7 @@ namespace clad {
     }
     // If it has more args or f_darg0 was not found, we look for its gradient.
     if (!OverloadedDerivedFn) {
-      IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_grad");
+      IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + funcPostfix());
       // We also need to create an array to store the result of gradient call.
       auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
       auto ArrayType =
@@ -2519,7 +2575,7 @@ namespace clad {
       // Create {} array initializer to fill it with zeroes.
       auto ZeroInitBraces = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
       // Declare: Type _gradX[Nargs] = {};
-      ResultDecl = BuildVarDecl(ArrayType, CreateUniqueIdentifier("_grad"),
+      ResultDecl = BuildVarDecl(ArrayType, CreateUniqueIdentifier(funcPostfix()),
                                 ZeroInitBraces);
       Result = BuildDeclRef(ResultDecl);
       // Pass the array as the last parameter for gradient.
@@ -2757,6 +2813,45 @@ namespace clad {
              "expr, assignment ignored");
         return Clone(BinOp);
       }
+
+      if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
+        auto DRE = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit());
+        QualType type = DRE->getType()->getPointeeType();
+        std::string DRE_str = DRE->getDecl()->getNameAsString();
+
+        llvm::APSInt intIdx;
+        auto isIdxValid = clad_compat::Expr_EvaluateAsInt(ASE->getIdx(), intIdx, m_Context);
+
+        if (DRE_str == outputArrayStr && isIdxValid) {
+          outputArrayCursor = intIdx.getExtValue();
+
+          std::unordered_map<const clang::VarDecl*, clang::Expr*> temp_m_Variables;
+          for (int i = 0; i < numParams; i++) {
+            auto size_type = m_Context.getSizeType();
+            auto size_type_bits = m_Context.getIntWidth(size_type);
+            auto idx = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits,
+                                                                     i + (outputArrayCursor*numParams)),                                              size_type, noLoc);
+            // Create the _result[idx] expression.
+            auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
+                                                                      idx, noLoc).get();
+            temp_m_Variables[m_IndependentVars[i]] = result_at_i;
+          }
+          m_VectorOutput.push_back(temp_m_Variables);
+
+          auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
+          ExprResult tmp = dfdf;
+          dfdf = m_Sema.ImpCastExprToType(tmp.get(), type,
+                                          m_Sema.PrepareScalarCast(tmp, type)).get();
+          auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
+          StmtDiff ReturnDiff = ReturnResult.first;
+          StmtDiff ExprDiff = ReturnResult.second;
+          Stmt* Reverse = ReturnDiff.getStmt_dx();
+          addToCurrentBlock(Reverse, reverse);
+          for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
+            addToCurrentBlock(S, forward);
+        }
+      }
+
       // Visit LHS, but delay emission of its derivative statements, save them
       // in Lblock
       beginBlock(reverse);
@@ -3072,4 +3167,20 @@ namespace clad {
     }
   }
 
+  JacobianModeVisitor::JacobianModeVisitor(DerivativeBuilder &builder) :
+      VisitorBase(builder), builder(builder) {
+  }
+
+  JacobianModeVisitor::~JacobianModeVisitor() {}
+
+  DeclWithContext JacobianModeVisitor::Derive(const clang::FunctionDecl* FD,
+                                             const DiffRequest& request) {
+    FD = FD->getDefinition();
+    DeclWithContext result{};
+
+    ReverseModeVisitor V(this->builder);
+    result = V.Derive(FD, request);
+
+    return result;
+  }
 } // end namespace clad

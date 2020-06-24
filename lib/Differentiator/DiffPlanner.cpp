@@ -170,7 +170,7 @@ namespace clad {
     // TODO: why not check for its name? clad::differentiate/gradient?
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
     if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") 
-        || A->getAnnotation().equals("H"))) {
+        || A->getAnnotation().equals("H") || A->getAnnotation().equals("J"))) {
       // A call to clad::differentiate or clad::gradient was found.
       DeclRefExpr* DRE = getArgFunction(E);
       if (!DRE)
@@ -187,6 +187,8 @@ namespace clad {
         request.RequestedDerivativeOrder = derivativeOrder;
       } else if (A->getAnnotation().equals("H")) {
         request.Mode = DiffMode::hessian;
+      } else if (A->getAnnotation().equals("J")) {
+        request.Mode = DiffMode::jacobian;
       } else {
         request.Mode = DiffMode::reverse;
       }
