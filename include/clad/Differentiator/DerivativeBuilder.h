@@ -45,6 +45,8 @@ namespace clad {
 
   using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
 
+  using VectorOutputs = std::vector<std::unordered_map<const clang::VarDecl*, clang::Expr*>>;
+
   static clang::SourceLocation noLoc{};
   /// The main builder class which then uses either ForwardModeVisitor or
   /// ReverseModeVisitor based on the required mode.
@@ -54,6 +56,7 @@ namespace clad {
     friend class ForwardModeVisitor;
     friend class ReverseModeVisitor;
     friend class HessianModeVisitor;
+    friend class JacobianModeVisitor;
 
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
@@ -134,6 +137,8 @@ namespace clad {
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
+    /// Stores output variables for vector-valued functions
+    VectorOutputs m_VectorOutput;
   public:
     clang::CompoundStmt* MakeCompoundStmt(const Stmts & Stmts);
 
@@ -395,7 +400,7 @@ namespace clad {
     : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
       public VisitorBase {
   private:
-    llvm::SmallVector<clang::VarDecl*, 16> m_IndependentVars;
+    llvm::SmallVector<const clang::VarDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in 
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
@@ -411,6 +416,25 @@ namespace clad {
     clang::Expr* m_Result;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// Output variable of vector-valued function
+    std::string outputArrayStr;
+    unsigned outputArrayCursor = 0;
+    unsigned numParams = 0;
+    bool isVectorValued = false;
+
+    const char* funcPostfix() const {
+      if (isVectorValued)
+        return "_jac";
+      else
+        return "_grad";
+    }
+
+    const char* resultArg() const {
+      if (isVectorValued)
+        return "jacobianMatrix";
+      else
+        return "_result";
+    }
   public:
     clang::Expr* dfdx () {
       if (m_Stack.empty())
@@ -642,6 +666,28 @@ namespace clad {
                            const DiffRequest& request);
 
   };
+
+    /// A visitor for processing the function code to generate jacobian
+    /// Used to compute Jacobian matrices by clad::jacobian.
+    class JacobianModeVisitor
+            : public clang::ConstStmtVisitor<JacobianModeVisitor, StmtDiff>,
+              public VisitorBase {
+    private:
+        DerivativeBuilder& builder;
+    public:
+        JacobianModeVisitor(DerivativeBuilder &builder);
+        ~JacobianModeVisitor();
+
+        ///\brief Produces the jacobian matrix of a given function.
+        ///
+        ///\param[in] FD - the function that will be differentiated.
+        ///
+        ///\returns A function containing jacobian matrix.
+        ///
+        DeclWithContext Derive(const clang::FunctionDecl* FD,
+                               const DiffRequest& request);
+
+    };
 } // end namespace clad
 
 #endif // CLAD_DERIVATIVE_BUILDER_H

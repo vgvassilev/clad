@@ -190,5 +190,14 @@ namespace clad {
       reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by Hessian*/,
       code);
   }
+
+  template<typename ArgSpec = const char *, typename R, typename... Args>
+  CladFunction<false, void, Args..., R*> __attribute__((annotate("J")))
+  jacobian(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<false, void, Args..., R*>(
+        reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by Jacobian*/,
+        code);
+  }
 }
 #endif // CLAD_DIFFERENTIATOR

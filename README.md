@@ -9,10 +9,11 @@ Since Clad is a Clang plugin, it must be properly attached when Clang compiler i
 ```
 clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
 ```
-Clad provides three API functions:
+Clad provides four API functions:
 - `clad::differentiate` to use forward-mode AD
 - `clad::gradient` to use reverse-mode AD
 - `clad::hessian` to compute Hessian matrix using a combination of forward-mode and reverse-mode AD
+- `clad::jacobian` to compute Jacobian matrix using reverse-mode AD
 
 API functions are used to label an existing function for differentiation. 
 Both functions return a functor object containing the generated derivative which can be called via `.execute` method, which forwards provided arguments to the generated derivative function. Example:
