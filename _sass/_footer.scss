@@ -1,0 +1,19 @@
+.footer-dark {
+  @include gradient-x($navbar-dark-active-color, $primary, 0%, 100%);
+  border-top-color: $iris-100;
+
+  border-top-style: solid;
+  border-top-width: 3px;
+
+  a {
+    color: $navbar-dark-active-color;
+
+    @include hover-focus {
+      color: $navbar-dark-hover-color;
+    }
+  }
+
+  .footer-text {
+    color: $navbar-dark-active-color;
+  }
+}

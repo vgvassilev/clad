@@ -1,0 +1,27 @@
+- name: Peter Elmer
+  photo: Elmer.png
+  info: Research Staff, Princeton University
+  email: Peter.Elmer@princeton.edu
+  number_educ: 3
+  education1: Postdoc with University of Wisconsin, Madison ().
+  education2: PhD Phyiscs, University of Wisconsin, Madison ().
+  education3: B.S. Somewhere ().
+
+- name: David J Lange
+  photo: Lange.png
+  info: Research Staff
+  email: David.Lange@princeton.edu
+  number_educ: 4
+  education1: Scientific Staff with Lawrence Livermore National Laboratory (2002-2016). 
+  education2: Postdoc with Lawrence Livermore National Laboratory (1999-2002).
+  education3: PhD Phyiscs, University of California, Santa Barbara (1999).
+  education4: B.A. Physics, College of William and Mary (1993).
+
+- name: Vassil Vassilev
+  photo: Vassilev.jpg
+  info: Research Staff
+  email: v.g.vassilev@cern.ch
+  number_educ: 3
+  education1: CERN Fellow
+  education2: Ph.D. with 
+  education3: B.S. 

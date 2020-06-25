@@ -1,0 +1,23 @@
+#- name:
+#  photo: rock.jpg
+#  info:
+#  email:
+#  number_educ:
+#  education1:
+#  education2:
+#  education3:
+#  education4:
+
+- name: Lucas Camolezi
+  info: "GSoC student 2020: Modernizing CMSSW for C++ Modules"
+  email: camolezi@usp.br
+  number_educ: 0
+  education1: 
+
+- name: Roman Shakhov
+  info: "GSoC student 2020: Clad"
+  email: unknown
+
+- name: Vaibhav Garg 
+  info: "GSoC student 2020: C++ modules for windows"
+  email: unknown

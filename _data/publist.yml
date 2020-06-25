@@ -1,0 +1,9 @@
+- title: "Cool"
+  image: mypic.jpg
+  description: we are great
+  authors: Us
+  link:
+    url: my url
+    display:  my pub
+  highlight: 0
+  news2:
