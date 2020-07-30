@@ -91,3 +91,8 @@
 // CHECK_ROSENBROCK:}
 // RUN: ./RosenbrockFunction.out | FileCheck -check-prefix CHECK_ROSENBROCK_EXEC %s
 // CHECK_ROSENBROCK_EXEC: The result is -899.000000.
+
+//-----------------------------------------------------------------------------/
+// Demo: ODE Solver Sensitivity
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang -lstdc++ %S/../../demos/ODESolverSensitivity.cpp -I%S/../../include -oODESolverSensitivity.out
