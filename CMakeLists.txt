@@ -26,46 +26,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     set(LLVM_DIR ${Clang_DIR})
   endif()
 
-  ## Find supported Clang
-
-  set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
-  set(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
-
-  if (DEFINED CLANG_VERSION)
-    if (CLANG_VERSION VERSION_GREATER CLANG_MAX_SUPPORTED)
-      set(CLANG_VERSION ${CLANG_MAX_SUPPORTED})
-    endif()
-    if (CLANG_VERSION VERSION_LESS CLANG_MIN_SUPPORTED)
-      set(CLANG_VERSION ${CLANG_MIN_SUPPORTED})
-    endif()
-
-    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG)
-  endif()
-
-  if (NOT Clang_FOUND AND DEFINED Clang_DIR)
-    find_package(Clang REQUIRED CONFIG PATHS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake" NO_DEFAULT_PATH)
-  endif()
-
-  if (NOT Clang_FOUND)
-    find_package(Clang REQUIRED CONFIG)
-    endif()
-
-  if (NOT Clang_FOUND)
-    message(FATAL_ERROR "Please set Clang_DIR pointing to the clang build or installation folder")
-  endif()
-
-  set(CLANG_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
-  set(CLANG_VERSION_MINOR ${LLVM_VERSION_MINOR})
-  set(CLANG_VERSION_PATCH ${LLVM_VERSION_PATCH})
-  set(CLANG_PACKAGE_VERSION ${LLVM_PACKAGE_VERSION})
-
-  if (CLANG_PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR CLANG_PACKAGE_VERSION VERSION_GREATER CLANG_MAX_SUPPORTED)
-    message(FATAL_ERROR "Found unsupported version: Clang ${CLANG_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
-  endif()
-
-  message(STATUS "Found supported version: Clang ${CLANG_PACKAGE_VERSION}")
-  message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
-
   ## Find supported LLVM
 
   if (LLVM_FOUND)
@@ -111,6 +71,46 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
   message(STATUS "Found supported version: LLVM ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+  ## Find supported Clang
+
+  set(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
+  set(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
+
+  if (DEFINED CLANG_VERSION)
+    if (CLANG_VERSION VERSION_GREATER CLANG_MAX_SUPPORTED)
+      set(CLANG_VERSION ${CLANG_MAX_SUPPORTED})
+    endif()
+    if (CLANG_VERSION VERSION_LESS CLANG_MIN_SUPPORTED)
+      set(CLANG_VERSION ${CLANG_MIN_SUPPORTED})
+    endif()
+
+    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG)
+  endif()
+
+  if (NOT Clang_FOUND AND DEFINED Clang_DIR)
+    find_package(Clang REQUIRED CONFIG PATHS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake" NO_DEFAULT_PATH)
+  endif()
+
+  if (NOT Clang_FOUND)
+    find_package(Clang REQUIRED CONFIG)
+  endif()
+
+  if (NOT Clang_FOUND)
+    message(FATAL_ERROR "Please set Clang_DIR pointing to the clang build or installation folder")
+  endif()
+
+  set(CLANG_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
+  set(CLANG_VERSION_MINOR ${LLVM_VERSION_MINOR})
+  set(CLANG_VERSION_PATCH ${LLVM_VERSION_PATCH})
+  set(CLANG_PACKAGE_VERSION ${LLVM_PACKAGE_VERSION})
+
+  if (CLANG_PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR CLANG_PACKAGE_VERSION VERSION_GREATER CLANG_MAX_SUPPORTED)
+    message(FATAL_ERROR "Found unsupported version: Clang ${CLANG_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
+  endif()
+
+  message(STATUS "Found supported version: Clang ${CLANG_PACKAGE_VERSION}")
+  message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 
   # When clad is in debug mode the llvm package thinks it is built with -frtti.
   # For consistency we should set it to the correct value.
