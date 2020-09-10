@@ -50,7 +50,11 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
       set(LLVM_VERSION ${LLVM_MIN_SUPPORTED})
     endif()
 
-    find_package(LLVM ${LLVM_VERSION} REQUIRED CONFIG)
+    if (DEFINED LLVM_DIR)
+       set(search_hints HINTS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/llvm" "${LLVM_DIR}/cmake")
+    endif()
+
+    find_package(LLVM ${LLVM_VERSION} REQUIRED CONFIG ${search_hints})
   endif()
 
   if (NOT LLVM_FOUND AND DEFINED LLVM_DIR)
@@ -85,7 +89,11 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
       set(CLANG_VERSION ${CLANG_MIN_SUPPORTED})
     endif()
 
-    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG)
+    if (DEFINED Clang_DIR)
+       set(extra_hints HINTS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake")
+    endif()
+
+    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIGi ${extra_hints})
   endif()
 
   if (NOT Clang_FOUND AND DEFINED Clang_DIR)
