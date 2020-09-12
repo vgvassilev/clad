@@ -15,9 +15,9 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   ## Define clad supported version of clang and llvm
 
   set(CLANG_MIN_SUPPORTED 5.0)
-  set(CLANG_MAX_SUPPORTED 9.0.1)
+  set(CLANG_MAX_SUPPORTED 10.0.1)
   set(LLVM_MIN_SUPPORTED 5.0)
-  set(LLVM_MAX_SUPPORTED 9.0.1)
+  set(LLVM_MAX_SUPPORTED 10.0.1)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
@@ -119,6 +119,16 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
   message(STATUS "Found supported version: Clang ${CLANG_PACKAGE_VERSION}")
   message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
+
+  ## Clang 10 test
+  if (CLANG_VERSION_MAJOR GREATER_EQUAL 10)
+    if (NOT CMAKE_CXX_STANDARD)
+      set (CMAKE_CXX_STANDARD 14)
+    endif()
+    if (CMAKE_CXX_STANDARD LESS 14)
+      message(fatal "LLVM/Clad requires c++14 or later")
+    endif()
+  endif()
 
   # When clad is in debug mode the llvm package thinks it is built with -frtti.
   # For consistency we should set it to the correct value.
