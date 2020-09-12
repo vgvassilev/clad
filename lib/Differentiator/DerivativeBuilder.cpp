@@ -536,7 +536,9 @@ namespace clad {
         m_Function->getStorageClass(),
         m_Function->isInlineSpecified(),
         m_Function->hasWrittenPrototype(),
-        clad_compat::Function_GetConstexprKind(m_Function));
+        clad_compat::Function_GetConstexprKind(m_Function)
+        CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(m_Function->getTrailingRequiresClause())
+        );
     } else {
       diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
          "attempted differentiation of '%0' which is of unsupported type",
@@ -728,7 +730,9 @@ namespace clad {
                                        /*default*/
                                        FD->isInlineSpecified(),
                                        FD->hasWrittenPrototype(),
-                                       clad_compat::Function_GetConstexprKind(FD));
+                                       clad_compat::Function_GetConstexprKind(FD)
+                                       CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause())
+                                       );
     }
     m_Derivative = derivedFD;
 
@@ -1843,7 +1847,9 @@ namespace clad {
                                         m_Function->getStorageClass(),
                                         m_Function->isInlineSpecified(),
                                         m_Function->hasWrittenPrototype(),
-                                        clad_compat::Function_GetConstexprKind(m_Function));
+                                        clad_compat::Function_GetConstexprKind(m_Function)
+                                        CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(m_Function->getTrailingRequiresClause())
+                                        );
     } else {
       diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
            "attempted differentiation of '%0' which is of unsupported type",
