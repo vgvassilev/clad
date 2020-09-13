@@ -20,37 +20,17 @@ described first.
 
 External Dependencies
 ---------------------
-* Clad now works with clang-5.0, clang-6.0, clang-7.0, clang-8.0 and clang-9.0
+* Clad now works with clang-5.0 to clang-10
 
 Forward Mode & Reverse Mode
 ---------------------------
-*
+* Implement hessian matrices via the `clad::jacobian` interface.
 
-Forward Mode
-------------
-*
-
-Reverse Mode
-------------
-*
-
-Misc
-----
-* 
 
 Fixed Bugs
 ----------
 
-[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
-
-<!---Uniquify by sort ReleaseNotes.md | uniq -c | grep -v '1 ' --->
-<!---Get release bugs
-git log v0.6..master | grep 'Fixes' | \
-  s,^.*([0-9]+).*$,[\1]\(https://github.com/vgvassilev/clad/issues/\1\),' | uniq
---->
-<!---Standard MarkDown doesn't support neither variables nor <base>
-[Issue XXX](https://github.com/vgvassilev/clad/issues/XXX)
---->
+* Fixed the discovery of llvm in special builds with clang and libcxx.
 
 
 Special Kudos
@@ -61,9 +41,7 @@ listed in the form of Firstname Lastname (#contributions):
 
 FirstName LastName (#commits)
 
-* Author One (2)
-* Author Two (1)
-
-<!---Find contributor list for this release
-git log --pretty=format:"%an"  v0.6...master | sort | uniq -c | sort -rn
---->
+* Roman Shakhov (3)
+* Philippe Canal (2)
+* Alexander Penev (2)
+* Vassil Vassilev (1)
