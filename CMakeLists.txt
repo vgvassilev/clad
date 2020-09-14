@@ -93,7 +93,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
        set(extra_hints HINTS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake")
     endif()
 
-    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIGi ${extra_hints})
+    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG ${extra_hints})
   endif()
 
   if (NOT Clang_FOUND AND DEFINED Clang_DIR)
