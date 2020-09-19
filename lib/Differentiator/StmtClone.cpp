@@ -35,7 +35,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = new (Ctx) CLASS CTORARGS;             \
-  CLAD_COMPAT_EXPR_SET_DEPS                             \
+  clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
 
@@ -43,7 +43,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = CLASS::Create CTORARGS;               \
-  CLAD_COMPAT_EXPR_SET_DEPS                             \
+  clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
 
@@ -51,7 +51,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = CLAD_COMPAT_CREATE(CLASS, CTORARGS);  \
-  CLAD_COMPAT_EXPR_SET_DEPS                             \
+  clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
 
@@ -59,7 +59,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = CLAD_COMPAT_CREATE11(CLASS, CTORARGS);\
-  CLAD_COMPAT_EXPR_SET_DEPS                             \
+  clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
 
@@ -95,8 +95,8 @@ Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
                                   Node->getObjectKind()
                                   CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams
                                   );
-  // Value ant Type dependent is moved to macros
-  CLAD_COMPAT_EXPR_SET_DEPS
+  // Copy Value and Type dependent
+  clad_compat::ExprSetDeps(result, Node);
   return result;
 }
 DEFINE_CLONE_EXPR(CompoundLiteralExpr, (Node->getLParenLoc(), Node->getTypeSourceInfo(), Node->getType(), Node->getValueKind(), Clone(Node->getInitializer()), Node->isFileScope()))
@@ -202,8 +202,8 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  // Value ant Type dependent is moved to macros
-  CLAD_COMPAT_EXPR_SET_DEPS
+  // Copy Value and Type dependent
+  clad_compat::ExprSetDeps(result, Node);
 
   return result;
 }
@@ -242,8 +242,8 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  // Value ant Type dependent is moved to macros
-  CLAD_COMPAT_EXPR_SET_DEPS
+  // Copy Value and Type dependent
+  clad_compat::ExprSetDeps(result, Node);
 
   return result;
 }
@@ -259,8 +259,8 @@ Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  // Value ant Type dependent is moved to macros
-  CLAD_COMPAT_EXPR_SET_DEPS
+  // Copy Value and Type dependent
+  clad_compat::ExprSetDeps(result, Node);
 
   return result;
 }

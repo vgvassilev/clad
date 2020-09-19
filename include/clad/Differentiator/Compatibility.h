@@ -140,6 +140,12 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
 // Clang 11 add one param to CXXOperatorCallExpr_Create, ADLCallKind, and many other constructor and Create changes
 
 #if CLANG_VERSION_MAJOR < 11
+
+static inline void ExprSetDeps(Expr* result, Expr* Node) {
+   result->setValueDependent(Node->isValueDependent());
+   result->setTypeDependent(Node->isTypeDependent());
+}
+
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams /**/
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar /**/
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse /**/
@@ -147,11 +153,11 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
    #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams /**/
    #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams /**/
    #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (new (Ctx) CLASS CTORARGS)
-   #define CLAD_COMPAT_EXPR_SET_DEPS result->setValueDependent(Node->isValueDependent());result->setTypeDependent(Node->isTypeDependent());
    #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed Node->getComputationLHSType(),Node->getComputationResultType(),
    #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved /**/
    #define CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed ,Node->isTypeDependent(),Node->isValueDependent()
    #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams /**/
+
 #elif CLANG_VERSION_MAJOR >= 11
 
 struct ExprDependenceAccessor : public Expr {
@@ -160,6 +166,10 @@ struct ExprDependenceAccessor : public Expr {
    }
 };
 
+static inline void ExprSetDeps(Expr* result, Expr* Node) {
+   ((ExprDependenceAccessor*)result)->setDependence(Node->getDependence());
+}
+
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams ,Node->getADLCallKind()
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar ,clang::CallExpr::ADLCallKind UsesADL
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse ,UsesADL
@@ -167,7 +177,6 @@ struct ExprDependenceAccessor : public Expr {
    #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams Ctx.getLangOpts()
    #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams Ctx,
    #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (CLASS::Create CTORARGS)
-   #define CLAD_COMPAT_EXPR_SET_DEPS ((clad_compat::ExprDependenceAccessor*)result)->setDependence(Node->getDependence());
    #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed /**/
    #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved ,Node->getComputationLHSType(),Node->getComputationResultType()
    #define CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed /**/
