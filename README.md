@@ -128,7 +128,7 @@ Note: Clad provides custom derivatives for some mathematical functions from `<cm
 Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
 
 ## How to install
-At the moment, only LLVM/Clang 5.0.x - 10.0.x are supported.
+At the moment, only LLVM/Clang 5.0.x - 11.0.x are supported.
 
 ## How Clad works
 Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST ([Clang AST](https://clang.llvm.org/docs/IntroductionToTheClangAST.html)) of user's source code. Then, [CladPlugin](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.h#L48), implemented as `clang::ASTConsumer` analyzes the AST to find differentiation requests for clad and process those requests by building Clang AST for derivative functions. The whole clad's operation sequence is the following:

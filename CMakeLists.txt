@@ -15,9 +15,9 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   ## Define clad supported version of clang and llvm
 
   set(CLANG_MIN_SUPPORTED 5.0)
-  set(CLANG_MAX_SUPPORTED 10.0.1)
+  set(CLANG_MAX_SUPPORTED 11.0.0)
   set(LLVM_MIN_SUPPORTED 5.0)
-  set(LLVM_MAX_SUPPORTED 10.0.1)
+  set(LLVM_MAX_SUPPORTED 11.0.0)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
@@ -56,6 +56,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
     find_package(LLVM ${LLVM_VERSION} REQUIRED CONFIG ${search_hints})
   endif()
+
 
   if (NOT LLVM_FOUND AND DEFINED LLVM_DIR)
     find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/llvm" "${LLVM_DIR}/cmake" NO_DEFAULT_PATH)

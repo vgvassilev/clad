@@ -35,8 +35,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = new (Ctx) CLASS CTORARGS;             \
-  result->setValueDependent(Node->isValueDependent());  \
-  result->setTypeDependent(Node->isTypeDependent());    \
+  CLAD_COMPAT_EXPR_SET_DEPS                             \
   return result;                                        \
 }
 
@@ -44,8 +43,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = CLASS::Create CTORARGS;               \
-  result->setValueDependent(Node->isValueDependent());  \
-  result->setTypeDependent(Node->isTypeDependent());    \
+  CLAD_COMPAT_EXPR_SET_DEPS                             \
   return result;                                        \
 }
 
@@ -53,13 +51,20 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
   CLASS* result = CLAD_COMPAT_CREATE(CLASS, CTORARGS);  \
-  result->setValueDependent(Node->isValueDependent());  \
-  result->setTypeDependent(Node->isTypeDependent());    \
+  CLAD_COMPAT_EXPR_SET_DEPS                             \
   return result;                                        \
 }
 
-DEFINE_CLONE_EXPR(BinaryOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->getFPFeatures()))
-DEFINE_CLONE_EXPR(UnaryOperator, (Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc() CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams))
+#define DEFINE_CLONE_EXPR_CO11(CLASS, CTORARGS)         \
+Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
+{                                                       \
+  CLASS* result = CLAD_COMPAT_CREATE11(CLASS, CTORARGS);\
+  CLAD_COMPAT_EXPR_SET_DEPS                             \
+  return result;                                        \
+}
+
+DEFINE_CLONE_EXPR_CO11(BinaryOperator, (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc(), Node->getFPFeatures(CLAD_COMPAT_CLANG11_LangOptions_EtraParams)))
+DEFINE_CLONE_EXPR_CO11(UnaryOperator, (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getSubExpr()), Node->getOpcode(), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getOperatorLoc() CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams))
 Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   TemplateArgumentListInfo TAListInfo;
   Node->copyTemplateArgumentsInto(TAListInfo);
@@ -90,8 +95,8 @@ Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
                                   Node->getObjectKind()
                                   CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams
                                   );
-  result->setValueDependent(Node->isValueDependent());
-  result->setTypeDependent(Node->isTypeDependent());
+  // Value ant Type dependent is moved to macros
+  CLAD_COMPAT_EXPR_SET_DEPS
   return result;
 }
 DEFINE_CLONE_EXPR(CompoundLiteralExpr, (Node->getLParenLoc(), Node->getTypeSourceInfo(), Node->getType(), Node->getValueKind(), Clone(Node->getInitializer()), Node->isFileScope()))
@@ -107,12 +112,12 @@ DEFINE_CREATE_EXPR(CXXFunctionalCastExpr, (Ctx, Node->getType(), Node->getValueK
 DEFINE_CLONE_EXPR_CO(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getType(), Node->getTypeSourceInfo(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization()))
 
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr, (Node->getType(), CLAD_COMPAT_CLANG10_GetTemporaryExpr(Node), Node->isBoundToLvalueReference()))
-DEFINE_CLONE_EXPR(CompoundAssignOperator, (Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(),
-                                           Node->getValueKind(), Node->getObjectKind(), Node->getComputationLHSType(), Node->getComputationResultType(), Node->getOperatorLoc(), Node->getFPFeatures()))
+DEFINE_CLONE_EXPR_CO11(CompoundAssignOperator, (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(),
+                                           Node->getValueKind(), Node->getObjectKind(), CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed  Node->getOperatorLoc(), Node->getFPFeatures(CLAD_COMPAT_CLANG11_LangOptions_EtraParams) CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved))
 DEFINE_CLONE_EXPR(ConditionalOperator, (Clone(Node->getCond()), Node->getQuestionLoc(), Clone(Node->getLHS()), Node->getColonLoc(), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind()))
 DEFINE_CLONE_EXPR(AddrLabelExpr, (Node->getAmpAmpLoc(), Node->getLabelLoc(), Node->getLabel(), Node->getType()))
 DEFINE_CLONE_EXPR(StmtExpr, (Clone(Node->getSubStmt()), Node->getType(), Node->getLParenLoc(), Node->getRParenLoc() CLAD_COMPAT_CLANG10_StmtExpr_Create_ExtraParams ))
-DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRParenLoc(), Node->isConditionTrue(), Node->isTypeDependent(), Node->isValueDependent()))
+DEFINE_CLONE_EXPR(ChooseExpr, (Node->getBuiltinLoc(), Clone(Node->getCond()), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getType(), Node->getValueKind(), Node->getObjectKind(), Node->getRParenLoc(), Node->isConditionTrue() CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed))
 DEFINE_CLONE_EXPR(GNUNullExpr, (Node->getType(), Node->getTokenLocation()))
 DEFINE_CLONE_EXPR(VAArgExpr, (Node->getBuiltinLoc(), Clone(Node->getSubExpr()), Node->getWrittenTypeInfo(), Node->getRParenLoc(), Node->getType(), Node->isMicrosoftABI()))
 DEFINE_CLONE_EXPR(ImplicitValueInitExpr, (Node->getType()))
@@ -197,8 +202,8 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  result->setValueDependent(Node->isValueDependent());
-  result->setTypeDependent(Node->isTypeDependent());
+  // Value ant Type dependent is moved to macros
+  CLAD_COMPAT_EXPR_SET_DEPS
 
   return result;
 }
@@ -229,14 +234,16 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
                                     Node->getType(),
                                     Node->getValueKind(),
                                     Node->getRParenLoc(),
-                                    Node->getFPFeatures());
+                                    Node->getFPFeatures()
+                                    CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams
+                                    );
 //###  result->setNumArgs(Ctx, Node->getNumArgs());
   result->setNumArgsUnsafe(Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  result->setValueDependent(Node->isValueDependent());
-  result->setTypeDependent(Node->isTypeDependent());
+  // Value ant Type dependent is moved to macros
+  CLAD_COMPAT_EXPR_SET_DEPS
 
   return result;
 }
@@ -252,8 +259,8 @@ Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
 
-  result->setValueDependent(Node->isValueDependent());
-  result->setTypeDependent(Node->isTypeDependent());
+  // Value ant Type dependent is moved to macros
+  CLAD_COMPAT_EXPR_SET_DEPS
 
   return result;
 }
@@ -290,7 +297,7 @@ Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
 DEFINE_CLONE_STMT_CO(ReturnStmt, (CLAD_COMPAT_CLANG8_Ctx_ExtraParams Node->getReturnLoc(), Clone(Node->getRetValue()), 0))
 DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
-DEFINE_CLONE_STMT_CO(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc()))
+DEFINE_CLONE_STMT_CO(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc() CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams))
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(), Node->isConstexpr(), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
 DEFINE_CLONE_STMT(LabelStmt, (Node->getIdentLoc(), Node->getDecl(), Clone(Node->getSubStmt())))
