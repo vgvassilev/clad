@@ -10,6 +10,7 @@
 #include "llvm/Config/llvm-config.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Sema/Sema.h"
@@ -136,17 +137,57 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getNumArgs(),Node->getADLCallKind()
 #endif
 
+// Clang 11 add one param to CXXOperatorCallExpr_Create, ADLCallKind, and many other constructor and Create changes
+
+#if CLANG_VERSION_MAJOR < 11
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams /**/
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar /**/
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse /**/
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPOptions
+   #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams /**/
+   #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams /**/
+   #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (new (Ctx) CLASS CTORARGS)
+   #define CLAD_COMPAT_EXPR_SET_DEPS result->setValueDependent(Node->isValueDependent());result->setTypeDependent(Node->isTypeDependent());
+   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed Node->getComputationLHSType(),Node->getComputationResultType(),
+   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved /**/
+   #define CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed ,Node->isTypeDependent(),Node->isValueDependent()
+   #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams /**/
+#elif CLANG_VERSION_MAJOR >= 11
+
+struct ExprDependenceAccessor : public Expr {
+   void setDependence(ExprDependence Deps) {
+      Expr::setDependence(Deps);
+   }
+};
+
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams ,Node->getADLCallKind()
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar ,clang::CallExpr::ADLCallKind UsesADL
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse ,UsesADL
+   #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPOptionsOverride
+   #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams Ctx.getLangOpts()
+   #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams Ctx,
+   #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (CLASS::Create CTORARGS)
+   #define CLAD_COMPAT_EXPR_SET_DEPS ((clad_compat::ExprDependenceAccessor*)result)->setDependence(Node->getDependence());
+   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed /**/
+   #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Moved ,Node->getComputationLHSType(),Node->getComputationResultType()
+   #define CLAD_COMPAT_CLANG11_ChooseExpr_EtraParams_Removed /**/
+   #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams ,Node->getLParenLoc(),Node->getRParenLoc()
+#endif
 
 // Compatibility helper function for creation CXXOperatorCallExpr. Clang 8 and above use Create.
 
 static inline CXXOperatorCallExpr* CXXOperatorCallExpr_Create(ASTContext &Ctx,
    OverloadedOperatorKind OpKind, Expr *Fn, ArrayRef<Expr *> Args, QualType Ty,
-   ExprValueKind VK, SourceLocation OperatorLoc, FPOptions FPFeatures)
+   ExprValueKind VK, SourceLocation OperatorLoc, CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPFeatures
+   CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar
+   )
 {
 #if CLANG_VERSION_MAJOR < 8
    return new (Ctx) CXXOperatorCallExpr(Ctx, OpKind, Fn, Args, Ty, VK, OperatorLoc, FPFeatures);
 #elif CLANG_VERSION_MAJOR >= 8
-   return CXXOperatorCallExpr::Create(Ctx, OpKind, Fn, Args, Ty, VK, OperatorLoc, FPFeatures);
+   return CXXOperatorCallExpr::Create(Ctx, OpKind, Fn, Args, Ty, VK, OperatorLoc, FPFeatures
+   CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse
+   );
 #endif
 }
 
@@ -295,6 +336,14 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
    #define CLAD_COMPAT_CLANG10_StmtExpr_Create_ExtraParams /**/
 #elif CLANG_VERSION_MAJOR >= 10
    #define CLAD_COMPAT_CLANG10_StmtExpr_Create_ExtraParams ,Node->getTemplateDepth()
+#endif
+
+// Clang 11 add one extra param in UnaryOperator constructor.
+
+#if CLANG_VERSION_MAJOR < 11
+   #define CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams /**/
+#elif CLANG_VERSION_MAJOR >= 11
+   #define CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams ,Node->getFPOptionsOverride()
 #endif
 
 
