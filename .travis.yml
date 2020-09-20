@@ -850,7 +850,7 @@ install:
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
       fi
       # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
-      if [ $CLANG_RUNTIME == '11.0' ]; then
+      if [ $CLANG_RUNTIME == '11' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@11/
         pushd /usr/local/opt
         sudo curl https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/.tar.xz | sudo xz -d -c | sudo tar -x
