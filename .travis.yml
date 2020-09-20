@@ -853,7 +853,7 @@ install:
       if [ $CLANG_RUNTIME == '11' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@11/
         pushd /usr/local/opt
-        sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/.tar.xz | sudo xz -vvv -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
@@ -909,6 +909,8 @@ before_script:
   - cmake --version
   - $CC --version
   - $CXX --version
+  - xz --version
+  - tar --version
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
   - echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
