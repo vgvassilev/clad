@@ -849,6 +849,19 @@ install:
       if [ $CLANG_RUNTIME == '6.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
       fi
+      # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
+      if [ $CLANG_RUNTIME == '11.0' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@11/
+        pushd /usr/local/opt
+        sudo curl https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
+        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
+          # Use llvm@6 Filecheck
+          sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+        fi
+        popd
+      fi
     fi
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
       UNIX_DISTRO=$(lsb_release -rs)
