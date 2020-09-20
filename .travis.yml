@@ -18,6 +18,8 @@ addons: &common-addons
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+      - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main'
@@ -25,6 +27,8 @@ addons: &common-addons
       - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-10 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+      - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-11 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
   homebrew: &common-brew
     packages: &common-brew-packages
@@ -184,6 +188,23 @@ addons-10: &addons-10
     <<: *common-brew
     packages: &brew-packages-10 [*common-brew-packages,
       'llvm' #llvm@10
+    ]
+    update: true
+
+addons-11: &addons-11
+  <<: *common-addons
+  apt: &apt-11
+    <<: *common-apt
+    packages: &apt-packages-11 [*common-apt-packages,
+      'clang-11',
+      'libclang-11-dev',
+      'llvm-11-tools',
+      'llvm-11-dev'
+    ]
+  homebrew: &brew-11
+    <<: *common-brew
+    packages: &brew-packages-11 [*common-brew-packages,
+      'llvm' #llvm@11
     ]
     update: true
 
@@ -690,6 +711,105 @@ jobs:
         apt:
           <<: *apt-10
           packages: [*apt-packages-10, 'clang-10', 'llvm-10-tools', 'g++-multilib', 'libc6-dbg']
+
+    ##################### Clad for clang 11 #####################
+    # OSX 10.13, Clang and XCode 9.4
+    - os: osx
+      env: CLANG_RUNTIME=11 CXX=clang++ CC=clang
+      osx_image: xcode9.4
+      compiler: clang
+      addons:
+        <<: *addons-11
+
+    # Ubuntu, GCC 5
+    - env: CLANG_RUNTIME=11 CXX=g++-5 CC=gcc
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+
+    # GCC 6 Code Coverage
+    - env: CLANG_RUNTIME=11 CODE_COVERAGE=1 CXX=g++-6 CC=gcc BUILD_TYPE=Debug
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+
+   # GCC 8
+    - env: CLANG_RUNTIME=11 CXX=g++-8 CC=gcc
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
+
+    # GCC 9
+    - env: CLANG_RUNTIME=11 CXX=g++-9 CC=gcc
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
+
+    # Clang 4
+    - env: CLANG_RUNTIME=11 CXX=clang++-4.0 CC=clang-4.0
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 8
+    - env: CLANG_RUNTIME=11 CXX=clang++-8 CC=clang-8
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-8', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 9
+    - env: CLANG_RUNTIME=11 CXX=clang++-9 CC=clang-9
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 10
+    - env: CLANG_RUNTIME=11 CXX=clang++-10 CC=clang-10
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-10', 'llvm-10-tools', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 11
+    - env: CLANG_RUNTIME=11 CXX=clang++-11 CC=clang-11
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-11', 'llvm-11-tools', 'g++-multilib', 'libc6-dbg']
 
 
 before_install:
