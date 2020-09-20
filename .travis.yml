@@ -827,7 +827,6 @@ before_install:
 
 install:
   - |
-    ls /usr/local/opt/
     if [ $TRAVIS_OS_NAME == 'osx' ]; then
       # Update openssl on osx because the current one is deprecated by python.
       curl -L https://bootstrap.pypa.io/get-pip.py | sudo python
@@ -857,15 +856,15 @@ install:
         sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/clang+llvm-11.0.0-rc2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
-        # Use llvm@6 or llvm@9 or llvm Filecheck
-        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-          sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}/bin/FileCheck
-        fi
-        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-          sudo ln -s /usr/local/opt/llvm\@9/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}/bin/FileCheck
-        fi
-        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-          sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}/bin/FileCheck
+        # Use llvm/llvm@10/llvm@6 Filecheck
+        if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
+          if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@10/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          fi
         fi
         popd
       fi
