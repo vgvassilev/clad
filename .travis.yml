@@ -856,6 +856,7 @@ install:
         sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/clang+llvm-11.0.0-rc2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
+        ls /Library/Developer/CommandLineTools/Packages/
         sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_`sw_vers -productVersion | sed 's/\([0-9]*\.[0-9]*\).*/\1/'`.pkg -target /
         # Use llvm/llvm@10/llvm@6 Filecheck
         if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
