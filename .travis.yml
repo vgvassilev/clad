@@ -713,10 +713,10 @@ jobs:
           packages: [*apt-packages-10, 'clang-10', 'llvm-10-tools', 'g++-multilib', 'libc6-dbg']
 
     ##################### Clad for clang 11 #####################
-    # OSX 10.13, Clang and XCode 9.4
+    # OSX 10.13, Clang and XCode 12
     - os: osx
       env: CLANG_RUNTIME=11 CXX=clang++ CC=clang
-      osx_image: xcode9.4
+      osx_image: xcode12
       compiler: clang
       addons:
         <<: *addons-11
@@ -856,6 +856,7 @@ install:
         sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/clang+llvm-11.0.0-rc2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
+        sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_`sw_vers -productVersion | sed 's/\([0-9]*\.[0-9]*\).*/\1/'`.pkg -target /
         # Use llvm/llvm@10/llvm@6 Filecheck
         if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
           if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
