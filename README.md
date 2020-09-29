@@ -127,9 +127,6 @@ Note: Clad provides custom derivatives for some mathematical functions from `<cm
 
 Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
 
-## How to install
-At the moment, only LLVM/Clang 5.0.x - 10.0.x are supported.
-
 ## How Clad works
 Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST ([Clang AST](https://clang.llvm.org/docs/IntroductionToTheClangAST.html)) of user's source code. Then, [CladPlugin](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.h#L48), implemented as `clang::ASTConsumer` analyzes the AST to find differentiation requests for clad and process those requests by building Clang AST for derivative functions. The whole clad's operation sequence is the following:
 * Clang parses user's source code and builds the AST.
@@ -140,6 +137,10 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
 * `ForwardModeVisitor` and `ReverseModeVisitor` are derived from `clang::StmtVisitor`. In the `Derive` method they analyze the AST of the declaration of the original function and create the AST for the declaration of derivative function. Then they proceed to recursively `Visit` every Stmt in original function's body and build the body for the derivative function. Forward/Reverse mode AD algorithm is implemented in `Visit...` methods, which are executed depending on the kind of AST node visited.
 * The AST of the newly built derivative function's declaration is returned to `CladPlugin`, where the call to `clad::differentiate(f, ...)/clad::gradient(f, ...)` is [updated](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L122) and `f` is replaced by a reference to the newly created derivative function `f_...`. This effectively results in the execution of `clad::differentiate(f_...)/clad::gradient(f_...)`, which constructs `CladFunction` with a pointer to the newly created derivative. Therefore, user's calls to `.execute` method will invoke the newly generated derivative.
 * Finally, derivative's AST is [passed](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L145) for further processing by Clang compiler (LLVM IR generation, optimizations, machine code generation, etc.).
+
+## How to install
+At the moment, only LLVM/Clang 5.0.x - 10.0.x are supported.
+
 ###  Building from source (example was tested on Ubuntu 18.04 LTS)
   ```
     #sudo apt install clang-9 libclang-9-dev llvm-9-tools llvm-9-dev
