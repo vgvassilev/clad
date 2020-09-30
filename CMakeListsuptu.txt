@@ -1,3 +1,4 @@
+//this is an awesome project!!!! i love this
 cmake_minimum_required(VERSION 3.7.0)
 
 if(POLICY CMP0075)
@@ -8,7 +9,7 @@ if(POLICY CMP0077)
 endif()
 
 # If we are not building as a part of LLVM, build clad as an
-# standalone project, using LLVM as an external library:
+# stand alone project,using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   project(clad)
 
