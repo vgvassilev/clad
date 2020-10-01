@@ -85,7 +85,7 @@ The following subset of C++ syntax is supported at the moment:
 * Variable declarations of supported types (including local variables in `{}` blocks)
 * Inside functions, builtin arrays (e.g. `double x[1][2][3];`) of supported types and subscript operator `x[i]`
 * Direct assignments to variables via `=` and `+=`, `-=`, `*=`, `/=`, `++`, `--`
-* Conditional operator `?:` and boolean expressions
+* Conditional operator `?:` and boolean expressions -> 1 denotes TRUE and 0 denotes FALSE
 * Comma operator `,`
 * Control flow: `if` statements and `for` loops (*work on loops in the reverse-mode is in progress*)
 * Calls to other functions, including recursion
