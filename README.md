@@ -2,9 +2,12 @@
 |:---:|:---:|:---:|
 [![Linux & Osx Status](http://img.shields.io/travis/vgvassilev/clad.svg?style=flat-square)](https://travis-ci.org/vgvassilev/clad) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>| [![codecov]( https://codecov.io/gh/vgvassilev/clad/branch/master/graph/badge.svg)](https://codecov.io/gh/vgvassilev/clad)
 
-# Clad
+# Clad - This was an Amazing ProJect
+
 Clad enables [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) for C++. It is based on LLVM compiler infrastructure and is a plugin for [Clang compiler](http://clang.llvm.org/). Clad is based on source code transformation. Given C++ source code of a mathematical function, it can automatically generate C++ code for computing derivatives of the function. It supports both forward-mode and reverse-mode AD.
+
 ## How to use Clad
+
 Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
 ```
 clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
@@ -45,6 +48,7 @@ For a function `f` of several inputs and single (scalar) output, forward mode AD
 Generated derivative function has the same signature as the original function `f`, however its return value is the value of the derivative.
 
 ### Reverse mode
+
 When a function has many inputs and derivatives w.r.t. every input (i.e. gradient vector) are required, reverse-mode AD is a better alternative to the forward-mode. Reverse-mode AD allows to compute the gradient of `f` using *at most* a constant factor (around 4) more arithmetical operations compared to the original function. While its constant factor and memory overhead is higher than that of the forward-mode, it is independent of the number of inputs. E.g. for a function having N inputs and consisting of T arithmetical operations, computing its gradient takes a single execution of the reverse-mode AD and around 4\*T operations, while it would take N executions of the forward-mode, this requiring up to N\*3\*T operations.
 
 `clad::gradient(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
@@ -70,6 +74,7 @@ std::cout << "dy: " << result2[0] << ' ' << "dx: " << result2[1] << std::endl;
 ```
 Note: *we are working on improving the gradient interface*.
 ## What can be differentiated
+
 Clad is based on compile-time analysis and transformation of C++ abstract syntax tree (Clang AST). This means that Clad must be able to see the body of a function to differentiate it (e.g. if a function is defined in an external library there is no way for Clad to get its AST).
 
 We aim to support every piece of modern C++ syntax, however at the moment only the a subset of C++ is supported and there are some constraints on functions that can be differentiated with Clad:
@@ -128,6 +133,7 @@ Note: Clad provides custom derivatives for some mathematical functions from `<cm
 Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
 
 ## How Clad works
+
 Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST ([Clang AST](https://clang.llvm.org/docs/IntroductionToTheClangAST.html)) of user's source code. Then, [CladPlugin](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.h#L48), implemented as `clang::ASTConsumer` analyzes the AST to find differentiation requests for clad and process those requests by building Clang AST for derivative functions. The whole clad's operation sequence is the following:
 * Clang parses user's source code and builds the AST.
 * [`CladPlugin`](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L63) analyzes the built AST and starts the traversal via [`HandleTopLevelDecl`](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L67).
