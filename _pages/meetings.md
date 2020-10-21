@@ -8,16 +8,15 @@ permalink: /meetings/
 
 
 # Project Meetings
-
-
 {% for meeting in site.data.meetings %}
 
-  <b>{{ meeting.date }} at {{meeting.time_cest}} CEST</b>  <br />
+ <div class="well">
+  <pubtit>{{ meeting.date }} at {{meeting.time_cest}} CEST</pubtit>
   Connection information: {{meeting.connect}} <br />
   Agenda:
-  <ul>
   {% for item in meeting.agenda %}
-  <li> {{item.title}} (<em>{{item.speaker}} </em>): <a href="{{ item.link.url }}">{{ item.link.display }}</a> </li>
+   * {{item.title}} (<em>{{item.speaker}} </em>): [{{ item.link.display }}]({{ item.link.url }}) 
   {% endfor %}
-  </ul>
+ </div>
+ 
 {% endfor %}
