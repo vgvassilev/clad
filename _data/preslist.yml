@@ -1,0 +1,17 @@
+- title: "Error estimates of floating-point numbers and Jacobian matrix computation in Clad"
+  description: My abstract
+  location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
+  speaker: V Vassilev
+  date: 7 October 2020
+  link:
+    url: https://llvm.org/devmtg/2020-09/
+    display:  Link to poster
+
+- title: "Incremental Compilation Support in Clang"
+  description: My abstract
+  location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
+  date: 7 October 2020
+  speaker: V Vassilev 
+  link:
+    url: https://llvm.org/devmtg/2020-09/
+    display:  Link to poster
