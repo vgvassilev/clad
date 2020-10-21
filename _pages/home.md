@@ -20,9 +20,9 @@ C++ and Python (and eventually other languages), and
  * Allow seamless utilization of heterogeneous hardware (such as hardware accelerators)
 
 
-Interested in joining the development to to use our work? Join our [cppaas-announce google groups forum](https://groups.google.com/forum/#!forum/cppaas-announce) [here](https://groups.google.com/forum/#!forum/cppaas-announce/join). </p>
+Interested in joining the development to to use our work? Join our [cppaas-announce google groups forum](https://groups.google.com/forum/#!forum/cppaas-announce) [here](https://groups.google.com/forum/#!forum/cppaas-announce/join).
 
-We are looking for interested and passionate undergrad and graduate students. Fellowships (and open projects) currently available via [IRIS-HEP](https://iris-hep.org/fellows.html).</p>
+We are looking for interested and passionate undergrad and graduate students. Fellowships (and open projects) currently available via [IRIS-HEP](https://iris-hep.org/fellows.html).
 
 
 
