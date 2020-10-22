@@ -7,7 +7,7 @@ permalink: /
 ---
 
 
-A key enabler of innovation and discovery for many scientific researchers is the ability to explore data and express ideas quickly as software prototypes. Tools and techniques that reduce the “time to insight” are essential to the productivity of researchers. At the same time massive increases in data volumes and computational needs require a continual focus on maximizing code perfor- mance. To manage these competing requirements, today’s researchers often find themselves using a heterogeneous and complex mix of programming languages, development tools, and hardware.
+A key enabler of innovation and discovery for many scientific researchers is the ability to explore data and express ideas quickly as software prototypes. Tools and techniques that reduce the “time to insight” are essential to the productivity of researchers. At the same time massive increases in data volumes and computational needs require a continual focus on maximizing code performance. To manage these competing requirements, today’s researchers often find themselves using a heterogeneous and complex mix of programming languages, development tools, and hardware.
 
 The C++ programming language is used for many numerically intensive scientific applications. A combination of performance and solid backward compatibility has led to its use for many research software codes over the past 20 years. Despite its power, C++ is often seen as difficult to learn and inconsistent with rapid application development. Exploration and prototyping is slowed down by the long edit-compile-run cycles during development.
 
