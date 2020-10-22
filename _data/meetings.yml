@@ -1,6 +1,7 @@
 - date: 22 October 2020
   time_cest: "18:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98806538025?pwd=Mjlnb2cvemdYYTM4TDVWNUNTNUNDUT09)"
+  label: caas_22Oct2020
   agenda:
     - title: Update
       speaker: Vassil
@@ -10,12 +11,13 @@
     - title: Next meeting
       speaker: Vassil
       link:
-       url: Doodle
+       url: https://doodle.com/poll/bkkahvx9d5rrbka2
        display: Doodle pool for week of November 30
 
 - date: 17 September 2020
   time_cest: "18:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98806538025?pwd=Mjlnb2cvemdYYTM4TDVWNUNTNUNDUT09)"
+  label: caas_17Sept2020
   agenda:
     - title: Project introduction
       speaker: Vassil

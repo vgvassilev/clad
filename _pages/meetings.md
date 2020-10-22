@@ -10,7 +10,7 @@ permalink: /meetings/
 # Project Meetings
 {% for meeting in site.data.meetings %}
 
- <div class="well">
+ <div class="well" id={{meeting.label}}>
   <pubtit>{{ meeting.date }} at {{meeting.time_cest}} CEST</pubtit>
   Connection information: {{meeting.connect}} <br />
   Agenda:

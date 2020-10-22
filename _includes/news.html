@@ -3,7 +3,8 @@
 <h4>News</h4>
 
 {% for article in site.data.news limit:9 %}
-<b>{{ article.date }}</b> {{ article.headline | markdownify }}
+<p>
+<b>{{ article.date }}</b><br /> <a href="{{article.link}}">{{article.headline}}</a></p>
 {% endfor %}
 
 <h4><a href="{{ site.url }}{{ site.baseurl }}/allnews.html">... see all News</a></h4>
