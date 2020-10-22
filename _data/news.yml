@@ -1,15 +1,20 @@
-- date: 22. October 2020
+- date: 22 October 2020
   headline: "CaaS meeting 18:00"
   link: "/meetings#22Oct2020"
   
-- date: 5. October 2020
+- date: 5 October 2020
   headline: Clad and CaaS poster at the LLVM workshop
   link:
   
-- date: 17. September 2020
+- date: 17 September 2020
   headline: "CaaS meeting 18:00"
   link: "/meetings#17Sept2020"
 
+- date: 21 August 2020
+  headline: "Cling 0.7 released"
+  link: "https://github.com/vgvassilev/cling/releases/tag/v0.7"
+  
 - date: 9. July 2020
   headline: "RFC on Clang-Repl on LLVM-Dev list"
   link: "http://lists.llvm.org/pipermail/llvm-dev/2020-July/143257.html)"
+  
