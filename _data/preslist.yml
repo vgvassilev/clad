@@ -4,7 +4,7 @@
   speaker: V Vassilev
   date: 7 October 2020
   link:
-    url: "https://llvm.org/devmtg/2020-09/"
+    url: /_assets/presentations/LLVM2020_Clad.pdf
     display:  Link to poster
 
 - title: "Incremental Compilation Support in Clang"
@@ -13,7 +13,7 @@
   date: 7 October 2020
   speaker: V Vassilev 
   link:
-    url: "https://llvm.org/devmtg/2020-09/"
+    url: /_assets/presentations/LLVM2020_CaaS.pdf
     display: Link to poster
 
 - title: "Modernizing Boost in CMSSW"
