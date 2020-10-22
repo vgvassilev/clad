@@ -4,7 +4,7 @@
   speaker: V Vassilev
   date: 7 October 2020
   link:
-    url: https://llvm.org/devmtg/2020-09/
+    url: "https://llvm.org/devmtg/2020-09/"
     display:  Link to poster
 
 - title: "Incremental Compilation Support in Clang"
@@ -13,5 +13,53 @@
   date: 7 October 2020
   speaker: V Vassilev 
   link:
-    url: https://llvm.org/devmtg/2020-09/
-    display:  Link to poster
+    url: "https://llvm.org/devmtg/2020-09/"
+    display: Link to poster
+
+- title: "Modernizing Boost in CMSSW"
+  description:
+  location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/945364)"
+  date: 2 September 2020
+  speaker: L Camolezi
+  link:
+    url: "https://indico.cern.ch/event/945364/contributions/3992254/attachments/2095731/3522488/cmssw-finalpresentation.pdf"
+    display: Link to slides
+
+
+- title: "Enabling C++ Modules for ROOT on Windows"
+  description:
+  location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/950229/)"
+  date: 8 September 2020
+  speaker: V Garg
+  link:
+    url: https://docs.google.com/presentation/d/1rO0TIjIslVFZYmfOX0OsPPUOShOcssqeGHEGh9WDJLY/edit#slide=id.gc6fa3c898_0_0
+    display: Link to slides
+    
+
+- title: "Clad -- Automatic Differentiation in C++ and Clang"
+  description:
+  location: "[23rd Euro AD workshop](http://www.autodiff.org/?module=Workshops&submenu=EuroAD/23/main)"
+  date: 11 August 2020
+  speaker: V Vassilev
+  link:
+    url: "http://www.autodiff.org/Docs/euroad/23rd%20EuroAd%20Workshop%20-%20Vassil%20Vassilev%20-%20Clad%20--%20Automatic%20Differentiation%20in%20C++%20and%20Clang.pdf"
+    display: Link to talk
+
+- title: "CaaS poster for 2020 NSF CSSI PI meeting"
+  description: Our compiler as a service project contribution to the 2020 NSF CSSI PI meeting.
+  location: "[2020 NSF CSSI meeting, Seattle, WA](https://cssi-pi-community.github.io/2020-meeting)"
+  date: 13 February 2020
+  speaker: D Lange
+  link:
+    url: /_assets/presentations/CSSI2020_poster.pdf
+    display: Link to poster
+
+- title: "CaaS slide for 2020 NSF CSSI PI meeting"
+  description: Our compiler as a service project contribution to the 2020 NSF CSSI PI meeting.
+  location: "[2020 NSF CSSI meeting, Seattle, WA](https://cssi-pi-community.github.io/2020-meeting)"
+  date: 13 February 2020
+  speaker: D Lange
+  link:
+    url: /_assets/presentations/CSSI2020_slide.pdf
+    display: Link to slide
+    
