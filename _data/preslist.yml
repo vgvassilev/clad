@@ -62,4 +62,31 @@
   link:
     url: /_assets/presentations/CSSI2020_slide.pdf
     display: Link to slide
-    
+
+- title: "Automatic Differentiation in C++"
+  description:
+  location: Prague 2020 ISO C++ WG21 meeting
+  date: 10 February 2020
+  speaker: V Vassilev and M Foco (NVIDIA)
+  link:
+    url: "https://docs.google.com/presentation/d/19a2QNwC08pucKGwsMC7-SVFHJHEEmG31yIJtapKn_vU"
+    display: Link to slides
+
+- title: "C++ Modules in ROOT and Beyond"
+  description: 
+  location: "[2019 CHEP International Conference](chep2019.org)"
+  date: 7 November 2019
+  speaker: O Shadura
+  link:
+    url: "https://indico.cern.ch/event/773049/contributions/3473264/attachments/1937517/3215659/C_Modules_in_ROOT_and_Beyond4.pdf"
+    display: Link to slides
+
+- title: "Clad: the automatic differentiation plugin for Clang"
+  description: 
+  location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/815976/)"
+  date: 29 May 2019
+  speaker: A Efremov
+  link:
+    url: "https://indico.cern.ch/event/815976/contributions/3405951/attachments/1853315/3043286/CladIRIS.pdf"
+    display: Link to slides
+
