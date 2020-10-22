@@ -17,11 +17,12 @@
   education3: PhD Phyiscs, University of California, Santa Barbara (1999).
   education4: B.A. Physics, College of William and Mary (1993).
 
-- name: Vassil Vassilev
+- name: <a href="vassil.vassilev.info" target="_blank" >Vassil Vassilev</a>
   photo: Vassilev.jpg
   info: Research Staff
   email: vvasilev@cern.ch
-  number_educ: 3
-  education1: CERN Fellow
-  education2: Ph.D. with 
-  education3: B.S. 
+  number_educ: 4
+  education1: Various positions at CERN and FNAL (2010-2017).
+  education2: PhD Computer Science, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2015).
+  education3: MSc Software Technologies, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2010)
+  education4: BSc Informatics, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2009)
