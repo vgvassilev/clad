@@ -24,5 +24,12 @@ Interested in joining the development to to use our work? Join our [cppaas-annou
 
 We are looking for interested and passionate undergrad and graduate students. Fellowships (and open projects) currently available via [IRIS-HEP](https://iris-hep.org/fellows.html).
 
+## Collaborators and Related Projects
 
+{% assign number_printed = 0 %}
+<p float="middle">
+{% for coll in site.data.collabs %}
+  [<img src="/assets/collab_logos/{{coll.logo}}" style="width: 100px">]({{coll.url}})
+{% endfor %}
+</p>
 
