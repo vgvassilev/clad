@@ -16,4 +16,7 @@
 - logo: root.png
   name: ROOT project
   url: https://root.cern.ch
+- logo: picscie.jpg
+  name: Princeton Research Computing
+  url: https://researchcomputing.princeton.edu
   
