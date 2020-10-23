@@ -116,6 +116,15 @@ Jump to [staff](#staff), [students](#students)
 <div class="col-sm-6 clearfix">
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
+  {% if member.description %}
+  <strong>Project description:</strong> {{ member.description }} {: .text-justify}
+  {% endif %}
+  {% if member.report %}
+  <strong>Final Report:</strong> {{ member.report }}
+  {% endif %}
+  {% if member.mentors %}
+  <strong>Mentors:</strong> {{ member.mentors }}
+  {% endif %}
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}

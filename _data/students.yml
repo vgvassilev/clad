@@ -8,8 +8,14 @@
 - name: Lucas Camolezi
   info: "GSoC student 2020: Modernizing CMSSW for C++ Modules"
   email: camolezi@usp.br
-  number_educ: 0
-  education1: 
+  description: |
+    This project has the goal to find and decrease boost dependencies in CMSSW.
+    Modern C++ introduced a lot of new features that were only available through
+    boost packages. Thus, some boost code can be replaced with similar C++
+    standard library features. Using standard features is a good practice, this
+    project will move the CMSSW codebase in that direction.
+  report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/5397144158076928/" target="_blank">GSoC 2020 Archive</a>
+  mentors: Vassil Vassilev, David Lange
 
 - name: Roman Shakhov
   info: "GSoC student 2020: Clad"
@@ -17,4 +23,21 @@
 
 - name: Vaibhav Garg 
   info: "GSoC student 2020: C++ modules for windows"
-  email: unknown
+  email: gargvaibhav64@gmail.com
+  description: |
+    ROOT has several features that interact with libraries and require implicit
+    header inclusion. This can be triggered by reading or writing data on disk,
+    or user actions at the prompt. Exposing the full shared library descriptors
+    to the interpreter at runtime translates into an increased memory footprint.
+    ROOT’s exploratory programming concepts allow implicit and explicit runtime
+    shared library loading. It requires the interpreter to load the library
+    descriptor. Re-parsing of descriptors’ content has a noticeable effect on
+    runtime performance. C++ Modules are designed to minimize the reparsing of
+    the same header content by providing an efficient on-disk representation of
+    the C++ Code. C++ Modules have been implemented for Unix and OS X systems
+    already and it is expected that with next release of ROOT, C++ modules will
+    be default on OS X. This project aims to extend the C++ Modules support for
+    Windows, by implementing compatible solutions to the UNIX baseline and also
+    display corresponding performance results.
+  report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/6406031539699712/" target="_blank">GSoC 2020 Archive</a>
+  mentors: Vassil Vassilev, Bertrand Bellenot
