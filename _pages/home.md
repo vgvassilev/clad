@@ -29,7 +29,7 @@ We are looking for interested and passionate undergrad and graduate students. Fe
 {% assign number_printed = 0 %}
 <p float="middle">
 {% for coll in site.data.collabs %}
-  [<img src="/assets/collab_logos/{{coll.logo}}" style="width: 100px">]({{coll.url}})
+  [<img src="/assets/collab_logos/{{coll.logo}}" style="width: 150px">]({{coll.url}})
 {% endfor %}
 </p>
 
