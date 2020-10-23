@@ -34,3 +34,7 @@ A CaaS can support various language interoperability services. For example libIn
 via last resort lookup request to the proposed layer (1). It performs a name lookup through for the requested entity (2). The REPL,
 run as a service, finds a suitable candidate(s) and returns it. Then the layer wraps the candidate into a meta object and
 returns to the Python interpreter as C++ entity bound to Python.
+
+In the end we aim to enable a very interactive programming experience: 
+<br />
+<img src="/images/caas_prog_model.png" width="700">
