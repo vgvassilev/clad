@@ -1,12 +1,9 @@
-#- name:
-#  photo: rock.jpg
-#  info:
-#  email:
-#  number_educ:
-#  education1:
-#  education2:
-#  education3:
-#  education4:
+- name: "This could be you!"
+  photo: rock.jpg
+  info: See <a href="/vacancies">openings</a> for more info
+  email: vvasilev@cern.ch
+  current: 1
+  number_educ: 0
 
 - name: Lucas Camolezi
   info: "GSoC student 2020: Modernizing CMSSW for C++ Modules"
