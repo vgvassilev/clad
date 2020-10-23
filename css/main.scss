@@ -8,10 +8,20 @@ img { margin-bottom: 24px;
     border-radius:2%;
 }
 
+html, body {
+    height: 100%;
+}
 
 body {
-	padding-top: 70px;
+    padding-top: 70px;
+    display: flex; 
+    flex-direction: column; 
 }
+
+.panel {
+    flex-shrink: 0;
+}
+
 
 figcaption {
     text-align: right;
@@ -44,6 +54,7 @@ firstp {
   margin-right: auto;
   margin-left: auto;
   max-width: 1000px; /* or 950px */
+  flex: 1 0 auto;
 }
 
 /* Home, News */
