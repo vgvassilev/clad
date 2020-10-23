@@ -1,19 +1,19 @@
-- logo: cpp_logo.png
-  name: ISOCPP WG21
-  url: isocpp.org
+- logo: llvm_logo.png
+  name: LLVM
+  url: https://llvm.org
 - logo: cppyy.png
   name: CPPYY project
-  url: cppyy.readthedocs.io
-- logo: diana.svg
+  url: https://cppyy.readthedocs.io
+- logo: diana.png
   name: DIANA-HEP project
-  url: diana-hep.org
+  url: https://diana-hep.org
 - logo: iris-hep.png
   name: IRIS-HEP project
-  url: iris-hep.org
+  url: https://iris-hep.org
 - logo: quantstack.svg
   name: Quantstack and Xeus-Cling
-  url: quantstack.net
+  url: https://quantstack.net
 - logo: root.png
   name: ROOT project
-  url: root.cern.ch
+  url: https://root.cern.ch
   
