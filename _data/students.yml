@@ -3,27 +3,11 @@
   info: See <a href="/vacancies">openings</a> for more info
   email: vvasilev@cern.ch
   current: 1
-  number_educ: 0
 
-- name: Lucas Camolezi
-  info: "GSoC student 2020: Modernizing CMSSW for C++ Modules"
-  email: camolezi@usp.br
-  description: |
-    This project has the goal to find and decrease boost dependencies in CMSSW.
-    Modern C++ introduced a lot of new features that were only available through
-    boost packages. Thus, some boost code can be replaced with similar C++
-    standard library features. Using standard features is a good practice, this
-    project will move the CMSSW codebase in that direction.
-  report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/5397144158076928/" target="_blank">GSoC 2020 Archive</a>
-  mentors: Vassil Vassilev, David Lange
-
-- name: Roman Shakhov
-  info: "GSoC student 2020: Clad"
-  email: unknown
-
-- name: Vaibhav Garg 
-  info: "GSoC student 2020: C++ modules for windows"
+- name: Vaibhav Garg
+  info: "Enable Modules on Windows, GSoC 2020"
   email: gargvaibhav64@gmail.com
+  education: "Computer Science, Birla Institute of Technology and Science, Pilani, India"
   description: |
     ROOT has several features that interact with libraries and require implicit
     header inclusion. This can be triggered by reading or writing data on disk,
@@ -41,3 +25,33 @@
     display corresponding performance results.
   report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/6406031539699712/" target="_blank">GSoC 2020 Archive</a>
   mentors: Vassil Vassilev, Bertrand Bellenot
+
+- name: Lucas Camolezi
+  info: "Reduce boost dependence in CMSSW, GSoC 2020"
+  email: camolezi@usp.br
+  education: "Computer Engineering, University of São Paulo, Brazil"
+  description: |
+    This project has the goal to find and decrease boost dependencies in CMSSW.
+    Modern C++ introduced a lot of new features that were only available through
+    boost packages. Thus, some boost code can be replaced with similar C++
+    standard library features. Using standard features is a good practice, this
+    project will move the CMSSW codebase in that direction.
+  report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/5397144158076928/" target="_blank">GSoC 2020 Archive</a>
+  mentors: Vassil Vassilev, David Lange
+
+- name: Roman Shakhov
+  info: "Extend clad to compute Jacobians, GSoC 2020"
+  email: r.intval@gmail.com
+  education: "Mathematics and Computer Science, Voronezh State University, Russia"
+  description: |
+    In mathematics and computer algebra, automatic differentiation (AD) is a
+    set of techniques to numerically evaluate the derivative of a function
+    specified by a computer program. Automatic differentiation is an alternative
+    technique to Symbolic differentiation and Numerical differentiation (the
+    method of finite differences). CLAD is based on Clang which will provide the
+    necessary facilities for code transformation. The AD library is able to
+    differentiate non-trivial functions, to find a partial derivative for trivial
+    cases and has good unit test coverage.
+    Currently, clad does not provide an easy way to compute Jacobians.
+  report: <a href="/assets/presentations/LLVM2020_Clad.pdf" target="_blank">Poster</a>
+  mentors: Vassil Vassilev, Alexander Penev

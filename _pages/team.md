@@ -116,6 +116,9 @@ Jump to [staff](#staff), [students](#students)
 <div class="col-sm-6 clearfix">
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
+  {% if member.education %}
+  <strong>Education:</strong> {{ member.education }}
+  {% endif %}
   {% if member.description %}
   <strong>Project description:</strong> {{ member.description }} {: .text-justify}
   {% endif %}
