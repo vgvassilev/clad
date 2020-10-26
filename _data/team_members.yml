@@ -1,12 +1,3 @@
-- name: Peter Elmer
-  photo: Elmer.png
-  info: Research Staff, Princeton University
-  email: Peter.Elmer@princeton.edu
-  number_educ: 3
-  education1: Postdoc with University of Wisconsin, Madison ().
-  education2: PhD Phyiscs, University of Wisconsin, Madison ().
-  education3: B.S. Somewhere ().
-
 - name: David J Lange
   photo: Lange.png
   info: Research Staff
