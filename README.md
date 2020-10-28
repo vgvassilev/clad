@@ -180,6 +180,8 @@ At the moment, only LLVM/Clang 5.0.x - 10.0.x are supported.
     cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`" ../src/
     make && make install
   ```
+  ## Recent Contributors
+  [![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/0)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/0)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/1)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/1)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/2)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/2)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/3)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/3)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/4)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/4)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/5)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/5)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/6)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/6)[![](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/images/7)](https://sourcerer.io/fame/vgvassilev/vgvassilev/clad/links/7)
   
   ## Citing Clad
 ```latex
