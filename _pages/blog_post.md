@@ -62,11 +62,13 @@ Languages which enable exploratory programming tend to have interpreters which s
 
 For the sake of this post series, interpreting C++ means enabling exploratory programming for C++ while mitigating the performance cost with JIT compilation. Figure 1 shows an illustrative example of exploratory programming. It becomes trivial to orient the shape, choose size and color or compare to previous settings. The invisible compile-link cycle aids interactive use which allows some qualitatively different approaches to program development and enhanced productivity.
 
+<p align="center">
+<img src="/images/blog/figure1.gif" width="70%"><br />
 
-![alt_text](/images/blog/figure1.gif "image_tooltip")
+<!--- ![alt_text](/images/blog/figure1.gif "image_tooltip") --->
 
 
-Figure 1. Interactive OpenGL Demo.
+Figure 1. Interactive OpenGL Demo. </p>
 
 
 ## Design principles
@@ -84,11 +86,10 @@ Figure 1. Interactive OpenGL Demo.
 
 Cling accepts partial input and ensures that the compiler remains active. It includes an API providing access to the properties of recently compiled chunks of code that can be post-processed. Cling orchestrates the existing LLVM and Clang infrastructure following a data flow described in Figure 2.
 
+<p align="center">
+<img src="/images/blog/figure2.png" width="70%"><br />
 
-![alt_text](/images/blog/figure2.png "image_tooltip")
-
-
-Figure 2. Information flow in Cling
+Figure 2. Information flow in Cling </p>
 
 The tool controls the input infrastructure by interactive prompt or by an interface allowing the incremental processing of input (➀). Then it sends the input to the underlying clang library for compilation (➁). Clang compiles the input, possibly wrapped into a function, into an AST (➂). When necessary the AST can be further transformed in order to attach specific behavior (➃). For example, reporting execution results, or other interpreter-related features. Once the high-level AST representation is ready, it is sent for lowering to an LLVM-specific assembly format, the LLVM IR (➄). The LLVM IR is the input format for LLVM’s just-in-time compilation infrastructure. Cling instructs the JIT to run specified functions ( ➅ ), translating them into machine code (MC) targeting the underlying device architecture (eg. Intel x86 or NVPTX) (➆,➇).
 
@@ -229,9 +230,6 @@ Cling has been one of the systems enabling interactive C++ for more than decade.
 In the next blog post we will focus on interactive C++ for Data Science; Eval-Style Programming; Interactive CUDA; and C++ in notebooks.
 
 You can find out more about our activities at https://root.cern and https://compiler-research.org
-
-
-# 
 
 
 # Interactive C++ for Data Science
