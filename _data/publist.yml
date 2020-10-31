@@ -269,15 +269,15 @@
 - title: Continuous Performance Benchmarking Framework for ROOT
   author: Oksana Shadura, Vassil Vassilev, Brian Paul Bockelman
   abstract: |
-  Foundational software libraries such as ROOT are under intense pressure to
-  avoid software regression, including performance regressions. Continuous
-  performance benchmarking, as a part of continuous integration and other code
-  quality testing, is an industry best-practice to understand how the performance
-  of a software product evolves. We present a framework, built from industry best
-  practices and tools, to help to understand ROOT code performance and monitor
-  the efficiency of the code for several processor architectures. It additionally
-  allows historical performance measurements for ROOT I/O, vectorization and
-  parallelization sub-systems.
+    Foundational software libraries such as ROOT are under intense pressure to
+    avoid software regression, including performance regressions. Continuous
+    performance benchmarking, as a part of continuous integration and other code
+    quality testing, is an industry best-practice to understand how the performance
+    of a software product evolves. We present a framework, built from industry best
+    practices and tools, to help to understand ROOT code performance and monitor
+    the efficiency of the code for several processor architectures. It additionally
+    allows historical performance measurements for ROOT I/O, vectorization and
+    parallelization sub-systems.
   cites: '0'
   eprint: https://www.epj-conferences.org/articles/epjconf/pdf/2019/19/epjconf_chep2018_05003.pdf
   journal: EPJ Web of Conferences
