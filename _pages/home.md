@@ -27,9 +27,25 @@ We are looking for interested and passionate undergrad and graduate students. Fe
 ## Collaborators and Related Projects
 
 {% assign number_printed = 0 %}
-<p float="middle">
 {% for coll in site.data.collabs %}
-  [<img src="/assets/collab_logos/{{coll.logo}}" style="width: 150px">]({{coll.url}})
-{% endfor %}
-</p>
+{% assign even_odd = number_printed | modulo: 4 %}
+{% if even_odd == 0 %}
+<div class="row">
+{% endif %}
 
+<div class="col-sm-3 clearfix">
+  [<img src="/assets/collab_logos/{{coll.logo}}" class="img-responsive" width="75%" style="float: center" />]({{coll.url}})
+</div>
+
+{% assign number_printed = number_printed | plus: 1 %}
+
+{% if even_odd == 3 %}
+</div>
+{% endif %}
+
+{% endfor %}
+
+{% assign even_odd = number_printed | modulo: 4 %}
+{% if even_odd > 0 %}
+</div>
+{% endif %}

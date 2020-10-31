@@ -1,9 +1,365 @@
-- title: "Cool"
-  image: mypic.jpg
-  description: we are great
-  authors: Us
-  link:
-    url: my url
-    display:  my pub
-  highlight: 0
-  news2:
+- abstract: Cling is an interactive C++ interpreter, built on top of Clang and LLVM
+    compiler infrastructure. Like its predecessor Cint, Cling realizes the read-print-evaluate-loop
+    concept, in order to leverage rapid application development. Implemented as a
+    small extension to LLVM and Clang, the interpreter reuses their strengths such
+    as the praised concise and expressive compiler diagnostics. We show how to match
+    the interpreter concept to the compiler library and generalize common set of requirements
+    for building up an interactive interpreter. We reason the design and implementation
+    decisions as solution to the challenge of implementing interpreter behaviour as
+    an extension of the compiler library. We present the new features, eg how C++
+    11 will come to Cling and how Cint-specific extensions are being adopted. We clarify
+    the state of integration in the ROOT framework and the induced change set. We
+    explain how ROOT …
+  author: V Vasilev, Ph Canal, A Naumann, P Russo
+  cites: '19'
+  cites_id: '17462954415562379042'
+  eprint: https://iopscience.iop.org/article/10.1088/1742-6596/396/5/052071/pdf
+  number: '5'
+  pages: '052071'
+  title: Cling–the new interactive interpreter for root 6
+  url: https://iopscience.iop.org/article/10.1088/1742-6596/396/5/052071/meta
+  volume: '396'
+  year: '2012'
+- abstract: Differentiation is ubiquitous in high energy physics, for instance in
+    minimization algorithms and statistical analysis, in detector alignment and calibration,
+    and in theory. Automatic differentiation (AD) avoids well-known limitations in
+    round-offs and speed, which symbolic and numerical differentiation suffer from,
+    by transforming the source code of functions. We will present how AD can be used
+    to compute the gradient of multi-variate functions and functor objects. We will
+    explain approaches to implement an AD tool. We will show how LLVM, Clang and Cling
+    (ROOT's C++ 11 interpreter) simplifies creation of such a tool. We describe how
+    the tool could be integrated within any framework. We will demonstrate a simple
+    proof-of-concept prototype, called Clad, which is able to generate n-th order
+    derivatives of C++ functions and other language constructs. We also demonstrate
+    how Clad can offload laborious computations …
+  author: V Vassilev, M Vassilev, A Penev, L Moneta, V Ilieva
+  cites: '5'
+  cites_id: '3614309831712318570'
+  eprint: https://iopscience.iop.org/article/10.1088/1742-6596/608/1/012055/pdf
+  journal: 'Journal of Physics: Conference Series'
+  number: '1'
+  pages: '012055'
+  publisher: IOP Publishing
+  title: Clad—automatic differentiation using Clang and LLVM
+  url: https://iopscience.iop.org/article/10.1088/1742-6596/608/1/012055/meta
+  volume: '608'
+  year: '2015'
+- abstract: ' ROOT comes with a C++ compliant interpreter cling. Cling needs to understand
+    the content of the libraries in order to interact with them. Exposing the full
+    shared library descriptors to the interpreter at runtime translates into increased
+    memory footprint. ROOT’s exploratory programming concepts allow implicit and explicit
+    runtime shared library loading. It requires the interpreter to load the library
+    descriptor. Re-parsing of descriptors’ content has a noticeable effect on the
+    runtime performance. Present state-of-art lazy parsing technique brings the runtime
+    performance to reasonable levels but proves to be fragile and can introduce correctness
+    issues. An elegant solution is to load information from the descriptor lazily
+    and in a non-recursive way.The LLVM community advances its C++ Modules technology
+    providing an io-efficient, on-disk representation capable to reduce build times
+    and peak memory usage. The feature …'
+  author: Vassil Vassilev
+  cites: '4'
+  cites_id: '860139365460275907'
+  eprint: https://iopscience.iop.org/article/10.1088/1742-6596/898/7/072023/pdf
+  journal: 'Journal of Physics: Conference Series'
+  number: '10.1088'
+  pages: 1742-6596
+  title: Optimizing ROOT’s Performance Using C++ Modules
+  url: https://iopscience.iop.org/article/10.1088/1742-6596/898/7/072023/pdf
+  volume: '898'
+  year: '2016'
+- abstract: ROOT is a data analysis framework broadly used in and outside of High
+    Energy Physics (HEP). Since HEP software frameworks always strive for performance
+    improvements, ROOT was extended with experimental support of runtime C++ Modules.
+    C++ Modules are designed to improve the performance of C++ code parsing. C++ Modules
+    offers a promising way to improve ROOT’s runtime performance by saving the C++
+    header parsing time which happens during ROOT runtime. This paper presents the
+    results and challenges of integrating C++ Modules into ROOT.
+  author: Yuka Takahashi, Vassil Vassilev, Oksana Shadura, Raphael Isemann
+  cites: '2'
+  cites_id: '7331821473567233508'
+  eprint: https://www.epj-conferences.org/articles/epjconf/pdf/2019/19/epjconf_chep2018_02011.pdf
+  journal: EPJ Web of Conferences
+  pages: '02011'
+  publisher: EDP Sciences
+  title: Optimizing Frameworks’ Performance Using C++ Modules Aware ROOT
+  url: https://www.epj-conferences.org/articles/epjconf/abs/2019/19/epjconf_chep2018_02011/epjconf_chep2018_02011.html
+  volume: '214'
+  year: '2019'
+- author: Yuka Takahashi, Vassil Vassilev, Oksana Shadura, Raphael Isemann
+  cites: '2'
+  cites_id: '4954464365398811249'
+  journal: arXiv preprint arXiv:1812.03992
+  title: Optimizing Frameworks Performance Using C++ Modules Aware ROOT, CoRR
+  url: http://scholar.google.com/scholar?cluster=4954464365398811249&hl=en&oi=scholarr
+  year: '2018'
+- author: Oksana Shadura, Vassil Vassilev, Brian Paul Bockelman
+  cites: '2'
+  cites_id: '1885960028476495536'
+  journal: CoRR, http://arxiv. org/abs
+  title: Optimizing Frameworks Performance Using C++ Modules Aware ROOT
+  url: http://scholar.google.com/scholar?cluster=1885960028476495536&hl=en&oi=scholarr
+  year: '1812'
+- abstract: In mathematics and computer algebra, automatic differentiation (AD) is
+    a set of techniques to evaluate the derivative of a function specified by a computer
+    program. AD exploits the fact that every computer program, no matter how complicated,
+    executes a sequence of elementary arithmetic operations (addition, subtraction,
+    multiplication, division, etc.), elementary functions (exp, log, sin, cos, etc.)
+    and control flow statements. AD takes source code of a function as input and produces
+    source code of the derived function. By applying the chain rule repeatedly to
+    these operations, derivatives of arbitrary order can be computed automatically,
+    accurately to working precision, and using at most a small constant factor more
+    arithmetic operations than the original program.This paper presents AD techniques
+    available in ROOT, supported by Cling, to produce derivatives of arbitrary C/C++
+    functions through implementing source code transformation and employing the chain
+    rule of differential calculus in both forward mode and reverse mode. We explain
+    its current integration for gradient computation in TFormula. We demonstrate the
+    correctness and performance improvements in ROOT's fitting algorithms.
+  author: Vassil Vassilev, Aleksandr Efremov, Oksana Shadura
+  cites: '1'
+  cites_id: '5151320058278720217'
+  eprint: https://arxiv.org/pdf/2004.04435
+  journal: arXiv preprint arXiv:2004.04435
+  title: Automatic Differentiation in ROOT
+  url: https://arxiv.org/abs/2004.04435
+  year: '2020'
+- abstract: The high energy physics community is discussing where investment is needed
+    to prepare software for the HL-LHC and its unprecedented challenges. The ROOT
+    project is one of the central software players in high energy physics since decades.
+    From its experience and expectations, the ROOT team has distilled a comprehensive
+    set of areas that should see research and development in the context of data analysis
+    software, for making best use of HL-LHC's physics potential. This work shows what
+    these areas could be, why the ROOT team believes investing in them is needed,
+    which gains are expected, and where related work is ongoing. It can serve as an
+    indication for future research proposals and cooperations.
+  author: Kim Albertsson Brann, Sitong An, Vassil Vassilev, Enric Tejedor
+    Saavedra, Jakob Blomer, Lorenzo Moneta, Axel Naumann, Enrico Guiraud
+   , Alja Mrak Tadel, Pere Mato Vila, Vincenzo Eduardo Padulano, Stephan
+    Hageboeck, Matevz Tadel, Stefan Wunsch, Bertrand Bellenot, Oksana
+    Shadura, Guilherme Amadio, Fons Rademakers, Massimiliano Galli, Xavier
+    Valls Pla, Sergey Linev, Philippe Canal, Olivier Couet
+  cites: '0'
+  eprint: https://cds.cern.ch/record/2715455/files/2004.07675.pdf
+  number: 'arXiv: 2004.07675'
+  title: 'arXiv: Software Challenges For HL-LHC Data Analysis'
+  url: https://cds.cern.ch/record/2715455
+  year: '2020'
+- abstract: The high energy physics community is discussing where investment is needed
+    to prepare software for the HL-LHC and its unprecedented challenges. The ROOT
+    project is one of the central software players in high energy physics since decades.
+    From its experience and expectations, the ROOT team has distilled a comprehensive
+    set of areas that should see research and development in the context of data analysis
+    software, for making best use of HL-LHC's physics potential. This work shows what
+    these areas could be, why the ROOT team believes investing in them is needed,
+    which gains are expected, and where related work is ongoing. It can serve as an
+    indication for future research proposals and cooperations.
+  author: Kim Albertsson Brann, Guilherme Amadio, Sitong An, Bertrand Bellenot
+   , Jakob Blomer, Philippe Canal, Olivier Couet, Massimiliano Galli,
+    Enrico Guiraud, Stephan Hageboeck, Sergey Linev, Pere Mato Vila, Lorenzo
+    Moneta, Axel Naumann, Alja Mrak Tadel, Vincenzo Eduardo Padulano,
+    Fons Rademakers, Oksana Shadura, Matevz Tadel, Enric Tejedor Saavedra
+   , Xavier Valls Pla, Vassil Vassilev, Stefan Wunsch, ROOT Team
+  cites: '0'
+  eprint: https://arxiv.org/pdf/2004.07675
+  journal: arXiv preprint arXiv:2004.07675
+  title: Software Challenges For HL-LHC Data Analysis
+  url: https://arxiv.org/abs/2004.07675
+  year: '2020'
+- abstract: C++ Modules come in C++ 20 to fix the long-standing build scalability
+    problems in the language. They provide an io-efficient, on-disk representation
+    capable to reduce build times and peak memory usage. ROOT employs the C++ modules
+    technology further in the ROOT dictionary system to improve its performance and
+    reduce the memory footprint.ROOT with C++ Modules was released as a technology
+    preview in fall 2018, after intensive development during the last few years. The
+    current state is ready for production, however, there is still room for performance
+    optimizations. In this talk, we show the roadmap for making the technology default
+    in ROOT. We demonstrate a global module indexing optimization which allows reducing
+    the memory footprint dramatically for many workflows. We will report user feedback
+    on the migration to ROOT with C++ Modules.
+  author: Vassil Vassilev, David Lange, Malik Shahzad Muzzafar, Mircho Rodozov
+   , Oksana Shadura, Alexander Penev
+  cites: '0'
+  eprint: https://arxiv.org/pdf/2004.06507
+  journal: arXiv preprint arXiv:2004.06507
+  title: C++ Modules in ROOT and Beyond
+  url: https://arxiv.org/abs/2004.06507
+  year: '2020'
+- abstract: ROOT has several features which interact with libraries and require implicit
+    header inclusion. This can be triggered by reading or writing data on disk, or
+    user actions at the prompt. Often, the headers are immutable, and reparsing is
+    redundant. C++ Modules are designed to minimize the reparsing of the same header
+    content by providing an efficient on-disk representation of C++ Code. ROOT has
+    released a C++ Modules-aware technology preview, which intends to become the default
+    for the ROOT 6.20 release.
+  author: Yuka Takahashi, Oksana Shadura, Vassil Vassilev
+  cites: '0'
+  eprint: https://iopscience.iop.org/article/10.1088/1742-6596/1525/1/012051/pdf
+  journal: 'Journal of Physics: Conference Series'
+  number: '1'
+  pages: '012051'
+  publisher: IOP Publishing
+  title: Migrating large codebases to C++ Modules
+  url: https://iopscience.iop.org/article/10.1088/1742-6596/1525/1/012051/meta
+  volume: '1525'
+  year: '2020'
+- abstract: The high energy physics community is discussing where investment is needed
+    to prepare software for the HL-LHC and its unprecedented challenges. The ROOT
+    project is one of the central software players in high energy physics since decades.
+    From its experience and expectations, the ROOT team has distilled a comprehensive
+    set of areas that should see research and development in the context of data analysis
+    software, for making best use of HL-LHC's physics potential. This work shows what
+    these areas could be, why the ROOT team believes investing in them is needed,
+    which gains are expected, and where related work is ongoing. It can serve as an
+    indication for future research proposals and cooperations.
+  author: Kim Albertsson Brann, Guilherme Amadio, Sitong An, Bertrand Bellenot
+   , Jakob Blomer, Philippe Canal, Olivier Couet, Massimiliano Galli and
+    Enrico Guiraud, Stephan Hageboeck, Sergey Linev, Pere Mato Vila, Lorenzo
+    Moneta, Axel Naumann, Alja Mrak Tadel, Vincenzo Eduardo Padulano and
+    Fons Rademakers, Oksana Shadura, Matevz Tadel, Enric Tejedor Saavedra
+   , Xavier Valls Pla, Vassil Vassilev, Stefan Wunsch, ROOT Team
+  cites: '0'
+  journal: arXiv
+  pages: 'arXiv: 2004.07675'
+  title: Software Challenges For HL-LHC Data Analysis
+  url: https://ui.adsabs.harvard.edu/abs/2020arXiv200407675R/abstract
+  year: '2020'
+- abstract: Debugging is a very time consuming task which is not well supported by
+    existing tools. The existing methods do not provide tools enabling optimal developers’
+    productivity when debugging regressions in complex systems. In this paper we describe
+    a possible solution aiding differential debugging. The differential debugging
+    technique performs analysis of the regressed system and identifying the cause
+    of the unexpected behavior by comparing to a previous version of the same system.
+    The prototype, idd, inspects two versions of the executable – a baseline and a
+    regressed version. The interactive debugging session runs side by side both executables
+    and allows to examine and to compare various internal states. The architecture
+    can work with multiple information sources comparing data from different tools.
+    We also show how idd can detect performance regressions using information from
+    third-party performance facilities. We illustrate how in practice we can quickly
+    discover regressions in large systems such as the clang compiler.
+  author: Martin Vassilev, Vassil Vassilev, Alexander Penev
+  cites: '0'
+  eprint: https://content.sciendo.com/downloadpdf/journals/cait/20/1/article-p53.xml
+  journal: Cybernetics and Information Technologies
+  number: '1'
+  pages: 53-67
+  publisher: Sciendo
+  title: IDD–A Platform Enabling Differential Debugging
+  url: https://content.sciendo.com/view/journals/cait/20/1/article-p53.xml
+  volume: '20'
+  year: '2020'
+- abstract: Most implementations of the C++ programming language generate binary executable
+    code. However, interpreted execution of C++ sources has its own use cases as the
+    Cling interpreter from CERN's ROOT project has shown. Some limitations are derived
+    from the ODR (One Definition Rule) that rules out multiple definitions of entities
+    within a single translation unit (TU). ODR is there to ensure uniform view of
+    a given C++ entity across translation units. Ensuring uniform view of C++ entities
+    helps when producing ABI compatible binaries. Interpreting C++ presumes a single
+    ever-growing translation unit that define away some of the ODR use-cases. Therefore,
+    it may well be desirable to relax the ODR and, consequently, to support the ability
+    of developers to override any existing definition for a given declaration. This
+    approach is especially well-suited for iterative prototyping. In this paper, we
+    extend Cling, a Clang/LLVM …
+  author: Javier López-Gómez, Javier Fernández, David del Rio Astorga, Vassil
+    Vassilev, Axel Naumann, J Daniel García
+  cites: '0'
+  eprint: https://dl.acm.org/doi/pdf/10.1145/3377555.3377901
+  pages: 212-222
+  title: Relaxing the one definition rule in interpreted C++
+  url: https://dl.acm.org/doi/abs/10.1145/3377555.3377901
+  year: '2020'
+- abstract: Derivatives are vital a wide variety of computing applications, including
+    numerical optimization, solution of nonlinear equations, sensitivity analysis,
+    and nonlinear inverse problems. Virtually every process could be described with
+    a mathematical function. A mathematical function can be thought of as an association
+    between elements from different sets. Derivatives can track how a varying quantity
+    depends on another quantity, for example how the position of a planet as the time
+    varies. Derivatives and gradients allows us to explore the properties of a function
+    and thus the described process as a whole. Also, gradients are an essential component
+    in gradient-based optimization methods, that have become more and more important
+    in recent years, in particular with its application training of (Deep) Neural
+    Networks.Derivatives can be computed numerically, but unfortunately the finite
+    differences methods are problematic due to the approximation operated and the
+    finite precision of floating point values used, and so the implementation of the
+    method faces precision and round off problems which can affect the overall precision
+    of the computation. This problem becomes worse with higher order derivatives.
+  author: Marco Foco, Max Rietmann, Vassil Vassilev, Michael Wong, Dmitry
+    Duka, Vinod Grover
+  cites: '0'
+  eprint: http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p2072r0.pdf
+  title: 'P2072R0: Differentiable programming for C+'
+  url: http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p2072r0.pdf
+  year: '2020'
+- abstract: Foundational software libraries such as ROOT are under intense pressure
+    to avoid software regression, including performance regressions. Continuous performance
+    benchmarking, as a part of continuous integration and other code quality testing,
+    is an industry best-practice to understand how the performance of a software product
+    evolves. We present a framework, built from industry best practices and tools,
+    to help to understand ROOT code performance and monitor the efficiency of the
+    code for several processor architectures. It additionally allows historical performance
+    measurements for ROOT I/O, vectorization and parallelization sub-systems.
+  author: Oksana Shadura, Vassil Vassilev, Brian Paul Bockelman
+  cites: '0'
+  eprint: https://www.epj-conferences.org/articles/epjconf/pdf/2019/19/epjconf_chep2018_05003.pdf
+  journal: EPJ Web of Conferences
+  pages: '05003'
+  publisher: EDP Sciences
+  title: Continuous Performance Benchmarking Framework for ROOT
+  url: https://www.epj-conferences.org/articles/epjconf/abs/2019/19/epjconf_chep2018_05003/epjconf_chep2018_05003.html
+  volume: '214'
+  year: '2019'
+- abstract: The ROOT software framework is foundational for the HEP ecosystem, providing
+    multiple capabilities such as I/O, a C++ interpreter, GUI, and math libraries.
+    It uses object-oriented concepts and build-time components to layer between them.
+    We believe that a new layering formalism will benefit the ROOT user community.We
+    present the modularization strategy for ROOT which aims to build upon the existing
+    source components, making available the dependencies and other metadata outside
+    of the build system, and allow post-install additions on top of existing installation
+    as well as in the ROOT runtime environment. Components can be grouped into packages
+    and made available from repositories in order to provide a post-install step of
+    missing packages. This feature implements a mechanism for the more comprehensive
+    software ecosystem and makes it available even from a minimal ROOT installation.
+    As part of …
+  author: Oksana Shadura, Brian Paul Bockelman, Vassil Vassilev
+  cites: '0'
+  eprint: https://www.epj-conferences.org/articles/epjconf/pdf/2019/19/epjconf_chep2018_05011.pdf
+  journal: EPJ Web of Conferences
+  pages: '05011'
+  publisher: EDP Sciences
+  title: Extending ROOT through Modules
+  url: https://www.epj-conferences.org/articles/epjconf/abs/2019/19/epjconf_chep2018_05011/epjconf_chep2018_05011.html
+  volume: '214'
+  year: '2019'
+- abstract: Programming language evolution brought to us the domain-specific languages
+    (DSL). They proved to be very useful for expressing specific concepts, turning
+    into a vital ingredient even for general-purpose frameworks. Supporting declarative
+    DSLs (such as SQL) in imperative languages (such as C++) can happen in the manner
+    of language integrated query (LINQ).
+  author: V Vassilev
+  cites: '0'
+  eprint: https://iopscience.iop.org/article/10.1088/1742-6596/608/1/012030/pdf
+  journal: 'Journal of Physics: Conference Series'
+  number: '1'
+  pages: '012030'
+  publisher: IOP Publishing
+  title: Native Language Integrated Queries with CppLINQ in C++
+  url: https://iopscience.iop.org/article/10.1088/1742-6596/608/1/012030/meta
+  volume: '608'
+  year: '2015'
+- abstract: Differentiation is the process of finding a derivative, which measures
+    how a function changes as its input changes. Derivatives can be evaluated with
+    machine precision accuracy through a method called automatic differentiation.
+    Unlike other methods for differentiation, including numerical and symbolic, automatic
+    differentiation yields exact derivatives even of complicated functions at relatively
+    low processing and storage costs.
+  author: Violeta Ilieva, Vassil Vassilev
+  cites: '0'
+  eprint: http://www.llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf
+  title: clad-Automatic Differentiation with Clang
+  url: http://www.llvm.org/devmtg/2013-11/slides/Vassilev-Poster.pdf
+- abstract: "ROOT has several features which interact with libraries and require implicit header inclusion. This can be triggered by reading or writing data on disk, or user actions at the prompt. Often, the headers are immutable and reparsing is redundant. C++ Modules are designed to minimize the reparsing of the same header content by providing an efficient on-disk representation of C++ Code. ROOT has released a C++ Modules-aware technology preview which intends to become the default for the next release.
+
+In this contribution, we would like to summarize our ROOT experience migrating to C++ modules the codebase of ROOT. We outline the challenges for migration of the CMS software stack to use C++ modules, including integration of modules support in the build system while providing better functionality and correctness. We also give an insight of the continuous process of the improving performance bottlenecks for C++ modules and also evaluate the performance benefits that experiments are expected to achieve."
+  author: Oksana Shadura, Vassil Vassilev
+  cites: '0'
+  eprint: https://pdfs.semanticscholar.org/9353/9538449ce5de64ca3846512b2c1f770eca4b.pdf
+  title: Migrating large codebases to C++ Modules
+  url: https://pdfs.semanticscholar.org/9353/9538449ce5de64ca3846512b2c1f770eca4b.pdf

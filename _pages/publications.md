@@ -7,9 +7,9 @@ permalink: /publications/
 ---
 
 
-# Publications
+# Related Publications
 
-
+<!---
 {% assign number_printed = 0 %}
 {% for publi in site.data.publist %}
 
@@ -50,10 +50,30 @@ permalink: /publications/
 
 
 ## Full List of publications
+--->
+<div class="nomarkul">
 
-{% for publi in site.data.publist %}
+{% assign sorted_pubs = site.data.publist | sort: "year" | reverse %}
 
-  {{ publi.title }} <br />
-  <em>{{ publi.authors }} </em><br /><a href="{{ publi.link.url }}">{{ publi.link.display }}</a>
+{% for publi in sorted_pubs %}
 
+{% assign author_list = publi.author %}
+{% assign sep_string = "," %}
+{% assign split_auth = author_list | split:sep_string %}
+
+{% if split_auth.size > 4 %}
+{% assign author_list = split_auth[0] | append: ", " | append: split_auth[1] |append: ", " |  append: split_auth[2] |append: ", " |  append: split_auth[3] %}
+{% assign author_list = author_list | append: ", " | append: " et. al." %}
+{% endif %}
+{% assign pubinfo = "" %}
+{% if publi.journal.size > 1 %}
+{% assign pubinfo = publi.journal | append: " <b> " | append: publi.volume | append: " </b> " | append: publi.pages %}
+{% endif %}
+
+
+<em>{{ author_list }}, </em> <a href="{{ publi.url }}">{{ publi.title}}</a> {{pubinfo}} ({{publi.year}}).
+{% if  publi.abstract.size  > 7 %} 
+  * {{publi.abstract}}
+{% endif %} 
 {% endfor %}
+</div>
