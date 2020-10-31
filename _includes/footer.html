@@ -1,32 +1,53 @@
 <div id="footer" class="panel">
   <div class="panel-footer">
-	<div class="container-fluid">
-	  <div class="row">
-		<div class="col-sm-4">
-			
-              <p>We are part of the Princeton Department of Physics and Princeton Institute for Computational Science and Engineering (PICSciE).</p>
-		  <p>&copy 2020 Princeton University. Site made with <a href="https://jekyllrb.com">Jekyll</a>; Credit to
-		    <a href="https://allanlab.org">Allan lab </a>for this site template.</p>            
-		   <p>  </p><p>
-            		  
-            
-		</div>
-		<div class="col-sm-4">
-		  This project is supported by National Science Foundation under Cooperative Agreement OAC-1931408.
-          Any opinions, findings, conclusions or recommendations expressed in this material are those of the
-          authors and do not necessarily reflect the views of the National Science Foundation.
-		</div>
-		<div class="col-sm-4">
-		  Contact:<br />
-		  <a href="mailto:David.Lange@princeton.edu">David Lange <br />
-		  <a href="mailto:vvasilev@gmail.com">Vassil Vassilev <br />
-		  <img src="/images/princeton.png" style="width: 150px" />    
-		  <img src="/images/nsf.png" style="width: 50px" />    
-		</div>
-	  </div>
-	</div>
+    <div class="container-fluid">
+      <div class="row">
+
+        <div class="col-sm-2">
+          <img src="/images/princeton.png" style="width: 150px" />
+        </div>
+
+        <div class="col-sm-9" align="center">
+          <p>
+            We are part of the
+            <a href="https://phy.princeton.edu/" target="_blank">
+              Princeton Department of Physics
+            </a>
+            and
+            <a href="https://researchcomputing.princeton.edu" target="_blank">
+              Princeton Institute for Computational Science and Engineering
+              (PICSciE).
+            </a>
+          </p>
+          <p>
+            This project is supported by National Science Foundation under
+            Cooperative Agreement OAC-1931408. Any opinions, findings,
+            conclusions or recommendations expressed in this material are those
+            of the authors and do not necessarily reflect the views of the
+            National Science Foundation.
+          </p>
+          <p>
+            Contact:
+            <a href="mailto:David.Lange@princeton.edu">David Lange</a>;
+            <a href="mailto:vvasilev@gmail.com">Vassil Vassilev</a>
+          </p>
+          <p class="small" align="center">
+            &copy <span id="copyright-year">2019</span> Princeton University. Site made with
+            <a href="https://jekyllrb.com">Jekyll</a>; Credit to
+            <a href="https://allanlab.org">Allan lab </a>for this site template.
+          </p>
+        </div>
+
+        <div class="col-sm-1">
+          <img src="/images/nsf.png" style="width: 50px" />
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 <script src="{{ site.url }}{{ site.baseurl }}/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+  document.getElementById("copyright-year").innerHTML = new Date().getFullYear();
+</script>
