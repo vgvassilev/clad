@@ -25,6 +25,3 @@ number of programs which offer scholarships:
 # Just looking for a cool spare time project?
 
 Please visit our [open projects](/open_projects) page.
-
-
-
