@@ -2707,7 +2707,7 @@ namespace clad {
     else {
       diag(DiagnosticsEngine::Warning, UnOp->getEndLoc(),
            "attempt to differentiate unsupported unary operator, ignored");
-      return Clone(UnOp);
+      diff = Visit(UnOp->getSubExpr());
     }
     Expr* op = BuildOp(opCode, diff.getExpr());
     return StmtDiff(op, ResultRef);
@@ -2817,7 +2817,7 @@ namespace clad {
         diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
              "derivative of an assignment attempts to assign to unassignable "
              "expr, assignment ignored");
-        return Clone(BinOp);
+        return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
       }
 
       if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
@@ -2868,7 +2868,7 @@ namespace clad {
       // like (x = y) it propagates recursively, so _d_x is also returned.
       Expr* AssignedDiff = Ldiff.getExpr_dx();
       if (!AssignedDiff)
-        return Clone(BinOp);
+        return BuildOp(opCode, LCloned, Visit(R).getExpr());
       ResultRef = AssignedDiff;
       // If assigned expr is dependent, first update its derivative;
       auto Lblock_begin = Lblock->body_rbegin();
@@ -2968,7 +2968,8 @@ namespace clad {
     else {
       diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
            "attempt to differentiate unsupported binary operator, ignored");
-      return Clone(BinOp);
+      Ldiff = Visit(L);
+      Rdiff = Visit(R);
     }
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
     return StmtDiff(op, ResultRef);
