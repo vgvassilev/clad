@@ -26,8 +26,21 @@ We are looking for interested and passionate undergrad and graduate students. Fe
 
 ## Contributors
 
+{% assign people = "" | split: ',' %}
+{% assign names = "" | split: ',' %}
+{% for repo in site.data.repos %}
+{% for user in repo[1] %}
+{% unless names contains user.login %}
+{% assign people = people | push: user %}
+{% assign names = names | push: user.login %}
+{% endunless %}
+{% endfor %}
+{% endfor %}
+
+
+
 {% assign number_printed = 0 %}
-{% for user in site.data.clad_repo %}
+{% for user in people %}
 {% assign even_odd = number_printed | modulo: 4 %}
 {% if even_odd == 0 %}
 <div class="row">

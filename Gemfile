@@ -2,4 +2,4 @@ source 'https://rubygems.org'
 
 gem "jekyll", ">= 3.6.3"
 #gem "jekyll-github-metadata"
-gem "jekyll-get-json"
+#gem "jekyll-get-json"
