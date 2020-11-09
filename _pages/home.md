@@ -1,7 +1,7 @@
 ---
 title: "Compiler Research - Driven by enabling scientists to program for speed, Interoperability, Interactivity, Flexibility, and Reproducibility"
 layout: homelay
-excerpt: "Compiler Research."
+excerpt: "Compiler Research"
 sitemap: false
 permalink: /
 ---
