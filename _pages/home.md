@@ -47,7 +47,7 @@ We are looking for interested and passionate undergrad and graduate students. Fe
 {% endif %}
 
 <div class="col-sm-3 clearfix">
-  [{{ user.login }}]({{user.html_url}})
+  [{{ user.login }}]({{user.html_url}}) <br />
   [<img src="{{user.avatar_url}}" width="100" style="float: center" />]({{user.html_url}})
 </div>
 
