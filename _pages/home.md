@@ -24,6 +24,15 @@ Interested in joining the development to to use our work? Join our [cppaas-annou
 
 We are looking for interested and passionate undergrad and graduate students. Fellowships (and open projects) currently available via [IRIS-HEP](https://iris-hep.org/fellows.html).
 
+## Contributors
+{% for user in site.github.contributors %}
+<div class="col-sm-6 clearfix">
+  [{{ user.login }}]({{user.html_url}})
+  [<img src="{{user.avatar_url}}" class="img-responsive" width="100" style="float: center" />]({{user.html_url}})
+</div>
+  
+{% endfor %}
+
 ## Collaborators and Related Projects
 
 {% assign number_printed = 0 %}
