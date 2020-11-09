@@ -126,3 +126,48 @@
     url: "https://indico.cern.ch/event/798499/contributions/3318311/attachments/1797966/2931691/DIANA_Yuka_final.pdf"
     display: Link to slides
 
+- title: "Implementation of GlobalModuleIndex in ROOT and Cling"
+  description:
+  location: "[IRIS-HEP Topical meeting](https://indico.cern.ch/event/840376)"
+  speaker: A Raghunandan
+  date: 2019-08-21
+  link:
+    url: "https://indico.cern.ch/event/840376/contributions/3525646/attachments/1895398/3127159/GSoC_Presentation__GMI.pdf"
+    display: Link to slides
+
+- title: "Clad - Clang plugin for Automatic Differentiation"
+  description:
+  location: "[IRIS-HEP Topical meeting](https://indico.cern.ch/event/840376)"
+  speaker: J Qiu
+  date: 2019-08-21
+  link:
+    url: https://indico.cern.ch/event/840376/contributions/3527105/attachments/1895396/3126873/Clad_-_Clang_plugin_for_Automatic_Differentiation_1.pdf
+    display: Link to slides
+
+- title: "Automatic Differentiation in ROOT"
+  description:
+  location: "[Computing in High Energy Physics (CHEP 2019, Adeliade)](http://chep2019.org)"
+  date: 2019-11-05
+  speaker: O Shadura
+  link:
+    url: https://indico.cern.ch/event/773049/contributions/3474747/attachments/1935465/3212004/Automatic_Differentiation_in_ROOT3.pdf
+    display: Link to slides
+
+- title: "C++ Modules in ROOT"
+  description:
+  location: "[DIANA-HEP topical meeting](https://indico.cern.ch/event/682267/)"
+  date: 2017-12-04
+  speaker: R Isemann
+  link:
+    url: https://indico.cern.ch/event/682267/contributions/2795954/attachments/1569847/2475832/Runtime_C_Modules_presentation.pdf
+    display: Link to slides
+
+- title: "ROOT C++ Modules"
+  description:
+  location: "[DIANA-HEP topical meeting](https://indico.cern.ch/event/643728/)"
+  date: 2017-07-17
+  speaker: R Isemann
+  link:
+    url: https://indico.cern.ch/event/643728/contributions/2612822/attachments/1494074/2323893/ROOTs_C_modules_status_report.pdf
+    display: Link to slides
+
