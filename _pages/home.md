@@ -25,13 +25,34 @@ Interested in joining the development to to use our work? Join our [cppaas-annou
 We are looking for interested and passionate undergrad and graduate students. Fellowships (and open projects) currently available via [IRIS-HEP](https://iris-hep.org/fellows.html).
 
 ## Contributors
-{% for user in site.github.contributors %}
-<div class="col-sm-6 clearfix">
+
+{% assign number_printed = 0 %}
+{% for user in site.data.clad_repo %}
+{% assign even_odd = number_printed | modulo: 4 %}
+{% if even_odd == 0 %}
+<div class="row">
+{% endif %}
+
+<div class="col-sm-3 clearfix">
   [{{ user.login }}]({{user.html_url}})
-  [<img src="{{user.avatar_url}}" class="img-responsive" width="100" style="float: center" />]({{user.html_url}})
+  [<img src="{{user.avatar_url}}" width="100" style="float: center" />]({{user.html_url}})
 </div>
-  
+
+{% assign number_printed = number_printed | plus: 1 %}
+
+{% if even_odd == 3 %}
+</div>
+{% endif %}
+
 {% endfor %}
+
+{% assign even_odd = number_printed | modulo: 4 %}
+{% if even_odd > 0 %}
+</div>
+{% endif %}
+
+
+<br />
 
 ## Collaborators and Related Projects
 

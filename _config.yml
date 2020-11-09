@@ -44,6 +44,10 @@ kramdown:
   parse_block_html: true # default for kramdown is false. This will enable using Markdown links
 
 plugins:
-  - "jekyll-github-metadata"
-
-
+#  - "jekyll-github-metadata"
+  - "jekyll-get-json"
+  
+jekyll_get_json:
+  data: clad_repo
+  json: https://api.github.com/repos/vgvassilev/clad/contributors
+  cache: true
