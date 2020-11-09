@@ -90,3 +90,39 @@
     url: "https://indico.cern.ch/event/815976/contributions/3405951/attachments/1853315/3043286/CladIRIS.pdf"
     display: Link to slides
 
+- title: "Future of ROOT runtime C++ modules"
+  description:
+  location: "[ROOT Users Workshop (Sarajevo)](https://indico.cern.ch/event/697389/)"
+  date: 12 Sept 2018
+  speaker: Y Takahashi
+  link:
+    url: "https://indico.cern.ch/event/697389/contributions/3062026/attachments/1714046/2764895/Future_of_ROOT_runtime_C_modules.pdf"
+    display: Link to slides
+
+- title: "Optimizing Frameworks Performance Using C++ Modules-Aware ROOT"
+  description:
+  location: "[Computing in High Energy Physics (CHEP 2018, Sofia)](https://indico.cern.ch/event/587955/)"
+  date: 10 July 2018
+  speaker: Y Takahashi
+  link:
+    url: "https://indico.cern.ch/event/587955/contributions/2937639/attachments/1679562/2697775/CHEP_poster_third.pdf"
+    display: Link to poster
+
+- title: "Migrating large codebases to C++ Modules"
+  description:
+  location: "[19th International Workshop on Advanced Computing and Analysis Techniques in Physics Research (ACAT 2019 Saas-Fee)](https://indico.cern.ch/event/708041/)"
+  date: 13 March 2019
+  speaker: Y Takahashi
+  link:
+    url: "https://indico.cern.ch/event/708041/contributions/3276196/attachments/1810525/3007180/ACAT_CModules.pdf"
+    display: Link to slides
+
+- title: "DIANA-HEP Final Presentation Runtime C++ modules"
+  description:
+  location: "[DIANA-HEP Topical meeting](https://indico.cern.ch/event/798499)"
+  date: 18 February 2019
+  speaker: Y Takahashi
+  link:
+    url: "https://indico.cern.ch/event/798499/contributions/3318311/attachments/1797966/2931691/DIANA_Yuka_final.pdf"
+    display: Link to slides
+
