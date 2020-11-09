@@ -2,7 +2,7 @@
   description: My abstract
   location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
   speaker: V Vassilev
-  date: 7 October 2020
+  date: 2020-10-07
   link:
     url: /assets/presentations/LLVM2020_Clad.pdf
     display:  Link to poster
@@ -10,7 +10,7 @@
 - title: "Incremental Compilation Support in Clang"
   description: My abstract
   location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
-  date: 7 October 2020
+  date: 2020-10-07
   speaker: V Vassilev 
   link:
     url: /assets/presentations/LLVM2020_CaaS.pdf
@@ -19,7 +19,7 @@
 - title: "Modernizing Boost in CMSSW"
   description:
   location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/945364)"
-  date: 2 September 2020
+  date: 2020-09-02
   speaker: L Camolezi
   link:
     url: "https://indico.cern.ch/event/945364/contributions/3992254/attachments/2095731/3522488/cmssw-finalpresentation.pdf"
@@ -29,7 +29,7 @@
 - title: "Enabling C++ Modules for ROOT on Windows"
   description:
   location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/950229/)"
-  date: 8 September 2020
+  date: 2020-09-08
   speaker: V Garg
   link:
     url: https://docs.google.com/presentation/d/1rO0TIjIslVFZYmfOX0OsPPUOShOcssqeGHEGh9WDJLY/edit#slide=id.gc6fa3c898_0_0
@@ -39,7 +39,7 @@
 - title: "Clad -- Automatic Differentiation in C++ and Clang"
   description:
   location: "[23rd Euro AD workshop](http://www.autodiff.org/?module=Workshops&submenu=EuroAD/23/main)"
-  date: 11 August 2020
+  date: 2020-08-11
   speaker: V Vassilev
   link:
     url: "http://www.autodiff.org/Docs/euroad/23rd%20EuroAd%20Workshop%20-%20Vassil%20Vassilev%20-%20Clad%20--%20Automatic%20Differentiation%20in%20C++%20and%20Clang.pdf"
@@ -48,7 +48,7 @@
 - title: "CaaS poster for 2020 NSF CSSI PI meeting"
   description: Our compiler as a service project contribution to the 2020 NSF CSSI PI meeting.
   location: "[2020 NSF CSSI meeting, Seattle, WA](https://cssi-pi-community.github.io/2020-meeting)"
-  date: 13 February 2020
+  date: 2020-02-13
   speaker: D Lange
   link:
     url: /assets/presentations/CSSI2020_poster.pdf
@@ -57,7 +57,7 @@
 - title: "CaaS slide for 2020 NSF CSSI PI meeting"
   description: Our compiler as a service project contribution to the 2020 NSF CSSI PI meeting.
   location: "[2020 NSF CSSI meeting, Seattle, WA](https://cssi-pi-community.github.io/2020-meeting)"
-  date: 13 February 2020
+  date: 2020-02-13
   speaker: D Lange
   link:
     url: /assets/presentations/CSSI2020_slide.pdf
@@ -66,7 +66,7 @@
 - title: "Automatic Differentiation in C++"
   description:
   location: Prague 2020 ISO C++ WG21 meeting
-  date: 10 February 2020
+  date: 2020-02-10
   speaker: V Vassilev and M Foco (NVIDIA)
   link:
     url: "https://docs.google.com/presentation/d/19a2QNwC08pucKGwsMC7-SVFHJHEEmG31yIJtapKn_vU"
@@ -75,7 +75,7 @@
 - title: "C++ Modules in ROOT and Beyond"
   description: 
   location: "[2019 CHEP International Conference](chep2019.org)"
-  date: 7 November 2019
+  date: 2019-11-07
   speaker: O Shadura
   link:
     url: "https://indico.cern.ch/event/773049/contributions/3473264/attachments/1937517/3215659/C_Modules_in_ROOT_and_Beyond4.pdf"
@@ -84,7 +84,7 @@
 - title: "Clad: the automatic differentiation plugin for Clang"
   description: 
   location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/815976/)"
-  date: 29 May 2019
+  date: 2019-05-29
   speaker: A Efremov
   link:
     url: "https://indico.cern.ch/event/815976/contributions/3405951/attachments/1853315/3043286/CladIRIS.pdf"
@@ -93,7 +93,7 @@
 - title: "Future of ROOT runtime C++ modules"
   description:
   location: "[ROOT Users Workshop (Sarajevo)](https://indico.cern.ch/event/697389/)"
-  date: 12 Sept 2018
+  date: 2018-09-12
   speaker: Y Takahashi
   link:
     url: "https://indico.cern.ch/event/697389/contributions/3062026/attachments/1714046/2764895/Future_of_ROOT_runtime_C_modules.pdf"
@@ -102,7 +102,7 @@
 - title: "Optimizing Frameworks Performance Using C++ Modules-Aware ROOT"
   description:
   location: "[Computing in High Energy Physics (CHEP 2018, Sofia)](https://indico.cern.ch/event/587955/)"
-  date: 10 July 2018
+  date: 2018-07-10
   speaker: Y Takahashi
   link:
     url: "https://indico.cern.ch/event/587955/contributions/2937639/attachments/1679562/2697775/CHEP_poster_third.pdf"
@@ -111,7 +111,7 @@
 - title: "Migrating large codebases to C++ Modules"
   description:
   location: "[19th International Workshop on Advanced Computing and Analysis Techniques in Physics Research (ACAT 2019 Saas-Fee)](https://indico.cern.ch/event/708041/)"
-  date: 13 March 2019
+  date: 2019-03-13
   speaker: Y Takahashi
   link:
     url: "https://indico.cern.ch/event/708041/contributions/3276196/attachments/1810525/3007180/ACAT_CModules.pdf"
@@ -120,7 +120,7 @@
 - title: "DIANA-HEP Final Presentation Runtime C++ modules"
   description:
   location: "[DIANA-HEP Topical meeting](https://indico.cern.ch/event/798499)"
-  date: 18 February 2019
+  date: 2019-02-18
   speaker: Y Takahashi
   link:
     url: "https://indico.cern.ch/event/798499/contributions/3318311/attachments/1797966/2931691/DIANA_Yuka_final.pdf"
