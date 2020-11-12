@@ -37,58 +37,25 @@ We are looking for interested and passionate undergrad and graduate students. Fe
 {% endfor %}
 {% endfor %}
 
+{% assign sorted_people = people | sort: "login" %}
 
 
-{% assign number_printed = 0 %}
-{% for user in people %}
-{% assign even_odd = number_printed | modulo: 4 %}
-{% if even_odd == 0 %}
-<div class="row">
-{% endif %}
-
-<div class="col-sm-3 clearfix">
+<div class="grid-container grid-container--fill">
+{% for user in sorted_people %}
+  <div class="grid-element">
   [{{ user.login }}]({{user.html_url}}) <br />
   [<img src="{{user.avatar_url}}" width="100" style="float: center" />]({{user.html_url}})
-</div>
-
-{% assign number_printed = number_printed | plus: 1 %}
-
-{% if even_odd == 3 %}
-</div>
-{% endif %}
-
+  </div>
 {% endfor %}
-
-{% assign even_odd = number_printed | modulo: 4 %}
-{% if even_odd > 0 %}
 </div>
-{% endif %}
-
-
-<br />
 
 ## Collaborators and Related Projects
 
-{% assign number_printed = 0 %}
+<div class="grid-container grid-container--fill">
 {% for coll in site.data.collabs %}
-{% assign even_odd = number_printed | modulo: 4 %}
-{% if even_odd == 0 %}
-<div class="row">
-{% endif %}
-
-<div class="col-sm-3 clearfix">
-  [<img src="/assets/collab_logos/{{coll.logo}}" class="img-responsive" width="75%" style="float: center" />]({{coll.url}})
-</div>
-
-{% assign number_printed = number_printed | plus: 1 %}
-
-{% if even_odd == 3 %}
-</div>
-{% endif %}
-
+  <div class="grid-element">
+  [<img src="/assets/collab_logos/{{coll.logo}}" class="img-responsive" width="85%" style="float: center" />]({{coll.url}})
+  </div>
 {% endfor %}
-
-{% assign even_odd = number_printed | modulo: 4 %}
-{% if even_odd > 0 %}
 </div>
-{% endif %}
+

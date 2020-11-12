@@ -107,3 +107,23 @@ firstp {
     list-style-type: none;
     margin-left: 10px;
 }
+
+.grid-container {
+    display: grid;
+}
+
+.grid-container--fill {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+}
+
+.grid-container--fit {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.grid-element {
+//  background-color: #DFCFBE;
+  background-color: white;
+  padding: 10px;
+  color: #fff;
+  border: 1px solid #fff;
+}
