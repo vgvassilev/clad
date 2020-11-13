@@ -55,6 +55,8 @@ permalink: /publications/
 
 {% assign sorted_pubs = site.data.publist | sort: "year" | reverse %}
 
+<div style="padding-left: 40px;">
+
 {% for publi in sorted_pubs %}
 
 {% assign author_list = publi.author %}
@@ -70,10 +72,10 @@ permalink: /publications/
 {% assign pubinfo = publi.journal | append: " <b> " | append: publi.volume | append: " </b> " | append: publi.pages %}
 {% endif %}
 
-
 <em>{{ author_list }}, </em> <a href="{{ publi.url }}">{{ publi.title}}</a> {{pubinfo}} ({{publi.year}}).
 {% if  publi.abstract.size  > 7 %} 
   * {{publi.abstract}}
 {% endif %} 
 {% endfor %}
+</div>
 </div>

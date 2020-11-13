@@ -19,12 +19,19 @@ permalink: /meetings/
 {% assign sorted_meetings = meetings_list | sort: "date" | reverse %}
 
 {% for meeting in sorted_meetings %}
-<div class="well" id={{meeting.label}}>
+<div class="well" style="padding-left: 70px; padding-right: 70px" id={{meeting.label}}>
   <pubtit>{{ meeting.date }} at {{meeting.time_cest}} CEST</pubtit>
+<div style="text-indent: 20px;">
   Connection information: {{meeting.connect}} <br />
+ </div>
+<div style="text-indent: 20px;">
   Agenda:
+<ul style="margin-top:-10px;">
   {% for item in meeting.agenda %}
-   * {{item.title}} (<em>{{item.speaker}} </em>): [{{ item.link.display }}]({{ item.link.url }}) 
+   <li> {{item.title}} (<em>{{item.speaker}} </em>): <a href="{{item.link.url}}">{{ item.link.display }}</a> </li>
   {% endfor %}
+</ul>
+
+ </div>
  </div>
 {% endfor %} 
