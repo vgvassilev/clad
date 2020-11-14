@@ -118,8 +118,8 @@ addons-6: &addons-6
     ]
   homebrew: &brew-6
     <<: *common-brew
-    packages: &brew-packages-6 [*common-brew-packages,
-      'llvm@6'
+    packages: &brew-packages-6 [*common-brew-packages
+#      'llvm@6'
     ]
     update: true
 
@@ -250,7 +250,7 @@ jobs:
         <<: *addons-5
         homebrew:
           <<: *brew-5
-          packages: [*common-brew, llvm@6]
+          packages: [*common-brew, llvm]
           update: true
 
     # Ubuntu, GCC 5
@@ -345,6 +345,10 @@ jobs:
       compiler: clang
       addons:
         <<: *addons-6
+        homebrew:
+          <<: *brew-6
+          packages: [*common-brew, llvm]
+          update: true
 
     # Ubuntu, GCC 5
     - env: CLANG_RUNTIME=6.0 CXX=g++-5 CC=gcc
@@ -839,15 +843,34 @@ install:
         sudo curl -L https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
-        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-          # Use llvm@6 Filecheck
-          sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}/bin/FileCheck
-        fi
+        # Use llvm/llvm@10/llvm@6 Filecheck
+        if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
+          if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@10/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          fi
         popd
       fi
       # Package llvm@6
       if [ $CLANG_RUNTIME == '6.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
+        pushd /usr/local/opt
+        sudo curl -L https://releases.llvm.org/6.0.0/clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-6.0.0-x86_64-apple-darwin/ llvm@6/
+        # Use llvm/llvm@10/llvm@6 Filecheck
+        if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
+          if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@10/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          fi
+        popd
       fi
       # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
       if [ $CLANG_RUNTIME == '11' ]; then
