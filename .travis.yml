@@ -874,6 +874,10 @@ install:
         fi
         popd
       fi
+      # Package llvm@10 == llvm. FIXME: Remove when official brew package llvm@10 is released.
+      if [ $CLANG_RUNTIME == '10' ]; then
+        sudo ln -s /usr/local/opt/llvm/ /usr/local/opt/llvm@10/
+      fi
       # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
       if [ $CLANG_RUNTIME == '11' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@11/
