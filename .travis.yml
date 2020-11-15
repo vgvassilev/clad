@@ -852,6 +852,7 @@ install:
           elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
             sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
           fi
+        fi
         popd
       fi
       # Package llvm@6
@@ -870,6 +871,7 @@ install:
           elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
             sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
           fi
+        fi
         popd
       fi
       # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
