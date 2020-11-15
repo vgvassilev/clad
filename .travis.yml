@@ -187,7 +187,7 @@ addons-10: &addons-10
   homebrew: &brew-10
     <<: *common-brew
     packages: &brew-packages-10 [*common-brew-packages,
-      'llvm@10' #llvm@10
+      'llvm' #llvm@10
     ]
     update: true
 
