@@ -926,7 +926,7 @@ install:
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
         sudo mkdir -p /usr/lib/opt
         pushd /usr/lib/opt
-        sudo curl -v -L https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl -L https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-6.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
