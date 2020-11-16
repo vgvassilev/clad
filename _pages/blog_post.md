@@ -339,7 +339,7 @@ Science; Eval-Style Programming; Interactive CUDA; and C++ in notebooks.
 
 You can find out more about our activities at
 [https://root.cern/cling/](https://root.cern/cling/) and
-[https://compiler-research.org](https://compiler-research.org)
+[https://compiler-research.org](https://compiler-research.org).
 
 
 # Acknowledgements
