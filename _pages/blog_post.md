@@ -180,15 +180,17 @@ void __unique_2 () { std::cout << "v[0]=" << v[0] <<"\n";; } // #2
 After the clang AST is built, cling detects that wrapper #1 contains a
 declaration and moves the declaration's AST node to the global scope, such that
 `v` can be referenced by subsequent inputs. Wrapper #2 contains a statement and
-is executed as is. After transformations the example becomes:
+is executed as is. Internally to Cling, after transformations the example becomes:
 
 
 ```cpp
+#include <vector>
+#include <iostream>
 std::vector<int> v = {1,2,3,4,5};
 void __unique_1 () { v[0]++;; }
 void __unique_2 () { std::cout << "v[0]=" << v[0] <<"\n";; }
 ```
-
+Cling then calls the two wrappers and internally handles the global scope and error conditions.
 
 ## Reporting execution results
 
