@@ -55,8 +55,27 @@ compiler as a service (CaaS) for both rapid application development and
 computational performance.
 
 The rest of this post intends to demonstrate the design and several features of
-Cling 
-
+Cling. Want to follow along? You can get cling from conda
+```
+conda config --add channels conda-forge
+conda install cling
+conda install llvmdev=5.0.0 
+```
+or from docker-hub if you don't already use conda:
+```
+docker pull compilerresearch/cling
+docker run -t -i compilerresearch/cling
+```
+Either way, type "cling" to start its interactive shell:
+```
+cling
+****************** CLING ******************
+* Type C++ code and press enter to run it *
+*             Type .q to exit             *
+*******************************************
+[cling]$
+```
+We will discuss other alternatives in further parts of this post.
 
 # Interpreting C++
 
