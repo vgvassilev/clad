@@ -160,6 +160,8 @@ C++ statements. C++ does not allow expressions in the global scope.
 
 
 ```cpp
+[cling] #include <vector>
+[cling] #include <iostream>
 [cling] std::vector<int> v = {1,2,3,4,5}; v[0]++;
 [cling] std::cout << "v[0]=" << v[0] <<"\n";
 v[0]=2
@@ -200,6 +202,7 @@ semicolons).
 
 
 ```cpp
+[cling] #include <vector>
 [cling] std::vector<int> v = {1,2,3,4,5} // Note the missing semicolon
 (std::vector<int> &) { 1, 2, 3, 4, 5 }
 ```
