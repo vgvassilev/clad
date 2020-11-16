@@ -105,12 +105,14 @@ settings. The invisible compile-link cycle aids interactive use which allows
 some qualitatively different approaches to program development and enhanced
 productivity.
 
-<p align="center">
-  <img src="/images/blog/figure1.gif" width="1095px"><br />
+<div style="max-width:1095px; margin:0 auto;">
+  <img src="/images/blog/figure1.gif" style="max-width:90%;"><br />
   <!--- ![alt_text](/images/blog/figure1.gif "image_tooltip") --->
+ <p align="center">
   Figure 1. Interactive OpenGL Demo, adapted from
   [here](https://www.youtube.com/watch?v=eoIuqLNvzFs).
-</p>
+  </p>
+</div>
 
 ## Design principles
 
@@ -140,12 +142,12 @@ properties of recently compiled chunks of code. Cling can apply custom
 transformations to each chunk before execution. Cling orchestrates the existing
 LLVM and Clang infrastructure following a data flow described in Figure 2.
 
-
+<div style="max-width:600px; margin:0 auto;">
+  <img src="/images/blog/figure2.png" style="max-width:90%;"><br />
 <p align="center">
-  <img src="/images/blog/figure2.png" width="500px"><br />
-  Figure 2. Information flow in Cling
+Figure 2. Information flow in Cling
 </p>
-
+</div>
 In short:
 
   1. The tool controls the input infrastructure by interactive prompt or by an
