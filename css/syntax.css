@@ -207,3 +207,7 @@
 .highlight {
   background-color: #f8f8f8;
 }
+// Remove the code horizontal scroll bars on mobile. 
+code {
+  word-wrap: anywhere;
+}
