@@ -18,6 +18,8 @@ addons: &common-addons
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+      - sourceline: 'deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb https://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main'
@@ -25,6 +27,8 @@ addons: &common-addons
       - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
       - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-10 main'
+        key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+      - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-11 main'
         key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
   homebrew: &common-brew
     packages: &common-brew-packages
@@ -114,8 +118,8 @@ addons-6: &addons-6
     ]
   homebrew: &brew-6
     <<: *common-brew
-    packages: &brew-packages-6 [*common-brew-packages,
-      'llvm@6'
+    packages: &brew-packages-6 [*common-brew-packages
+#      'llvm@6'
     ]
     update: true
 
@@ -187,6 +191,23 @@ addons-10: &addons-10
     ]
     update: true
 
+addons-11: &addons-11
+  <<: *common-addons
+  apt: &apt-11
+    <<: *common-apt
+    packages: &apt-packages-11 [*common-apt-packages,
+      'clang-11',
+      'libclang-11-dev',
+      'llvm-11-tools',
+      'llvm-11-dev'
+    ]
+  homebrew: &brew-11
+    <<: *common-brew
+    packages: &brew-packages-11 [*common-brew-packages,
+      'llvm' #llvm@11
+    ]
+    update: true
+
 
 before_cache:
   - brew cleanup
@@ -229,7 +250,7 @@ jobs:
         <<: *addons-5
         homebrew:
           <<: *brew-5
-          packages: [*common-brew, llvm@6]
+          packages: [*common-brew, llvm]
           update: true
 
     # Ubuntu, GCC 5
@@ -324,6 +345,10 @@ jobs:
       compiler: clang
       addons:
         <<: *addons-6
+        homebrew:
+          <<: *brew-6
+          packages: [*common-brew, llvm]
+          update: true
 
     # Ubuntu, GCC 5
     - env: CLANG_RUNTIME=6.0 CXX=g++-5 CC=gcc
@@ -691,6 +716,105 @@ jobs:
           <<: *apt-10
           packages: [*apt-packages-10, 'clang-10', 'llvm-10-tools', 'g++-multilib', 'libc6-dbg']
 
+    ##################### Clad for clang 11 #####################
+    # OSX 10.13, Clang and XCode 12
+    - os: osx
+      env: CLANG_RUNTIME=11 CXX=clang++ CC=clang
+      osx_image: xcode12
+      compiler: clang
+      addons:
+        <<: *addons-11
+
+    # Ubuntu, GCC 5
+    - env: CLANG_RUNTIME=11 CXX=g++-5 CC=gcc
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-5', 'g++-5-multilib', 'libc6-dbg']
+
+    # GCC 6 Code Coverage
+    - env: CLANG_RUNTIME=11 CODE_COVERAGE=1 CXX=g++-6 CC=gcc BUILD_TYPE=Debug
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-6', 'g++-6-multilib', 'libc6-dbg']
+
+   # GCC 8
+    - env: CLANG_RUNTIME=11 CXX=g++-8 CC=gcc
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-8', 'g++-8-multilib', 'libc6-dbg']
+
+    # GCC 9
+    - env: CLANG_RUNTIME=11 CXX=g++-9 CC=gcc
+      compiler: gcc
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'g++-9', 'g++-9-multilib', 'libc6-dbg']
+
+    # Clang 4
+    - env: CLANG_RUNTIME=11 CXX=clang++-4.0 CC=clang-4.0
+      compiler: clang
+      dist: bionic
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-4.0', 'llvm-4.0-tools', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 8
+    - env: CLANG_RUNTIME=11 CXX=clang++-8 CC=clang-8
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-8', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 9
+    - env: CLANG_RUNTIME=11 CXX=clang++-9 CC=clang-9
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-9', 'llvm-9-tools', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 10
+    - env: CLANG_RUNTIME=11 CXX=clang++-10 CC=clang-10
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-10', 'llvm-10-tools', 'g++-multilib', 'libc6-dbg']
+
+    # Clang 11
+    - env: CLANG_RUNTIME=11 CXX=clang++-11 CC=clang-11
+      dist: bionic
+      compiler: clang
+      addons:
+        <<: *addons-11
+        apt:
+          <<: *apt-11
+          packages: [*apt-packages-11, 'clang-11', 'llvm-11-tools', 'g++-multilib', 'libc6-dbg']
+
 
 before_install:
   - export
@@ -709,25 +833,74 @@ install:
   - |
     if [ $TRAVIS_OS_NAME == 'osx' ]; then
       # Update openssl on osx because the current one is deprecated by python.
-      curl https://bootstrap.pypa.io/get-pip.py | sudo python
+      curl -L https://bootstrap.pypa.io/get-pip.py | sudo python
       PATH="/usr/local/opt/ccache/libexec:$PATH"
       export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${CLANG_RUNTIME}/
       # Package llvm@5 is not supported on brew. We must install it from binary build.
       if [ $CLANG_RUNTIME == '5.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
         pushd /usr/local/opt
-        sudo curl https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl -L https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/local/clang*
         sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
-        if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
-          # Use llvm@6 Filecheck
-          sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+        # Use llvm/llvm@10/llvm@6 Filecheck
+        if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
+          if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@10/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          fi
         fi
         popd
       fi
       # Package llvm@6
       if [ $CLANG_RUNTIME == '6.0' ]; then
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
+        pushd /usr/local/opt
+        sudo curl -L https://releases.llvm.org/6.0.0/clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-6.0.0-x86_64-apple-darwin/ llvm@6/
+        # Use llvm/llvm@10/llvm@6 Filecheck
+        if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
+          if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@10/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          fi
+        fi
+        popd
+      fi
+      # Package llvm@10 == llvm. FIXME: Remove when official brew package llvm@10 is released.
+      if [ $CLANG_RUNTIME == '10' ]; then
+        echo $CLANG_RUNTIME
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@10/
+        sudo ln -s /usr/local/opt/llvm /usr/local/opt/llvm@10
+      fi
+      # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
+      if [ $CLANG_RUNTIME == '11' ]; then
+        export TRAVIS_PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@11/
+        pushd /usr/local/opt
+        sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/clang+llvm-11.0.0-rc2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo rm -fr /usr/local/clang*
+        sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
+        sudo xcode-select --install
+        ls /Library/Developer/CommandLineTools/Packages/
+        sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_`sw_vers -productVersion | sed 's/\([0-9]*\.[0-9]*\).*/\1/'`.pkg -target /
+        # Use llvm/llvm@10/llvm@6 Filecheck
+        if [ ! -f ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck ]; then
+          if [ -f /usr/local/opt/llvm/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@10/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          elif [ -f /usr/local/opt/llvm\@6/bin/FileCheck ]; then
+            sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck ${TRAVIS_PATH_TO_LLVM_BUILD}bin/FileCheck
+          fi
+        fi
+        popd
       fi
     fi
     if [ $TRAVIS_OS_NAME == 'linux' ]; then
@@ -739,7 +912,7 @@ install:
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
         sudo mkdir -p /usr/lib/opt
         pushd /usr/lib/opt
-        sudo curl https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl -L https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-5.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
@@ -753,7 +926,7 @@ install:
         export TRAVIS_PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${CLANG_RUNTIME}/
         sudo mkdir -p /usr/lib/opt
         pushd /usr/lib/opt
-        sudo curl https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
+        sudo curl -L https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
         sudo rm -fr /usr/lib/clang*
         sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-6.0/
         if [ ! -f $TRAVIS_PATH_TO_LLVM_BUILD/bin/FileCheck ]; then
@@ -776,6 +949,8 @@ before_script:
   - cmake --version
   - $CC --version
   - $CXX --version
+  - xz --version
+  - tar --version
   - mkdir obj && cd obj
   - echo "Use Clang/LLVM in $TRAVIS_PATH_TO_LLVM_BUILD"
   - echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
