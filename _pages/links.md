@@ -13,17 +13,15 @@ Recommendations for this page? Contact us..
 
 ## Related projects
 
-  * Idea one
-  * Idea two
+  * [xeus-cling](https://github.com/jupyter-xeus/xeus-cling)
+  * [ROOT](https://root.cern)
   
 ## Programming and C++ standard links
 
-  * Idea one
-  * Idea two
+  * [isocpp](https://isocpp.org/)
 
 ## C++ tutorials
 
-  * Idea one
-  * Idea two
+  * [The C++ Language Tutorial](http://www.cplusplus.com/doc/tutorial/)
 
 
