@@ -325,7 +325,7 @@ namespace clad {
     // use _d_x0 only if _d_x is taken).
     bool countedName = nameBase.startswith("_") && !nameBase.startswith("_d_");
     std::size_t idx = 0;
-    std::size_t& id = countedName ? m_idCtr[nameBase] : idx;
+    std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";
     if (countedName)
       id += 1;

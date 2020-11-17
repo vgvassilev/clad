@@ -20,7 +20,7 @@ described first.
 
 External Dependencies
 ---------------------
-* Clad now works with clang-5.0 to clang-10
+* Clad now works with clang-5.0 to clang-11
 
 Forward Mode & Reverse Mode
 ---------------------------
