@@ -77,7 +77,7 @@ cling
 [cling]$ #include "cling/Interpreter/Interpreter.h"
 [cling]$ gCling->allowRedefinition(false)
 ```
-We will explain the these command, and other alternatives for using cling in further parts of this post.
+We will explain the purpose of these commands, and other alternatives for using cling in further parts of this post.
 
 # Interpreting C++
 
