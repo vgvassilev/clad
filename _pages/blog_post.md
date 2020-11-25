@@ -74,8 +74,10 @@ cling
 *             Type .q to exit             *
 *******************************************
 [cling]$
+[cling]$ #include "cling/Interpreter/Interpreter.h"
+[cling]$ gCling->allowRedefinition(false)
 ```
-We will discuss other alternatives in further parts of this post.
+We will explain the these command, and other alternatives for using cling in further parts of this post.
 
 # Interpreting C++
 
