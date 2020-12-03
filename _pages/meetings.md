@@ -28,7 +28,11 @@ permalink: /meetings/
   Agenda:
 <ul style="margin-top:-10px;">
   {% for item in meeting.agenda %}
-   <li> {{item.title}} (<em>{{item.speaker}} </em>): <a href="{{item.link.url}}">{{ item.link.display }}</a> </li>
+  {% if item.link.url %}
+  <li> {{item.title}} (<em>{{item.speaker}} </em>): <a href="{{item.link.url}}">{{ item.link.display }}</a> </li>
+  {% else %}
+  <li> {{item.title}} (<em>{{item.speaker}} </em>): {{ item.link.display }} </li>
+  {% endif %}
   {% endfor %}
 </ul>
 
