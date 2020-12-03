@@ -3,5 +3,12 @@
   connect: "[Link to zoom](https://princeton.zoom.us/j/91097931341?pwd=SEJLeStJS2ZLd1ZLSS82bCtKZ0Nvdz09)"
   label: caas_03Dec2020
   agenda:
-    - title: Update (website, cling patches, blog)
+    - title: Update
       speaker: Vassil
+      link:
+       url: /assets/presentations/CaaS_03_12_2020.pdf
+       display: Slides
+    - title: Next meeting
+      speaker: Vassil
+      link:
+       display: 14 January 1700
