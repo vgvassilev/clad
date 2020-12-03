@@ -19,9 +19,8 @@ permalink: /meetings/
 {% assign sorted_meetings = meetings_list | sort: "date" | reverse %}
 
 {% for meeting in sorted_meetings %}
-<a id={{meeting.label}}/>
 <div class="well" style="padding-left: 70px; padding-right: 70px">
-  <pubtit>{{ meeting.date }} at {{meeting.time_cest}} CEST</pubtit>
+  <pubtit id={{meeting.label}}>{{ meeting.date }} at {{meeting.time_cest}} CEST</pubtit>
 <div style="text-indent: 20px;">
   Connection information: {{meeting.connect}} <br />
  </div>
