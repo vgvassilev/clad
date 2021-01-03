@@ -86,6 +86,18 @@ Jump to [staff](#staff), [students](#students)
   <img src="{{ site.url }}{{ site.baseurl }}/images/team/{{ member.photo }}" class="img-responsive" width="25%" style="float: left" />
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
+  {% if member.education %}
+  <strong>Education:</strong> {{ member.education }}
+  {% endif %}
+  {% if member.description %}
+  <strong>Project description:</strong> {{ member.description }} {: .text-justify}
+  {% endif %}
+  {% if member.proposal %}
+  <strong>Project Proposal:</strong> <a href="{{ member.proposal }}" target=_blank >URL</a>
+  {% endif %}
+  {% if member.mentors %}
+  <strong>Mentors:</strong> {{ member.mentors }}
+  {% endif %}
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}
@@ -143,5 +155,3 @@ Jump to [staff](#staff), [students](#students)
 {% if even_odd == 1 %}
 </div>
 {% endif %}
-
-
