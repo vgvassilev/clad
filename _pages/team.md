@@ -86,18 +86,17 @@ Jump to [staff](#staff), [students](#students)
   <img src="{{ site.url }}{{ site.baseurl }}/images/team/{{ member.photo }}" class="img-responsive" width="25%" style="float: left" />
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
-  {% if member.education %}
-  <strong>Education:</strong> {{ member.education }}
-  {% endif %}
-  {% if member.description %}
-  <strong>Project description:</strong> {{ member.description }} {: .text-justify}
-  {% endif %}
-  {% if member.proposal %}
-  <strong>Project Proposal:</strong> <a href="{{ member.proposal }}" target=_blank >URL</a>
-  {% endif %}
-  {% if member.mentors %}
-  <strong>Mentors:</strong> {{ member.mentors }}
-  {% endif %}
+  {% unless member.photo == "rock.jpg" %}
+  <p> <strong>Education:</strong> {{ member.education }} </p>
+  <p class="text-justify">
+    <strong>Project description:</strong> {{ member.description }}
+  </p>
+  <p>
+    <strong>Project Proposal:</strong>
+    <a href="{{ member.proposal }}" target=_blank >URL</a>
+  </p>
+  <p> <strong>Mentors:</strong> {{ member.mentors }} </p>
+  {% endunless %}
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}
@@ -128,18 +127,12 @@ Jump to [staff](#staff), [students](#students)
 <div class="col-sm-6 clearfix">
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
-  {% if member.education %}
-  <strong>Education:</strong> {{ member.education }}
-  {% endif %}
-  {% if member.description %}
-  <strong>Project description:</strong> {{ member.description }} {: .text-justify}
-  {% endif %}
-  {% if member.report %}
-  <strong>Final Report:</strong> {{ member.report }}
-  {% endif %}
-  {% if member.mentors %}
-  <strong>Mentors:</strong> {{ member.mentors }}
-  {% endif %}
+  <p> <strong>Education:</strong> {{ member.education }} </p>
+  <p class="text-justify">
+    <strong>Project description:</strong> {{ member.description }}
+  </p>
+  <p> <strong>Final Report:</strong> {{ member.report }} </p>
+  <p> <strong>Mentors:</strong> {{ member.mentors }} </p>
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}
