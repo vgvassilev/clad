@@ -33,7 +33,7 @@
   location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/950229/)"
   date: 2020-09-08
   speaker: V Garg
-  artifacts: "[Link to slides](https://docs.google.com/presentation/d/1rO0TIjIslVFZYmfOX0OsPPUOShOcssqeGHEGh9WDJLY/edit#slide=id.gc6fa3c898_0_0)"
+  artifacts: "[Link to slides](/assets/presentations/WinCXXModules_31_08_2020.pdf)"
 
 - title: "Clad -- Automatic Differentiation in C++ and Clang"
   description:
@@ -61,7 +61,7 @@
   location: Prague 2020 ISO C++ WG21 meeting
   date: 2020-02-10
   speaker: V Vassilev and M Foco (NVIDIA)
-  artifacts: "[Link to slides](https://docs.google.com/presentation/d/19a2QNwC08pucKGwsMC7-SVFHJHEEmG31yIJtapKn_vU)"
+  artifacts: "[Link to slides](/assets/presentations/CladInROOT_15_02_2020.pdf)"
 
 - title: "C++ Modules in ROOT and Beyond"
   description: 
