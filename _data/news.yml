@@ -1,3 +1,7 @@
+- date: 11 January 2021
+  headline: "Cling 0.8 released"
+  link: "https://github.com/vgvassilev/cling/releases/tag/v0.8"
+
 - date: 21 December 2020
   headline: "Interactive C++ for Data Science with Cling"
   link: "https://blog.llvm.org/posts/2020-12-21-interactive-cpp-for-data-science/"
