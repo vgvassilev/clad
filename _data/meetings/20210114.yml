@@ -1,0 +1,14 @@
+- date: 14 January 2021
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/91097931341?pwd=SEJLeStJS2ZLd1ZLSS82bCtKZ0Nvdz09)"
+  label: caas_14Jan2021
+  agenda:
+    - title: Update
+      speaker: Vassil
+      link:
+       url: /assets/presentations/CaaS_14_01_2021.pdf
+       display: Slides
+    - title: Next meeting
+      speaker: Vassil
+      link:
+       display: 03 Feb 1700
