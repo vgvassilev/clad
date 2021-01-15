@@ -9,19 +9,13 @@ permalink: /meetings/
 
 
 # Project Meetings
-{% assign meetings_list = "" | split: ',' %}
-{% for meeting_hash in site.data.meetings %}
-{% for meeting in meeting_hash[1] %}
-{% assign meetings_list = meetings_list | push: meeting %}
-{% endfor %}
-{% endfor %}
 
-{% assign sorted_meetings = meetings_list | sort: "date" | reverse %}
+{% assign sorted_meetings = site.data.meetinglist | sort: "date" | reverse %}
 
 {% for meeting in sorted_meetings %}
 <span id={{meeting.label}}>&nbsp;</span>
 <div class="well" style="padding-left: 70px; padding-right: 70px">
-  <pubtit>{{ meeting.date }} at {{meeting.time_cest}} CEST</pubtit>
+  <pubtit>{{ meeting.date | date_to_long_string }} at {{meeting.time_cest}} CEST</pubtit>
 <div style="text-indent: 20px;">
   Connection information: {{meeting.connect}} <br />
  </div>
