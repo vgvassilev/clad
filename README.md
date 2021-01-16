@@ -1,6 +1,7 @@
+![example workflow name]()
 | Linux & OSX: | Coverity | Codecov |
 |:---:|:---:|:---:|
-[![Linux & Osx Status](http://img.shields.io/travis/vgvassilev/clad.svg?style=flat-square)](https://travis-ci.org/vgvassilev/clad) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>| [![codecov]( https://codecov.io/gh/vgvassilev/clad/branch/master/graph/badge.svg)](https://codecov.io/gh/vgvassilev/clad)
+[![Linux & Osx Status](https://github.com/vgvassilev/clad/workflows/Clad-CI/badge.svg)](https://github.com/vgvassilev/clad/actions?query=workflow%3AClad-CI) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>| [![codecov]( https://codecov.io/gh/vgvassilev/clad/branch/master/graph/badge.svg)](https://codecov.io/gh/vgvassilev/clad)
 
 # Clad
 Clad enables [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) for C++. It is based on LLVM compiler infrastructure and is a plugin for [Clang compiler](http://clang.llvm.org/). Clad is based on source code transformation. Given C++ source code of a mathematical function, it can automatically generate C++ code for computing derivatives of the function. It supports both forward-mode and reverse-mode AD.
