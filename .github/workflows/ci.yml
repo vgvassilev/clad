@@ -714,6 +714,10 @@ jobs:
         pip show lit
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 1 # When debugging increase to a suitable value!
     - name: Code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |

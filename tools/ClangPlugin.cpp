@@ -70,12 +70,18 @@ namespace clad {
       if (!ShouldProcessDecl(DGR))
         return true;
 
+      Sema& S = m_CI.getSema();
+
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
 
       // Instantiate all pending for instantiations templates, because we will
       // need the full bodies to produce derivatives.
-      m_CI.getSema().PerformPendingInstantiations();
+      if (!m_PendingInstantiationsInFlight) {
+        m_PendingInstantiationsInFlight = true;
+        S.PerformPendingInstantiations();
+        m_PendingInstantiationsInFlight = false;
+      }
 
       DiffSchedule requests{};
       DiffCollector collector(DGR, requests, m_CI.getSema());

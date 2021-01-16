@@ -51,6 +51,7 @@ namespace clad {
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
       bool m_HasRuntime = false;
+      bool m_PendingInstantiationsInFlight = false;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
