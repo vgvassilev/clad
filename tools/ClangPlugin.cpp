@@ -7,7 +7,6 @@
 #include "ClangPlugin.h"
 
 #include "clad/Differentiator/DerivativeBuilder.h"
-#include "clad/Differentiator/DiffPlanner.h"
 
 #include "clad/Differentiator/Version.h"
 
@@ -59,9 +58,44 @@ namespace {
   };
 }
 
-
 namespace clad {
   namespace plugin {
+
+    /// Keeps track if we encountered #pragma clad on/off.
+    // FIXME: Figure out how to make it a member of CladPlugin.
+    std::vector<clang::SourceRange> CladEnabledRange;
+
+    // Define a pragma handler for #pragma clad
+    class CladPragmaHandler : public PragmaHandler {
+    public:
+      CladPragmaHandler() : PragmaHandler("clad") { }
+      void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                        Token &PragmaTok) override {
+        // Handle #pragma clad ON/OFF/DEFAULT
+        if (PragmaTok.isNot(tok::identifier)) {
+          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
+          return;
+        }
+        IdentifierInfo *II = PragmaTok.getIdentifierInfo();
+        assert(II->isStr("clad"));
+
+        tok::OnOffSwitch OOS;
+        if (PP.LexOnOffSwitch(OOS))
+          return; // failure
+        SourceLocation TokLoc = PragmaTok.getLocation();
+        if (OOS == tok::OOS_ON) {
+          SourceRange R(TokLoc, /*end*/ SourceLocation());
+          // If a second ON is seen, ignore it if the interval is open.
+          if (CladEnabledRange.empty() ||
+              CladEnabledRange.back().getEnd().isValid())
+          CladEnabledRange.push_back(R);
+        } else if (!CladEnabledRange.empty()) { // OOS_OFF or OOS_DEFAULT
+          assert(CladEnabledRange.back().getEnd().isInvalid());
+          CladEnabledRange.back().setEnd(TokLoc);
+        }
+      }
+    };
+
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
       : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
     CladPlugin::~CladPlugin() {}
@@ -69,7 +103,7 @@ namespace clad {
     // We cannot use HandleTranslationUnit because codegen already emits code on
     // HandleTopLevelDecl calls and makes updateCall with no effect.
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
-      if (!ShouldProcessDecl(DGR))
+      if (!CheckBuiltins())
         return true;
 
       Sema& S = m_CI.getSema();
@@ -88,7 +122,8 @@ namespace clad {
       }
 
       DiffSchedule requests{};
-      DiffCollector collector(DGR, requests, m_CI.getSema());
+      DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
+                              m_CI.getSema());
 
       for (DiffRequest& request : requests)
         ProcessDiffRequest(request);
@@ -126,6 +161,9 @@ namespace clad {
       }
 
       if (DerivativeDecl) {
+        auto I = m_Derivatives.insert(DerivativeDecl);
+        (void)I;
+        assert(I.second);
         bool lastDerivativeOrder = 
           (request.CurrentDerivativeOrder == request.RequestedDerivativeOrder);
         // If this is the last required derivative order, replace the function
@@ -170,18 +208,8 @@ namespace clad {
       return nullptr;
     }
 
-
-    /// Keeps track if we encountered #pragma clad on/off.
-    // FIXME: Figure out how to make it a member of CladPlugin.
-    SourceLocation CladPragmaEnabledLoc = SourceLocation();
-
-    bool CladPlugin::ShouldProcessDecl(DeclGroupRef DGR) {
-      if (CladPragmaEnabledLoc.isValid()) {
-        SourceLocation DGREndLoc = (*DGR.begin())->getEndLoc();
-        SourceManager& SM = m_CI.getSourceManager();
-        return SM.isBeforeInTranslationUnit(CladPragmaEnabledLoc, DGREndLoc);
-      }
-      // If we have included "clad/Differentiator/Differentiator.h" return here.
+    bool CladPlugin::CheckBuiltins() {
+      // If we have included "clad/Differentiator/Differentiator.h" return.
       if (m_HasRuntime)
         return true;
 
@@ -201,33 +229,6 @@ namespace clad {
       m_HasRuntime = !R.empty();
       return m_HasRuntime;
     }
-
-
-    // Define a pragma handler for #pragma clad
-    class CladPragmaHandler : public PragmaHandler {
-    public:
-      CladPragmaHandler() : PragmaHandler("clad") { }
-      void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
-                        Token &PragmaTok) override {
-        // Handle #pragma clad ON/OFF/DEFAULT
-        if (PragmaTok.isNot(tok::identifier)) {
-          PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
-          return;
-        }
-        IdentifierInfo *II = PragmaTok.getIdentifierInfo();
-        assert(II->isStr("clad"));
-
-        tok::OnOffSwitch OOS;
-        if (PP.LexOnOffSwitch(OOS))
-          return; // failure
-
-        if (OOS == tok::OOS_ON)
-          CladPragmaEnabledLoc = PragmaTok.getLocation();
-        else // tok::OOS_OFF or tok::OOS_DEFAULT
-          CladPragmaEnabledLoc = SourceLocation();
-      }
-    };
-
   } // end namespace plugin
 } // end namespace clad
 

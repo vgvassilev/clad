@@ -1,5 +1,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 
+#include "llvm/ADT/SmallSet.h"
+
 namespace clang {
   class ASTContext;
   class CallExpr;
@@ -49,21 +51,36 @@ namespace clad {
   };
 
   using DiffSchedule = llvm::SmallVector<DiffRequest, 16>;
+  using DiffInterval = std::vector<clang::SourceRange>;
+  using DerivativesSet = llvm::SmallSet<const clang::Decl*, 16>;
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
-  private:
-    ///\brief The diff step-by-step plan for differentiation.
+    /// The source interval where clad was activated.
+    ///
+    DiffInterval& m_Interval;
+
+    /// The list of already generated derivatives. There is no need to collect
+    /// calls as there are none.
+    ///
+    const DerivativesSet& m_GeneratedDerivatives;
+
+    /// The diff step-by-step plan for differentiation.
     ///
     DiffSchedule& m_DiffPlans;
 
-    ///\brief If set it means that we need to find the called functions and
+    /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
     const clang::FunctionDecl* m_TopMostFD = nullptr;
     clang::Sema& m_Sema;
 
   public:
-    DiffCollector(clang::DeclGroupRef DGR, DiffSchedule& plans, clang::Sema& S);
+    DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
+                  const DerivativesSet& Derivatives,
+                  DiffSchedule& plans, clang::Sema& S);
     bool VisitCallExpr(clang::CallExpr* E);
+
+  private:
+    bool isInInterval(clang::SourceLocation Loc) const;
   };
 }
