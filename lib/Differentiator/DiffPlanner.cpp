@@ -1,6 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
 
@@ -141,10 +142,22 @@ namespace clad {
     call->setCallee(CladGradientExprNew);
   }
 
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffSchedule& plans, clang::Sema& S)
-     : m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
-    if (DGR.isSingleDecl())
-      TraverseDecl(DGR.getSingleDecl());
+  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
+                               const DerivativesSet& Derivatives,
+                               DiffSchedule& plans, clang::Sema& S)
+    : m_Interval(Interval), m_GeneratedDerivatives(Derivatives),
+      m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
+
+    if (Interval.empty())
+      return;
+
+
+    for (Decl* D : DGR) {
+      // Skip over the derivatives that we produce.
+      if (m_GeneratedDerivatives.count(D))
+        continue;
+      TraverseDecl(D);
+    }
   }
 
   DeclRefExpr* getArgFunction(CallExpr* E) {
@@ -161,7 +174,27 @@ namespace clad {
       return nullptr;
   }
 
+  bool DiffCollector::isInInterval(SourceLocation Loc) const {
+    const SourceManager &SM = m_Sema.getSourceManager();
+    for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
+      SourceLocation B = m_Interval[i].getBegin();
+      SourceLocation E = m_Interval[i].getEnd();
+      assert((i == e-1 || E.isValid()) && "Unexpected open interval");
+      assert(E.isInvalid() || SM.isBeforeInTranslationUnit(B, E));
+      if (E.isValid() &&
+          clad_compat::SourceManager_isPointWithin(SM, Loc, B, E))
+        return true;
+      else if (SM.isBeforeInTranslationUnit(B, Loc))
+        return true;
+    }
+    return false;
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
+    // Check if we should look into this.
+    if (!isInInterval(E->getEndLoc()))
+        return true;
+
     FunctionDecl* FD = E->getDirectCallee();
     if (!FD)
       return true;

@@ -94,6 +94,7 @@ namespace clad {
         // clad did not place the derivative in this object. This can happen
         // upon error of if clad was disabled. Diagnose.
         printf("clad failed to place the generated derivative in the object\n");
+        printf("Make sure calls to clad are within a #pragma clad ON region\n");
 
         // Invalidate the placeholders.
         m_Function = nullptr;
@@ -201,3 +202,7 @@ namespace clad {
   }
 }
 #endif // CLAD_DIFFERENTIATOR
+
+// Enable clad after the header was included.
+// FIXME: The header inclusion should be made automatic if the pragma is seen.
+#pragma clad ON
