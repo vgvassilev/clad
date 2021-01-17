@@ -66,6 +66,8 @@ namespace clad {
       : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
     CladPlugin::~CladPlugin() {}
 
+    // We cannot use HandleTranslationUnit because codegen already emits code on
+    // HandleTopLevelDecl calls and makes updateCall with no effect.
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
       if (!ShouldProcessDecl(DGR))
         return true;
@@ -75,6 +77,8 @@ namespace clad {
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
 
+      // FIXME: Remove the PerformPendingInstantiations altogether. We should
+      // somehow make the relevant functions referenced.
       // Instantiate all pending for instantiations templates, because we will
       // need the full bodies to produce derivatives.
       if (!m_PendingInstantiationsInFlight) {
