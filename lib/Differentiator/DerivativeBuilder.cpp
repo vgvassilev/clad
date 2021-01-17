@@ -1557,9 +1557,7 @@ namespace clad {
       return StmtDiff(op, diff.getExpr_dx());
     }
     else {
-      diag(DiagnosticsEngine::Warning, UnOp->getEndLoc(),
-           "attempt to differentiate unsupported unary operator, derivative \
-            set to 0");
+      unsupportedOpWarn(UnOp->getEndLoc());
       auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                     m_Context, 0);
       return StmtDiff(op, zero);
@@ -1648,9 +1646,7 @@ namespace clad {
     }
     if (!opDiff) {
       //FIXME: add support for other binary operators
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
-           "attempt to differentiate unsupported binary operator, derivative \
-            set to 0");
+      unsupportedOpWarn(BinOp->getEndLoc());
       opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     }
     opDiff = folder.fold(opDiff);
@@ -2024,6 +2020,7 @@ namespace clad {
     // the if statement.
     Expr* PushCond = nullptr;
     Expr* PopCond = nullptr;
+    auto condExpr = Visit(cond.getExpr());
     if (isInsideLoop) {
       // If we are inside for loop, cond will be stored in the following way:
       // forward:
@@ -2036,13 +2033,13 @@ namespace clad {
       // if (clad::push(..., _t) { ... }
       // is incorrect when if contains return statement inside: return will
       // skip corresponding push.
-      cond = StoreAndRef(cond.getExpr(), forward, "_t", /*force*/ true);
+      cond = StoreAndRef(condExpr.getExpr(), forward, "_t", /*force*/ true);
       StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
       PushCond = condPushPop.getExpr();
       PopCond = condPushPop.getExpr_dx();
     }
     else
-      cond = GlobalStoreAndRef(cond.getExpr(), "_cond");
+      cond = GlobalStoreAndRef(condExpr.getExpr(), "_cond");
     // Convert cond to boolean condition. We are modifying each Stmt in StmtDiff.
     for (Stmt*& S : cond.getBothStmts())
       if (S)
@@ -2137,7 +2134,7 @@ namespace clad {
     StmtDiff cond = Clone(CO->getCond());
     // Condition has to be stored as a "global" variable, to take the correct
     // branch in the reverse pass.
-    cond = GlobalStoreAndRef(cond.getExpr(), "_cond");
+    cond = GlobalStoreAndRef(Visit(cond.getExpr()).getExpr(), "_cond");
     // Convert cond to boolean condition. We are modifying each Stmt in StmtDiff.
     for (Stmt*& S : cond.getBothStmts())
       S = m_Sema.ActOnCondition(m_CurScope, noLoc, cast<Expr>(S),
@@ -2241,8 +2238,9 @@ namespace clad {
     // but it is not generally true, e.g. for (...; (x = y); ...)...
     StmtDiff cond;
     if (FS->getCond())
-      cond = Clone(FS->getCond());
-    const Expr* inc = FS->getInc();
+      cond = Visit(FS->getCond());
+    auto IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
+    const Expr* inc = IDRE? Visit(FS->getInc()).getExpr(): FS->getInc();
 
     // Save the isInsideLoop value (we may be inside another loop).
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
@@ -2705,8 +2703,10 @@ namespace clad {
       diff = Visit(UnOp->getSubExpr(), dfdx());
     }
     else {
-      diag(DiagnosticsEngine::Warning, UnOp->getEndLoc(),
-           "attempt to differentiate unsupported unary operator, ignored");
+      // We should not output any warning on visiting boolean conditions
+      // FIXME: We should support boolean differentiation or ignore it completely
+      if(opCode != UO_LNot)
+        unsupportedOpWarn(UnOp->getEndLoc());
 
       Expr* subExpr = UnOp->getSubExpr();
       if(auto SDRE = dyn_cast<DeclRefExpr>(subExpr))
@@ -2991,8 +2991,10 @@ namespace clad {
       ResultRef = Ldiff.getExpr();
     }
     else {
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
-           "attempt to differentiate unsupported binary operator, ignored");
+      // We should not output any warning on visiting boolean conditions
+      // FIXME: We should support boolean differentiation or ignore it completely
+      if(!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
+        unsupportedOpWarn(BinOp->getEndLoc());
 
       // If either LHS or RHS is a declaration reference, visit it to avoid naming collision
       auto LDRE = dyn_cast<DeclRefExpr>(L);

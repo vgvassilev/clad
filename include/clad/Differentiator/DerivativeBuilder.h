@@ -392,6 +392,13 @@ namespace clad {
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     // Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+    /// Shorthand for warning on differentiation of unsupported operators
+    void unsupportedOpWarn(clang::SourceLocation loc,
+                           llvm::ArrayRef<llvm::StringRef> args = {}) {
+        diag(clang::DiagnosticsEngine::Warning, loc,
+             "attempt to differentiate unsupported operator,  derivative \
+                         set to 0", args);
+    }
   };
 
   /// A visitor for processing the function code in reverse mode.
@@ -633,6 +640,12 @@ namespace clad {
     /// additionally created Stmts, second is a direct result of call to Visit.
     std::pair<StmtDiff, StmtDiff> 
     DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
+    /// Shorthand for warning on differentiation of unsupported operators
+    void unsupportedOpWarn(clang::SourceLocation loc,
+            llvm::ArrayRef<llvm::StringRef> args = {}) {
+        diag(clang::DiagnosticsEngine::Warning, loc,
+             "attempt to differentiate unsupported operator, ignored.", args);
+    }
 
   };
   
