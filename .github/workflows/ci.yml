@@ -543,11 +543,11 @@ jobs:
         # Fetch clang with RelWithDebInfo which is useful as it has asserts on.
         # This allows us to verify if clad produces correct AST.
         if [ -n "${{ matrix.llvmlab_id }}" ]; then
-          git clone https://github.com/llvm-mirror/zorg.git zorg
-          cd zorg/llvmbisect
-          sudo python setup.py install
-          llvmlab fetch clang-stage1-configure-RA ${{ matrix.llvmlab_id }}
-          export CLANG=$(pwd)/${{ matrix.llvmlab_id }}/bin/clang
+          #git clone https://github.com/llvm-mirror/zorg.git zorg
+          #cd zorg/llvmbisect
+          #sudo python setup.py install
+          #llvmlab fetch clang-stage1-configure-RA ${{ matrix.llvmlab_id }}
+          #export CLANG=$(pwd)/${{ matrix.llvmlab_id }}/bin/clang
         fi
 
         cmake --build . --target check-clad -- -j4
