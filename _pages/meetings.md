@@ -16,21 +16,16 @@ permalink: /meetings/
 <span id={{meeting.label}}>&nbsp;</span>
 <div class="well" style="padding-left: 70px; padding-right: 70px">
   <pubtit>{{ meeting.date | date_to_long_string }} at {{meeting.time_cest}} CEST</pubtit>
-<div style="text-indent: 20px;">
+<div>
   Connection information: {{meeting.connect}} <br />
- </div>
-<div style="text-indent: 20px;">
+</div>
+<div>
   Agenda:
-<ul style="margin-top:-10px;">
-  {% for item in meeting.agenda %}
-  {% if item.link.url %}
-  <li> {{item.title}} (<em>{{item.speaker}} </em>): <a href="{{item.link.url}}">{{ item.link.display }}</a> </li>
-  {% else %}
-  <li> {{item.title}} (<em>{{item.speaker}} </em>): {{ item.link.display }} </li>
-  {% endif %}
-  {% endfor %}
-</ul>
-
- </div>
- </div>
+  <ul>
+    {% for item in meeting.agenda %}
+    <li> <strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
+    {% endfor %}
+   </ul>
+</div>
+</div>
 {% endfor %} 

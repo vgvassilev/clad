@@ -1,3 +1,19 @@
+- date: 2021-02-04 17:00
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/99436382635?pwd=NEhzdkhLbTBhdDBBc0tpK3FSLzFpdz09)"
+  label: caas_04Feb2021
+  agenda:
+    - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach"
+      speaker: Alexandru Militaru
+    - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach. Demo"
+      speaker: Alexandru Militaru
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 04 Mar 1700
+
 - date: 2021-01-14 17:00
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/99436382635?pwd=NEhzdkhLbTBhdDBBc0tpK3FSLzFpdz09)"
@@ -5,13 +21,11 @@
   agenda:
     - title: Update
       speaker: Vassil
-      link:
-       url: /assets/presentations/CaaS_14_01_2021.pdf
-       display: Slides
+      link: "[Slides](/assets/presentations/CaaS_14_01_2021.pdf)"
+    - title: Round Table
     - title: Next meeting
       speaker: Vassil
-      link:
-       display: 03 Feb 1700
+      link: 04 Feb 1700
 
 - date: 2020-12-03 17:00
   time_cest: "17:00"
@@ -20,13 +34,11 @@
   agenda:
     - title: Update
       speaker: Vassil
-      link:
-       url: /assets/presentations/CaaS_03_12_2020.pdf
-       display: Slides
+      link: "[Slides](/assets/presentations/CaaS_03_12_2020.pdf)"
+    - title: Round Table
     - title: Next meeting
       speaker: Vassil
-      link:
-       display: 14 January 1700
+      link: 14 January 1700
 
 - date: 2020-10-22 18:00
   time_cest: "18:00"
@@ -35,14 +47,11 @@
   agenda:
     - title: Update
       speaker: Vassil
-      link:
-       url: /assets/presentations/CaaS_22_10_2020.pdf
-       display: Slides
+      link: "[Slides](/assets/presentations/CaaS_22_10_2020.pdf)"
+    - title: Round Table
     - title: Next meeting
       speaker: Vassil
-      link:
-       url: https://doodle.com/poll/bkkahvx9d5rrbka2
-       display: Doodle pool for week of November 30
+      link: "[Doodle pool for week of November 30](https://doodle.com/poll/bkkahvx9d5rrbka2)"
 
 - date: 2020-09-17 18:00
   time_cest: "18:00"
@@ -51,6 +60,5 @@
   agenda:
     - title: Project introduction
       speaker: Vassil
-      link:
-       url: https://drive.google.com/file/d/1YF6B2VkeOGsWKz7GRZQTf-C0myq2Dh3I/view?usp=sharing
-       display: Slides
+      link: "[Slides](https://drive.google.com/file/d/1YF6B2VkeOGsWKz7GRZQTf-C0myq2Dh3I/view?usp=sharing)"
+    - title: Round Table
