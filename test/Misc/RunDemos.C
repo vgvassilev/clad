@@ -178,3 +178,62 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _delta_y += * _d_y * y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: }
+
+//-----------------------------------------------------------------------------/
+// Demo: Gradient Descent
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang -lstdc++ %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
+
+//CHECK_GRADIENT_DESCENT: void f_grad(double theta_0, double theta_1, double x, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
+//CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
+//CHECK_GRADIENT_DESCENT-NEXT:     _t0 = x;
+//CHECK_GRADIENT_DESCENT-NEXT:     double f_return = theta_0 + _t1 * _t0;
+//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
+//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
+//CHECK_GRADIENT_DESCENT-NEXT:     {
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += 1;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = 1 * _t0;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_1 += _r0;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = _t1 * 1;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_x += _r1;
+//CHECK_GRADIENT_DESCENT-NEXT:     }
+//CHECK_GRADIENT_DESCENT-NEXT: }
+//CHECK_GRADIENT_DESCENT-NEXT: void cost_grad(double theta_0, double theta_1, double x, double y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t2;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _d_f_x = 0;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t3;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t4;
+//CHECK_GRADIENT_DESCENT-NEXT:     _t0 = theta_0;
+//CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
+//CHECK_GRADIENT_DESCENT-NEXT:     _t2 = x;
+//CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(_t0, _t1, _t2);
+//CHECK_GRADIENT_DESCENT-NEXT:     _t4 = (f_x - y);
+//CHECK_GRADIENT_DESCENT-NEXT:     _t3 = (f_x - y);
+//CHECK_GRADIENT_DESCENT-NEXT:     double cost_return = _t4 * _t3;
+//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
+//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
+//CHECK_GRADIENT_DESCENT-NEXT:     {
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r3 = 1 * _t3;
+//CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += _r3;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_y += -_r3;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r4 = _t4 * 1;
+//CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += _r4;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_y += -_r4;
+//CHECK_GRADIENT_DESCENT-NEXT:     }
+//CHECK_GRADIENT_DESCENT-NEXT:     {
+//CHECK_GRADIENT_DESCENT-NEXT:         double _grad0 = 0.;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _grad1 = 0.;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _grad2 = 0.;
+//CHECK_GRADIENT_DESCENT-NEXT:         f_grad(_t0, _t1, _t2, &_grad0, &_grad1, &_grad2);
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = _d_f_x * _grad0;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _r0;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = _d_f_x * _grad1;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_1 += _r1;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r2 = _d_f_x * _grad2;
+//CHECK_GRADIENT_DESCENT-NEXT:         * _d_x += _r2;
+//CHECK_GRADIENT_DESCENT-NEXT:     }
+//CHECK_GRADIENT_DESCENT-NEXT: }
