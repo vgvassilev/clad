@@ -1,7 +1,7 @@
 - name: "CaaS Monthly Meeting"
   date: 2021-02-04 17:00
   time_cest: "17:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/99436382635?pwd=NEhzdkhLbTBhdDBBc0tpK3FSLzFpdz09)"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
   label: caas_04Feb2021
   agenda:
     - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach"
@@ -14,6 +14,16 @@
     - title: Next meeting
       speaker: Vassil
       link: 04 Mar 1700
+
+- name: "CaaS Weekly Meeting"
+  date: 2021-02-03 17:00
+  time_cest: "14:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
+  label: caas_02Feb2021
+  agenda:
+    - title: Updates
+      speaker: "Vassil, David, Garima"
+      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
 
 - name: "CaaS Weekly Meeting"
   date: 2021-01-27 17:00
