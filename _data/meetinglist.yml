@@ -6,6 +6,7 @@
   agenda:
     - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach"
       speaker: Alexandru Militaru
+      link: "[Slides](/assets/presentations/A_Militaru-Calling_Cpp_libraries_from_a_D-written_DSL.pdf)"
     - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach. Demo"
       speaker: Alexandru Militaru
     - title: Update
