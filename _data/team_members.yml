@@ -17,3 +17,13 @@
   education2: PhD Computer Science, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2015).
   education3: MSc Software Technologies, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2010)
   education4: BSc Informatics, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2009)
+
+- name: Ioana Ifrim
+  photo: Ifrim.jpg
+  info: Research Staff
+  email: ioana.ifrim@cern.ch
+  number_educ: 4
+  education1: Research Fellowship Generative Deep Learning - CERN (2018-2020)
+  education2: Research student part of Morphological Computation and Learning Lab, Imperial College; Biologically Inspired Robotics Laboratory University of Cambridge (2016-2018)
+  education3: MPhil Advanced Computer Science, University of Cambridge (2018)
+  education4: BSc Computer Science with Robotics, King’s College London (2017)
