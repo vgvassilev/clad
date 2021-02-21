@@ -164,6 +164,28 @@ double f4(double x) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f5(double x){
+  for (int i = 0; i < 10; i++)
+    x++;
+  return x;
+} // == x + 10
+
+//CHECK:   void f5_grad(double x, double *_result) {
+//CHECK-NEXT:       unsigned long _t0;
+//CHECK-NEXT:       int _d_i = 0;
+//CHECK-NEXT:       _t0 = 0;
+//CHECK-NEXT:       for (int i = 0; i < 10; i++) {
+//CHECK-NEXT:           _t0++;
+//CHECK-NEXT:           x++;
+//CHECK-NEXT:       }
+//CHECK-NEXT:       double f5_return = x;
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       _result[0UL] += 1;
+//CHECK-NEXT:       for (; _t0; _t0--)
+//CHECK-NEXT:           ;
+//CHECK-NEXT:   }
+
 double f_sum(double *p, int n) {
   double s = 0;
   for (int i = 0; i < n; i++)
@@ -358,6 +380,7 @@ int main() {
   TEST(f2, 3); // CHECK-EXEC: {59049.00} 
   TEST(f3, 3); // CHECK-EXEC: {6.00} 
   TEST(f4, 3); // CHECK-EXEC: {27.00}
+  TEST(f5, 3); // CHECK-EXEC: {1.00}
 
   double p[] = { 1, 2, 3, 4, 5 };
 

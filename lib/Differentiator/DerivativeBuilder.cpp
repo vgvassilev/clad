@@ -2221,7 +2221,7 @@ namespace clad {
     beginBlock(forward);
     beginBlock(reverse);
     const Stmt* init = FS->getInit();
-    StmtDiff initResult = init ? Visit(init) : StmtDiff{};
+    StmtDiff initResult = init ? DifferentiateSingleStmt(init) : StmtDiff{};
 
     VarDecl* condVarDecl = FS->getConditionVariable();
     VarDecl* condVarClone = nullptr;
@@ -2324,6 +2324,8 @@ namespace clad {
     CompoundStmt* ReverseBody = endBlock(reverse);
     std::reverse(ReverseBody->body_begin(), ReverseBody->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(ReverseBody);
+    if (!ReverseResult) 
+      ReverseResult = new (m_Context) NullStmt(noLoc);
     Stmt* Reverse = new (m_Context) ForStmt(m_Context, nullptr,
                                             CounterCondition, condVarClone,
                                             CounterDecrement, ReverseResult,
