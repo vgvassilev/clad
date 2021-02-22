@@ -96,3 +96,8 @@
 // Demo: ODE Solver Sensitivity
 //-----------------------------------------------------------------------------/
 // RUN: %cladclang -lstdc++ %S/../../demos/ODESolverSensitivity.cpp -I%S/../../include -oODESolverSensitivity.out
+
+//-----------------------------------------------------------------------------/
+// Demo: Gradient Descent
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang -lstdc++ %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out
