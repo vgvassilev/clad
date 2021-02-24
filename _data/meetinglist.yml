@@ -1,4 +1,14 @@
 - name: "CaaS Weekly Meeting"
+  date: 2021-02-24 14:00
+  time_cest: "14:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
+  label: caas_24Feb2021
+  agenda:
+    - title: Updates
+      speaker: "Vassil, David, Garima, Ioana"
+      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+
+- name: "CaaS Weekly Meeting"
   date: 2021-02-17 14:00
   time_cest: "14:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
