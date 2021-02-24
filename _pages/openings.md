@@ -16,6 +16,7 @@ application process.
   * [Add support for functor objects in clad](https://hepsoftwarefoundation.org/gsoc/2021/proposal_functor_clad.html)
   * [Add numerical differentiation support in clad](https://hepsoftwarefoundation.org/gsoc/2021/proposal_numdiff_clad.html)
   * [Utilize second order derivatives from Clad in ROOT](https://hepsoftwarefoundation.org/gsoc/2021/proposal_secondorder_clad.html)
+  * [Allow redefinition of CUDA functions](https://hepsoftwarefoundation.org/gsoc/2021/proposal_cling_cuda.html)
 
 Dates to keep in mind: March 9: accepted organizations are announced, March 20: end of
 phase 1 selection; April 13: student application deadline.
