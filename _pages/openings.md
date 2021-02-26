@@ -16,7 +16,11 @@ application process.
   * [Add support for functor objects in clad](https://hepsoftwarefoundation.org/gsoc/2021/proposal_functor_clad.html)
   * [Add numerical differentiation support in clad](https://hepsoftwarefoundation.org/gsoc/2021/proposal_numdiff_clad.html)
   * [Utilize second order derivatives from Clad in ROOT](https://hepsoftwarefoundation.org/gsoc/2021/proposal_secondorder_clad.html)
-  * [Allow redefinition of CUDA functions](https://hepsoftwarefoundation.org/gsoc/2021/proposal_cling_cuda.html)
+  * [Allow redefinition of CUDA functions in Cling](https://hepsoftwarefoundation.org/gsoc/2021/proposal_cling_cuda.html)
+  * [Implement a shared-memory based JITLinkMemoryManager for out-of-process JITting](https://llvm.org/OpenProjects.html#llvm_shared_jitlink)
+  * [Modernize the LLVM "Building A JIT" tutorial series](https://llvm.org/OpenProjects.html#llvm_build_jit_tutorial)
+  * [Write JITLink support for a new format/architecture](https://llvm.org/OpenProjects.html#llvm_jit_new_format)
+  * [Extend clang AST to provide information for the type as written in template instantiations](https://llvm.org/OpenProjects.html#clang-template-instantiation-sugar)
 
 Dates to keep in mind: March 9: accepted organizations are announced, March 20: end of
 phase 1 selection; April 13: student application deadline.
