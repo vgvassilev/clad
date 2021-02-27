@@ -66,7 +66,7 @@ namespace clad {
 
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
-    bool overloadExists(clang::Expr* UnresolvedLookup,
+    bool noOverloadExists(clang::Expr* UnresolvedLookup,
                             llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
