@@ -8,6 +8,7 @@
 #define CLAD_DIFFERENTIATOR
 
 #include "BuiltinDerivatives.h"
+#include "FunctionTraits.h"
 #include "Tape.h"
 
 #include <assert.h>
@@ -52,37 +53,29 @@ namespace clad {
     return of.back();
   }
 
-  // Provide the accurate type for standalone functions and members.
-  template<bool isMemFn, typename ReturnResult, typename... ArgTypes>
-  struct FnTypeTrait {
-    using type = ReturnResult (*)(ArgTypes...);
+  // for executing non-member functions
+  template<class F, class... Args> 
+  return_type_t<F> execute_helper(F f, Args&&... args) {
+      return f(static_cast<Args>(args)... );
+  }
 
-    static ReturnResult execute(type f, ArgTypes&&... args) {
-      return f(args...);
-    }
-  };
-
-  // If it is a member function the compiler uses this specialisation.
-  template<typename ReturnResult, class C, typename... ArgTypes>
-  struct FnTypeTrait<true, ReturnResult, C, ArgTypes...> {
-    using type = ReturnResult (C::*)(ArgTypes...);
-
-    static ReturnResult execute(type f, const C& self, ArgTypes&&... args) {
-      // cast away the const and call.
-      return (const_cast<C&>(self).*f)(args...);
-    }
-  };
+  // for executing member-functions
+  template<class ReturnType, class C, class Obj, class... Args> 
+  auto execute_helper( ReturnType C::* f, Obj&& obj, Args&&... args) -> return_type_t<decltype(f)>  {
+      return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)... );
+  }
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
   // do not need. Another disadvantage is that it is difficult to distinguish a
   // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
-  template<bool isMemFn, typename ReturnResult, typename... ArgTypes>
-  class CladFunction {
+  template <typename F> class CladFunction {
   public:
-    using CladFunctionType = typename FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>::type;
+    using CladFunctionType = F;
+
   private:
     CladFunctionType m_Function;
     char* m_Code;
+
   public:
     CladFunction(CladFunctionType f, const char* code) {
       assert(f && "Must pass a non-0 argument.");
@@ -108,15 +101,14 @@ namespace clad {
 
     CladFunctionType getFunctionPtr() { return m_Function; }
 
-    template<typename ...Args>
-    ReturnResult execute(Args&&... args) {
+
+    template <typename... Args> return_type_t<F> execute(Args &&... args) {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
-        return static_cast<ReturnResult>(0);
+        return static_cast<return_type_t<F>>(0);
       }
-      return FnTypeTrait<isMemFn, ReturnResult, ArgTypes...>
-        // static_cast == std::forward, i.e convert the Args to ArgTypes
-        ::execute(m_Function, static_cast<ArgTypes>(args)...);
+
+      return execute_helper(m_Function,static_cast<Args>(args)...);
     }
 
     void dump() const {
@@ -136,68 +128,43 @@ namespace clad {
 
   ///\brief N is the derivative order.
   ///
-  template<unsigned N = 1, typename ArgSpec = const char *, typename R, typename... Args>
-  CladFunction <false, R, Args...> __attribute__((annotate("D")))
-  differentiate(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
+  template<unsigned N = 1, typename ArgSpec = const char *, typename F>
+  CladFunction <F> __attribute__((annotate("D")))
+  differentiate(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<false, R, Args...>(f, code);
-  }
-
-  template<unsigned N = 1, typename ArgSpec = const char *, typename R, class C, typename... Args>
-  CladFunction<true, R, C, Args...> __attribute__((annotate("D")))
-  differentiate(R (C::*f)(Args...), ArgSpec args = "", const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<true, R, C, Args...>(f, code);
+    return CladFunction<F>(f, code);
   }
 
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
   /// returns a CladFunction for it.
-  template<typename ArgSpec = const char *, typename R, typename... Args>
-  CladFunction<false, void, Args..., R*> __attribute__((annotate("G")))
-  gradient(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
+  template<typename ArgSpec = const char *, typename F>
+  CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("G")))
+  gradient(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<false, void, Args..., R*>(
-      reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by gradient*/,
-      code);
-  }
-
-  template<typename ArgSpec = const char *, typename R, typename C, typename... Args>
-  CladFunction<true, void, C, Args..., R*> __attribute__((annotate("G")))
-  gradient(R (C::*f)(Args...), ArgSpec args = "", const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<true, void, C, Args..., R*>(
-      reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by gradient*/,
+    return CladFunction<ExtractDerivedFnTraits_t<F>>(
+      reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by gradient*/,
       code);
   }
 
   /// Function for Hessian matrix computation
   /// Given  a function f, clad::hessian generates all the second derivatives
-  /// of the original function, (they are also columns of a Hessian matrix
-  template<typename ArgSpec = const char *, typename R, typename... Args>
-  CladFunction<false, void, Args..., R*> __attribute__((annotate("H")))
-  hessian(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
+  /// of the original function, (they are also columns of a Hessian matrix)
+  template<typename ArgSpec = const char *, typename F>
+  CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("H")))
+  hessian(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<false, void, Args..., R*>(
-      reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by Hessian*/,
-      code);
-  }
-    
-  template<typename ArgSpec = const char *, typename R, typename C, typename... Args>
-  CladFunction<true, void, C, Args..., R*> __attribute__((annotate("H")))
-  hessian(R (C::*f)(Args...), ArgSpec args = "", const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<true, void, C, Args..., R*>(
-      reinterpret_cast<void (C::*) (Args..., R*)>(f) /* will be replaced by Hessian*/,
+    return CladFunction<ExtractDerivedFnTraits_t<F>>(
+      reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by Hessian*/,
       code);
   }
 
-  template<typename ArgSpec = const char *, typename R, typename... Args>
-  CladFunction<false, void, Args..., R*> __attribute__((annotate("J")))
-  jacobian(R (*f)(Args...), ArgSpec args = "", const char* code = "") {
+  template<typename ArgSpec = const char *, typename F>
+  CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("J")))
+  jacobian(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<false, void, Args..., R*>(
-        reinterpret_cast<void (*) (Args..., R*)>(f) /* will be replaced by Jacobian*/,
+    return CladFunction<ExtractDerivedFnTraits_t<F>>(
+        reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by Jacobian*/,
         code);
   }
 }
