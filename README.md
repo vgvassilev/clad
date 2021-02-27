@@ -111,6 +111,8 @@ The following subset of C++ syntax is supported at the moment:
 * Control flow: `if` statements and `for` loops (*work on loops in the reverse-mode is in progress*)
 * Calls to other functions, including recursion
 
+Note: Clad currently differentiates types such as `int`/`char`/`boolean` as any real type (such as `float`, `double`, etc.) would be differentiated. Users should keep in mind that Clad *does not* warn against lossy casts, which on differentiation may result in incorrect derivaties.
+
 ## Specifying custom derivatives
 Sometimes Clad may be unable to differentiate your function (e.g. if its definition is in a library and source code is not available). Alternatively, an efficient/more numerically stable expression for derivatives may be know. In such cases, it is useful to be able to specify a custom derivatives for your function.
 
