@@ -1456,9 +1456,7 @@ namespace clad {
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
       s = "";
-    // FIXME: add gradient-vector products to fix that.
-    assert((CE->getNumArgs() <= 1) &&
-           "forward differentiation of multi-arg calls is currently broken");
+
     IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
                                                s + "arg0");
     DeclarationName name(II);
@@ -1486,6 +1484,11 @@ namespace clad {
 
     // Try to find an overloaded derivative in 'custom_derivatives'
     Expr* callDiff = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+
+    // FIXME: add gradient-vector products to fix that.
+    if(!callDiff)
+      assert((CE->getNumArgs() <= 1) &&
+             "forward differentiation of multi-arg calls is currently broken");
 
     // Check if it is a recursive call.
     if (!callDiff && (FD == m_Function)) {
@@ -3229,4 +3232,4 @@ namespace clad {
 
     return result;
   }
-} // end namespace clad
+}// end namespace clad
