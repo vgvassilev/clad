@@ -1371,7 +1371,7 @@ namespace clad {
   // This method is derived from the source code of both
   // buildOverloadedCallSet() in SemaOverload.cpp
   // and ActOnCallExpr() in SemaExpr.cpp.
-  bool DerivativeBuilder::overloadExists(Expr* UnresolvedLookup,
+  bool DerivativeBuilder::noOverloadExists(Expr* UnresolvedLookup,
                                          llvm::MutableArrayRef<Expr*> ARargs) {
     if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
       OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
@@ -1435,7 +1435,7 @@ namespace clad {
       SourceLocation Loc;
       Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
 
-      if (overloadExists(UnresolvedLookup, MARargs)) {
+      if (noOverloadExists(UnresolvedLookup, MARargs)) {
         return 0;
       }
 
