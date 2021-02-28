@@ -326,8 +326,7 @@ architecture support code for your chosen architecture.
 Write a JITLink specialization for a not-yet-supported format/architecture.
 
 
-# Extend clang AST to provide information for the type as written in template
-instantiations.
+# Extend clang AST to provide information for the type as written in template instantiations.
 
 ## Description
 
