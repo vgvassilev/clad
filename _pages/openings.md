@@ -6,7 +6,7 @@ sitemap: false
 permalink: /vacancies
 ---
 
-# Open positions
+# Open Positions
 
 Planned 2021 GSoC projects (pending GSoC organization approval). Reach out to the mentors or to us to inquire about how to get started with the
 application process.
