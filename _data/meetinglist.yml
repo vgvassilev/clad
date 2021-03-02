@@ -1,3 +1,18 @@
+- name: "CaaS Monthly Meeting"
+  date: 2021-03-04 17:00
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
+  label: caas_04Mar2021
+  agenda:
+    - title: "Cling’s CUDA Backend: Interactive GPU development with CUDA C++"
+      speaker: "Simeon Ehrig, HZDR"
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 25 Mar 1700
+
 - name: "CaaS Weekly Meeting"
   date: 2021-02-24 14:00
   time_cest: "14:00"
