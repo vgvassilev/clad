@@ -6,8 +6,10 @@
   agenda:
     - title: "Cling’s CUDA Backend: Interactive GPU development with CUDA C++"
       speaker: "Simeon Ehrig, HZDR"
+      link: "[Slides](/assets/presentations/S_Ehrig-CaaS_Cling-CUDA.pdf)"
     - title: Update
       speaker: Vassil
+      link: "[Slides](/assets/presentations/CaaS_04_03_2021.pdf)"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
