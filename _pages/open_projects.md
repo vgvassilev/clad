@@ -376,6 +376,12 @@ desugars to 'unsigned long' and `T<size_t>::type` single-step desugars to
 Cling has a flexible tool which can build and package binaries. It is
 implemented in python.
 
-Currently it has an issue deb package creation. The tool calls shell commands
-such as  `mv` and  `wget` which should be replaced with their proper python
-versions.
+There are several improvements that can be made to cpt:
+* Fix deb package creation
+* Rewrite parts of cpt 
+    * Use a `if __name__ == "__main__"` block as program execution starting point
+    * No mutating global variables
+    * Minimize use of `subprocess`
+    * Making cpt flake8 compliant (flexible error/violation codes)
+    * Revamp argument parser (Examine possibility of dependent arguments)
+
