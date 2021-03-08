@@ -80,18 +80,18 @@ namespace custom_derivatives {
   }
 #endif
 
-  template<typename T>
-  T pow_darg0(T x, T exponent) {
-    return exponent * pow(x, exponent-((T)1));
+  template<typename T1, typename T2>
+  decltype(pow(T1(), T2())) pow_darg0(T1 x, T2 exponent) {
+    return exponent * pow(x, exponent-((T2)1));
   }
 
-  template <typename T>
-  T pow_darg1(T x, T exponent) {
+  template <typename T1, typename T2>
+  decltype(pow(T1(), T2())) pow_darg1(T1 x, T2 exponent) {
     return pow(x, exponent) * log(x);
   }
 
-  template <typename T>
-  void pow_grad(T x, T exponent, T* result) {
+  template <typename T1, typename T2>
+  void pow_grad(T1 x, T2 exponent, decltype(pow(T1(), T2())) * result) {
     result[0] += pow_darg0(x, exponent);
     result[1] += pow_darg1(x, exponent);
   }
@@ -100,6 +100,18 @@ namespace custom_derivatives {
   T log_darg0(T x) {
     return 1.0/x;
   }
+
+  // FIXME: These math functions depend on promote_2 just like pow:
+  // atan2
+  // fmod
+  // copysign
+  // fdim
+  // fmax
+  // fmin
+  // hypot
+  // nextafter
+  // remainder
+  // remquo
 
 } // end namespace builtin_derivatives
 
