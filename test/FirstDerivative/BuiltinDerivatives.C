@@ -75,6 +75,43 @@ float f6(float x) {
 // CHECK-NEXT: return custom_derivatives::exp_darg0(x * x) * (_d_x * x + x * _d_x);
 // CHECK-NEXT: }
 
+float f7(float x) {
+  return pow(x, 2.0);
+}
+
+// CHECK: float f7_darg0(float x) {
+// CHECK-NEXT:   float _d_x = 1;
+// CHECK-NEXT:   return custom_derivatives::pow_darg0(x, 2.) * (_d_x + 0.);
+// CHECK-NEXT: }
+
+double f8(float x) {
+  return pow(x, 2);
+}
+
+// CHECK: double f8_darg0(float x) {
+// CHECK-NEXT:   float _d_x = 1;
+// CHECK-NEXT:   return custom_derivatives::pow_darg0(x, 2) * (_d_x + 0);
+// CHECK-NEXT: }
+
+float f9(float x, float y) {
+  return pow(x, y);
+}
+
+// CHECK: float f9_darg0(float x, float y) {
+// CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     float _d_y = 0;
+// CHECK-NEXT:     return custom_derivatives::pow_darg0(x, y) * (_d_x + _d_y);
+// CHECK-NEXT: }
+
+double f10(float x, int y) {
+  return pow(x, y);
+}
+
+// CHECK: double f10_darg0(float x, int y) {
+// CHECK-NEXT:   float _d_x = 1;
+// CHECK-NEXT:   int _d_y = 0;
+// CHECK-NEXT:   return custom_derivatives::pow_darg0(x, y) * (_d_x + _d_y);
+// CHECK-NEXT: }
 
 int main () { //expected-no-diagnostics
   auto f1_darg0 = clad::differentiate(f1, 0);
@@ -100,6 +137,18 @@ int main () { //expected-no-diagnostics
 
   auto f6_darg0 = clad::differentiate(f6, 0);
   printf("Result is = %f\n", f6_darg0.execute(3)); //CHECK-EXEC: Result is = 48618.503906
+
+  auto f7_darg0 = clad::differentiate(f7, 0);
+  printf("Result is = %f\n", f7_darg0.execute(3)); //CHECK-EXEC: Result is = 6.000000
+
+  auto f8_darg0 = clad::differentiate(f8, 0);
+  printf("Result is = %f\n", f8_darg0.execute(3)); //CHECK-EXEC: Result is = 6.000000
+
+  auto f9_darg0 = clad::differentiate(f9, 0);
+  printf("Result is = %f\n", f9_darg0.execute(3, 4)); //CHECK-EXEC: Result is = 108.000000
+
+  auto f10_darg0 = clad::differentiate(f10, 0);
+  printf("Result is = %f\n", f10_darg0.execute(3, 4)); //CHECK-EXEC: Result is = 108.000000
 
   return 0;
 }
