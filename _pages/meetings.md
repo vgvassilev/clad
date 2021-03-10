@@ -57,6 +57,7 @@ permalink: /meetings/
    </ul>
 </div>
 </div>
+</div>
 
 {% endif %}
 
