@@ -43,7 +43,7 @@ permalink: /meetings/
 <div class="col-sm-6 clearfix">
 <div class="well" style="padding-left: 20px; padding-right: 20px">
   <a style="text-decoration:none;" href="#{{smeeting.label}}">
-    {{ smeeting.name }} -- {{ smeeting.date | date_to_long_string }} at {{smeeting.time_cest}} Geneva (CH) Time
+    {{ smeeting.name }} -- {{ smeeting.date }} at {{smeeting.time_cest}} Geneva (CH) Time
   </a>
 <div>
   Connection information: {{smeeting.connect}} <br />

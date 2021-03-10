@@ -15,45 +15,6 @@
       speaker: Vassil
       link: 25 Mar 1700
 
-- name: "CaaS Weekly Meeting"
-  date: 2021-03-03 14:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_03Mar2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima, Ioana"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
-
-- name: "CaaS Weekly Meeting"
-  date: 2021-02-24 14:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_24Feb2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima, Ioana"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
-
-- name: "CaaS Weekly Meeting"
-  date: 2021-02-17 14:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_17Feb2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima, Ioana"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
-
-- name: "CaaS Weekly Meeting"
-  date: 2021-02-10 14:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_10Feb2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
 
 - name: "CaaS Monthly Meeting"
   date: 2021-02-04 17:00
@@ -75,36 +36,6 @@
     - title: Next meeting
       speaker: Vassil
       link: 04 Mar 1700
-
-- name: "CaaS Weekly Meeting"
-  date: 2021-02-03 14:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_03Feb2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
-
-- name: "CaaS Weekly Meeting"
-  date: 2021-01-27 17:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_27Jan2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
-
-- name: "CaaS Weekly Meeting"
-  date: 2021-01-20 17:00
-  time_cest: "14:00"
-  connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
-  label: caas_20Jan2021
-  agenda:
-    - title: Updates
-      speaker: "Vassil, David, Garima"
-      link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
 
 - name: "CaaS Monthly Meeting"
   date: 2021-01-14 17:00
