@@ -26,8 +26,7 @@ permalink: /meetings/
   </a>
 <div>
   Connection information: {{meeting.connect}} <br />
-</div>
-<div>
+</div><div>
   Agenda:
   <ul>
     {% for item in meeting.agenda %}
@@ -47,8 +46,7 @@ permalink: /meetings/
   </a>
 <div>
   Connection information: {{smeeting.connect}} <br />
-</div>
-<div>
+</div><div>
   Agenda:
   <ul>
     {% for item in smeeting.agenda %}
@@ -61,11 +59,7 @@ permalink: /meetings/
 
 {% endif %}
 
-
 {% assign number_printed = number_printed | plus: 1 %}
-
-
-
 
 </div>
 
