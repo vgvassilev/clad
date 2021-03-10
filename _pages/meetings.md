@@ -12,13 +12,13 @@ permalink: /meetings/
 
 {% assign sorted_meetings = site.data.meetinglist | sort: "date" | reverse %}
 {% assign standing_meetings = site.data.standing_meetings %}
+{% assign n_standing_meetings = standing_meetings | size %}
 
 {% assign number_printed = 0 %}
 {% for meeting in sorted_meetings %}
 
 <div class="row">
 <span id="{{meeting.label}}">&nbsp;</span>
-
 <div class="col-sm-6 clearfix">
 <div class="well" style="padding-left: 20px; padding-right: 20px">
   <a style="text-decoration:none;" href="#{{meeting.label}}">
@@ -38,7 +38,33 @@ permalink: /meetings/
 </div>
 </div>
 
+{% if number_printed < n_standing_meetings %}
+{% assign smeeting = standing_meetings[number_printed] %}
+<div class="col-sm-6 clearfix">
+<div class="well" style="padding-left: 20px; padding-right: 20px">
+  <a style="text-decoration:none;" href="#{{smeeting.label}}">
+    {{ smeeting.name }} -- {{ smeeting.date | date_to_long_string }} at {{smeeting.time_cest}} Geneva (CH) Time
+  </a>
+<div>
+  Connection information: {{smeeting.connect}} <br />
+</div>
+<div>
+  Agenda:
+  <ul>
+    {% for item in smeeting.agenda %}
+    <li> <strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
+    {% endfor %}
+   </ul>
+</div>
+</div>
+
+{% endif %}
+
+
 {% assign number_printed = number_printed | plus: 1 %}
+
+
+
 
 </div>
 
