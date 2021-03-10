@@ -20,7 +20,7 @@ permalink: /meetings/
 <span id="{{meeting.label}}">&nbsp;</span>
 
 <div class="col-sm-6 clearfix">
-<div class="well" style="padding-left: 70px; padding-right: 70px">
+<div class="well" style="padding-left: 20px; padding-right: 20px">
   <a style="text-decoration:none;" href="#{{meeting.label}}">
     {{ meeting.name }} -- {{ meeting.date | date_to_long_string }} at {{meeting.time_cest}} Geneva (CH) Time
   </a>
