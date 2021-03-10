@@ -24,15 +24,10 @@ permalink: /meetings/
   <a style="text-decoration:none;" href="#{{meeting.label}}">
     {{ meeting.name }} -- {{ meeting.date | date_to_long_string }} at {{meeting.time_cest}} Geneva (CH) Time
   </a>
-<div>
-  Connection information: {{meeting.connect}} <br />
+<div>Connection information: {{meeting.connect}} <br />
 </div><div>
   Agenda:
-  <ul>
-    {% for item in meeting.agenda %}
-    <li><strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
-    {% endfor %}
-   </ul>
+  <ul>{% for item in meeting.agenda %}<li><strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>{% endfor %}</ul>
 </div>
 </div>
 </div>
