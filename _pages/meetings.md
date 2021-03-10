@@ -31,7 +31,7 @@ permalink: /meetings/
   Agenda:
   <ul>
     {% for item in meeting.agenda %}
-    <li> <strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
+    <li><strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
     {% endfor %}
    </ul>
 </div>
@@ -52,7 +52,7 @@ permalink: /meetings/
   Agenda:
   <ul>
     {% for item in smeeting.agenda %}
-    <li> <strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
+    <li><strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>
     {% endfor %}
    </ul>
 </div>
