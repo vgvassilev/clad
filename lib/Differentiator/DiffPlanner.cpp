@@ -1,6 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
@@ -13,6 +14,47 @@ using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
+  
+  // Returns DeclRefExpr of function argument of differentiation calls.
+  // If argument is passed for relevantAncestor, then it's value will be 
+  // modified in-place to contain relevant ancestor of the function 
+  // argument's DeclRefExpr
+  // Here relevant ancestor is nearest ancestor of ImplicitCastExpr or 
+  // UnaryOperator type.
+  DeclRefExpr* getArgFunction(CallExpr* call,
+                              Expr** relevantAncestor = nullptr) {
+    struct Finder :
+      RecursiveASTVisitor<Finder> {
+        DeclRefExpr* m_FnDRE = nullptr;
+        Expr** m_RelevantAncestor = nullptr;
+        Finder(Expr** relevantAncestor) : m_RelevantAncestor(relevantAncestor) {}
+        bool VisitExpr(Expr* E) {
+          if (m_RelevantAncestor) {
+            switch (E->getStmtClass()) {
+              case Stmt::StmtClass::ImplicitCastExprClass: LLVM_FALLTHROUGH;
+              case Stmt::StmtClass::UnaryOperatorClass:
+                *m_RelevantAncestor = E;
+                break; 
+            }
+          }
+          if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
+            if (auto VD = dyn_cast<VarDecl>(DRE->getDecl()))
+              TraverseStmt(VD->getInit());
+            else if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+              m_FnDRE = DRE;
+            return false;  
+          }
+          return true; 
+        }
+      } finder(relevantAncestor);
+
+      assert(cast<NamespaceDecl>(call->getDirectCallee()->
+             getDeclContext())->getName() == "clad" &&
+             "Should be called for clad:: special functions!");
+
+      finder.TraverseStmt(call->getArg(0));
+      return finder.m_FnDRE;
+  }
 
   void DiffRequest::updateCall(FunctionDecl* FD, Sema& SemaRef) {
     CallExpr* call = this->CallContext;
@@ -21,16 +63,10 @@ namespace clad {
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
 
-    DeclRefExpr* oldDRE = nullptr;
-    // Handle the case of function pointer.
-    if (auto ICE = dyn_cast<ImplicitCastExpr>(call->getArg(0))){
-      oldDRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-    }
-    // Handle the case of member function.
-    else if (auto UnOp = dyn_cast<UnaryOperator>(call->getArg(0))){
-      oldDRE = dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-    }
-    else
+    Expr* oldArgDREParent = nullptr;
+    DeclRefExpr* oldDRE = getArgFunction(call, &oldArgDREParent);
+
+    if (!oldDRE)
       llvm_unreachable("Trying to differentiate something unsupported");
 
     ASTContext& C = SemaRef.getASTContext();
@@ -42,8 +78,7 @@ namespace clad {
     // using call->setArg(0, DRE) seems to be sufficient,
     // though the real AST allways contains the ImplicitCastExpr (function ->
     // function ptr cast) or UnaryOp (method ptr call).
-    auto oldArg = call->getArg(0);
-    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArg)) {
+    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArgDREParent)) {
       // Cast function to function pointer.
       auto newCast = ImplicitCastExpr::Create(C,
                                               C.getPointerType(FD->getType()),
@@ -54,7 +89,7 @@ namespace clad {
                                               CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
       call->setArg(0, newCast);
     }
-    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArg)) {
+    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArgDREParent)) {
       // Add the "&" operator
       auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
                                           noLoc,
@@ -159,20 +194,6 @@ namespace clad {
         continue;
       TraverseDecl(D);
     }
-  }
-
-  DeclRefExpr* getArgFunction(CallExpr* E) {
-    if (E->getNumArgs() == 0)
-      return nullptr;
-    Expr* arg = E->getArg(0);
-    // Handle the case of function.
-    if (ImplicitCastExpr* ICE = dyn_cast<ImplicitCastExpr>(arg))
-      return dyn_cast<DeclRefExpr>(ICE->getSubExpr());
-    // Handle the case of member function.
-    else if (UnaryOperator* UnOp = dyn_cast<UnaryOperator>(arg))
-      return dyn_cast<DeclRefExpr>(UnOp->getSubExpr());
-    else
-      return nullptr;
   }
 
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
