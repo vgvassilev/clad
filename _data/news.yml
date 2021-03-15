@@ -1,3 +1,11 @@
+- date: 15 March 2021
+  headline: "Recording from March discussion on  Interactive GPU development with CUDA C++"
+  link: https://www.youtube.com/watch?v=HEGDII5lAfo
+
+- date: 4 March 2021
+  headline: "CaaS meeting 17:00 on Interactive GPU development with CUDA C++"
+  link: https://compiler-research.org/meetings/#caas_04Mar2021
+  
 - date: 23 February 2021
   headline: "Recording from February discussion on Calling C++ Libraries from D"
   link: https://www.youtube.com/watch?v=7teqrCNzrD8
