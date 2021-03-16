@@ -1,4 +1,20 @@
 - name: "CaaS Monthly Meeting"
+  date: 2021-03-25 17:00
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
+  label: caas_25Mar2021
+  agenda:
+    - title: "Deep dive into the Xeus-based Cling kernel for Jupyter"
+      speaker: "Sylvain Corlay, QuantStack"
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 6 May 1700
+
+
+- name: "CaaS Monthly Meeting"
   date: 2021-03-04 17:00
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
@@ -6,12 +22,12 @@
   agenda:
     - title: "Cling’s CUDA Backend: Interactive GPU development with CUDA C++"
       speaker: "Simeon Ehrig, HZDR"
-      link: "[Slides](/assets/presentations/S_Ehrig-CaaS_Cling-CUDA.pdf)"
+      link: |
+        [Slides](/assets/presentations/S_Ehrig-CaaS_Cling-CUDA.pdf)
+        [Video](https://youtu.be/HEGDII5lAfo)
     - title: Update
       speaker: Vassil
-      link: |
-        [Slides](/assets/presentations/CaaS_04_03_2021.pdf)
-        [Video](https://youtu.be/HEGDII5lAfo)
+      link: "[Slides](/assets/presentations/CaaS_04_03_2021.pdf)"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
