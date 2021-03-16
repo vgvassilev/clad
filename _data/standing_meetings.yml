@@ -7,11 +7,14 @@
       speaker: "Vassil, David, Garima, Ioana"
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
 
-- name: "NVidia / CLAD Weekly Meeting"
+- name: "CLAD Weekly Meeting"
   date: Wednesdays
   time_cest: "15:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/95343150679?pwd=OHFkR3FmUVNaV2V3MzVZeFJhbkJyZz09)"
   agenda:
-    - title: Updates
-      speaker: "Vassil.."
-      link: "[Meeting Notes](https://docs.google.com/)"
+    - title: Round Table
+      speaker: |
+        M Foco (NVIDIA), W Moses (MIT), A Penev (University of Plovdiv),
+        M Vassilev (University of Plovdiv), I Ifrim (Princeton),
+        Garima Singh (Manipal Institute of Tech)
+      link: "[Meeting Notes](https://docs.google.com/document/d/1qVKlF2FZCLd8wDIIQ4zz9ByF6PkEJYTORe9gcUW6mjE)"
