@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"

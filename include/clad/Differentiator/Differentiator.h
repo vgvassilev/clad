@@ -420,6 +420,18 @@ namespace clad {
         ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by Jacobian*/,
                                    code, f);
   }
+
+  template <typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = ExtractEstDerivedFnTraits_t<F>>
+  CladFunction<DerivedFnType> __attribute__((annotate("E")))
+  estimate_error(F f, ArgSpec args = "",
+                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+                 const char* code = "") {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<
+        DerivedFnType>(derivedFn /* will be replaced by estimation code*/,
+                       code);
+  }
 }
 #endif // CLAD_DIFFERENTIATOR
 

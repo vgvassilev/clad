@@ -7,10 +7,10 @@
 #ifndef CLAD_DERIVATIVE_BUILDER_H
 #define CLAD_DERIVATIVE_BUILDER_H
 
+#include "Compatibility.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
-#include "Compatibility.h"
 
 #include <array>
 #include <stack>
@@ -26,7 +26,7 @@ namespace clang {
   class Scope;
   class Sema;
   class Stmt;
-}
+} // namespace clang
 
 namespace clad {
   namespace utils {
@@ -35,8 +35,9 @@ namespace clad {
   struct DiffRequest;
   namespace plugin {
     class CladPlugin;
-    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P, DiffRequest& request);
-  }
+    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
+                                            DiffRequest& request);
+  } // namespace plugin
 
   struct IndexInterval {
     size_t Start;
@@ -48,17 +49,18 @@ namespace clad {
 
     IndexInterval(size_t index) : Start(index), Finish(index + 1) {}
 
-    size_t size() {
-      return Finish - Start;
-    }
+    size_t size() { return Finish - Start; }
 
-    bool isInInterval(size_t n) {
-      return n >= Start && n <= Finish;
-    }
+    bool isInInterval(size_t n) { return n >= Start && n <= Finish; }
   };
-}
+} // namespace clad
 
 namespace clad {
+  class ErrorEstimationHandler;
+  class FPErrorEstimationModel;
+  // A pointer to a the handler to be used for estimation requests.
+  extern std::unique_ptr<ErrorEstimationHandler> errorEstHandler;
+
   /// A pair of FunctionDecl and potential enclosing context, e.g. a function
   /// in nested namespaces.
   // This is the type returned by cloneFunction. Using OverloadedDeclWithContext
@@ -93,6 +95,8 @@ namespace clad {
     clang::ASTContext& m_Context;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
+    /// A reference to the model to use for error estimation (if any).
+    std::unique_ptr<FPErrorEstimationModel> m_EstModel = nullptr;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB,
                                   clang::DeclContext* DC,
@@ -101,10 +105,11 @@ namespace clad {
                                   clang::SourceLocation& noLoc,
                                   clang::DeclarationNameInfo name,
                                   clang::QualType functionType);
-    clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
-                            llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
+    clang::Expr*
+    findOverloadedDefinition(clang::DeclarationNameInfo DNI,
+                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
-                            llvm::MutableArrayRef<clang::Expr*> ARargs);
+                          llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
     void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
@@ -116,10 +121,15 @@ namespace clad {
       for (auto arg : args)
         stream << arg;
     }
+
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P);
     ~DerivativeBuilder();
-
+    /// Reset the model use for error estimation (if any).
+    /// \param[in] estModel The error estimation model, can be either
+    /// an in-built one (TaylorApprox) or one provided by the user.
+    void
+    SetErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
     ///\brief Produces the derivative of a given function
     /// according to a given plan.
     ///

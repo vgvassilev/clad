@@ -24,6 +24,9 @@ namespace clad {
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public VisitorBase {
   private:
+    /// Determines if an error estimation is in process; helps decide whether
+    /// to visit error estimation specific code in calls to VisitStmt
+    bool m_ErrorEstimationEnabled = false;
     llvm::SmallVector<const clang::VarDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
@@ -124,6 +127,13 @@ namespace clad {
       return addToBlock(S, getCurrentBlock(d));
     }
 
+    /// Adds a given statement to the global block.
+    ///
+    /// \param[in] S The statement to add to the block.
+    ///
+    /// \returns True if the statement was added to the block, false otherwise.
+    bool AddToGlobalBlock(clang::Stmt* S) { return addToBlock(S, m_Globals); }
+
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
     /// If force decl creation is true, this will allways create a temporary
@@ -158,8 +168,21 @@ namespace clad {
     /// variable and replace E's further usage by a reference to that variable
     /// to avoid recomputiation.
     bool UsefulToStoreGlobal(clang::Expr* E);
+
+    /// Builds a variable declaration and stores it in the function
+    /// global scope.
+    ///
+    /// \param[in] Type The type of variable declaration to build.
+    ///
+    /// \param[in] prefix The prefix (if any) to the declration name.
+    ///
+    /// \param[in] init The variable declaration initializer.
+    ///
+    /// \returns A variable declaration that is already added to the
+    /// global scope.
     clang::VarDecl* GlobalStoreImpl(clang::QualType Type,
-                                    llvm::StringRef prefix);
+                                    llvm::StringRef prefix,
+                                    clang::Expr* init = nullptr);
     /// Creates a (global in the function scope) variable declaration, puts
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
@@ -213,10 +236,19 @@ namespace clad {
       clang::Expr* Last();
     };
 
+    /// Make a clad::tape to store variables.
     /// If E is supposed to be stored in a tape, will create a global
     /// declaration of tape of corresponding type and return a result struct
     /// with reference to the tape and constructed calls to push/pop methods.
-    CladTapeResult MakeCladTapeFor(clang::Expr* E);
+    ///
+    /// \param[in] E The expression to build the tape for.
+    ///
+    /// \param[in] prefix The prefix value for the name of the tape.
+    ///
+    /// \returns A struct containg necessary call expressions for the built
+    /// tape
+    CladTapeResult MakeCladTapeFor(clang::Expr* E,
+                                   llvm::StringRef prefix = "_t");
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder);
@@ -267,12 +299,25 @@ namespace clad {
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+
     /// A helper method to differentiate a single Stmt in the reverse mode.
     /// Internally, calls Visit(S, expr). Its result is wrapped into a
     /// CompoundStmt (if several statements are created) and proper Stmt
     /// order is maintained.
+    ///
+    /// \param[in] S The statement to differentiate.
+    ///
+    /// \param[in] dfdS The expression to propogate to Visit
+    ///
+    /// \param[in] doNotEmit This parameter is error estimation specific
+    /// and tells the function to not emit the accumulated forward/reverse
+    /// expressions yet. This is useful in the cases where this function
+    /// is called directly and not through VisitCompountStmt
+    ///
+    /// \returns The orignal (cloned) and differentiated forms of S
     StmtDiff DifferentiateSingleStmt(const clang::Stmt* S,
-                                     clang::Expr* dfdS = nullptr);
+                                     clang::Expr* dfdS = nullptr,
+                                     bool shouldEmit = true);
     /// A helper method used to keep substatements created by Visit(E, expr) in
     /// separate forward/reverse blocks instead of putting them into current
     /// blocks. First result is a StmtDiff of forward/reverse blocks with

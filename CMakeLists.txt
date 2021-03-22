@@ -243,6 +243,12 @@ install(DIRECTORY include/
   PATTERN ".svn" EXCLUDE
   )
 
+install(DIRECTORY tools/
+  DESTINATION include/clad/tools
+  FILES_MATCHING
+  PATTERN "*.h"
+)
+
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
   DESTINATION include
   FILES_MATCHING

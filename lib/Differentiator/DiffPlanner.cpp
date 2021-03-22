@@ -331,8 +331,10 @@ namespace clad {
     // clad::differentiate(...) __attribute__((annotate("D")))
     // TODO: why not check for its name? clad::differentiate/gradient?
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-    if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") 
-        || A->getAnnotation().equals("H") || A->getAnnotation().equals("J"))) {
+    if (A &&
+        (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") ||
+         A->getAnnotation().equals("H") || A->getAnnotation().equals("J") ||
+         A->getAnnotation().equals("E"))) {
       // A call to clad::differentiate or clad::gradient was found.
       DeclRefExpr* DRE = getArgFunction(E, m_Sema);
       if (!DRE)
@@ -351,8 +353,10 @@ namespace clad {
         request.Mode = DiffMode::hessian;
       } else if (A->getAnnotation().equals("J")) {
         request.Mode = DiffMode::jacobian;
-      } else {
+      } else if (A->getAnnotation().equals("G")) {
         request.Mode = DiffMode::reverse;
+      } else {
+        request.Mode = DiffMode::error_estimation;
       }
       request.CallContext = E;
       request.CallUpdateRequired = true;

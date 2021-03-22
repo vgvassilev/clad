@@ -7,9 +7,9 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
-#include "clad/Differentiator/Version.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/Version.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -27,16 +27,20 @@ namespace clang {
   class FunctionDecl;
   class ParmVarDecl;
   class Sema;
-}
+} // namespace clang
 
 namespace clad {
   struct DiffRequest;
+  class EstimationPlugin;
   namespace plugin {
+    /// Register any custom error estimation model a user provides
+    using ErrorEstimationModelRegistry = llvm::Registry<EstimationPlugin>;
     struct DifferentiationOptions {
       DifferentiationOptions()
-        : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-          DumpDerivedAST(false), GenerateSourceFile(false),
-          ValidateClangVersion(false) { }
+          : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
+            DumpDerivedAST(false), GenerateSourceFile(false),
+            ValidateClangVersion(false), CustomEstimationModel(false),
+            CustomModelName("") {}
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
@@ -44,6 +48,8 @@ namespace clad {
       bool DumpDerivedAST : 1;
       bool GenerateSourceFile : 1;
       bool ValidateClangVersion : 1;
+      bool CustomEstimationModel : 1;
+      std::string CustomModelName;
     };
 
     class CladPlugin : public clang::ASTConsumer {
@@ -59,6 +65,7 @@ namespace clad {
       ~CladPlugin();
       bool HandleTopLevelDecl(clang::DeclGroupRef DGR) override;
       clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
+
     private:
       bool CheckBuiltins();
       void ProcessTopLevelDecl(clang::Decl* D);
@@ -69,14 +76,14 @@ namespace clad {
       return P.ProcessDiffRequest(request);
     }
 
-    template<typename ConsumerType>
+    template <typename ConsumerType>
     class Action : public clang::PluginASTAction {
     private:
       DifferentiationOptions m_DO;
+
     protected:
-      std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
-        clang::CompilerInstance& CI,
-        llvm::StringRef InFile) {
+      std::unique_ptr<clang::ASTConsumer>
+      CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef InFile) {
         return std::unique_ptr<clang::ASTConsumer>(new ConsumerType(CI, m_DO));
       }
 
@@ -89,51 +96,60 @@ namespace clad {
             clang::getClangRevision() != clad::getClangCompatRevision()) {
           // TODO: Print nice looking diagnostics through the DiagEngine.
           llvm::errs() << "Clang is not compatible with clad."
-                       << " (" << clang::getClangRevision() << " != "
-                       << clad::getClangCompatRevision() << " )\n";
+                       << " (" << clang::getClangRevision()
+                       << " != " << clad::getClangCompatRevision() << " )\n";
           return false;
         }
         return true;
       }
 
-      bool ParseArgs(const clang::CompilerInstance &CI,
+      bool ParseArgs(const clang::CompilerInstance& CI,
                      const std::vector<std::string>& args) {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
           if (args[i] == "-fdump-source-fn") {
             m_DO.DumpSourceFn = true;
-          }
-          else if (args[i] == "-fdump-source-fn-ast") {
+          } else if (args[i] == "-fdump-source-fn-ast") {
             m_DO.DumpSourceFnAST = true;
-          }
-          else if (args[i] == "-fdump-derived-fn") {
+          } else if (args[i] == "-fdump-derived-fn") {
             m_DO.DumpDerivedFn = true;
-          }
-          else if (args[i] == "-fdump-derived-fn-ast") {
+          } else if (args[i] == "-fdump-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
-          }
-          else if (args[i] == "-fgenerate-source-file") {
+          } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
-          }
-          else if (args[i] == "-fvalidate-clang-version") {
+          } else if (args[i] == "-fvalidate-clang-version") {
             m_DO.ValidateClangVersion = true;
             if (!IsRunningOnExpectedClangVersion())
               return false; // Tells clang not to create the plugin.
-          }
-          else if (args[i] == "-help") {
+          } else if (args[i] == "-fcustom-estimation-model") {
+            m_DO.CustomEstimationModel = true;
+            if (++i == e) {
+              llvm::errs()
+                  << "No shared object was specified, please refer help "
+                     "for more information. Terminating build.";
+              return false;
+            }
+            m_DO.CustomModelName = args[i];
+          } else if (args[i] == "-help") {
             // Print some help info.
-            llvm::errs() <<
-              "Option set for the clang-based automatic differentiator - clad:\n\n" <<
-              "-fdump-source-fn - Prints out the source code of the function.\n" <<
-              "-fdump-source-fn-ast - Prints out the AST of the function.\n" <<
-              "-fdump-derived-fn - Prints out the source code of the derivative.\n" <<
-              "-fdump-derived-fn-ast - Prints out the AST of the derivative.\n" <<
-              "-fgenerate-source-file - Produces a file containing the derivatives.\n";
+            llvm::errs()
+                << "Option set for the clang-based automatic differentiator - "
+                   "clad:\n\n"
+                << "-fdump-source-fn - Prints out the source code of the "
+                   "function.\n"
+                << "-fdump-source-fn-ast - Prints out the AST of the "
+                   "function.\n"
+                << "-fdump-derived-fn - Prints out the source code of the "
+                   "derivative.\n"
+                << "-fdump-derived-fn-ast - Prints out the AST of the "
+                   "derivative.\n"
+                << "-fgenerate-source-file - Produces a file containing the "
+                   "derivatives.\n"
+                << "-fcustom-estimation-model - allows user to send in a "
+                   "shared object to use as the custom estimation model.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
-          }
-          else {
-            llvm::errs() << "clad: Error: invalid option "
-                         << args[i] << "\n";
+          } else {
+            llvm::errs() << "clad: Error: invalid option " << args[i] << "\n";
             return false; // Tells clang not to create the plugin.
           }
         }

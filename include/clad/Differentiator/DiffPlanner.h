@@ -11,7 +11,8 @@ namespace clang {
   class FunctionDecl;
   class ParmVarDecl;
   class Sema;
-}
+  class Type;
+} // namespace clang
 
 namespace clad {
 
@@ -20,7 +21,8 @@ namespace clad {
     forward,
     reverse,
     hessian,
-    jacobian
+    jacobian,
+    error_estimation
   };
 
   /// A struct containing information about request to differentiate a function.
