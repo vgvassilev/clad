@@ -7,6 +7,10 @@
 #ifndef CLAD_VISITOR_BASE_H
 #define CLAD_VISITOR_BASE_H
 
+namespace clad {
+  class DerivativeBuilder;
+}
+
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -182,23 +186,70 @@ namespace clad {
     }
 
     /// A shorthand to simplify syntax for creation of new expressions.
-    /// Uses m_Sema.BuildUnOp internally.
+    /// This function uses m_Sema.BuildUnOp internally to build unary
+    /// operations. Typical usage of this function looks like the following:
+    /// \n \code
+    /// auto postIncExpr = BuildOp(UO_PostInc, expr);
+    /// auto assignExpr = BuildOp(BO_Assign, AsgnExpr, postIncExpr);
+    /// addToCurrentBlock(assignExpr);
+    /// \endcode
+    /// \n The above will build the following expression:
+    /// \n \code
+    /// Asgn  = exp++;
+    /// \endcode
+    /// \param[in] OpCode The code for the unary operation to be built.
+    /// \param[in] E The expression to build the unary operation with.
+    /// \returns An expression of the newly built unary operation.
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
                          clang::SourceLocation OpLoc = noLoc);
-    /// Uses m_Sema.BuildBin internally.
+    /// A shorthand to simplify syntax for creation of new expressions.
+    /// This function uses m_Sema.BuildBin internally to build binary
+    /// operations. A typical usage of this function looks like the following:
+    /// \n \code
+    /// auto mulExpr = BuildOp(BO_Mul, LExpr, RExpr);
+    /// auto assignExpr = BuildOp(BO_Assign, AsgnExpr, mulExpr);
+    /// addToCurrentBlock(assignExpr);
+    /// \endcode
+    /// \n The above will build the following expression:
+    /// \n \code
+    /// Asgn  = L * R;
+    /// \endcode
+    /// \param[in] OpCode The code for the binary operation to be built.
+    /// \param[in] L The LHS expression to build the binary operation with.
+    /// \param[in] R The RHS expression to build the binary operation with.
+    /// \returns An expression of the newly built binary operation.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
 
     clang::Expr* BuildParens(clang::Expr* E);
 
-    /// Builds variable declaration to be used inside the derivative body
+    /// Builds variable declaration to be used inside the derivative
+    /// body.
+    /// \param[in] Type The type of variable declaration to build.
+    /// \param[in] Identifier The identifier information for the variable
+    /// declaration.
+    /// \param[in] Init The initalization expression to assign to the variable
+    ///  declaration.
+    /// \param[in] DirectInit A check for if the initialization expression is a
+    /// C style initalization.
+    /// \param[in] TSI The type source information of the variable declaration.
+    /// \returns The newly built variable declaration.
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
                  clang::Expr* Init = nullptr, bool DirectInit = false,
                  clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
                      clang::VarDecl::InitializationStyle::CInit);
-
+    /// Builds variable declaration to be used inside the derivative
+    /// body.
+    /// \param[in] Type The type of variable declaration to build.
+    /// \param[in] prefix The name of the variable declaration to build.
+    /// \param[in] Init The initalization expression to assign to the variable
+    ///  declaration.
+    /// \param[in] DirectInit A check for if the initialization expression is a
+    /// C style initalization.
+    /// \param[in] TSI The type source information of the variable declaration.
+    /// \returns The newly built variable declaration.
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
                  clang::Expr* Init = nullptr, bool DirectInit = false,
@@ -211,10 +262,26 @@ namespace clad {
     clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
                                              bool isInline);
     /// Wraps a declaration in DeclStmt.
+    /// \n Variable declaration cannot be added to code directly, instead we
+    /// have to build a declaration staement.
+    /// \param[in] D The declaration to build a declaration statement from.
+    /// \returns The declration statement expression corresponding to the input
+    /// variable declaration.
     clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
+    /// Wraps a set of declarations in a DeclStmt.
+    /// \n This function is useful to wrap multiple variable declarations in one
+    /// single declaration statement.
+    /// \param[in] D The declarations to build a declaration statement from.
+    /// \returns The declration statemetn expression corresponding to the input
+    /// variable declaration.
     clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
 
     /// Builds a DeclRefExpr to a given Decl.
+    /// \n To emit variables into code, we need to use their corresponding
+    /// declaration reference expressions. This function builds a declaration
+    /// reference given a declaration.
+    /// \param[in] D The declaration to build a DeclRefExpr for.
+    /// \returns the DeclRefExpr for the given declaration.
     clang::DeclRefExpr* BuildDeclRef(clang::DeclaratorDecl* D);
 
     /// Stores the result of an expression in a temporary variable (of the same

@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
@@ -307,7 +308,9 @@ namespace clad {
     // For intermediate variables, use numbered names (_t0), for everything
     // else first try a name without number (e.g. first try to use _d_x and
     // use _d_x0 only if _d_x is taken).
-    bool countedName = nameBase.startswith("_") && !nameBase.startswith("_d_");
+    bool countedName = nameBase.startswith("_") &&
+                       !nameBase.startswith("_d_") &&
+                       !nameBase.startswith("_delta_");
     std::size_t idx = 0;
     std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";

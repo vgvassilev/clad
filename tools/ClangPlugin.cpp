@@ -7,6 +7,7 @@
 #include "ClangPlugin.h"
 
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/EstimationModel.h"
 
 #include "clad/Differentiator/Version.h"
 
@@ -22,8 +23,9 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Lookup.h"
 
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Registry.h"
 #include "llvm/Support/Timer.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "clad/Differentiator/Compatibility.h"
 
@@ -60,7 +62,6 @@ namespace {
 
 namespace clad {
   namespace plugin {
-
     /// Keeps track if we encountered #pragma clad on/off.
     // FIXME: Figure out how to make it a member of CladPlugin.
     std::vector<clang::SourceRange> CladEnabledRange;
@@ -68,15 +69,15 @@ namespace clad {
     // Define a pragma handler for #pragma clad
     class CladPragmaHandler : public PragmaHandler {
     public:
-      CladPragmaHandler() : PragmaHandler("clad") { }
-      void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
-                        Token &PragmaTok) override {
+      CladPragmaHandler() : PragmaHandler("clad") {}
+      void HandlePragma(Preprocessor& PP, PragmaIntroducer Introducer,
+                        Token& PragmaTok) override {
         // Handle #pragma clad ON/OFF/DEFAULT
         if (PragmaTok.isNot(tok::identifier)) {
           PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
           return;
         }
-        IdentifierInfo *II = PragmaTok.getIdentifierInfo();
+        IdentifierInfo* II = PragmaTok.getIdentifierInfo();
         assert(II->isStr("clad"));
 
         tok::OnOffSwitch OOS;
@@ -88,7 +89,7 @@ namespace clad {
           // If a second ON is seen, ignore it if the interval is open.
           if (CladEnabledRange.empty() ||
               CladEnabledRange.back().getEnd().isValid())
-          CladEnabledRange.push_back(R);
+            CladEnabledRange.push_back(R);
         } else if (!CladEnabledRange.empty()) { // OOS_OFF or OOS_DEFAULT
           assert(CladEnabledRange.back().getEnd().isInvalid());
           CladEnabledRange.back().setEnd(TokLoc);
@@ -156,7 +157,22 @@ namespace clad {
       if (m_DO.DumpSourceFnAST) {
         FD->dumpColor();
       }
-
+      // if enabled, load the dynamic library input from user to use
+      // as a custom estimation model.
+      if (m_DO.CustomEstimationModel) {
+        std::string Err;
+        if (llvm::sys::DynamicLibrary::
+                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err))
+          llvm::errs() << "Could not load " << m_DO.CustomModelName << " "
+                       << Err;
+        for (auto it = ErrorEstimationModelRegistry::begin(),
+                  ie = ErrorEstimationModelRegistry::end();
+             it != ie; ++it) {
+          auto estimationPlugin = it->instantiate();
+          m_DerivativeBuilder->SetErrorEstimationModel(
+              estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder));
+        }
+      }
       FunctionDecl* DerivativeDecl = nullptr;
       Decl* DerivativeDeclContext = nullptr;
       FunctionDecl* OverloadedDerivativeDecl = nullptr;
@@ -256,4 +272,8 @@ static clang::FrontendPluginRegistry::Add<Action<CladPlugin> >
 X("clad", "Produces derivatives or arbitrary functions");
 
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
-Y("clad", "Clad pragma directives handler.");
+    Y("clad", "Clad pragma directives handler.");
+
+// instantiate our error estimation model registry so that we can register
+// custom models passed by users as a shared lib
+LLVM_INSTANTIATE_REGISTRY(ErrorEstimationModelRegistry)

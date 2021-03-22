@@ -7,6 +7,7 @@
 #include "clad/Differentiator/JacobianModeVisitor.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/StmtClone.h"
 
