@@ -111,11 +111,16 @@ namespace clad {
       return execute_helper(m_Function,static_cast<Args>(args)...);
     }
 
-    void dump() const {
+    /// Return the string representation for the generated derivative.
+    const char* getCode() const {
       if (m_Code)
-        printf("The code is: %s\n", m_Code);
+        return m_Code;
       else
-        printf("<invalid>\n");
+        return "<invalid>";
+    }
+ 
+    void dump() const {
+      printf("The code is: %s\n", getCode());
     }
   };
 
