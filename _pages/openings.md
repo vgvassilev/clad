@@ -11,6 +11,7 @@ permalink: /vacancies
 Planned 2021 GSoC projects (pending GSoC organization approval). Reach out to the mentors or to us to inquire about how to get started with the
 application process.
   * [Add initial integration of Clad with Enzyme](https://hepsoftwarefoundation.org/gsoc/2021/proposal_clad_enzyme.html)
+  * [Improve Cling’s Development Lifecycle](https://hepsoftwarefoundation.org/gsoc/2021/proposal_cling_dev.html)
   * [Improving Cling Reflection for Scripting Languages](https://hepsoftwarefoundation.org/gsoc/2021/proposal_cling_cppyy.html)
   * [Developing C++ modules support in CMSSW and Boost](https://hepsoftwarefoundation.org/gsoc/2021/proposal_cmssw_modules.html)
   * [Add support for functor objects in clad](https://hepsoftwarefoundation.org/gsoc/2021/proposal_functor_clad.html)
