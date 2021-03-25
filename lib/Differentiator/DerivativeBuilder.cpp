@@ -987,7 +987,6 @@ namespace clad {
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
-
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getBeginLoc(),
          "attempted to differentiate unsupported statement, no changes applied");
@@ -2537,14 +2536,17 @@ namespace clad {
     // Save current index in the current block, to potentially put some statements
     // there later.
     std::size_t insertionPoint = getCurrentBlock(reverse).size();
+    // Store the type to reduce call overhead that would occur if used in the loop
+    auto CEType = CE->getType();
     for (const Expr* Arg : CE->arguments()) {
       // Create temporary variables corresponding to derivative of each argument,
-      // so that they can be reffered to when arguments is visited. Variables
+      // so that they can be referred to when arguments is visited. Variables
       // will be initialized later after arguments is visited. This is done to
-      // reduce cloning complexity and only clone once.
-      Expr* dArg = StoreAndRef(nullptr, Arg->getType(), reverse, "_r", /*force*/true);
+      // reduce cloning complexity and only clone once. The type is same as the
+      // call expression as it is the type used to declare the _gradX array
+      Expr* dArg = StoreAndRef(nullptr, CEType, reverse, "_r", /*force*/true);
       ArgResultDecls.push_back(cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
-      // Visit using unitialized reference.
+      // Visit using uninitialized reference.
       StmtDiff ArgDiff = Visit(Arg, dArg);
       // Save cloned arg in a "global" variable, so that it is accesible from the
       // reverse pass.
@@ -2575,7 +2577,7 @@ namespace clad {
       // We also need to create an array to store the result of gradient call.
       auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
       auto ArrayType =
-        clad_compat::getConstantArrayType(m_Context, CE->getType(),
+        clad_compat::getConstantArrayType(m_Context, CEType,
                                        llvm::APInt(size_type_bits, NArgs),
                                        nullptr,
                                        ArrayType::ArraySizeModifier::Normal,
@@ -2643,7 +2645,8 @@ namespace clad {
       if (!asGrad) {
         // If the derivative is called through _darg0 instead of _grad.
         Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
-        ArgResultDecls[0]->setInit(d);
+
+        PerformImplicitConversionAndAssign(ArgResultDecls[0], d);
       } else {
         // Put Result array declaration in the function body.
         // Call the gradient, passing Result as the last Arg.
@@ -2664,7 +2667,8 @@ namespace clad {
           auto ithResult = m_Sema.CreateBuiltinArraySubscriptExpr(Result, noLoc,
                                                                   I, noLoc).get();
           auto di = BuildOp(BO_Mul, dfdx(), ithResult);
-          ArgResultDecls[i]->setInit(di);
+
+          PerformImplicitConversionAndAssign(ArgResultDecls[i], di);
         }
       }
     }
