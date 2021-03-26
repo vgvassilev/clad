@@ -42,12 +42,12 @@ namespace clad {
   /// A pair of FunctionDecl and potential enclosing context, e.g. a function
   // in nested namespaces
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
-
   using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
 
   using VectorOutputs = std::vector<std::unordered_map<const clang::VarDecl*, clang::Expr*>>;
 
   static clang::SourceLocation noLoc{};
+  class VisitorBase;
   /// The main builder class which then uses either ForwardModeVisitor or
   /// ReverseModeVisitor based on the required mode.
   class DerivativeBuilder {
@@ -63,7 +63,14 @@ namespace clad {
     clang::ASTContext& m_Context;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
-
+    DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
+                                  clad::VisitorBase VB,
+                                  clang::DeclContext* DC,
+                                  clang::Sema& m_Sema,
+                                  clang::ASTContext& m_Context,
+                                  clang::SourceLocation& noLoc,
+                                  clang::DeclarationNameInfo name,
+                                  clang::QualType functionType);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,

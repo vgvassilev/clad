@@ -51,7 +51,60 @@ namespace clad {
       return;
     // Register the function on the redecl chain.
     derivedFD->setPreviousDecl(cast<FunctionDecl>(R.getFoundDecl()));
+  }
 
+  static bool hasAttribute(const Decl *D, attr::Kind Kind) {
+    for (const auto *Attribute : D->attrs())
+      if (Attribute->getKind() == Kind)
+        return true;
+    return false;
+  }
+
+  DeclWithContext 
+  DerivativeBuilder::cloneFunction(const clang::FunctionDecl* FD,
+                                   clad::VisitorBase VD, 
+                                   clang::DeclContext* DC,
+                                   clang::Sema& m_Sema,
+                                   clang::ASTContext& m_Context,
+                                   clang::SourceLocation& noLoc,
+                                   clang::DeclarationNameInfo name,
+                                   clang::QualType functionType) {
+    FunctionDecl* returnedFD = nullptr;
+    NamespaceDecl* enclosingNS = nullptr;
+    if (isa<CXXMethodDecl>(FD)) {
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+      returnedFD = CXXMethodDecl::Create(m_Context, 
+                                         CXXRD, 
+                                         noLoc, 
+                                         name,
+                                         functionType, 
+                                         FD->getTypeSourceInfo(),
+                                         FD->getStorageClass(),
+                                         FD->isInlineSpecified(),
+                                         clad_compat::Function_GetConstexprKind
+                                         (FD), noLoc);
+      returnedFD->setAccess(FD->getAccess());
+    } else {
+      assert (isa<FunctionDecl>(FD) && "Unexpected!");
+      enclosingNS = VD.RebuildEnclosingNamespaces(DC);
+      returnedFD = FunctionDecl::Create(m_Context, 
+                                        m_Sema.CurContext, 
+                                        noLoc,
+                                        name, 
+                                        functionType,
+                                        FD->getTypeSourceInfo(),
+                                        FD->getStorageClass(),
+                                        FD->isInlineSpecified(),
+                                        FD->hasWrittenPrototype(),
+                                        clad_compat::Function_GetConstexprKind(FD)CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause()));
+    } 
+
+    for (const FunctionDecl* NFD : FD->redecls())
+      for (const auto* Attr : FD->attrs())
+        if (!hasAttribute(returnedFD, Attr->getKind()))
+          returnedFD->addAttr(Attr->clone(m_Context));
+
+    return { returnedFD, enclosingNS };
   }
 
   DeclWithContext DerivativeBuilder::Derive(const FunctionDecl* FD,
@@ -343,7 +396,7 @@ namespace clad {
     }
   }
 
-   Expr* VisitorBase::BuildParens(Expr* E) {
+  Expr* VisitorBase::BuildParens(Expr* E) {
     if (!E)
       return nullptr;
     Expr* ENoCasts = E->IgnoreCasts();
@@ -508,43 +561,14 @@ namespace clad {
 
     // Create the gradient function declaration.
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
-
-    FunctionDecl* hessianFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     m_Sema.CurContext = DC;
 
-    if (isa<CXXMethodDecl>(m_Function)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      hessianFD = CXXMethodDecl::Create(m_Context,
-                                        CXXRD,
-                                        noLoc,
-                                        name,
-                                        hessianFunctionType,
-                                        m_Function->getTypeSourceInfo(),
-                                        m_Function->getStorageClass(),
-                                        m_Function->isInlineSpecified(),
-                                        clad_compat::Function_GetConstexprKind(m_Function),
-                                        noLoc);
-    }
-    else if (isa<FunctionDecl>(m_Function)) {
-      enclosingNS = RebuildEnclosingNamespaces(DC);
-      hessianFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
-        name, hessianFunctionType,
-        m_Function->getTypeSourceInfo(),
-        m_Function->getStorageClass(),
-        m_Function->isInlineSpecified(),
-        m_Function->hasWrittenPrototype(),
-        clad_compat::Function_GetConstexprKind(m_Function)
-        CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(m_Function->getTrailingRequiresClause())
-        );
-    } else {
-      diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
-         "attempted differentiation of '%0' which is of unsupported type",
-          { m_Function->getNameAsString() });
-    return {};
-    }
+    DeclWithContext result = m_Builder.cloneFunction(m_Function, *this, DC,
+                                                     m_Sema, m_Context, noLoc,
+                                                     name, hessianFunctionType);
+    FunctionDecl* hessianFD = result.first;
 
     beginScope(Scope::FunctionPrototypeScope |
                Scope::FunctionDeclarationScope |
@@ -642,7 +666,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return {hessianFD, enclosingNS};
+    return result;
   }
 
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
@@ -705,35 +729,14 @@ namespace clad {
     IdentifierInfo* II = &m_Context.Idents.get(
       derivativeBaseName + "_d" + s + "arg" + std::to_string(m_ArgIndex));
     DeclarationNameInfo name(II, noLoc);
-    FunctionDecl* derivedFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
-    if (isa<CXXMethodDecl>(FD)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
-                                        FD->getType(), FD->getTypeSourceInfo(),
-                                        FD->getStorageClass(),
-                                        FD->isInlineSpecified(),
-                                        clad_compat::Function_GetConstexprKind(FD), noLoc);
-      derivedFD->setAccess(FD->getAccess());
-    } else {
-      assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
-      enclosingNS = RebuildEnclosingNamespaces(DC);
-      derivedFD = FunctionDecl::Create(m_Context,
-                                       m_Sema.CurContext, noLoc,
-                                       name, FD->getType(),
-                                       FD->getTypeSourceInfo(),
-                                       FD->getStorageClass(),
-                                       /*default*/
-                                       FD->isInlineSpecified(),
-                                       FD->hasWrittenPrototype(),
-                                       clad_compat::Function_GetConstexprKind(FD)
-                                       CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause())
-                                       );
-    }
+    DeclWithContext result = m_Builder.cloneFunction(FD, *this, DC, m_Sema,
+                                                     m_Context, noLoc, name,
+                                                     FD->getType());
+    FunctionDecl* derivedFD = result.first;
     m_Derivative = derivedFD;
 
     llvm::SmallVector<ParmVarDecl*, 4> params;
@@ -822,7 +825,7 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_DerivativeInFlight = false;
-    return { derivedFD, enclosingNS };
+    return result;
   }
 
   Stmt* VisitorBase::Clone(const Stmt* S) {
@@ -1818,43 +1821,15 @@ namespace clad {
                                 FunctionProtoType::ExtProtoInfo());
 
     // Create the gradient function declaration.
-    FunctionDecl* gradientFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
-    if (isa<CXXMethodDecl>(m_Function)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      gradientFD = CXXMethodDecl::Create(m_Context,
-                                         CXXRD,
-                                         noLoc,
-                                         name,
-                                         gradientFunctionType,
-                                         m_Function->getTypeSourceInfo(),
-                                         m_Function->getStorageClass(),
-                                         m_Function->isInlineSpecified(),
-                                         clad_compat::Function_GetConstexprKind(m_Function),
-                                         noLoc);
-      gradientFD->setAccess(m_Function->getAccess());
-    }
-    else if (isa<FunctionDecl>(m_Function)) {
-      enclosingNS = RebuildEnclosingNamespaces(DC);
-      gradientFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
-                                        name, gradientFunctionType,
-                                        m_Function->getTypeSourceInfo(),
-                                        m_Function->getStorageClass(),
-                                        m_Function->isInlineSpecified(),
-                                        m_Function->hasWrittenPrototype(),
-                                        clad_compat::Function_GetConstexprKind(m_Function)
-                                        CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(m_Function->getTrailingRequiresClause())
-                                        );
-    } else {
-      diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
-           "attempted differentiation of '%0' which is of unsupported type",
-           { m_Function->getNameAsString() });
-      return {};
-    }
+    DeclWithContext result = m_Builder.cloneFunction(m_Function, *this, DC,
+                                                     m_Sema, m_Context, noLoc,
+                                                     name,
+                                                     gradientFunctionType);
+    FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
     // Function declaration scope
@@ -1972,7 +1947,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return { gradientFD, enclosingNS };
+    return result;
   }
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
@@ -2327,7 +2302,7 @@ namespace clad {
     CompoundStmt* ReverseBody = endBlock(reverse);
     std::reverse(ReverseBody->body_begin(), ReverseBody->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(ReverseBody);
-    if (!ReverseResult) 
+    if (!ReverseResult)
       ReverseResult = new (m_Context) NullStmt(noLoc);
     Stmt* Reverse = new (m_Context) ForStmt(m_Context, nullptr,
                                             CounterCondition, condVarClone,
