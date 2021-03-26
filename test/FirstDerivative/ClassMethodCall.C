@@ -11,14 +11,15 @@ public:
   virtual ~A() {}
   A() {}
 
-  int f(int x) {
+   __attribute__((always_inline)) int f(int x) {
     return x;
   }
 
-  //CHECK:   int f_darg0(int x) {
+  //CHECK:   int f_darg0(int x) __attribute__((always_inline)) {
   //CHECK-NEXT:       int _d_x = 1;
   //CHECK-NEXT:       return _d_x;
   //CHECK-NEXT:   }
+
 
   int g_1(int x, int y) {
     return x*x + y;
@@ -79,7 +80,7 @@ public:
   }
 
   float vm_darg0(float x, float y);
-  //CHECK:   float vm_darg0(float x, float y) {
+  //CHECK:   float vm_darg0(float x, float y) override {
   //CHECK-NEXT:       float _d_x = 1;
   //CHECK-NEXT:       float _d_y = 0;
   //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
@@ -102,8 +103,8 @@ int main () {
   printf("Result is = %f\n", vm_darg0_A.execute(a, 2, 3)); // CHECK-EXEC: Result is = 1.0000
   auto vm_darg0_B = clad::differentiate(&B::vm, 0);
   printf("Result is = %f\n", vm_darg0_B.execute(b, 2, 3)); // CHECK-EXEC: Result is = 4.0000
-  printf("%s", vm_darg0_B.getCode()); 
-  //CHECK-EXEC:   float vm_darg0(float x, float y) { 
+  printf("%s\n", vm_darg0_B.getCode());
+  //CHECK-EXEC:   float vm_darg0(float x, float y) override {
   //CHECK-EXEC-NEXT:       float _d_x = 1;
   //CHECK-EXEC-NEXT:       float _d_y = 0;
   //CHECK-EXEC-NEXT:       return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
