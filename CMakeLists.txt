@@ -135,6 +135,10 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # When clad is in debug mode the llvm package thinks it is built with -frtti.
   # For consistency we should set it to the correct value.
   set(LLVM_CONFIG_HAS_RTTI NO CACHE BOOL "" FORCE)
+  if (LLVM_COMPILER_IS_GCC_COMPATIBLE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+  endif ()
+
 
   ## Init
 
