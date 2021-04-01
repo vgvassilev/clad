@@ -306,6 +306,19 @@ namespace clad {
     clang::LookupResult& GetCladTapeBack();
     /// Instantiate clad::tape<T> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
+
+    /// Assigns the Init expression to VD after performing the necessary
+    /// implicit conversion. This is required as clang doesn't add implicit
+    /// conversions while assigning values to variables which are initialized
+    /// after it is already declared.
+    void PerformImplicitConversionAndAssign(clang::VarDecl* VD,
+                                             clang::Expr* Init) {
+      // Implicitly convert Init into the type of VD
+      clang::Expr* ICE = m_Sema.PerformImplicitConversion(
+          Init, VD->getType(), clang::Sema::AA_Casting).get();
+      // Assign the resulting expression to the variable declaration
+      VD->setInit(ICE);
+    }
   };
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
