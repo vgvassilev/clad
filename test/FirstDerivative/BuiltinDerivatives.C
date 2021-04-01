@@ -89,15 +89,15 @@ void f7_grad(float x, float *result);
 // CHECK: void f7_grad(float x, float *_result) {
 // CHECK-NEXT:   float _t0;
 // CHECK-NEXT:   _t0 = x;
-// CHECK-NEXT:   typename __gnu_cxx::__promote_2<float, double>::__type f7_return = pow(_t0, 2.);
+// CHECK-NEXT:   {{.*}} f7_return = pow(_t0, 2.);
 // CHECK-NEXT:   goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:   {
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, double>::__type _grad0[2] = {};
+// CHECK-NEXT:     typename {{.*}} _grad0[2] = {};
 // CHECK-NEXT:     custom_derivatives::pow_grad(_t0, 2., _grad0);
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, double>::__type _r0 = 1 * _grad0[0UL];
+// CHECK-NEXT:     typename {{.*}} _r0 = 1 * _grad0[0UL];
 // CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, double>::__type _r1 = 1 * _grad0[1UL];
+// CHECK-NEXT:     typename {{.*}} _r1 = 1 * _grad0[1UL];
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
@@ -115,15 +115,15 @@ void f8_grad(float x, double *result);
 // CHECK: void f8_grad(float x, double *_result) {
 // CHECK-NEXT:   float _t0;
 // CHECK-NEXT:   _t0 = x;
-// CHECK-NEXT:   typename __gnu_cxx::__promote_2<float, int>::__type f8_return = pow(_t0, 2);
+// CHECK-NEXT:   typename {{.*}} f8_return = pow(_t0, 2);
 // CHECK-NEXT:   goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:   {
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, int>::__type _grad0[2] = {};
+// CHECK-NEXT:     typename {{.*}} _grad0[2] = {};
 // CHECK-NEXT:     custom_derivatives::pow_grad(_t0, 2, _grad0);
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, int>::__type _r0 = 1 * _grad0[0UL];
+// CHECK-NEXT:     typename {{.*}} _r0 = 1 * _grad0[0UL];
 // CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, int>::__type _r1 = 1 * _grad0[1UL];
+// CHECK-NEXT:     typename {{.*}} _r1 = 1 * _grad0[1UL];
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
@@ -174,15 +174,15 @@ void f10_grad(float x, int y, double *result);
 // CHECK-NEXT:   int _t1;
 // CHECK-NEXT:   _t0 = x;
 // CHECK-NEXT:   _t1 = y;
-// CHECK-NEXT:   typename __gnu_cxx::__promote_2<float, int>::__type f10_return = pow(_t0, _t1);
+// CHECK-NEXT:   typename {{.*}} f10_return = pow(_t0, _t1);
 // CHECK-NEXT:   goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:   {
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, int>::__type _grad0[2] = {};
+// CHECK-NEXT:     typename {{.*}} _grad0[2] = {};
 // CHECK-NEXT:     custom_derivatives::pow_grad(_t0, _t1, _grad0);
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, int>::__type _r0 = 1 * _grad0[0UL];
+// CHECK-NEXT:     typename {{.*}} _r0 = 1 * _grad0[0UL];
 // CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     typename __gnu_cxx::__promote_2<float, int>::__type _r1 = 1 * _grad0[1UL];
+// CHECK-NEXT:     typename {{.*}} _r1 = 1 * _grad0[1UL];
 // CHECK-NEXT:     _result[1UL] += _r1;
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
