@@ -254,11 +254,12 @@ jobs:
             compiler: gcc-5
             clang-runtime: '11'
 
-          - name: ubu18-gcc6-runtime11-coverage
+          - name: ubu18-gcc6-runtime11-analyzers
             os: ubuntu-18.04
             compiler: gcc-6
             clang-runtime: '11'
             coverage: true
+            clang-format: true
 
           - name: ubu18-gcc8-runtime11
             os: ubuntu-18.04
@@ -565,6 +566,15 @@ jobs:
         python3 -m pip show lit
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
+    - name: Invoke workflow clang-format on compiler-research
+      if: ${{ success() && (matrix.clang-format == true) }}
+      uses: benc-uk/workflow-dispatch@v1
+      with:
+        workflow: SuggestFormattingChanges
+        repo: compiler-research/knowall
+        token: ${{ secrets.PERSONAL_TOKEN }}
+        ref: main # The SuggestFormattingChanges branch
+        inputs: '{ "repo": "${{ github.repository }}", "pull_id": "${{ github.event.number }}" }'
     - name: Setup tmate session
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
