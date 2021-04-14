@@ -1035,7 +1035,8 @@ namespace clad {
     // }
     // This is done to avoid variable names clashes.
     addToCurrentBlock(initResult.getStmt_dx());
-
+    auto condExpr = Visit(If->getCond());
+    addToCurrentBlock(condExpr.getStmt_dx());
     VarDecl* condVarClone = nullptr;
     if (const VarDecl* condVarDecl = If->getConditionVariable()) {
       VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
