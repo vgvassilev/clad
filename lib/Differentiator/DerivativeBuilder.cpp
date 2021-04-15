@@ -1459,85 +1459,97 @@ namespace clad {
     if (m_DerivativeOrder == 1)
       s = "";
 
-    IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
-                                               s + "arg0");
-    DeclarationName name(II);
-    SourceLocation DeclLoc;
-    DeclarationNameInfo DNInfo(name, DeclLoc);
-
-    SourceLocation noLoc;
+    Expr* callDiff = nullptr;
+    bool callDiffFailed = false;
     llvm::SmallVector<Expr*, 4> CallArgs{};
-    // For f(g(x)) = f'(x) * g'(x)
-    Expr* Multiplier = nullptr;
+    llvm::SmallVector<Expr*, 4> CallArgsDiff{};
+
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
       StmtDiff argDiff = Visit(CE->getArg(i));
-      if (!Multiplier)
-        Multiplier = argDiff.getExpr_dx();
-      else {
-        Multiplier =
-          BuildOp(BO_Add, Multiplier, argDiff.getExpr_dx());
-      }
       CallArgs.push_back(argDiff.getExpr());
+      CallArgsDiff.push_back(argDiff.getExpr_dx());
+    }
+
+    for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
+      IdentifierInfo *II = &m_Context.Idents.get(
+          FD->getNameAsString() + "_d" + s + "arg" + std::to_string(i));
+      DeclarationName name(II);
+      SourceLocation DeclLoc;
+      DeclarationNameInfo DNInfo(name, DeclLoc);
+
+      SourceLocation noLoc;
+
+      // Try to find an overloaded derivative in 'custom_derivatives'
+      Expr *callArgDiff =
+          m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+
+      // Check if it is recursive call
+      if (!callArgDiff && (FD == m_Function)) {
+        // The differentiated function is called recursively.
+        Expr *derivativeRef =
+            m_Sema
+                .BuildDeclarationNameExpr(
+                    CXXScopeSpec(),
+                    m_Derivative->getNameInfo(),
+                    m_Derivative)
+                .get();
+        callArgDiff =
+            m_Sema
+                .ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
+                               derivativeRef,
+                               noLoc,
+                               llvm::MutableArrayRef<Expr *>(CallArgs),
+                               noLoc)
+                .get();
+      }
+
+      if (!callArgDiff) {
+        // Overloaded derivative was not found, request the CladPlugin to
+        // derive the called function.
+        DiffRequest request{};
+        request.Function = FD;
+        request.BaseFunctionName = FD->getNameAsString();
+        request.Mode = DiffMode::forward;
+        // Silence diag outputs in nested derivation process.
+        request.VerboseDiags = false;
+        request.Args = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                         m_Context,
+                                                         i);
+
+        FunctionDecl *derivedFD =
+            plugin::ProcessDiffRequest(m_CladPlugin, request);
+        // Clad failed to derive it.
+        if (!derivedFD) {
+          // Function was not derived => issue a warning.
+          diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+               "function '%0' was not differentiated because clad failed to "
+               "differentiate it and no suitable overload was found in "
+               "namespace 'custom_derivatives'",
+               {FD->getNameAsString()});
+
+          callDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                       m_Context, 0);
+          break;
+        }
+
+        callArgDiff =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(derivedFD),
+                               noLoc, llvm::MutableArrayRef<Expr *>(CallArgs),
+                               noLoc)
+                .get();
+      }
+      callArgDiff = BuildOp(BO_Mul, CallArgsDiff[i], callArgDiff);
+      if(!callDiff)
+        callDiff = callArgDiff;
+      else
+        callDiff = BuildOp(BO_Add, callDiff, callArgDiff);
     }
 
     Expr* call = m_Sema.ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
                                       noLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
                                       noLoc).get();
 
-    // Try to find an overloaded derivative in 'custom_derivatives'
-    Expr* callDiff = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
-
-    // FIXME: add gradient-vector products to fix that.
-    if(!callDiff)
-      assert((CE->getNumArgs() <= 1) &&
-             "forward differentiation of multi-arg calls is currently broken");
-
-    // Check if it is a recursive call.
-    if (!callDiff && (FD == m_Function)) {
-      // The differentiated function is called recursively.
-      Expr* derivativeRef =
-        m_Sema.BuildDeclarationNameExpr(CXXScopeSpec(),
-                                        m_Derivative->getNameInfo(),
-                                        m_Derivative).get();
-      callDiff =
-        m_Sema.ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                             derivativeRef,
-                             noLoc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs),
-                             noLoc).get();
-    }
-
-    if (!callDiff) {
-      // Overloaded derivative was not found, request the CladPlugin to
-      // derive the called function.
-      DiffRequest request{};
-      request.Function = FD;
-      request.BaseFunctionName = FD->getNameAsString();
-      request.Mode = DiffMode::forward;
-      // Silence diag outputs in nested derivation process.
-      request.VerboseDiags = false;
-
-      FunctionDecl* derivedFD = plugin::ProcessDiffRequest(m_CladPlugin, request);
-      // Clad failed to derive it.
-      if (!derivedFD) {
-        // Function was not derived => issue a warning.
-        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-             "function '%0' was not differentiated because clad failed to "
-             "differentiate it and no suitable overload was found in "
-             "namespace 'custom_derivatives'",
-             { FD->getNameAsString() });
-
-        auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-        return StmtDiff(call, zero);
-      }
-
-      callDiff = m_Sema.ActOnCallExpr(getCurrentScope(), BuildDeclRef(derivedFD),
-                                      noLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
-                                      noLoc).get();
-    }
-
-    if (Multiplier)
-      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
     return StmtDiff(call, callDiff);
   }
 
