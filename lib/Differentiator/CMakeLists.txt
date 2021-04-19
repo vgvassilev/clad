@@ -32,7 +32,12 @@ add_llvm_library(cladDifferentiator
   ConstantFolder.cpp
   DerivativeBuilder.cpp
   DiffPlanner.cpp
+  ForwardModeVisitor.cpp
+  HessianModeVisitor.cpp
+  JacobianModeVisitor.cpp
+  ReverseModeVisitor.cpp
   StmtClone.cpp
   Version.cpp
+  VisitorBase.cpp
   ${version_inc}
   )
