@@ -4,7 +4,7 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/ForwardModeVisitor.h"
 
 #include "ConstantFolder.h"
 

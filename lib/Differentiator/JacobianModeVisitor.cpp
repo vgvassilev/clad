@@ -4,9 +4,10 @@
 // author:  Vassil Vassilev <vvasilev-at-cern.ch>
 //------------------------------------------------------------------------------
 
-#include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/JacobianModeVisitor.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/Sema/Lookup.h"

@@ -6,6 +6,11 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "clad/Differentiator/ForwardModeVisitor.h"
+#include "clad/Differentiator/HessianModeVisitor.h"
+#include "clad/Differentiator/JacobianModeVisitor.h"
+#include "clad/Differentiator/ReverseModeVisitor.h"
+
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
 
