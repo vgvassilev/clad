@@ -1083,7 +1083,9 @@ namespace clad {
 
     Stmt* ifDiff = clad_compat::IfStmt_Create(m_Context, noLoc, If->isConstexpr(),
                                           initResult.getStmt(), condVarClone,
-                                          cond, thenDiff, noLoc, elseDiff);
+                                          cond,
+                                          noLoc, noLoc,
+                                          thenDiff, noLoc, elseDiff);
     addToCurrentBlock(ifDiff);
     CompoundStmt* Block = endBlock();
     // If IfStmt is the only statement in the block, remove the block:
@@ -1136,7 +1138,7 @@ namespace clad {
     Intro.Range.setEnd(E->getEndLoc());
     AttributeFactory AttrFactory;
     DeclSpec DS(AttrFactory);
-    Declarator D(DS, clad_compat::DeclaratorContext::LambdaExprContext);
+    Declarator D(DS, clad_compat::DeclaratorContext::CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
     S.PushLambdaScope();
     V.beginScope(Scope::BlockScope | Scope::FnScope | Scope::DeclScope);
     S.ActOnStartOfLambdaDefinition(Intro, D, V.getCurrentScope());
@@ -2085,8 +2087,9 @@ namespace clad {
     // Sema::ActOnIfStmt, therefore we directly use the IfStmt constructor.
     Stmt* Forward = clad_compat::IfStmt_Create(m_Context, noLoc, If->isConstexpr(),
                                            initResult.getStmt(), condVarClone,
-                                           cond.getExpr(), thenDiff.getStmt(),
-                                           noLoc, elseDiff.getStmt());
+                                           cond.getExpr(),
+                                           noLoc, noLoc,
+                                           thenDiff.getStmt(), noLoc, elseDiff.getStmt());
     addToCurrentBlock(Forward, forward);
 
     Expr* reverseCond = cond.getExpr_dx();
@@ -2096,8 +2099,9 @@ namespace clad {
     }
     Stmt* Reverse = clad_compat::IfStmt_Create(m_Context, noLoc, If->isConstexpr(),
                                            initResult.getStmt_dx(), condVarClone,
-                                           reverseCond, thenDiff.getStmt_dx(),
-                                           noLoc, elseDiff.getStmt_dx());
+                                           reverseCond,
+                                           noLoc, noLoc,
+                                           thenDiff.getStmt_dx(), noLoc, elseDiff.getStmt_dx());
     addToCurrentBlock(Reverse, reverse);
     CompoundStmt* ForwardBlock = endBlock(forward);
     CompoundStmt* ReverseBlock = endBlock(reverse);
@@ -2145,7 +2149,9 @@ namespace clad {
         if (!Then)
           Then = m_Sema.ActOnNullStmt(noLoc).get();
         return clad_compat::IfStmt_Create(m_Context, noLoc, false, nullptr,  nullptr,
-                                      Cond, Then, noLoc, Else);
+                                          Cond,
+                                          noLoc, noLoc, // If->getLParenLoc(), If->getRParenLoc(),
+                                          Then, noLoc, Else);
       };
 
     Stmt* Forward = BuildIf(cond.getExpr(), ifTrueDiff.getStmt(),

@@ -77,7 +77,7 @@ static inline CompoundStmt* CompoundStmt_Create(
 
 // Clang 8 change E->EvaluateAsInt(APSInt int, context) ===> E->EvaluateAsInt(Expr::EvalResult res, context)
 
-static bool Expr_EvaluateAsInt(const Expr *E,
+static inline bool Expr_EvaluateAsInt(const Expr *E,
                          APSInt &IntValue, const ASTContext &Ctx,
                          Expr::SideEffectsKind AllowSideEffects = Expr::SideEffectsKind::SE_NoSideEffects)
 {
@@ -93,17 +93,22 @@ static bool Expr_EvaluateAsInt(const Expr *E,
 #endif
 }
 
-// Compatibility helper function for creation IfStmt. Clang 8 and above use Create.
+// Compatibility helper function for creation IfStmt.
+// Clang 8 and above use Create.
+// Clang 12 and above use two extra params.
 
 static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
    SourceLocation IL, bool IsConstexpr,
    Stmt *Init, VarDecl *Var, Expr *Cond,
+   SourceLocation LPL, SourceLocation RPL,
    Stmt *Then, SourceLocation EL=SourceLocation(), Stmt *Else=nullptr)
 {
 #if CLANG_VERSION_MAJOR < 8
    return new (Ctx) IfStmt(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
-#elif CLANG_VERSION_MAJOR >= 8
+#elif CLANG_VERSION_MAJOR < 12
    return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
+#elif CLANG_VERSION_MAJOR >= 12
+   return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, LPL, RPL, Then, EL, Else);
 #endif
 }
 
@@ -124,7 +129,9 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
 #endif
 
 
-// Compatibility helper function for creation CallExpr. Clang 8 and above use Create.
+// Compatibility helper function for creation CallExpr.
+// Clang 8 and above use Create.
+// Clang 12 and above use one extra param.
 
 #if CLANG_VERSION_MAJOR < 8
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
@@ -132,22 +139,32 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
 {
    return new (Ctx) CallExpr(Ctx, Fn, Args, Ty, VK, RParenLoc);
 }
-#elif CLANG_VERSION_MAJOR >= 8
+#elif CLANG_VERSION_MAJOR < 12
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
    QualType Ty, ExprValueKind VK, SourceLocation RParenLoc,
    unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
 {
    return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, MinNumArgs, UsesADL);
 }
+#elif CLANG_VERSION_MAJOR >= 12
+static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
+   QualType Ty, ExprValueKind VK, SourceLocation RParenLoc, FPOptionsOverride FPFeatures,
+   unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
+{
+   return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, FPFeatures, MinNumArgs, UsesADL);
+}
 #endif
 
 
 // Clang 8 add one extra param (Ctx) in some constructors.
+// Clang 12 and above use one extra param.
 
 #if CLANG_VERSION_MAJOR < 8
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 8
+#elif CLANG_VERSION_MAJOR < 12
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getNumArgs(),Node->getADLCallKind()
+#elif CLANG_VERSION_MAJOR >= 12
+   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getFPFeatures(),Node->getNumArgs(),Node->getADLCallKind()
 #endif
 
 // Clang 11 add one param to CXXOperatorCallExpr_Create, ADLCallKind, and many other constructor and Create changes
@@ -214,17 +231,31 @@ static inline CXXOperatorCallExpr* CXXOperatorCallExpr_Create(ASTContext &Ctx,
 }
 
 
-// Compatibility helper function for creation CXXMemberCallExpr. Clang 8 and above use Create.
+// Compatibility helper function for creation CXXMemberCallExpr.
+// Clang 8 and above use Create.
+// Clang 12 and above use two extra param.
 
+#if CLANG_VERSION_MAJOR < 8
 static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
    Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP)
 {
-#if CLANG_VERSION_MAJOR < 8
    return new (Ctx) CXXMemberCallExpr(Ctx, Fn, Args, Ty, VK, RP);
-#elif CLANG_VERSION_MAJOR >= 8
-   return CXXMemberCallExpr::Create(const_cast<ASTContext&>(Ctx), Fn, Args, Ty, VK, RP);
-#endif
 }
+#elif CLANG_VERSION_MAJOR < 12
+static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
+   Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP)
+{
+   return CXXMemberCallExpr::Create(const_cast<ASTContext&>(Ctx), Fn, Args, Ty, VK, RP);
+}
+#elif CLANG_VERSION_MAJOR >= 12
+static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
+   Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP,
+   FPOptionsOverride FPFeatures, unsigned MinNumArgs = 0)
+{
+   return CXXMemberCallExpr::Create(const_cast<ASTContext&>(Ctx), Fn, Args, Ty, VK, RP,
+                                    FPFeatures, MinNumArgs);
+}
+#endif
 
 
 // Compatibility helper function for creation CaseStmt. Clang 8 and above use Create.
@@ -240,15 +271,20 @@ static inline CaseStmt* CaseStmt_Create(ASTContext &Ctx,
 }
 
 
-// Compatibility helper function for creation SwitchStmt. Clang 8 and above use Create.
+// Compatibility helper function for creation SwitchStmt.
+// Clang 8 and above use Create.
+// Clang 12 and above use two extra params.
 
 static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
-   Stmt *Init, VarDecl *Var, Expr *Cond)
+   Stmt *Init, VarDecl *Var, Expr *Cond,
+   SourceLocation LParenLoc, SourceLocation RParenLoc)
 {
 #if CLANG_VERSION_MAJOR < 8
    return new (Ctx) SwitchStmt(Ctx, Init, Var, Cond);
-#elif CLANG_VERSION_MAJOR >= 8
+#elif CLANG_VERSION_MAJOR < 12
    return SwitchStmt::Create(Ctx, Init, Var, Cond);
+#elif CLANG_VERSION_MAJOR >= 12
+   return SwitchStmt::Create(Ctx, Init, Var, Cond, LParenLoc, RParenLoc);
 #endif
 }
 
@@ -368,6 +404,32 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
    #define CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams ,Node->getFPOptionsOverride()
 #endif
 
+
+// Clang 12 rename DeclaratorContext::LambdaExprContext to DeclaratorContext::LambdaExpr.
+
+#if CLANG_VERSION_MAJOR < 12
+   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr LambdaExprContext
+#elif CLANG_VERSION_MAJOR >= 12
+   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr LambdaExpr
+#endif
+
+// Clang 12 add one extra param (FPO) in Create method of:
+// ImplicitCastExpr, CStyleCastExpr, CXXStaticCastExpr and CXXFunctionalCastExpr
+
+#if CLANG_VERSION_MAJOR < 12
+   #define CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) /**/
+#elif CLANG_VERSION_MAJOR >= 12
+   #define CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) ,Node->getFPFeatures()
+#endif
+
+// Clang 12 add two extra param (Left and Right paren location) in Create method of:
+// IfStat::Create
+
+#if CLANG_VERSION_MAJOR < 12
+   #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) /**/
+#elif CLANG_VERSION_MAJOR >= 12
+   #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) ,Node->getLParenLoc(),Node->getRParenLoc()
+#endif
 
 } // namespace clad_compat
 
