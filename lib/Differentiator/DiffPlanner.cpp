@@ -50,7 +50,8 @@ namespace clad {
                                               oldCast->getCastKind(),
                                               DRE,
                                               nullptr,
-                                              oldCast->getValueKind());
+                                              oldCast->getValueKind()
+                                              CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
       call->setArg(0, newCast);
     }
     else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArg)) {

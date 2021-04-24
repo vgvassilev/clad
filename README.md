@@ -161,7 +161,7 @@ Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST
 * Finally, derivative's AST is [passed](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.cpp#L145) for further processing by Clang compiler (LLVM IR generation, optimizations, machine code generation, etc.).
 
 ## How to install
-At the moment, LLVM/Clang 5.0.x - 11.1.0 are supported.
+At the moment, LLVM/Clang 5.0.x - 12.0.1 are supported.
 
 ###  Building from source (example was tested on Ubuntu 18.04 LTS)
   ```

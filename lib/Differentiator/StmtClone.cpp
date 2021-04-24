@@ -100,14 +100,14 @@ Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
   return result;
 }
 DEFINE_CLONE_EXPR(CompoundLiteralExpr, (Node->getLParenLoc(), Node->getTypeSourceInfo(), Node->getType(), Node->getValueKind(), Clone(Node->getInitializer()), Node->isFileScope()))
-DEFINE_CREATE_EXPR(ImplicitCastExpr, (Ctx, Node->getType(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getValueKind()))
-DEFINE_CREATE_EXPR(CStyleCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getLParenLoc(), Node->getRParenLoc()))
-DEFINE_CREATE_EXPR(CXXStaticCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
+DEFINE_CREATE_EXPR(ImplicitCastExpr, (Ctx, Node->getType(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getValueKind() /*EP*/CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) ))
+DEFINE_CREATE_EXPR(CStyleCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0 /*EP*/CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node), Node->getTypeInfoAsWritten(), Node->getLParenLoc(), Node->getRParenLoc()))
+DEFINE_CREATE_EXPR(CXXStaticCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten() /*EP*/CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXDynamicCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXReinterpretCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXConstCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXConstructExpr, (Ctx, Node->getType(), Node->getLocation(), Node->getConstructor(), Node->isElidable(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization(), Node->getConstructionKind(), Node->getParenOrBraceRange()))
-DEFINE_CREATE_EXPR(CXXFunctionalCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getTypeInfoAsWritten(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getLParenLoc(), Node->getRParenLoc()))
+DEFINE_CREATE_EXPR(CXXFunctionalCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getTypeInfoAsWritten(), Node->getCastKind(), Clone(Node->getSubExpr()), 0 /*EP*/CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node), Node->getLParenLoc(), Node->getRParenLoc()))
 
 DEFINE_CLONE_EXPR_CO(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getType(), Node->getTypeSourceInfo(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization()))
 
@@ -252,7 +252,10 @@ Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
   CXXMemberCallExpr* result
     = clad_compat::CXXMemberCallExpr_Create(Ctx, Clone(Node->getCallee()), 0,
                                   Node->getType(),
-                                  Node->getValueKind(), Node->getRParenLoc());
+                                  Node->getValueKind(),
+                                  Node->getRParenLoc()
+                                  /*FP*/CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node)
+                                  );
 //###  result->setNumArgs(Ctx, Node->getNumArgs());
   result->setNumArgsUnsafe(Node->getNumArgs());
 
@@ -287,8 +290,11 @@ Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
 }
 
 Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
+  SourceLocation noLoc;
   SwitchStmt* result
-    = clad_compat::SwitchStmt_Create(Ctx, Node->getInit(), Node->getConditionVariable(), Node->getCond());
+    = clad_compat::SwitchStmt_Create(Ctx,
+        Node->getInit(), Node->getConditionVariable(), Node->getCond(),
+        noLoc, noLoc);
   result->setBody(Clone(Node->getBody()));
   result->setSwitchLoc(Node->getSwitchLoc());
   return result;
@@ -299,7 +305,7 @@ DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clon
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
 DEFINE_CLONE_STMT_CO(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc() CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams))
 DEFINE_CLONE_STMT(DoStmt, (Clone(Node->getBody()), Clone(Node->getCond()), Node->getDoLoc(), Node->getWhileLoc(), Node->getRParenLoc()))
-DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(), Node->isConstexpr(), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
+DEFINE_CLONE_STMT_CO(IfStmt, (Ctx, Node->getIfLoc(), Node->isConstexpr(), Node->getInit(), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()) /*EPs*/CLAD_COMPAT_CLANG12_LR_ExtraParams(Node), Clone(Node->getThen()), Node->getElseLoc(), Clone(Node->getElse())))
 DEFINE_CLONE_STMT(LabelStmt, (Node->getIdentLoc(), Node->getDecl(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(NullStmt, (Node->getSemiLoc()))
 DEFINE_CLONE_STMT(ForStmt, (Ctx, Clone(Node->getInit()), Clone(Node->getCond()), CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getInc()), Clone(Node->getBody()),
