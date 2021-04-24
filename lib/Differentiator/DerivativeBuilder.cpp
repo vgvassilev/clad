@@ -51,7 +51,60 @@ namespace clad {
       return;
     // Register the function on the redecl chain.
     derivedFD->setPreviousDecl(cast<FunctionDecl>(R.getFoundDecl()));
+  }
 
+  static bool hasAttribute(const Decl *D, attr::Kind Kind) {
+    for (const auto *Attribute : D->attrs())
+      if (Attribute->getKind() == Kind)
+        return true;
+    return false;
+  }
+
+  DeclWithContext 
+  DerivativeBuilder::cloneFunction(const clang::FunctionDecl* FD,
+                                   clad::VisitorBase VD, 
+                                   clang::DeclContext* DC,
+                                   clang::Sema& m_Sema,
+                                   clang::ASTContext& m_Context,
+                                   clang::SourceLocation& noLoc,
+                                   clang::DeclarationNameInfo name,
+                                   clang::QualType functionType) {
+    FunctionDecl* returnedFD = nullptr;
+    NamespaceDecl* enclosingNS = nullptr;
+    if (isa<CXXMethodDecl>(FD)) {
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+      returnedFD = CXXMethodDecl::Create(m_Context, 
+                                         CXXRD, 
+                                         noLoc, 
+                                         name,
+                                         functionType, 
+                                         FD->getTypeSourceInfo(),
+                                         FD->getStorageClass(),
+                                         FD->isInlineSpecified(),
+                                         clad_compat::Function_GetConstexprKind
+                                         (FD), noLoc);
+      returnedFD->setAccess(FD->getAccess());
+    } else {
+      assert (isa<FunctionDecl>(FD) && "Unexpected!");
+      enclosingNS = VD.RebuildEnclosingNamespaces(DC);
+      returnedFD = FunctionDecl::Create(m_Context, 
+                                        m_Sema.CurContext, 
+                                        noLoc,
+                                        name, 
+                                        functionType,
+                                        FD->getTypeSourceInfo(),
+                                        FD->getStorageClass(),
+                                        FD->isInlineSpecified(),
+                                        FD->hasWrittenPrototype(),
+                                        clad_compat::Function_GetConstexprKind(FD)CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause()));
+    } 
+
+    for (const FunctionDecl* NFD : FD->redecls())
+      for (const auto* Attr : FD->attrs())
+        if (!hasAttribute(returnedFD, Attr->getKind()))
+          returnedFD->addAttr(Attr->clone(m_Context));
+
+    return { returnedFD, enclosingNS };
   }
 
   DeclWithContext DerivativeBuilder::Derive(const FunctionDecl* FD,
@@ -343,7 +396,7 @@ namespace clad {
     }
   }
 
-   Expr* VisitorBase::BuildParens(Expr* E) {
+  Expr* VisitorBase::BuildParens(Expr* E) {
     if (!E)
       return nullptr;
     Expr* ENoCasts = E->IgnoreCasts();
@@ -508,43 +561,14 @@ namespace clad {
 
     // Create the gradient function declaration.
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
-
-    FunctionDecl* hessianFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     m_Sema.CurContext = DC;
 
-    if (isa<CXXMethodDecl>(m_Function)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      hessianFD = CXXMethodDecl::Create(m_Context,
-                                        CXXRD,
-                                        noLoc,
-                                        name,
-                                        hessianFunctionType,
-                                        m_Function->getTypeSourceInfo(),
-                                        m_Function->getStorageClass(),
-                                        m_Function->isInlineSpecified(),
-                                        clad_compat::Function_GetConstexprKind(m_Function),
-                                        noLoc);
-    }
-    else if (isa<FunctionDecl>(m_Function)) {
-      enclosingNS = RebuildEnclosingNamespaces(DC);
-      hessianFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
-        name, hessianFunctionType,
-        m_Function->getTypeSourceInfo(),
-        m_Function->getStorageClass(),
-        m_Function->isInlineSpecified(),
-        m_Function->hasWrittenPrototype(),
-        clad_compat::Function_GetConstexprKind(m_Function)
-        CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(m_Function->getTrailingRequiresClause())
-        );
-    } else {
-      diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
-         "attempted differentiation of '%0' which is of unsupported type",
-          { m_Function->getNameAsString() });
-    return {};
-    }
+    DeclWithContext result = m_Builder.cloneFunction(m_Function, *this, DC,
+                                                     m_Sema, m_Context, noLoc,
+                                                     name, hessianFunctionType);
+    FunctionDecl* hessianFD = result.first;
 
     beginScope(Scope::FunctionPrototypeScope |
                Scope::FunctionDeclarationScope |
@@ -642,7 +666,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return {hessianFD, enclosingNS};
+    return result;
   }
 
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder):
@@ -705,35 +729,14 @@ namespace clad {
     IdentifierInfo* II = &m_Context.Idents.get(
       derivativeBaseName + "_d" + s + "arg" + std::to_string(m_ArgIndex));
     DeclarationNameInfo name(II, noLoc);
-    FunctionDecl* derivedFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
-    if (isa<CXXMethodDecl>(FD)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      derivedFD = CXXMethodDecl::Create(m_Context, CXXRD, noLoc, name,
-                                        FD->getType(), FD->getTypeSourceInfo(),
-                                        FD->getStorageClass(),
-                                        FD->isInlineSpecified(),
-                                        clad_compat::Function_GetConstexprKind(FD), noLoc);
-      derivedFD->setAccess(FD->getAccess());
-    } else {
-      assert(isa<FunctionDecl>(FD) && "Must derive from FunctionDecl.");
-      enclosingNS = RebuildEnclosingNamespaces(DC);
-      derivedFD = FunctionDecl::Create(m_Context,
-                                       m_Sema.CurContext, noLoc,
-                                       name, FD->getType(),
-                                       FD->getTypeSourceInfo(),
-                                       FD->getStorageClass(),
-                                       /*default*/
-                                       FD->isInlineSpecified(),
-                                       FD->hasWrittenPrototype(),
-                                       clad_compat::Function_GetConstexprKind(FD)
-                                       CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause())
-                                       );
-    }
+    DeclWithContext result = m_Builder.cloneFunction(FD, *this, DC, m_Sema,
+                                                     m_Context, noLoc, name,
+                                                     FD->getType());
+    FunctionDecl* derivedFD = result.first;
     m_Derivative = derivedFD;
 
     llvm::SmallVector<ParmVarDecl*, 4> params;
@@ -822,7 +825,7 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_DerivativeInFlight = false;
-    return { derivedFD, enclosingNS };
+    return result;
   }
 
   Stmt* VisitorBase::Clone(const Stmt* S) {
@@ -986,7 +989,6 @@ namespace clad {
                                           CallArgs, noLoc).get();
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
-
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
     diag(DiagnosticsEngine::Warning, S->getBeginLoc(),
@@ -1371,7 +1373,7 @@ namespace clad {
   // This method is derived from the source code of both
   // buildOverloadedCallSet() in SemaOverload.cpp
   // and ActOnCallExpr() in SemaExpr.cpp.
-  bool DerivativeBuilder::overloadExists(Expr* UnresolvedLookup,
+  bool DerivativeBuilder::noOverloadExists(Expr* UnresolvedLookup,
                                          llvm::MutableArrayRef<Expr*> ARargs) {
     if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
       OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
@@ -1435,7 +1437,7 @@ namespace clad {
       SourceLocation Loc;
       Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
 
-      if (overloadExists(UnresolvedLookup, MARargs)) {
+      if (noOverloadExists(UnresolvedLookup, MARargs)) {
         return 0;
       }
 
@@ -1456,9 +1458,7 @@ namespace clad {
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
       s = "";
-    // FIXME: add gradient-vector products to fix that.
-    assert((CE->getNumArgs() <= 1) &&
-           "forward differentiation of multi-arg calls is currently broken");
+
     IdentifierInfo* II = &m_Context.Idents.get(FD->getNameAsString() + "_d" +
                                                s + "arg0");
     DeclarationName name(II);
@@ -1486,6 +1486,11 @@ namespace clad {
 
     // Try to find an overloaded derivative in 'custom_derivatives'
     Expr* callDiff = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
+
+    // FIXME: add gradient-vector products to fix that.
+    if(!callDiff)
+      assert((CE->getNumArgs() <= 1) &&
+             "forward differentiation of multi-arg calls is currently broken");
 
     // Check if it is a recursive call.
     if (!callDiff && (FD == m_Function)) {
@@ -1557,9 +1562,7 @@ namespace clad {
       return StmtDiff(op, diff.getExpr_dx());
     }
     else {
-      diag(DiagnosticsEngine::Warning, UnOp->getEndLoc(),
-           "attempt to differentiate unsupported unary operator, derivative \
-            set to 0");
+      unsupportedOpWarn(UnOp->getEndLoc());
       auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                     m_Context, 0);
       return StmtDiff(op, zero);
@@ -1648,9 +1651,7 @@ namespace clad {
     }
     if (!opDiff) {
       //FIXME: add support for other binary operators
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
-           "attempt to differentiate unsupported binary operator, derivative \
-            set to 0");
+      unsupportedOpWarn(BinOp->getEndLoc());
       opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     }
     opDiff = folder.fold(opDiff);
@@ -1819,43 +1820,15 @@ namespace clad {
                                 FunctionProtoType::ExtProtoInfo());
 
     // Create the gradient function declaration.
-    FunctionDecl* gradientFD = nullptr;
-    NamespaceDecl* enclosingNS = nullptr;
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
-    if (isa<CXXMethodDecl>(m_Function)) {
-      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      gradientFD = CXXMethodDecl::Create(m_Context,
-                                         CXXRD,
-                                         noLoc,
-                                         name,
-                                         gradientFunctionType,
-                                         m_Function->getTypeSourceInfo(),
-                                         m_Function->getStorageClass(),
-                                         m_Function->isInlineSpecified(),
-                                         clad_compat::Function_GetConstexprKind(m_Function),
-                                         noLoc);
-      gradientFD->setAccess(m_Function->getAccess());
-    }
-    else if (isa<FunctionDecl>(m_Function)) {
-      enclosingNS = RebuildEnclosingNamespaces(DC);
-      gradientFD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc,
-                                        name, gradientFunctionType,
-                                        m_Function->getTypeSourceInfo(),
-                                        m_Function->getStorageClass(),
-                                        m_Function->isInlineSpecified(),
-                                        m_Function->hasWrittenPrototype(),
-                                        clad_compat::Function_GetConstexprKind(m_Function)
-                                        CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(m_Function->getTrailingRequiresClause())
-                                        );
-    } else {
-      diag(DiagnosticsEngine::Error, m_Function->getEndLoc(),
-           "attempted differentiation of '%0' which is of unsupported type",
-           { m_Function->getNameAsString() });
-      return {};
-    }
+    DeclWithContext result = m_Builder.cloneFunction(m_Function, *this, DC,
+                                                     m_Sema, m_Context, noLoc,
+                                                     name,
+                                                     gradientFunctionType);
+    FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
     // Function declaration scope
@@ -1973,7 +1946,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return { gradientFD, enclosingNS };
+    return result;
   }
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
@@ -2024,6 +1997,7 @@ namespace clad {
     // the if statement.
     Expr* PushCond = nullptr;
     Expr* PopCond = nullptr;
+    auto condExpr = Visit(cond.getExpr());
     if (isInsideLoop) {
       // If we are inside for loop, cond will be stored in the following way:
       // forward:
@@ -2036,13 +2010,13 @@ namespace clad {
       // if (clad::push(..., _t) { ... }
       // is incorrect when if contains return statement inside: return will
       // skip corresponding push.
-      cond = StoreAndRef(cond.getExpr(), forward, "_t", /*force*/ true);
+      cond = StoreAndRef(condExpr.getExpr(), forward, "_t", /*force*/ true);
       StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
       PushCond = condPushPop.getExpr();
       PopCond = condPushPop.getExpr_dx();
     }
     else
-      cond = GlobalStoreAndRef(cond.getExpr(), "_cond");
+      cond = GlobalStoreAndRef(condExpr.getExpr(), "_cond");
     // Convert cond to boolean condition. We are modifying each Stmt in StmtDiff.
     for (Stmt*& S : cond.getBothStmts())
       if (S)
@@ -2137,7 +2111,7 @@ namespace clad {
     StmtDiff cond = Clone(CO->getCond());
     // Condition has to be stored as a "global" variable, to take the correct
     // branch in the reverse pass.
-    cond = GlobalStoreAndRef(cond.getExpr(), "_cond");
+    cond = GlobalStoreAndRef(Visit(cond.getExpr()).getExpr(), "_cond");
     // Convert cond to boolean condition. We are modifying each Stmt in StmtDiff.
     for (Stmt*& S : cond.getBothStmts())
       S = m_Sema.ActOnCondition(m_CurScope, noLoc, cast<Expr>(S),
@@ -2224,7 +2198,7 @@ namespace clad {
     beginBlock(forward);
     beginBlock(reverse);
     const Stmt* init = FS->getInit();
-    StmtDiff initResult = init ? Visit(init) : StmtDiff{};
+    StmtDiff initResult = init ? DifferentiateSingleStmt(init) : StmtDiff{};
 
     VarDecl* condVarDecl = FS->getConditionVariable();
     VarDecl* condVarClone = nullptr;
@@ -2241,8 +2215,9 @@ namespace clad {
     // but it is not generally true, e.g. for (...; (x = y); ...)...
     StmtDiff cond;
     if (FS->getCond())
-      cond = Clone(FS->getCond());
-    const Expr* inc = FS->getInc();
+      cond = Visit(FS->getCond());
+    auto IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
+    const Expr* inc = IDRE? Visit(FS->getInc()).getExpr(): FS->getInc();
 
     // Save the isInsideLoop value (we may be inside another loop).
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
@@ -2326,6 +2301,8 @@ namespace clad {
     CompoundStmt* ReverseBody = endBlock(reverse);
     std::reverse(ReverseBody->body_begin(), ReverseBody->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(ReverseBody);
+    if (!ReverseResult)
+      ReverseResult = new (m_Context) NullStmt(noLoc);
     Stmt* Reverse = new (m_Context) ForStmt(m_Context, nullptr,
                                             CounterCondition, condVarClone,
                                             CounterDecrement, ReverseResult,
@@ -2534,14 +2511,17 @@ namespace clad {
     // Save current index in the current block, to potentially put some statements
     // there later.
     std::size_t insertionPoint = getCurrentBlock(reverse).size();
+    // Store the type to reduce call overhead that would occur if used in the loop
+    auto CEType = CE->getType();
     for (const Expr* Arg : CE->arguments()) {
       // Create temporary variables corresponding to derivative of each argument,
-      // so that they can be reffered to when arguments is visited. Variables
+      // so that they can be referred to when arguments is visited. Variables
       // will be initialized later after arguments is visited. This is done to
-      // reduce cloning complexity and only clone once.
-      Expr* dArg = StoreAndRef(nullptr, Arg->getType(), reverse, "_r", /*force*/true);
+      // reduce cloning complexity and only clone once. The type is same as the
+      // call expression as it is the type used to declare the _gradX array
+      Expr* dArg = StoreAndRef(nullptr, CEType, reverse, "_r", /*force*/true);
       ArgResultDecls.push_back(cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
-      // Visit using unitialized reference.
+      // Visit using uninitialized reference.
       StmtDiff ArgDiff = Visit(Arg, dArg);
       // Save cloned arg in a "global" variable, so that it is accesible from the
       // reverse pass.
@@ -2572,7 +2552,7 @@ namespace clad {
       // We also need to create an array to store the result of gradient call.
       auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
       auto ArrayType =
-        clad_compat::getConstantArrayType(m_Context, CE->getType(),
+        clad_compat::getConstantArrayType(m_Context, CEType,
                                        llvm::APInt(size_type_bits, NArgs),
                                        nullptr,
                                        ArrayType::ArraySizeModifier::Normal,
@@ -2640,7 +2620,8 @@ namespace clad {
       if (!asGrad) {
         // If the derivative is called through _darg0 instead of _grad.
         Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
-        ArgResultDecls[0]->setInit(d);
+
+        PerformImplicitConversionAndAssign(ArgResultDecls[0], d);
       } else {
         // Put Result array declaration in the function body.
         // Call the gradient, passing Result as the last Arg.
@@ -2661,7 +2642,8 @@ namespace clad {
           auto ithResult = m_Sema.CreateBuiltinArraySubscriptExpr(Result, noLoc,
                                                                   I, noLoc).get();
           auto di = BuildOp(BO_Mul, dfdx(), ithResult);
-          ArgResultDecls[i]->setInit(di);
+
+          PerformImplicitConversionAndAssign(ArgResultDecls[i], di);
         }
       }
     }
@@ -2705,8 +2687,10 @@ namespace clad {
       diff = Visit(UnOp->getSubExpr(), dfdx());
     }
     else {
-      diag(DiagnosticsEngine::Warning, UnOp->getEndLoc(),
-           "attempt to differentiate unsupported unary operator, ignored");
+      // We should not output any warning on visiting boolean conditions
+      // FIXME: We should support boolean differentiation or ignore it completely
+      if(opCode != UO_LNot)
+        unsupportedOpWarn(UnOp->getEndLoc());
 
       Expr* subExpr = UnOp->getSubExpr();
       if(auto SDRE = dyn_cast<DeclRefExpr>(subExpr))
@@ -2991,8 +2975,10 @@ namespace clad {
       ResultRef = Ldiff.getExpr();
     }
     else {
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
-           "attempt to differentiate unsupported binary operator, ignored");
+      // We should not output any warning on visiting boolean conditions
+      // FIXME: We should support boolean differentiation or ignore it completely
+      if(!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
+        unsupportedOpWarn(BinOp->getEndLoc());
 
       // If either LHS or RHS is a declaration reference, visit it to avoid naming collision
       auto LDRE = dyn_cast<DeclRefExpr>(L);
@@ -3225,4 +3211,4 @@ namespace clad {
 
     return result;
   }
-} // end namespace clad
+}// end namespace clad

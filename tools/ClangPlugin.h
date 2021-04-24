@@ -9,6 +9,7 @@
 
 #include "clad/Differentiator/Version.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffPlanner.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -23,7 +24,7 @@ namespace clang {
   class CompilerInstance;
   class DeclGroupRef;
   class Expr;
-//class FunctionDecl;
+  class FunctionDecl;
   class ParmVarDecl;
   class Sema;
 }
@@ -46,19 +47,19 @@ namespace clad {
     };
 
     class CladPlugin : public clang::ASTConsumer {
-    private:
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
+      DerivativesSet m_Derivatives;
       bool m_HasRuntime = false;
+      bool m_PendingInstantiationsInFlight = false;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
-
-      virtual bool HandleTopLevelDecl(clang::DeclGroupRef DGR);
+      bool HandleTopLevelDecl(clang::DeclGroupRef DGR) override;
       clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
     private:
-      bool ShouldProcessDecl(clang::DeclGroupRef DGR);
+      bool CheckBuiltins();
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,

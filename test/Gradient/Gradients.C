@@ -6,11 +6,13 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
 
-double f_add1(double x, double y) {
+__attribute__((always_inline)) double f_add1(double x, double y);
+
+__attribute__((always_inline)) double f_add1(double x, double y) {
   return x + y;
 }
 
-//CHECK:   void f_add1_grad(double x, double y, double *_result) {
+//CHECK:   void f_add1_grad(double x, double y, double *_result) __attribute__((always_inline)) {
 //CHECK-NEXT:       double f_add1_return = x + y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:

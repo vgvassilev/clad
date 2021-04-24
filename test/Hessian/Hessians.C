@@ -5,12 +5,12 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-double f_cubed_add1(double a, double b) {
+__attribute__((always_inline)) double f_cubed_add1(double a, double b) {
   return a * a * a + b * b * b;
 }
 
 void f_cubed_add1_darg0_grad(double a, double b, double *_result);
-//CHECK:void f_cubed_add1_darg0_grad(double a, double b, double *_result) {
+//CHECK:void f_cubed_add1_darg0_grad(double a, double b, double *_result) __attribute__((always_inline)) {
 //CHECK-NEXT:    double _d__d_a = 0;
 //CHECK-NEXT:    double _d__d_b = 0;
 //CHECK-NEXT:    double _t0;
@@ -110,7 +110,7 @@ void f_cubed_add1_darg0_grad(double a, double b, double *_result);
 
 
 void f_cubed_add1_darg1_grad(double a, double b, double *_result);
-//CHECK:void f_cubed_add1_darg1_grad(double a, double b, double *_result) {
+//CHECK:void f_cubed_add1_darg1_grad(double a, double b, double *_result) __attribute__((always_inline)) {
 //CHECK-NEXT:    double _d__d_a = 0;
 //CHECK-NEXT:    double _d__d_b = 0;
 //CHECK-NEXT:    double _t0;
@@ -211,7 +211,7 @@ void f_cubed_add1_darg1_grad(double a, double b, double *_result);
 
 
 void f_cubed_add1_hessian(double a, double b, double *hessianMatrix);
-//CHECK: void f_cubed_add1_hessian(double a, double b, double *hessianMatrix) {
+//CHECK: void f_cubed_add1_hessian(double a, double b, double *hessianMatrix) __attribute__((always_inline)) {
 //CHECK-NEXT:    f_cubed_add1_darg0_grad(a, b, &hessianMatrix[0UL]);
 //CHECK-NEXT:    f_cubed_add1_darg1_grad(a, b, &hessianMatrix[2UL]);
 //CHECK-NEXT: }

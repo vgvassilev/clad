@@ -10,7 +10,6 @@ int f(int x) {
   return x*x + x - x*x*x*x;
 }
 
-
 int main () {
   //int x = 4;
   // Here the second arg denotes the differentiation of f with respect to the
@@ -21,5 +20,7 @@ int main () {
   // templates (C++11) feature?
 
   //diff(g, 2);
+  clad::CladFunction<decltype(&f)> invalid_func(f,"");
+  printf("%s\n", invalid_func.getCode()); //CHECK-EXEC-NEXT: <invalid>
   return 0;
 }

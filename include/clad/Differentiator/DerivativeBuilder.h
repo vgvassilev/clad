@@ -42,12 +42,12 @@ namespace clad {
   /// A pair of FunctionDecl and potential enclosing context, e.g. a function
   // in nested namespaces
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
-
   using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
 
   using VectorOutputs = std::vector<std::unordered_map<const clang::VarDecl*, clang::Expr*>>;
 
   static clang::SourceLocation noLoc{};
+  class VisitorBase;
   /// The main builder class which then uses either ForwardModeVisitor or
   /// ReverseModeVisitor based on the required mode.
   class DerivativeBuilder {
@@ -63,10 +63,17 @@ namespace clad {
     clang::ASTContext& m_Context;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
-
+    DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
+                                  clad::VisitorBase VB,
+                                  clang::DeclContext* DC,
+                                  clang::Sema& m_Sema,
+                                  clang::ASTContext& m_Context,
+                                  clang::SourceLocation& noLoc,
+                                  clang::DeclarationNameInfo name,
+                                  clang::QualType functionType);
     clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
-    bool overloadExists(clang::Expr* UnresolvedLookup,
+    bool noOverloadExists(clang::Expr* UnresolvedLookup,
                             llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
@@ -299,6 +306,19 @@ namespace clad {
     clang::LookupResult& GetCladTapeBack();
     /// Instantiate clad::tape<T> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
+
+    /// Assigns the Init expression to VD after performing the necessary
+    /// implicit conversion. This is required as clang doesn't add implicit
+    /// conversions while assigning values to variables which are initialized
+    /// after it is already declared.
+    void PerformImplicitConversionAndAssign(clang::VarDecl* VD,
+                                             clang::Expr* Init) {
+      // Implicitly convert Init into the type of VD
+      clang::Expr* ICE = m_Sema.PerformImplicitConversion(
+          Init, VD->getType(), clang::Sema::AA_Casting).get();
+      // Assign the resulting expression to the variable declaration
+      VD->setInit(ICE);
+    }
   };
   /// A class that represents the result of Visit of ForwardModeVisitor.
   /// Stmt() allows to access the original (cloned) Stmt and Stmt_dx() allows
@@ -392,6 +412,13 @@ namespace clad {
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     // Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+    /// Shorthand for warning on differentiation of unsupported operators
+    void unsupportedOpWarn(clang::SourceLocation loc,
+                           llvm::ArrayRef<llvm::StringRef> args = {}) {
+        diag(clang::DiagnosticsEngine::Warning, loc,
+             "attempt to differentiate unsupported operator,  derivative \
+                         set to 0", args);
+    }
   };
 
   /// A visitor for processing the function code in reverse mode.
@@ -633,6 +660,12 @@ namespace clad {
     /// additionally created Stmts, second is a direct result of call to Visit.
     std::pair<StmtDiff, StmtDiff> 
     DifferentiateSingleExpr(const clang::Expr* E, clang::Expr* dfdE = nullptr);
+    /// Shorthand for warning on differentiation of unsupported operators
+    void unsupportedOpWarn(clang::SourceLocation loc,
+            llvm::ArrayRef<llvm::StringRef> args = {}) {
+        diag(clang::DiagnosticsEngine::Warning, loc,
+             "attempt to differentiate unsupported operator, ignored.", args);
+    }
 
   };
   

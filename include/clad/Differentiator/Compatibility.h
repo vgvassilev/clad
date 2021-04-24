@@ -6,13 +6,14 @@
 #ifndef CLAD_COMPATIBILITY
 #define CLAD_COMPATIBILITY
 
-#include "clang/Basic/Version.h"
 #include "llvm/Config/llvm-config.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
+#include "clang/Basic/Version.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
 namespace clad_compat {
@@ -21,6 +22,18 @@ using namespace clang;
 using namespace llvm;
 
 // Compatibility helper function for creation CompoundStmt. Clang 6 and above use Create.
+
+static inline bool SourceManager_isPointWithin(const SourceManager& SM,
+                                               SourceLocation Loc,
+                                               SourceLocation B,
+                                               SourceLocation E) {
+#if CLANG_VERSION_MAJOR == 5
+  return Loc == B || Loc == E || (SM.isBeforeInTranslationUnit(B, Loc) &&
+                                  SM.isBeforeInTranslationUnit(Loc, E));
+#elif CLANG_VERSION_MAJOR >= 6
+  return SM.isPointWithin(Loc, B, E);
+#endif
+}
 
 static inline CompoundStmt* CompoundStmt_Create(
         const ASTContext &Ctx, ArrayRef<Stmt *> Stmts,
@@ -328,7 +341,7 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
 #if CLANG_VERSION_MAJOR < 10
    #define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x) /**/
 #elif CLANG_VERSION_MAJOR >= 10
-   #define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x) ,((x)?Clone((x)):nullptr)
+   #define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x) ,((x)?VD.Clone((x)):nullptr)
 #endif
 
 // Clang 10 remove GetTemporaryExpr(). Use getSubExpr() instead
