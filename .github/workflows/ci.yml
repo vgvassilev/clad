@@ -259,7 +259,6 @@ jobs:
             compiler: gcc-6
             clang-runtime: '11'
             coverage: true
-            clang-format: true
 
           - name: ubu18-gcc8-runtime11
             os: ubuntu-18.04
@@ -300,6 +299,17 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
+    - name: Save PR Info
+      if: ${{ matrix.coverage == true }}
+      run: |
+        mkdir -p ./pr
+        echo ${{ github.event.number }} > ./pr/NR
+        echo ${{ github.repository }} > ./pr/REPO
+    - uses: actions/upload-artifact@v2
+      if: ${{ matrix.coverage == true }}
+      with:
+        name: pr
+        path: pr/
     - uses: nelonoel/branch-name@v1.0.1
     - name: Setup default Build Type
       run: |
@@ -566,15 +576,6 @@ jobs:
         python3 -m pip show lit
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
-    - name: Invoke workflow clang-format on compiler-research
-      if: ${{ success() && (matrix.clang-format == true) }}
-      uses: benc-uk/workflow-dispatch@v1
-      with:
-        workflow: SuggestFormattingChanges
-        repo: compiler-research/knowall
-        token: ${{ secrets.PERSONAL_TOKEN }}
-        ref: main # The SuggestFormattingChanges branch
-        inputs: '{ "repo": "${{ github.repository }}", "pull_id": "${{ github.event.number }}" }'
     - name: Setup tmate session
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
