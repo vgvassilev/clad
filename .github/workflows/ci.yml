@@ -4,7 +4,8 @@ on:
     branches:
       - master
       - coverity_scan
-  pull_request:
+  pull_request_target:
+    types: [labeled]
     branches:
       - master
       - coverity_scan
@@ -13,6 +14,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    if: contains(github.event.pull_request.labels.*.name, 'ready to test')
     strategy:
       fail-fast: false
       matrix:
