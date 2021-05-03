@@ -34,8 +34,9 @@ namespace clad {
   DeclWithContext HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
                                              const DiffRequest& request) {
     DiffParams args{};
+    IndexTable indexes{};
     if (request.Args)
-      args = parseDiffArgs(request.Args, FD);
+      std::tie(args, indexes) = parseDiffArgs(request.Args, FD);
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 

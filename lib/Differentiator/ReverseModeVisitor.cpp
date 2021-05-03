@@ -86,7 +86,7 @@ namespace clad {
 
     DiffParams args{};
     if (request.Args)
-      args = parseDiffArgs(request.Args, FD);
+      std::tie(args, std::ignore) = parseDiffArgs(request.Args, FD);
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())

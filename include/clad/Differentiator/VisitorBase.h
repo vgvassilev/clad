@@ -265,7 +265,7 @@ namespace clad {
     ///   3) If no argument is provided, a default argument is used. The
     ///   function
     ///      will be differentiated w.r.t. to its every parameter.
-    DiffParams parseDiffArgs(const clang::Expr* diffArgs,
+    DiffParamsWithIndexes parseDiffArgs(const clang::Expr* diffArgs,
                              const clang::FunctionDecl* FD);
 
     /// Get an expression used to zero-initialize given type.

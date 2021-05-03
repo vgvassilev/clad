@@ -44,6 +44,9 @@ namespace clad {
   // in nested namespaces
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
   using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
+  using IndexTable = llvm::SmallVector<std::set<size_t>, 16>;
+  using DiffParamsWithIndexes =
+      std::pair<DiffParams, IndexTable>;
 
   using VectorOutputs = std::vector<std::unordered_map<const clang::VarDecl*, clang::Expr*>>;
 

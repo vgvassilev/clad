@@ -44,17 +44,24 @@ namespace clad {
     m_DerivativeInFlight = true;
 
     DiffParams args{};
+    IndexTable indexes{};
     if (request.Args)
-      args = parseDiffArgs(request.Args, FD);
+      std::tie(args, indexes) = parseDiffArgs(request.Args, FD);
     else {
       // FIXME: implement gradient-vector products to fix the issue.
       assert((FD->getNumParams() <= 1) &&
              "nested forward mode differentiation for several args is broken");
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
+      indexes.push_back({});
+      // TODO: Figure out what to do when the arg is an array or pointer type
+      // Should we by default differentiate w.r.t. the zeroth index or make user
+      // explicitly specify the index
     }
     if (args.empty())
       return {};
-    if (args.size() > 1) {
+    if (args.size() > 1 || ((args[0]->getType()->isArrayType() ||
+                             args[0]->getType()->isPointerType()) &&
+                            indexes[0].size() != 1)) {
       diag(DiagnosticsEngine::Error,
            request.Args->getEndLoc(),
            "Forward mode differentiation w.r.t. several parameters at once is "
