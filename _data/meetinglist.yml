@@ -1,4 +1,19 @@
 - name: "CaaS Monthly Meeting"
+  date: 2021-05-06 17:00
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
+  label: caas_06May2021
+  agenda:
+    - title: "GPU Acceleration of Automatic Differentiation in C++ with clad"
+      speaker: "Ioana Ifrim, Princeton"
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 3 June 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2021-03-25 17:00
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
