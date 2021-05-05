@@ -304,12 +304,13 @@ namespace clad {
     void PerformImplicitConversionAndAssign(clang::VarDecl* VD,
                                             clang::Expr* Init) {
       // Implicitly convert Init into the type of VD
-      clang::Expr* ICE = m_Sema
-                             .PerformImplicitConversion(Init, VD->getType(),
-                                                        clang::Sema::AA_Casting)
-                             .get();
+      clang::ActionResult<clang::Expr*> ICAR = m_Sema
+          .PerformImplicitConversion(Init, VD->getType(),
+                                     clang::Sema::AA_Casting);
+      assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
-      VD->setInit(ICE);
+      VD->setInit(ICAR.get());
+
     }
   };
 } // end namespace clad
