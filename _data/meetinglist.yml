@@ -4,7 +4,7 @@
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_06May2021
   agenda:
-    - title: "GPU Acceleration of Automatic Differentiation in C++ with clad"
+    - title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
       speaker: "Ioana Ifrim, Princeton"
     - title: Update
       speaker: Vassil
