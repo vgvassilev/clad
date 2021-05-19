@@ -7,6 +7,12 @@
 #ifndef CLAD_BUILTIN_DERIVATIVES
 #define CLAD_BUILTIN_DERIVATIVES
 
+#ifdef __CUDACC__
+#define CUDA_HOST_DEVICE __host__ __device__ 
+#else
+#define CUDA_HOST_DEVICE
+#endif
+
 // Avoid assertion custom_derivative namespace not found. FIXME: This in future
 // should go.
 namespace custom_derivatives{}
@@ -47,7 +53,7 @@ namespace custom_derivatives {
   }// end namespace std
 
   template<typename T>
-  T abs_darg0(T x) {
+  CUDA_HOST_DEVICE T abs_darg0(T x) {
     if (x >= 0)
       return 1;
     else
@@ -55,23 +61,23 @@ namespace custom_derivatives {
   }
 
   template<typename T>
-  T exp_darg0(T x) {
+  CUDA_HOST_DEVICE T exp_darg0(T x) {
     return exp(x);
   }
 
   template<typename T>
-  T sin_darg0(T x) {
+  CUDA_HOST_DEVICE T sin_darg0(T x) {
     return cos(x);
   }
 
   template<typename T>
-  T cos_darg0(T x) {
+  CUDA_HOST_DEVICE T cos_darg0(T x) {
     return (-1) * sin(x);
   }
 
   template<typename T>
-  T sqrt_darg0(T x) {
-     return ((T)1)/(((T)2)*sqrt(x));
+  CUDA_HOST_DEVICE T sqrt_darg0(T x) {
+    return ((T)1)/(((T)2)*sqrt(x));
   }
 
 #ifdef MACOS
@@ -81,23 +87,24 @@ namespace custom_derivatives {
 #endif
 
   template<typename T1, typename T2>
-  decltype(pow(T1(), T2())) pow_darg0(T1 x, T2 exponent) {
+  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg0(T1 x, T2 exponent) {
     return exponent * pow(x, exponent-((T2)1));
   }
 
   template <typename T1, typename T2>
-  decltype(pow(T1(), T2())) pow_darg1(T1 x, T2 exponent) {
+  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg1(T1 x, T2 exponent) {
     return pow(x, exponent) * log(x);
   }
 
   template <typename T1, typename T2>
-  void pow_grad(T1 x, T2 exponent, decltype(pow(T1(), T2())) * result) {
+  CUDA_HOST_DEVICE void 
+  pow_grad(T1 x, T2 exponent, decltype(pow(T1(), T2())) * result) {
     result[0] += pow_darg0(x, exponent);
     result[1] += pow_darg1(x, exponent);
   }
 
   template <typename T>
-  T log_darg0(T x) {
+  CUDA_HOST_DEVICE T log_darg0(T x) {
     return 1.0/x;
   }
 

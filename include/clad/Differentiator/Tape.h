@@ -6,6 +6,12 @@
 #include <type_traits>
 #include <utility>
 
+#ifdef __CUDACC__
+#define CUDA_HOST_DEVICE __host__ __device__ 
+#else
+#define CUDA_HOST_DEVICE
+#endif
+
 namespace clad {
   /// Dynamically-sized array (std::vector-like), primarily used for storing
   /// values in reverse-mode AD inside loops.
@@ -25,45 +31,54 @@ namespace clad {
     using value_type = T;
     using iterator = pointer;
     using const_iterator = const_pointer;
-   
+
+    /// Move values from old to new storage
+    CUDA_HOST_DEVICE T* AllocateRawStorage(std::size_t _capacity) {
+      #ifdef __CUDACC__
+        // Allocate raw storage (without calling constructors of T) of new capacity.
+        T* new_data = static_cast<T*>(::operator new(_capacity * sizeof(T)));
+      #else
+        T *new_data =
+          static_cast<T *>(::operator new(_capacity * sizeof(T), std::nothrow));
+      #endif
+      return new_data;
+    }
+
     /// Add new value of type T constructed from args to the end of the tape.
     template <typename... ArgsT>
-    void emplace_back(ArgsT&&... args) {
+    CUDA_HOST_DEVICE void emplace_back(ArgsT&&... args) {
       if (_size >= _capacity)
         grow();
       ::new (end()) T(std::forward<ArgsT>(args)...);
       _size += 1;
     }
-   
-    std::size_t size() const {
-      return size;
-    }
-   
-    iterator begin() {
+
+    CUDA_HOST_DEVICE std::size_t size() const { return size; }
+    CUDA_HOST_DEVICE iterator begin() {
       return reinterpret_cast<iterator>(_data);
     }
-    const_iterator begin() const {
+    CUDA_HOST_DEVICE const_iterator begin() const {
       return reinterpret_cast<const_iterator>(_data);
     }
-    iterator end() {
+    CUDA_HOST_DEVICE iterator end() {
       return reinterpret_cast<iterator>(_data) + _size;
     }
-    const_iterator end() const {
+    CUDA_HOST_DEVICE const_iterator end() const {
       return reinterpret_cast<const_iterator>(_data) + _size;
     }
 
     /// Access last value (must not be empty).
-    reference back() {
+    CUDA_HOST_DEVICE reference back() {
       assert(_size);
       return begin()[_size - 1];
     }
-    const_reference back() const {
+    CUDA_HOST_DEVICE const_reference back() const {
       assert(_size);
       return begin()[_size - 1];
     }
 
     /// Remove the last value from the tape.
-    void pop_back() {
+    CUDA_HOST_DEVICE void pop_back() {
       assert(_size);
       _size -= 1;
       end()->~T();
@@ -72,22 +87,20 @@ namespace clad {
   private:
     /// Initial capacity (allocated whenever a value is pushed into empty tape).
     constexpr static std::size_t _init_capacity = 32;
-    void grow() {
+    CUDA_HOST_DEVICE void grow() {
       // If empty, use initial capacity.
       if (!_capacity)
         _capacity = _init_capacity;
       else
-         // Double the capacity on each reallocation.
+        // Double the capacity on each reallocation.
         _capacity *= 2;
-      // Allocate raw storage (without calling constructors of T) of new capacity.
-      T* new_data = static_cast<T*>(::operator new(_capacity * sizeof(T),
-                                                   std::nothrow));
+      T* new_data = AllocateRawStorage(_capacity);
       assert(new_data);
       // Move values from old storage to the new storage. Should call move
       // constructors on non-trivial types, otherwise is expected to use
       // memcpy/memmove.
-      std::uninitialized_copy(std::make_move_iterator(begin()),
-                              std::make_move_iterator(end()), new_data);
+      for (auto i = begin(), e = end(); i != e; ++i, ++new_data)
+        new(new_data) T(std::move(*i));
       // Destroy all values in the old storage.
       destroy(begin(), end());
       _data = new_data;
@@ -98,7 +111,8 @@ namespace clad {
 
     // Call destructor for every value in the given range.
     template <typename It>
-    static typename std::enable_if<!std::is_trivially_destructible<value_type_of<It>>::value>::type
+    static typename std::enable_if<
+        !std::is_trivially_destructible<value_type_of<It>>::value>::type
     destroy(It B, It E) {
       for (It I = E - 1; I >= B; --I)
         I->~value_type_of<It>();
@@ -106,7 +120,9 @@ namespace clad {
     // If type is trivially destructible, its destructor is no-op, so we can avoid
     // for loop here.
     template <typename It>
-    static typename std::enable_if<std::is_trivially_destructible<value_type_of<It>>::value>::type
+    static typename std::enable_if<
+        std::is_trivially_destructible<value_type_of<It>>::value>::type
+    CUDA_HOST_DEVICE
     destroy(It B, It E) {}
   };
 }
