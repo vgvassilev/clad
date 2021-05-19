@@ -28,20 +28,36 @@ extern "C" {
 }
 
 namespace clad {
+  /// \returns the size of a c-style string
+  CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
+    unsigned int count;
+    const char* code_copy = code;
+    #ifdef __CUDACC__
+      count = 0;
+      while (*code_copy != '\0') {
+        count++;
+        code_copy++;
+      }
+    #else
+      count = strlen(code_copy);
+    #endif
+    return count;
+  }
+  
   /// Tape type used for storing values in reverse-mode AD inside loops.
   template <typename T>
   using tape = tape_impl<T>;
 
   /// Add value to the end of the tape, return the same value.
   template <typename T>
-  T push(tape<T>& to, T val) {
+  CUDA_HOST_DEVICE T push(tape<T>& to, T val) {
     to.emplace_back(val);
     return val;
   }
 
   /// Remove the last value from the tape, return it.
   template <typename T>
-  T pop(tape<T>& to) {
+  CUDA_HOST_DEVICE T pop(tape<T>& to) {
     T val = to.back();
     to.pop_back();
     return val;
@@ -49,7 +65,7 @@ namespace clad {
 
   /// Access return the last value in the tape.
   template <typename T>
-  T& back(tape<T>& of) {
+  CUDA_HOST_DEVICE T& back(tape<T>& of) {
     return of.back();
   }
 
@@ -77,12 +93,13 @@ namespace clad {
     char* m_Code;
 
   public:
-    CladFunction(CladFunctionType f, const char* code) {
+    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code) {
       assert(f && "Must pass a non-0 argument.");
-      if (size_t length = strlen(code)) {
+      if (size_t length = GetLength(code)) {
         m_Function = f;
-        m_Code = (char*)malloc(length + 1);
-        strcpy(m_Code, code);
+        char* temp = (char*)malloc(length + 1);
+        m_Code = temp;
+        while ((*temp++ = *code++));
       } else {
         // clad did not place the derivative in this object. This can happen
         // upon error of if clad was disabled. Diagnose.
@@ -145,7 +162,7 @@ namespace clad {
   /// returns a CladFunction for it.
   template<typename ArgSpec = const char *, typename F>
   CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("G")))
-  gradient(F f, ArgSpec args = "", const char* code = "") {
+  CUDA_HOST_DEVICE gradient(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<ExtractDerivedFnTraits_t<F>>(
       reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by gradient*/,
