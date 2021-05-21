@@ -52,6 +52,21 @@
   mentors: Vassil Vassilev, David Lange
   current: 1
 
+- name: "Baidyanath Kundu"
+  photo: Baidyanath.png
+  info: 'Utilize second order derivatives from Clad in ROOT'
+  email: kundubaidya99@gmail.com
+  education: "B. Tech in Computer Science and Engg., Manipal Institute of Technology, Manipal, India"
+  description: |
+    ROOT is a framework for data processing, born at CERN, at the heart of the research on high-energy physics.
+    ROOT has a clang-based C++ interpreter Cling and integrates with the automatic differentiation plugin Clad
+    to enable flexible automatic differentiation facility. TFormula is a ROOT class which bridges compiled and
+    interpreted code. This project aims to add second order derivative support in TFormula using clad::hessian.
+    The PR that added support for gradients in ROOT is taken as a reference and can be accessed here.
+  proposal: /assets/docs/Baidyanath_Kundu_Proposal_2021.pdf
+  mentors: Vassil Vassilev, Ioana Ifrim
+  current: 1
+
 - name: "This could be you!"
   photo: rock.jpg
   info: See <a href="/vacancies">openings</a> for more info
