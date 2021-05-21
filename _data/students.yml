@@ -37,6 +37,21 @@
   mentors: Lang Hames, Vassil Vassilev
   current: 1
 
+- name: "Parth Arora"
+  photo: Parth.jpg
+  info: 'Add support for differentiating functor objects in clad'
+  email: partharora99160808@gmail.com
+  education: "B.Tech in Computer Science, USICT, Guru Gobind Singh Indraprastha University, New Delhi, India"
+  description: |
+    Differentiation support for functions is available in clad. But support for direct
+    differentiation of functors and lambda expressions is missing. Many computations are
+    modelled using functors and functors and lambda expressions are becoming more and
+    more relevant in modern C++. This project aims to add support for directly differentiating 
+    functors and lambda expressions in clad.
+  proposal: /assets/docs/Parth_Arora_Proposal_2021.pdf
+  mentors: Vassil Vassilev, David Lange
+  current: 1
+
 - name: "This could be you!"
   photo: rock.jpg
   info: See <a href="/vacancies">openings</a> for more info
