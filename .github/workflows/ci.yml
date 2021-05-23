@@ -299,6 +299,10 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
     - name: Save PR Info
       if: ${{ matrix.coverage == true }}
       run: |
@@ -455,7 +459,9 @@ jobs:
           fi
           popd
         fi
-        sudo -H python3 -m pip install lit # LLVM lit is not part of the llvm releases...
+
+        pip3 install lit # LLVM lit is not part of the llvm releases...
+
         # We need headers in correct place
         for file in $(xcrun --show-sdk-path)/usr/include/*
         do
@@ -509,7 +515,7 @@ jobs:
         fi
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
-        sudo -H python3 -m pip install lit # LLVM lit is not part of the llvm releases...
+        pip3 install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup code coverage
@@ -573,7 +579,7 @@ jobs:
         if [[ runner.os == "macOS" ]]; then
           brew search llvm
         fi
-        python3 -m pip show lit
+        pip show lit
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
     - name: Setup tmate session
