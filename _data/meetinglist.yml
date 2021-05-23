@@ -22,6 +22,9 @@
   agenda:
     - title: "Deep dive into the Xeus-based Cling kernel for Jupyter"
       speaker: "Sylvain Corlay, QuantStack"
+      link: |
+        [Slides](/assets/presentations/S_Corlay-CaaS_Xeus-Cling.pdf)
+        [Video](https://youtu.be/kx3wvKk4Qss)
     - title: Update
       speaker: Vassil
       link: "[Slides](/assets/presentations/CaaS_25_03_2021.pdf)"
