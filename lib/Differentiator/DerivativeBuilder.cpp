@@ -951,8 +951,10 @@ namespace clad {
     QualType TT = m_Sema.CheckTemplateIdType(TemplateName(CladTapeDecl), noLoc,
                                              TLI);
     // Get clad napespace and its identifier clad::.
-    IdentifierInfo* CladId = GetCladNamespace()->getIdentifier();
-    NestedNameSpecifier* NS = NestedNameSpecifier::Create(m_Context, CladId);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    NestedNameSpecifier* NS = CSS.getScopeRep();
+
     // Create elaborated type with namespace specifier, i.e. tape<T> -> clad::tape<T>
     return m_Context.getElaboratedType(ETK_None, NS, TT);
   }
