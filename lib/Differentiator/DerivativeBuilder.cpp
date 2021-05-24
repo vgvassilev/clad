@@ -100,7 +100,7 @@ namespace clad {
     } 
 
     for (const FunctionDecl* NFD : FD->redecls())
-      for (const auto* Attr : FD->attrs())
+      for (const auto* Attr : NFD->attrs())
         if (!hasAttribute(returnedFD, Attr->getKind()))
           returnedFD->addAttr(Attr->clone(m_Context));
 
@@ -2701,7 +2701,7 @@ namespace clad {
         unsupportedOpWarn(UnOp->getEndLoc());
 
       Expr* subExpr = UnOp->getSubExpr();
-      if(auto SDRE = dyn_cast<DeclRefExpr>(subExpr))
+      if (isa<DeclRefExpr>(subExpr))
          diff = Visit(subExpr);
       else
          diff = StmtDiff(subExpr);
@@ -2837,11 +2837,12 @@ namespace clad {
           outputArrayCursor = intIdx.getExtValue();
 
           std::unordered_map<const clang::VarDecl*, clang::Expr*> temp_m_Variables;
-          for (int i = 0; i < numParams; i++) {
+          for (unsigned i = 0; i < numParams; i++) {
             auto size_type = m_Context.getSizeType();
             auto size_type_bits = m_Context.getIntWidth(size_type);
             auto idx = IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits,
-                                                                     i + (outputArrayCursor*numParams)),                                              size_type, noLoc);
+                                                                     i + (outputArrayCursor*numParams)),
+                                              size_type, noLoc);
             // Create the _result[idx] expression.
             auto result_at_i = m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc,
                                                                       idx, noLoc).get();
