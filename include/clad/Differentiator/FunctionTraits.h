@@ -233,6 +233,10 @@ namespace clad {
   using ExtractDerivedFnTraits_t = typename ExtractDerivedFnTraits<T>::type;
 
   // specializations for non-member functions pointer types
+  template <class... Args>
+  struct ExtractDerivedFnTraits<void (*)(Args...)> {
+    using type = void (*)(Args...);
+  };
   template <class ReturnType,class... Args>
   struct ExtractDerivedFnTraits<ReturnType (*)(Args...)> {
     using type = void (*)(Args..., ReturnType*);
@@ -248,7 +252,21 @@ namespace clad {
   struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)> { 
     using type = void (C::*)(Args..., ReturnType*); 
   };
+
   // specializations for member functions pointer types with only cv-qualifiers
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) volatile> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const volatile> { 
+    using type = void (C::*)(Args...); 
+  };
+
   template <class ReturnType, class C, class... Args> 
   struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const> { 
     using type = void (C::*)(Args..., ReturnType*); 
@@ -264,6 +282,39 @@ namespace clad {
 
   // specializations for member functions pointer types with 
   // reference qualifiers and with and without cv-qualifiers
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) &> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const &> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) volatile &> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const volatile &> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) &&> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const &&> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) volatile &&> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const volatile &&> { 
+    using type = void (C::*)(Args...); 
+  };
+
   template <class ReturnType, class C, class... Args> 
   struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) &> { 
     using type = void (C::*)(Args..., ReturnType*); 
@@ -299,6 +350,55 @@ namespace clad {
 
   // specializations for noexcept member functions
   #if __cpp_noexcept_function_type > 0
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) volatile noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const volatile noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) & noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const & noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) volatile & noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const volatile & noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) && noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const && noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) volatile && noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+  template <class C, class... Args> 
+  struct ExtractDerivedFnTraits<void (C::*)(Args...) const volatile && noexcept> { 
+    using type = void (C::*)(Args...); 
+  };
+
   template <class ReturnType, class C, class... Args> 
   struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) noexcept> { 
     using type = void (C::*)(Args..., ReturnType*); 
