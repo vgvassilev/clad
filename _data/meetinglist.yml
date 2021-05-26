@@ -6,6 +6,8 @@
   agenda:
     - title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
       speaker: "Ioana Ifrim, Princeton"
+      link: |
+         [Slides](/assets/presentations/I_Ifrim-GPU_AD.pdf)
     - title: Update
       speaker: Vassil
       link: "[Slides](/assets/presentations/CaaS_06_05_2021.pdf)"
