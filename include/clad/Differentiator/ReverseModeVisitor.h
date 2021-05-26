@@ -36,28 +36,12 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
-    //// A reference to the output parameter of the gradient function.
-    clang::Expr* m_Result;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
-    /// Output variable of vector-valued function
-    std::string outputArrayStr;
-    unsigned outputArrayCursor = 0;
-    unsigned numParams = 0;
-    bool isVectorValued = false;
+    unsigned arrLen = 10;
 
     const char* funcPostfix() const {
-      if (isVectorValued)
-        return "_jac";
-      else
-        return "_grad";
-    }
-
-    const char* resultArg() const {
-      if (isVectorValued)
-        return "jacobianMatrix";
-      else
-        return "_result";
+      return "_grad";
     }
 
   public:
