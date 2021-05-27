@@ -6,6 +6,7 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/TemplateDeduction.h"
 
+#include "llvm/ADT/APSInt.h"
 #include "llvm/Support/SaveAndRestore.h"
 
 #include "clad/Differentiator/Compatibility.h"
@@ -148,10 +149,13 @@ namespace clad {
 
     FunctionDecl* CladGradientFDeclNew = nullptr;
     sema::TemplateDeductionInfo Info(noLoc);
+    auto isDerivedTempArg = TemplateArgument(C, llvm::APSInt::getMaxValue(1, 1), C.BoolTy);
+    TemplateArgumentListInfo TempArgListInfoNew;
+    TempArgListInfoNew.addArgument(TemplateArgumentLoc(isDerivedTempArg, TemplateArgumentLocInfo()));
     // Create/get template specialization of clad::gradient that matches
     // argument types. Result is stored to CladGradientFDeclNew.
     SemaRef.DeduceTemplateArguments(CladGradientFTemplate,
-                                    /* ExplicitTemplateArgs */ nullptr,
+                                    /* ExplicitTemplateArgs */ &TempArgListInfoNew,
                                     /* Args */
                                     llvm::ArrayRef<Expr*>(call->getArgs(),
                                                           call->getNumArgs()),
@@ -162,6 +166,7 @@ namespace clad {
                                     [] (llvm::ArrayRef<QualType>) {
                                       return false;
                                     });
+
     // DeclRefExpr for new specialization.
     Expr* CladGradientExprNew = clad_compat::GetResult<Expr*>(
       SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
