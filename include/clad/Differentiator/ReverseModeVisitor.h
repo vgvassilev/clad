@@ -109,7 +109,11 @@ namespace clad {
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false) {
       assert(E && "cannot infer type from null expression");
-      return StoreAndRef(E, E->getType(), d, prefix, forceDeclCreation);
+      return StoreAndRef(E,
+                         getNonConstType(E->getType(), m_Context, m_Sema),
+                         d,
+                         prefix,
+                         forceDeclCreation);
     }
 
     /// An overload allowing to specify the type for the variable.

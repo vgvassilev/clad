@@ -136,6 +136,23 @@ namespace clad {
           .get();
     }
 
+    /// Removes the local as well as non-local const qualifiers from a QualType
+    /// and returns a new type.
+    static clang::QualType
+    getNonConstType(clang::QualType T, clang::ASTContext& C, clang::Sema& S) {
+      if (T->isPointerType()) {
+        clang::Qualifiers quals(T->getPointeeType().getQualifiers());
+        quals.removeConst();
+        clang::QualType newType = S.BuildQualifiedType(
+            T->getPointeeType().getUnqualifiedType(), noLoc, quals);
+        return C.getPointerType(newType);
+      } else {
+        clang::Qualifiers quals(T.getQualifiers());
+        quals.removeConst();
+        return S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      }
+    }
+
   public:
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);
 

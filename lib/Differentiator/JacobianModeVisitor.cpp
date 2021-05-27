@@ -43,7 +43,8 @@ namespace clad {
   JacobianModeVisitor::CladTapeResult
   JacobianModeVisitor::MakeCladTapeFor(Expr* E) {
     assert(E && "must be provided");
-    QualType TapeType = GetCladTapeOfType(E->getType());
+    QualType TapeType =
+        GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
     Expr* TapeRef = BuildDeclRef(GlobalStoreImpl(TapeType, "_t"));
@@ -827,7 +828,8 @@ namespace clad {
     std::size_t insertionPoint = getCurrentBlock(reverse).size();
     // Store the type to reduce call overhead that would occur if used in the
     // loop
-    auto CEType = CE->getType();
+    // TODO: Not sure if non const needed here
+    auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
     for (const Expr* Arg : CE->arguments()) {
       // Create temporary variables corresponding to derivative of each
       // argument, so that they can be referred to when arguments is visited.
@@ -1259,7 +1261,8 @@ namespace clad {
           //   _t0 = _ref0;
           //   double r = _ref0 *= z;
           if (LCloned->HasSideEffects(m_Context)) {
-            QualType RefType = m_Context.getLValueReferenceType(L->getType());
+            QualType RefType = m_Context.getLValueReferenceType(
+                getNonConstType(L->getType(), m_Context, m_Sema));
             LRef =
                 StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
           }
@@ -1282,7 +1285,8 @@ namespace clad {
         Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
           if (LCloned->HasSideEffects(m_Context)) {
-            QualType RefType = m_Context.getLValueReferenceType(L->getType());
+            QualType RefType = m_Context.getLValueReferenceType(
+                getNonConstType(L->getType(), m_Context, m_Sema));
             LRef =
                 StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
           }
@@ -1338,7 +1342,9 @@ namespace clad {
   VarDeclDiff JacobianModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     auto zero = getZeroInit(VD->getType());
     VarDecl* VDDerived =
-        BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(), zero);
+        BuildVarDecl(getNonConstType(VD->getType(), m_Context, m_Sema),
+                     "_d_" + VD->getNameAsString(),
+                     zero);
     StmtDiff initDiff = VD->getInit()
                             ? Visit(VD->getInit(), BuildDeclRef(VDDerived))
                             : StmtDiff{};
@@ -1498,7 +1504,8 @@ namespace clad {
                                                   llvm::StringRef prefix,
                                                   bool force) {
     assert(E && "cannot infer type");
-    return GlobalStoreAndRef(E, E->getType(), prefix, force);
+    return GlobalStoreAndRef(
+        E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
   }
 
   void JacobianModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
@@ -1531,7 +1538,8 @@ namespace clad {
       return DelayedStoreResult{*this, StmtDiff{Push, Pop},
                                 /*isConstant*/ false, /*isInsideLoop*/ true};
     } else {
-      Expr* Ref = BuildDeclRef(GlobalStoreImpl(E->getType(), prefix));
+      Expr* Ref = BuildDeclRef(GlobalStoreImpl(
+          getNonConstType(E->getType(), m_Context, m_Sema), prefix));
       // Return reference to the declaration instead of original expression.
       return DelayedStoreResult{*this, StmtDiff{Ref, Ref},
                                 /*isConstant*/ false, /*isInsideLoop*/ false};
