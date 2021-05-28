@@ -143,33 +143,33 @@ namespace clad {
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
   /// returns a CladFunction for it.
-  template<bool isDerived=false, typename ArgSpec = const char *, typename F>
-  CladFunction<ExtractDerivedFnTraits_t<F, isDerived>> __attribute__((annotate("G")))
+  template<bool isDerivedFn=false, typename ArgSpec = const char *, typename F>
+  CladFunction<ExtractDerivedFnTraits_t<F, isDerivedFn>> __attribute__((annotate("G")))
   gradient(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<ExtractDerivedFnTraits_t<F, isDerived>>(
-      reinterpret_cast<ExtractDerivedFnTraits_t<F, isDerived>>(f) /* will be replaced by gradient*/,
+    return CladFunction<ExtractDerivedFnTraits_t<F, isDerivedFn>>(
+      reinterpret_cast<ExtractDerivedFnTraits_t<F, isDerivedFn>>(f) /* will be replaced by gradient*/,
       code);
   }
 
   /// Function for Hessian matrix computation
   /// Given  a function f, clad::hessian generates all the second derivatives
   /// of the original function, (they are also columns of a Hessian matrix)
-  template<bool isDerived=false, typename ArgSpec = const char *, typename F>
-  CladFunction<ExtractDerivedFnTraits_t<F, isDerived>> __attribute__((annotate("H")))
+  template<bool isDerivedFn=false, typename ArgSpec = const char *, typename F>
+  CladFunction<ExtractDerivedFnTraits_t<F, isDerivedFn>> __attribute__((annotate("H")))
   hessian(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<ExtractDerivedFnTraits_t<F, isDerived>>(
-      reinterpret_cast<ExtractDerivedFnTraits_t<F, isDerived>>(f) /* will be replaced by Hessian*/,
+    return CladFunction<ExtractDerivedFnTraits_t<F, isDerivedFn>>(
+      reinterpret_cast<ExtractDerivedFnTraits_t<F, isDerivedFn>>(f) /* will be replaced by Hessian*/,
       code);
   }
 
-  template<bool isDerived=false, typename ArgSpec = const char *, typename F>
-  CladFunction<ExtractDerivedFnTraits_t<F, isDerived>> __attribute__((annotate("J")))
+  template<bool isDerivedFn=false, typename ArgSpec = const char *, typename F>
+  CladFunction<ExtractDerivedFnTraits_t<F, isDerivedFn>> __attribute__((annotate("J")))
   jacobian(F f, ArgSpec args = "", const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<ExtractDerivedFnTraits_t<F, isDerived>>(
-        reinterpret_cast<ExtractDerivedFnTraits_t<F, isDerived>>(f) /* will be replaced by Jacobian*/,
+    return CladFunction<ExtractDerivedFnTraits_t<F, isDerivedFn>>(
+        reinterpret_cast<ExtractDerivedFnTraits_t<F, isDerivedFn>>(f) /* will be replaced by Jacobian*/,
         code);
   }
 }

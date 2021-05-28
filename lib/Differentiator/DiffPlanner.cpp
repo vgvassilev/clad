@@ -149,9 +149,9 @@ namespace clad {
 
     FunctionDecl* CladGradientFDeclNew = nullptr;
     sema::TemplateDeductionInfo Info(noLoc);
-    auto isDerivedTempArg = TemplateArgument(C, llvm::APSInt::getMaxValue(1, 1), C.BoolTy);
+    auto isDerivedFnTempArg = TemplateArgument(C, llvm::APSInt::getMaxValue(/* numBits */ 1, /* isUnsigned */ 1), C.BoolTy);
     TemplateArgumentListInfo TempArgListInfoNew;
-    TempArgListInfoNew.addArgument(TemplateArgumentLoc(isDerivedTempArg, TemplateArgumentLocInfo()));
+    TempArgListInfoNew.addArgument(TemplateArgumentLoc(isDerivedFnTempArg, TemplateArgumentLocInfo()));
     // Create/get template specialization of clad::gradient that matches
     // argument types. Result is stored to CladGradientFDeclNew.
     SemaRef.DeduceTemplateArguments(CladGradientFTemplate,

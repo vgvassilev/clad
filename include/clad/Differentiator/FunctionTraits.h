@@ -227,10 +227,10 @@ namespace clad {
   // derived using reverse, hessian and jacobian differentiation modes
   // It SHOULD NOT be used to get traits of derived functions derived using
   // forward differentiation mode
-  template<class ReturnType, bool isDerived>
+  template<class ReturnType, bool isDerivedFn>
   struct ExtractDerivedFnTraits {};
-  template<class T, bool isDerived>
-  using ExtractDerivedFnTraits_t = typename ExtractDerivedFnTraits<T, isDerived>::type;
+  template<class T, bool isDerivedFn>
+  using ExtractDerivedFnTraits_t = typename ExtractDerivedFnTraits<T, isDerivedFn>::type;
 
   // specializations for non-member functions pointer types
   template <class ReturnType, class... Args>
