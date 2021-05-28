@@ -24,13 +24,22 @@ External Dependencies
 
 Forward Mode & Reverse Mode
 ---------------------------
-* Implement hessian matrices via the `clad::jacobian` interface.
+* Implement #pragma clad ON/OFF/DEFAULT to control regions where clad is active
+* Support member functions with qualifiers in differentiation calls
+* Add getCode() interface for interactive use
+* Add support for using casts, `*` and `&` operators. For example:
+  `clad::differentiate(*&ptr_to_ptr, "...");`
+
+Misc
+----
+* Add support for clang-11.1.0
+* Add support for clang-12
 
 
 Fixed Bugs
 ----------
 
-* Fixed the discovery of llvm in special builds with clang and libcxx.
+* Fixed several crashes in reverse mode.
 
 
 Special Kudos
@@ -41,7 +50,12 @@ listed in the form of Firstname Lastname (#contributions):
 
 FirstName LastName (#commits)
 
-* Roman Shakhov (3)
-* Philippe Canal (2)
-* Alexander Penev (2)
-* Vassil Vassilev (1)
+* Vassil Vassilev (14)
+* Baidyanath Kundu (10)
+* Garima Singh (7)
+* Alexander Penev (5)
+* Pratyush Das (3)
+* Parth Arora (2)
+* Ioana Ifrim (2)
+* Oksana Shadura (1)
+* Alex Efremov (1)
