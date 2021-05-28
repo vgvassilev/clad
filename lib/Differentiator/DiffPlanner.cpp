@@ -166,7 +166,6 @@ namespace clad {
                                     [] (llvm::ArrayRef<QualType>) {
                                       return false;
                                     });
-
     // DeclRefExpr for new specialization.
     Expr* CladGradientExprNew = clad_compat::GetResult<Expr*>(
       SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
