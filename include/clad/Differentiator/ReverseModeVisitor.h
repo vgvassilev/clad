@@ -39,6 +39,17 @@ namespace clad {
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     unsigned arrLen = 10;
+    /// A flag indicating if the function being differentiated uses an output
+    /// parameter instead of returning a value
+    bool isOutputParamMode = false;
+    /// A variable to store the output parameter of the function being
+    /// differentiated if it has one;
+    const clang::ParmVarDecl* m_OutputParam = nullptr;
+    /// A cursor that points to the index of the outputParam currently being
+    /// differentiated
+    size_t m_OutputParamCursor = 0;
+    /// A variable to store the size of the output param
+    size_t m_OutputParamSize;
 
     const char* funcPostfix() const {
       return "_grad";

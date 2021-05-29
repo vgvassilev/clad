@@ -79,6 +79,44 @@ namespace clad {
 
   ReverseModeVisitor::~ReverseModeVisitor() {}
 
+  // Returns the size of the array whose name has been given by looking at the
+  // largest index the array has been accessed with. If the array is
+  // multidimensional it only looks at the first dimension.
+  static int
+  getArraySize(ASTContext& Context, Stmt* FuncBody, std::string ArrayName) {
+    struct MaxArrayIndexVisitor : RecursiveASTVisitor<MaxArrayIndexVisitor> {
+      long m_MaxArrayIndex = 0;
+      std::string& m_ArrayName;
+      ASTContext& m_Context;
+
+      MaxArrayIndexVisitor(ASTContext& context, std::string& arrayName)
+          : m_Context(context), m_ArrayName(arrayName) {}
+
+      bool VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
+        const Expr* E = ASE->IgnoreParenImpCasts();
+
+        while (auto S = dyn_cast<ArraySubscriptExpr>(E)) {
+          E = S->getBase()->IgnoreParenImpCasts();
+
+          auto DRE = dyn_cast<DeclRefExpr>(E);
+
+          if (DRE->getNameInfo().getAsString() == m_ArrayName) {
+            Expr::EvalResult idxResult;
+            S->getIdx()->EvaluateAsInt(idxResult, m_Context);
+
+            m_MaxArrayIndex =
+                std::max(idxResult.Val.getInt().getExtValue(), m_MaxArrayIndex);
+          }
+        }
+
+        return true;
+      }
+    } maxArrayIndexVisitor(Context, ArrayName);
+
+    maxArrayIndexVisitor.TraverseStmt(FuncBody);
+    return maxArrayIndexVisitor.m_MaxArrayIndex + 1;
+  }
+
   DeclWithContext ReverseModeVisitor::Derive(const FunctionDecl* FD,
                                              const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
@@ -93,6 +131,23 @@ namespace clad {
     if (args.empty())
       return {};
 
+    // Check if the function being differentiated has an output param.
+    // For example, functions like:
+    // void f(double a, double b, double *out)
+    if (m_Function->getReturnType()->isVoidType() &&
+        (m_Function->getParamDecl(m_Function->getNumParams() - 1)
+             ->getType()
+             ->isArrayType() ||
+         m_Function->getParamDecl(m_Function->getNumParams() - 1)
+             ->getType()
+             ->isPointerType())) {
+      isOutputParamMode = true;
+      m_OutputParam = m_Function->getParamDecl(m_Function->getNumParams() - 1);
+      m_OutputParamSize = getArraySize(m_Context,
+                                       m_Function->getBody(),
+                                       m_OutputParam->getNameAsString());
+    }
+
     auto derivativeBaseName = m_Function->getNameAsString();
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
@@ -101,8 +156,17 @@ namespace clad {
       for (auto arg : args) {
         auto it = std::find(FD->param_begin(), FD->param_end(), arg);
         auto idx = std::distance(FD->param_begin(), it);
+        if (isOutputParamMode) {
+          // Fail if the output param is being requested to be differentiated
+          assert(idx != (FD->getNumParams() - 1) &&
+                 "Functions with output parameter cannot be differentiated "
+                 "w.r.t. the output parameter");
+        }
         gradientName += ('_' + std::to_string(idx));
       }
+    } else if (isOutputParamMode) {
+      // Remove the output param from the args if all the args are being used
+      args.pop_back();
     }
     IdentifierInfo* II = &m_Context.Idents.get(gradientName);
     DeclarationNameInfo name(II, noLoc);
@@ -115,12 +179,17 @@ namespace clad {
 
       auto it = std::find(std::begin(args), std::end(args), PVD);
       if (it != std::end(args)) {
-        if (PVD->getType()->isPointerType() || PVD->getType()->isArrayType()) {
-          paramTypes.emplace_back(
-              m_Context.getPointerType(m_Function->getReturnType()));
+        if (isOutputParamMode) {
+          paramTypes.emplace_back(m_OutputParam->getType());
         } else {
-          paramTypes.emplace_back(
-              m_Context.getLValueReferenceType(m_Function->getReturnType()));
+          if (PVD->getType()->isPointerType() ||
+              PVD->getType()->isArrayType()) {
+            paramTypes.emplace_back(
+                m_Context.getPointerType(m_Function->getReturnType()));
+          } else {
+            paramTypes.emplace_back(
+                m_Context.getLValueReferenceType(m_Function->getReturnType()));
+          }
         }
       }
     }
@@ -159,18 +228,17 @@ namespace clad {
     llvm::SmallVector<ParmVarDecl*, 4> params;
     params.reserve(paramTypes.size());
     for (auto* PVD : m_Function->parameters()) {
-      auto VD = ParmVarDecl::Create(m_Context,
-                                    gradientFD,
-                                    noLoc,
-                                    noLoc,
-                                    PVD->getIdentifier(),
-                                    PVD->getType(),
-                                    PVD->getTypeSourceInfo(),
-                                    PVD->getStorageClass(),
-                                    // Clone default arg if present.
-                                    (PVD->hasDefaultArg()
-                                         ? Clone(PVD->getDefaultArg())
-                                         : nullptr));
+      auto VD = ParmVarDecl::Create(
+          m_Context,
+          gradientFD,
+          noLoc,
+          noLoc,
+          PVD->getIdentifier(),
+          PVD->getType(),
+          PVD->getTypeSourceInfo(),
+          PVD->getStorageClass(),
+          // Clone default arg if present.
+          (PVD->hasDefaultArg() ? Clone(PVD->getDefaultArg()) : nullptr));
       if (VD->getIdentifier())
         m_Sema.PushOnScopeChains(VD,
                                  getCurrentScope(),
@@ -185,10 +253,17 @@ namespace clad {
 
         IdentifierInfo* DVDII =
             &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-        QualType DVDType = (PVD->getType()->isPointerType() || PVD->getType()->isArrayType())
-                       ? m_Context.getPointerType(m_Function->getReturnType())
-                       : m_Context.getLValueReferenceType(
-                m_Function->getReturnType());
+        QualType DVDType;
+
+        if (isOutputParamMode) {
+          DVDType = m_OutputParam->getType();
+        } else {
+          DVDType =
+              (PVD->getType()->isPointerType() || PVD->getType()->isArrayType())
+                  ? m_Context.getPointerType(m_Function->getReturnType())
+                  : m_Context.getLValueReferenceType(
+                        m_Function->getReturnType());
+        }
         auto DVD = ParmVarDecl::Create(
             m_Context,
             gradientFD,
@@ -760,7 +835,21 @@ namespace clad {
       StmtDiff IdxDiff = Visit(Indices[i]);
       StmtDiff IdxStored = GlobalStoreAndRef(IdxDiff.getExpr());
       clonedIndices[i] = IdxStored.getExpr();
-      reverseIndices[i] = IdxStored.getExpr_dx();
+      if (isOutputParamMode) {
+        // In output param mode the array dimensions depend on the output param
+        // array dimension and the size of the array being differentiated,
+        // hence the diff array needs the modified indexes.
+        reverseIndices[i] = BuildOp(
+            BO_Add,
+            BuildOp(BO_Mul,
+                    IdxStored.getExpr_dx(),
+                    ConstantFolder::synthesizeLiteral(
+                        m_Context.getSizeType(), m_Context, m_OutputParamSize)),
+            ConstantFolder::synthesizeLiteral(
+                m_Context.getSizeType(), m_Context, m_OutputParamCursor));
+      } else {
+        reverseIndices[i] = IdxStored.getExpr_dx();
+      }
     }
     auto cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
 
@@ -814,9 +903,29 @@ namespace clad {
       }
       // Create the (_result[idx] += dfdx) statement.
       if (dfdx()) {
-        Expr *assign;
-        if (it->second->getType()->isPointerType() || it->second->getType()->isArrayType()) {
-          assign = BuildOp(BO_Assign, it->second, dfdx()); // TODO: This might not be the correct solution
+        Expr* assign;
+        if (isOutputParamMode && (it->second->getType()->isPointerType() ||
+                                  it->second->getType()->isArrayType())) {
+          // In output param mode the even non array or pointer params have a
+          // pointer as a diff variable as they need to handle the diffs of all
+          // the elements of the output param
+          if (dfdx()->getType()->isPointerType() ||
+              dfdx()->getType()->isArrayType()) {
+            assign = BuildOp(BO_Assign, it->second, dfdx());
+          } else {
+            llvm::SmallVector<Expr*, 1> Indices = {
+                ConstantFolder::synthesizeLiteral(
+                    m_Context.getSizeType(), m_Context, m_OutputParamCursor)};
+            assign = BuildOp(BO_AddAssign,
+                             BuildArraySubscript(it->second, Indices),
+                             dfdx());
+          }
+        } else if (it->second->getType()->isPointerType() ||
+                   it->second->getType()->isArrayType()) {
+          assign =
+              BuildOp(BO_Assign,
+                      it->second,
+                      dfdx()); // TODO: This might not be the correct solution
         } else {
           assign = BuildOp(BO_AddAssign, it->second, dfdx());
         }
@@ -859,7 +968,8 @@ namespace clad {
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
-    if (!dfdx()) {
+    // We can't check if the output param depends on the call
+    if (!dfdx() && !isOutputParamMode) {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
@@ -873,17 +983,29 @@ namespace clad {
                        .get();
       return call;
     }
-
     llvm::SmallVector<VarDecl*, 16> ArgResultDecls{};
     llvm::SmallVector<DeclStmt*, 16> ArgDeclStmts{};
     // Save current index in the current block, to potentially put some
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(reverse).size();
 
+    // Checks if the function being called returns void and hence has an output
+    // param
+    bool isOutputParamCE =
+        FD->getReturnType()->isVoidType() &&
+        (FD->getParamDecl(FD->getNumParams() - 1)->getType()->isPointerType() ||
+         FD->getParamDecl(FD->getNumParams() - 1)->getType()->isArrayType());
     // Store the type to reduce call overhead that would occur if used in the
     // loop
     // TODO: Not sure if non const needed here
-    auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
+    auto CEType =
+        isOutputParamCE
+            ? m_Context.getQualifiedType(CE->getArg(CE->getNumArgs() - 1)
+                                             ->getType()
+                                             ->getPointeeOrArrayElementType(),
+                                         Qualifiers())
+            : getNonConstType(CE->getType(), m_Context, m_Sema);
+    size_t idx = 0;
     for (const Expr* Arg : CE->arguments()) {
       // Create temporary variables corresponding to derivative of each
       // argument, so that they can be referred to when arguments is visited.
@@ -891,9 +1013,13 @@ namespace clad {
       // done to reduce cloning complexity and only clone once. The type is same
       // as the call expression as it is the type used to declare the _gradX
       // array
+      auto dArgType =
+          isOutputParamCE ? m_Context.getPointerType(CEType)
+          : (Arg->getType()->isArrayType() || Arg->getType()->isPointerType())
+              ? m_Context.getPointerType(CEType)
+              : CEType;
       Expr* dArg = StoreAndRef(nullptr,
-                               (Arg->getType()->isArrayType() || Arg->getType()->isPointerType())
-                                   ? m_Context.getPointerType(CEType): CEType,
+                               dArgType,
                                reverse,
                                "_r",
                                /*force*/ true);
@@ -927,13 +1053,19 @@ namespace clad {
     }
     // If it has more args or f_darg0 was not found, we look for its gradient.
     if (!OverloadedDerivedFn) {
-      int idx = 0;
+      idx = 0;
       auto size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
 
       for(auto arg : DerivedCallArgs) {
         VarDecl* ResultDecl = nullptr;
         DeclRefExpr* Result = nullptr;
         ReverseDerivedCallArgs.push_back(arg);
+
+        // Skip the last arg if the function being called has an output param
+        if (idx == (DerivedCallArgs.size() - 1) && isOutputParamCE) {
+          ArgResultDecls.pop_back();
+          break;
+        }
 
         auto argType = FD->parameters()[idx]->getType();
         if (argType->isPointerType() || argType->isArrayType()) {
@@ -1224,6 +1356,12 @@ namespace clad {
             clad_compat::Expr_EvaluateAsInt(ASE->getIdx(), intIdx, m_Context);
 
         if (isIdxValid) {
+          // Store the index being accessed in the output param so that it can
+          // be later used to find the index in the diff array
+          if (m_OutputParam->getNameAsString() ==
+              DRE->getNameInfo().getAsString()) {
+            m_OutputParamCursor = intIdx.getExtValue();
+          }
           //          std::unordered_map<const clang::VarDecl*, clang::Expr*>
           //              temp_m_Variables;
           //          for (int i = 0; i < numParams; i++) {
