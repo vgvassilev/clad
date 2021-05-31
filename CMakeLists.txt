@@ -262,7 +262,12 @@ endif()
 add_subdirectory(lib)
 add_subdirectory(tools)
 
-# TODO: docs.
+option(CLAD_INCLUDE_DOCS "Generate build targets for the clad docs.")
+option(CLAD_ENABLE_DOXYGEN "Use doxygen to generate clad API documentation.")
+if (CLAD_INCLUDE_DOCS)
+  add_subdirectory(docs)
+endif()
+
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_subdirectory(test)
 endif()
