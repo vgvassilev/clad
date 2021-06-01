@@ -1,0 +1,13 @@
+version: 2
+
+sphinx:
+  configuration: docs/sphinx/conf.py
+
+build:
+  image: latest
+  apt_packages:
+    - clang-10
+    - cmake
+    - libclang-10-dev
+    - llvm-10-dev
+    - llvm-10-tools
