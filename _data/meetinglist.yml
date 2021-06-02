@@ -1,4 +1,19 @@
 - name: "CaaS Monthly Meeting"
+  date: 2021-06-03 17:00
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
+  label: caas_03Jun2021
+  agenda:
+    - title: "Cymbl: To -jInfinity & Beyond"
+      speaker: "William Moses, MIT"
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 1 July 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2021-05-06 17:00
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
