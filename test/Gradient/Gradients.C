@@ -818,6 +818,27 @@ void f_issue138_grad(double x, double y, double *_result);
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f_const(const double a, const double b) {
+  return a * b;
+}
+
+void f_const_grad(const double a, const double b, double *_result);
+//CHECK: void f_const_grad(const double a, const double b, double *_result) {
+//CHECK-NEXT:       double _t0;
+//CHECK-NEXT:       double _t1;
+//CHECK-NEXT:       _t1 = a;
+//CHECK-NEXT:       _t0 = b;
+//CHECK-NEXT:       double f_const_return = _t1 * _t0;
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           double _r0 = 1 * _t0;
+//CHECK-NEXT:           _result[0UL] += _r0;
+//CHECK-NEXT:           double _r1 = _t1 * 1;
+//CHECK-NEXT:           _result[1UL] += _r1;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
+
 #define TEST(F, x, y) { \
   result[0] = 0; result[1] = 0;\
   clad::gradient(F);\
@@ -855,5 +876,7 @@ int main() { // expected-no-diagnostics
   TEST(f_decls3, 0.5, 0); // CHECK-EXEC: Result is = {9.00, 0.00}
   TEST(f_decls3, 0, 100); // CHECK-EXEC: Result is = {0.00, 0.00}
   TEST(f_issue138, 1, 2); // CHECK-EXEC: Result is = {4.00, 32.00}
+  TEST(f_const, 2, 3); // CHECK-EXEC: Result is = {3.00, 2.00}
+
 }
 
