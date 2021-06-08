@@ -343,6 +343,17 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.6
+    - name: Save PR Info
+      if: ${{ matrix.coverage == true }}
+      run: |
+        mkdir -p ./pr
+        echo ${{ github.event.number }} > ./pr/NR
+        echo ${{ github.repository }} > ./pr/REPO
+    - uses: actions/upload-artifact@v2
+      if: ${{ matrix.coverage == true }}
+      with:
+        name: pr
+        path: pr/
     - uses: nelonoel/branch-name@v1.0.1
     - name: Setup default Build Type
       run: |
@@ -617,18 +628,11 @@ jobs:
         # output coverage data for debugging (optional)
         lcov --list coverage.info
 
-    - name: Save PR Info
-      if: ${{ matrix.coverage == true }}
-      run: |
-        mkdir -p ./pr
-        echo ${{ github.event.number }} > ./pr/NR
-        echo ${{ github.repository }} > ./pr/REPO
-        cp coverage.info ./pr
-    - uses: actions/upload-artifact@v2
-      if: ${{ matrix.coverage == true }}
+    - name: Upload to codecov.io
+      if: ${{ success() && (matrix.coverage == true) }}
+      uses: codecov/codecov-action@v1
       with:
-        name: pr
-        path: pr/
+        file: ./coverage.info
 
     - name: Upload report to coverity_scan
       if: ${{ success() && (matrix.coverity == true) }}
