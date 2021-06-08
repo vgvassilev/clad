@@ -620,7 +620,8 @@ jobs:
       run: |
         # Create lcov report
         # capture coverage info
-        lcov --directory . --capture --output-file coverage.info
+        vers="${CC#*-}"
+        lcov --directory . --capture --output-file coverage.info --gcov-tool /usr/bin/gcov-${vers}
         # filter out system and extra files.
         # To also not include test code in coverage add them with full path to the patterns: '*/tests/*'
         lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' "$GITHUB_WORKSPACE"'/test/*' --output-file coverage.info
