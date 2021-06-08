@@ -615,20 +615,25 @@ jobs:
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
       timeout-minutes: 1 # When debugging increase to a suitable value!
-    - name: Code coverage report
+    - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
         # Create lcov report
         # capture coverage info
-        lcov --directory . --capture --output-file coverage.info
+        vers="${CC#*-}"
+        lcov --directory . --capture --output-file coverage.info --gcov-tool /usr/bin/gcov-${vers}
         # filter out system and extra files.
         # To also not include test code in coverage add them with full path to the patterns: '*/tests/*'
         lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' "$GITHUB_WORKSPACE"'/test/*' --output-file coverage.info
         # output coverage data for debugging (optional)
         lcov --list coverage.info
-        # Uploading to CodeCov
-        # '-f' specifies file(s) to use and disables manual coverage gathering and file search which has already been done above
-        bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+
+    - name: Upload to codecov.io
+      if: ${{ success() && (matrix.coverage == true) }}
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.info
+
     - name: Upload report to coverity_scan
       if: ${{ success() && (matrix.coverity == true) }}
       run: |
