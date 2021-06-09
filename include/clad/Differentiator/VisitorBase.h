@@ -135,6 +135,10 @@ namespace clad {
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
     }
+    /// For a qualtype QT returns if it's type is Array or Pointer Type
+    static bool isArrayOrPointerType(const clang::QualType QT) {
+      return QT->isArrayType() || QT->isPointerType();
+    }
 
   public:
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);

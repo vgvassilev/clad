@@ -60,7 +60,7 @@ For a function `f` of several inputs and single (scalar) output, forward mode AD
 1. `f` is a pointer to a function or a method to be differentiated
 2. `ARGS` is either:
   * a single numerical literal indicating an index of independent variable (e.g. `0` for `x`, `1` for `y`)
-  * a string literal with the name of independent variable (as stated in the *definition* of `f`, e.g. `"x"` or `"y"`)
+  * a string literal with the name of independent variable (as stated in the *definition* of `f`, e.g. `"x"` or `"y"`), and if the variable is an array the index needs to be specified, e.g. `"arr[1]"`
 
 Generated derivative function has the same signature as the original function `f`, however its return value is the value of the derivative.
 

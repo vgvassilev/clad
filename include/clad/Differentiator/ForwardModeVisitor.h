@@ -25,6 +25,7 @@ namespace clad {
         public VisitorBase {
   private:
     const clang::VarDecl* m_IndependentVar = nullptr;
+    unsigned m_IndependentVarIndex = ~0;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
 

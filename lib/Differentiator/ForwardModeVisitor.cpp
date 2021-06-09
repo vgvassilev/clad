@@ -57,8 +57,7 @@ namespace clad {
       return {};
     // Check that only one arg is requested and if the arg requested is of array
     // or pointer type, only one of the indices have been requested
-    if (args.size() > 1 || ((args[0]->getType()->isArrayType() ||
-                             args[0]->getType()->isPointerType()) &&
+    if (args.size() > 1 || (isArrayOrPointerType(args[0]->getType()) &&
                             (indexIntervalTable.size() != 1 || indexIntervalTable[0].size() != 1))) {
       diag(DiagnosticsEngine::Error,
            request.Args ? request.Args->getEndLoc() : noLoc,
@@ -70,10 +69,24 @@ namespace clad {
     }
 
     m_IndependentVar = args.back();
-    // If param is not real (i.e. floating point or integral), we cannot
-    // differentiate it.
+    std::string derivativeSuffix("");
+    // If param is not real (i.e. floating point or integral), a pointer to a
+    // real type, or an array of a real type we cannot differentiate it.
     // FIXME: we should support custom numeric types in the future.
-    if (!m_IndependentVar->getType()->isRealType()) {
+    if (isArrayOrPointerType(m_IndependentVar->getType())) {
+      if (!m_IndependentVar->getType()
+               ->getPointeeOrArrayElementType()
+               ->isRealType()) {
+        diag(DiagnosticsEngine::Error,
+             m_IndependentVar->getEndLoc(),
+             "attempted differentiation w.r.t. a parameter ('%0') which is not"
+             " an array or pointer of a real type",
+             {m_IndependentVar->getNameAsString()});
+        return {};
+      }
+      m_IndependentVarIndex = indexIntervalTable[0].Start;
+      derivativeSuffix = "_" + std::to_string(m_IndependentVarIndex);
+    } else if (!m_IndependentVar->getType()->isRealType()) {
       diag(DiagnosticsEngine::Error,
            m_IndependentVar->getEndLoc(),
            "attempted differentiation w.r.t. a parameter ('%0') which is not "
@@ -94,8 +107,9 @@ namespace clad {
     m_ArgIndex = std::distance(
         FD->param_begin(),
         std::find(FD->param_begin(), FD->param_end(), m_IndependentVar));
-    IdentifierInfo* II = &m_Context.Idents.get(
-        derivativeBaseName + "_d" + s + "arg" + std::to_string(m_ArgIndex));
+    IdentifierInfo* II =
+        &m_Context.Idents.get(derivativeBaseName + "_d" + s + "arg" +
+                              std::to_string(m_ArgIndex) + derivativeSuffix);
     DeclarationNameInfo name(II, noLoc);
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
@@ -500,6 +514,25 @@ namespace clad {
     if (!isa<VarDecl>(DRE->getDecl()))
       return StmtDiff(cloned, zero);
     auto VD = cast<VarDecl>(DRE->getDecl());
+    if (VD == m_IndependentVar) {
+      llvm::APSInt index;
+      Expr* diffExpr = nullptr;
+
+      if (!clad_compat::Expr_EvaluateAsInt(
+              clonedIndices.back(), index, m_Context)) {
+        diffExpr = BuildParens(
+            BuildOp(BO_EQ,
+                    clonedIndices.back(),
+                    ConstantFolder::synthesizeLiteral(
+                        m_Context.IntTy, m_Context, m_IndependentVarIndex)));
+      } else if (index.getExtValue() == m_IndependentVarIndex) {
+        diffExpr =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
+      } else {
+        diffExpr = zero;
+      }
+      return StmtDiff(cloned, diffExpr);
+    }
     // Check DeclRefExpr is a reference to an independent variable.
     auto it = m_Variables.find(VD);
     if (it == std::end(m_Variables))
@@ -508,8 +541,7 @@ namespace clad {
 
     Expr* target = it->second;
     // FIXME: fix when adding array inputs
-    if (!target->getType()->isArrayType() &&
-        !target->getType()->isPointerType())
+    if (!isArrayOrPointerType(target->getType()))
       return StmtDiff(cloned, zero);
     // llvm::APSInt IVal;
     // if (!I->EvaluateAsInt(IVal, m_Context))

@@ -50,12 +50,40 @@ void TFormula_example_grad(Double_t *x, Double_t *p, Double_t *_result);
 //CHECK-NEXT:           _result[1] += _r3;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
-      
+
+// forward mode differentiation w.r.t. p[0]:
+//CHECK:   Double_t TFormula_example_darg1_0(Double_t *x, Double_t *p) {
+//CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
+//CHECK-NEXT:       return 0 * _t0 + x[0] * (1 + 0 + 0) + custom_derivatives::Exp_darg0(-p[0]) * -1 + custom_derivatives::Abs_darg0(p[1]) * 0;
+//CHECK-NEXT:   }
+
+// forward mode differentiation w.r.t. p[1]:
+//CHECK:   Double_t TFormula_example_darg1_1(Double_t *x, Double_t *p) {
+//CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
+//CHECK-NEXT:       return 0 * _t0 + x[0] * (0 + 1 + 0) + custom_derivatives::Exp_darg0(-p[0]) * -0 + custom_derivatives::Abs_darg0(p[1]) * 1;
+//CHECK-NEXT:   }
+
+// forward mode differentiation w.r.t. p[2]:
+//CHECK:   Double_t TFormula_example_darg1_2(Double_t *x, Double_t *p) {
+//CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
+//CHECK-NEXT:       return 0 * _t0 + x[0] * (0 + 0 + 1) + custom_derivatives::Exp_darg0(-p[0]) * -0 + custom_derivatives::Abs_darg0(p[1]) * 0;
+//CHECK-NEXT:   }
+
 int main() {
-  auto gradient = clad::gradient(TFormula_example);
   Double_t x[] = { 3 };
   Double_t p[] = { -std::log(2), -1, 3 };
   Double_t result[3] = { 0 };
+
+  auto gradient = clad::gradient(TFormula_example);
   gradient.execute(x, p, result);
   printf("Result is = {%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: Result is = {1.00, 2.00, 3.00}
+
+  auto differentiation0 = clad::differentiate(TFormula_example, "p[0]");
+  printf("Result is = {%.2f}\n", differentiation0.execute(x, p)); // CHECK-EXEC: Result is = {1.00}
+
+  auto differentiation1 = clad::differentiate(TFormula_example, "p[1]");
+  printf("Result is = {%.2f}\n", differentiation1.execute(x, p)); // CHECK-EXEC: Result is = {2.00}
+
+  auto differentiation2 = clad::differentiate(TFormula_example, "p[2]");
+  printf("Result is = {%.2f}\n", differentiation2.execute(x, p)); // CHECK-EXEC: Result is = {3.00}
 }
