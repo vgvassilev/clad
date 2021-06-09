@@ -44,8 +44,9 @@ namespace clad {
     m_DerivativeInFlight = true;
 
     DiffParams args{};
+    IndexIntervalTable indexIntervalTable{};
     if (request.Args)
-      args = parseDiffArgs(request.Args, FD);
+      std::tie(args, indexIntervalTable) = parseDiffArgs(request.Args, FD);
     else {
       // FIXME: implement gradient-vector products to fix the issue.
       assert((FD->getNumParams() <= 1) &&
@@ -54,9 +55,13 @@ namespace clad {
     }
     if (args.empty())
       return {};
-    if (args.size() > 1) {
+    // Check that only one arg is requested and if the arg requested is of array
+    // or pointer type, only one of the indices have been requested
+    if (args.size() > 1 || ((args[0]->getType()->isArrayType() ||
+                             args[0]->getType()->isPointerType()) &&
+                            (indexIntervalTable.size() != 1 || indexIntervalTable[0].size() != 1))) {
       diag(DiagnosticsEngine::Error,
-           request.Args->getEndLoc(),
+           request.Args ? request.Args->getEndLoc() : noLoc,
            "Forward mode differentiation w.r.t. several parameters at once is "
            "not "
            "supported, call 'clad::differentiate' for each parameter "

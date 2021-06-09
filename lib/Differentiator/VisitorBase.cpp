@@ -34,12 +34,13 @@ namespace clad {
     return clad_compat::CompoundStmt_Create(m_Context, Stmts_ref, noLoc, noLoc);
   }
 
-  DiffParams VisitorBase::parseDiffArgs(const Expr* diffArgs,
-                                        const FunctionDecl* FD) {
+  DiffParamsWithIndices VisitorBase::parseDiffArgs(const Expr* diffArgs,
+                                                   const FunctionDecl* FD) {
     DiffParams params{};
     auto E = diffArgs->IgnoreParenImpCasts();
     // Case 1)
     if (auto SL = dyn_cast<StringLiteral>(E)) {
+      IndexIntervalTable indexes{};
       llvm::StringRef string = SL->getString().trim();
       if (string.empty()) {
         diag(DiagnosticsEngine::Error,
@@ -47,7 +48,7 @@ namespace clad {
              "No parameters were provided");
         return {};
       }
-      // Split the string by ',' charachters, trim whitespaces.
+      // Split the string by ',' characters, trim whitespaces.
       llvm::SmallVector<llvm::StringRef, 16> names{};
       llvm::StringRef name{};
       do {
@@ -60,40 +61,69 @@ namespace clad {
       for (auto PVD : FD->parameters())
         param_names_map.emplace_back(PVD->getName(), PVD);
       for (const auto& name : names) {
+        size_t loc = name.find('[');
+        loc = (loc == llvm::StringRef::npos) ? name.size() : loc;
+        llvm::StringRef base = name.substr(0, loc);
+
         auto it = std::find_if(
             std::begin(param_names_map),
             std::end(param_names_map),
-            [&name](const std::pair<llvm::StringRef, VarDecl*>& p) {
-              return p.first == name;
+            [&base](const std::pair<llvm::StringRef, VarDecl*>& p) {
+              return p.first == base;
             });
+
         if (it == std::end(param_names_map)) {
           // Fail if the function has no parameter with specified name.
           diag(DiagnosticsEngine::Error,
                diffArgs->getEndLoc(),
                "Requested parameter name '%0' was not found among function "
                "parameters",
-               {name});
+               {base});
           return {};
         }
-        params.push_back(it->second);
-      }
-      // Check if the same parameter was specified multiple times, fail if so.
-      DiffParams unique_params{};
-      for (const auto param : params) {
-        auto it = std::find(std::begin(unique_params),
-                            std::end(unique_params),
-                            param);
-        if (it != std::end(unique_params)) {
+
+        auto f_it = std::find(std::begin(params), std::end(params), it->second);
+
+        if (f_it != params.end()) {
           diag(DiagnosticsEngine::Error,
                diffArgs->getEndLoc(),
                "Requested parameter '%0' was specified multiple times",
-               {param->getName()});
+               {it->second->getName()});
           return {};
         }
-        unique_params.push_back(param);
+
+        params.push_back(it->second);
+
+        if (loc != name.size()) {
+          llvm::StringRef interval(
+              name.slice(loc + 1, name.find(']')));
+          llvm::StringRef firstStr, lastStr;
+          std::tie(firstStr, lastStr) = interval.split(':');
+
+          if (lastStr.empty()) {
+            // The string is not a range just a single index
+            size_t index;
+            firstStr.getAsInteger(10, index);
+            indexes.push_back(IndexInterval(index));
+          } else {
+            size_t first, last;
+            firstStr.getAsInteger(10, first);
+            lastStr.getAsInteger(10, last);
+            if (first >= last) {
+              diag(DiagnosticsEngine::Error,
+                   diffArgs->getEndLoc(),
+                   "Range specified in '%0' is in incorrect format",
+                   {name});
+              return {};
+            }
+            indexes.push_back(IndexInterval(first, last));
+          }
+        } else {
+          indexes.push_back(IndexInterval());
+        }
       }
       // Return a sequence of function's parameters.
-      return unique_params;
+      return {params, indexes};
     }
     // Case 2)
     // Check if the provided literal can be evaluated as an integral value.
@@ -110,10 +140,10 @@ namespace clad {
       }
       params.push_back(FD->getParamDecl(idx));
       // Returns a single parameter.
-      return params;
+      return {params, {}};
     }
     // Case 3)
-    // Threat the default (unspecified) argument as a special case, as if all
+    // Treat the default (unspecified) argument as a special case, as if all
     // function's arguments were requested.
     if (isa<CXXDefaultArgExpr>(E)) {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(params));
@@ -123,13 +153,13 @@ namespace clad {
              diffArgs->getEndLoc(),
              "Attempted to differentiate a function without parameters");
       // Returns the sequence with all the function's parameters.
-      return params;
+      return {params, {}};
     }
     // Fail if the argument is not a string or numeric literal.
     diag(DiagnosticsEngine::Error,
          diffArgs->getEndLoc(),
          "Failed to parse the parameters, must be a string or numeric literal");
-    return {};
+    return {{}, {}};
   }
 
   bool VisitorBase::isUnusedResult(const Expr* E) {
