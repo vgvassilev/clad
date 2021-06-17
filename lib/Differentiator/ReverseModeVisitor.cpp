@@ -136,13 +136,14 @@ namespace clad {
       // The last parameter is the output parameter of the R* type.
       paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
     }
+    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
     QualType gradientFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
         // Cast to function pointer.
-        FunctionProtoType::ExtProtoInfo());
+        originalFnType->getExtProtoInfo());
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
