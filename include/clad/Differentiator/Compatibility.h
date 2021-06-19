@@ -431,6 +431,34 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
    #define CLAD_COMPAT_CLANG12_LR_ExtraParams(Node) ,Node->getLParenLoc(),Node->getRParenLoc()
 #endif
 
+/// In Clang < 8, `CXXMethodDecl::getThisType()` member function requires
+/// `ASTContext` to be passed as an argument.
+static inline QualType CXXMethodDecl_getThisType(Sema& SemaRef,
+                                                 const CXXMethodDecl* method) {
+#if CLANG_VERSION_MAJOR >= 8
+  auto thisType = method->getThisType();
+#elif CLANG_VERSION_MAJOR < 8
+  auto thisType = method->getThisType(SemaRef.getASTContext());
+#endif
+  return thisType;
+}
+
+/// Clang < 9, do not provide `Sema::BuildCXXThisExpr` function.
+static inline CXXThisExpr* Sema_BuildCXXThisExpr(Sema& SemaRef,
+                                                 const CXXMethodDecl* method) {
+  auto thisType = CXXMethodDecl_getThisType(SemaRef, method);
+  SourceLocation noLoc;
+#if CLANG_VERSION_MAJOR >= 9
+  return cast<CXXThisExpr>(
+      SemaRef.BuildCXXThisExpr(noLoc, thisType, /*IsImplicit=*/true));
+#elif CLANG_VERSION_MAJOR < 9
+  auto thisExpr = new (SemaRef.getASTContext())
+      CXXThisExpr(noLoc, thisType, /*IsImplicit=*/true);
+  SemaRef.CheckCXXThisCapture(thisExpr->getExprLoc());
+  return thisExpr;
+#endif
+}
+
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY

@@ -546,4 +546,54 @@ namespace clad {
     // i.e. tape<T> -> clad::tape<T>
     return m_Context.getElaboratedType(ETK_None, NS, TT);
   }
+
+  clang::Expr* 
+  VisitorBase::BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
+                  llvm::MutableArrayRef<clang::Expr*> argExprs) {
+    auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
+    CXXScopeSpec CS;
+    CS.Adopt(FD->getQualifierLoc());
+    auto memExpr = m_Sema
+                       .BuildMemberReferenceExpr(
+                           /*Base=*/thisExpr,
+                           /*BaseType=*/thisExpr->getType(),
+                           /*OpLoc=*/noLoc,
+                           /*isArrow=*/true,
+                           /*SS=*/CS,
+                           /*TemplateKWLoc=*/noLoc,
+                           /*FirstQualifierInScope=*/FD,
+                           /*NameInfo=*/FD->getNameInfo(),
+                           /*TemplateArgs=*/nullptr,
+                           /*S=*/getCurrentScope())
+                       .get();
+    auto call = m_Sema
+                    .BuildCallToMemberFunction(
+                        getCurrentScope(),
+                        /*MemExprE=*/memExpr,
+                        /*LParenLoc=*/noLoc,
+                        /*Args=*/llvm::MutableArrayRef<Expr*>(argExprs),
+                        /*RParenLoc=*/noLoc)
+                    .get();
+    return call;
+  }
+
+  Expr* 
+  VisitorBase::BuildCallExprToFunction(FunctionDecl* FD, 
+                  llvm::MutableArrayRef<Expr*> argExprs) {
+    Expr* call = nullptr;
+    if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
+      call = BuildCallExprToMemFn(derMethod, argExprs);
+    } else {
+      Expr* exprFunc = BuildDeclRef(FD);
+      call = m_Sema
+                 .ActOnCallExpr(
+                     getCurrentScope(),
+                     /*Fn=*/exprFunc,
+                     /*LParenLoc=*/noLoc,
+                     /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
+                     /*RParenLoc=*/noLoc)
+                 .get();
+    }
+    return call;
+  }
 } // end namespace clad
