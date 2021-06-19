@@ -195,7 +195,6 @@ namespace clad {
     // Creates callExprs to the second derivative functions genereated
     // and creates maps array elements to input array.
     for (size_t i = 0, e = secDerivFuncs.size(); i < e; ++i) {
-      Expr* exprFunc = BuildDeclRef(secDerivFuncs[i]);
       const int numIndependentArgs = secDerivFuncs[i]->getNumParams();
 
       auto size_type = m_Context.getSizeType();
@@ -226,15 +225,7 @@ namespace clad {
                      });
       DeclRefToParams.pop_back();
       DeclRefToParams.push_back(addressArrayExpr);
-
-      Expr* call =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(),
-                             exprFunc,
-                             noLoc,
-                             llvm::MutableArrayRef<Expr*>(DeclRefToParams),
-                             noLoc)
-              .get();
+      Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
       CompStmtSave.push_back(call);
     }
 

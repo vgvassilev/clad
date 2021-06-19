@@ -316,6 +316,26 @@ namespace clad {
       VD->setInit(ICAR.get());
 
     }
+
+    /// Build a call to member function through this pointer.
+    ///
+    /// \param[in] FD callee member function
+    /// \param[in] argExprs function arguments expressions
+    /// \returns Built member function call expression
+    clang::Expr*
+    BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
+        llvm::MutableArrayRef<clang::Expr*> argExprs);
+
+    /// Build a call to a free function or member function through
+    /// this pointer depending on whether the `FD` argument corresponds to a
+    /// free function or a member function.
+    ///
+    /// \param[in] FD callee function
+    /// \param[in] argExprs function arguments expressions
+    /// \returns Built call expression
+    clang::Expr* 
+    BuildCallExprToFunction(clang::FunctionDecl* FD,
+        llvm::MutableArrayRef<clang::Expr*> argExprs);
   };
 } // end namespace clad
 
