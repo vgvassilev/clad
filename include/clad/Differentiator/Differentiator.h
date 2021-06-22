@@ -150,44 +150,62 @@ namespace clad {
 
   ///\brief N is the derivative order.
   ///
-  template<unsigned N = 1, typename ArgSpec = const char *, typename F>
-  CladFunction <F> __attribute__((annotate("D")))
-  differentiate(F f, ArgSpec args = "", const char* code = "") {
+  template <unsigned N = 1,
+            typename ArgSpec = const char*,
+            typename F,
+            typename DerivedFnType = F>
+  CladFunction<F> __attribute__((annotate("D")))
+  differentiate(F f,
+                ArgSpec args = "",
+                DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+                const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<F>(f, code);
+    return CladFunction<F>(derivedFn, code);
   }
 
   /// A function for gradient computation.
   /// Given a function f, clad::gradient generates its gradient f_grad and
   /// returns a CladFunction for it.
-  template<typename ArgSpec = const char *, typename F>
-  CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("G")))
-  CUDA_HOST_DEVICE gradient(F f, ArgSpec args = "", const char* code = "") {
+  template <typename ArgSpec = const char*,
+            typename F,
+            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+  CladFunction<DerivedFnType> __attribute__((annotate("G"))) CUDA_HOST_DEVICE
+  gradient(F f,
+           ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<ExtractDerivedFnTraits_t<F>>(
-      reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by gradient*/,
-      code);
+    return CladFunction<DerivedFnType>(derivedFn /* will be replaced by gradient*/,
+                                       code);
   }
 
   /// Function for Hessian matrix computation
   /// Given  a function f, clad::hessian generates all the second derivatives
   /// of the original function, (they are also columns of a Hessian matrix)
-  template<typename ArgSpec = const char *, typename F>
-  CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("H")))
-  hessian(F f, ArgSpec args = "", const char* code = "") {
+  template <typename ArgSpec = const char*,
+            typename F,
+            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+  CladFunction<DerivedFnType> __attribute__((annotate("H")))
+  hessian(F f,
+          ArgSpec args = "",
+          DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+          const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<ExtractDerivedFnTraits_t<F>>(
-      reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by Hessian*/,
-      code);
+    return CladFunction<DerivedFnType>(derivedFn /* will be replaced by hessian*/,
+                                       code);
   }
 
-  template<typename ArgSpec = const char *, typename F>
-  CladFunction<ExtractDerivedFnTraits_t<F>> __attribute__((annotate("J")))
-  jacobian(F f, ArgSpec args = "", const char* code = "") {
+  template <typename ArgSpec = const char*,
+            typename F,
+            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+  CladFunction<DerivedFnType> __attribute__((annotate("J")))
+  jacobian(F f,
+           ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<ExtractDerivedFnTraits_t<F>>(
-        reinterpret_cast<ExtractDerivedFnTraits_t<F>>(f) /* will be replaced by Jacobian*/,
-        code);
+    return CladFunction<DerivedFnType>(
+        derivedFn /* will be replaced by Jacobian*/, code);
   }
 }
 #endif // CLAD_DIFFERENTIATOR

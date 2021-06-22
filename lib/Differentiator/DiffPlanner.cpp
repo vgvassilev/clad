@@ -60,6 +60,8 @@ namespace clad {
     CallExpr* call = this->CallContext;
     // Index of "code" parameter:
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
+    auto derivedFnArgIdx = codeArgIdx - 1;
+
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
 
@@ -87,7 +89,7 @@ namespace clad {
                                               nullptr,
                                               oldCast->getValueKind()
                                               CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
-      call->setArg(0, newCast);
+      call->setArg(derivedFnArgIdx, newCast);
     }
     else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArgDREParent)) {
       // Add the "&" operator
@@ -95,7 +97,7 @@ namespace clad {
                                           noLoc,
                                           oldUnOp->getOpcode(),
                                           DRE).get();
-      call->setArg(0, newUnOp);
+      call->setArg(derivedFnArgIdx, newUnOp);
     }
     else
       llvm_unreachable("Trying to differentiate something unsupported");
@@ -138,44 +140,6 @@ namespace clad {
                                   CK_ArrayToPointerDecay).get();
       call->setArg(codeArgIdx, newArg);
     }
-
-    // Replace old specialization of clad::gradient with a new one that matches
-    // the type of new argument.
-
-    auto CladGradientFDeclOld = call->getDirectCallee();
-    auto CladGradientExprOld = call->getCallee();
-    auto CladGradientFTemplate = CladGradientFDeclOld->getPrimaryTemplate();
-
-    FunctionDecl* CladGradientFDeclNew = nullptr;
-    sema::TemplateDeductionInfo Info(noLoc);
-    // Create/get template specialization of clad::gradient that matches
-    // argument types. Result is stored to CladGradientFDeclNew.
-    SemaRef.DeduceTemplateArguments(CladGradientFTemplate,
-                                    /* ExplicitTemplateArgs */ nullptr,
-                                    /* Args */
-                                    llvm::ArrayRef<Expr*>(call->getArgs(),
-                                                          call->getNumArgs()),
-                                    /* Specialization */ CladGradientFDeclNew,
-                                    Info,
-                                    /* PartialOverloading */ false,
-                                    /* CheckNonDependent */
-                                    [] (llvm::ArrayRef<QualType>) {
-                                      return false;
-                                    });
-    // DeclRefExpr for new specialization.
-    Expr* CladGradientExprNew = clad_compat::GetResult<Expr*>(
-      SemaRef.BuildDeclRefExpr(CladGradientFDeclNew,
-                               CladGradientFDeclNew->getType(),
-                               CladGradientExprOld->getValueKind(),
-                               CladGradientExprOld->getEndLoc())
-    );
-    // Add function to pointer cast.
-    CladGradientExprNew = clad_compat::GetResult<Expr*>(
-      SemaRef.CallExprUnaryConversions(CladGradientExprNew)
-    );
-
-    // Replace the old clad::gradient by the new one.
-    call->setCallee(CladGradientExprNew);
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
