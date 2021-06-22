@@ -241,7 +241,7 @@ namespace clad {
     for (auto arg : args) {
       // FIXME: fix when adding array inputs, now we are just skipping all
       // array/pointer inputs (not treating them as independent variables).
-      if (arg->getType()->isArrayType() || arg->getType()->isPointerType()) {
+      if (isArrayOrPointerType(arg->getType())) {
         if (arg->getName() == "p")
           m_Variables[arg] = m_Result;
         idx += 1;
@@ -814,12 +814,12 @@ namespace clad {
     if (!target)
       return cloned;
     Expr* result = nullptr;
-    if (!target->getType()->isArrayType() &&
-        !target->getType()->isPointerType())
-      result = target;
-    else
+    if (isArrayOrPointerType(target->getType()))
       // Create the _result[idx] expression.
       result = BuildArraySubscript(target, reverseIndices);
+    else
+      result = target;
+
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       auto add_assign = BuildOp(BO_AddAssign, result, dfdx());
