@@ -43,7 +43,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_mem_fn_grad(double i, double j, double *_result) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -70,7 +70,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void volatile_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void volatile_mem_fn_grad(double i, double j, double *_result) volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -97,7 +97,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_volatile_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_volatile_mem_fn_grad(double i, double j, double *_result) const volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -124,7 +124,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void lval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void lval_ref_mem_fn_grad(double i, double j, double *_result) & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -151,7 +151,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_lval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_lval_ref_mem_fn_grad(double i, double j, double *_result) const & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -178,7 +178,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void volatile_lval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void volatile_lval_ref_mem_fn_grad(double i, double j, double *_result) volatile & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -205,7 +205,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_volatile_lval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_volatile_lval_ref_mem_fn_grad(double i, double j, double *_result) const volatile & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -232,7 +232,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void rval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void rval_ref_mem_fn_grad(double i, double j, double *_result) && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -259,7 +259,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_rval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_rval_ref_mem_fn_grad(double i, double j, double *_result) const && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -286,7 +286,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void volatile_rval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void volatile_rval_ref_mem_fn_grad(double i, double j, double *_result) volatile && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -313,7 +313,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_volatile_rval_ref_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_volatile_rval_ref_mem_fn_grad(double i, double j, double *_result) const volatile && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -340,7 +340,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void noexcept_mem_fn_grad(double i, double j, double *_result) noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -367,7 +367,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_noexcept_mem_fn_grad(double i, double j, double *_result) const noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -394,7 +394,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void volatile_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void volatile_noexcept_mem_fn_grad(double i, double j, double *_result) volatile noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -421,7 +421,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_volatile_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_volatile_noexcept_mem_fn_grad(double i, double j, double *_result) const volatile noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -448,7 +448,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -475,7 +475,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) const & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -502,7 +502,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) volatile & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -529,7 +529,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) const volatile & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -556,7 +556,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -583,7 +583,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) const && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -610,7 +610,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) volatile && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -637,7 +637,7 @@ public:
     return (x+y)*i + i*j; 
   } 
 
-  // CHECK: void const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) {
+  // CHECK: void const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_result) const volatile && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
