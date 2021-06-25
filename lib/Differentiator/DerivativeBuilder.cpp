@@ -105,6 +105,14 @@ namespace clad {
     return { returnedFD, enclosingNS };
   }
 
+  static FunctionDecl* getOriginalFD(OverloadedDeclWithContext& ODWC) {
+    return std::get<0>(ODWC);
+  }
+
+  static FunctionDecl* getOverloadFD(OverloadedDeclWithContext& ODWC) {
+    return std::get<2>(ODWC);
+  }
+
   OverloadedDeclWithContext
   DerivativeBuilder::Derive(const FunctionDecl* FD,
                             const DiffRequest& request) {
@@ -136,8 +144,12 @@ namespace clad {
       result = J.Derive(FD, request);
     }
 
-    if (std::get<0>(result))
-      registerDerivative(std::get<0>(result), m_Sema);
+    // FIXME: if the derivatives aren't registered in this order and the
+    //   derivative is a member function it goes into an infinite loop
+    if (auto FD = getOriginalFD(result))
+      registerDerivative(FD, m_Sema);
+    if (auto OFD = getOverloadFD(result))
+      registerDerivative(OFD, m_Sema);
     return result;
   }
 }// end namespace clad

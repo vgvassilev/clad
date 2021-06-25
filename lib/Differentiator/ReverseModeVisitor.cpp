@@ -118,7 +118,7 @@ namespace clad {
     // A vector of types of the gradient function parameters.
     llvm::SmallVector<QualType, 16> paramTypes;
     llvm::SmallVector<QualType, 16> outputParamTypes;
-    paramTypes.reserve(m_Function->getNumParams() + args.size());
+    paramTypes.reserve(m_Function->getNumParams() * 2);
     outputParamTypes.reserve(args.size());
     for (auto* PVD : m_Function->parameters()) {
       paramTypes.emplace_back(PVD->getType());
@@ -139,6 +139,11 @@ namespace clad {
                         outputParamTypes.begin(),
                         outputParamTypes.end());
     }
+    // If reverse mode differentiates only part of the arguments it needs to
+    // generate an overload that can take in all the diff variables
+    bool createOverload = false;
+    if (paramTypes.size() != m_Function->getNumParams() * 2 && !isVectorValued)
+      createOverload = true;
 
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
     // For a function f of type R(A1, A2, ..., An),
@@ -174,7 +179,7 @@ namespace clad {
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params;
     llvm::SmallVector<ParmVarDecl*, 4> outputParams;
-    params.reserve(paramTypes.size());
+    params.reserve(m_Function->getNumParams() + args.size());
     for (auto* PVD : m_Function->parameters()) {
       auto VD = ParmVarDecl::Create(
           m_Context,
@@ -339,7 +344,159 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return {result.first, result.second, nullptr};
+    FunctionDecl* gradientOverloadFD = nullptr;
+    if (createOverload) {
+      int remainingArgs = m_Function->getNumParams() - args.size();
+
+      for (int i = 0; i < remainingArgs; i++) {
+        paramTypes.emplace_back(
+            m_Context.getPointerType(m_Function->getReturnType()));
+      }
+
+      QualType gradientFunctionOverloadType = m_Context.getFunctionType(
+          m_Context.VoidTy,
+          llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
+          // Cast to function pointer.
+          originalFnType->getExtProtoInfo());
+
+      m_Sema.CurContext =
+          const_cast<DeclContext*>(m_Function->getDeclContext());
+
+      DeclWithContext gradientOverloadFDWC =
+          m_Builder.cloneFunction(m_Function,
+                                  *this,
+                                  DC,
+                                  m_Sema,
+                                  m_Context,
+                                  noLoc,
+                                  name,
+                                  gradientFunctionOverloadType);
+      gradientOverloadFD = gradientOverloadFDWC.first;
+
+      beginScope(Scope::FunctionPrototypeScope |
+                 Scope::FunctionDeclarationScope | Scope::DeclScope);
+      m_Sema.PushFunctionScope();
+      m_Sema.PushDeclContext(getCurrentScope(), gradientOverloadFD);
+
+      llvm::SmallVector<ParmVarDecl*, 4> overloadParams;
+      llvm::SmallVector<Expr*, 4> callArgs;
+
+      overloadParams.reserve(FD->getNumParams() * 2);
+      callArgs.reserve(paramTypes.size());
+
+      for (auto* GVD : params) {
+        auto* VD = ParmVarDecl::Create(
+            m_Context,
+            gradientOverloadFD,
+            noLoc,
+            noLoc,
+            GVD->getIdentifier(),
+            GVD->getType(),
+            GVD->getTypeSourceInfo(),
+            GVD->getStorageClass(),
+            // Clone default arg if present.
+            (GVD->hasDefaultArg() ? Clone(GVD->getDefaultArg()) : nullptr));
+        if (VD->getIdentifier())
+          m_Sema.PushOnScopeChains(VD,
+                                   getCurrentScope(),
+                                   /*AddToContext*/ false);
+        overloadParams.emplace_back(VD);
+        callArgs.emplace_back((Expr*)BuildDeclRef(VD));
+      }
+
+      QualType DVDType;
+      DVDType = m_Context.getPointerType(m_Function->getReturnType());
+      for (int i = 0; i < remainingArgs; i++) {
+        IdentifierInfo* DVDII =
+            &m_Context.Idents.get("_d_" + std::to_string(i));
+
+        auto DVD = ParmVarDecl::Create(
+            m_Context,
+            gradientOverloadFD,
+            noLoc,
+            noLoc,
+            DVDII,
+            DVDType,
+            m_Context.getTrivialTypeSourceInfo(DVDType, noLoc),
+            StorageClass::SC_None,
+            // Clone default arg if present.
+            nullptr);
+        if (DVD->getIdentifier())
+          m_Sema.PushOnScopeChains(DVD,
+                                   getCurrentScope(),
+                                   /*AddToContext*/ false);
+        overloadParams.emplace_back(DVD);
+      }
+
+      llvm::ArrayRef<ParmVarDecl*> overloadParamsRef =
+          llvm::makeArrayRef(overloadParams.data(), overloadParams.size());
+
+      llvm::MutableArrayRef<Expr*> callArgsRef =
+          llvm::makeMutableArrayRef(callArgs.data(), callArgs.size());
+
+      gradientOverloadFD->setParams(overloadParamsRef);
+      gradientOverloadFD->setBody(nullptr);
+
+      beginScope(Scope::FnScope | Scope::DeclScope);
+      m_DerivativeFnScope = getCurrentScope();
+      beginBlock();
+
+      Expr* callExpr = nullptr;
+      if (auto* gradientCMD = dyn_cast<CXXMethodDecl>(gradientFD)) {
+        auto* thisExpr = new (m_Context)
+            CXXThisExpr(noLoc, gradientCMD->getThisType(), true);
+        m_Sema.CheckCXXThisCapture(thisExpr->getExprLoc());
+        auto memberExpr = MemberExpr::Create(
+            m_Context,
+            thisExpr,
+            true,
+            noLoc,
+            NestedNameSpecifierLoc(gradientCMD->getQualifier(), nullptr),
+            noLoc,
+            gradientCMD,
+            DeclAccessPair::make(gradientCMD, gradientCMD->getAccess()),
+            gradientCMD->getNameInfo(),
+            nullptr,
+            m_Context.BoundMemberTy,
+            ExprValueKind::VK_RValue,
+            ExprObjectKind::OK_Ordinary,
+            NOUR_None);
+        callExpr =
+            m_Sema
+                .BuildCallToMemberFunction(
+                    getCurrentScope(), memberExpr, noLoc, callArgsRef, noLoc)
+                .get();
+      } else {
+        assert(isa<FunctionDecl>(gradientFD) && "Unexpected!");
+        Expr* DRE = DeclRefExpr::Create(m_Context,
+                                        NestedNameSpecifierLoc(),
+                                        noLoc,
+                                        gradientFD,
+                                        false,
+                                        gradientFD->getNameInfo(),
+                                        gradientFD->getType(),
+                                        ExprValueKind::VK_LValue);
+        Expr* ICE = ImplicitCastExpr::Create(
+            m_Context,
+            m_Context.getPointerType(gradientFD->getType()),
+            CastKind::CK_FunctionToPointerDecay,
+            DRE,
+            nullptr,
+            ExprValueKind::VK_LValue CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO);
+
+        callExpr = m_Sema
+                       .ActOnCallExpr(
+                           getCurrentScope(), ICE, noLoc, callArgsRef, noLoc)
+                       .get();
+      }
+      addToCurrentBlock(
+          ReturnStmt::Create(m_Context, noLoc, callExpr, nullptr));
+      Stmt* gradientOverloadBody = endBlock();
+
+      gradientOverloadFD->setBody(gradientOverloadBody);
+    }
+
+    return {result.first, result.second, gradientOverloadFD};
   }
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
@@ -1098,6 +1255,7 @@ namespace clad {
                                       CreateUniqueIdentifier(funcPostfix()),
                                       ZeroInitBraces);
             Result = BuildDeclRef(ResultDecl);
+            DerivedCallOutputArgs.push_back(Result);
           } else {
             // Declare: diffArgType _grad = 0;
             ResultDecl = BuildVarDecl(
@@ -1105,9 +1263,9 @@ namespace clad {
                 CreateUniqueIdentifier(funcPostfix()),
                 ConstantFolder::synthesizeLiteral(CEType, m_Context, 0));
             // Pass the address of the declared variable
-            Result = BuildOp(UO_AddrOf, BuildDeclRef(ResultDecl));
+            Result = BuildDeclRef(ResultDecl);
+            DerivedCallOutputArgs.push_back(BuildOp(UO_AddrOf, Result));
           }
-          DerivedCallOutputArgs.push_back(Result);
           ArgDeclStmts.push_back(BuildDeclStmt(ResultDecl));
           // Visit each arg with df/dargi = df/dxi * Result.
           PerformImplicitConversionAndAssign(ArgResultDecls[idx],
@@ -1121,7 +1279,7 @@ namespace clad {
 
         // Try to find it in builtin derivatives
         OverloadedDerivedFn =
-            m_Builder.findOverloadedDefinition(DNInfo, DerivedCallOutputArgs);
+            m_Builder.findOverloadedDefinition(DNInfo, DerivedCallArgs);
       }
     }
     // Derivative was not found, check if it is a recursive call
@@ -1193,6 +1351,8 @@ namespace clad {
         // Insert Result array declaration and gradient call to the block at
         // the saved point.
         if (isVectorValued) {
+          ResultDecl->dumpColor();
+          OverloadedDerivedFn->dumpColor();
           block.insert(it, {BuildDeclStmt(ResultDecl), OverloadedDerivedFn});
           // Visit each arg with df/dargi = df/dxi * Result[i].
           for (unsigned i = 0; i < CE->getNumArgs(); i++) {

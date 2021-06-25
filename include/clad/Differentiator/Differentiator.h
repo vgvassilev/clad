@@ -69,16 +69,42 @@ namespace clad {
     return of.back();
   }
 
+  /// Pad the args supplied with nullptr(s) to match the the num of params of
+  /// the function and then execute the function using the padded args
   // for executing non-member functions
-  template<class F, class... Args> 
-  return_type_t<F> execute_helper(F f, Args&&... args) {
-      return f(static_cast<Args>(args)... );
+  template <class... Rest, class F, class... Args>
+  return_type_t<F> pad_and_execute(list<Rest...>, F f, Args&&... args) {
+    return f(static_cast<Args>(args)..., static_cast<Rest>(0)...);
   }
 
   // for executing member-functions
-  template<class ReturnType, class C, class Obj, class... Args> 
-  auto execute_helper( ReturnType C::* f, Obj&& obj, Args&&... args) -> return_type_t<decltype(f)>  {
-      return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)... );
+  template <class... Rest, class ReturnType, class C, class Obj, class... Args>
+  auto
+  pad_and_execute(list<Rest...>, ReturnType C::*f, Obj&& obj, Args&&... args)
+      -> return_type_t<decltype(f)> {
+    return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...,
+                                      static_cast<Rest>(0)...);
+  }
+
+  /// Differentiates between member and non-member functions so that the object
+  /// supplied, which the member function belongs to, is not taken into account
+  /// when counting the number of supplied arguments
+  // for executing non-member functions
+  template <class F, class... Args>
+  return_type_t<F> execute_helper(F f, Args&&... args) {
+    return pad_and_execute(DropArgs_t<sizeof...(Args), F>{},
+                           f,
+                           static_cast<Args>(args)...);
+  }
+
+  // for executing member-functions
+  template <class ReturnType, class C, class Obj, class... Args>
+  auto execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args)
+      -> return_type_t<decltype(f)> {
+    return pad_and_execute(DropArgs_t<sizeof...(Args), decltype(f)>{},
+                           f,
+                           static_cast<Obj>(obj),
+                           static_cast<Args>(args)...);
   }
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
@@ -168,7 +194,7 @@ namespace clad {
   /// returns a CladFunction for it.
   template <typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+            typename DerivedFnType = GradientDerivedFnTraits_t<F>>
   CladFunction<DerivedFnType> __attribute__((annotate("G"))) CUDA_HOST_DEVICE
   gradient(F f,
            ArgSpec args = "",
