@@ -1,4 +1,19 @@
 - name: "CaaS Monthly Meeting"
+  date: 2021-07-01 17:00
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
+  label: caas_01Jul2021
+  agenda:
+    - title: "ORC 2021 -- Recent developments and future work in LLVM's JIT APIs"
+      speaker: "Lang Hames, Apple"
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 5 August 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2021-06-03 17:00
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
