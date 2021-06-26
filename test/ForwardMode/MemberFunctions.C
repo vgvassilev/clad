@@ -751,5 +751,11 @@ int main() {
 
   RVAL_REF_TEST(const_volatile_rval_ref_noexcept_mem_fn_with_var_arg_list, 3, 5)  // CHECK-EXEC: 30.00 
                                                                                   // CHECK-EXEC: 33.00 
-
+  d_mem_fn.setObject(&expr_1);
+  printf("%.2f %.2f", d_mem_fn.execute(3, 5), d_mem_fn.execute(expr_2, 3, 5));  // CHECK-EXEC: 30.00
+                                                                                // CHECK-EXEC: 33.00
+  d_mem_fn.clearObject();
+  d_mem_fn.setObject(expr_1);
+  printf("%.2f %.2f", d_mem_fn.execute(3, 5), d_mem_fn.execute(expr_2, 3, 5));  // CHECK-EXEC: 30.00
+                                                                                // CHECK-EXEC: 33.00
 }

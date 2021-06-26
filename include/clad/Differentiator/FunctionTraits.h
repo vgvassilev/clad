@@ -1,7 +1,10 @@
 #ifndef FUNCTION_TRAITS
 #define FUNCTION_TRAITS
+#include <type_traits>
 
 namespace clad {
+  // forward declaring it so that it can be used in return_type
+  class NoFunction;
 
   // Trait class to deduce return type of function(both member and non-member) at commpile time
   // Only function pointer types are supported by this trait class
@@ -121,6 +124,11 @@ namespace clad {
   template <class ReturnType, class C, class... Args> 
   struct return_type<ReturnType (C::*)(Args..., ...) const volatile &&> { 
     using type = ReturnType; 
+  };
+
+  template<>
+  struct return_type<NoFunction*> {
+    using type = void;
   };
 
   // specializations for noexcept member functions
@@ -349,6 +357,164 @@ namespace clad {
     using type = void (C::*)(Args..., ReturnType*) const volatile&& noexcept;
   };
 #endif
+
+  /// Utility type trait to remove both reference and pointer
+  /// from type `T`.
+  ///
+  /// First removes any reference qualifier associated with `T`,
+  /// then removes any associated pointer. Resulting type is provided
+  /// as member typedef `type`.
+  template <typename T> struct remove_reference_and_pointer {
+    using type = typename std::remove_pointer<
+        typename std::remove_reference<T>::type>::type;
+  };
+
+  /// Helper type for remove_reference_and_pointer.
+  template <typename T>
+  using remove_reference_and_pointer_t =
+      typename remove_reference_and_pointer<T>::type;
+
+  /// Check whether class 'C` defines call operator. Provides the member
+  /// constant `value` which is equal to true, if class defines call operator.
+  /// Otherwise `value` is equal to false.
+  template <typename C, typename = void>
+  struct has_call_operator : std::false_type {};
+
+  template <typename C>
+  struct has_call_operator<
+      C,
+      typename std::enable_if<(
+          sizeof(&remove_reference_and_pointer_t<C>::operator()) > 0)>::type>
+      : std::true_type {};
+
+  /// Placeholder type for denoting no function type exists
+  ///
+  /// This is used by `ExtractDerivedFnTraitsForwMode` type trait as value
+  /// for member typedef `type` to denote no function type exists.
+  class NoFunction {};
+
+  /// Compute type of derived function of function, method or functor when
+  /// differentiated using forward differentiation mode (`clad::differentiate`).
+  /// Computed type is provided as member typedef `type`.
+  ///
+  /// More precisely, this type trait behaves as following:
+  ///
+  /// - If `F` is a function pointer type
+  ///   Defines member typedef `type` same as the type of the function pointer.
+  ///
+  /// - If `F` is a member function pointer type
+  ///   Defines member typedef `type` same as the type of the member function
+  /// pointer.
+  ///
+  /// - If `F` is class type, class reference type, class pointer type, or
+  ///   reference to class pointer type.
+  ///   Defines member typedef `type` same as the type of the overloaded call
+  ///   operator member function of the class.
+  ///
+  /// - For all other cases, no member typedef `type` is provided.
+  ///
+  /// This type trait is specific to forward mode differentiation since the
+  /// rules for computing the signature of derived functions are different for 
+  /// forward and reverse mode.
+  template <class F, class = void> struct ExtractDerivedFnTraitsForwMode {};
+
+  /// Helper type for ExtractDerivedFnTraitsForwMode
+  template <class F>
+  using ExtractDerivedFnTraitsForwMode_t =
+      typename ExtractDerivedFnTraitsForwMode<F>::type;
+
+  /// Specialization for free function pointer type
+  template <class F>
+  struct ExtractDerivedFnTraitsForwMode<
+      F*,
+      typename std::enable_if<std::is_function<F>::value>::type> {
+    using type = remove_reference_and_pointer_t<F>*;
+  };
+
+  /// Specialization for member function pointer type
+  template <class F>
+  struct ExtractDerivedFnTraitsForwMode<
+      F,
+      typename std::enable_if<
+          std::is_member_function_pointer<F>::value>::type> {
+    using type = typename std::decay<F>::type;
+  };
+
+  /// Specialization for class types
+  /// If class have exactly one user defined call operator, then defines
+  /// member typedef `type` same as the type of the call operator, otherwise
+  /// defines member typedef `type` as the type of `NoFunction*`.
+  template <class F>
+  struct ExtractDerivedFnTraitsForwMode<
+      F,
+      typename std::enable_if<
+          std::is_class<remove_reference_and_pointer_t<F>>::value &&
+          has_call_operator<F>::value>::type> {
+    using ClassType =
+        typename std::decay<remove_reference_and_pointer_t<F>>::type;
+    using type = decltype(&ClassType::operator());
+  };
+  template <class F>
+  struct ExtractDerivedFnTraitsForwMode<
+      F,
+      typename std::enable_if<
+          std::is_class<remove_reference_and_pointer_t<F>>::value &&
+          !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
+
+  /// Placeholder type for denoting no object type exists.
+  ///
+  /// This is used by `ExtractFunctorTraits` type trait as value of member
+  /// typedef `type` to denote no functor type exist.
+  class NoObject {};
+
+  /// Compute class type from member function type, deduced type is
+  /// void if free function type is provided. If class type is provided,
+  /// then deduced type is same as that of the provided class type.
+  ///
+  /// More precisely, this type trait behaves as following :
+  ///
+  /// - If `F` is a function pointer type
+  ///   Defines member typedef `type` as the type of class `NoObject`.
+  ///
+  /// - If `F` is a memeber function pointer type
+  ///   Defines member typedef `type` as the type of the corresponding class
+  ///   of the member function pointer.
+  ///
+  /// - If `F` is class type, class reference type, class pointer type, or
+  ///   reference to class pointer type
+  ///   Defines member typedef 'type` same as the type of the class.
+  ///
+  /// - For all other cases, no member typedef `type` is provided.
+  template <class F, class = void> struct ExtractFunctorTraits {};
+
+  /// Helper type for ExtractFunctorTraits
+  template <class F>
+  using ExtractFunctorTraits_t = typename ExtractFunctorTraits<F>::type;
+
+  /// Specialization for free function pointer types
+  template <class F>
+  struct ExtractFunctorTraits<
+      F*,
+      typename std::enable_if<std::is_function<F>::value>::type> {
+    using type = NoObject;
+  };
+
+  /// Specialization for member function pointer types
+  template <class ReturnType, class C>
+  struct ExtractFunctorTraits<ReturnType C::*, void> {
+    using type = C;
+  };
+
+  /// Specialization for class types
+  template <class F>
+  struct ExtractFunctorTraits<
+      F,
+      typename std::enable_if<
+          std::is_class<remove_reference_and_pointer_t<F>>::value>::type> {
+    using type = remove_reference_and_pointer_t<F>;
+  };
 } // namespace clad
 
 #endif // FUNCTION_TRAITS

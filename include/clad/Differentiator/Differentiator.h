@@ -69,31 +69,29 @@ namespace clad {
     return of.back();
   }
 
-  // for executing non-member functions
-  template<class F, class... Args> 
-  return_type_t<F> execute_helper(F f, Args&&... args) {
-      return f(static_cast<Args>(args)... );
-  }
-
-  // for executing member-functions
-  template<class ReturnType, class C, class Obj, class... Args> 
-  auto execute_helper( ReturnType C::* f, Obj&& obj, Args&&... args) -> return_type_t<decltype(f)>  {
-      return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)... );
-  }
-
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
   // do not need. Another disadvantage is that it is difficult to distinguish a
   // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
-  template <typename F> class CladFunction {
+  /// Explicitly passing `FunctorT` type is necessary for maintaining 
+  /// const correctness of functor types.
+  /// Default value of `Functor` here is temporary, and should be removed 
+  /// once all clad differentiation functions support differentiating functors.
+  template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>>
+  class CladFunction {
   public:
     using CladFunctionType = F;
+    using FunctorType = FunctorT;
 
   private:
     CladFunctionType m_Function;
     char* m_Code;
+    FunctorType *m_Functor = nullptr;
 
   public:
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code) {
+    CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
+                                  const char* code,
+                                  FunctorType* functor = nullptr)
+        : m_Functor(functor) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
         m_Function = f;
@@ -111,6 +109,11 @@ namespace clad {
         m_Code = nullptr;
       }
     }
+    /// Constructor overload for initializing `m_Functor` when functor
+    /// is passed by reference.
+    CUDA_HOST_DEVICE
+    CladFunction(CladFunctionType f, const char* code, FunctorType& functor)
+        : CladFunction(f, code, &functor) {};
 
     // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
     // i.e -lstdc++.
@@ -118,14 +121,28 @@ namespace clad {
 
     CladFunctionType getFunctionPtr() { return m_Function; }
 
-
-    template <typename... Args> return_type_t<F> execute(Args &&... args) {
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute(Args&&... args) {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(0);
       }
+      // here static_cast is used to achieve perfect forwarding
+      return execute_helper(m_Function, static_cast<Args>(args)...);
+    }
 
-      return execute_helper(m_Function,static_cast<Args>(args)...);
+    /// `Execute` overload to be used when derived function type cannot be
+    /// deduced. One reason for this can be when user tries to differentiate
+    /// an object of class which do not have user-defined call operator.
+    /// Error handling is handled in the clad side using clang diagnostics 
+    /// subsystem.
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute(Args&&... args) {
+      return static_cast<return_type_t<F>>(0);
     }
 
     /// Return the string representation for the generated derivative.
@@ -139,6 +156,59 @@ namespace clad {
     void dump() const {
       printf("The code is: %s\n", getCode());
     }
+
+    /// Set object pointed by the functor as the default object for
+    /// executing derived member function.
+    void setObject(FunctorType* functor) {
+      m_Functor = functor;
+    } 
+
+    /// Set functor object as the default object for executing derived
+    // member function.
+    void setObject(FunctorType& functor) {
+      m_Functor = &functor;
+    }
+
+    /// Clears default object (if any) for executing derived member function.
+    void clearObject() {
+      m_Functor = nullptr;
+    }
+
+    private:
+      /// Helper function for executing non-member derived functions.
+      template <class Fn, class... Args>
+      return_type_t<CladFunctionType> execute_helper(Fn f, Args&&... args) {
+        // `static_cast` is required here for perfect forwarding.
+        return f(static_cast<Args>(args)...);
+      }
+
+      /// Helper functions for executing member derived functions.
+      /// If user have passed object explicitly, then this specialization will
+      /// be used and derived function will be called through the passed object.
+      template <
+          class ReturnType,
+          class C,
+          class Obj,
+          class = typename std::enable_if<
+              std::is_same<typename std::decay<Obj>::type, C>::value>::type,
+          class... Args>
+      return_type_t<CladFunctionType>
+      execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) {
+        // `static_cast` is required here for perfect forwarding.
+        return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
+      }
+      /// If user have not passed object explicitly, then this specialization
+      /// will be used and derived function will be called through the object
+      /// saved in `CladFunction`.
+      template <class ReturnType, class C, class... Args>
+      return_type_t<CladFunctionType> execute_helper(ReturnType C::*f,
+                                                     Args&&... args) {
+        assert(m_Functor &&
+               "No default object set, explicitly pass an object to "
+               "CladFunction::execute");
+        // `static_cast` is required here for perfect forwarding.
+        return (m_Functor->*f)(static_cast<Args>(args)...);
+      }
   };
 
   // This is the function which will be instantiated with the concrete arguments
@@ -148,19 +218,47 @@ namespace clad {
   // This will be useful in fucture when we are ready to support partial diff.
   //
 
-  ///\brief N is the derivative order.
+  /// Differentiates function using forward mode.
   ///
+  /// Performs partial differentiation of the `fn` argument using forward mode
+  /// wrt parameter specified in `args`. Template parameter `N` denotes
+  /// the derivative order. To differentiate `fn` wrt several parameters,
+  /// please see `clad::gradient`. 
+  /// \param[in] fn function to differentiate 
+  /// \param[in] args independent parameter information 
+  /// \returns `CladFunction` object to access the corresponding derived function.
   template <unsigned N = 1,
             typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = F>
-  CladFunction<F> __attribute__((annotate("D")))
-  differentiate(F f,
+            typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
+            typename = typename std::enable_if<
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("D")))
+  differentiate(F fn,
                 ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<F>(derivedFn, code);
+    assert(fn && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                  code);
+  }
+
+  /// Specialization for differentiating functors.
+  /// Specialization is needed because objects have to be passed
+  /// by reference whereas functions have to be passed by value.
+  template <unsigned N = 1,
+            typename ArgSpec = const char*,
+            typename F,
+            typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
+            typename = typename std::enable_if<
+                std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("D")))
+  differentiate(F&& f,
+                ArgSpec args = "",
+                DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+                const char* code = "") {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn, code, f);
   }
 
   /// A function for gradient computation.
