@@ -22,12 +22,15 @@ namespace clad {
   // Here relevant ancestor is nearest ancestor of ImplicitCastExpr or 
   // UnaryOperator type.
   DeclRefExpr* getArgFunction(CallExpr* call,
+                              Sema& SemaRef,
                               Expr** relevantAncestor = nullptr) {
     struct Finder :
       RecursiveASTVisitor<Finder> {
         DeclRefExpr* m_FnDRE = nullptr;
         Expr** m_RelevantAncestor = nullptr;
-        Finder(Expr** relevantAncestor) : m_RelevantAncestor(relevantAncestor) {}
+        Sema& m_SemaRef;
+        Finder(Sema& SemaRef, Expr** relevantAncestor = nullptr)
+            : m_SemaRef(SemaRef), m_RelevantAncestor(relevantAncestor) {}
         bool VisitExpr(Expr* E) {
           if (m_RelevantAncestor) {
             switch (E->getStmtClass()) {
@@ -38,15 +41,48 @@ namespace clad {
             }
           }
           if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
-            if (auto VD = dyn_cast<VarDecl>(DRE->getDecl()))
-              TraverseStmt(VD->getInit());
-            else if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+            if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+              auto varType = VD->getType().getTypePtr();
+              /// If variable is of class type, set `m_FnDRE` to 
+              /// `DeclRefExpr` of overloaded call operator method of 
+              /// the class type.
+              if (varType->isStructureOrClassType()) {
+                auto RD = varType->getAsCXXRecordDecl();
+                // Finding overloaded call operator method.
+                auto callOperatorDeclName =
+                    m_SemaRef.getASTContext()
+                        .DeclarationNames.getCXXOperatorName(
+                            OverloadedOperatorKind::OO_Call);
+                auto LR = RD->lookup(callOperatorDeclName);
+
+                assert(LR.size() == 1 && "Overloaded call operators "
+                                         "differentiation is not supported");
+
+                auto callOperator = dyn_cast<CXXMethodDecl>(LR.front());
+
+                // Creating `DeclRefExpr` of the found overloaded call operator method,
+                CXXScopeSpec CSS;
+                CSS.Extend(
+                    m_SemaRef.getASTContext(), RD->getIdentifier(), noLoc, noLoc);
+                // TODO: Remove dependency of using `ExprValueKind::VK_RValue` constant
+                auto newFnDRE = clad_compat::GetResult<Expr*>(
+                    m_SemaRef.BuildDeclRefExpr(callOperator,
+                                             callOperator->getType(),
+                                             ExprValueKind::VK_RValue,
+                                             noLoc,
+                                             &CSS));
+
+                m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+              } else {
+                TraverseStmt(VD->getInit());
+              }
+            } else if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
               m_FnDRE = DRE;
-            return false;  
+            return false;
           }
           return true; 
         }
-      } finder(relevantAncestor);
+      } finder(SemaRef, relevantAncestor);
 
       assert(cast<NamespaceDecl>(call->getDirectCallee()->
              getDeclContext())->getName() == "clad" &&
@@ -66,7 +102,7 @@ namespace clad {
     assert(FD && "Trying to update with null FunctionDecl");
 
     Expr* oldArgDREParent = nullptr;
-    DeclRefExpr* oldDRE = getArgFunction(call, &oldArgDREParent);
+    DeclRefExpr* oldDRE = getArgFunction(call, SemaRef, &oldArgDREParent);
 
     if (!oldDRE)
       llvm_unreachable("Trying to differentiate something unsupported");
@@ -80,27 +116,13 @@ namespace clad {
     // using call->setArg(0, DRE) seems to be sufficient,
     // though the real AST allways contains the ImplicitCastExpr (function ->
     // function ptr cast) or UnaryOp (method ptr call).
-    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArgDREParent)) {
-      // Cast function to function pointer.
-      auto newCast = ImplicitCastExpr::Create(C,
-                                              C.getPointerType(FD->getType()),
-                                              oldCast->getCastKind(),
-                                              DRE,
-                                              nullptr,
-                                              oldCast->getValueKind()
-                                              CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
-      call->setArg(derivedFnArgIdx, newCast);
-    }
-    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArgDREParent)) {
-      // Add the "&" operator
-      auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
-                                          noLoc,
-                                          oldUnOp->getOpcode(),
-                                          DRE).get();
-      call->setArg(derivedFnArgIdx, newUnOp);
-    }
-    else
-      llvm_unreachable("Trying to differentiate something unsupported");
+      
+    // Add the "&" operator
+    auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
+                                        noLoc,
+                                        UnaryOperatorKind::UO_AddrOf,
+                                        DRE).get();
+    call->setArg(derivedFnArgIdx, newUnOp);
 
     // Update the code parameter.
     if (CXXDefaultArgExpr* Arg
@@ -191,7 +213,7 @@ namespace clad {
     if (A && (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") 
         || A->getAnnotation().equals("H") || A->getAnnotation().equals("J"))) {
       // A call to clad::differentiate or clad::gradient was found.
-      DeclRefExpr* DRE = getArgFunction(E);
+      DeclRefExpr* DRE = getArgFunction(E, m_Sema);
       if (!DRE)
         return true;
       DiffRequest request{};
