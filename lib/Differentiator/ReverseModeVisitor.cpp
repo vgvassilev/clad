@@ -147,7 +147,9 @@ namespace clad {
 
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
     // For a function f of type R(A1, A2, ..., An),
-    // the type of the gradient function is void(A1, A2, ..., An, R*).
+    // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
+    // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
+    // .
     QualType gradientFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
