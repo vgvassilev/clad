@@ -8,7 +8,7 @@ double nonMemFn(double i) {
   return i*i;
 }
 
-// CHECK: void nonMemFn_grad(double i, double *_result) {
+// CHECK: void nonMemFn_grad(double i, double *_d_i) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t1 = i;
@@ -18,9 +18,9 @@ double nonMemFn(double i) {
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
-// CHECK-NEXT:         _result[0UL] += _r0;
+// CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:         double _r1 = _t1 * 1;
-// CHECK-NEXT:         _result[0UL] += _r1;
+// CHECK-NEXT:         *_d_i += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
