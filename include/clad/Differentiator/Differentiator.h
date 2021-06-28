@@ -355,12 +355,10 @@ namespace clad {
                                        code);
   }
 
-  template <typename ArgSpec = const char*,
-            typename F,
-            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+  template <typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = JacobianDerivedFnTraits_t<F>>
   CladFunction<DerivedFnType> __attribute__((annotate("J")))
-  jacobian(F f,
-           ArgSpec args = "",
+  jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
