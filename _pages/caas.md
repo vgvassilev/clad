@@ -1,6 +1,6 @@
 ---
 title: "CaaS Project"
-layout: gridlay
+layout: textlay
 excerpt: "CaaS Project"
 sitemap: false
 permalink: /caas/
