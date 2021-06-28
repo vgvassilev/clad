@@ -84,21 +84,22 @@ float f7(float x) {
 // CHECK-NEXT:   return custom_derivatives::pow_darg0(x, 2.) * (_d_x + 0.);
 // CHECK-NEXT: }
 
-void f7_grad(float x, float *result);
+void f7_grad(float x, float* _d_x);
 
-// CHECK: void f7_grad(float x, float *_result) {
-// CHECK-NEXT:   float _t0;
-// CHECK-NEXT:   _t0 = x;
-// CHECK-NEXT:   {{.*}} f7_return = pow(_t0, 2.);
-// CHECK-NEXT:   goto _label0;
+// CHECK: void f7_grad(float x, float *_d_x) {
+// CHECK-NEXT:     float _t0;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     {{.*}} f7_return = pow(_t0, 2.);
+// CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:   {
-// CHECK-NEXT:     typename {{.*}} _grad0[2] = {};
-// CHECK-NEXT:     custom_derivatives::pow_grad(_t0, 2., _grad0);
-// CHECK-NEXT:     typename {{.*}} _r0 = 1 * _grad0[0UL];
-// CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     typename {{.*}} _r1 = 1 * _grad0[1UL];
-// CHECK-NEXT:   }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         typename {{.*}} _grad0 = 0.;
+// CHECK-NEXT:         typename {{.*}} _grad1 = 0.;
+// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, 2., &_grad0, &_grad1);
+// CHECK-NEXT:         typename {{.*}} _r0 = 1 * _grad0;
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         typename {{.*}} _r1 = 1 * _grad1;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 double f8(float x) {
@@ -110,21 +111,22 @@ double f8(float x) {
 // CHECK-NEXT:   return custom_derivatives::pow_darg0(x, 2) * (_d_x + 0);
 // CHECK-NEXT: }
 
-void f8_grad(float x, double *result);
+void f8_grad(float x, double* _d_x);
 
-// CHECK: void f8_grad(float x, double *_result) {
-// CHECK-NEXT:   float _t0;
-// CHECK-NEXT:   _t0 = x;
-// CHECK-NEXT:   typename {{.*}} f8_return = pow(_t0, 2);
-// CHECK-NEXT:   goto _label0;
+// CHECK: void f8_grad(float x, double *_d_x) {
+// CHECK-NEXT:     float _t0;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     typename {{.*}} f8_return = pow(_t0, 2);
+// CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:   {
-// CHECK-NEXT:     typename {{.*}} _grad0[2] = {};
-// CHECK-NEXT:     custom_derivatives::pow_grad(_t0, 2, _grad0);
-// CHECK-NEXT:     typename {{.*}} _r0 = 1 * _grad0[0UL];
-// CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     typename {{.*}} _r1 = 1 * _grad0[1UL];
-// CHECK-NEXT:   }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         typename {{.*}} _grad0 = 0.;
+// CHECK-NEXT:         typename {{.*}} _grad1 = 0.;
+// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, 2, &_grad0, &_grad1);
+// CHECK-NEXT:         typename {{.*}} _r0 = 1 * _grad0;
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         typename {{.*}} _r1 = 1 * _grad1;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 float f9(float x, float y) {
@@ -137,24 +139,25 @@ float f9(float x, float y) {
 // CHECK-NEXT:     return custom_derivatives::pow_darg0(x, y) * (_d_x + _d_y);
 // CHECK-NEXT: }
 
-void f9_grad(float x, float y, float *result);
+void f9_grad(float x, float y, float* _d_x, float* _d_y);
 
-// CHECK: void f9_grad(float x, float y, float *_result) {
-// CHECK-NEXT:   float _t0;
-// CHECK-NEXT:   float _t1;
-// CHECK-NEXT:   _t0 = x;
-// CHECK-NEXT:   _t1 = y;
-// CHECK-NEXT:   float f9_return = pow(_t0, _t1);
-// CHECK-NEXT:   goto _label0;
+// CHECK: void f9_grad(float x, float y, float *_d_x, float *_d_y) {
+// CHECK-NEXT:     float _t0;
+// CHECK-NEXT:     float _t1;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     _t1 = y;
+// CHECK-NEXT:     float f9_return = pow(_t0, _t1);
+// CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:   {
-// CHECK-NEXT:     float _grad0[2] = {};
-// CHECK-NEXT:     custom_derivatives::pow_grad(_t0, _t1, _grad0);
-// CHECK-NEXT:     float _r0 = 1 * _grad0[0UL];
-// CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     float _r1 = 1 * _grad0[1UL];
-// CHECK-NEXT:     _result[1UL] += _r1;
-// CHECK-NEXT:   }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         float _grad0 = 0.F;
+// CHECK-NEXT:         float _grad1 = 0.F;
+// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, _t1, &_grad0, &_grad1);
+// CHECK-NEXT:         float _r0 = 1 * _grad0;
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         float _r1 = 1 * _grad1;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 double f10(float x, int y) {
@@ -167,24 +170,25 @@ double f10(float x, int y) {
 // CHECK-NEXT:   return custom_derivatives::pow_darg0(x, y) * (_d_x + _d_y);
 // CHECK-NEXT: }
 
-void f10_grad(float x, int y, double *result);
+void f10_grad(float x, int y, double* _d_x, double* _d_y);
 
-// CHECK: void f10_grad(float x, int y, double *_result) {
-// CHECK-NEXT:   float _t0;
-// CHECK-NEXT:   int _t1;
-// CHECK-NEXT:   _t0 = x;
-// CHECK-NEXT:   _t1 = y;
-// CHECK-NEXT:   typename {{.*}} f10_return = pow(_t0, _t1);
-// CHECK-NEXT:   goto _label0;
+// CHECK: void f10_grad(float x, int y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     float _t0;
+// CHECK-NEXT:     int _t1;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     _t1 = y;
+// CHECK-NEXT:     typename {{.*}} f10_return = pow(_t0, _t1);
+// CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:   {
-// CHECK-NEXT:     typename {{.*}} _grad0[2] = {};
-// CHECK-NEXT:     custom_derivatives::pow_grad(_t0, _t1, _grad0);
-// CHECK-NEXT:     typename {{.*}} _r0 = 1 * _grad0[0UL];
-// CHECK-NEXT:     _result[0UL] += _r0;
-// CHECK-NEXT:     typename {{.*}} _r1 = 1 * _grad0[1UL];
-// CHECK-NEXT:     _result[1UL] += _r1;
-// CHECK-NEXT:   }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         typename {{.*}} _grad0 = 0.;
+// CHECK-NEXT:         typename {{.*}} _grad1 = 0.;
+// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, _t1, &_grad0, &_grad1);
+// CHECK-NEXT:         typename {{.*}} _r0 = 1 * _grad0;
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         typename {{.*}} _r1 = 1 * _grad1;
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 int main () { //expected-no-diagnostics
@@ -236,7 +240,7 @@ int main () { //expected-no-diagnostics
 
   f_result[0] = f_result[1] = 0;
   clad::gradient(f9);
-  f9_grad(3, 4, f_result);
+  f9_grad(3, 4, &f_result[0], &f_result[1]);
   printf("Result is = {%f, %f}\n", f_result[0], f_result[1]); //CHECK-EXEC: Result is = {108.000000, 88.987595}
 
   auto f10_darg0 = clad::differentiate(f10, 0);
@@ -244,7 +248,7 @@ int main () { //expected-no-diagnostics
 
   d_result[0] = d_result[1] = 0;
   clad::gradient(f10);
-  f10_grad(3, 4, d_result);
+  f10_grad(3, 4, &d_result[0], &d_result[1]);
   printf("Result is = {%f, %f}\n", d_result[0], d_result[1]); //CHECK-EXEC: Result is = {108.000000, 88.987597}
 
   return 0;

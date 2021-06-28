@@ -440,11 +440,11 @@ namespace clad {
   };
 
   // specializations for member functions pointer types with no cv-qualifiers
-  template <class ReturnType, class C, class... Args> 
+  template <class ReturnType, class C, class... Args>
   struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)> {
     using type = void (C::*)(Args..., ReturnType*);
   };
-  
+
   // specializations for member functions pointer types with only cv-qualifiers
   template <class ReturnType, class C, class... Args>
   struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const> {
