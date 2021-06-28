@@ -368,6 +368,62 @@ namespace clad {
 
   GradientDerivedFnTraits_AddCON(()) // Declares all the specializations
 
+      template <class... Args>
+      struct SelectLast;
+
+  template <class... Args>
+  using SelectLast_t = typename SelectLast<Args...>::type;
+
+  template <class T> struct SelectLast<T> { using type = T; };
+
+  template <class T, class... Args> struct SelectLast<T, Args...> {
+    using type = typename SelectLast<Args...>::type;
+  };
+
+  template <class T> struct JacobianDerivedFnTraits {};
+
+  // JacobianDerivedFnTraits is used to deduce type of the derived functions
+  // derived using reverse modes
+  template <class T>
+  using JacobianDerivedFnTraits_t = typename JacobianDerivedFnTraits<T>::type;
+
+  // JacobianDerivedFnTraits specializations for pure function pointer types
+  template <class ReturnType, class... Args>
+  struct JacobianDerivedFnTraits<ReturnType (*)(Args...)> {
+    using type = void (*)(Args..., SelectLast_t<Args...>);
+  };
+
+  // JacobianDerivedFnTraits specializations for member function pointer types
+#define JacobianDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)              \
+  template <typename R, typename C, typename... Args>                          \
+  struct JacobianDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {          \
+    using type = void (C::*)(Args..., SelectLast_t<Args...>) cv vol ref noex;  \
+  };
+
+#if __cpp_noexcept_function_type > 0
+#define JacobianDerivedFnTraits_AddNOEX(var, con, vol, ref)                    \
+  JacobianDerivedFnTraits_AddSPECS(var, con, vol, ref, )                       \
+      JacobianDerivedFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define JacobianDerivedFnTraits_AddNOEX(var, con, vol, ref)                    \
+  JacobianDerivedFnTraits_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define JacobianDerivedFnTraits_AddREF(var, con, vol)                          \
+  JacobianDerivedFnTraits_AddNOEX(var, con, vol, )                             \
+      JacobianDerivedFnTraits_AddNOEX(var, con, vol, &)                        \
+          JacobianDerivedFnTraits_AddNOEX(var, con, vol, &&)
+
+#define JacobianDerivedFnTraits_AddVOL(var, con)                               \
+  JacobianDerivedFnTraits_AddREF(var, con, )                                   \
+      JacobianDerivedFnTraits_AddREF(var, con, volatile)
+
+#define JacobianDerivedFnTraits_AddCON(var)                                    \
+  JacobianDerivedFnTraits_AddVOL(var, )                                        \
+      JacobianDerivedFnTraits_AddVOL(var, const)
+
+  JacobianDerivedFnTraits_AddCON(()) // Declares all the specializations
+
       // ExtractDerivedFnTraits is used to deduce type of the derived functions
       // derived using hessian and jacobian differentiation modes
       // It SHOULD NOT be used to get traits of derived functions derived using
@@ -385,8 +441,8 @@ namespace clad {
 
   // specializations for member functions pointer types with no cv-qualifiers
   template <class ReturnType, class C, class... Args> 
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)> { 
-    using type = void (C::*)(Args..., ReturnType*); 
+  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)> {
+    using type = void (C::*)(Args..., ReturnType*);
   };
   
   // specializations for member functions pointer types with only cv-qualifiers

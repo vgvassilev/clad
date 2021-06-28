@@ -223,7 +223,7 @@ namespace clad {
 
   template <typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+            typename DerivedFnType = JacobianDerivedFnTraits_t<F>>
   CladFunction<DerivedFnType> __attribute__((annotate("J")))
   jacobian(F f,
            ArgSpec args = "",
