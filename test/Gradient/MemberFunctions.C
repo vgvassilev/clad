@@ -12,9 +12,7 @@ class SimpleFunctions {
 public:
   SimpleFunctions(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
   double x, y;
-  double mem_fn(double i, double j)  { 
-    return (x+y)*i + i*j; 
-  }
+  double mem_fn(double i, double j) { return (x + y) * i + i * j; }
 
   // CHECK: void mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:     double _t0;
@@ -39,9 +37,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_mem_fn(double i, double j) const { 
-    return (x+y)*i + i*j; 
-  }
+  double const_mem_fn(double i, double j) const { return (x + y) * i + i * j; }
 
   // CHECK: void const_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
@@ -67,7 +63,7 @@ public:
   // CHECK-NEXT: }
 
   double volatile_mem_fn(double i, double j) volatile { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void volatile_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
@@ -94,7 +90,7 @@ public:
   // CHECK-NEXT: }
 
   double const_volatile_mem_fn(double i, double j) const volatile { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_volatile_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
@@ -120,9 +116,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double lval_ref_mem_fn(double i, double j) & { 
-    return (x+y)*i + i*j; 
-  }
+  double lval_ref_mem_fn(double i, double j) & { return (x + y) * i + i * j; }
 
   // CHECK: void lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) & {
   // CHECK-NEXT:     double _t0;
@@ -148,7 +142,7 @@ public:
   // CHECK-NEXT: }
 
   double const_lval_ref_mem_fn(double i, double j) const & { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const & {
@@ -175,7 +169,7 @@ public:
   // CHECK-NEXT: }
 
   double volatile_lval_ref_mem_fn(double i, double j) volatile & { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void volatile_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile & {
@@ -202,7 +196,7 @@ public:
   // CHECK-NEXT: }
 
   double const_volatile_lval_ref_mem_fn(double i, double j) const volatile & { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_volatile_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile & {
@@ -228,9 +222,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double rval_ref_mem_fn(double i, double j) && { 
-    return (x+y)*i + i*j; 
-  }
+  double rval_ref_mem_fn(double i, double j) && { return (x + y) * i + i * j; }
 
   // CHECK: void rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) && {
   // CHECK-NEXT:     double _t0;
@@ -256,7 +248,7 @@ public:
   // CHECK-NEXT: }
 
   double const_rval_ref_mem_fn(double i, double j) const && { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const && {
@@ -283,7 +275,7 @@ public:
   // CHECK-NEXT: }
 
   double volatile_rval_ref_mem_fn(double i, double j) volatile && { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void volatile_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile && {
@@ -310,7 +302,7 @@ public:
   // CHECK-NEXT: }
 
   double const_volatile_rval_ref_mem_fn(double i, double j) const volatile && { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_volatile_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile && {
@@ -337,7 +329,7 @@ public:
   // CHECK-NEXT:  }
 
   double noexcept_mem_fn(double i, double j) noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) noexcept {
@@ -364,7 +356,7 @@ public:
   // CHECK-NEXT: }
 
   double const_noexcept_mem_fn(double i, double j) const noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const noexcept {
@@ -391,7 +383,7 @@ public:
   // CHECK-NEXT: }
 
   double volatile_noexcept_mem_fn(double i, double j) volatile noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void volatile_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile noexcept {
@@ -418,7 +410,7 @@ public:
   // CHECK-NEXT: }
 
   double const_volatile_noexcept_mem_fn(double i, double j) const volatile noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_volatile_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile noexcept {
@@ -445,7 +437,7 @@ public:
   // CHECK-NEXT: }
 
   double lval_ref_noexcept_mem_fn(double i, double j) & noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) & noexcept {
@@ -472,7 +464,7 @@ public:
   // CHECK-NEXT: }
 
   double const_lval_ref_noexcept_mem_fn(double i, double j) const & noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const & noexcept {
@@ -499,7 +491,7 @@ public:
   // CHECK-NEXT: }
 
   double volatile_lval_ref_noexcept_mem_fn(double i, double j) volatile & noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile & noexcept {
@@ -526,7 +518,7 @@ public:
   // CHECK-NEXT: }
 
   double const_volatile_lval_ref_noexcept_mem_fn(double i, double j) const volatile & noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile & noexcept {
@@ -553,7 +545,7 @@ public:
   // CHECK-NEXT: }
 
   double rval_ref_noexcept_mem_fn(double i, double j) && noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) && noexcept {
@@ -581,7 +573,7 @@ public:
   // CHECK-NEXT: }
 
   double const_rval_ref_noexcept_mem_fn(double i, double j) const && noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const && noexcept {
@@ -608,7 +600,7 @@ public:
   // CHECK-NEXT:  }
 
   double volatile_rval_ref_noexcept_mem_fn(double i, double j) volatile && noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile && noexcept {
@@ -635,7 +627,7 @@ public:
   // CHECK-NEXT: }
 
   double const_volatile_rval_ref_noexcept_mem_fn(double i, double j) const volatile && noexcept { 
-    return (x+y)*i + i*j; 
+    return (x+y)*i + i*j;
   }
 
   // CHECK: void const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile && noexcept {
