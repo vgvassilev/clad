@@ -24,11 +24,13 @@ gaus_grad_1(double* x, double* p, double sigma, int dim, double* _d_p);
 
 auto gaus_g = clad::gradient(gaus, "p");
 
-// CHECK:    void gaus_grad_1(double *x, double *p, double sigma, int dim,
-// double *_d_p) __attribute__((device)) __attribute__((host)) { CHECK-NEXT:
-// double _d_t = 0; CHECK-NEXT:       unsigned long _t0; CHECK-NEXT:       int
-// _d_i = 0; CHECK-NEXT:       clad::tape<double> _t1 = {}; CHECK-NEXT:
-// clad::tape<int> _t2 = {}; CHECK-NEXT:       clad::tape<int> _t3 = {};
+// CHECK:    void gaus_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
+// CHECK-NEXT:       double _d_t = 0;
+// CHECK-NEXT:       unsigned long _t0;
+// CHECK-NEXT:       int _d_i = 0;
+// CHECK-NEXT:       clad::tape<double> _t1 = {};
+// CHECK-NEXT:       clad::tape<int> _t2 = {};
+// CHECK-NEXT:       clad::tape<int> _t3 = {};
 // CHECK-NEXT:       clad::tape<double> _t4 = {};
 // CHECK-NEXT:       clad::tape<int> _t5 = {};
 // CHECK-NEXT:       clad::tape<int> _t6 = {};
@@ -49,9 +51,9 @@ auto gaus_g = clad::gradient(gaus, "p");
 // CHECK-NEXT:       _t0 = 0;
 // CHECK-NEXT:       for (int i = 0; i < dim; i++) {
 // CHECK-NEXT:           _t0++;
-// CHECK-NEXT:           t += clad::push(_t4, (x[clad::push(_t2, i)] -
-// p[clad::push(_t3, i)])) * clad::push(_t1, (x[clad::push(_t5, i)] -
-// p[clad::push(_t6, i)])); CHECK-NEXT:       } CHECK-NEXT:       _t8 = -t;
+// CHECK-NEXT:           t += clad::push(_t4, (x[clad::push(_t2, i)] - p[clad::push(_t3, i)])) * clad::push(_t1, (x[clad::push(_t5, i)] - p[clad::push(_t6, i)]));
+// CHECK-NEXT:       }
+// CHECK-NEXT:       _t8 = -t;
 // CHECK-NEXT:       _t10 = sigma;
 // CHECK-NEXT:       _t11 = 2 * _t10;
 // CHECK-NEXT:       _t9 = sigma;
@@ -73,17 +75,20 @@ auto gaus_g = clad::gradient(gaus, "p");
 // CHECK-NEXT:           double _r9 = _r8 * _t13;
 // CHECK-NEXT:           double _grad0 = 0.;
 // CHECK-NEXT:           double _grad1 = 0.;
-// CHECK-NEXT:           custom_derivatives::pow_grad(_t14, _t15, &_grad0,
-// &_grad1); CHECK-NEXT:           double _r10 = _r9 * _grad0; CHECK-NEXT: double
-// _r11 = _r10 * 3.1415926535897931; CHECK-NEXT:           double _r12 = _r9 *
-// _grad1; CHECK-NEXT:           double _r13 = _r12 / 2.; CHECK-NEXT: double _r14
-// = _t16 * _r8; CHECK-NEXT:           double _grad2 = 0.; CHECK-NEXT: double
-// _grad3 = 0.; CHECK-NEXT:           custom_derivatives::pow_grad(_t17, -0.5,
-// &_grad2, &_grad3); CHECK-NEXT:           double _r15 = _r14 * _grad2;
+// CHECK-NEXT:           custom_derivatives::pow_grad(_t14, _t15, &_grad0, &_grad1);
+// CHECK-NEXT:           double _r10 = _r9 * _grad0;
+// CHECK-NEXT:           double _r11 = _r10 * 3.1415926535897931;
+// CHECK-NEXT:           double _r12 = _r9 * _grad1;
+// CHECK-NEXT:           double _r13 = _r12 / 2.;
+// CHECK-NEXT:           double _r14 = _t16 * _r8;
+// CHECK-NEXT:           double _grad2 = 0.;
+// CHECK-NEXT:           double _grad3 = 0.;
+// CHECK-NEXT:           custom_derivatives::pow_grad(_t17, -0.5, &_grad2, &_grad3);
+// CHECK-NEXT:           double _r15 = _r14 * _grad2;
 // CHECK-NEXT:           double _r16 = _r14 * _grad3;
 // CHECK-NEXT:           double _r17 = _t18 * 1;
-// CHECK-NEXT:           double _r18 = _r17 *
-// custom_derivatives::exp_darg0(_t19); CHECK-NEXT:           _d_t += _r18;
+// CHECK-NEXT:           double _r18 = _r17 * custom_derivatives::exp_darg0(_t19);
+// CHECK-NEXT:           _d_t += _r18;
 // CHECK-NEXT:       }
 // CHECK-NEXT:       {
 // CHECK-NEXT:           double _r_d1 = _d_t;
