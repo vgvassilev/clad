@@ -70,6 +70,8 @@ namespace clad {
   }
 
   /// Helper function for executing non-member derived functions.
+  /// RedundantType is only present to keep signature same as of execute_helper
+  /// member function counterpart.
   template<class F, class RedundantType, class... Args> 
   return_type_t<F> execute_helper(F f, RedundantType* redundant, Args&&... args) {
       return f(static_cast<Args>(args)... );
@@ -112,9 +114,9 @@ namespace clad {
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
   // do not need. Another disadvantage is that it is difficult to distinguish a
   // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
-  /// Explicitly passing `Functor` type is necessary for maintaining 
+  /// Explicitly passing `FunctorT` type is necessary for maintaining 
   /// const correctness of functor types.
-  /// Default value of `Functor` here is temporary, should be removed once all
+  /// Default value of `Functor` here is temporary, and should be removed once all
   /// clad differentiation functions support differentiating functors.
   template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>> class CladFunction {
   public:
@@ -150,7 +152,7 @@ namespace clad {
     }
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
-    // Please confirm if `CUDA_HOST_DEVICE` should be added in the constructor overload.
+    // ! Please confirm if `CUDA_HOST_DEVICE` should be added in the constructor overload.
     CUDA_HOST_DEVICE
     CladFunction(CladFunctionType f, const char* code, FunctorType& functor)
         : CladFunction(f, code, &functor){};
@@ -194,8 +196,14 @@ namespace clad {
   // This will be useful in fucture when we are ready to support partial diff.
   //
 
-  ///\brief N is the derivative order.
+  /// \brief Differentiates function using forward mode.
   ///
+  /// Performs partial differentiation of the `fn` argument using forward mode wrt
+  /// parameter specified in `args`. To differentiate `fn` wrt several parameters, 
+  /// please see `clad::gradient`.
+  /// \param[in] fn function to differentiate
+  /// \param[in] args independent parameter information
+  /// \return `CladFunction` object to access the corresponding derived function.
   template <unsigned N = 1,
             typename ArgSpec = const char*,
             typename F,
@@ -203,11 +211,11 @@ namespace clad {
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("D")))
-  differentiate(F f,
+  differentiate(F fn,
                 ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
+    assert(fn && "Must pass in a non-0 argument");
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn, code);
   }
 

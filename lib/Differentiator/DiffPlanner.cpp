@@ -60,7 +60,8 @@ namespace clad {
 
                 auto callOperator = dyn_cast<CXXMethodDecl>(LR.front());
 
-                // Creating `DeclRefExpr` of the found overloaded call operator method,
+                /// Creating `DeclRefExpr` of the found overloaded call operator method,
+                /// to maintain consistency with member function differentiation.
                 CXXScopeSpec CSS;
                 CSS.Extend(
                     m_SemaRef.getASTContext(), RD->getIdentifier(), noLoc, noLoc);
@@ -73,6 +74,13 @@ namespace clad {
                                              &CSS));
 
                 m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+                /// Creating Unary operator to maintain consistency with
+                /// member function differentiation.
+                if (m_RelevantAncestor) {
+                  auto newUnOp = m_SemaRef.BuildUnaryOp(nullptr,
+                  noLoc, UnaryOperatorKind::UO_AddrOf, m_FnDRE).get();
+                  *m_RelevantAncestor = newUnOp;
+                }
               } else {
                 TraverseStmt(VD->getInit());
               }
@@ -116,13 +124,27 @@ namespace clad {
     // using call->setArg(0, DRE) seems to be sufficient,
     // though the real AST allways contains the ImplicitCastExpr (function ->
     // function ptr cast) or UnaryOp (method ptr call).
-      
-    // Add the "&" operator
-    auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
-                                        noLoc,
-                                        UnaryOperatorKind::UO_AddrOf,
-                                        DRE).get();
-    call->setArg(derivedFnArgIdx, newUnOp);
+    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArgDREParent)) {
+      // Cast function to function pointer.
+      auto newCast = ImplicitCastExpr::Create(C,
+                                              C.getPointerType(FD->getType()),
+                                              oldCast->getCastKind(),
+                                              DRE,
+                                              nullptr,
+                                              oldCast->getValueKind()
+                                              CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
+      call->setArg(derivedFnArgIdx, newCast);
+    }
+    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArgDREParent)) {
+      // Add the "&" operator
+      auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
+                                          noLoc,
+                                          oldUnOp->getOpcode(),
+                                          DRE).get();
+      call->setArg(derivedFnArgIdx, newUnOp);
+    }
+    else
+      llvm_unreachable("Trying to differentiate something unsupported");
 
     // Update the code parameter.
     if (CXXDefaultArgExpr* Arg
