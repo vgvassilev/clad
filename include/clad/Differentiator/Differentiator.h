@@ -157,10 +157,9 @@ namespace clad {
     }
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
-    // ! Please confirm if `CUDA_HOST_DEVICE` should be added in the constructor overload.
     CUDA_HOST_DEVICE
     CladFunction(CladFunctionType f, const char* code, FunctorType& functor)
-        : CladFunction(f, code, &functor){};
+        : CladFunction(f, code, &functor) {};
 
     // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
     // i.e -lstdc++.
@@ -209,7 +208,7 @@ namespace clad {
   /// please see `clad::gradient`. 
   /// \param[in] fn function to differentiate 
   /// \param[in] args independent parameter information 
-  /// \return `CladFunction` object to access the corresponding derived function.
+  /// \returns `CladFunction` object to access the corresponding derived function.
   template <unsigned N = 1,
             typename ArgSpec = const char*,
             typename F,

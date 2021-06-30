@@ -15,7 +15,7 @@ using namespace clang;
 namespace clad {
   static SourceLocation noLoc;
 
-  /// Find and returns overloaded call operator.
+  /// Find and returns an overloaded call operator.
   ///
   /// \param[in] SemaRef reference to sema
   /// \param[in] RD
@@ -26,6 +26,7 @@ namespace clad {
             OverloadedOperatorKind::OO_Call);
     auto LR = RD->lookup(callOperatorDeclName);
 
+    // Currently we do not support differentiating overloaded functions
     assert(LR.size() == 1 && "Overloaded call operators "
                              "differentiation is not supported");
 
@@ -38,8 +39,7 @@ namespace clad {
   // argument's DeclRefExpr
   // Here relevant ancestor is nearest ancestor of ImplicitCastExpr or 
   // UnaryOperator type.
-  DeclRefExpr* getArgFunction(CallExpr* call,
-                              Sema& SemaRef,
+  DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef,
                               Expr** relevantAncestor = nullptr) {
     struct Finder :
       RecursiveASTVisitor<Finder> {
@@ -60,9 +60,9 @@ namespace clad {
           if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
             if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
               auto varType = VD->getType().getTypePtr();
-              /// If variable is of class type, set `m_FnDRE` to
-              /// `DeclRefExpr` of overloaded call operator method of
-              /// the class type.
+              // If variable is of class type, set `m_FnDRE` to
+              // `DeclRefExpr` of overloaded call operator method of
+              // the class type.
               if (varType->isStructureOrClassType()) {
                 auto RD = varType->getAsCXXRecordDecl();
                 auto callOperator = getOverloadedCallOperator(m_SemaRef, RD);
@@ -75,9 +75,9 @@ namespace clad {
                            /*Identifier=*/RD->getIdentifier(),
                            /*IdentifierLoc=*/noLoc,
                            /*ColonColonLoc=*/noLoc);
-                /// `ExprValueKind::VK_RValue` is used because functions are
-                /// decomposed to function pointers and thus a temporary is
-                /// created for the function pointer.
+                // `ExprValueKind::VK_RValue` is used because functions are
+                // decomposed to function pointers and thus a temporary is
+                // created for the function pointer.
                 auto newFnDRE = clad_compat::GetResult<Expr*>(
                     m_SemaRef.BuildDeclRefExpr(callOperator,
                                                callOperator->getType(),

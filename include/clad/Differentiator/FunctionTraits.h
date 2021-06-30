@@ -398,6 +398,11 @@ namespace clad {
   ///   operator member function of the class.
   ///
   /// - For all other cases, no member typedef `type` is provided.
+  ///
+  /// This type trait is specific to forward mode differentiation since the
+  /// rules for computing the signature of derived functions are different for 
+  /// forward and reverse mode.
+  
   template <class F, class = void> struct ExtractDerivedFnTraitsForwMode {};
 
   /// Helper type for ExtractDerivedFnTraitsForwMode
