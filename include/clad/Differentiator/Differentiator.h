@@ -72,14 +72,15 @@ namespace clad {
   /// Helper function for executing non-member derived functions.
   /// RedundantType is only present to keep signature same as of execute_helper
   /// member function counterpart.
-  template<class F, class RedundantType, class... Args> 
-  return_type_t<F> execute_helper(F f, RedundantType* redundant, Args&&... args) {
-      return f(static_cast<Args>(args)... );
+  template <class F, class RedundantType, class... Args>
+  return_type_t<F>
+  execute_helper(F f, RedundantType* redundant, Args&&... args) {
+    return f(static_cast<Args>(args)...);
   }
 
   /// Helper functions for executing member derived functions.
-  /// If user have passed object explicitly, then this specialization will be used and 
-  /// derived fn will be called through the passed object.
+  /// If user have passed object explicitly, then this specialization will be
+  /// used and derived fn will be called through the passed object.
   template <class ReturnType,
             class C,
             class FunctorType,
@@ -97,8 +98,9 @@ namespace clad {
     return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
   }
 
-  // If user have not passed object explicitly, then this specialization will be used
-  // and derived fn will be called through the object saved in `CladFunction`.
+  /// If user have not passed object explicitly, then this specialization will
+  /// be used and derived fn will be called through the object saved in
+  /// `CladFunction`.
   template <class ReturnType,
             class C,
             class FunctorType,
@@ -108,6 +110,8 @@ namespace clad {
             class... Args>
   auto execute_helper(ReturnType C::*f, FunctorType* functor, Args&&... args)
       -> return_type_t<decltype(f)> {
+    assert(functor && "No default object set, explicitly pass an object to "
+                      "CladFunction::execute");
     return (functor->*f)(static_cast<Args>(args)...);
   }
 
@@ -118,7 +122,8 @@ namespace clad {
   /// const correctness of functor types.
   /// Default value of `Functor` here is temporary, and should be removed once all
   /// clad differentiation functions support differentiating functors.
-  template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>> class CladFunction {
+  template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>>
+  class CladFunction {
   public:
     using CladFunctionType = F;
     using FunctorType = FunctorT;
@@ -196,13 +201,14 @@ namespace clad {
   // This will be useful in fucture when we are ready to support partial diff.
   //
 
-  /// \brief Differentiates function using forward mode.
+  /// Differentiates function using forward mode.
   ///
-  /// Performs partial differentiation of the `fn` argument using forward mode wrt
-  /// parameter specified in `args`. To differentiate `fn` wrt several parameters, 
-  /// please see `clad::gradient`.
-  /// \param[in] fn function to differentiate
-  /// \param[in] args independent parameter information
+  /// Performs partial differentiation of the `fn` argument using forward mode
+  /// wrt parameter specified in `args`. Template parameter `N` denotes
+  /// the derivative order. To differentiate `fn` wrt several parameters,
+  /// please see `clad::gradient`. 
+  /// \param[in] fn function to differentiate 
+  /// \param[in] args independent parameter information 
   /// \return `CladFunction` object to access the corresponding derived function.
   template <unsigned N = 1,
             typename ArgSpec = const char*,
@@ -210,13 +216,15 @@ namespace clad {
             typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("D")))
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("D")))
   differentiate(F fn,
                 ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
     assert(fn && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn, code);
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                  code);
   }
 
   /// Specialization for differentiating functors.

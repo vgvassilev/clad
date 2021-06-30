@@ -14,7 +14,24 @@ using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
-  
+
+  /// Find and returns overloaded call operator.
+  ///
+  /// \param[in] SemaRef reference to sema
+  /// \param[in] RD
+  /// \returns found overloaded call operator
+  CXXMethodDecl* getOverloadedCallOperator(Sema& SemaRef, CXXRecordDecl* RD) {
+    auto callOperatorDeclName =
+        SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
+            OverloadedOperatorKind::OO_Call);
+    auto LR = RD->lookup(callOperatorDeclName);
+
+    assert(LR.size() == 1 && "Overloaded call operators "
+                             "differentiation is not supported");
+
+    return cast<CXXMethodDecl>(LR.front());
+  }
+
   // Returns DeclRefExpr of function argument of differentiation calls.
   // If argument is passed for relevantAncestor, then it's value will be 
   // modified in-place to contain relevant ancestor of the function 
@@ -43,42 +60,41 @@ namespace clad {
           if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
             if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
               auto varType = VD->getType().getTypePtr();
-              /// If variable is of class type, set `m_FnDRE` to 
-              /// `DeclRefExpr` of overloaded call operator method of 
+              /// If variable is of class type, set `m_FnDRE` to
+              /// `DeclRefExpr` of overloaded call operator method of
               /// the class type.
               if (varType->isStructureOrClassType()) {
                 auto RD = varType->getAsCXXRecordDecl();
-                // Finding overloaded call operator method.
-                auto callOperatorDeclName =
-                    m_SemaRef.getASTContext()
-                        .DeclarationNames.getCXXOperatorName(
-                            OverloadedOperatorKind::OO_Call);
-                auto LR = RD->lookup(callOperatorDeclName);
+                auto callOperator = getOverloadedCallOperator(m_SemaRef, RD);
 
-                assert(LR.size() == 1 && "Overloaded call operators "
-                                         "differentiation is not supported");
-
-                auto callOperator = dyn_cast<CXXMethodDecl>(LR.front());
-
-                /// Creating `DeclRefExpr` of the found overloaded call operator method,
-                /// to maintain consistency with member function differentiation.
+                // Creating `DeclRefExpr` of the found overloaded call operator
+                // method, to maintain consistency with member function
+                // differentiation.
                 CXXScopeSpec CSS;
-                CSS.Extend(
-                    m_SemaRef.getASTContext(), RD->getIdentifier(), noLoc, noLoc);
-                // TODO: Remove dependency of using `ExprValueKind::VK_RValue` constant
+                CSS.Extend(/*Context=*/m_SemaRef.getASTContext(),
+                           /*Identifier=*/RD->getIdentifier(),
+                           /*IdentifierLoc=*/noLoc,
+                           /*ColonColonLoc=*/noLoc);
+                /// `ExprValueKind::VK_RValue` is used because functions are
+                /// decomposed to function pointers and thus a temporary is
+                /// created for the function pointer.
                 auto newFnDRE = clad_compat::GetResult<Expr*>(
                     m_SemaRef.BuildDeclRefExpr(callOperator,
-                                             callOperator->getType(),
-                                             ExprValueKind::VK_RValue,
-                                             noLoc,
-                                             &CSS));
-
+                                               callOperator->getType(),
+                                               ExprValueKind::VK_RValue,
+                                               noLoc,
+                                               &CSS));
                 m_FnDRE = cast<DeclRefExpr>(newFnDRE);
-                /// Creating Unary operator to maintain consistency with
-                /// member function differentiation.
+
+                // Creating Unary operator to maintain consistency with
+                // member function differentiation.
                 if (m_RelevantAncestor) {
-                  auto newUnOp = m_SemaRef.BuildUnaryOp(nullptr,
-                  noLoc, UnaryOperatorKind::UO_AddrOf, m_FnDRE).get();
+                  auto newUnOp = m_SemaRef
+                                     .BuildUnaryOp(nullptr,
+                                                   noLoc,
+                                                   UnaryOperatorKind::UO_AddrOf,
+                                                   m_FnDRE)
+                                     .get();
                   *m_RelevantAncestor = newUnOp;
                 }
               } else {
