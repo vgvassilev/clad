@@ -6,6 +6,7 @@
   agenda:
     - title: "ORC 2021 -- Recent developments and future work in LLVM's JIT APIs"
       speaker: "Lang Hames, Apple"
+      link: "[Slides](/assets/presentations/L_Hames-CaaS_ORC_JitLink.pdf)"
     - title: Update
       speaker: Vassil
       link: "[Slides](/assets/presentations/CaaS_01_07_2021.pdf)"
