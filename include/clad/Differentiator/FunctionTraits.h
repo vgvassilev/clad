@@ -3,6 +3,8 @@
 #include <type_traits>
 
 namespace clad {
+  // forward declaring it so that it can be used in return_type
+  class NoFunction;
 
   // Trait class to deduce return type of function(both member and non-member) at commpile time
   // Only function pointer types are supported by this trait class
@@ -122,6 +124,11 @@ namespace clad {
   template <class ReturnType, class C, class... Args> 
   struct return_type<ReturnType (C::*)(Args..., ...) const volatile &&> { 
     using type = ReturnType; 
+  };
+
+  template<>
+  struct return_type<NoFunction*> {
+    using type = void;
   };
 
   // specializations for noexcept member functions
@@ -376,7 +383,7 @@ namespace clad {
   template <typename C>
   struct has_call_operator<
       C,
-      typename std::enable_if<(sizeof(&C::operator()) > 0)>::type>
+      typename std::enable_if<(sizeof(&remove_reference_and_pointer_t<C>::operator()) > 0)>::type>
       : std::true_type {};
 
   /// Compute type of derived function of function, method or functor when
@@ -403,6 +410,12 @@ namespace clad {
   /// rules for computing the signature of derived functions are different for 
   /// forward and reverse mode.
   
+  /// Placeholder type for denoting no function type exists
+  ///
+  /// This is used by `ExtractDerivedFnTraitsForwMode` type trait as value
+  /// for member typedef `type` to denote no function type exists.
+  class NoFunction {};
+
   template <class F, class = void> struct ExtractDerivedFnTraitsForwMode {};
 
   /// Helper type for ExtractDerivedFnTraitsForwMode
@@ -428,17 +441,24 @@ namespace clad {
   };
 
   /// Specialization for class types
+  /// If class have exactly one user defined call operator, then defines
+  /// member typedef `type` same as the type of the call operator, otherwise
+  /// defines member typedef `type` as the type of `NoFunction*`.
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
       F,
       typename std::enable_if<
-          std::is_class<remove_reference_and_pointer_t<F>>::value>::type> {
+          std::is_class<remove_reference_and_pointer_t<F>>::value && has_call_operator<F>::value>::type> {
     using ClassType =
         typename std::decay<remove_reference_and_pointer_t<F>>::type;
-    static_assert(
-        has_call_operator<ClassType>::value,
-        "Passed object do not have overloaded call operator member function");
     using type = decltype(&ClassType::operator());
+  };
+template <class F>
+  struct ExtractDerivedFnTraitsForwMode<
+      F,
+      typename std::enable_if<
+          std::is_class<remove_reference_and_pointer_t<F>>::value && !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
   };
 
   /// Placeholder type for denoting no object type exists.

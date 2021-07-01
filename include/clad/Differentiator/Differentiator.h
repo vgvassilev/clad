@@ -167,17 +167,31 @@ namespace clad {
 
     CladFunctionType getFunctionPtr() { return m_Function; }
 
-
-    template <typename... Args> return_type_t<F> execute(Args &&... args) {
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute(Args&&... args) {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(0);
       }
       /// m_Functor is passed for both member and non-member functions.
       /// m_Functor is ignored when derived function is a free function or when
-      /// user have explicitly passed object through which derived function 
+      /// user have explicitly passed object through which derived function
       /// should be called.
       return execute_helper(m_Function, m_Functor, static_cast<Args>(args)...);
+    }
+
+    /// `Execute` overload to be used when derived function type cannot be
+    /// deduced. One reason for this can be when user tries to differentiate
+    /// an object of class which do not have user-defined call operator.
+    /// Error handling is handled in the clad side using clang diagnostics 
+    /// subsystem.
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute(Args&&... args) {
+      return static_cast<return_type_t<F>>(0);
     }
 
     /// Return the string representation for the generated derivative.

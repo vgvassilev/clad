@@ -14,25 +14,7 @@ using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
-
-  /// Find and returns an overloaded call operator.
-  ///
-  /// \param[in] SemaRef reference to sema
-  /// \param[in] RD
-  /// \returns found overloaded call operator
-  CXXMethodDecl* getOverloadedCallOperator(Sema& SemaRef, CXXRecordDecl* RD) {
-    auto callOperatorDeclName =
-        SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
-            OverloadedOperatorKind::OO_Call);
-    auto LR = RD->lookup(callOperatorDeclName);
-
-    // Currently we do not support differentiating overloaded functions
-    assert(LR.size() == 1 && "Overloaded call operators "
-                             "differentiation is not supported");
-
-    return cast<CXXMethodDecl>(LR.front());
-  }
-
+  
   // Returns DeclRefExpr of function argument of differentiation calls.
   // If argument is passed for relevantAncestor, then it's value will be 
   // modified in-place to contain relevant ancestor of the function 
@@ -44,75 +26,114 @@ namespace clad {
     struct Finder :
       RecursiveASTVisitor<Finder> {
         DeclRefExpr* m_FnDRE = nullptr;
+        Expr* m_Root;
         Expr** m_RelevantAncestor = nullptr;
         Sema& m_SemaRef;
-        Finder(Sema& SemaRef, Expr** relevantAncestor = nullptr)
-            : m_SemaRef(SemaRef), m_RelevantAncestor(relevantAncestor) {}
+        Finder(Sema& SemaRef, Expr* root, Expr** relevantAncestor = nullptr)
+            : m_SemaRef(SemaRef), m_Root(root),
+              m_RelevantAncestor(relevantAncestor) {
+          TraverseStmt(m_Root);
+        }
+
+        // Required for visiting lambda declarations.
+        bool shouldVisitImplicitCode() const { return true; }
+
+        // just required for computing relevantAncestor.
         bool VisitExpr(Expr* E) {
           if (m_RelevantAncestor) {
             switch (E->getStmtClass()) {
               case Stmt::StmtClass::ImplicitCastExprClass: LLVM_FALLTHROUGH;
               case Stmt::StmtClass::UnaryOperatorClass:
                 *m_RelevantAncestor = E;
-                break; 
+                break;
             }
           }
-          if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
-            if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-              auto varType = VD->getType().getTypePtr();
-              // If variable is of class type, set `m_FnDRE` to
-              // `DeclRefExpr` of overloaded call operator method of
-              // the class type.
-              if (varType->isStructureOrClassType()) {
-                auto RD = varType->getAsCXXRecordDecl();
-                auto callOperator = getOverloadedCallOperator(m_SemaRef, RD);
+          return true;
+        }
 
-                // Creating `DeclRefExpr` of the found overloaded call operator
-                // method, to maintain consistency with member function
-                // differentiation.
-                CXXScopeSpec CSS;
-                CSS.Extend(/*Context=*/m_SemaRef.getASTContext(),
-                           /*Identifier=*/RD->getIdentifier(),
-                           /*IdentifierLoc=*/noLoc,
-                           /*ColonColonLoc=*/noLoc);
-                // `ExprValueKind::VK_RValue` is used because functions are
-                // decomposed to function pointers and thus a temporary is
-                // created for the function pointer.
-                auto newFnDRE = clad_compat::GetResult<Expr*>(
-                    m_SemaRef.BuildDeclRefExpr(callOperator,
-                                               callOperator->getType(),
-                                               ExprValueKind::VK_RValue,
-                                               noLoc,
-                                               &CSS));
-                m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+        bool VisitDeclRefExpr(DeclRefExpr* DRE) {
+          if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            auto varType = VD->getType().getTypePtr();
+            // If variable is of class type, set `m_FnDRE` to
+            // `DeclRefExpr` of overloaded call operator method of
+            // the class type.
+            if (varType->isStructureOrClassType()) {
+              auto RD = varType->getAsCXXRecordDecl();
+              TraverseDecl(RD);
+            } else {
+              TraverseStmt(VD->getInit());
+            }
+          } else if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+            m_FnDRE = DRE;
+          return false;
+        }
 
-                // Creating Unary operator to maintain consistency with
-                // member function differentiation.
-                if (m_RelevantAncestor) {
-                  auto newUnOp = m_SemaRef
-                                     .BuildUnaryOp(nullptr,
-                                                   noLoc,
-                                                   UnaryOperatorKind::UO_AddrOf,
-                                                   m_FnDRE)
-                                     .get();
-                  *m_RelevantAncestor = newUnOp;
-                }
-              } else {
-                TraverseStmt(VD->getInit());
-              }
-            } else if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
-              m_FnDRE = DRE;
+        bool VisitCXXRecordDecl(CXXRecordDecl* RD) {
+          auto callOperatorDeclName =
+              m_SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
+                  OverloadedOperatorKind::OO_Call);
+          auto LR = RD->lookup(callOperatorDeclName);
+
+          if (LR.empty()) {
+            const char diagFmt[] =
+                "No call operator is defined for the class %0";
+            auto diagId =
+                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
+                                                diagFmt);
+            m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
+          } else if (LR.size() > 1) {
+            const char diagFmt[] =
+                "Class %0 defines multiple overloads of call operator. "
+                "Multiple overloads of call operators are not supported.";
+            auto diagId =
+                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
+                                                diagFmt);
+            m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
+          }
+
+          if (LR.size() != 1) {
             return false;
           }
-          return true; 
+
+          auto callOperator = cast<CXXMethodDecl>(LR.front());
+          // Creating `DeclRefExpr` of the found overloaded call operator
+          // method, to maintain consistency with member function
+          // differentiation.
+          CXXScopeSpec CSS;
+          CSS.Extend(/*Context=*/m_SemaRef.getASTContext(),
+                     /*Identifier=*/RD->getIdentifier(),
+                     /*IdentifierLoc=*/noLoc,
+                     /*ColonColonLoc=*/noLoc);
+
+          // `ExprValueKind::VK_RValue` is used because functions are
+          // decomposed to function pointers and thus a temporary is
+          // created for the function pointer.
+          auto newFnDRE = clad_compat::GetResult<Expr*>(
+              m_SemaRef.BuildDeclRefExpr(callOperator,
+                                         callOperator->getType(),
+                                         ExprValueKind::VK_RValue,
+                                         noLoc,
+                                         &CSS));
+          m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+
+          // Creating Unary operator to maintain consistency with
+          // member function differentiation.
+          if (m_RelevantAncestor) {
+            auto newUnOp = m_SemaRef
+                               .BuildUnaryOp(nullptr,
+                                             noLoc,
+                                             UnaryOperatorKind::UO_AddrOf,
+                                             m_FnDRE)
+                               .get();
+            *m_RelevantAncestor = newUnOp;
+          }
+          return false;
         }
-      } finder(SemaRef, relevantAncestor);
+    } finder(SemaRef, call->getArg(0), relevantAncestor);
 
       assert(cast<NamespaceDecl>(call->getDirectCallee()->
              getDeclContext())->getName() == "clad" &&
              "Should be called for clad:: special functions!");
-
-      finder.TraverseStmt(call->getArg(0));
       return finder.m_FnDRE;
   }
 
