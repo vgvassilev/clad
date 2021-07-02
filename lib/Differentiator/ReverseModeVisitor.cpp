@@ -445,51 +445,10 @@ namespace clad {
 
       Expr* callExpr = nullptr;
       if (auto* gradientCMD = dyn_cast<CXXMethodDecl>(gradientFD)) {
-        auto* thisExpr = new (m_Context)
-            CXXThisExpr(noLoc, gradientCMD->getThisType(), true);
-        m_Sema.CheckCXXThisCapture(thisExpr->getExprLoc());
-        auto memberExpr = MemberExpr::Create(
-            m_Context,
-            thisExpr,
-            true,
-            noLoc,
-            NestedNameSpecifierLoc(gradientCMD->getQualifier(), nullptr),
-            noLoc,
-            gradientCMD,
-            DeclAccessPair::make(gradientCMD, gradientCMD->getAccess()),
-            gradientCMD->getNameInfo(),
-            nullptr,
-            m_Context.BoundMemberTy,
-            ExprValueKind::VK_RValue,
-            ExprObjectKind::OK_Ordinary,
-            NOUR_None);
-        callExpr =
-            m_Sema
-                .BuildCallToMemberFunction(
-                    getCurrentScope(), memberExpr, noLoc, callArgsRef, noLoc)
-                .get();
+        callExpr = BuildCallExprToMemFn(gradientCMD, callArgsRef);
       } else {
         assert(isa<FunctionDecl>(gradientFD) && "Unexpected!");
-        Expr* DRE = DeclRefExpr::Create(m_Context,
-                                        NestedNameSpecifierLoc(),
-                                        noLoc,
-                                        gradientFD,
-                                        false,
-                                        gradientFD->getNameInfo(),
-                                        gradientFD->getType(),
-                                        ExprValueKind::VK_LValue);
-        Expr* ICE = ImplicitCastExpr::Create(
-            m_Context,
-            m_Context.getPointerType(gradientFD->getType()),
-            CastKind::CK_FunctionToPointerDecay,
-            DRE,
-            nullptr,
-            ExprValueKind::VK_LValue CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO);
-
-        callExpr = m_Sema
-                       .ActOnCallExpr(
-                           getCurrentScope(), ICE, noLoc, callArgsRef, noLoc)
-                       .get();
+        callExpr = BuildCallExprToFunction(gradientFD, callArgsRef);
       }
       addToCurrentBlock(
           ReturnStmt::Create(m_Context, noLoc, callExpr, nullptr));
