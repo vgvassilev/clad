@@ -74,6 +74,7 @@ namespace clad {
                   OverloadedOperatorKind::OO_Call);
           auto LR = RD->lookup(callOperatorDeclName);
 
+          // Emit error diagnostics
           if (LR.empty()) {
             const char diagFmt[] =
                 "No call operator is defined for the class %0";
@@ -91,6 +92,8 @@ namespace clad {
             m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
           }
 
+          // Multiple overloads of call operators are not supported,
+          // thus class should have exactly one user-defined call operator.
           if (LR.size() != 1) {
             return false;
           }
@@ -109,22 +112,23 @@ namespace clad {
           // decomposed to function pointers and thus a temporary is
           // created for the function pointer.
           auto newFnDRE = clad_compat::GetResult<Expr*>(
-              m_SemaRef.BuildDeclRefExpr(callOperator,
-                                         callOperator->getType(),
-                                         ExprValueKind::VK_RValue,
-                                         noLoc,
-                                         &CSS));
+              m_SemaRef.BuildDeclRefExpr(/*D=*/callOperator,
+                                         /*Ty=*/callOperator->getType(),
+                                         /*VK=*/ExprValueKind::VK_RValue,
+                                         /*Loc=*/noLoc,
+                                         /*SS=*/&CSS));
           m_FnDRE = cast<DeclRefExpr>(newFnDRE);
 
           // Creating Unary operator to maintain consistency with
           // member function differentiation.
           if (m_RelevantAncestor) {
-            auto newUnOp = m_SemaRef
-                               .BuildUnaryOp(nullptr,
-                                             noLoc,
-                                             UnaryOperatorKind::UO_AddrOf,
-                                             m_FnDRE)
-                               .get();
+            auto newUnOp =
+                m_SemaRef
+                    .BuildUnaryOp(/*S=*/nullptr,
+                                  /*OpLoc=*/noLoc,
+                                  /*Opc=*/UnaryOperatorKind::UO_AddrOf,
+                                  /*Input=*/m_FnDRE)
+                    .get();
             *m_RelevantAncestor = newUnOp;
           }
           return false;

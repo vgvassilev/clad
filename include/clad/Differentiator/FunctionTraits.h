@@ -383,8 +383,15 @@ namespace clad {
   template <typename C>
   struct has_call_operator<
       C,
-      typename std::enable_if<(sizeof(&remove_reference_and_pointer_t<C>::operator()) > 0)>::type>
+      typename std::enable_if<(
+          sizeof(&remove_reference_and_pointer_t<C>::operator()) > 0)>::type>
       : std::true_type {};
+
+  /// Placeholder type for denoting no function type exists
+  ///
+  /// This is used by `ExtractDerivedFnTraitsForwMode` type trait as value
+  /// for member typedef `type` to denote no function type exists.
+  class NoFunction {};
 
   /// Compute type of derived function of function, method or functor when
   /// differentiated using forward differentiation mode (`clad::differentiate`).
@@ -409,13 +416,6 @@ namespace clad {
   /// This type trait is specific to forward mode differentiation since the
   /// rules for computing the signature of derived functions are different for 
   /// forward and reverse mode.
-  
-  /// Placeholder type for denoting no function type exists
-  ///
-  /// This is used by `ExtractDerivedFnTraitsForwMode` type trait as value
-  /// for member typedef `type` to denote no function type exists.
-  class NoFunction {};
-
   template <class F, class = void> struct ExtractDerivedFnTraitsForwMode {};
 
   /// Helper type for ExtractDerivedFnTraitsForwMode
@@ -448,16 +448,18 @@ namespace clad {
   struct ExtractDerivedFnTraitsForwMode<
       F,
       typename std::enable_if<
-          std::is_class<remove_reference_and_pointer_t<F>>::value && has_call_operator<F>::value>::type> {
+          std::is_class<remove_reference_and_pointer_t<F>>::value &&
+          has_call_operator<F>::value>::type> {
     using ClassType =
         typename std::decay<remove_reference_and_pointer_t<F>>::type;
     using type = decltype(&ClassType::operator());
   };
-template <class F>
+  template <class F>
   struct ExtractDerivedFnTraitsForwMode<
       F,
       typename std::enable_if<
-          std::is_class<remove_reference_and_pointer_t<F>>::value && !has_call_operator<F>::value>::type> {
+          std::is_class<remove_reference_and_pointer_t<F>>::value &&
+          !has_call_operator<F>::value>::type> {
     using type = NoFunction*;
   };
 

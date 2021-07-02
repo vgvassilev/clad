@@ -120,8 +120,8 @@ namespace clad {
   // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
   /// Explicitly passing `FunctorT` type is necessary for maintaining 
   /// const correctness of functor types.
-  /// Default value of `Functor` here is temporary, and should be removed once all
-  /// clad differentiation functions support differentiating functors.
+  /// Default value of `Functor` here is temporary, and should be removed 
+  /// once all clad differentiation functions support differentiating functors.
   template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>>
   class CladFunction {
   public:
