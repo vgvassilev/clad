@@ -75,6 +75,7 @@ namespace clad {
   template <class F, class RedundantType, class... Args>
   return_type_t<F>
   execute_helper(F f, RedundantType* redundant, Args&&... args) {
+    // `static_cast` is required here for perfect forwarding.
     return f(static_cast<Args>(args)...);
   }
 
@@ -95,6 +96,7 @@ namespace clad {
                       FunctorType* functor,
                       Obj&& obj,
                       Args&&... args) -> return_type_t<decltype(f)> {
+    // `static_cast` is required here for perfect forwarding.                       
     return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
   }
 
@@ -112,6 +114,7 @@ namespace clad {
       -> return_type_t<decltype(f)> {
     assert(functor && "No default object set, explicitly pass an object to "
                       "CladFunction::execute");
+    // `static_cast` is required here for perfect forwarding.
     return (functor->*f)(static_cast<Args>(args)...);
   }
 

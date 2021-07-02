@@ -20,9 +20,9 @@ struct ExperimentMultipleCallOperators {
 
 int main() {
   ExperimentNoCallOperator E_NoCallOperator;
-  auto d_NoCallOperator = clad::differentiate(E_NoCallOperator, "i"); // expected-error {{No call operator is defined for the class ExperimentNoCallOperator}}
+  auto d_NoCallOperator = clad::differentiate(E_NoCallOperator, "i"); // expected-error {{'ExperimentNoCallOperator' has no defined operator()}}
   d_NoCallOperator.execute(1, 3);
   ExperimentMultipleCallOperators E_MultipleCallOperators;
-  auto d_MultipleCallOperators = clad::differentiate(E_MultipleCallOperators, "i"); // expected-error {{Class ExperimentMultipleCallOperators defines multiple overloads of call operator. Multiple overloads of call operators are not supported.}}
+  auto d_MultipleCallOperators = clad::differentiate(E_MultipleCallOperators, "i"); // expected-error {{'ExperimentMultipleCallOperators' has multiple definitions of operator().Multiple definitions of call operators are not supported.}}
   d_MultipleCallOperators.execute(3, 5);
 }

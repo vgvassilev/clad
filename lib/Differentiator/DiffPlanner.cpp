@@ -77,15 +77,15 @@ namespace clad {
           // Emit error diagnostics
           if (LR.empty()) {
             const char diagFmt[] =
-                "No call operator is defined for the class %0";
+                "'%0' has no defined operator()";
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
             m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
           } else if (LR.size() > 1) {
             const char diagFmt[] =
-                "Class %0 defines multiple overloads of call operator. "
-                "Multiple overloads of call operators are not supported.";
+                "'%0' has multiple definitions of operator()."
+                "Multiple definitions of call operators are not supported.";
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
@@ -103,8 +103,8 @@ namespace clad {
           // method, to maintain consistency with member function
           // differentiation.
           CXXScopeSpec CSS;
-          CSS.Extend(/*Context=*/m_SemaRef.getASTContext(),
-                     /*Identifier=*/RD->getIdentifier(),
+          CSS.Extend(m_SemaRef.getASTContext(),
+                     RD->getIdentifier(),
                      /*IdentifierLoc=*/noLoc,
                      /*ColonColonLoc=*/noLoc);
 
@@ -112,11 +112,11 @@ namespace clad {
           // decomposed to function pointers and thus a temporary is
           // created for the function pointer.
           auto newFnDRE = clad_compat::GetResult<Expr*>(
-              m_SemaRef.BuildDeclRefExpr(/*D=*/callOperator,
-                                         /*Ty=*/callOperator->getType(),
-                                         /*VK=*/ExprValueKind::VK_RValue,
-                                         /*Loc=*/noLoc,
-                                         /*SS=*/&CSS));
+              m_SemaRef.BuildDeclRefExpr(callOperator,
+                                         callOperator->getType(),
+                                         ExprValueKind::VK_RValue,
+                                         noLoc,
+                                         &CSS));
           m_FnDRE = cast<DeclRefExpr>(newFnDRE);
 
           // Creating Unary operator to maintain consistency with
@@ -126,8 +126,8 @@ namespace clad {
                 m_SemaRef
                     .BuildUnaryOp(/*S=*/nullptr,
                                   /*OpLoc=*/noLoc,
-                                  /*Opc=*/UnaryOperatorKind::UO_AddrOf,
-                                  /*Input=*/m_FnDRE)
+                                  UnaryOperatorKind::UO_AddrOf,
+                                  m_FnDRE)
                     .get();
             *m_RelevantAncestor = newUnOp;
           }
