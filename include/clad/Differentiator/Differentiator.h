@@ -342,12 +342,10 @@ namespace clad {
   /// Function for Hessian matrix computation
   /// Given  a function f, clad::hessian generates all the second derivatives
   /// of the original function, (they are also columns of a Hessian matrix)
-  template <typename ArgSpec = const char*,
-            typename F,
-            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+  template <typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = HessianDerivedFnTraits_t<F>>
   CladFunction<DerivedFnType> __attribute__((annotate("H")))
-  hessian(F f,
-          ArgSpec args = "",
+  hessian(F f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
           const char* code = "") {
     assert(f && "Must pass in a non-0 argument");

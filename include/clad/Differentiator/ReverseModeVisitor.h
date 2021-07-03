@@ -264,6 +264,7 @@ namespace clad {
     StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+    StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
     /// A helper method to differentiate a single Stmt in the reverse mode.
