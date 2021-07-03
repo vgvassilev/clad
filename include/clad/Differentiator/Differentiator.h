@@ -208,6 +208,23 @@ namespace clad {
     void dump() const {
       printf("The code is: %s\n", getCode());
     }
+
+    /// Set object pointed by the functor as the default object for
+    /// executing derived member function.
+    void setObject(FunctorType* functor) {
+      m_Functor = functor;
+    } 
+
+    /// Set functor object as the default object for executing derived
+    // member function.
+    void setObject(FunctorType& functor) {
+      m_Functor = &functor;
+    }
+
+    /// Clears default object (if any) for executing derived member function.
+    void clearObject() {
+      m_Functor = nullptr;
+    }
   };
 
   // This is the function which will be instantiated with the concrete arguments
