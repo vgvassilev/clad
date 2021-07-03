@@ -211,7 +211,7 @@ namespace clad {
 
     m_DerivativeInFlight = false;
 
-    return {result.first, result.second, nullptr};
+    return OverloadedDeclWithContext{result.first, result.second, nullptr};
   }
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {

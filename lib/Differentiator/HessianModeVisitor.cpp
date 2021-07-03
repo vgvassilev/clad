@@ -330,6 +330,6 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return {result.first, result.second, nullptr};
+    return OverloadedDeclWithContext{result.first, result.second, nullptr};
   }
 } // end namespace clad

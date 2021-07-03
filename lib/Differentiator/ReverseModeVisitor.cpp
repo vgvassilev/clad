@@ -456,7 +456,9 @@ namespace clad {
       gradientOverloadFD->setBody(gradientOverloadBody);
     }
 
-    return {result.first, result.second, gradientOverloadFD};
+    return OverloadedDeclWithContext{result.first,
+                                     result.second,
+                                     gradientOverloadFD};
   }
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
