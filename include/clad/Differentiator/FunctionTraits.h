@@ -389,7 +389,7 @@ namespace clad {
   template <class T> struct JacobianDerivedFnTraits {};
 
   // JacobianDerivedFnTraits is used to deduce type of the derived functions
-  // derived using reverse modes
+  // derived using jacobian mode
   template <class T>
   using JacobianDerivedFnTraits_t = typename JacobianDerivedFnTraits<T>::type;
 
