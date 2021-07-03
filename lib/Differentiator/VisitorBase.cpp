@@ -647,6 +647,12 @@ namespace clad {
                                 /*MemberFunctionName=*/"size", {});
   }
 
+  Expr* VisitorBase::BuildArrayRefSliceExpr(Expr* Base,
+                                            MutableArrayRef<Expr*> Args) {
+    return BuildCallExprToMemFn(Base, /*isArrow=*/false,
+                                /*MemberFunctionName=*/"slice", Args);
+  }
+
   bool VisitorBase::isArrayRefType(QualType QT) {
     return QT.getAsString().find("clad::array_ref") != std::string::npos;
   }

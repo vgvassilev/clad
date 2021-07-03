@@ -1882,6 +1882,14 @@ namespace clad {
     return StmtDiff(Clone(ME));
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitExprWithCleanups(const ExprWithCleanups* EWC) {
+    StmtDiff subExprDiff = Visit(EWC->getSubExpr(), dfdx());
+    // FIXME: We are unable to create cleanup objects currently, this can be
+    // potentially problematic
+    return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
+  }
+
   bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
     if (isInsideLoop)
       return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
