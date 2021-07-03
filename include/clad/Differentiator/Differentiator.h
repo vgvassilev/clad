@@ -69,55 +69,6 @@ namespace clad {
     return of.back();
   }
 
-  /// Helper function for executing non-member derived functions.
-  /// RedundantType is only present to keep signature same as of execute_helper
-  /// member function counterpart.
-  template <class F, class RedundantType, class... Args>
-  return_type_t<F>
-  execute_helper(F f, RedundantType* redundant, Args&&... args) {
-    // `static_cast` is required here for perfect forwarding.
-    return f(static_cast<Args>(args)...);
-  }
-
-  /// Helper functions for executing member derived functions.
-  /// If user have passed object explicitly, then this specialization will be
-  /// used and derived fn will be called through the passed object.
-  template <class ReturnType,
-            class C,
-            class FunctorType,
-            class Obj,
-            class = typename std::enable_if<
-                std::is_same<typename std::remove_cv<FunctorType>::type,
-                             C>::value>::type,
-            class = typename std::enable_if<
-                std::is_same<typename std::decay<Obj>::type, C>::value>::type,
-            class... Args>
-  auto execute_helper(ReturnType C::*f,
-                      FunctorType* functor,
-                      Obj&& obj,
-                      Args&&... args) -> return_type_t<decltype(f)> {
-    // `static_cast` is required here for perfect forwarding.                       
-    return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
-  }
-
-  /// If user have not passed object explicitly, then this specialization will
-  /// be used and derived fn will be called through the object saved in
-  /// `CladFunction`.
-  template <class ReturnType,
-            class C,
-            class FunctorType,
-            class = typename std::enable_if<
-                std::is_same<typename std::remove_cv<FunctorType>::type,
-                             C>::value>::type,
-            class... Args>
-  auto execute_helper(ReturnType C::*f, FunctorType* functor, Args&&... args)
-      -> return_type_t<decltype(f)> {
-    assert(functor && "No default object set, explicitly pass an object to "
-                      "CladFunction::execute");
-    // `static_cast` is required here for perfect forwarding.
-    return (functor->*f)(static_cast<Args>(args)...);
-  }
-
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
   // do not need. Another disadvantage is that it is difficult to distinguish a
   // 'normal' use of std::{function,mem_fn} from the ones we must differentiate.
@@ -178,11 +129,8 @@ namespace clad {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(0);
       }
-      /// m_Functor is passed for both member and non-member functions.
-      /// m_Functor is ignored when derived function is a free function or when
-      /// user have explicitly passed object through which derived function
-      /// should be called.
-      return execute_helper(m_Function, m_Functor, static_cast<Args>(args)...);
+      // here static_cast is used to achieve perfect forwarding
+      return execute_helper(m_Function, static_cast<Args>(args)...);
     }
 
     /// `Execute` overload to be used when derived function type cannot be
@@ -225,6 +173,42 @@ namespace clad {
     void clearObject() {
       m_Functor = nullptr;
     }
+
+    private:
+      /// Helper function for executing non-member derived functions.
+      template <class Fn, class... Args>
+      return_type_t<CladFunctionType> execute_helper(Fn f, Args&&... args) {
+        // `static_cast` is required here for perfect forwarding.
+        return f(static_cast<Args>(args)...);
+      }
+
+      /// Helper functions for executing member derived functions.
+      /// If user have passed object explicitly, then this specialization will
+      /// be used and derived function will be called through the passed object.
+      template <
+          class ReturnType,
+          class C,
+          class Obj,
+          class = typename std::enable_if<
+              std::is_same<typename std::decay<Obj>::type, C>::value>::type,
+          class... Args>
+      return_type_t<CladFunctionType>
+      execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) {
+        // `static_cast` is required here for perfect forwarding.
+        return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
+      }
+      /// If user have not passed object explicitly, then this specialization
+      /// will be used and derived function will be called through the object
+      /// saved in `CladFunction`.
+      template <class ReturnType, class C, class... Args>
+      return_type_t<CladFunctionType> execute_helper(ReturnType C::*f,
+                                                     Args&&... args) {
+        assert(m_Functor &&
+               "No default object set, explicitly pass an object to "
+               "CladFunction::execute");
+        // `static_cast` is required here for perfect forwarding.
+        return (m_Functor->*f)(static_cast<Args>(args)...);
+      }
   };
 
   // This is the function which will be instantiated with the concrete arguments
