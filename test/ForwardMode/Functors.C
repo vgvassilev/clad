@@ -103,9 +103,6 @@ namespace outer {
   }
 }
 
-
-  
-
 #define INIT(E)\
 auto d_##E = clad::differentiate(&E, "i");\
 auto d_##E##Ref = clad::differentiate(E, "i");

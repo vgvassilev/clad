@@ -14,25 +14,30 @@ using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
-  
-  // Returns DeclRefExpr of function argument of differentiation calls.
-  // If argument is passed for relevantAncestor, then it's value will be 
-  // modified in-place to contain relevant ancestor of the function 
-  // argument's DeclRefExpr
-  // Here relevant ancestor is nearest ancestor of ImplicitCastExpr or 
-  // UnaryOperator type.
+
+  /// Returns `DeclRefExpr` node corresponding to the function, method or
+  /// functor argument which is to be differentiated.
+  ///
+  /// Argument corresponding to `relevantAncestor` parameter will be updated to
+  /// have value of type `UnaryOperator` if `&` (address of) operator was
+  /// explicitly used to pass the function, otherwise it will have value of type
+  /// `ImplicitCastExpr`.
+  /// Arugment for `relevantAncestor` only needs to be passed if this
+  /// information is needed.
+  /// \param[in] call A clad differentiation function call expression
+  /// \param SemaRef Reference to Sema
+  /// \param[out] relevantAncestor
   DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef,
                               Expr** relevantAncestor = nullptr) {
     struct Finder :
       RecursiveASTVisitor<Finder> {
         DeclRefExpr* m_FnDRE = nullptr;
-        Expr* m_Root;
+        SourceLocation m_BeginLoc;
         Expr** m_RelevantAncestor = nullptr;
         Sema& m_SemaRef;
-        Finder(Sema& SemaRef, Expr* root, Expr** relevantAncestor = nullptr)
-            : m_SemaRef(SemaRef), m_Root(root),
+        Finder(Sema& SemaRef, SourceLocation beginLoc, Expr** relevantAncestor = nullptr)
+            : m_SemaRef(SemaRef), m_BeginLoc(beginLoc),
               m_RelevantAncestor(relevantAncestor) {
-          TraverseStmt(m_Root);
         }
 
         // Required for visiting lambda declarations.
@@ -76,12 +81,12 @@ namespace clad {
 
           // Emit error diagnostics
           if (LR.empty()) {
-            const char diagFmt[] =
-                "'%0' has no defined operator()";
+            const char diagFmt[] = "'%0' has no defined operator()";
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
-            m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
+            m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
+            return false;
           } else if (LR.size() > 1) {
             const char diagFmt[] =
                 "'%0' has multiple definitions of operator()."
@@ -89,18 +94,17 @@ namespace clad {
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
-            m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
+            m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
 
             // Emit diagnostics for candidate functions
             for (auto candidateFn : LR)
-              m_SemaRef.NoteOverloadCandidate(candidateFn, cast<FunctionDecl>(candidateFn));
-          }
-
-          // Multiple overloads of call operators are not supported,
-          // thus class should have exactly one user-defined call operator.
-          if (LR.size() != 1) {
+              m_SemaRef.NoteOverloadCandidate(candidateFn,
+                                              cast<FunctionDecl>(candidateFn));
             return false;
           }
+
+          assert(LR.size() == 1 &&
+                 "Multiple definitions of call operators are not supported");
 
           auto callOperator = cast<CXXMethodDecl>(LR.front());
           // Creating `DeclRefExpr` of the found overloaded call operator
@@ -137,12 +141,13 @@ namespace clad {
           }
           return false;
         }
-    } finder(SemaRef, call->getArg(0), relevantAncestor);
+    } finder(SemaRef, call->getArg(0)->getBeginLoc(), relevantAncestor);
+    finder.TraverseStmt(call->getArg(0));
 
-      assert(cast<NamespaceDecl>(call->getDirectCallee()->
-             getDeclContext())->getName() == "clad" &&
-             "Should be called for clad:: special functions!");
-      return finder.m_FnDRE;
+    assert(cast<NamespaceDecl>(call->getDirectCallee()->getDeclContext())
+                   ->getName() == "clad" &&
+           "Should be called for clad:: special functions!");
+    return finder.m_FnDRE;
   }
 
   void DiffRequest::updateCall(FunctionDecl* FD, Sema& SemaRef) {
