@@ -450,8 +450,7 @@ namespace clad {
         assert(isa<FunctionDecl>(gradientFD) && "Unexpected!");
         callExpr = BuildCallExprToFunction(gradientFD, callArgsRef);
       }
-      addToCurrentBlock(
-          ReturnStmt::Create(m_Context, noLoc, callExpr, nullptr));
+      addToCurrentBlock(callExpr);
       Stmt* gradientOverloadBody = endBlock();
 
       gradientOverloadFD->setBody(gradientOverloadBody);
