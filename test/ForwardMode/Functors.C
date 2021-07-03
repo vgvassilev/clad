@@ -5,206 +5,172 @@
 #include "clad/Differentiator/Differentiator.h"
 
 struct Experiment {
-  double x, y;
+  mutable double x, y;
   Experiment(double p_x, double p_y) : x(p_x), y(p_y) {}
-
   double operator()(double i, double j) {
-    return x*i + y*j;
+    return x*i*j;
+  }
+  void setX(double val) {
+    x = val;
   }
 
   // CHECK: double operator_call_darg0(double i, double j) {
-  // CHECK-NEXT:   double _d_i = 1;
-  // CHECK-NEXT:   double _d_j = 0;
-  // CHECK-NEXT:   double &_t0 = this->x;
-  // CHECK-NEXT:   double &_t1 = this->y;
-  // CHECK-NEXT:   return 0. * i + _t0 * _d_i + 0. * j + _t1 * _d_j;
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     double &_t0 = this->x;
+  // CHECK-NEXT:     double _t1 = _t0 * i;
+  // CHECK-NEXT:     return (0. * i + _t0 * _d_i) * j + _t1 * _d_j;
   // CHECK-NEXT: }
 };
 
-struct ExperimentConstCallOperator {
-  double x, y;
-  ExperimentConstCallOperator(double p_x, double p_y) : x(p_x), y(p_y) {}
-
+struct ExperimentConst {
+  mutable double x, y;
+  ExperimentConst(double p_x, double p_y) : x(p_x), y(p_y) {}
   double operator()(double i, double j) const {
-    return x*i + y*j;
+    return x*i*j;
+  }
+  void setX(double val) const {
+    x = val;
   }
 
-  // CHECK: double operator_call_darg0(double i, double j) {
-  // CHECK-NEXT:   double _d_i = 1;
-  // CHECK-NEXT:   double _d_j = 0;
-  // CHECK-NEXT:   double &_t0 = this->x;
-  // CHECK-NEXT:   double &_t1 = this->y;
-  // CHECK-NEXT:   return 0. * i + _t0 * _d_i + 0. * j + _t1 * _d_j;
+  // CHECK: double operator_call_darg0(double i, double j) const {
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     double &_t0 = this->x;
+  // CHECK-NEXT:     double _t1 = _t0 * i;
+  // CHECK-NEXT:     return (0. * i + _t0 * _d_i) * j + _t1 * _d_j;
   // CHECK-NEXT: }
 };
 
-namespace Outer {
-  namespace Inner {
-    struct Experiment {
-      double x, y;
-      Experiment(double p_x, double p_y) : x(p_x), y(p_y) {}
+struct ExperimentVolatile {
+  mutable double x, y;
+  ExperimentVolatile(double p_x, double p_y) : x(p_x), y(p_y) {}
+  double operator()(double i, double j) volatile {
+    return x*i*j;
+  }
+  void setX(double val) volatile {
+    x = val;
+  }
 
-      double operator()(double i, double j) { return x * i + y * j; }
+  // CHECK: double operator_call_darg0(double i, double j) volatile {
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     volatile double &_t0 = this->x;
+  // CHECK-NEXT:     double _t1 = _t0 * i;
+  // CHECK-NEXT:     return (0. * i + _t0 * _d_i) * j + _t1 * _d_j;
+  // CHECK-NEXT: }
+};
+
+struct ExperimentConstVolatile {
+  mutable double x, y;
+  ExperimentConstVolatile(double p_x, double p_y) : x(p_x), y(p_y) {}
+  double operator()(double i, double j) const volatile {
+    return x*i*j;
+  }
+  void setX(double val) const volatile {
+    x = val;
+  }
+
+  // CHECK: double operator_call_darg0(double i, double j) const volatile {
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     volatile double &_t0 = this->x;
+  // CHECK-NEXT:     double _t1 = _t0 * i;
+  // CHECK-NEXT:     return (0. * i + _t0 * _d_i) * j + _t1 * _d_j;
+  // CHECK-NEXT: }
+};
+
+namespace outer {
+  namespace inner {
+    struct ExperimentNNS {
+      mutable double x, y;
+      ExperimentNNS(double p_x, double p_y) : x(p_x), y(p_y) {}
+      double operator()(double i, double j) {
+        return x*i*j;
+      }
+      void setX(double val) {
+        x = val;
+      }
 
       // CHECK: double operator_call_darg0(double i, double j) {
-      // CHECK-NEXT:   double _d_i = 1;
-      // CHECK-NEXT:   double _d_j = 0;
-      // CHECK-NEXT:   double &_t0 = this->x;
-      // CHECK-NEXT:   double &_t1 = this->y;
-      // CHECK-NEXT:   return 0. * i + _t0 * _d_i + 0. * j + _t1 * _d_j;
-      // CHECK-NEXT: }
+      // CHECK-NEXT:     double _d_i = 1;
+      // CHECK-NEXT:     double _d_j = 0;
+      // CHECK-NEXT:     double &_t0 = this->x;
+      // CHECK-NEXT:     double _t1 = _t0 * i;
+      // CHECK-NEXT:     return (0. * i + _t0 * _d_i) * j + _t1 * _d_j;
+      // CHECK-NEXT: }   
     };
   }
 }
 
-class Widget {
-  mutable double x;
-  double y;
-public:
-  Widget(double p_x, double p_y) : x(p_x), y(p_y) {}
-  double operator()(double i, double j, double k) {
-    return x*(i+j) + y*k;
-  }
-  void setX(double p_x) {
-    x = p_x;
-  }
 
-  // CHECK: double operator_call_darg0(double i, double j, double k) {
-  // CHECK-NEXT:  double _d_i = 1;
-  // CHECK-NEXT:  double _d_j = 0;
-  // CHECK-NEXT:  double _d_k = 0;
-  // CHECK-NEXT:  double &_t0 = this->x;
-  // CHECK-NEXT:  double _t1 = (i + j);
-  // CHECK-NEXT:  double &_t2 = this->y;
-  // CHECK-NEXT:  return 0. * _t1 + _t0 * (_d_i + _d_j) + 0. * k + _t2 * _d_k;
-  // CHECK-NEXT:}
+  
 
-};
+#define INIT(E)\
+auto d_##E = clad::differentiate(&E, "i");\
+auto d_##E##Ref = clad::differentiate(E, "i");
 
-class WidgetConstCallOperator {
-  double y;
-  mutable double x;
-public:
-  WidgetConstCallOperator(double p_x, double p_y) : x(p_x), y(p_y) {}
-  double operator()(double i, double j, double k) const {
-    return x*(i+j) + y*k;
-  }
-  void setX(double p_x) const {
-    x = p_x;
-  }
+#define TEST(E)\
+printf("%.2f %.2f\n", d_##E.execute(7, 9), d_##E##Ref.execute(7, 9));
 
-  // CHECK: double operator_call_darg0(double i, double j, double k) {
-  // CHECK-NEXT:  double _d_i = 1;
-  // CHECK-NEXT:  double _d_j = 0;
-  // CHECK-NEXT:  double _d_k = 0;
-  // CHECK-NEXT:  double &_t0 = this->x;
-  // CHECK-NEXT:  double _t1 = (i + j);
-  // CHECK-NEXT:  double &_t2 = this->y;
-  // CHECK-NEXT:  return 0. * _t1 + _t0 * (_d_i + _d_j) + 0. * k + _t2 * _d_k;
-  // CHECK-NEXT:}
-
-};
-
-namespace Outer {
-  namespace Inner {
-    class Widget {
-      mutable double x;
-      double y;
-
-    public:
-      Widget(double p_x, double p_y) : x(p_x), y(p_y) {}
-      double operator()(double i, double j, double k) {
-        return x * (i + j) + y * k;
-      }
-      void setX(double p_x) { x = p_x; }
-
-      // CHECK: double operator_call_darg0(double i, double j, double k) {
-      // CHECK-NEXT:  double _d_i = 1;
-      // CHECK-NEXT:  double _d_j = 0;
-      // CHECK-NEXT:  double _d_k = 0;
-      // CHECK-NEXT:  double &_t0 = this->x;
-      // CHECK-NEXT:  double _t1 = (i + j);
-      // CHECK-NEXT:  double &_t2 = this->y;
-      // CHECK-NEXT:  return 0. * _t1 + _t0 * (_d_i + _d_j) + 0. * k + _t2 *
-      // _d_k; CHECK-NEXT:}
-    };
-  }
-}
-
-#define EXECUTE(CF, ...)\
-  printf("%.2f\n", CF.execute(__VA_ARGS__));
+double x=3;
 
 int main() {
-  Experiment E(11, 33);
-  Widget W(3, 7);
-
-  const ExperimentConstCallOperator constE(11, 33);
-  const WidgetConstCallOperator constW(3, 7);
-
-  Outer::Inner::Experiment NSE(33, 35);
-  Outer::Inner::Widget NSW(49, 121);
-
+  Experiment E(3, 5);
+  const ExperimentConst E_Const(3, 5);
+  volatile ExperimentVolatile E_Volatile(3, 5);
+  const volatile ExperimentConstVolatile E_ConstVolatile(3, 5);
+  outer::inner::ExperimentNNS E_NNS(3, 5);
   auto lambda = [](double i, double j) {
     return i*i*j;
   };
 
   // CHECK: inline double operator_call_darg0(double i, double j) const {
-  // CHECK-NEXT:   double _d_i = 1;
-  // CHECK-NEXT:   double _d_j = 0;
-  // CHECK-NEXT:   double _t0 = i * i;
-  // CHECK-NEXT:   return (_d_i * i + i * _d_i) * j + _t0 * _d_j;
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     double _t0 = x * i;
+  // CHECK-NEXT:     return (0 * i + x * _d_i) * j + _t0 * _d_j;
   // CHECK-NEXT: }
 
-  auto d_E = clad::differentiate(&E, "i");
-  auto d_ERef = clad::differentiate(E, "i");
-  auto d_constE = clad::differentiate(&constE, "i");
-  auto d_constERef = clad::differentiate(constE, "i");
-  auto d_NSE = clad::differentiate(&NSE, "i");
-  auto d_NSERef = clad::differentiate(NSE, "i");
+  auto lambdaWithCapture = [&](double i, double j) {
+    return x*i*j;
+  };
 
-  auto d_W = clad::differentiate(&W, "i");
-  auto d_WRef = clad::differentiate(W, "i");
-  auto d_constW = clad::differentiate(&constW, "i");
-  auto d_constWRef = clad::differentiate(constW, "i");
-  auto d_NSW = clad::differentiate(&NSW, "i");
-  auto d_NSWRef = clad::differentiate(NSW, "i");
+  // CHECK: inline double operator_call_darg0(double i, double j) const {
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     double _t0 = x * i;
+  // CHECK-NEXT:     return (0 * i + x * _d_i) * j + _t0 * _d_j;
+  // CHECK-NEXT: }
 
-  auto d_lambda = clad::differentiate(&lambda, "i");
-  auto d_lambdaRef = clad::differentiate(lambda, "i");
 
-  EXECUTE(d_E, 1, 3);         // CHECK-EXEC: 11.00
-  EXECUTE(d_ERef, 1, 3);      // CHECK-EXEC: 11.00
-  EXECUTE(d_constE, 1, 3);    // CHECK-EXEC: 11.00
-  EXECUTE(d_constERef, 1, 3); // CHECK-EXEC: 11.00
-  EXECUTE(d_NSE, 1, 3);       // CHECK-EXEC: 33.00
-  EXECUTE(d_NSERef, 1, 3);    // CHECK-EXEC: 33.00
+  INIT(E);
+  INIT(E_Const);
+  INIT(E_Volatile);
+  INIT(E_ConstVolatile);
+  INIT(E_NNS);
+  INIT(lambdaWithCapture);
+  INIT(lambda);
 
-  EXECUTE(d_W, 1, 3, 5);          // CHECK-EXEC: 3.00
-  EXECUTE(d_WRef, 1, 3, 5);       // CHECK-EXEC: 3.00
-  EXECUTE(d_constW, 1, 3, 5);     // CHECK-EXEC: 3.00
-  EXECUTE(d_constWRef, 1, 3, 5);  // CHECK-EXEC: 3.00
-  EXECUTE(d_NSW, 1, 3, 5);        // CHECK-EXEC: 49.00
-  EXECUTE(d_NSWRef, 1, 3, 5);     // CHECK-EXEC: 49.00
+  TEST(E);                // CHECK-EXEC: 27.00 27.00
+  TEST(E_Const);          // CHECK-EXEC: 27.00 27.00
+  TEST(E_Volatile);       // CHECK-EXEC: 27.00 27.00
+  TEST(E_ConstVolatile);  // CHECK-EXEC: 27.00 27.00
+  TEST(E_NNS);            // CHECK-EXEC: 27.00 27.00
+  TEST(lambda);           // CHECK-EXEC: 126.00 126.00
+  TEST(lambdaWithCapture);// CHECK-EXEC: 27.00 27.00
 
-  EXECUTE(d_lambda, 3, 5);    // CHECK-EXEC: 30.00
-  EXECUTE(d_lambdaRef, 3, 5); // CHECK-EXEC: 30.00
+  E.setX(6);
+  E_Const.setX(6);
+  E_Volatile.setX(6);
+  E_ConstVolatile.setX(6);
+  E_NNS.setX(6);
+  x = 6;
 
-  E.x = 121;
-  NSE.x = 289;
-
-  W.setX(9);
-  constW.setX(9);
-  NSW.setX(121);
-
-  EXECUTE(d_E, 1, 3);     // CHECK-EXEC: 121.00
-  EXECUTE(d_ERef, 1, 3);  // CHECK-EXEC: 121.00
-  EXECUTE(d_NSE, 1, 3);   // CHECK-EXEC: 289.00
-  EXECUTE(d_NSERef, 1, 3);// CHECK-EXEC: 289.00
-
-  EXECUTE(d_W, 1, 3, 5);          // CHECK-EXEC: 9.00
-  EXECUTE(d_WRef, 1, 3, 5);       // CHECK-EXEC: 9.00
-  EXECUTE(d_constW, 1, 3, 5);     // CHECK-EXEC: 9.00
-  EXECUTE(d_constWRef, 1, 3, 5);  // CHECK-EXEC: 9.00
-  EXECUTE(d_NSW, 1, 3, 5);        // CHECK-EXEC: 121.00
-  EXECUTE(d_NSWRef, 1, 3, 5);     // CHECK-EXEC: 121.00
+  TEST(E);                // CHECK-EXEC: 54.00 54.00
+  TEST(E_Const);          // CHECK-EXEC: 54.00 54.00
+  TEST(E_Volatile);       // CHECK-EXEC: 54.00 54.00
+  TEST(E_ConstVolatile);  // CHECK-EXEC: 54.00 54.00
+  TEST(E_NNS);            // CHECK-EXEC: 54.00 54.00
+  TEST(lambdaWithCapture);// CHECK-EXEC: 54.00 54.00
 }
