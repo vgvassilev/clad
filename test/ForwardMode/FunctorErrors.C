@@ -7,13 +7,13 @@ struct ExperimentNoCallOperator {
 };
 
 struct ExperimentMultipleCallOperators {
-  double operator()(double i, double j) {
+  double operator()(double i, double j) { // expected-note {{candidate function}}
     return i*j;
   }
-  double operator()(double i) {
+  double operator()(double i) { // expected-note {{candidate function}}
     return i*i;
   }
-  double operator()(double i) const {
+  double operator()(double i) const { // expected-note {{candidate function}}
     return i*i*i;
   }
 };
@@ -24,5 +24,4 @@ int main() {
   d_NoCallOperator.execute(1, 3);
   ExperimentMultipleCallOperators E_MultipleCallOperators;
   auto d_MultipleCallOperators = clad::differentiate(E_MultipleCallOperators, "i"); // expected-error {{'ExperimentMultipleCallOperators' has multiple definitions of operator().Multiple definitions of call operators are not supported.}}
-  d_MultipleCallOperators.execute(3, 5);
 }

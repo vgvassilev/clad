@@ -90,6 +90,10 @@ namespace clad {
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
             m_SemaRef.Diag(m_Root->getBeginLoc(), diagId) << RD->getName();
+
+            // Emit diagnostics for candidate functions
+            for (auto candidateFn : LR)
+              m_SemaRef.NoteOverloadCandidate(candidateFn, cast<FunctionDecl>(candidateFn));
           }
 
           // Multiple overloads of call operators are not supported,
