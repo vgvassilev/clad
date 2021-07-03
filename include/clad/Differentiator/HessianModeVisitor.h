@@ -27,8 +27,11 @@ namespace clad {
     /// A helper method that combines all the generated second derivatives
     /// (contained within a vector) obtained from Derive
     /// into a single FunctionDecl f_hessian
-    OverloadedDeclWithContext Merge(std::vector<clang::FunctionDecl*> Functions,
-                                    const DiffRequest& request);
+    OverloadedDeclWithContext
+    Merge(std::vector<clang::FunctionDecl*> secDerivFuncs,
+          const DiffRequest& request,
+          llvm::SmallVector<size_t, 16> IndependentArgsSize,
+          size_t TotalIndependentArgsSize);
 
   public:
     HessianModeVisitor(DerivativeBuilder& builder);

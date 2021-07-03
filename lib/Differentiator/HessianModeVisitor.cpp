@@ -31,6 +31,45 @@ namespace clad {
 
   HessianModeVisitor::~HessianModeVisitor() {}
 
+  static const StringLiteral*
+  CreateIndependentArgStringLiteral(ASTContext& C,
+                                    std::string independentArgString) {
+    QualType CharTyConst = C.CharTy.withConst();
+    QualType StrTy = clad_compat::getConstantArrayType(
+        C,
+        CharTyConst,
+        llvm::APInt(32, independentArgString.size() + 1),
+        nullptr,
+        ArrayType::Normal,
+        /*IndexTypeQuals*/ 0);
+    const StringLiteral* IndependentArgStringLiteral = StringLiteral::Create(
+        C, independentArgString, StringLiteral::Ascii, false, StrTy, noLoc);
+    return IndependentArgStringLiteral;
+  }
+
+  static FunctionDecl*
+  DeriveUsingForwardAndReverseMode(clad::plugin::CladPlugin& CP,
+                                   DiffRequest IndependentArgRequest,
+                                   const Expr* ForwardModeArgs,
+                                   const Expr* ReverseModeArgs) {
+    // Derives function once in forward mode w.r.t to ForwardModeArgs
+    IndependentArgRequest.Args = ForwardModeArgs;
+    IndependentArgRequest.Mode = DiffMode::forward;
+    IndependentArgRequest.CallUpdateRequired = false;
+    // FIXME: Find a way to do this without accessing plugin namespace functions
+    FunctionDecl* firstDerivative =
+        plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+
+    // Further derives function w.r.t to ReverseModeArgs
+    IndependentArgRequest.Mode = DiffMode::reverse;
+    IndependentArgRequest.Function = firstDerivative;
+    IndependentArgRequest.Args = ReverseModeArgs;
+    FunctionDecl* secondDerivative =
+        plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+
+    return secondDerivative;
+  }
+
   OverloadedDeclWithContext
   HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
                              const DiffRequest& request) {
@@ -42,48 +81,91 @@ namespace clad {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
     std::vector<FunctionDecl*> secondDerivativeColumns;
+    llvm::SmallVector<size_t, 16> IndependentArgsSize{};
+    size_t TotalIndependentArgsSize = 0;
 
     // Ascertains the independent arguments and differentiates the function
     // in forward and reverse mode by calling ProcessDiffRequest twice each
     // iteration, storing each generated second derivative function
     // (corresponds to columns of Hessian matrix) in a vector for private method
     // merge.
-    for (auto independentArg : args) {
-      DiffRequest independentArgRequest = request;
-      // Converts an independent argument from VarDecl to a StringLiteral Expr
-      QualType CharTyConst = m_Context.CharTy.withConst();
-      QualType StrTy = clad_compat::getConstantArrayType(
-          m_Context,
-          CharTyConst,
-          llvm::APInt(32, independentArg->getNameAsString().size() + 1),
-          nullptr,
-          ArrayType::Normal,
-          /*IndexTypeQuals*/ 0);
-      StringLiteral* independentArgString =
-          StringLiteral::Create(m_Context,
-                                independentArg->getName(),
-                                StringLiteral::Ascii,
-                                false,
-                                StrTy,
-                                noLoc);
+    for (auto PVD : FD->parameters()) {
+      auto it = std::find(std::begin(args), std::end(args), PVD);
+      if (it != args.end()) {
+        // Using the properties of a vector to find the index of the requested
+        // arg
+        auto argIndex = it - args.begin();
+        if (isArrayOrPointerType(PVD->getType())) {
+          if (indexIntervalTable.size() == 0 ||
+              indexIntervalTable[argIndex].size() == 0) {
+            std::string suggestedArgsStr{};
+            if (auto SL = dyn_cast<StringLiteral>(
+                    request.Args->IgnoreParenImpCasts())) {
+              llvm::StringRef str = SL->getString().trim();
+              llvm::StringRef name{};
+              do {
+                std::tie(name, str) = str.split(',');
+                if (name.trim().str() == PVD->getNameAsString()) {
+                  suggestedArgsStr += (suggestedArgsStr.empty() ? "" : ", ") +
+                                      PVD->getNameAsString() +
+                                      "[0:<last index of " +
+                                      PVD->getNameAsString() + ">]";
+                } else {
+                  suggestedArgsStr += (suggestedArgsStr.empty() ? "" : ", ") +
+                                      name.trim().str();
+                }
+              } while (!str.empty());
+            } else {
+              suggestedArgsStr = PVD->getNameAsString() + "[0:<last index of b>]";
+            }
+            std::string helperMsg("clad::hessian(" + FD->getNameAsString() +
+                                  ", \"" + suggestedArgsStr + "\")");
+            diag(DiagnosticsEngine::Error,
+                 request.Args ? request.Args->getEndLoc() : noLoc,
+                 "Hessian mode differentiation w.r.t. array or pointer "
+                 "parameters needs explicit declaration of the indices of the "
+                 "array using the args parameter; did you mean '%0'",
+                 {helperMsg});
+            return {};
+          }
 
-      // Derives function once in forward mode w.r.t to independentArg
-      independentArgRequest.Args = independentArgString;
-      independentArgRequest.Mode = DiffMode::forward;
-      independentArgRequest.CallUpdateRequired = false;
-      FunctionDecl* firstDerivative =
-          plugin::ProcessDiffRequest(m_CladPlugin, independentArgRequest);
+          IndependentArgsSize.push_back(indexIntervalTable[argIndex].size());
+          TotalIndependentArgsSize += indexIntervalTable[argIndex].size();
 
-      // Further derives function w.r.t to all args in reverse mode
-      independentArgRequest.Mode = DiffMode::reverse;
-      independentArgRequest.Function = firstDerivative;
-      independentArgRequest.Args = nullptr;
-      FunctionDecl* secondDerivative =
-          plugin::ProcessDiffRequest(m_CladPlugin, independentArgRequest);
+          // Derive the function w.r.t. to each requested index of the current
+          // array in forward mode and then in reverse mode w.r.t to all
+          // requested args
+          for (auto i = indexIntervalTable[argIndex].Start;
+               i < indexIntervalTable[argIndex].Finish;
+               i++) {
+            auto independentArgString =
+                PVD->getNameAsString() + "[" + std::to_string(i) + "]";
+            auto ForwardModeIASL =
+                CreateIndependentArgStringLiteral(m_Context,
+                                                  independentArgString);
+            auto DFD = DeriveUsingForwardAndReverseMode(
+                m_CladPlugin, request, ForwardModeIASL, request.Args);
+            secondDerivativeColumns.push_back(DFD);
+          }
 
-      secondDerivativeColumns.push_back(secondDerivative);
+        } else {
+          IndependentArgsSize.push_back(1);
+          TotalIndependentArgsSize++;
+          // Derive the function w.r.t. to the current arg in forward mode and
+          // then in reverse mode w.r.t to all requested args
+          auto ForwardModeIASL =
+              CreateIndependentArgStringLiteral(m_Context,
+                                                PVD->getNameAsString());
+          auto DFD = DeriveUsingForwardAndReverseMode(
+              m_CladPlugin, request, ForwardModeIASL, request.Args);
+          secondDerivativeColumns.push_back(DFD);
+        }
+      }
     }
-    return Merge(secondDerivativeColumns, request);
+    return Merge(secondDerivativeColumns,
+                 request,
+                 IndependentArgsSize,
+                 TotalIndependentArgsSize);
   }
 
   // Combines all generated second derivative functions into a
@@ -91,7 +173,9 @@ namespace clad {
   // secon derivative function in FunctionBody.
   OverloadedDeclWithContext
   HessianModeVisitor::Merge(std::vector<FunctionDecl*> secDerivFuncs,
-                            const DiffRequest& request) {
+                            const DiffRequest& request,
+                            SmallVector<size_t, 16> IndependentArgsSize,
+                            size_t TotalIndependentArgsSize) {
     DiffParams args;
     // request.Function is original function passed in from clad::hessian
     m_Function = request.Function;
@@ -196,23 +280,9 @@ namespace clad {
     // Creates callExprs to the second derivative functions genereated
     // and creates maps array elements to input array.
     for (size_t i = 0, e = secDerivFuncs.size(); i < e; ++i) {
-      const int numIndependentArgs = secDerivFuncs[i]->getNumParams();
-
+      const size_t HessianMatrixStartIndex = i * TotalIndependentArgsSize;
       auto size_type = m_Context.getSizeType();
       auto size_type_bits = m_Context.getIntWidth(size_type);
-      // Create the idx literal.
-      auto idx = IntegerLiteral::Create(
-          m_Context,
-          llvm::APInt(size_type_bits, (i * (numIndependentArgs - 1))),
-          size_type,
-          noLoc);
-      // Create the hessianMatrix[idx] expression.
-      auto arrayExpr =
-          m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, idx, noLoc)
-              .get();
-      // Creates the &hessianMatrix[idx] expression.
-      auto addressArrayExpr =
-          m_Sema.BuildUnaryOp(nullptr, noLoc, UO_AddrOf, arrayExpr).get();
 
       // Transforms ParmVarDecls into Expr paramters for insertion into function
       std::vector<Expr*> DeclRefToParams;
@@ -225,7 +295,27 @@ namespace clad {
                        return VD;
                      });
       DeclRefToParams.pop_back();
-      DeclRefToParams.push_back(addressArrayExpr);
+
+      size_t columnIndex = 0;
+      // Create Expr parameters for each independent arg in the CallExpr
+      for (size_t j = 0, n = IndependentArgsSize.size(); j < n; j++) {
+        // Create the idx literal.
+        auto idx = IntegerLiteral::Create(
+            m_Context,
+            llvm::APInt(size_type_bits, HessianMatrixStartIndex + columnIndex),
+            size_type,
+            noLoc);
+        // Create the hessianMatrix[idx] expression.
+        auto arrayExpr =
+            m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, idx, noLoc)
+                .get();
+        // Creates the &hessianMatrix[idx] expression.
+        auto addressArrayExpr =
+            m_Sema.BuildUnaryOp(nullptr, noLoc, UO_AddrOf, arrayExpr).get();
+
+        DeclRefToParams.push_back(addressArrayExpr);
+        columnIndex += IndependentArgsSize[j];
+      }
       Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
       CompStmtSave.push_back(call);
     }

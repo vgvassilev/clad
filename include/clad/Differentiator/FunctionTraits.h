@@ -430,132 +430,49 @@ namespace clad {
 
   JacobianDerivedFnTraits_AddCON(()) // Declares all the specializations
 
-      // ExtractDerivedFnTraits is used to deduce type of the derived functions
-      // derived using hessian and jacobian differentiation modes
-      // It SHOULD NOT be used to get traits of derived functions derived using
-      // forward or reverse differentiation mode
-      template <class ReturnType>
-      struct ExtractDerivedFnTraits {};
-  template<class T>
-  using ExtractDerivedFnTraits_t = typename ExtractDerivedFnTraits<T>::type;
+      template <class T>
+      struct HessianDerivedFnTraits {};
 
-  // specializations for non-member functions pointer types
-  template <class ReturnType,class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (*)(Args...)> {
+  // HessianDerivedFnTraits is used to deduce type of the derived functions
+  // derived using hessian mode
+  template <class T>
+  using HessianDerivedFnTraits_t = typename HessianDerivedFnTraits<T>::type;
+
+  // HessianDerivedFnTraits specializations for pure function pointer types
+  template <class ReturnType, class... Args>
+  struct HessianDerivedFnTraits<ReturnType (*)(Args...)> {
     using type = void (*)(Args..., ReturnType*);
   };
 
-  // specializations for member functions pointer types with no cv-qualifiers
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)> {
-    using type = void (C::*)(Args..., ReturnType*);
+  // HessianDerivedFnTraits specializations for member function pointer types
+#define HessianDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)               \
+  template <typename R, typename C, typename... Args>                          \
+  struct HessianDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {           \
+    using type = void (C::*)(Args..., R*) cv vol ref noex;                     \
   };
 
-  // specializations for member functions pointer types with only cv-qualifiers
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const> {
-    using type = void (C::*)(Args..., ReturnType*) const;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) volatile> {
-    using type = void (C::*)(Args..., ReturnType*) volatile;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const volatile> {
-    using type = void (C::*)(Args..., ReturnType*) const volatile;
-  };
-
-  // specializations for member functions pointer types with 
-  // reference qualifiers and with and without cv-qualifiers
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) &> {
-    using type = void (C::*)(Args..., ReturnType*) &;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const &> {
-    using type = void (C::*)(Args..., ReturnType*) const &;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) volatile &> {
-    using type = void (C::*)(Args..., ReturnType*) volatile &;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const volatile &> {
-    using type = void (C::*)(Args..., ReturnType*) const volatile &;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) &&> {
-    using type = void (C::*)(Args..., ReturnType*) &&;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const &&> {
-    using type = void (C::*)(Args..., ReturnType*) const &&;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) volatile &&> {
-    using type = void (C::*)(Args..., ReturnType*) volatile &&;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const volatile &&> {
-    using type = void (C::*)(Args..., ReturnType*) const volatile &&;
-  };
-
-  // specializations for noexcept member functions
-  #if __cpp_noexcept_function_type > 0
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) const noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) volatile noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) volatile noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)
-                                    const volatile noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) const volatile noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) & noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) & noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const & noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) const & noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) volatile& noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) volatile& noexcept;
-  };
-
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)
-                                    const volatile& noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) const volatile& noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) && noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) && noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...) const && noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) const && noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(
-      Args...) volatile&& noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) volatile&& noexcept;
-  };
-  template <class ReturnType, class C, class... Args>
-  struct ExtractDerivedFnTraits<ReturnType (C::*)(Args...)
-                                    const volatile&& noexcept> {
-    using type = void (C::*)(Args..., ReturnType*) const volatile&& noexcept;
-  };
+#if __cpp_noexcept_function_type > 0
+#define HessianDerivedFnTraits_AddNOEX(var, con, vol, ref)                     \
+  HessianDerivedFnTraits_AddSPECS(var, con, vol, ref, )                        \
+      HessianDerivedFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define HessianDerivedFnTraits_AddNOEX(var, con, vol, ref)                     \
+  HessianDerivedFnTraits_AddSPECS(var, con, vol, ref, )
 #endif
+
+#define HessianDerivedFnTraits_AddREF(var, con, vol)                           \
+  HessianDerivedFnTraits_AddNOEX(var, con, vol, )                              \
+      HessianDerivedFnTraits_AddNOEX(var, con, vol, &)                         \
+          HessianDerivedFnTraits_AddNOEX(var, con, vol, &&)
+
+#define HessianDerivedFnTraits_AddVOL(var, con)                                \
+  HessianDerivedFnTraits_AddREF(var, con, )                                    \
+      HessianDerivedFnTraits_AddREF(var, con, volatile)
+
+#define HessianDerivedFnTraits_AddCON(var)                                     \
+  HessianDerivedFnTraits_AddVOL(var, ) HessianDerivedFnTraits_AddVOL(var, const)
+
+  HessianDerivedFnTraits_AddCON(()) // Declares all the specializations
 } // namespace clad
 
 #endif // FUNCTION_TRAITS

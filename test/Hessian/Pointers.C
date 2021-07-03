@@ -14,19 +14,19 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     return _d_i * j + i * _d_j;
 // CHECK-NEXT: }
 
-// CHECK: void nonMemFn_darg0_grad(double i, double j, double *_result) {
+// CHECK: void nonMemFn_darg0_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
 // CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     _t1 = _d_i;
+// CHECK-NEXT:     double _d_i0 = 1;
+// CHECK-NEXT:     double _d_j0 = 0;
+// CHECK-NEXT:     _t1 = _d_i0;
 // CHECK-NEXT:     _t0 = j;
 // CHECK-NEXT:     _t3 = i;
-// CHECK-NEXT:     _t2 = _d_j;
+// CHECK-NEXT:     _t2 = _d_j0;
 // CHECK-NEXT:     double nonMemFn_darg0_return = _t1 * _t0 + _t3 * _t2;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -34,9 +34,9 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         _d__d_i += _r0;
 // CHECK-NEXT:         double _r1 = _t1 * 1;
-// CHECK-NEXT:         _result[1UL] += _r1;
+// CHECK-NEXT:         *_d_j += _r1;
 // CHECK-NEXT:         double _r2 = 1 * _t2;
-// CHECK-NEXT:         _result[0UL] += _r2;
+// CHECK-NEXT:         *_d_i += _r2;
 // CHECK-NEXT:         double _r3 = _t3 * 1;
 // CHECK-NEXT:         _d__d_j += _r3;
 // CHECK-NEXT:     }
@@ -48,19 +48,19 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     return _d_i * j + i * _d_j;
 // CHECK-NEXT: }
 
-// CHECK: void nonMemFn_darg1_grad(double i, double j, double *_result) {
+// CHECK: void nonMemFn_darg1_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
 // CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     double _d_i = 0;
-// CHECK-NEXT:     double _d_j = 1;
-// CHECK-NEXT:     _t1 = _d_i;
+// CHECK-NEXT:     double _d_i0 = 0;
+// CHECK-NEXT:     double _d_j0 = 1;
+// CHECK-NEXT:     _t1 = _d_i0;
 // CHECK-NEXT:     _t0 = j;
 // CHECK-NEXT:     _t3 = i;
-// CHECK-NEXT:     _t2 = _d_j;
+// CHECK-NEXT:     _t2 = _d_j0;
 // CHECK-NEXT:     double nonMemFn_darg1_return = _t1 * _t0 + _t3 * _t2;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -68,17 +68,17 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         _d__d_i += _r0;
 // CHECK-NEXT:         double _r1 = _t1 * 1;
-// CHECK-NEXT:         _result[1UL] += _r1;
+// CHECK-NEXT:         *_d_j += _r1;
 // CHECK-NEXT:         double _r2 = 1 * _t2;
-// CHECK-NEXT:         _result[0UL] += _r2;
+// CHECK-NEXT:         *_d_i += _r2;
 // CHECK-NEXT:         double _r3 = _t3 * 1;
 // CHECK-NEXT:         _d__d_j += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
-// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, &hessianMatrix[0UL]);
-// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, &hessianMatrix[2UL]);
+// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, &hessianMatrix[0UL], &hessianMatrix[1UL]);
+// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, &hessianMatrix[2UL], &hessianMatrix[3UL]);
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\

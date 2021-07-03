@@ -210,7 +210,7 @@ namespace clad {
   /// of the original function, (they are also columns of a Hessian matrix)
   template <typename ArgSpec = const char*,
             typename F,
-            typename DerivedFnType = ExtractDerivedFnTraits_t<F>>
+            typename DerivedFnType = HessianDerivedFnTraits_t<F>>
   CladFunction<DerivedFnType> __attribute__((annotate("H")))
   hessian(F f,
           ArgSpec args = "",
