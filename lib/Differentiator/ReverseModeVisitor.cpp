@@ -1465,14 +1465,40 @@ namespace clad {
   }
 
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
-    auto zero = getZeroInit(VD->getType());
+    StmtDiff initDiff;
+    Expr* VDDerivedInit = nullptr;
+    auto VDDerivedType = getNonConstType(VD->getType(), m_Context, m_Sema);
+    bool isVDRefType = VD->getType()->isReferenceType();
+    // If VD is a reference to a local variable, then the initial value is set
+    // to the derived variable of the corresponding local variable.
+    // If VD is a reference to a non-local variable (global variable, struct
+    // member etc), then no derived variable is available, thus `VDDerived` 
+    // does not need to reference any variable, consequentially the 
+    // `VDDerivedType` is the corresponding non-reference type and the initial
+    // value is set to 0. 
+    // Otherwise, for non-reference types, the initial value is set to 0.
+    if (isVDRefType) {
+      initDiff = Visit(VD->getInit());
+      VDDerivedInit = initDiff.getExpr_dx();
+      if (!VDDerivedInit) {
+        VDDerivedType = VDDerivedType.getNonReferenceType();
+        VDDerivedInit = getZeroInit(VDDerivedType);
+      }
+    } else {
+      VDDerivedInit = getZeroInit(VD->getType());
+    }
     VarDecl* VDDerived =
-        BuildVarDecl(getNonConstType(VD->getType(), m_Context, m_Sema),
+        BuildVarDecl(VDDerivedType,
                      "_d_" + VD->getNameAsString(),
-                     zero);
-    StmtDiff initDiff = VD->getInit()
-                            ? Visit(VD->getInit(), BuildDeclRef(VDDerived))
-                            : StmtDiff{};
+                     VDDerivedInit);
+
+    // If `VD` is a reference to a local variable, then it is already
+    // differentiated and should not be differentiated again.
+    // If `VD` is a reference to a non-local variable then also there's no
+    // need to call `Visit` since non-local variables are not differentiated.
+    if (!isVDRefType)
+      initDiff = VD->getInit() ? Visit(VD->getInit(), BuildDeclRef(VDDerived))
+                               : StmtDiff{};
     VarDecl* VDClone = BuildVarDecl(VD->getType(),
                                     VD->getNameAsString(),
                                     initDiff.getExpr(),

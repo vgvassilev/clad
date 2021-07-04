@@ -247,24 +247,6 @@ void f_cond3_hessian(double x, double c, double *hessianMatrix);
 //CHECK-NEXT:    f_cond3_darg1_grad(x, c, &hessianMatrix[2UL]);
 //CHECK-NEXT:}
 
-
-struct Experiment {
-  double x, y;
-  Experiment (double p_x, double p_y) : x(p_x), y(p_y) {}
-  double someMethod (double i, double j) {
-    return i*i*j + j*j*i;
-  }
-
-  void f_someMethod_darg0_grad(double i, double j, double *_result);
-  void f_someMethod_darg1_grad(double i, double j, double *_result);
-
-  void f_someMethod_hessian(double x, double *hessianMatrix);
-  // CHECK:void someMethod_hessian(double i, double j, double *hessianMatrix) {
-  // CHECK-NEXT:  this->someMethod_darg0_grad(i, j, &hessianMatrix[0UL]);
-  // CHECK-NEXT:  this->someMethod_darg1_grad(i, j, &hessianMatrix[2UL]);
-  // CHECK-NEXT:}
-};
-
 double f_power10(double x) {
   return x * x * x * x * x * x * x * x * x * x;
 }
@@ -276,7 +258,54 @@ void f_power10_hessian(double x, double *hessianMatrix);
 //CHECK-NEXT:     f_power10_darg0_grad(x, &hessianMatrix[0UL]);
 //CHECK-NEXT: }
 
+struct Experiment {
+  double x, y;
+  Experiment (double p_x, double p_y) : x(p_x), y(p_y) {}
+  double someMethod (double i, double j) {
+    return i*i*j + j*j*i;
+  }
 
+  void someMethod_darg0_grad(double i, double j, double *_result);
+  void someMethod_darg1_grad(double i, double j, double *_result);
+
+  void someMethod_hessian(double x, double *hessianMatrix);
+  // CHECK:void someMethod_hessian(double i, double j, double *hessianMatrix) {
+  // CHECK-NEXT:  this->someMethod_darg0_grad(i, j, &hessianMatrix[0UL]);
+  // CHECK-NEXT:  this->someMethod_darg1_grad(i, j, &hessianMatrix[2UL]);
+  // CHECK-NEXT:}
+};
+
+struct Widget {
+  double x, y;
+  Widget(double p_x, double p_y) : x(p_x), y(p_y) {}
+  double memFn_1(double i, double j) {
+    return x*y*i*j;
+  }
+
+  void memFn_1_darg0_grad(double i, double j, double *_result);
+  void memFn_1_darg1_grad(double i, double j, double *_result);
+  
+  void memFn_1_hessian(double i, double j, double *hessianMatrix);
+  // CHECK: void memFn_1_hessian(double i, double j, double *hessianMatrix) {
+  // CHECK-NEXT:     this->memFn_1_darg0_grad(i, j, &hessianMatrix[0UL]);
+  // CHECK-NEXT:     this->memFn_1_darg1_grad(i, j, &hessianMatrix[2UL]);
+  // CHECK-NEXT: }
+
+  double memFn_2(double i, double j) {
+    double a = x*i*j;
+    double b = 4*a;
+    return b*y*y*i;
+  }
+
+  void memFn_2_darg0_grad(double i, double j, double *_result);
+  void memFn_2_darg1_grad(double i, double j, double *_result);
+  
+  void memFn_2_hessian(double i, double j, double *hessianMatrix);
+  // CHECK: void memFn_2_hessian(double i, double j, double *hessianMatrix) {
+  // CHECK-NEXT:     this->memFn_2_darg0_grad(i, j, &hessianMatrix[0UL]);
+  // CHECK-NEXT:     this->memFn_2_darg1_grad(i, j, &hessianMatrix[2UL]);
+  // CHECK-NEXT: }
+};
 
 #define TEST1(F, x) { \
   result[0] = 0;\
@@ -301,7 +330,7 @@ void f_power10_hessian(double x, double *hessianMatrix);
   result[0]=result[1]=result[2]=result[3]=0;\
   auto h = clad::hessian(F);\
   h.execute(Obj, __VA_ARGS__, result);\
-  printf("Result is = {%.2f, %.2f, %.2f, %2.f}\n", result[0], result[1], result[2], result[3]);\
+  printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3]);\
 }
   
 
@@ -310,7 +339,10 @@ int main() {
   TEST2(f_cubed_add1, 1, 2); // CHECK-EXEC: Result is = {6.00, 0.00, 0.00, 12.00}
   TEST2(f_suvat1, 1, 2); // CHECK-EXEC: Result is = {0.00, 1.00, 1.00, 9.81}
   TEST2(f_cond3, 5, -2); // CHECK-EXEC: Result is = {30.00, 0.00, 0.00, 12.00}
-  Experiment E(11, 17);
-  TEST3(&Experiment::someMethod, E, 3, 5);  // CHECK-EXEC: Result is = {10.00, 16.00, 16.00,  6}
   TEST1(f_power10, 5); // CHECK-EXEC: Result is = {35156250.00}
+  Experiment E(11, 17);
+  Widget W(3, 5);
+  TEST3(&Experiment::someMethod, E, 3, 5);  // CHECK-EXEC: Result is = {10.00, 16.00, 16.00, 6.00}
+  TEST3(&Widget::memFn_1, W, 7, 9); // CHECK-EXEC: Result is = {0.00, 15.00, 15.00, 0.00}
+  TEST3(&Widget::memFn_2, W, 7, 9); // CHECK-EXEC: Result is = {5400.00, 4200.00, 4200.00, 0.00}
 }
