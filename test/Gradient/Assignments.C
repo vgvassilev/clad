@@ -553,6 +553,181 @@ double f13(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f14(double i, double j) {
+  double& a = i;
+  a = 2*i;
+  a += i;
+  a *= i;
+  return i;
+}
+
+// CHECK: void f14_grad(double i, double j, double *_result) {
+// CHECK-NEXT:     double &_d_a = _result[0UL];
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double &a = i;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     a = 2 * _t0;
+// CHECK-NEXT:     a += i;
+// CHECK-NEXT:     _t2 = a;
+// CHECK-NEXT:     _t1 = i;
+// CHECK-NEXT:     a *= _t1;
+// CHECK-NEXT:     double f14_return = i;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _result[0UL] += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d2 = _d_a;
+// CHECK-NEXT:         _d_a += _r_d2 * _t1;
+// CHECK-NEXT:         double _r2 = _t2 * _r_d2;
+// CHECK-NEXT:         _result[0UL] += _r2;
+// CHECK-NEXT:         _d_a -= _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d1 = _d_a;
+// CHECK-NEXT:         _d_a += _r_d1;
+// CHECK-NEXT:         _result[0UL] += _r_d1;
+// CHECK-NEXT:         _d_a -= _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_a;
+// CHECK-NEXT:         double _r0 = _r_d0 * _t0;
+// CHECK-NEXT:         double _r1 = 2 * _r_d0;
+// CHECK-NEXT:         _result[0UL] += _r1;
+// CHECK-NEXT:         _d_a -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f15(double i, double j) {
+  double b = i*j;
+  double& a = b;
+  double& c = i;
+  double& d = j;
+  a *= i;
+  b += 2*i;
+  c += 3*i;
+  d *= 3*j;
+  return a+c+d;
+}
+
+// CHECK: void f15_grad(double i, double j, double *_result) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _d_b = 0;
+// CHECK-NEXT:     double &_d_a = _d_b;
+// CHECK-NEXT:     double &_d_c = _result[0UL];
+// CHECK-NEXT:     double &_d_d = _result[1UL];
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double _t3;
+// CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _t5;
+// CHECK-NEXT:     double _t6;
+// CHECK-NEXT:     double _t7;
+// CHECK-NEXT:     double _t8;
+// CHECK-NEXT:     _t1 = i;
+// CHECK-NEXT:     _t0 = j;
+// CHECK-NEXT:     double b = _t1 * _t0;
+// CHECK-NEXT:     double &a = b;
+// CHECK-NEXT:     double &c = i;
+// CHECK-NEXT:     double &d = j;
+// CHECK-NEXT:     _t3 = a;
+// CHECK-NEXT:     _t2 = i;
+// CHECK-NEXT:     a *= _t2;
+// CHECK-NEXT:     _t4 = i;
+// CHECK-NEXT:     b += 2 * _t4;
+// CHECK-NEXT:     _t5 = i;
+// CHECK-NEXT:     c += 3 * _t5;
+// CHECK-NEXT:     _t7 = d;
+// CHECK-NEXT:     _t8 = j;
+// CHECK-NEXT:     _t6 = 3 * _t8;
+// CHECK-NEXT:     d *= _t6;
+// CHECK-NEXT:     double f15_return = a + c + d;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_a += 1;
+// CHECK-NEXT:         _d_c += 1;
+// CHECK-NEXT:         _d_d += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d3 = _d_d;
+// CHECK-NEXT:         _d_d += _r_d3 * _t6;
+// CHECK-NEXT:         double _r7 = _t7 * _r_d3;
+// CHECK-NEXT:         double _r8 = _r7 * _t8;
+// CHECK-NEXT:         double _r9 = 3 * _r7;
+// CHECK-NEXT:         _result[1UL] += _r9;
+// CHECK-NEXT:         _d_d -= _r_d3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d2 = _d_c;
+// CHECK-NEXT:         _d_c += _r_d2;
+// CHECK-NEXT:         double _r5 = _r_d2 * _t5;
+// CHECK-NEXT:         double _r6 = 3 * _r_d2;
+// CHECK-NEXT:         _result[0UL] += _r6;
+// CHECK-NEXT:         _d_c -= _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d1 = _d_b;
+// CHECK-NEXT:         _d_b += _r_d1;
+// CHECK-NEXT:         double _r3 = _r_d1 * _t4;
+// CHECK-NEXT:         double _r4 = 2 * _r_d1;
+// CHECK-NEXT:         _result[0UL] += _r4;
+// CHECK-NEXT:         _d_b -= _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_a;
+// CHECK-NEXT:         _d_a += _r_d0 * _t2;
+// CHECK-NEXT:         double _r2 = _t3 * _r_d0;
+// CHECK-NEXT:         _result[0UL] += _r2;
+// CHECK-NEXT:         _d_a -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = _d_b * _t0;
+// CHECK-NEXT:         _result[0UL] += _r0;
+// CHECK-NEXT:         double _r1 = _t1 * _d_b;
+// CHECK-NEXT:         _result[1UL] += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f16(double i, double j) {
+  double& a = i;
+  double& b = a;
+  double& c = b;
+  c *= 4*j;
+  return i;
+}
+
+// CHECK: void f16_grad(double i, double j, double *_result) {
+// CHECK-NEXT:     double &_d_a = _result[0UL];
+// CHECK-NEXT:     double &_d_b = _d_a;
+// CHECK-NEXT:     double &_d_c = _d_b;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double &a = i;
+// CHECK-NEXT:     double &b = a;
+// CHECK-NEXT:     double &c = b;
+// CHECK-NEXT:     _t1 = c;
+// CHECK-NEXT:     _t2 = j;
+// CHECK-NEXT:     _t0 = 4 * _t2;
+// CHECK-NEXT:     c *= _t0;
+// CHECK-NEXT:     double f16_return = i;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _result[0UL] += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_c;
+// CHECK-NEXT:         _d_c += _r_d0 * _t0;
+// CHECK-NEXT:         double _r0 = _t1 * _r_d0;
+// CHECK-NEXT:         double _r1 = _r0 * _t2;
+// CHECK-NEXT:         double _r2 = 4 * _r0;
+// CHECK-NEXT:         _result[1UL] += _r2;
+// CHECK-NEXT:         _d_c -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
 #define TEST(F, x, y) { \
   result[0] = 0; result[1] = 0;\
   auto F##grad = clad::gradient(F);\
@@ -575,4 +750,7 @@ int main() {
   TEST(f11, 3, 4); // CHECK-EXEC: {0.00, 1.00}
   TEST(f12, 3, 4); // CHECK-EXEC: {0.00, 8.00}
   TEST(f13, 3, 4); // CHECK-EXEC: {27.00, 0.00}
+  TEST(f14, 3, 4);  // CHECK-EXEC: {96.00, 0.00}
+  TEST(f15, 3, 4);  // CHECK-EXEC: {30.00, 33.00}
+  TEST(f16, 3, 4);  // CHECK-EXEC: {16.00, 12.00}
 }
