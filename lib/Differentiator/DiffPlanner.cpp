@@ -89,7 +89,7 @@ namespace clad {
             return false;
           } else if (LR.size() > 1) {
             const char diagFmt[] =
-                "'%0' has multiple definitions of operator()."
+                "'%0' has multiple definitions of operator(). "
                 "Multiple definitions of call operators are not supported.";
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
@@ -101,43 +101,70 @@ namespace clad {
               m_SemaRef.NoteOverloadCandidate(candidateFn,
                                               cast<FunctionDecl>(candidateFn));
             return false;
+          } else if (LR.size() == 1 &&
+                     cast<CXXMethodDecl>(LR.front())->getAccess() !=
+                         AccessSpecifier::AS_public) {
+            const char diagFmt[] =
+                "'%0' contains %1 call operator. Differentiation of "
+                "private/protected call operator is not supported.";
+
+            auto diagId =
+                m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
+                                                diagFmt);
+            // Compute access specifier name so that it can be used in
+            // diagnostic message.
+            const char* callOperatorAS =
+                (cast<CXXMethodDecl>(LR.front())->getAccess() ==
+                         AccessSpecifier::AS_private
+                     ? "private"
+                     : "protected");
+            m_SemaRef.Diag(m_BeginLoc, diagId)
+                << RD->getName() << callOperatorAS;
+            auto callOperator = cast<CXXMethodDecl>(LR.front());
+
+            // Emit diagnostics for the found call operator
+            m_SemaRef.NoteOverloadCandidate(callOperator, callOperator);
+            return false;
           }
 
-          assert(LR.size() == 1 &&
-                 "Multiple definitions of call operators are not supported");
+            assert(LR.size() == 1 &&
+                   "Multiple definitions of call operators are not supported");
+            assert(LR.size() == 1 &&
+                   cast<CXXMethodDecl>(LR.front())->getAccess() ==
+                       AccessSpecifier::AS_public &&
+                   "Differentiation of private/protected call operators are "
+                   "not supported");
+            auto callOperator = cast<CXXMethodDecl>(LR.front());
+            // Creating `DeclRefExpr` of the found overloaded call operator
+            // method, to maintain consistency with member function
+            // differentiation.
+            CXXScopeSpec CSS;
+            CSS.Extend(m_SemaRef.getASTContext(),
+                       RD->getIdentifier(),
+                       /*IdentifierLoc=*/noLoc,
+                       /*ColonColonLoc=*/noLoc);
 
-          auto callOperator = cast<CXXMethodDecl>(LR.front());
-          // Creating `DeclRefExpr` of the found overloaded call operator
-          // method, to maintain consistency with member function
-          // differentiation.
-          CXXScopeSpec CSS;
-          CSS.Extend(m_SemaRef.getASTContext(),
-                     RD->getIdentifier(),
-                     /*IdentifierLoc=*/noLoc,
-                     /*ColonColonLoc=*/noLoc);
+            // `ExprValueKind::VK_RValue` is used because functions are
+            // decomposed to function pointers and thus a temporary is
+            // created for the function pointer.
+            auto newFnDRE = clad_compat::GetResult<Expr*>(
+                m_SemaRef.BuildDeclRefExpr(callOperator,
+                                           callOperator->getType(),
+                                           ExprValueKind::VK_RValue,
+                                           noLoc,
+                                           &CSS));
+            m_FnDRE = cast<DeclRefExpr>(newFnDRE);
 
-          // `ExprValueKind::VK_RValue` is used because functions are
-          // decomposed to function pointers and thus a temporary is
-          // created for the function pointer.
-          auto newFnDRE = clad_compat::GetResult<Expr*>(
-              m_SemaRef.BuildDeclRefExpr(callOperator,
-                                         callOperator->getType(),
-                                         ExprValueKind::VK_RValue,
-                                         noLoc,
-                                         &CSS));
-          m_FnDRE = cast<DeclRefExpr>(newFnDRE);
-
-          // Creating Unary operator to maintain consistency with
-          // member function differentiation.
-          if (m_RelevantAncestor) {
-            auto newUnOp =
-                m_SemaRef
-                    .BuildUnaryOp(/*S=*/nullptr,
-                                  /*OpLoc=*/noLoc,
-                                  UnaryOperatorKind::UO_AddrOf,
-                                  m_FnDRE)
-                    .get();
-            *m_RelevantAncestor = newUnOp;
+            // Creating Unary operator to maintain consistency with
+            // member function differentiation.
+            if (m_RelevantAncestor) {
+              auto newUnOp = m_SemaRef
+                                 .BuildUnaryOp(/*S=*/nullptr,
+                                               /*OpLoc=*/noLoc,
+                                               UnaryOperatorKind::UO_AddrOf,
+                                               m_FnDRE)
+                                 .get();
+              *m_RelevantAncestor = newUnOp;
           }
           return false;
         }
