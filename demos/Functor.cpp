@@ -18,6 +18,7 @@
 // Necessary for clad to work include
 #include "clad/Differentiator/Differentiator.h"
 
+// A class type with user-defined call operator
 class Equation {
   double m_x, m_y;
 
@@ -26,22 +27,28 @@ class Equation {
   double operator()(double i, double j) {
     return m_x*i*j; + m_y*i*j;
   }
+  void setX(double x) {
+    m_x = x;
+  }
 };
 
 int main() {
   Equation E(3, 5);
-  
-  // Functor object can be passed in 2 ways:
 
-  // 1) by reference
+  // Functor is an object of any type which have user defined call operator.
+  // Clad differentiation functions can directly differentiate functors.
+  // Functors can be passed to clad differentiation functions in two distinct ways:
+
+  // 1) Pass by reference
+  // differentiates `E` wrt parameter `i`
   auto d_E = clad::differentiate(E, "i");
 
-  // 2) as pointer
+  // 2) Pass as pointers
+  // differentiates `E` wrt parameter `i`
   auto d_E_pointer = clad::differentiate(&E, "i");
 
-  // no need to explicitly pass functor object as the first argument.
+  // calculate differentiation of `E` when (i, j) = (7, 9)
   double res1 = d_E.execute(7, 9);
   double res2 = d_E_pointer.execute(7, 9);
-
   printf("%.2f %.2f", res1, res2);
 }
