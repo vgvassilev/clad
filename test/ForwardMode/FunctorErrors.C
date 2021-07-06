@@ -18,16 +18,15 @@ struct ExperimentMultipleCallOperators {
   }
 };
 
-struct ExperimentPrivateCallOperator {
-  private:
-    double operator()(double i, double j) { // expected-note {{candidate function}}
-      return i*i;
-    }
+class ExperimentPrivateCallOperator {
+  double operator()(double i, double j) { // expected-note {{implicitly declared private here}}
+    return i*i;
+  }
 };
 
 struct ExperimentProtectedCallOperator {
   protected:
-    double operator()(double i, double j) { // expected-note {{candidate function}}
+    double operator()(double i, double j) { // expected-note {{declared protected here}}
       return i*i;
     }
 };

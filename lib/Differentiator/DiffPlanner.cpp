@@ -3,7 +3,9 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
 
 #include "llvm/Support/SaveAndRestore.h"
@@ -77,17 +79,23 @@ namespace clad {
           auto callOperatorDeclName =
               m_SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
                   OverloadedOperatorKind::OO_Call);
-          auto LR = RD->lookup(callOperatorDeclName);
+          LookupResult R(m_SemaRef,
+                         callOperatorDeclName,
+                         noLoc,
+                         Sema::LookupNameKind::LookupMemberName);
+          // We do not want diagnostics that would fire because of this lookup.
+          R.suppressDiagnostics();
+          m_SemaRef.LookupQualifiedName(R, RD);
 
           // Emit error diagnostics
-          if (LR.empty()) {
+          if (R.empty()) {
             const char diagFmt[] = "'%0' has no defined operator()";
             auto diagId =
                 m_SemaRef.Diags.getCustomDiagID(DiagnosticsEngine::Level::Error,
                                                 diagFmt);
             m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
             return false;
-          } else if (LR.size() > 1) {
+          } else if (!R.isSingleResult()) {
             const char diagFmt[] =
                 "'%0' has multiple definitions of operator(). "
                 "Multiple definitions of call operators are not supported.";
@@ -97,12 +105,15 @@ namespace clad {
             m_SemaRef.Diag(m_BeginLoc, diagId) << RD->getName();
 
             // Emit diagnostics for candidate functions
-            for (auto candidateFn : LR)
+            for (auto oper = R.begin(), operEnd = R.end(); oper != operEnd;
+                 ++oper) {
+              auto candidateFn = cast<CXXMethodDecl>(oper.getDecl());
               m_SemaRef.NoteOverloadCandidate(candidateFn,
                                               cast<FunctionDecl>(candidateFn));
+            }
             return false;
-          } else if (LR.size() == 1 &&
-                     cast<CXXMethodDecl>(LR.front())->getAccess() !=
+          } else if (R.isSingleResult() == 1 &&
+                     cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() !=
                          AccessSpecifier::AS_public) {
             const char diagFmt[] =
                 "'%0' contains %1 call operator. Differentiation of "
@@ -114,57 +125,75 @@ namespace clad {
             // Compute access specifier name so that it can be used in
             // diagnostic message.
             const char* callOperatorAS =
-                (cast<CXXMethodDecl>(LR.front())->getAccess() ==
+                (cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
                          AccessSpecifier::AS_private
                      ? "private"
                      : "protected");
             m_SemaRef.Diag(m_BeginLoc, diagId)
                 << RD->getName() << callOperatorAS;
-            auto callOperator = cast<CXXMethodDecl>(LR.front());
+            auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
+
+            bool isImplicit = true;
+
+            // compute if the corresponding access specifier of the found
+            // call operator is implicit or explicit.
+            for (auto decl : RD->decls()) {
+              if (decl == callOperator)
+                break;
+              if (isa<AccessSpecDecl>(decl)) {
+                isImplicit = false;
+                break;
+              }
+            }
 
             // Emit diagnostics for the found call operator
-            m_SemaRef.NoteOverloadCandidate(callOperator, callOperator);
+            m_SemaRef.Diag(callOperator->getBeginLoc(),
+                           diag::note_access_natural)
+                << (unsigned)(callOperator->getAccess() ==
+                              AccessSpecifier::AS_protected)
+                << isImplicit;
+
             return false;
           }
 
-            assert(LR.size() == 1 &&
-                   "Multiple definitions of call operators are not supported");
-            assert(LR.size() == 1 &&
-                   cast<CXXMethodDecl>(LR.front())->getAccess() ==
-                       AccessSpecifier::AS_public &&
-                   "Differentiation of private/protected call operators are "
-                   "not supported");
-            auto callOperator = cast<CXXMethodDecl>(LR.front());
-            // Creating `DeclRefExpr` of the found overloaded call operator
-            // method, to maintain consistency with member function
-            // differentiation.
-            CXXScopeSpec CSS;
-            CSS.Extend(m_SemaRef.getASTContext(),
-                       RD->getIdentifier(),
-                       /*IdentifierLoc=*/noLoc,
-                       /*ColonColonLoc=*/noLoc);
+          assert(R.isSingleResult() &&
+                 "Multiple definitions of call operators are not supported");
+          assert(R.isSingleResult() == 1 &&
+                 cast<CXXMethodDecl>(R.getFoundDecl())->getAccess() ==
+                     AccessSpecifier::AS_public &&
+                 "Differentiation of private/protected call operators are "
+                 "not supported");
+          auto callOperator = cast<CXXMethodDecl>(R.getFoundDecl());
+          // Creating `DeclRefExpr` of the found overloaded call operator
+          // method, to maintain consistency with member function
+          // differentiation.
+          CXXScopeSpec CSS;
+          CSS.Extend(m_SemaRef.getASTContext(),
+                     RD->getIdentifier(),
+                     /*IdentifierLoc=*/noLoc,
+                     /*ColonColonLoc=*/noLoc);
 
-            // `ExprValueKind::VK_RValue` is used because functions are
-            // decomposed to function pointers and thus a temporary is
-            // created for the function pointer.
-            auto newFnDRE = clad_compat::GetResult<Expr*>(
-                m_SemaRef.BuildDeclRefExpr(callOperator,
-                                           callOperator->getType(),
-                                           ExprValueKind::VK_RValue,
-                                           noLoc,
-                                           &CSS));
-            m_FnDRE = cast<DeclRefExpr>(newFnDRE);
+          // `ExprValueKind::VK_RValue` is used because functions are
+          // decomposed to function pointers and thus a temporary is
+          // created for the function pointer.
+          auto newFnDRE = clad_compat::GetResult<Expr*>(
+              m_SemaRef.BuildDeclRefExpr(callOperator,
+                                         callOperator->getType(),
+                                         ExprValueKind::VK_RValue,
+                                         noLoc,
+                                         &CSS));
+          m_FnDRE = cast<DeclRefExpr>(newFnDRE);
 
-            // Creating Unary operator to maintain consistency with
-            // member function differentiation.
-            if (m_RelevantAncestor) {
-              auto newUnOp = m_SemaRef
-                                 .BuildUnaryOp(/*S=*/nullptr,
-                                               /*OpLoc=*/noLoc,
-                                               UnaryOperatorKind::UO_AddrOf,
-                                               m_FnDRE)
-                                 .get();
-              *m_RelevantAncestor = newUnOp;
+          // Creating Unary operator to maintain consistency with
+          // member function differentiation.
+          if (m_RelevantAncestor) {
+            auto newUnOp = m_SemaRef
+                               .BuildUnaryOp(/*S=*/nullptr,
+                                             /*OpLoc=*/noLoc,
+                                             UnaryOperatorKind::UO_AddrOf,
+                                             m_FnDRE)
+                               .get();
+            *m_RelevantAncestor = newUnOp;
           }
           return false;
         }
