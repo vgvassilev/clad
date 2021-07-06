@@ -154,11 +154,15 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:       return _d_C[0][0] + _d_C[0][1] + _d_C[1][0] + _d_C[1][1];
 //CHECK-NEXT:   }
 
-// CHECK:   void const_matmul_sum_grad(double a, double b, double c, double d,
-// double *_d_a, double *_d_b, double *_d_c, double *_d_d) { CHECK-NEXT: double
-// _d_A[2][2] = {}; CHECK-NEXT:       double _d_B[2][2] = {}; CHECK-NEXT: double
-// _t0; CHECK-NEXT:       double _t1; CHECK-NEXT:       double _t2; CHECK-NEXT:
-// double _t3; CHECK-NEXT:       double _t4; CHECK-NEXT:       double _t5;
+// CHECK:   void const_matmul_sum_grad(double a, double b, double c, double d, double *_d_a, double *_d_b, double *_d_c, double *_d_d) {
+// CHECK-NEXT: double _d_A[2][2] = {};
+// CHECK-NEXT:       double _d_B[2][2] = {};
+// CHECK-NEXT:       double _t0;
+// CHECK-NEXT:       double _t1;
+// CHECK-NEXT:       double _t2;
+// CHECK-NEXT:       double _t3;
+// CHECK-NEXT:       double _t4;
+// CHECK-NEXT:       double _t5;
 // CHECK-NEXT:       double _t6;
 // CHECK-NEXT:       double _t7;
 // CHECK-NEXT:       double _t8;
@@ -188,10 +192,10 @@ double const_matmul_sum(double a, double b, double c, double d) {
 // CHECK-NEXT:       _t12 = B[0][1];
 // CHECK-NEXT:       _t15 = A[1][1];
 // CHECK-NEXT:       _t14 = B[1][1];
-// CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4
-// + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
-// CHECK-NEXT:       double const_matmul_sum_return = C[0][0] + C[0][1] +
-// C[1][0] + C[1][1]; CHECK-NEXT:       goto _label0; CHECK-NEXT:     _label0:
+// CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
+// CHECK-NEXT:       double const_matmul_sum_return = C[0][0] + C[0][1] + C[1][0] + C[1][1];
+// CHECK-NEXT:       goto _label0;
+// CHECK-NEXT:     _label0:
 // CHECK-NEXT:       {
 // CHECK-NEXT:           _d_C[0][0] += 1;
 // CHECK-NEXT:           _d_C[0][1] += 1;
