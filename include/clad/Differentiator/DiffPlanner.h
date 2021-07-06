@@ -46,8 +46,10 @@ namespace clad {
     bool CallUpdateRequired = false;
     /// A flag to enable/disable diag warnings/errors during differentiation.
     bool VerboseDiags = false;
-
-    void updateCall(clang::FunctionDecl* FD, clang::Sema& SemaRef);
+    /// Puts the derived function and its code in the diff call
+    void updateCall(clang::FunctionDecl* FD,
+                    clang::FunctionDecl* OverloadedFD,
+                    clang::Sema& SemaRef);
   };
 
   using DiffSchedule = llvm::SmallVector<DiffRequest, 16>;

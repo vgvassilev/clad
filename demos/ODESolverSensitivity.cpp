@@ -68,7 +68,7 @@ double bSensitivity(double x) {
   auto h = clad::gradient(solution);
 
   double grad[4];
-  h.execute(1.0, 3.0, 3.0, x, grad);
+  h.execute(1.0, 3.0, 3.0, x, &grad[0], &grad[1], &grad[2], &grad[3]);
 
   return grad[1];
 }

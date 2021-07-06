@@ -71,7 +71,7 @@ namespace clad {
           m_DerivativeInFlight(false), m_Derivative(nullptr),
           m_Function(nullptr) {}
 
-    using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
+    using Stmts = llvm::SmallVector<clang::Stmt*, 32>;
 
     DerivativeBuilder& m_Builder;
     clang::Sema& m_Sema;

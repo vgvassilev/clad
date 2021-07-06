@@ -18,11 +18,11 @@ int binOpWarn_1(int x){
     return x ^ 1;   // expected-warning {{attempt to differentiate unsupported operator, ignored.}}
 }
 
-// CHECK: void binOpWarn_1_grad(int x, int *_result) {
-// CHECK-NEXT:   int binOpWarn_1_return = x ^ 1;
-// CHECK-NEXT:   goto _label0;
+// CHECK: void binOpWarn_1_grad(int x, int *_d_x) {
+// CHECK-NEXT:     int binOpWarn_1_return = x ^ 1;
+// CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:   ;
+// CHECK-NEXT:     ;
 // CHECK-NEXT: }
 
 int unOpWarn_0(int x){
@@ -39,13 +39,13 @@ int unOpWarn_1(int x){
     return x;
 }
 
-// CHECK: void unOpWarn_1_grad(int x, int *_result) {
-// CHECK-NEXT:   int *_d_pnt = 0;
-// CHECK-NEXT:   int *pnt = &x;
-// CHECK-NEXT:   int unOpWarn_1_return = x;
-// CHECK-NEXT:   goto _label0;
+// CHECK: void unOpWarn_1_grad(int x, int *_d_x) {
+// CHECK-NEXT:     int *_d_pnt = 0;
+// CHECK-NEXT:     int *pnt = &x;
+// CHECK-NEXT:     int unOpWarn_1_return = x;
+// CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:   _result[0UL] += 1;
+// CHECK-NEXT:     *_d_x += 1;
 // CHECK-NEXT: }
 
 int main(){

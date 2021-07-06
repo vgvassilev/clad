@@ -56,7 +56,9 @@ namespace clad {
       return finder.m_FnDRE;
   }
 
-  void DiffRequest::updateCall(FunctionDecl* FD, Sema& SemaRef) {
+  void DiffRequest::updateCall(FunctionDecl* FD,
+                               FunctionDecl* OverloadedFD,
+                               Sema& SemaRef) {
     CallExpr* call = this->CallContext;
     // Index of "code" parameter:
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
@@ -72,9 +74,16 @@ namespace clad {
       llvm_unreachable("Trying to differentiate something unsupported");
 
     ASTContext& C = SemaRef.getASTContext();
+
+    FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
     // Create ref to generated FD.
-    Expr* DRE = DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc,
-                                    FD, false, FD->getNameInfo(), FD->getType(),
+    Expr* DRE = DeclRefExpr::Create(C,
+                                    oldDRE->getQualifierLoc(),
+                                    noLoc,
+                                    replacementFD,
+                                    false,
+                                    replacementFD->getNameInfo(),
+                                    replacementFD->getType(),
                                     oldDRE->getValueKind());
     // FIXME: I am not sure if the following part is necessary:
     // using call->setArg(0, DRE) seems to be sufficient,
@@ -82,13 +91,13 @@ namespace clad {
     // function ptr cast) or UnaryOp (method ptr call).
     if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArgDREParent)) {
       // Cast function to function pointer.
-      auto newCast = ImplicitCastExpr::Create(C,
-                                              C.getPointerType(FD->getType()),
-                                              oldCast->getCastKind(),
-                                              DRE,
-                                              nullptr,
-                                              oldCast->getValueKind()
-                                              CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
+      auto newCast = ImplicitCastExpr::Create(
+          C,
+          C.getPointerType(replacementFD->getType()),
+          oldCast->getCastKind(),
+          DRE,
+          nullptr,
+          oldCast->getValueKind() CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
       call->setArg(derivedFnArgIdx, newCast);
     }
     else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArgDREParent)) {

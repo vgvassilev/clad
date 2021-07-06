@@ -31,10 +31,11 @@ namespace clad {
 
   JacobianModeVisitor::~JacobianModeVisitor() {}
 
-  DeclWithContext JacobianModeVisitor::Derive(const clang::FunctionDecl* FD,
-                                              const DiffRequest& request) {
+  OverloadedDeclWithContext
+  JacobianModeVisitor::Derive(const clang::FunctionDecl* FD,
+                              const DiffRequest& request) {
     FD = FD->getDefinition();
-    DeclWithContext result{};
+    OverloadedDeclWithContext result{};
 
     ReverseModeVisitor V(this->builder);
     result = V.Derive(FD, request);

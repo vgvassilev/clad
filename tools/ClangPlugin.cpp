@@ -148,6 +148,7 @@ namespace clad {
 
       FunctionDecl* DerivativeDecl = nullptr;
       Decl* DerivativeDeclContext = nullptr;
+      FunctionDecl* OverloadedDerivativeDecl = nullptr;
       {
         // FIXME: Move the timing inside the DerivativeBuilder. This would
         // require to pass in the DifferentiationOptions in the DiffPlan.
@@ -156,8 +157,12 @@ namespace clad {
         SimpleTimer Timer(WantTiming);
         Timer.setOutput("Generation time for " + FD->getNameAsString());
 
-        std::tie(DerivativeDecl, DerivativeDeclContext) =
-          m_DerivativeBuilder->Derive(FD, request);
+        // TODO: Maybe find a better way to declare and use
+        //  OverloadedDeclWithContext
+        std::tie(DerivativeDecl,
+                 DerivativeDeclContext,
+                 OverloadedDerivativeDecl) =
+            m_DerivativeBuilder->Derive(FD, request);
       }
 
       if (DerivativeDecl) {
@@ -169,7 +174,9 @@ namespace clad {
         // If this is the last required derivative order, replace the function
         // inside a call to clad::differentiate/gradient with its derivative.
         if (request.CallUpdateRequired && lastDerivativeOrder)
-          request.updateCall(DerivativeDecl, m_CI.getSema());
+          request.updateCall(DerivativeDecl,
+                             OverloadedDerivativeDecl,
+                             m_CI.getSema());
 
         // if enabled, print source code of the derived functions
         if (m_DO.DumpDerivedFn) {
