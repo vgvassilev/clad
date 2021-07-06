@@ -1,3 +1,10 @@
+- title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
+  description:
+  location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/1040761/)"
+  date: 2021-06-21
+  speaker: I Ifrim
+  artifacts: "[Link to slides](https://indico.cern.ch/event/1040761/contributions/4400258/attachments/2268253/3851595/Ioana%20Ifrim%20-%20GPU%20Acceleration%20of%20Automatic%20Differentiation%20in%20C%2B%2B%20with%20Clad.pdf)"
+
 - title: "Floating point error estimation using Clad -- Project Roadmap"
   description: My abstract
   location: "Onboarding meetup"
