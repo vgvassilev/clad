@@ -125,29 +125,28 @@ int main() {
   // CHECK: inline double operator_call_darg0(double i, double j) const {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
-  // CHECK-NEXT:     double _t0 = x * i;
-  // CHECK-NEXT:     return (0 * i + x * _d_i) * j + _t0 * _d_j;
+  // CHECK-NEXT:     double _t0 = i * i;
+  // CHECK-NEXT:     return (_d_i * i + i * _d_i) * j + _t0 * _d_j;
   // CHECK-NEXT: }
 
-  auto lambdaWithCapture = [&](double i, double j) {
-    return x*i*j;
+  auto lambdaWithCapture = [&](double i, double jj) {
+    return x*i*jj;
   };
 
-  // CHECK: inline double operator_call_darg0(double i, double j) const {
+  // CHECK: inline double operator_call_darg0(double i, double jj) const {
   // CHECK-NEXT:     double _d_i = 1;
-  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     double _d_jj = 0;
   // CHECK-NEXT:     double _t0 = x * i;
-  // CHECK-NEXT:     return (0 * i + x * _d_i) * j + _t0 * _d_j;
+  // CHECK-NEXT:     return (0 * i + x * _d_i) * jj + _t0 * _d_jj;
   // CHECK-NEXT: }
-
 
   INIT(E);
   INIT(E_Const);
   INIT(E_Volatile);
   INIT(E_ConstVolatile);
   INIT(E_NNS);
-  INIT(lambdaWithCapture);
   INIT(lambda);
+  INIT(lambdaWithCapture);
 
   TEST(E);                // CHECK-EXEC: 27.00 27.00
   TEST(E_Const);          // CHECK-EXEC: 27.00 27.00
