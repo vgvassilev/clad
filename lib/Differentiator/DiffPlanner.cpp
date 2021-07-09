@@ -20,43 +20,19 @@ namespace clad {
   /// Returns `DeclRefExpr` node corresponding to the function, method or
   /// functor argument which is to be differentiated.
   ///
-  /// Argument corresponding to `relevantAncestor` parameter will be updated to
-  /// have value of type `UnaryOperator` if `&` (address of) operator was
-  /// explicitly used to pass the function, otherwise it will have value of type
-  /// `ImplicitCastExpr`.
-  /// Arugment for `relevantAncestor` only needs to be passed if this
-  /// information is needed.
   /// \param[in] call A clad differentiation function call expression
   /// \param SemaRef Reference to Sema
-  /// \param[out] relevantAncestor
-  DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef,
-                              Expr** relevantAncestor = nullptr) {
+  DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     struct Finder :
       RecursiveASTVisitor<Finder> {
         DeclRefExpr* m_FnDRE = nullptr;
         SourceLocation m_BeginLoc;
-        Expr** m_RelevantAncestor = nullptr;
         Sema& m_SemaRef;
-        Finder(Sema& SemaRef, SourceLocation beginLoc, Expr** relevantAncestor = nullptr)
-            : m_SemaRef(SemaRef), m_BeginLoc(beginLoc),
-              m_RelevantAncestor(relevantAncestor) {
-        }
+        Finder(Sema& SemaRef, SourceLocation beginLoc)
+            : m_SemaRef(SemaRef), m_BeginLoc(beginLoc) {}
 
         // Required for visiting lambda declarations.
         bool shouldVisitImplicitCode() const { return true; }
-
-        // just required for computing relevantAncestor.
-        bool VisitExpr(Expr* E) {
-          if (m_RelevantAncestor) {
-            switch (E->getStmtClass()) {
-              case Stmt::StmtClass::ImplicitCastExprClass: LLVM_FALLTHROUGH;
-              case Stmt::StmtClass::UnaryOperatorClass:
-                *m_RelevantAncestor = E;
-                break;
-            }
-          }
-          return true;
-        }
 
         bool VisitDeclRefExpr(DeclRefExpr* DRE) {
           if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
@@ -184,20 +160,9 @@ namespace clad {
                                          &CSS));
           m_FnDRE = cast<DeclRefExpr>(newFnDRE);
 
-          // Creating Unary operator to maintain consistency with
-          // member function differentiation.
-          if (m_RelevantAncestor) {
-            auto newUnOp = m_SemaRef
-                               .BuildUnaryOp(/*S=*/nullptr,
-                                             /*OpLoc=*/noLoc,
-                                             UnaryOperatorKind::UO_AddrOf,
-                                             m_FnDRE)
-                               .get();
-            *m_RelevantAncestor = newUnOp;
-          }
           return false;
         }
-    } finder(SemaRef, call->getArg(0)->getBeginLoc(), relevantAncestor);
+    } finder(SemaRef, call->getArg(0)->getBeginLoc());
     finder.TraverseStmt(call->getArg(0));
 
     assert(cast<NamespaceDecl>(call->getDirectCallee()->getDeclContext())
@@ -215,42 +180,21 @@ namespace clad {
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
 
-    Expr* oldArgDREParent = nullptr;
-    DeclRefExpr* oldDRE = getArgFunction(call, SemaRef, &oldArgDREParent);
+    DeclRefExpr* oldDRE = getArgFunction(call, SemaRef);
 
-    if (!oldDRE)
-      llvm_unreachable("Trying to differentiate something unsupported");
+    assert(oldDRE && "Trying to differentiate something unsupported");
 
     ASTContext& C = SemaRef.getASTContext();
     // Create ref to generated FD.
     Expr* DRE = DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc,
                                     FD, false, FD->getNameInfo(), FD->getType(),
                                     oldDRE->getValueKind());
-    // FIXME: I am not sure if the following part is necessary:
-    // using call->setArg(0, DRE) seems to be sufficient,
-    // though the real AST allways contains the ImplicitCastExpr (function ->
-    // function ptr cast) or UnaryOp (method ptr call).
-    if (auto oldCast = dyn_cast<ImplicitCastExpr>(oldArgDREParent)) {
-      // Cast function to function pointer.
-      auto newCast = ImplicitCastExpr::Create(C,
-                                              C.getPointerType(FD->getType()),
-                                              oldCast->getCastKind(),
-                                              DRE,
-                                              nullptr,
-                                              oldCast->getValueKind()
-                                              CLAD_COMPAT_CLANG12_CastExpr_GetFPO(oldCast));
-      call->setArg(derivedFnArgIdx, newCast);
-    }
-    else if (auto oldUnOp = dyn_cast<UnaryOperator>(oldArgDREParent)) {
-      // Add the "&" operator
-      auto newUnOp = SemaRef.BuildUnaryOp(nullptr,
-                                          noLoc,
-                                          oldUnOp->getOpcode(),
-                                          DRE).get();
-      call->setArg(derivedFnArgIdx, newUnOp);
-    }
-    else
-      llvm_unreachable("Trying to differentiate something unsupported");
+
+    // Add the "&" operator
+    auto newUnOp =
+        SemaRef.BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
+            .get();
+    call->setArg(derivedFnArgIdx, newUnOp);
 
     // Update the code parameter.
     if (CXXDefaultArgExpr* Arg
