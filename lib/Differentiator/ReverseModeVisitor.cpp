@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/ErrorEstimator.h" 
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
@@ -31,6 +32,7 @@
 using namespace clang;
 
 namespace clad {
+
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
@@ -38,7 +40,7 @@ namespace clad {
     Expr* BackDRE = V.m_Sema
                         .BuildDeclarationNameExpr(CSS,
                                                   Back,
-                                                  /*ADL*/ false)
+                                                  /*AcceptInvalidDecl=*/ false)
                         .get();
     Expr* Call =
         V.m_Sema.ActOnCallExpr(V.getCurrentScope(), BackDRE, noLoc, Ref, noLoc)
@@ -47,13 +49,13 @@ namespace clad {
   }
 
   ReverseModeVisitor::CladTapeResult
-  ReverseModeVisitor::MakeCladTapeFor(Expr* E) {
+  ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
     QualType TapeType =
         GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
-    Expr* TapeRef = BuildDeclRef(GlobalStoreImpl(TapeType, "_t"));
+    Expr* TapeRef = BuildDeclRef(GlobalStoreImpl(TapeType, prefix));
     auto VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
     // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
     VD->setLocation(m_Function->getLocation());
@@ -61,9 +63,11 @@ namespace clad {
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
     auto PopDRE =
-        m_Sema.BuildDeclarationNameExpr(CSS, Pop, /*ADL*/ false).get();
+        m_Sema.BuildDeclarationNameExpr(CSS, Pop, /*AcceptInvalidDecl=*/false)
+            .get();
     auto PushDRE =
-        m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false).get();
+        m_Sema.BuildDeclarationNameExpr(CSS, Push, /*AcceptInvalidDecl=*/false)
+            .get();
     Expr* PopExpr =
         m_Sema.ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, TapeRef, noLoc)
             .get();
@@ -84,6 +88,7 @@ namespace clad {
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     assert(m_Function && "Must not be null.");
+    m_ErrorEstimationEnabled = request.Mode == DiffMode::error_estimation;
 
     DiffParams args{};
     if (request.Args)
@@ -120,7 +125,11 @@ namespace clad {
     DeclarationNameInfo name(II, noLoc);
 
     // A vector of types of the gradient function parameters.
-    llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
+    // If we are in error estimation mode, we have an extra `double&` 
+    // parameter that stores the final error
+    unsigned numExtraParam = m_ErrorEstimationEnabled ? 2 : 1;
+    llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() +
+                                               numExtraParam);
     if (request.Mode == DiffMode::jacobian) {
       unsigned lastArgN = m_Function->getNumParams() - 1;
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
@@ -134,11 +143,20 @@ namespace clad {
       paramTypes.back() = m_Function->getParamDecl(lastArgN)->getType();
     } else {
       // The last parameter is the output parameter of the R* type.
-      paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
+      paramTypes[paramTypes.size() - numExtraParam] =
+          m_Context.getPointerType(m_Function->getReturnType());
+    }
+    // If we are performing error estimation, our gradient function
+    // will have an extra argument which will hold the final error value
+    if (m_ErrorEstimationEnabled) {
+      // For now, make sure the error variable is double
+      paramTypes.back() = m_Context.getLValueReferenceType(m_Context.DoubleTy);
     }
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*).
+    // For error estimation, the return type of the function
+    // is void(A1, A2, ..., An, R*, double&)
     QualType gradientFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
@@ -189,35 +207,57 @@ namespace clad {
                      if (VD->getIdentifier())
                        m_Sema.PushOnScopeChains(VD,
                                                 getCurrentScope(),
-                                                /*AddToContext*/ false);
+                                                /*AddToContext=*/ false);
                      auto it = std::find(std::begin(args), std::end(args), PVD);
                      if (it != std::end(args))
                        *it = VD;
                      return VD;
                    });
     // The output paremeter "_result".
-    params.back() = ParmVarDecl::Create(
+    unsigned ouputParamIdx = params.size() - numExtraParam;
+    params[ouputParamIdx] = ParmVarDecl::Create(
         m_Context,
         gradientFD,
         noLoc,
         noLoc,
         &m_Context.Idents.get(resultArg()),
-        paramTypes.back(),
-        m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
+        paramTypes[paramTypes.size() - numExtraParam],
+        m_Context.getTrivialTypeSourceInfo(
+            paramTypes[paramTypes.size() - numExtraParam], noLoc),
         params.front()->getStorageClass(),
-        /* No default value */ nullptr);
-    if (params.back()->getIdentifier())
-      m_Sema.PushOnScopeChains(params.back(),
+        /*DefArg=*/ nullptr);
+    if (params[ouputParamIdx]->getIdentifier())
+      m_Sema.PushOnScopeChains(params[ouputParamIdx],
                                getCurrentScope(),
-                               /*AddToContext*/ false);
-
+                               /*AddToContext=*/ false);
+    // If in error estimation mode, create the error parameter
+    if (m_ErrorEstimationEnabled) {
+      // Repeat the above but for the error ouput var "_final_error"
+      params.back() = ParmVarDecl::Create(
+          m_Context,
+          gradientFD,
+          noLoc,
+          noLoc,
+          &m_Context.Idents.get("_final_error"),
+          paramTypes.back(),
+          m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
+          params.front()->getStorageClass(),
+          /*DefArg=*/ nullptr);
+      if (params.back()->getIdentifier())
+        m_Sema.PushOnScopeChains(params.back(),
+                                 getCurrentScope(),
+                                 /*AddToContext=*/ false);
+    }
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         llvm::makeArrayRef(params.data(), params.size());
     gradientFD->setParams(paramsRef);
     gradientFD->setBody(nullptr);
 
     // Reference to the output parameter.
-    m_Result = BuildDeclRef(params.back());
+    m_Result = BuildDeclRef(params[ouputParamIdx]);
+    // Reference to the final error statement
+    if (m_ErrorEstimationEnabled)
+      errorEstHandler->SetFinalErrorExpr(BuildDeclRef(params.back()));
 
     // Turns output array dimension input into APSInt
     auto PVDTotalArgs =
@@ -287,9 +327,51 @@ namespace clad {
         addToCurrentBlock(S, forward);
     else
       addToCurrentBlock(Reverse, forward);
+
+    // Since 'return' is not an assignment, add its error to _final_error
+    // given it is not a DeclRefExpr.
+    if (m_ErrorEstimationEnabled) {
+      // Emit error variables of parameters at the end.
+      for(size_t i = 0; i < numParams; i++){
+        // Right now, we just ignore them since we have no way of knowing 
+        // the size of an array.
+        if(params[i]->getType()->isArrayType() || params[i]->getType()->isPointerType())
+          continue;
+
+        // Check if the declaration was registered
+        auto decl = dyn_cast<VarDecl>(params[i]);
+        Expr* deltaVar = errorEstHandler->IsRegistered(decl);
+
+        // If not registered, check if it is eligible for registration and do
+        // the needful.
+        if (!deltaVar) {
+          deltaVar = errorEstHandler->RegisterVariable(decl);
+          // by default the registered values are stored in the global block
+          // which will not be added to the body anymore, so we manually
+          // do that here.
+          if (deltaVar)
+            addToCurrentBlock(m_Globals.pop_back_val());
+        }
+
+        // If till now, we have a delta declaration, emit it into the code.
+        if(deltaVar) {
+          // Since we need the input value of x, check for a replacement.
+          // If no replacement found, use the actual declRefExpr.
+          auto savedVal = errorEstHandler->GetParamReplacement(
+              dyn_cast<ParmVarDecl>(decl));
+          savedVal = savedVal ? savedVal : BuildDeclRef(decl);
+          // Finally emit the error.
+          auto errorExpr =
+              errorEstHandler->GetError(savedVal, m_Variables[decl]);
+          addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr));
+        }
+      }
+
+      errorEstHandler->BuildFinalErrorStmt();
+    }
+
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
-
     endScope(); // Function body scope
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
@@ -315,6 +397,14 @@ namespace clad {
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), forward);
       addToCurrentBlock(SDiff.getStmt_dx(), reverse);
+      // In error estimation mode, if we have any residual statements
+      // to be emitted into the forward or revese blocks, we should
+      // emit them here. This is to maintain the correct order of
+      // statements generated.
+      if (m_ErrorEstimationEnabled) {
+        errorEstHandler->EmitErrorEstimationStmts(forward);
+        errorEstHandler->EmitErrorEstimationStmts(reverse);
+      }
     }
     CompoundStmt* Forward = endBlock(forward);
     CompoundStmt* Reverse = endBlock(reverse);
@@ -361,7 +451,8 @@ namespace clad {
       // if (clad::push(..., _t) { ... }
       // is incorrect when if contains return statement inside: return will
       // skip corresponding push.
-      cond = StoreAndRef(condExpr.getExpr(), forward, "_t", /*force*/ true);
+      cond = StoreAndRef(
+          condExpr.getExpr(), forward, "_t", /*forceDeclCreation=*/true);
       StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
       PushCond = condPushPop.getExpr();
       PopCond = condPushPop.getExpr_dx();
@@ -425,8 +516,14 @@ namespace clad {
         return BranchDiff;
       } else {
         beginBlock(forward);
-        StmtDiff BranchDiff = DifferentiateSingleStmt(Branch);
+        StmtDiff BranchDiff =
+            DifferentiateSingleStmt(Branch, nullptr, /*shouldEmit=*/false);
         addToCurrentBlock(BranchDiff.getStmt(), forward);
+        // In error estimation, manually emit the code here instead of
+        // DifferentiateSingleStmt to maintain correct order.
+        if (m_ErrorEstimationEnabled) {
+          errorEstHandler->EmitErrorEstimationStmts(forward);
+        }
         Stmt* Forward = unwrapIfSingleStmt(endBlock(forward));
         Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
         return StmtDiff(Forward, Reverse);
@@ -587,7 +684,7 @@ namespace clad {
       Counter = GlobalStoreAndRef(getZeroInit(m_Context.IntTy),
                                   m_Context.getSizeType(),
                                   "_t",
-                                  /*force*/ true)
+                                  /*force=*/ true)
                     .getExpr();
     beginBlock(forward);
     beginBlock(reverse);
@@ -667,8 +764,12 @@ namespace clad {
       beginBlock(forward);
       // Add loop increment in in the first place in the body.
       addToCurrentBlock(CounterIncrement);
-      BodyDiff = DifferentiateSingleStmt(body);
+      BodyDiff = DifferentiateSingleStmt(body, nullptr, /*shouldEmit=*/false);
       addToCurrentBlock(BodyDiff.getStmt(), forward);
+      // Emit some statemnts later to maintain correct statement order.
+      if (m_ErrorEstimationEnabled) {
+        errorEstHandler->EmitErrorEstimationStmts(forward);
+      }
       Stmt* Forward = endBlock(forward);
       Stmt* Reverse = unwrapIfSingleStmt(BodyDiff.getStmt_dx());
       BodyDiff = {Forward, Reverse};
@@ -766,10 +867,16 @@ namespace clad {
       addToCurrentBlock(S, forward);
     // Since returned expression may have some side effects affecting reverse
     // computation (e.g. assignments), we also have to emit it to execute it.
-    StoreAndRef(ExprDiff.getExpr(),
-                forward,
-                m_Function->getNameAsString() + "_return",
-                /*force*/ true);
+    auto retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(),
+                               forward,
+                               m_Function->getNameAsString() + "_return",
+                               /*forceDeclCreation=*/ true);
+    // If the return expression is not a DeclRefExpression and is of type
+    // float, we should add it to the error estimate because returns are
+    // similiar to implicit assigns.
+    if (m_ErrorEstimationEnabled) {
+      errorEstHandler->SaveReturnExpr(ExprDiff.getExpr(), cast<DeclRefExpr>(retDeclRefExpr));
+    }
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
   }
@@ -880,7 +987,6 @@ namespace clad {
           auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
           // Add it to the body statements.
           addToCurrentBlock(add_assign, reverse);
-          ;
         }
         return StmtDiff(clonedDRE, it->second);
       }
@@ -917,10 +1023,22 @@ namespace clad {
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
+    // FIXME: What about pass-by-reference calls?
     if (!dfdx()) {
+      // unsigned int i = 0;
+      // const FunctionDecl* fnDecl = CE->getDirectCallee();
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
+        // If in error estimation, we want to store the errors in each input
+        // variable to a call expression given it is reference type, hence 
+        // we should build an error expression here and store it to emit later.
+        // FIXME: We need a derivative wrt each pass-by-reference input here.
+        // if (m_ErrorEstimationEnabled) {
+        //   errorEstHandler->EmitNestedFunctionParamError(
+        //       fnDecl, StmtDiff(ArgDiff.getExpr(), ArgDiff.getExpr_dx()));
+        // }
+        // i++;
       }
       Expr* call = m_Sema
                        .ActOnCallExpr(getCurrentScope(),
@@ -946,7 +1064,8 @@ namespace clad {
       // done to reduce cloning complexity and only clone once. The type is same
       // as the call expression as it is the type used to declare the _gradX
       // array
-      Expr* dArg = StoreAndRef(nullptr, CEType, reverse, "_r", /*force*/ true);
+      Expr* dArg = StoreAndRef(
+          nullptr, CEType, reverse, "_r", /*forceDeclCreation=*/true);
       ArgResultDecls.push_back(
           cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
       // Visit using uninitialized reference.
@@ -1061,11 +1180,20 @@ namespace clad {
 
     if (OverloadedDerivedFn) {
       // Derivative was found.
+      FunctionDecl* fnDecl =
+          dyn_cast<CallExpr>(OverloadedDerivedFn)->getDirectCallee();
       if (!asGrad) {
         // If the derivative is called through _darg0 instead of _grad.
         Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
 
         PerformImplicitConversionAndAssign(ArgResultDecls[0], d);
+        // If in error estimation, build the statement for the error
+        // in the input prameters (if they are reference types) to call and
+        // save to emit them later.
+        if (m_ErrorEstimationEnabled) {
+          errorEstHandler->EmitNestedFunctionParamError(
+              fnDecl, StmtDiff(CallArgs[0], BuildDeclRef(ArgResultDecls[0])));
+        }
       } else {
         // Put Result array declaration in the function body.
         // Call the gradient, passing Result as the last Arg.
@@ -1088,6 +1216,13 @@ namespace clad {
           auto di = BuildOp(BO_Mul, dfdx(), ithResult);
 
           PerformImplicitConversionAndAssign(ArgResultDecls[i], di);
+          // If in error estimation, build the statement for the error
+          // in the input prameters (if of reference type) to call and save to
+          // emit them later.
+          if (m_ErrorEstimationEnabled) {
+            errorEstHandler->EmitNestedFunctionParamError(
+                fnDecl, StmtDiff(CallArgs[i], BuildDeclRef(ArgResultDecls[i])));
+          }
         }
       }
     }
@@ -1131,6 +1266,33 @@ namespace clad {
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(UnOp->getSubExpr(), dfdx());
       ResultRef = diff.getExpr_dx();
+      if (m_ErrorEstimationEnabled) {
+        // If the sub-expression is a declRefExpr, we should emit an error.
+        if (DeclRefExpr* DRE =
+            errorEstHandler->GetUnderlyingDeclRefOrNull(diff.getExpr())) {
+          // First check if it was registered.
+          // If not, we don't care about it.
+          if (auto deltaVar = errorEstHandler->IsRegistered(
+                  cast<VarDecl>(DRE->getDecl()))) {
+            // Create a variable/tape call to store the current value of the
+            // the sub-expression so that it can be used later.
+            StmtDiff savedVar = GlobalStoreAndRef(
+                DRE, "_EERepl_" + DRE->getDecl()->getNameAsString());
+            if (isInsideLoop) {
+              // It is nice to save the pop value.
+              // We do not know how many times the user will use dx,
+              // hence we should pop values beforehand to avoid unequal pushes
+              // and and pops.
+              Expr* popVal = StoreAndRef(savedVar.getExpr_dx(), reverse);
+              savedVar = StmtDiff(savedVar.getExpr(), popVal);
+            }
+            Expr *erroExpr =
+                errorEstHandler->GetError(savedVar.getExpr_dx(), ResultRef);
+            errorEstHandler->AddErrorStmtToBlock(diff.getExpr(), deltaVar,
+                                                 erroExpr, isInsideLoop);
+          }
+        }
+      }
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       diff = Visit(UnOp->getSubExpr(), dfdx());
     } else {
@@ -1346,10 +1508,34 @@ namespace clad {
         addToCurrentBlock(*Lblock_begin, reverse);
         Lblock_begin = std::next(Lblock_begin);
       }
+      DeclRefExpr* LRef = errorEstHandler->GetUnderlyingDeclRefOrNull(LCloned);
+      DeclRefExpr* RRef = errorEstHandler->GetUnderlyingDeclRefOrNull(R);
+      VarDecl* Ldecl = LRef ? dyn_cast<VarDecl>(LRef->getDecl()) : nullptr;
+      // In the case that an RHS expression is a declReference, we do not emit
+      // any error because the assignment operation entials zero error.
+      // However, for compound assignment operators, the RHS may be a
+      // declRefExpr but here we will need to emit its error.
+      // This variable checks for the above conditions.
+      bool declRefOk = (!RRef || (opCode != BO_Assign)) &&
+                       (!LCloned->getType()->isArrayType() ||
+                        !LCloned->getType()->isArrayType());
+      Expr* deltaVar = nullptr;
+      // If the LHS can be decayed to a VarDecl and all other requirements
+      // are met, we should register the variable if it has not been already.
+      // We also do not support array input types yet.
+      if (m_ErrorEstimationEnabled && Ldecl && declRefOk) {
+        deltaVar = errorEstHandler->IsRegistered(Ldecl);
+        // Usually we would expect independent variable to qualify for these
+        // checks.
+        if (!deltaVar) {
+          deltaVar = errorEstHandler->RegisterVariable(Ldecl);
+          errorEstHandler->SaveParamValue(LRef);
+        }
+      }
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
-      auto oldValue =
-          StoreAndRef(AssignedDiff, reverse, "_r_d", /*force*/ true);
+      auto oldValue = StoreAndRef(
+          AssignedDiff, reverse, "_r_d", /*forceDeclCreation=*/true);
       if (opCode == BO_Assign) {
         Rdiff = Visit(R, oldValue);
       } else if (opCode == BO_AddAssign) {
@@ -1386,8 +1572,8 @@ namespace clad {
           if (LCloned->HasSideEffects(m_Context)) {
             QualType RefType = m_Context.getLValueReferenceType(
                 getNonConstType(L->getType(), m_Context, m_Sema));
-            LRef =
-                StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
+            LRef = StoreAndRef(
+                LCloned, RefType, forward, "_ref", /*forceDeclCreation=*/true);
           }
           StmtDiff LResult = GlobalStoreAndRef(LRef);
           if (isInsideLoop)
@@ -1411,8 +1597,8 @@ namespace clad {
           if (LCloned->HasSideEffects(m_Context)) {
             QualType RefType = m_Context.getLValueReferenceType(
                 getNonConstType(L->getType(), m_Context, m_Sema));
-            LRef =
-                StoreAndRef(LCloned, RefType, forward, "_ref", /*force*/ true);
+            LRef = StoreAndRef(
+                LCloned, RefType, forward, "_ref", /*forceDeclCreation=*/true);
           }
           StmtDiff LResult = GlobalStoreAndRef(LRef);
           if (isInsideLoop)
@@ -1429,6 +1615,23 @@ namespace clad {
         std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
       } else
         llvm_unreachable("unknown assignment opCode");
+      // Now, we should emit the delta for LHS if it met all the
+      // requirements previously.
+      if (m_ErrorEstimationEnabled && deltaVar) {
+        // For now save all lhs.
+        // FIXME: We can optimize stores here by using the ones created
+        // previously.
+        StmtDiff savedExpr = errorEstHandler->SaveValue(LCloned, isInsideLoop);
+        
+        // Assign the error.
+        Expr *errorExpr =
+            errorEstHandler->GetError(savedExpr.getExpr_dx(), oldValue);
+        errorEstHandler->AddErrorStmtToBlock(
+            LCloned, deltaVar, errorExpr, isInsideLoop);
+
+        // If there are assign statements to emit in reverse, do that.
+        errorEstHandler->EmitErrorEstimationStmts(reverse);
+      }
       // Update the derivative.
       addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), reverse);
       // Output statements from Visit(L).
@@ -1507,10 +1710,14 @@ namespace clad {
     return VarDeclDiff(VDClone, VDDerived);
   }
 
-  StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
-                                                       Expr* dfdS) {
+  StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(
+      const Stmt* S, Expr* dfdS, bool shouldEmit /*=true*/) {
     beginBlock(reverse);
     StmtDiff SDiff = Visit(S, dfdS);
+    // We might have some expressions to emit, so do that here.
+    if (m_ErrorEstimationEnabled && shouldEmit) {
+      errorEstHandler->EmitErrorEstimationStmts(reverse);
+    }
     addToCurrentBlock(SDiff.getStmt_dx(), reverse);
     CompoundStmt* RCS = endBlock(reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
@@ -1523,6 +1730,10 @@ namespace clad {
     beginBlock(forward);
     beginBlock(reverse);
     StmtDiff EDiff = Visit(E, dfdE);
+    // We might have some expressions to emit, so do that here.
+    if (m_ErrorEstimationEnabled) {
+      errorEstHandler->EmitErrorEstimationStmts(reverse);
+    }
     CompoundStmt* RCS = endBlock(reverse);
     Stmt* ForwardResult = endBlock(forward);
     std::reverse(RCS->body_begin(), RCS->body_end());
@@ -1541,6 +1752,29 @@ namespace clad {
     for (auto D : DS->decls()) {
       if (auto VD = dyn_cast<VarDecl>(D)) {
         VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
+        // For all dependent variables, we register them for estimation
+        // here.
+        if (m_ErrorEstimationEnabled &&
+            errorEstHandler->CanRegisterVariable(VD)) {
+          // Build the delta expresion for the variable to be registered.
+          auto EstVD = errorEstHandler->RegisterVariable(VDDiff.getDecl());
+          DeclRefExpr* VDRef = BuildDeclRef(VDDiff.getDecl());
+
+          // FIXME: We should do this for arrays too.
+          if (!VD->getType()->isArrayType()) {
+            StmtDiff savedDecl =
+                errorEstHandler->SaveValue(VDRef, isInsideLoop);
+
+            // If the VarDecl has an init, we should assign it with an error.
+            if (VD->getInit() &&
+                !errorEstHandler->GetUnderlyingDeclRefOrNull(VD->getInit())) {
+              Expr* errorExpr = errorEstHandler->GetError(savedDecl.getExpr_dx(),
+                                        BuildDeclRef(VDDiff.getDecl_dx()));
+              errorEstHandler->AddErrorStmtToBlock(VDRef, EstVD, errorExpr,
+                                                   isInsideLoop);
+            }
+          }
+        }
         // Check if decl's name is the same as before. The name may be changed
         // if decl name collides with something in the derivative body.
         // This can happen in rare cases, e.g. when the original function
@@ -1616,7 +1850,8 @@ namespace clad {
   }
 
   VarDecl* ReverseModeVisitor::GlobalStoreImpl(QualType Type,
-                                               llvm::StringRef prefix) {
+                                               llvm::StringRef prefix, 
+                                               Expr* init) {
     // Create identifier before going to topmost scope
     // to let Sema::LookupName see the whole scope.
     auto identifier = CreateUniqueIdentifier(prefix);
@@ -1625,7 +1860,7 @@ namespace clad {
     assert(m_DerivativeFnScope && "must be set");
     m_CurScope = m_DerivativeFnScope;
 
-    VarDecl* Var = BuildVarDecl(Type, identifier);
+    VarDecl* Var = BuildVarDecl(Type, identifier, init);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);

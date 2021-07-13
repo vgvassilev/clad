@@ -36,6 +36,8 @@ add_llvm_library(cladDifferentiator
   HessianModeVisitor.cpp
   JacobianModeVisitor.cpp
   ReverseModeVisitor.cpp
+  ErrorEstimator.cpp
+  EstimationModel.cpp
   StmtClone.cpp
   Version.cpp
   VisitorBase.cpp

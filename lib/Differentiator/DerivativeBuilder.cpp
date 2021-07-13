@@ -10,6 +10,7 @@
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/JacobianModeVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
+#include "clad/Differentiator/ErrorEstimator.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -30,6 +31,9 @@
 using namespace clang;
 
 namespace clad {
+
+  std::unique_ptr<ErrorEstimationHandler> errorEstHandler = nullptr;
+  
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
@@ -105,6 +109,11 @@ namespace clad {
     return { returnedFD, enclosingNS };
   }
 
+  void DerivativeBuilder::SetErrorEstimationModel(
+      std::unique_ptr<FPErrorEstimationModel> estModel) {
+    m_EstModel = std::move(estModel);
+  }
+
   DeclWithContext DerivativeBuilder::Derive(const FunctionDecl* FD,
                                             const DiffRequest& request) {
     //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
@@ -118,7 +127,6 @@ namespace clad {
              "definition", { FD->getNameAsString() });
       return {};
     }
-    FD = FD->getDefinition();
     DeclWithContext result{};
     if (request.Mode == DiffMode::forward) {
       ForwardModeVisitor V(*this);
@@ -130,9 +138,23 @@ namespace clad {
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);
-    } if (request.Mode == DiffMode::jacobian) {
+    } else if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this);
       result = J.Derive(FD, request);
+    } else if (request.Mode == DiffMode::error_estimation) {
+      // Set the handler.
+      errorEstHandler.reset(new ErrorEstimationHandler(*this));
+      // Set error estimation model. If no custom model provided by user,
+      // use the built in Taylor approximation model.
+      if (!m_EstModel){
+        m_EstModel.reset(new TaylorApprox(*this));
+      }
+      errorEstHandler->SetErrorEstimationModel(m_EstModel.get()); 
+      // Finally begin estimation.
+      result = errorEstHandler->Derive(FD, request);
+      // Once we are done, we want to clear the model for any further
+      // calls to estimate_error.
+      m_EstModel->clearEstimationVariables();
     }
 
     if (result.first)
