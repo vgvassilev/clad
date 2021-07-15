@@ -98,7 +98,7 @@ namespace clad {
               m_Function->param_end(),
               std::back_inserter(args));
 
-    std::string hessianFuncName = request.BaseFunctionName + "_hessian";
+    std::string hessianFuncName = getEffectiveFnName(request.Function) + "_hessian";
     IdentifierInfo* II = &m_Context.Idents.get(hessianFuncName);
     DeclarationNameInfo name(II, noLoc);
 

@@ -336,7 +336,24 @@ namespace clad {
     clang::Expr* 
     BuildCallExprToFunction(clang::FunctionDecl* FD,
         llvm::MutableArrayRef<clang::Expr*> argExprs);
+    
+    /// If `FD` is an overloaded operator, returns a name, unique for
+    /// each operator, which can be used to create valid C++ identifiers.
+    /// Otherwise if `FD` is an ordinary function, returns the name of the
+    /// function `FD`.
+    static std::string getEffectiveFnName(const clang::FunctionDecl* FD) {
+      // TODO: Add cases for more operators
+      switch (FD->getOverloadedOperator()) {
+        case clang::OverloadedOperatorKind::OO_Call:
+          return "operator_call";
+          break;
+        default:
+          return FD->getNameAsString();
+          break;
+      }
+    }
   };
+
 } // end namespace clad
 
 #endif // CLAD_VISITOR_BASE_H

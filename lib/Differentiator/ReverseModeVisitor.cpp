@@ -98,8 +98,7 @@ namespace clad {
       args.pop_back();
     }
 
-    auto derivativeBaseName = m_Function->getNameAsString();
-    std::string gradientName = derivativeBaseName + funcPostfix();
+    std::string gradientName = getEffectiveFnName(m_Function) + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
     if (request.Mode == DiffMode::jacobian &&
@@ -768,7 +767,7 @@ namespace clad {
     // computation (e.g. assignments), we also have to emit it to execute it.
     StoreAndRef(ExprDiff.getExpr(),
                 forward,
-                m_Function->getNameAsString() + "_return",
+                getEffectiveFnName(m_Function) + "_return",
                 /*force*/ true);
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
