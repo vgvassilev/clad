@@ -47,7 +47,7 @@ namespace clad {
             } else {
               TraverseStmt(VD->getInit());
             }
-          } else if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+          } else if (isa<FunctionDecl>(DRE->getDecl()))
             m_FnDRE = DRE;
           return false;
         }
@@ -145,10 +145,7 @@ namespace clad {
           // method, to maintain consistency with member function
           // differentiation.
           CXXScopeSpec CSS;
-          CSS.Extend(m_SemaRef.getASTContext(),
-                     RD->getIdentifier(),
-                     /*IdentifierLoc=*/noLoc,
-                     /*ColonColonLoc=*/noLoc);
+          BuildNNS(callOperator->getDeclContext(), CSS);
 
           // `ExprValueKind::VK_RValue` is used because functions are
           // decomposed to function pointers and thus a temporary is
@@ -159,9 +156,50 @@ namespace clad {
                                          ExprValueKind::VK_RValue,
                                          noLoc,
                                          &CSS));
-          m_FnDRE = cast<DeclRefExpr>(newFnDRE);
-
+          m_FnDRE = cast<DeclRefExpr>(newFnDRE);          
           return false;
+        }
+      private:
+        /// Creates nested name specifier associated with declaration context
+        /// argument `DC`. 
+        ///
+        /// For example, given a structure defined as,
+        /// namespace A {
+        /// namespace B {
+        ///   struct SomeStruct {};
+        /// }
+        /// }
+        ///
+        /// Passing `SomeStruct` as declaration context will create
+        /// nested name specifier of the form `::A::B::struct SomeClass::`
+        /// in `CXXScopeSpec` argument `CSS`.
+        /// \note Currently only namespace and class/struct nested name specifiers
+        /// are supported.
+        ///
+        /// \param[in] DC
+        /// \param[out] CSS
+        void BuildNNS(DeclContext* DC, CXXScopeSpec& CSS) {
+          assert(DC && "Must provide a non null DeclContext");
+
+          // parent name specifier should be added first
+          if (DC->getParent())
+            BuildNNS(DC->getParent(), CSS);
+
+          ASTContext& Context = m_SemaRef.getASTContext();
+
+          if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
+            CSS.Extend(Context, ND,
+                       /*NamespaceLoc=*/noLoc,
+                       /*ColonColonLoc=*/noLoc);
+          } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
+            auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+            auto RDTypeSourceInfo = Context.getTrivialTypeSourceInfo(RDQType);
+            CSS.Extend(Context,
+                       /*TemplateKWLoc=*/noLoc, RDTypeSourceInfo->getTypeLoc(),
+                       /*ColonColonLoc=*/noLoc);
+          } else if (isa<TranslationUnitDecl>(DC)) {
+            CSS.MakeGlobal(Context, /*ColonColonLoc=*/noLoc);
+          }
         }
     } finder(SemaRef, call->getArg(0)->getBeginLoc());
     finder.TraverseStmt(call->getArg(0));
