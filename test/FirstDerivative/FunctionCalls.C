@@ -1,8 +1,10 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
+
+#include <math.h>
 
 int printf(const char* fmt, ...);
 int no_body(int x);
@@ -74,7 +76,7 @@ float test_3() {
 // CHECK-NOT: float test_3_darg0() {
 
 float test_4(int x) {
-  return overloaded(); // expected-warning {{function 'overloaded' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  return overloaded(); // expected-warning {{function 'overloaded' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives', and function may not be eligible for numerical differentiation.}}
 }
 
 // CHECK: float test_4_darg0(int x) {

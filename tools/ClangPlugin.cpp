@@ -179,6 +179,12 @@ namespace clad {
               estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder));
         }
       }
+
+      // If enabled, set the proper fields in derivative builder.
+      if (m_DO.PrintNumDiffErrorInfo) {
+        m_DerivativeBuilder->setNumDiffErrDiag(true);
+      }
+
       FunctionDecl* DerivativeDecl = nullptr;
       Decl* DerivativeDeclContext = nullptr;
       FunctionDecl* OverloadedDerivativeDecl = nullptr;

@@ -1151,6 +1151,9 @@ namespace clad {
     llvm::SmallVector<Expr*, 16> CallArgDx{};
     // Stores the call arguments for the derived function
     llvm::SmallVector<Expr*, 16> DerivedCallArgs{};
+    // Stores tape decl and pushes for multiarg numerically differentiated
+    // calls.
+    llvm::SmallVector<Stmt*, 16> NumericalDiffMultiArg{};
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))
@@ -1240,6 +1243,9 @@ namespace clad {
       if (OverloadedDerivedFn)
         asGrad = false;
     }
+    // Store all the derived call output args (if any)
+    llvm::SmallVector<Expr*, 16> DerivedCallOutputArgs{};
+
     // If it has more args or f_darg0 was not found, we look for its gradient.
     if (!OverloadedDerivedFn) {
       IdentifierInfo* II =
@@ -1274,7 +1280,6 @@ namespace clad {
       } else {
         size_t idx = 0;
 
-        llvm::SmallVector<Expr*, 16> DerivedCallOutputArgs{};
         auto ArrayDiffArgType = GetCladArrayOfType(CEType.getCanonicalType());
         for (auto arg : CallArgDx) {
           ResultDecl = nullptr;
@@ -1365,23 +1370,44 @@ namespace clad {
             plugin::ProcessDiffRequest(m_CladPlugin, request);
         // Clad failed to derive it.
         if (!derivedFD) {
-          // Function was not derived => issue a warning.
-          diag(DiagnosticsEngine::Warning,
-               CE->getBeginLoc(),
-               "function '%0' was not differentiated because clad failed to "
-               "differentiate it and no suitable overload was found in "
-               "namespace 'custom_derivatives'",
-               {FD->getNameAsString()});
-          return StmtDiff(Clone(CE));
-        }
-
-        OverloadedDerivedFn =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(derivedFD),
-                               noLoc,
-                               llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
-                               noLoc)
-                .get();
+          // Try numerically deriving it.
+          // Build a clone call expression so that we can correctly
+          // scope the function to be differentiated.
+          Expr* call = m_Sema
+                     .ActOnCallExpr(getCurrentScope(),
+                                    Clone(CE->getCallee()),
+                                    noLoc,
+                                    llvm::MutableArrayRef<Expr*>(CallArgs),
+                                    noLoc)
+                     .get();
+          Expr* fnCallee = cast<CallExpr>(call)->getCallee();
+          if (NArgs == 1) {
+            OverloadedDerivedFn = GetSingleArgCentralDiffCall(fnCallee,
+                                                              DerivedCallArgs
+                                                                  [0],
+                                                              /*targetPos=*/0,
+                                                              /*numArgs=*/1,
+                                                              DerivedCallArgs);
+            asGrad = !OverloadedDerivedFn;
+          } else {
+            OverloadedDerivedFn = GetMultiArgCentralDiffCall(
+                fnCallee, CEType.getCanonicalType(), CE->getNumArgs(),
+                NumericalDiffMultiArg, DerivedCallArgs, DerivedCallOutputArgs);
+          }
+          CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
+                                  OverloadedDerivedFn);
+          if (!OverloadedDerivedFn)
+            return StmtDiff(Clone(CE));
+        } else {
+          OverloadedDerivedFn = m_Sema
+                                    .ActOnCallExpr(getCurrentScope(),
+                                                   BuildDeclRef(derivedFD),
+                                                   noLoc,
+                                                   llvm::MutableArrayRef<Expr*>(
+                                                       DerivedCallArgs),
+                                                   noLoc)
+                                    .get();
+        }    
       }
     }
 
@@ -1433,6 +1459,9 @@ namespace clad {
           // Insert the _gradX declaration statements
           it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
           it += ArgDeclStmts.size();
+          it = block.insert(it, NumericalDiffMultiArg.begin(),
+                            NumericalDiffMultiArg.end());
+          it += NumericalDiffMultiArg.size();
           // Insert the CallExpr to the derived function
           block.insert(it, OverloadedDerivedFn);
           // If in error estimation, build the statement for the error

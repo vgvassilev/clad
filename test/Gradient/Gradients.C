@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
+// RUN: %cladnumdiffclang -lm -lstdc++ %s  -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
 // RUN: ./Gradients.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -872,7 +872,7 @@ void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, 
     printf("Result is = {%.2f, %.2f}\n", result[0], result[1]);                \
   }
 
-int main() { // expected-no-diagnostics
+int main() {
   double result[2];
 
   TEST(f_add1, 1, 1); // CHECK-EXEC: Result is = {1.00, 1.00}

@@ -81,6 +81,16 @@ namespace clad {
       return begin()[_size - 1];
     }
 
+    CUDA_HOST_DEVICE reference operator[](std::size_t i) {
+      assert(i < _size);
+      return begin()[i];
+    }
+
+    CUDA_HOST_DEVICE const_reference operator[](std::size_t i) const {
+      assert(i < _size);
+      return begin()[i];
+    }
+
     /// Remove the last value from the tape.
     CUDA_HOST_DEVICE void pop_back() {
       assert(_size);
