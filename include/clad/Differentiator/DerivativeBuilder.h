@@ -86,6 +86,7 @@ namespace clad {
     clang::ASTContext& m_Context;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
+    clang::NamespaceDecl* m_NumericalDiffNSD;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB,
                                   clang::DeclContext* DC,
@@ -94,8 +95,21 @@ namespace clad {
                                   clang::SourceLocation& noLoc,
                                   clang::DeclarationNameInfo name,
                                   clang::QualType functionType);
-    clang::Expr* findOverloadedDefinition(clang::DeclarationNameInfo DNI,
-                            llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
+    /// This function looks for a sutiable overload for a given function.
+    ///
+    /// \param[in] DNI The identifcation information of the function overload 
+    /// to be found. 
+    /// \param[in] CallArgs The call args to be used to resolve to the
+    /// correct overload. 
+    /// \param[in] forCustomDerv A flag to keep track of which
+    /// namespace we should look in for the overloads.
+    ///
+    /// \returns The call expression if a suitable function overload was found,
+    /// null otherwise.
+    clang::Expr*
+    findOverloadedDefinition(clang::DeclarationNameInfo DNI,
+                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+                             bool forCustomDerv = true);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                             llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.

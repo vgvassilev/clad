@@ -574,6 +574,21 @@ unsigned f_types(int x, float y, double z) {
 //CHECK-NEXT:   } 
 void f_types_grad(int x, float y, double z, unsigned int *_result);
 
+double f_numdiff(double x){
+   return tanh(x);
+}
+// CHECK: void f_numdiff_grad(double x, double *_result) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     double f_numdiff_return = tanh(_t0);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 1 * numerical_diff::central_difference(tanh, _t0);
+// CHECK-NEXT:         _result[0UL] += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 double f_decls1(double x, double y) {
   double a = 3 * x;
   double b = 5 * y;
@@ -869,6 +884,7 @@ int main() { // expected-no-diagnostics
   clad::gradient(f_norm);
   clad::gradient(f_sin);
   clad::gradient(f_types);
+  clad::gradient(f_numdiff);
   TEST(f_decls1, 3, 3); // CHECK-EXEC: Result is = {6.00, 10.00}
   TEST(f_decls2, 2, 2); // CHECK-EXEC: Result is = {8.00, 8.00}
   TEST(f_decls3, 3, 0); // CHECK-EXEC: Result is = {6.00, 0.00}

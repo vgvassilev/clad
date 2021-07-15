@@ -1039,23 +1039,49 @@ namespace clad {
             plugin::ProcessDiffRequest(m_CladPlugin, request);
         // Clad failed to derive it.
         if (!derivedFD) {
-          // Function was not derived => issue a warning.
-          diag(DiagnosticsEngine::Warning,
-               CE->getBeginLoc(),
-               "function '%0' was not differentiated because clad failed to "
-               "differentiate it and no suitable overload was found in "
-               "namespace 'custom_derivatives'",
-               {FD->getNameAsString()});
-          return StmtDiff(Clone(CE));
-        }
-        OverloadedDerivedFn =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(),
-                               BuildDeclRef(derivedFD),
-                               noLoc,
-                               llvm::MutableArrayRef<Expr*>(ReverseCallArgs),
-                               noLoc)
-                .get();
+          // Check if it has a single numerical argument. If so, we can
+          // likely numerically differentiate it.
+          if (NArgs == 1 && ReverseCallArgs[0]->getType()->isArithmeticType()) {
+            IdentifierInfo* II = &m_Context.Idents.get("central_difference");
+            DeclarationName name(II);
+            DeclarationNameInfo DNInfo(name, noLoc);
+            // Build a clone call expression so that we can correctly
+            // scope the function to be differentiated.
+            Expr* call = m_Sema
+                       .ActOnCallExpr(getCurrentScope(),
+                                      Clone(CE->getCallee()),
+                                      noLoc,
+                                      llvm::MutableArrayRef<Expr*>(CallArgs),
+                                      noLoc)
+                       .get();
+            Expr* fnCallee = cast<CallExpr>(call)->getCallee();
+            llvm::SmallVector<clang::Expr *, 16U> NumDiffArgs = {
+                fnCallee, ReverseCallArgs[0]};
+            OverloadedDerivedFn = m_Builder.findOverloadedDefinition(
+                DNInfo, NumDiffArgs, /*forCustomDerv=*/false);
+            asGrad = !OverloadedDerivedFn;
+          }
+          if (!OverloadedDerivedFn) {
+            // Function was not derived => issue a warning.
+            diag(DiagnosticsEngine::Warning,
+                 CE->getBeginLoc(),
+                 "function '%0' was not differentiated because clad failed to "
+                 "differentiate it and no suitable overload was found in "
+                 "namespace 'custom_derivatives', and function may not be "
+                  "eligible for numerical differentiation.",
+                 {FD->getNameAsString()});
+            return StmtDiff(Clone(CE));
+          }
+        } else {
+          OverloadedDerivedFn =
+              m_Sema
+                  .ActOnCallExpr(getCurrentScope(),
+                                 BuildDeclRef(derivedFD),
+                                 noLoc,
+                                 llvm::MutableArrayRef<Expr*>(ReverseCallArgs),
+                                 noLoc)
+                  .get();
+        }    
       }
     }
 

@@ -4,6 +4,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <math.h>
+
 int printf(const char* fmt, ...);
 int no_body(int x);
 int custom_fn(int x);
@@ -74,7 +76,7 @@ float test_3() {
 // CHECK-NOT: float test_3_darg0() {
 
 float test_4(int x) {
-  return overloaded(); // expected-warning {{function 'overloaded' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  return overloaded(); // expected-warning {{function 'overloaded' was not differentiated because clad failed to differentiate it, no suitable overload was found in namespace 'custom_derivatives', and function may not be eligible for numerical differentiation.}}
 }
 
 // CHECK: float test_4_darg0(int x) {
@@ -91,11 +93,21 @@ float test_5(int x) {
 // CHECK-NEXT: return custom_derivatives::no_body_darg0(x) * _d_x;
 // CHECK-NEXT: }
 
+double test_6(double x){
+   return std::log10(x);
+}
+
+// CHECK: double test_6_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     return numerical_diff::central_difference(std::log10, x) * _d_x;
+// CHECK-NEXT: }
+
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
   clad::differentiate(test_3, 0); //expected-error {{Invalid argument index 0 among 0 argument(s)}}
   clad::differentiate(test_4, 0);
   clad::differentiate(test_5, 0);
+  clad::differentiate(test_6, 0);
   return 0;
 }

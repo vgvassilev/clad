@@ -631,7 +631,6 @@ namespace clad {
           // Populate CandidateSet.
           m_Sema.buildOverloadedCallSet(
               S, UnresolvedLookup, ULE, ARargs, Loc, &CandidateSet, &result);
-
           OverloadCandidateSet::iterator Best;
           OverloadingResult OverloadResult = CandidateSet.BestViableFunction(
               m_Sema, UnresolvedLookup->getBeginLoc(), Best);
@@ -643,9 +642,10 @@ namespace clad {
     return false;
   }
 
-  static NamespaceDecl* LookupBuiltinDerivativesNSD(ASTContext& C, Sema& S) {
-    // Find the builtin derivatives namespace
-    DeclarationName Name = &C.Idents.get("custom_derivatives");
+  static NamespaceDecl* LookupNSD(
+      ASTContext& C, Sema& S, std::string namespc) {
+    // Find the builtin derivatives/numerical diff namespace
+    DeclarationName Name = &C.Idents.get(namespc);
     LookupResult R(S,
                    Name,
                    SourceLocation(),
@@ -654,23 +654,33 @@ namespace clad {
     S.LookupQualifiedName(R,
                           C.getTranslationUnitDecl(),
                           /*allowBuiltinCreation*/ false);
-    assert(!R.empty() && "Cannot find builtin derivatives!");
+    assert(!R.empty() && "Cannot find the specified namespace!");
     return cast<NamespaceDecl>(R.getFoundDecl());
   }
 
   Expr* DerivativeBuilder::findOverloadedDefinition(
-      DeclarationNameInfo DNI, llvm::SmallVectorImpl<Expr*>& CallArgs) {
-    if (!m_BuiltinDerivativesNSD)
-      m_BuiltinDerivativesNSD = LookupBuiltinDerivativesNSD(m_Context, m_Sema);
-
+      DeclarationNameInfo DNI,
+      llvm::SmallVectorImpl<Expr*>& CallArgs,
+      bool forCustomDerv/*=true*/) {
+    NamespaceDecl* NSD;
+    std::string namespaceID;
+    if (forCustomDerv) {
+      NSD = m_BuiltinDerivativesNSD;
+      namespaceID = "custom_derivatives";
+    } else {
+      NSD = m_NumericalDiffNSD;
+      namespaceID = "numerical_diff";
+    }
+    if (!NSD)
+      NSD = LookupNSD(m_Context, m_Sema, namespaceID);
     LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
     m_Sema.LookupQualifiedName(R,
-                               m_BuiltinDerivativesNSD,
+                               NSD,
                                /*allowBuiltinCreation*/ false);
     Expr* OverloadedFn = 0;
     if (!R.empty()) {
       CXXScopeSpec CSS;
-      CSS.Extend(m_Context, m_BuiltinDerivativesNSD, noLoc, noLoc);
+      CSS.Extend(m_Context, NSD, noLoc, noLoc);
       Expr* UnresolvedLookup =
           m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
 
@@ -770,28 +780,46 @@ namespace clad {
 
       FunctionDecl* derivedFD =
           plugin::ProcessDiffRequest(m_CladPlugin, request);
-      // Clad failed to derive it.
+      // If clad failed to derive it, try finding its derivative using
+      // numerical diff.
       if (!derivedFD) {
-        // Function was not derived => issue a warning.
-        diag(DiagnosticsEngine::Warning,
-             CE->getBeginLoc(),
-             "function '%0' was not differentiated because clad failed to "
-             "differentiate it and no suitable overload was found in "
-             "namespace 'custom_derivatives'",
-             {FD->getNameAsString()});
+        // Check if the function is eligible for numerical differentiation.
+        if (CE->getNumArgs() == 1 &&
+            CallArgs[0]->getType()->isArithmeticType()) {
+          IdentifierInfo* II = &m_Context.Idents.get("central_difference");
+          DeclarationName name(II);
+          DeclarationNameInfo DNInfo(name, noLoc);
+          Expr* fnCallee = cast<CallExpr>(call)->getCallee();
+          llvm::SmallVector<clang::Expr*, 16U> NumDiffArgs = {fnCallee,
+                                                              CallArgs[0]};
+          callDiff =
+              m_Builder.findOverloadedDefinition(DNInfo,
+                                                 NumDiffArgs,
+                                                 /*forCustomDerv=*/false);
+        }
+        // If Function was still not derived => issue a warning.
+        if (!callDiff) {
+          diag(DiagnosticsEngine::Warning,
+               CE->getBeginLoc(),
+               "function '%0' was not differentiated because clad failed to "
+               "differentiate it, no suitable overload was found in "
+               "namespace 'custom_derivatives', and function may not be "
+               "eligible for numerical differentiation.",
+               {FD->getNameAsString()});
 
-        auto zero =
-            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-        return StmtDiff(call, zero);
+          auto zero =
+              ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+          return StmtDiff(call, zero);
+        }
+      } else {
+        callDiff = m_Sema
+                       .ActOnCallExpr(getCurrentScope(),
+                                      BuildDeclRef(derivedFD),
+                                      noLoc,
+                                      llvm::MutableArrayRef<Expr*>(CallArgs),
+                                      noLoc)
+                       .get();
       }
-
-      callDiff = m_Sema
-                     .ActOnCallExpr(getCurrentScope(),
-                                    BuildDeclRef(derivedFD),
-                                    noLoc,
-                                    llvm::MutableArrayRef<Expr*>(CallArgs),
-                                    noLoc)
-                     .get();
     }
 
     if (Multiplier)

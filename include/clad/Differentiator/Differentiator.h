@@ -9,6 +9,7 @@
 
 #include "BuiltinDerivatives.h"
 #include "FunctionTraits.h"
+#include "NumericalDiff.h"
 #include "Tape.h"
 
 #include <assert.h>
