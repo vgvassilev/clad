@@ -7,7 +7,7 @@
 extern "C" int printf(const char* fmt, ...);
 
 int f_1(int x) {
-   printf("I am being run!\n"); //expected-warning{{attempted to differentiate unsupported statement, no changes applied}} //expected-warning{{function 'printf' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+   printf("I am being run!\n"); //expected-warning{{attempted to differentiate unsupported statement, no changes applied}} //expected-warning{{function 'printf' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives', and function may not be eligible for numerical differentiation.}}
    return x * x;
 }
 // CHECK: int f_1_darg0(int x) {

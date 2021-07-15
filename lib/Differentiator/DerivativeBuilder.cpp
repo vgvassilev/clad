@@ -37,7 +37,7 @@ namespace clad {
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
-      m_BuiltinDerivativesNSD(nullptr) {}
+      m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
   DerivativeBuilder::~DerivativeBuilder() {}
 

@@ -453,6 +453,49 @@ namespace clad {
     clang::Expr*
     BuildArrayRefSliceExpr(clang::Expr* Base,
                            llvm::MutableArrayRef<clang::Expr*> Args);
+    /// A function to get the single argument "forward_central_difference"
+    /// call expression for the given arguments.
+    ///
+    /// \param[in] targetFuncCall The function to get the derivative for.
+    /// \param[in] targetArg The argument to get the derivative with respect to.
+    /// \param[in] targetPos The relative position of 'targetArg'.
+    /// \param[in] numArgs The total number of 'args'.
+    /// \param[in] args All the arguments to the target function.
+    ///
+    /// \returns The derivative function call.
+    clang::Expr* GetSingleArgCentralDiffCall(
+        clang::Expr* targetFuncCall, clang::Expr* targetArg, 
+        unsigned targetPos, unsigned numArgs, 
+        llvm::SmallVectorImpl<clang::Expr*>& args);
+    /// A function to get the multi-argument "central_difference"
+    /// call expression for the given arguments.
+    ///
+    /// \param[in] targetFuncCall The function to get the derivative for.
+    /// \param[in] retType The return type of the target call expression.
+    /// \param[in] numArgs The total number of 'args'.
+    /// \param[in] NumericalDiffMultiArg The built statements to add to block
+    /// later.
+    /// \param[in] args All the arguments to the target function.
+    /// \param[in] outputArgs The output gradient arguments.
+    ///
+    /// \returns The derivative function call.
+    clang::Expr* GetMultiArgCentralDiffCall(
+        clang::Expr* targetFuncCall, clang::QualType retType, 
+        unsigned numArgs,
+        llvm::SmallVectorImpl<clang::Stmt*>& NumericalDiffMultiArg,
+        llvm::SmallVectorImpl<clang::Expr*>& args,
+        llvm::SmallVectorImpl<clang::Expr*>& outputArgs);
+    /// Emits diagnostic messages on differentiation (or lack thereof) for 
+    /// call expressions.
+    ///
+    /// \param[in] \c funcName The name of the underlying function of the 
+    /// call expression.
+    /// \param[in] \c srcLoc Any associated source location information. 
+    /// \param[in] \c isDerived A flag to determine if differentiation of the
+    /// call expression was successful.
+    void CallExprDiffDiagnostics(llvm::StringRef funcName,
+                                 clang::SourceLocation srcLoc,
+                                 bool isDerived);
 
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.

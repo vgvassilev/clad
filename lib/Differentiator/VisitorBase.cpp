@@ -649,4 +649,100 @@ namespace clad {
   bool VisitorBase::isArrayRefType(QualType QT) {
     return QT.getAsString().find("clad::array_ref") != std::string::npos;
   }
+
+  Expr* VisitorBase::GetSingleArgCentralDiffCall(
+      Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
+      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args) {
+    QualType argType = targetArg->getType();
+    int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
+    bool isSupported = argType->isArithmeticType();
+    if (!isSupported)
+      return nullptr;
+    IdentifierInfo* II = &m_Context.Idents.get("forward_central_difference");
+    DeclarationName name(II);
+    DeclarationNameInfo DNInfo(name, noLoc);
+    // Build function args.
+    llvm::SmallVector<Expr*, 16U> NumDiffArgs;
+    NumDiffArgs.push_back(targetFuncCall);
+    NumDiffArgs.push_back(targetArg);
+    NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                            m_Context,
+                                                            targetPos));
+    NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                            m_Context,
+                                                            printErrorInf));
+    NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
+    // Return the found overload.
+    return m_Builder.findOverloadedDefinition(DNInfo, NumDiffArgs,
+                                              /*forCustomDerv=*/false,
+                                              /*namespaceShouldExist=*/false);
+  }
+
+  Expr* VisitorBase::GetMultiArgCentralDiffCall(
+      Expr* targetFuncCall, QualType retType, unsigned numArgs,
+      llvm::SmallVectorImpl<Stmt*>& NumericalDiffMultiArg,
+      llvm::SmallVectorImpl<Expr*>& args,
+      llvm::SmallVectorImpl<Expr*>& outputArgs) {
+    int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
+    IdentifierInfo* II = &m_Context.Idents.get("central_difference");
+    DeclarationName name(II);
+    DeclarationNameInfo DNInfo(name, noLoc);
+    llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
+    NumDiffArgs.push_back(targetFuncCall);
+    // build the clad::tape<clad::array_ref>> = {};
+    QualType RefType = GetCladArrayRefOfType(retType);
+    QualType TapeType = GetCladTapeOfType(RefType);
+    auto VD = BuildVarDecl(TapeType);
+    NumericalDiffMultiArg.push_back(BuildDeclStmt(VD));
+    Expr* TapeRef = BuildDeclRef(VD);
+    NumDiffArgs.push_back(TapeRef);
+    NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                            m_Context,
+                                                            printErrorInf));
+
+    // Build the tape push expressions.
+    VD->setLocation(m_Function->getLocation());
+    m_Sema.AddInitializerToDecl(VD, getZeroInit(TapeType), false);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    LookupResult& Push = GetCladTapePush();
+    auto PushDRE = m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false)
+                       .get();
+    Expr* PushExpr;
+    for (unsigned i = 0, e = numArgs; i < e; i++) {
+      Expr* callArgs[] = {TapeRef, outputArgs[i]};
+      PushExpr = m_Sema
+                     .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs,
+                                    noLoc)
+                     .get();
+      NumericalDiffMultiArg.push_back(PushExpr);
+      NumDiffArgs.push_back(args[i]);
+    }
+
+    return m_Builder.findOverloadedDefinition(DNInfo, NumDiffArgs,
+                                              /*forCustomDerv=*/false,
+                                              /*namespaceShouldExist=*/false);
+  }
+
+  void VisitorBase::CallExprDiffDiagnostics(llvm::StringRef funcName,
+                                 SourceLocation srcLoc, bool isDerived){
+    if (!isDerived) {
+      // Function was not derived => issue a warning.
+      diag(DiagnosticsEngine::Warning,
+           srcLoc,
+           "function '%0' was not differentiated because clad failed to "
+           "differentiate it and no suitable overload was found in "
+           "namespace 'custom_derivatives', and function may not be "
+            "eligible for numerical differentiation.",
+           {funcName});
+    } else {
+      diag(DiagnosticsEngine::Warning, noLoc,
+           "Falling back to numerical differentiation for '%0' since no "
+           "suitable overload was found and clad could not derive it. "
+           "To disable this feature, compile your programs with "
+           "-DCLAD_NO_NUM_DIFF.",
+           {funcName});
+    }
+  }
+
 } // end namespace clad

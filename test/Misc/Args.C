@@ -6,6 +6,7 @@
 // CHECK_HELP-NEXT: -fdump-derived-fn-ast
 // CHECK_HELP-NEXT: -fgenerate-source-file
 // CHECK_HELP-NEXT: -fcustom-estimation-model
+// CHECK_HELP-NEXT: -fprint-num-diff-errors
 // CHECK_HELP-NEXT: -help
 
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad\

@@ -237,3 +237,13 @@
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_x += _r2;
 //CHECK_GRADIENT_DESCENT-NEXT:     }
 //CHECK_GRADIENT_DESCENT-NEXT: }
+
+//-----------------------------------------------------------------------------/
+// Demo: Custom Type Numerical Diff
+//-----------------------------------------------------------------------------/
+// RUN: %cladnumdiffclang -lm -lstdc++ %S/../../demos/CustomTypeNumDiff.cpp -I%S/../../include -oCustomTypeNumDiff.out
+// RUN: ./CustomTypeNumDiff.out | FileCheck -check-prefix CHECK_CUSTOM_NUM_DIFF_EXEC %s
+// CHECK_CUSTOM_NUM_DIFF_EXEC: Result of df/dx is = 0.07
+// CHECK_CUSTOM_NUM_DIFF_EXEC: Result of df/dx is = 0.003
+
+

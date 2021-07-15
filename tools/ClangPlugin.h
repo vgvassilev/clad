@@ -40,7 +40,7 @@ namespace clad {
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
             DumpDerivedAST(false), GenerateSourceFile(false),
             ValidateClangVersion(false), CustomEstimationModel(false),
-            CustomModelName("") {}
+            PrintNumDiffErrorInfo(false), CustomModelName("") {}
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
@@ -49,6 +49,7 @@ namespace clad {
       bool GenerateSourceFile : 1;
       bool ValidateClangVersion : 1;
       bool CustomEstimationModel : 1;
+      bool PrintNumDiffErrorInfo : 1;
       std::string CustomModelName;
     };
 
@@ -127,6 +128,8 @@ namespace clad {
               return false;
             }
             m_DO.CustomModelName = args[i];
+          } else if (args[i] == "-fprint-num-diff-errors") {
+            m_DO.PrintNumDiffErrorInfo = true;
           } else if (args[i] == "-help") {
             // Print some help info.
             llvm::errs()
@@ -143,7 +146,10 @@ namespace clad {
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fcustom-estimation-model - allows user to send in a "
-                   "shared object to use as the custom estimation model.\n";
+                   "shared object to use as the custom estimation model.\n"
+                << "-fprint-num-diff-errors - allows users to print the "
+                   "calculated numerical diff errors, this flag is overriden "
+                   "by -DCLAD_NO_NUM_DIFF.\n";
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else {

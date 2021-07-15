@@ -12,6 +12,7 @@
 #include "BuiltinDerivatives.h"
 #include "CladConfig.h"
 #include "FunctionTraits.h"
+#include "NumericalDiff.h"
 #include "Tape.h"
 
 #include <assert.h>
@@ -54,6 +55,15 @@ namespace clad {
   /// Add value to the end of the tape, return the same value.
   template <typename T>
   CUDA_HOST_DEVICE T push(tape<T>& to, T val) {
+    to.emplace_back(val);
+    return val;
+  }
+
+  /// Add value to the end of the tape, return the same value.
+  /// A specialization for clad::array_ref types to use in reverse mode.
+  template <typename T, typename U>
+  CUDA_HOST_DEVICE clad::array_ref<T> push(tape<clad::array_ref<T>>& to,
+                                           U val) {
     to.emplace_back(val);
     return val;
   }

@@ -97,17 +97,36 @@ namespace clad {
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     /// A reference to the model to use for error estimation (if any).
     std::unique_ptr<FPErrorEstimationModel> m_EstModel = nullptr;
+    clang::NamespaceDecl* m_NumericalDiffNSD;
+    /// A flag to keep track of whether error diagnostics are requested by user
+    /// for numerical differentiation.
+    bool m_PrintNumericalDiffErrorDiag = false;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
-                                  clad::VisitorBase VB,
-                                  clang::DeclContext* DC,
+                                  clad::VisitorBase VB, clang::DeclContext* DC,
                                   clang::Sema& m_Sema,
                                   clang::ASTContext& m_Context,
                                   clang::SourceLocation& noLoc,
                                   clang::DeclarationNameInfo name,
                                   clang::QualType functionType);
+    /// Looks for a suitable overload for a given function.
+    ///
+    /// \param[in] DNI The identification information of the function overload
+    /// to be found.
+    /// \param[in] CallArgs The call args to be used to resolve to the
+    /// correct overload.
+    /// \param[in] forCustomDerv A flag to keep track of which
+    /// namespace we should look in for the overloads.
+    /// \param[in] namespaceShouldExist A flag to enforce assertion failure
+    /// if the overload function namespace was not found. If false and
+    /// the function containing namespace was not found, nullptr is returned.
+    ///
+    /// \returns The call expression if a suitable function overload was found,
+    /// null otherwise.
     clang::Expr*
     findOverloadedDefinition(clang::DeclarationNameInfo DNI,
-                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs);
+                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+                             bool forCustomDerv = true,
+                             bool namespaceShouldExist = true);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
@@ -130,6 +149,19 @@ namespace clad {
     /// an in-built one (TaylorApprox) or one provided by the user.
     void
     SetErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
+    /// Fuction to set the error diagnostic printing value for numerical
+    /// differentiation.
+    ///
+    /// \param[in] \c value The new value to be set.
+    void setNumDiffErrDiag(bool value) {
+      m_PrintNumericalDiffErrorDiag = value;
+    }
+    /// Function to return if clad should emit error information for numerical
+    /// differentiation.
+    ///
+    /// \returns The flag  that controls printing of error information for
+    /// numerical differentiation.
+    bool shouldPrintNumDiffErrs() { return m_PrintNumericalDiffErrorDiag; }
     ///\brief Produces the derivative of a given function
     /// according to a given plan.
     ///
