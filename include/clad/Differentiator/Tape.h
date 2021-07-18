@@ -5,12 +5,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-
-#ifdef __CUDACC__
-#define CUDA_HOST_DEVICE __host__ __device__ 
-#else
-#define CUDA_HOST_DEVICE
-#endif
+#include "clad/Differentiator/CladConfig.h"
 
 namespace clad {
   /// Dynamically-sized array (std::vector-like), primarily used for storing
