@@ -7,6 +7,7 @@
 #ifndef CLAD_DIFFERENTIATOR
 #define CLAD_DIFFERENTIATOR
 
+#include "CladConfig.h"
 #include "BuiltinDerivatives.h"
 #include "FunctionTraits.h"
 #include "Tape.h"

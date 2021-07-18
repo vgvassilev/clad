@@ -7,15 +7,11 @@
 #ifndef CLAD_BUILTIN_DERIVATIVES
 #define CLAD_BUILTIN_DERIVATIVES
 
-#ifdef __CUDACC__
-#define CUDA_HOST_DEVICE __host__ __device__ 
-#else
-#define CUDA_HOST_DEVICE
-#endif
-
 // Avoid assertion custom_derivative namespace not found. FIXME: This in future
 // should go.
 namespace custom_derivatives{}
+
+#include "clad/Differentiator/CladConfig.h"
 
 #include <math.h>
 
