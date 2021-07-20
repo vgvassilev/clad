@@ -727,12 +727,83 @@ double f16(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f17(double i, double j) {
+  j = 2*i;
+  return j;
+}
+
+// CHECK: void f17_grad_0(double i, double j, double *_result) {
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     j = 2 * _t0;
+// CHECK-NEXT:     double f17_return = j;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_j += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_j;
+// CHECK-NEXT:         double _r0 = _r_d0 * _t0;
+// CHECK-NEXT:         double _r1 = 2 * _r_d0;
+// CHECK-NEXT:         _result[0UL] += _r1;
+// CHECK-NEXT:         _d_j -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f18(double i, double j, double k) {
+  k = 2*i + 2*j;
+  k += i;
+  return k;
+}
+
+// CHECK: void f18_grad_0_1(double i, double j, double k, double *_result) {
+// CHECK-NEXT:     double _d_k = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     _t1 = j;
+// CHECK-NEXT:     k = 2 * _t0 + 2 * _t1;
+// CHECK-NEXT:     k += i;
+// CHECK-NEXT:     double f18_return = k;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_k += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d1 = _d_k;
+// CHECK-NEXT:         _d_k += _r_d1;
+// CHECK-NEXT:         _result[0UL] += _r_d1;
+// CHECK-NEXT:         _d_k -= _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_k;
+// CHECK-NEXT:         double _r0 = _r_d0 * _t0;
+// CHECK-NEXT:         double _r1 = 2 * _r_d0;
+// CHECK-NEXT:         _result[0UL] += _r1;
+// CHECK-NEXT:         double _r2 = _r_d0 * _t1;
+// CHECK-NEXT:         double _r3 = 2 * _r_d0;
+// CHECK-NEXT:         _result[1UL] += _r3;
+// CHECK-NEXT:         _d_k -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 #define TEST(F, x, y) { \
   result[0] = 0; result[1] = 0;\
   auto F##grad = clad::gradient(F);\
   F##grad.execute(x, y, result);\
   printf("{%.2f, %.2f}\n", result[0], result[1]); \
+}
+
+#define VAR_TEST(F, args, args_num, ...) {\
+  double res[args_num] = {};\
+  auto d_##F = clad::gradient(F, args);\
+  d_##F.execute(__VA_ARGS__, res);\
+  printf("{");\
+  for (int i=0; i<args_num; ++i) {\
+    printf("%.2f", res[i]);\
+    if (i != args_num-1)\
+      printf(", ");\
+  }\
+  printf("}\n");\
 }
 
 int main() {
@@ -753,4 +824,6 @@ int main() {
   TEST(f14, 3, 4);  // CHECK-EXEC: {96.00, 0.00}
   TEST(f15, 3, 4);  // CHECK-EXEC: {30.00, 33.00}
   TEST(f16, 3, 4);  // CHECK-EXEC: {16.00, 12.00}
+  VAR_TEST(f17, "i", /*number of independent args=*/1, 3, 4); // CHECK-EXEC: {2.00}
+  VAR_TEST(f18, "i, j", /*number of independent args=*/2, 3, 4, 5); // CHECK-EXEC: {3.00, 2.00}
 }
