@@ -266,6 +266,23 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+
+    // create derived variables for parameters which are not part of
+    // independent variables (args).
+    for (auto param : params) {
+      if (m_Variables.count(param) || param == params.back())
+        continue;
+      auto VDDerivedType = param->getType();
+      // We cannot initialize derived variable for pointer types without
+      // knowing the correct size.
+      if (VDDerivedType->isArrayType() || VDDerivedType->isPointerType())
+        continue;
+      auto VDDerived = BuildVarDecl(VDDerivedType,
+                                    "_d_" + param->getNameAsString(),
+                                    getZeroInit(VDDerivedType));
+      m_Variables[param] = BuildDeclRef(VDDerived);
+      addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+    }
     // Start the visitation process which outputs the statements in the current
     // block.
     StmtDiff BodyDiff = Visit(FD->getBody());
