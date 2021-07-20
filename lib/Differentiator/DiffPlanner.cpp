@@ -46,7 +46,7 @@ namespace clad {
             } else {
               TraverseStmt(VD->getInit());
             }
-          } else if (dyn_cast<FunctionDecl>(DRE->getDecl()))
+          } else if (isa<FunctionDecl>(DRE->getDecl()))
             m_FnDRE = DRE;
           return false;
         }
@@ -155,13 +155,12 @@ namespace clad {
                                          ExprValueKind::VK_RValue,
                                          noLoc,
                                          &CSS));
-          m_FnDRE = cast<DeclRefExpr>(newFnDRE);
-          
+          m_FnDRE = cast<DeclRefExpr>(newFnDRE);          
           return false;
         }
       private:
         /// Creates nested name specifier associated with declaration context
-        /// argument `DC` 
+        /// argument `DC`. 
         ///
         /// For example, given a structure defined as,
         /// namespace A {
@@ -173,8 +172,8 @@ namespace clad {
         /// Passing `SomeStruct` as declaration context will create
         /// nested name specifier of the form `::A::B::struct SomeClass::`
         /// in `CXXScopeSpec` argument `CSS`.
-        /// ! Currently only, namespace and class/struct nested name specifiers
-        /// ! are supported.
+        /// \note Currently only namespace and class/struct nested name specifiers
+        /// are supported.
         ///
         /// \param[in] DC
         /// \param[out] CSS
@@ -191,9 +190,9 @@ namespace clad {
                        /*NamespaceLoc=*/noLoc,
                        /*ColonColonLoc=*/noLoc);
           } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
+            auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
             auto RDTypeSourceInfo =
-                m_SemaRef.getASTContext().CreateTypeSourceInfo(
-                    RD->getTypeForDecl()->getCanonicalTypeInternal());
+                m_SemaRef.getASTContext().CreateTypeSourceInfo(RDQType);
             CSS.Extend(m_SemaRef.getASTContext(),
                        /*TemplateKWLoc=*/noLoc,
                        RDTypeSourceInfo->getTypeLoc(),
