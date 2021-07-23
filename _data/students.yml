@@ -67,6 +67,21 @@
   mentors: Vassil Vassilev, Ioana Ifrim
   current: 1
 
+- name: Purva Chaudhari
+  info: "Reduce boost dependencies in CMSSW"
+  photo: Purva.jpg
+  email: purva.chaudhari02@gmail.com
+  education: "Computer Science, Vishwakarma Institute of Technology"
+  description: |
+    This project has the objective to reduce CMSSW technical debt by finding 
+    and replacing boost dependencies that have an equivalent solution in 
+    standard C++. Reducing boost dependencies helps us create more lightweight
+    boost clang modules for upcoming c++20. This also reduces the amount of
+    headers that we need to work on to be able to use c++20 clang modules.
+  report: <a href="https://docs.google.com/document/d/1Z3SWdgTRZBkmckuPuIdIXeA7ZPIrd67jQg6gKoVnU9U" target="_blank">URL</a>
+  mentors: Vassil Vassilev, David Lange
+  current: 1
+
 - name: "This could be you!"
   photo: rock.jpg
   info: See <a href="/vacancies">openings</a> for more info
