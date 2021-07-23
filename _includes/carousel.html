@@ -1,0 +1,44 @@
+{% comment %}
+  FIXME: We should upload videos and adjust our preslists.
+  {% assign sorted_pres = site.data.preslist | where_exp: "item", "item.video" %}
+{% endcomment %}
+{% assign sorted_pres = site.data.meetinglist | map: "agenda" %}
+
+{% comment %}
+  The `map:` returns array of arrays which we need to flatten to achieve a
+  similar workflow.
+{% endcomment %}
+
+{% assign flatten = "" | split: "," %}
+{% for pres in sorted_pres %}
+  {% assign flatten = flatten | push: pres[0] %}
+{% endfor %}
+
+{% assign sorted_pres = flatten | where_exp: "item", "item.video" %}
+
+<div markdown="0" id="carousel" class="carousel slide" data-interval="false" data-pause="hover" >
+  <!-- Items -->
+  <div class="carousel-inner" markdown="0">
+    {% for pres in sorted_pres %}
+    <div class="item {% if forloop.first %}active{% endif %}">
+      {% if pres.image %}
+        <img class="d-block mx-auto" src="{{ '/assets/showcase/' | relative_url }}{{ project.image }}" alt="{{ project.ref }}" height="500px">
+      {% elsif pres.video %}
+        <p style="margin:0">{{ pres.video }}</p>
+      {% endif %}
+      <div class="carousel-caption d-none d-md-block">
+        <h4>{{ pres.title }}</h4>
+        <p>{{ pres.description }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+    <a class="left carousel-control" href="#carousel" data-slide="prev"><span class="glyphicon glyphicon-chevron-left"></span></a>
+  <div class="carousel-indicators">
+    {% for pres in sorted_pres %}
+    <li data-target="#carousel" data-slide-to="{{ forloop.index0 }}" {% if forloop.first %}class="active"{% endif %}></li>
+    {% endfor %}
+  </div>
+    <a class="right carousel-control" href="#carousel" data-slide="next"><span class="glyphicon glyphicon-chevron-right"></span></a>
+</div>

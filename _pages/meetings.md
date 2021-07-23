@@ -6,8 +6,6 @@ sitemap: false
 permalink: /meetings/
 ---
 
-
-
 # Project Meetings
 
 {% assign sorted_meetings = site.data.meetinglist | sort: "date" | reverse %}
@@ -27,7 +25,17 @@ permalink: /meetings/
 <div>Connection information: {{meeting.connect}} <br />
 </div><div>
   Agenda:
-  <ul>{% for item in meeting.agenda %}<li><strong>{{item.title}}</strong> {% if item.speaker %} ({{item.speaker}}) {% endif %} {{item.link | markdownify}}</li>{% endfor %}</ul>
+  <ul>{% for item in meeting.agenda %}
+    <li><strong>{{item.title}}</strong>
+      {% if item.speaker %}
+        ({{item.speaker}})
+      {% endif %}
+      <a style="text-decoration:none;" href="{{item.slides}}">Slides</a>
+      {% if item.video %}
+      <a style="text-decoration:none;" href="{{item.video}}">Video</a>
+      {% endif %}
+    </li>
+    {% endfor %}</ul>
 </div>
 </div>
 </div>

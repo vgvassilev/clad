@@ -8,7 +8,7 @@
       speaker: "Keno Fischer, JuliaComputing"
     - title: "Calling ROOT from Julia in practice"
       speaker: "Oliver Schulz, Max-Planck-Institut für Physik"
-      abstract: |
+      description: |
         Julia can directly call C++ via the Cxx.jl package. This enables is to
         use basically all of ROOT's capabilities directly from Julia, including
         reading/writing TFiles and user ROOT's GUI features. I'll present some
@@ -28,7 +28,7 @@
   agenda:
     - title: "ORC 2021 -- Recent developments and future work in LLVM's JIT APIs"
       speaker: "Lang Hames, Apple"
-      abstract: |
+      description: |
         LLVM’s On Request Compilation (ORC) APIs provide a foundation for
         building in-memory and just-in-time compilers by re-using existing
         static compilers. This re-use is enabled by appending a new linking
@@ -40,10 +40,10 @@
         interpreter; and they remain under active development with new features
         added frequently. This talk will provide an overview of the ORC APIs and
         recent developments, as well as demos and pointers to example code.
-      link: "[Slides](/assets/presentations/L_Hames-CaaS_ORC_JitLink.pdf)"
+      slides: "/assets/presentations/L_Hames-CaaS_ORC_JitLink.pdf"
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_01_07_2021.pdf)"
+      slides: "/assets/presentations/CaaS_01_07_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -59,7 +59,7 @@
       speaker: "William Moses, MIT"
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_03_06_2021.pdf)"
+      slides: "/assets/presentations/CaaS_03_06_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -73,11 +73,10 @@
   agenda:
     - title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
       speaker: "Ioana Ifrim, Princeton"
-      link: |
-         [Slides](/assets/presentations/I_Ifrim-GPU_AD.pdf)
+      slides: "/assets/presentations/I_Ifrim-GPU_AD.pdf"
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_06_05_2021.pdf)"
+      slides: "/assets/presentations/CaaS_06_05_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -91,12 +90,16 @@
   agenda:
     - title: "Deep dive into the Xeus-based Cling kernel for Jupyter"
       speaker: "Sylvain Corlay, QuantStack"
-      link: |
-        [Slides](/assets/presentations/S_Corlay-CaaS_Xeus-Cling.pdf)
-        [Video](https://youtu.be/kx3wvKk4Qss)
+      slides: "/assets/presentations/S_Corlay-CaaS_Xeus-Cling.pdf"
+      video: https://youtu.be/kx3wvKk4Qss
+      description: |
+        Sylvain Corlay from QuantStack talks about C++ in Jupyter Notebooks
+        using the Xeus-Cling. Xeus-Cling is a Cling-based notebook kernel which
+        delivers interactive C++. Sylvain makes a deep dive in topic outlining
+        some of the specific challenges and requirements.
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_25_03_2021.pdf)"
+      slides: "/assets/presentations/CaaS_25_03_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -111,12 +114,18 @@
   agenda:
     - title: "Cling’s CUDA Backend: Interactive GPU development with CUDA C++"
       speaker: "Simeon Ehrig, HZDR"
-      link: |
-        [Slides](/assets/presentations/S_Ehrig-CaaS_Cling-CUDA.pdf)
-        [Video](https://youtu.be/HEGDII5lAfo)
+      slides: "/assets/presentations/S_Ehrig-CaaS_Cling-CUDA.pdf"
+      video: https://youtu.be/HEGDII5lAfo
+      description: |
+        Simeon Ehrig from Helmholtz-Zentrum Dresden-Rossendorf (HZDR) shared his
+        work with us recently. In his talk he gives insights about interactive
+        CUDA using the C++ interpreter Cling. He shows several exciting examples
+        in the area of dynamic execution without loss of state where we can
+        "checkpoint" the execution state, add specific data analysis and reuse
+        the previous computations.
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_04_03_2021.pdf)"
+      slides: "/assets/presentations/CaaS_04_03_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -131,14 +140,17 @@
   agenda:
     - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach"
       speaker: Alexandru Militaru
-      link: |
-        [Slides](/assets/presentations/A_Militaru-Calling_Cpp_libraries_from_a_D-written_DSL.pdf)
-        [Video](https://youtu.be/7teqrCNzrD8)
+      slides: "/assets/presentations/A_Militaru-Calling_Cpp_libraries_from_a_D-written_DSL.pdf"
+      video: https://youtu.be/7teqrCNzrD8
+      description: |
+        Alexandru Militaru shared his work with us recently. In his talk he
+        gives insights about C++/D interoperability on the fly using the
+        interactive C++ interpreter Cling and cppyy.
     - title: "Calling C++ libraries from a D-written DSL: A cling/cppyy-based approach. Demo"
       speaker: Alexandru Militaru
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_04_02_2021.pdf)"
+      slides: "/assets/presentations/CaaS_04_02_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -152,7 +164,7 @@
   agenda:
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_14_01_2021.pdf)"
+      slides: "/assets/presentations/CaaS_14_01_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -166,7 +178,7 @@
   agenda:
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_03_12_2020.pdf)"
+      slides: "/assets/presentations/CaaS_03_12_2020.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -180,7 +192,7 @@
   agenda:
     - title: Update
       speaker: Vassil
-      link: "[Slides](/assets/presentations/CaaS_22_10_2020.pdf)"
+      slides: "/assets/presentations/CaaS_22_10_2020.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
@@ -194,5 +206,5 @@
   agenda:
     - title: Project introduction
       speaker: Vassil
-      link: "[Slides](https://drive.google.com/file/d/1YF6B2VkeOGsWKz7GRZQTf-C0myq2Dh3I/view?usp=sharing)"
+      slides: "https://drive.google.com/file/d/1YF6B2VkeOGsWKz7GRZQTf-C0myq2Dh3I"
     - title: Round Table

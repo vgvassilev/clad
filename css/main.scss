@@ -102,6 +102,33 @@ firstp {
     margin-right: 30px;
 }
 
+.carousel-caption {
+    background: rgba(0, 0, 0, 0.75);
+    position: unset;
+    //left: auto;
+    //right: auto;
+}
+
+.carousel-caption h4 {
+    color: #fff;
+}
+
+.carousel-caption p {
+    margin: 1em;
+    font-style: italic;
+}
+
+.carousel-control.left,
+.carousel-control.right {
+    background: none;
+    z-index: 20;
+    bottom: 20px;
+    top:unset;
+    height: 30px;
+}
+.carousel-control.left { left: 20%; }
+.carousel-control.right { right: 20%; }
+
 .nomarkul ul li {
     margin-top: -10px;
     list-style-type: none;

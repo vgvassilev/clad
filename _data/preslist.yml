@@ -6,16 +6,15 @@
   artifacts: "[Link to slides](https://indico.cern.ch/event/1040761/contributions/4400258/attachments/2268253/3851595/Ioana%20Ifrim%20-%20GPU%20Acceleration%20of%20Automatic%20Differentiation%20in%20C%2B%2B%20with%20Clad.pdf)"
 
 - title: "Floating point error estimation using Clad -- Project Roadmap"
-  description: My abstract
   location: "Onboarding meetup"
   speaker: G Singh
   date: 2020-12-15
+  description: 
   artifacts:
     - "[pdf](/assets/presentations/ErrorEstimationWithClad_15_12_2020.pdf), " 
     - "[pptx](/assets/presentations/ErrorEstimationWithClad_15_12_2020.pptx)"
 
 - title: "Error estimates of floating-point numbers and Jacobian matrix computation in Clad"
-  description: My abstract
   location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
   speaker: V Vassilev
   date: 2020-10-07
