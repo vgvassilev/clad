@@ -10,12 +10,13 @@ DerivePointerAlignment: false
 PointerAlignment: Left
 
 AlignAfterOpenBracket: Align
-PenaltyBreakBeforeFirstCallParameter: 50
+PenaltyBreakBeforeFirstCallParameter: 1000
 AlignOperands: true
 AllowShortCaseLabelsOnASingleLine: true
 IndentCaseLabels: true
-BinPackParameters: false
-BinPackArguments: false
+BinPackParameters: true
+BinPackArguments: true
+AllowAllArgumentsOnNextLine: false
 
 IncludeCategories:
   - Regex:           '^"[^/]+\"'
