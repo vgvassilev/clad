@@ -14,7 +14,7 @@ struct Experiment {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, double *_result) {
+  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -30,9 +30,9 @@ struct Experiment {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
   // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         _result[0UL] += _r2;
+  // CHECK-NEXT:         * _d_i += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         _result[1UL] += _r3;
+  // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -47,7 +47,7 @@ struct ExperimentConst {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, double *_result) const {
+  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -63,9 +63,9 @@ struct ExperimentConst {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
   // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         _result[0UL] += _r2;
+  // CHECK-NEXT:         * _d_i += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         _result[1UL] += _r3;
+  // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -80,7 +80,7 @@ struct ExperimentVolatile {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, double *_result) volatile {
+  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     volatile double _t2;
@@ -96,9 +96,9 @@ struct ExperimentVolatile {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
   // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         _result[0UL] += _r2;
+  // CHECK-NEXT:         * _d_i += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         _result[1UL] += _r3;
+  // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -113,7 +113,7 @@ struct ExperimentConstVolatile {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, double *_result) const volatile {
+  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     volatile double _t2;
@@ -129,9 +129,9 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
   // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         _result[0UL] += _r2;
+  // CHECK-NEXT:         * _d_i += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         _result[1UL] += _r3;
+  // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -148,7 +148,7 @@ namespace outer {
         x = val;
       }
 
-      // CHECK: void operator()_grad(double i, double j, double *_result) {
+      // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
       // CHECK-NEXT:     double _t0;
       // CHECK-NEXT:     double _t1;
       // CHECK-NEXT:     double _t2;
@@ -164,9 +164,9 @@ namespace outer {
       // CHECK-NEXT:         double _r0 = 1 * _t0;
       // CHECK-NEXT:         double _r1 = _r0 * _t1;
       // CHECK-NEXT:         double _r2 = _t2 * _r0;
-      // CHECK-NEXT:         _result[0UL] += _r2;
+      // CHECK-NEXT:         * _d_i += _r2;
       // CHECK-NEXT:         double _r3 = _t3 * 1;
-      // CHECK-NEXT:         _result[1UL] += _r3;
+      // CHECK-NEXT:         * _d_j += _r3;
       // CHECK-NEXT:     }
       // CHECK-NEXT: }
     };
@@ -179,10 +179,10 @@ auto d_##E##Ref = clad::gradient(E);
 
 #define TEST(E)\
 res[0] = res[1] = 0;\
-d_##E.execute(7, 9, res);\
+d_##E.execute(7, 9, &res[0], &res[1]);\
 printf("%.2f %.2f\n", res[0], res[1]);\
 res[0] = res[1] = 0;\
-d_##E##Ref.execute(7, 9, res);\
+d_##E##Ref.execute(7, 9, &res[0], &res[1]);\
 printf("%.2f %.2f\n", res[0], res[1]);
 
 double x = 3;
@@ -198,7 +198,7 @@ int main() {
     return i*i*j;
   };
 
-  // CHECK: inline void operator()_grad(double i, double j, double *_result) const {
+  // CHECK: inline void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -213,11 +213,11 @@ int main() {
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
-  // CHECK-NEXT:         _result[0UL] += _r1;
+  // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         _result[0UL] += _r2;
+  // CHECK-NEXT:         * _d_i += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         _result[1UL] += _r3;
+  // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -225,7 +225,7 @@ int main() {
     return x*ii*j;
   };
 
-  // CHECK: inline void operator()_grad(double ii, double j, double *_result) const {
+  // CHECK: inline void operator()_grad(double ii, double j, clad::array_ref<double> _d_ii, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -241,9 +241,9 @@ int main() {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
   // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         _result[0UL] += _r2;
+  // CHECK-NEXT:         * _d_ii += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         _result[1UL] += _r3;
+  // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 

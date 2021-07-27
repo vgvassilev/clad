@@ -185,35 +185,31 @@ namespace clad {
     return addToBlock(S, getCurrentBlock());
   }
 
-  VarDecl* VisitorBase::BuildVarDecl(QualType Type,
-                                     IdentifierInfo* Identifier,
-                                     Expr* Init,
-                                     bool DirectInit,
-                                     TypeSourceInfo* TSI) {
+  VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
+                                     Expr* Init, bool DirectInit,
+                                     TypeSourceInfo* TSI,
+                                     VarDecl::InitializationStyle IS) {
 
-    auto VD = VarDecl::Create(m_Context,
-                              m_Sema.CurContext,
-                              noLoc,
-                              noLoc,
-                              Identifier,
-                              Type,
-                              TSI,
-                              SC_None);
+    auto VD =
+        VarDecl::Create(m_Context, m_Sema.CurContext, m_Function->getLocation(),
+                        m_Function->getLocation(), Identifier, Type, TSI,
+                        SC_None);
 
-    if (Init)
+    if (Init) {
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
+      VD->setInitStyle(IS);
+    }
     // Add the identifier to the scope and IdResolver
     m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
     return VD;
   }
 
-  VarDecl* VisitorBase::BuildVarDecl(QualType Type,
-                                     llvm::StringRef prefix,
-                                     Expr* Init,
-                                     bool DirectInit,
-                                     TypeSourceInfo* TSI) {
-    return BuildVarDecl(
-        Type, CreateUniqueIdentifier(prefix), Init, DirectInit, TSI);
+  VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
+                                     Expr* Init, bool DirectInit,
+                                     TypeSourceInfo* TSI,
+                                     VarDecl::InitializationStyle IS) {
+    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
+                        TSI, IS);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -346,20 +342,19 @@ namespace clad {
       return E;
   }
 
-  Expr* VisitorBase::StoreAndRef(Expr* E,
-                                 llvm::StringRef prefix,
-                                 bool forceDeclCreation) {
-    return StoreAndRef(E, getCurrentBlock(), prefix, forceDeclCreation);
+  Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
+                                 bool forceDeclCreation,
+                                 VarDecl::InitializationStyle IS) {
+    return StoreAndRef(E, getCurrentBlock(), prefix, forceDeclCreation, IS);
   }
-  Expr* VisitorBase::StoreAndRef(Expr* E,
-                                 Stmts& block,
-                                 llvm::StringRef prefix,
-                                 bool forceDeclCreation) {
+  Expr* VisitorBase::StoreAndRef(Expr* E, Stmts& block, llvm::StringRef prefix,
+                                 bool forceDeclCreation,
+                                 VarDecl::InitializationStyle IS) {
     assert(E && "cannot infer type from null expression");
     QualType Type = E->getType();
     if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
       Type = m_Context.getLValueReferenceType(Type);
-    return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
+    return StoreAndRef(E, Type, block, prefix, forceDeclCreation, IS);
   }
 
   /// For an expr E, decides if it is useful to store it in a temporary variable
@@ -387,11 +382,9 @@ namespace clad {
     return true;
   }
 
-  Expr* VisitorBase::StoreAndRef(Expr* E,
-                                 QualType Type,
-                                 Stmts& block,
-                                 llvm::StringRef prefix,
-                                 bool forceDeclCreation) {
+  Expr* VisitorBase::StoreAndRef(Expr* E, QualType Type, Stmts& block,
+                                 llvm::StringRef prefix, bool forceDeclCreation,
+                                 VarDecl::InitializationStyle IS) {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
       // in storing it as there is no evaluation going on.
@@ -399,7 +392,9 @@ namespace clad {
         return E;
     }
     // Create variable declaration.
-    VarDecl* Var = BuildVarDecl(Type, CreateUniqueIdentifier(prefix), E);
+    VarDecl* Var = BuildVarDecl(Type, CreateUniqueIdentifier(prefix), E,
+                                /*DirectInit=*/false,
+                                /*TSI=*/nullptr, IS);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), block);
@@ -418,13 +413,14 @@ namespace clad {
     return llvm::cast<Expr>(Clone(S));
   }
 
-  Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E) {
-    return m_Sema.BuildUnaryOp(nullptr, noLoc, OpCode, E).get();
+  Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E,
+                             SourceLocation OpLoc) {
+    return m_Sema.BuildUnaryOp(nullptr, OpLoc, OpCode, E).get();
   }
 
-  Expr*
-  VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, Expr* L, Expr* R) {
-    return m_Sema.BuildBinOp(nullptr, noLoc, OpCode, L, R).get();
+  Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, Expr* L, Expr* R,
+                             SourceLocation OpLoc) {
+    return m_Sema.BuildBinOp(nullptr, OpLoc, OpCode, L, R).get();
   }
 
   Expr* VisitorBase::getZeroInit(QualType T) {
@@ -471,14 +467,11 @@ namespace clad {
     return Result;
   }
 
-  TemplateDecl* VisitorBase::GetCladTapeDecl() {
-    static TemplateDecl* Result = nullptr;
-    if (Result)
-      return Result;
+  TemplateDecl* VisitorBase::GetCladClassDecl(llvm::StringRef ClassName) {
     NamespaceDecl* CladNS = GetCladNamespace();
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
-    DeclarationName TapeName = &m_Context.Idents.get("tape");
+    DeclarationName TapeName = &m_Context.Idents.get(ClassName);
     LookupResult TapeR(m_Sema,
                        TapeName,
                        noLoc,
@@ -487,7 +480,36 @@ namespace clad {
     m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
     assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
            "cannot find clad::tape");
-    Result = cast<TemplateDecl>(TapeR.getFoundDecl());
+    return cast<TemplateDecl>(TapeR.getFoundDecl());
+  }
+
+  QualType
+  VisitorBase::GetCladClassOfType(TemplateDecl* CladClassDecl,
+                                  MutableArrayRef<QualType> TemplateArgs) {
+    // Create a list of template arguments.
+    TemplateArgumentListInfo TLI{};
+    for (auto T : TemplateArgs) {
+      TemplateArgument TA = T;
+      TLI.addArgument(
+          TemplateArgumentLoc(TA, m_Context.getTrivialTypeSourceInfo(T)));
+    }
+    // This will instantiate tape<T> type and return it.
+    QualType TT =
+        m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl), noLoc, TLI);
+    // Get clad namespace and its identifier clad::.
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    NestedNameSpecifier* NS = CSS.getScopeRep();
+
+    // Create elaborated type with namespace specifier,
+    // i.e. class<T> -> clad::class<T>
+    return m_Context.getElaboratedType(ETK_None, NS, TT);
+  }
+
+  TemplateDecl* VisitorBase::GetCladTapeDecl() {
+    static TemplateDecl* Result = nullptr;
+    if (!Result)
+      Result = GetCladClassDecl(/*ClassName=*/"tape");
     return Result;
   }
 
@@ -528,23 +550,24 @@ namespace clad {
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
-    // Get declaration of clad::tape template.
-    TemplateDecl* CladTapeDecl = GetCladTapeDecl();
-    // Create a list of template arguments: single argument <T> in that case.
-    TemplateArgument TA = T;
-    TemplateArgumentListInfo TLI{};
-    TLI.addArgument(TemplateArgumentLoc(TA, m_Context.CreateTypeSourceInfo(T)));
-    // This will instantiate tape<T> type and return it.
-    QualType TT =
-        m_Sema.CheckTemplateIdType(TemplateName(CladTapeDecl), noLoc, TLI);
-    // Get clad namespace and its identifier clad::.
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
-    NestedNameSpecifier* NS = CSS.getScopeRep();
+    return GetCladClassOfType(GetCladTapeDecl(), {T});
+  }
 
-    // Create elaborated type with namespace specifier,
-    // i.e. tape<T> -> clad::tape<T>
-    return m_Context.getElaboratedType(ETK_None, NS, TT);
+  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base, bool isArrow,
+                                          StringRef MemberFunctionName,
+                                          MutableArrayRef<Expr*> ArgExprs) {
+    UnqualifiedId Member;
+    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), noLoc);
+    CXXScopeSpec SS;
+    auto ME = m_Sema
+                  .ActOnMemberAccessExpr(getCurrentScope(), Base, noLoc,
+                                         isArrow ? tok::TokenKind::arrow
+                                                 : tok::TokenKind::period,
+                                         SS, noLoc, Member,
+                                         /*ObjCImpDecl=*/nullptr)
+                  .get();
+    return m_Sema.ActOnCallExpr(getCurrentScope(), ME, noLoc, ArgExprs, noLoc)
+        .get();
   }
 
   clang::Expr* 
@@ -595,5 +618,36 @@ namespace clad {
                  .get();
     }
     return call;
+  }
+
+  TemplateDecl* VisitorBase::GetCladArrayRefDecl() {
+    static TemplateDecl* Result = nullptr;
+    if (!Result)
+      Result = GetCladClassDecl(/*ClassName=*/"array_ref");
+    return Result;
+  }
+
+  QualType VisitorBase::GetCladArrayRefOfType(clang::QualType T) {
+    return GetCladClassOfType(GetCladArrayRefDecl(), {T});
+  }
+
+  TemplateDecl* VisitorBase::GetCladArrayDecl() {
+    static TemplateDecl* Result = nullptr;
+    if (!Result)
+      Result = GetCladClassDecl(/*ClassName=*/"array");
+    return Result;
+  }
+
+  QualType VisitorBase::GetCladArrayOfType(clang::QualType T) {
+    return GetCladClassOfType(GetCladArrayDecl(), {T});
+  }
+
+  Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {
+    return BuildCallExprToMemFn(Base, /*isArrow=*/false,
+                                /*MemberFunctionName=*/"size", {});
+  }
+
+  bool VisitorBase::isArrayRefType(QualType QT) {
+    return QT.getAsString().find("clad::array_ref") != std::string::npos;
   }
 } // end namespace clad

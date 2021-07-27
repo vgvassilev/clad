@@ -36,8 +36,8 @@ namespace clad {
     ///
     ///\returns A function containing jacobian matrix.
     ///
-    DeclWithContext Derive(const clang::FunctionDecl* FD,
-                           const DiffRequest& request);
+    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
+                                     const DiffRequest& request);
   };
 } // end namespace clad
 

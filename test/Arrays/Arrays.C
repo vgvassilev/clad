@@ -89,7 +89,7 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       return _d_vars[0] * consts[0] + vars[0] * _d_consts[0] + _d_vars[1] * consts[1] + vars[1] * _d_consts[1] + _d_vars[2] * consts[2] + vars[2] * _d_consts[2];
 //CHECK-NEXT:   }
 
-//CHECK:   void const_dot_product_grad(double x, double y, double z, double *_result) {
+//CHECK:   void const_dot_product_grad(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
 //CHECK-NEXT:       double _d_vars[3] = {};
 //CHECK-NEXT:       double _d_consts[3] = {};
 //CHECK-NEXT:       double _t0;
@@ -124,9 +124,9 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:           _d_consts[2] += _r5;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           _result[0UL] += _d_vars[0];
-//CHECK-NEXT:           _result[1UL] += _d_vars[1];
-//CHECK-NEXT:           _result[2UL] += _d_vars[2];
+//CHECK-NEXT:           * _d_x += _d_vars[0];
+//CHECK-NEXT:           * _d_y += _d_vars[1];
+//CHECK-NEXT:           * _d_z += _d_vars[2];
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -154,7 +154,7 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:       return _d_C[0][0] + _d_C[0][1] + _d_C[1][0] + _d_C[1][1];
 //CHECK-NEXT:   }
 
-//CHECK:   void const_matmul_sum_grad(double a, double b, double c, double d, double *_result) {
+//CHECK:   void const_matmul_sum_grad(double a, double b, double c, double d, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b, clad::array_ref<double> _d_c, clad::array_ref<double> _d_d) {
 //CHECK-NEXT:       double _d_A[2][2] = {};
 //CHECK-NEXT:       double _d_B[2][2] = {};
 //CHECK-NEXT:       double _t0;
@@ -193,7 +193,7 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:       _t15 = A[1][1];
 //CHECK-NEXT:       _t14 = B[1][1];
 //CHECK-NEXT:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
-//CHECK-NEXT:    double const_matmul_sum_return = C[0][0] + C[0][1] + C[1][0] + C[1][1];
+//CHECK-NEXT:       double const_matmul_sum_return = C[0][0] + C[0][1] + C[1][0] + C[1][1];
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -237,10 +237,10 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //CHECK-NEXT:           _d_B[1][1] += _r15;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           _result[0UL] += _d_A[0][0];
-//CHECK-NEXT:           _result[1UL] += _d_A[0][1];
-//CHECK-NEXT:           _result[2UL] += _d_A[1][0];
-//CHECK-NEXT:           _result[3UL] += _d_A[1][1];
+//CHECK-NEXT:           * _d_a += _d_A[0][0];
+//CHECK-NEXT:           * _d_b += _d_A[0][1];
+//CHECK-NEXT:           * _d_c += _d_A[1][0];
+//CHECK-NEXT:           * _d_d += _d_A[1][1];
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -255,7 +255,7 @@ int main () { // expected-no-diagnostics
 
   auto gradcdp = clad::gradient(const_dot_product);
   double result[3] = {};
-  gradcdp.execute(11, 12, 13, result);
+  gradcdp.execute(11, 12, 13, &result[0], &result[1], &result[2]);
   printf("{%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: {1.00, 2.00, 3.00}
  
   auto dcms = clad::differentiate(const_matmul_sum, 0);
@@ -263,7 +263,8 @@ int main () { // expected-no-diagnostics
   
   auto grad = clad::gradient(const_matmul_sum);
   double result2[4] = {};
-  grad.execute(11, 12, 13, 14, result2);
+  grad.execute(
+      11, 12, 13, 14, &result2[0], &result2[1], &result2[2], &result2[3]);
   printf("{%.2f, %.2f, %.2f, %.2f}\n", result2[0], result2[1], result2[2], result2[3]); // CHECK-EXEC: {3.00, 7.00, 3.00, 7.00}
   return 0;
 }

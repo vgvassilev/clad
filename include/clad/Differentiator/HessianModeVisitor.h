@@ -27,8 +27,8 @@ namespace clad {
     /// A helper method that combines all the generated second derivatives
     /// (contained within a vector) obtained from Derive
     /// into a single FunctionDecl f_hessian
-    DeclWithContext Merge(std::vector<clang::FunctionDecl*> Functions,
-                          const DiffRequest& request);
+    OverloadedDeclWithContext Merge(std::vector<clang::FunctionDecl*> Functions,
+                                    const DiffRequest& request);
 
   public:
     HessianModeVisitor(DerivativeBuilder& builder);
@@ -40,15 +40,14 @@ namespace clad {
     ///\param[in] FD - the function that will be differentiated.
     ///
     ///\returns A function containing second derivatives (columns) of a hessian
-    /// matrix
-    /// and potentially created enclosing context.
+    /// matrix and potentially created enclosing context.
     ///
     /// We name the hessian of f as 'f_hessian'. Uses ForwardModeVisitor and
     /// ReverseModeVisitor to generate second derivatives that correspond to
     /// columns of the Hessian. uses Merge to return a FunctionDecl
     /// containing CallExprs to the generated second derivatives.
-    DeclWithContext Derive(const clang::FunctionDecl* FD,
-                           const DiffRequest& request);
+    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
+                                     const DiffRequest& request);
   };
 } // end namespace clad
 

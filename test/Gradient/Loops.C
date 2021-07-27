@@ -12,7 +12,7 @@ double f1(double x) {
   return t;
 } // == x^3
 
-//CHECK:   void f1_grad(double x, double *_result) {
+//CHECK:   void f1_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -33,7 +33,7 @@ double f1(double x) {
 //CHECK-NEXT:           double _r_d0 = _d_t;
 //CHECK-NEXT:           _d_t += _r_d0 * clad::pop(_t1);
 //CHECK-NEXT:           double _r0 = clad::pop(_t2) * _r_d0;
-//CHECK-NEXT:           _result[0UL] += _r0;
+//CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -46,7 +46,7 @@ double f2(double x) {
   return t;
 } // == x^9
 
-//CHECK:   void f2_grad(double x, double *_result) {
+//CHECK:   void f2_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -74,13 +74,12 @@ double f2(double x) {
 //CHECK-NEXT:               double _r_d0 = _d_t;
 //CHECK-NEXT:               _d_t += _r_d0 * clad::pop(_t2);
 //CHECK-NEXT:               double _r0 = clad::pop(_t3) * _r_d0;
-//CHECK-NEXT:               _result[0UL] += _r0;
+//CHECK-NEXT:               * _d_x += _r0;
 //CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:           clad::pop(_t1);
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
-
 
 double f3(double x) {
   double t = 1;
@@ -92,7 +91,7 @@ double f3(double x) {
   return t;
 } // == x^2
 
-//CHECK:   void f3_grad(double x, double *_result) {
+//CHECK:   void f3_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -126,7 +125,7 @@ double f3(double x) {
 //CHECK-NEXT:               double _r_d0 = _d_t;
 //CHECK-NEXT:               _d_t += _r_d0 * clad::pop(_t1);
 //CHECK-NEXT:               double _r0 = clad::pop(_t2) * _r_d0;
-//CHECK-NEXT:               _result[0UL] += _r0;
+//CHECK-NEXT:               * _d_x += _r0;
 //CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
@@ -139,7 +138,7 @@ double f4(double x) {
   return t;
 } // == x^3
 
-//CHECK:   void f4_grad(double x, double *_result) {
+//CHECK:   void f4_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -159,7 +158,7 @@ double f4(double x) {
 //CHECK-NEXT:           double _r_d0 = _d_t;
 //CHECK-NEXT:           _d_t += _r_d0 * clad::pop(_t1);
 //CHECK-NEXT:           double _r0 = clad::pop(_t2) * _r_d0;
-//CHECK-NEXT:           _result[0UL] += _r0;
+//CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -170,7 +169,7 @@ double f5(double x){
   return x;
 } // == x + 10
 
-//CHECK:   void f5_grad(double x, double *_result) {
+//CHECK:   void f5_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
 //CHECK-NEXT:       _t0 = 0;
@@ -181,7 +180,7 @@ double f5(double x){
 //CHECK-NEXT:       double f5_return = x;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
-//CHECK-NEXT:       _result[0UL] += 1;
+//CHECK-NEXT:       * _d_x += 1;
 //CHECK-NEXT:       for (; _t0; _t0--)
 //CHECK-NEXT:           ;
 //CHECK-NEXT:   }
@@ -193,7 +192,7 @@ double f_sum(double *p, int n) {
   return s;
 }
 
-//CHECK:   void f_sum_grad_0(double *p, int n, double *_result) {
+//CHECK:   void f_sum_grad_0(double *p, int n, clad::array_ref<double> _d_p) {
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -211,13 +210,13 @@ double f_sum(double *p, int n) {
 //CHECK-NEXT:       for (; _t0; _t0--) {
 //CHECK-NEXT:           double _r_d0 = _d_s;
 //CHECK-NEXT:           _d_s += _r_d0;
-//CHECK-NEXT:           _result[clad::pop(_t1)] += _r_d0;
+//CHECK-NEXT:           _d_p[clad::pop(_t1)] += _r_d0;
 //CHECK-NEXT:           _d_s -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 double sq(double x) { return x * x; }
-//CHECK:   void sq_grad(double x, double *_result) {
+//CHECK:   void sq_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t1 = x;
@@ -227,9 +226,9 @@ double sq(double x) { return x * x; }
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
-//CHECK-NEXT:           _result[0UL] += _r0;
+//CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:           double _r1 = _t1 * 1;
-//CHECK-NEXT:           _result[0UL] += _r1;
+//CHECK-NEXT:           * _d_x += _r1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -240,7 +239,7 @@ double f_sum_squares(double *p, int n) {
   return s;
 }
 
-//CHECK:   void f_sum_squares_grad_0(double *p, int n, double *_result) {
+//CHECK:   void f_sum_squares_grad_0(double *p, int n, clad::array_ref<double> _d_p) {
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -259,10 +258,10 @@ double f_sum_squares(double *p, int n) {
 //CHECK-NEXT:       for (; _t0; _t0--) {
 //CHECK-NEXT:           double _r_d0 = _d_s;
 //CHECK-NEXT:           _d_s += _r_d0;
-//CHECK-NEXT:           double _grad0[1] = {};
-//CHECK-NEXT:           sq_grad(clad::pop(_t2), _grad0);
-//CHECK-NEXT:           double _r0 = _r_d0 * _grad0[0UL];
-//CHECK-NEXT:           _result[clad::pop(_t1)] += _r0;
+//CHECK-NEXT:           double _grad0 = 0.;
+//CHECK-NEXT:           sq_grad(clad::pop(_t2), &_grad0);
+//CHECK-NEXT:           double _r0 = _r_d0 * _grad0;
+//CHECK-NEXT:           _d_p[clad::pop(_t1)] += _r0;
 //CHECK-NEXT:           _d_s -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -277,7 +276,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
   return std::log(gaus);
 }
 
-//CHECK:   void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, double *_result) {
+//CHECK:   void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, clad::array_ref<double> _d_p) {
 //CHECK-NEXT:       double _d_power = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -334,11 +333,12 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:           double _r8 = _r6 * -1. / (_t9 * _t9);
 //CHECK-NEXT:           double _r9 = _r8 * custom_derivatives::sqrt_darg0(_t14);
 //CHECK-NEXT:           double _r10 = _r9 * _t10;
-//CHECK-NEXT:           double _grad2[2] = {};
-//CHECK-NEXT:           custom_derivatives::pow_grad(_t11, _t12, _grad2);
-//CHECK-NEXT:           double _r11 = _r10 * _grad2[0UL];
+//CHECK-NEXT:           double _grad2 = 0.;
+//CHECK-NEXT:           double _grad3 = 0.;
+//CHECK-NEXT:           custom_derivatives::pow_grad(_t11, _t12, &_grad2, &_grad3);
+//CHECK-NEXT:           double _r11 = _r10 * _grad2;
 //CHECK-NEXT:           double _r12 = _r11 * 3.1415926535897931;
-//CHECK-NEXT:           double _r13 = _r10 * _grad2[1UL];
+//CHECK-NEXT:           double _r13 = _r10 * _grad3;
 //CHECK-NEXT:           double _r14 = _t13 * _r9;
 //CHECK-NEXT:           double _r15 = _t15 * _d_gaus;
 //CHECK-NEXT:           double _r16 = _r15 * custom_derivatives::exp_darg0(_t16);
@@ -351,18 +351,18 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:           double _r2 = _r_d1 * -_t5 / (_t4 * _t4);
 //CHECK-NEXT:           double _r3 = _r2 * _t6;
 //CHECK-NEXT:           double _r4 = 2 * _r2;
-//CHECK-NEXT:           double _grad1[1] = {};
-//CHECK-NEXT:           sq_grad(_t7, _grad1);
-//CHECK-NEXT:           double _r5 = _r4 * _grad1[0UL];
+//CHECK-NEXT:           double _grad1 = 0.;
+//CHECK-NEXT:           sq_grad(_t7, &_grad1);
+//CHECK-NEXT:           double _r5 = _r4 * _grad1;
 //CHECK-NEXT:           _d_power -= _r_d1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       for (; _t0; _t0--) {
 //CHECK-NEXT:           double _r_d0 = _d_power;
 //CHECK-NEXT:           _d_power += _r_d0;
-//CHECK-NEXT:           double _grad0[1] = {};
-//CHECK-NEXT:           sq_grad(clad::pop(_t3), _grad0);
-//CHECK-NEXT:           double _r0 = _r_d0 * _grad0[0UL];
-//CHECK-NEXT:           _result[clad::pop(_t2)] += -_r0;
+//CHECK-NEXT:           double _grad0 = 0.;
+//CHECK-NEXT:           sq_grad(clad::pop(_t3), &_grad0);
+//CHECK-NEXT:           double _r0 = _r_d0 * _grad0;
+//CHECK-NEXT:           _d_p[clad::pop(_t2)] += -_r0;
 //CHECK-NEXT:           _d_power -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -377,7 +377,7 @@ double f_const(const double a, const double b) {
 }
 
 void f_const_grad(const double, const double, double *);
-//CHECK: void f_const_grad(const double a, const double b, double *_result) {
+//CHECK:   void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
 //CHECK-NEXT:       int _d_r = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -404,9 +404,9 @@ void f_const_grad(const double, const double, double *);
 //CHECK-NEXT:           }
 //CHECK-NEXT:           {
 //CHECK-NEXT:               double _r0 = _d_sq * clad::pop(_t1);
-//CHECK-NEXT:               _result[1UL] += _r0;
+//CHECK-NEXT:               * _d_b += _r0;
 //CHECK-NEXT:               double _r1 = clad::pop(_t2) * _d_sq;
-//CHECK-NEXT:               _result[1UL] += _r1;
+//CHECK-NEXT:               * _d_b += _r1;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -420,6 +420,7 @@ void f_const_grad(const double, const double, double *);
 
 int main() {
   double result[5] = {};
+  clad::array_ref<double> result_ref(result, 5);
   TEST(f1, 3); // CHECK-EXEC: {27.00}
   TEST(f2, 3); // CHECK-EXEC: {59049.00} 
   TEST(f3, 3); // CHECK-EXEC: {6.00} 
@@ -430,23 +431,22 @@ int main() {
 
   for (int i = 0; i < 5; i++) result[i] = 0;
   auto f_sum_grad = clad::gradient(f_sum, "p");
-  f_sum_grad.execute(p, 5, result);
+  f_sum_grad.execute(p, 5, result_ref);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00, 1.00}
 
   for (int i = 0; i < 5; i++) result[i] = 0;
   auto f_sum_squares_grad = clad::gradient(f_sum_squares, "p");
-  f_sum_squares_grad.execute(p, 5, result);
+  f_sum_squares_grad.execute(p, 5, result_ref);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {2.00, 4.00, 6.00, 8.00, 10.00}
 
   for (int i = 0; i < 5; i++) result[i] = 0;
   auto f_log_gaus_d_means = clad::gradient(f_log_gaus, "p"); // == { (x[i] - p[i])/sigma^2 }
   double x[] = { 1, 1, 1, 1, 1 };
-  f_log_gaus_d_means.execute(x, p, 5, 2.0, result);
+  f_log_gaus_d_means.execute(x, p, 5, 2.0, result_ref);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {0.00, -0.25, -0.50, -0.75, -1.00}
-
   result[0] = 0;
   result[1] = 0;
   auto f_const_d = clad::gradient(f_const);
-  f_const_d.execute(2, 3, result);
+  f_const_d.execute(2, 3, &result[0], &result[1]);
   printf("{%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: {0.00, 18.00}
 }

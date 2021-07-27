@@ -60,8 +60,15 @@ namespace clad {
 
 namespace clad {
   /// A pair of FunctionDecl and potential enclosing context, e.g. a function
-  // in nested namespaces
+  /// in nested namespaces.
+  // This is the type returned by cloneFunction. Using OverloadedDeclWithContext
+  // instead would lead to unnecessarily returning a nullptr in the overloaded
+  // FD
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
+  /// A tuple which consists of a FunctionDecl, it's potential enclosing context
+  /// and optionally it's overload FunctionDecl
+  using OverloadedDeclWithContext =
+      std::tuple<clang::FunctionDecl*, clang::Decl*, clang::FunctionDecl*>;
   using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
   using IndexIntervalTable = llvm::SmallVector<IndexInterval, 16>;
   using DiffParamsWithIndices = std::pair<DiffParams, IndexIntervalTable>;
@@ -121,8 +128,8 @@ namespace clad {
     ///\returns The differentiated function and potentially created enclosing
     /// context.
     ///
-    DeclWithContext Derive(const clang::FunctionDecl* FD,
-                           const DiffRequest & request);
+    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
+                                     const DiffRequest& request);
   };
 
 } // end namespace clad

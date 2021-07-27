@@ -413,13 +413,22 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
    #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr LambdaExpr
 #endif
 
-// Clang 12 add one extra param (FPO) in Create method of:
+// Clang 12 add one extra param (FPO) that we get from Node in Create method of:
 // ImplicitCastExpr, CStyleCastExpr, CXXStaticCastExpr and CXXFunctionalCastExpr
 
 #if CLANG_VERSION_MAJOR < 12
    #define CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) /**/
 #elif CLANG_VERSION_MAJOR >= 12
    #define CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node) ,Node->getFPFeatures()
+#endif
+
+// Clang 12 adds one extra param (FPO) in Create method of:
+// ImplicitCastExpr, CStyleCastExpr, CXXStaticCastExpr and CXXFunctionalCastExpr
+
+#if CLANG_VERSION_MAJOR < 12
+#define CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO /**/
+#elif CLANG_VERSION_MAJOR >= 12
+#define CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO , FPOptionsOverride()
 #endif
 
 // Clang 12 add two extra param (Left and Right paren location) in Create method of:
