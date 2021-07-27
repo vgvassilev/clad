@@ -35,8 +35,9 @@ namespace clad {
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
-  DeclWithContext ForwardModeVisitor::Derive(const FunctionDecl* FD,
-                                             const DiffRequest& request) {
+  OverloadedDeclWithContext
+  ForwardModeVisitor::Derive(const FunctionDecl* FD,
+                             const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     assert(!m_DerivativeInFlight &&
@@ -209,7 +210,9 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_DerivativeInFlight = false;
-    return result;
+
+    return OverloadedDeclWithContext{result.first, result.second,
+                                     /*OverloadFunctionDecl=*/nullptr};
   }
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {

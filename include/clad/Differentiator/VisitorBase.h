@@ -140,7 +140,6 @@ namespace clad {
       return QT->isArrayType() || QT->isPointerType();
     }
 
-  public:
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);
 
     /// Get the latest block of code (i.e. place for statements output).
@@ -184,32 +183,33 @@ namespace clad {
 
     /// A shorthand to simplify syntax for creation of new expressions.
     /// Uses m_Sema.BuildUnOp internally.
-    clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E);
+    clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
+                         clang::SourceLocation OpLoc = noLoc);
     /// Uses m_Sema.BuildBin internally.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
-                         clang::Expr* R);
+                         clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
 
     clang::Expr* BuildParens(clang::Expr* E);
 
     /// Builds variable declaration to be used inside the derivative body
-    clang::VarDecl* BuildVarDecl(clang::QualType Type,
-                                 clang::IdentifierInfo* Identifier,
-                                 clang::Expr* Init = nullptr,
-                                 bool DirectInit = false,
-                                 clang::TypeSourceInfo* TSI = nullptr);
+    clang::VarDecl*
+    BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
+                 clang::Expr* Init = nullptr, bool DirectInit = false,
+                 clang::TypeSourceInfo* TSI = nullptr,
+                 clang::VarDecl::InitializationStyle IS =
+                     clang::VarDecl::InitializationStyle::CInit);
 
-    clang::VarDecl* BuildVarDecl(clang::QualType Type,
-                                 llvm::StringRef prefix = "_t",
-                                 clang::Expr* Init = nullptr,
-                                 bool DirectInit = false,
-                                 clang::TypeSourceInfo* TSI = nullptr);
+    clang::VarDecl*
+    BuildVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
+                 clang::Expr* Init = nullptr, bool DirectInit = false,
+                 clang::TypeSourceInfo* TSI = nullptr,
+                 clang::VarDecl::InitializationStyle IS =
+                     clang::VarDecl::InitializationStyle::CInit);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
     clang::NamespaceDecl* BuildNamespaceDecl(clang::IdentifierInfo* II,
                                              bool isInline);
-    /// Rebuild a sequence of nested namespaces ending with DC.
-    clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
     /// Wraps a declaration in DeclStmt.
     clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
     clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
@@ -225,14 +225,20 @@ namespace clad {
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, Stmts& block,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false);
+                             bool forceDeclCreation = false,
+                             clang::VarDecl::InitializationStyle IS =
+                                 clang::VarDecl::InitializationStyle::CInit);
     /// A shorthand to store directly to the current block.
     clang::Expr* StoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false);
+                             bool forceDeclCreation = false,
+                             clang::VarDecl::InitializationStyle IS =
+                                 clang::VarDecl::InitializationStyle::CInit);
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false);
+                             bool forceDeclCreation = false,
+                             clang::VarDecl::InitializationStyle IS =
+                                 clang::VarDecl::InitializationStyle::CInit);
     /// A flag for silencing warnings/errors output by diag function.
     bool silenceDiags = false;
     /// Shorthand to issues a warning or error.
@@ -251,10 +257,6 @@ namespace clad {
 
     /// Updates references in newly cloned statements.
     void updateReferencesOf(clang::Stmt* InSubtree);
-    /// Clones a statement
-    clang::Stmt* Clone(const clang::Stmt* S);
-    /// A shorthand to simplify cloning of expressions.
-    clang::Expr* Clone(const clang::Expr* E);
     /// Parses the argument expression for the
     /// clad::differentiate/clad::gradient call. The argument is used to specify
     /// independent parameter(s) for differentiation. There are three valid
@@ -288,6 +290,19 @@ namespace clad {
                         const llvm::SmallVectorImpl<clang::Expr*>& IS);
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace();
+    /// Find declaration of clad::class templated type
+    ///
+    /// \param[in] className name of the class to be found
+    /// \returns The declaration of the class with the name ClassName
+    clang::TemplateDecl* GetCladClassDecl(llvm::StringRef ClassName);
+    /// Instantiate clad::class<TemplateArgs> type
+    ///
+    /// \param[in] CladClassDecl the decl of the class that is going to be used
+    /// in the creation of the type \param[in] TemplateArgs an array of template
+    /// arguments \returns The created type clad::class<TemplateArgs>
+    clang::QualType
+    GetCladClassOfType(clang::TemplateDecl* CladClassDecl,
+                       llvm::MutableArrayRef<clang::QualType> TemplateArgs);
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.
@@ -317,6 +332,23 @@ namespace clad {
 
     }
 
+    /// Build a call to member function through Base expr and using the function
+    /// name.
+    ///
+    /// \param[in] Base expr to the object which is used to call the member
+    ///  function
+    /// \param[in] isArrow if true specifies that the member function is
+    /// accessed by an -> otherwise .
+    /// \param[in] MemberFunctionName the name of the member function
+    /// \param[in] ArgExprs the arguments to be used when calling the member
+    ///  function
+    /// \returns Built member function call expression
+    ///  Base.MemberFunction(ArgExprs) or Base->MemberFunction(ArgExprs)
+    clang::Expr*
+    BuildCallExprToMemFn(clang::Expr* Base, bool isArrow,
+                         llvm::StringRef MemberFunctionName,
+                         llvm::MutableArrayRef<clang::Expr*> ArgExprs);
+
     /// Build a call to member function through this pointer.
     ///
     /// \param[in] FD callee member function
@@ -333,9 +365,30 @@ namespace clad {
     /// \param[in] FD callee function
     /// \param[in] argExprs function arguments expressions
     /// \returns Built call expression
-    clang::Expr* 
+    clang::Expr*
     BuildCallExprToFunction(clang::FunctionDecl* FD,
-        llvm::MutableArrayRef<clang::Expr*> argExprs);
+                            llvm::MutableArrayRef<clang::Expr*> argExprs);
+    /// Find declaration of clad::array_ref templated type.
+    clang::TemplateDecl* GetCladArrayRefDecl();
+    /// Create clad::array_ref<T> type.
+    clang::QualType GetCladArrayRefOfType(clang::QualType T);
+    /// Checks if the type is of clad::array_ref<T> type
+    bool isArrayRefType(clang::QualType QT);
+    /// Find declaration of clad::array templated type.
+    clang::TemplateDecl* GetCladArrayDecl();
+    /// Create clad::array<T> type.
+    clang::QualType GetCladArrayOfType(clang::QualType T);
+    /// Creates the expression Base.size() for the given Base expr. The Base
+    /// expr must be of clad::array_ref<T> type
+    clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
+
+  public:
+    /// Rebuild a sequence of nested namespaces ending with DC.
+    clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
+    /// Clones a statement
+    clang::Stmt* Clone(const clang::Stmt* S);
+    /// A shorthand to simplify cloning of expressions.
+    clang::Expr* Clone(const clang::Expr* E);
   };
 } // end namespace clad
 

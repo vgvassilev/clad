@@ -171,7 +171,8 @@ namespace clad {
     return finder.m_FnDRE;
   }
 
-  void DiffRequest::updateCall(FunctionDecl* FD, Sema& SemaRef) {
+  void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
+                               Sema& SemaRef) {
     CallExpr* call = this->CallContext;
     // Index of "code" parameter:
     auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
@@ -185,10 +186,14 @@ namespace clad {
     assert(oldDRE && "Trying to differentiate something unsupported");
 
     ASTContext& C = SemaRef.getASTContext();
+
+    FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
     // Create ref to generated FD.
-    Expr* DRE = DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc,
-                                    FD, false, FD->getNameInfo(), FD->getType(),
-                                    oldDRE->getValueKind());
+    Expr* DRE =
+        DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc, replacementFD,
+                            /*RefersToEnclosingVariableOrCapture=*/false,
+                            replacementFD->getNameInfo(),
+                            replacementFD->getType(), oldDRE->getValueKind());
 
     // Add the "&" operator
     auto newUnOp =
@@ -215,11 +220,12 @@ namespace clad {
       // the nul terminator character as well as the string length for pascal
       // strings.
       QualType StrTy =
-        clad_compat::getConstantArrayType(C, CharTyConst,
-                               llvm::APInt(32, Out.str().size() + 1),
-                               nullptr,
-                               ArrayType::Normal,
-                               /*IndexTypeQuals*/0);
+          clad_compat::getConstantArrayType(C, CharTyConst,
+                                            llvm::APInt(32,
+                                                        Out.str().size() + 1),
+                                            /*SizeExpr=*/nullptr,
+                                            ArrayType::Normal,
+                                            /*IndexTypeQuals*/ 0);
 
       StringLiteral* SL =
         StringLiteral::Create(C,

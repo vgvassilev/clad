@@ -53,13 +53,6 @@ namespace clad {
         return "_grad";
     }
 
-    const char* resultArg() const {
-      if (isVectorValued)
-        return "jacobianMatrix";
-      else
-        return "_result";
-    }
-
     /// Removes the local as well as non-local const qualifiers from a QualType
     /// and returns a new type.
     static clang::QualType
@@ -137,29 +130,28 @@ namespace clad {
     /// variable declaration. Otherwise, temporary variable is created only
     /// if E requires evaluation (e.g. there is no point to store literals or
     /// direct references in intermediate variables)
-    clang::Expr* StoreAndRef(clang::Expr* E,
-                             direction d = forward,
+    clang::Expr* StoreAndRef(clang::Expr* E, direction d = forward,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false) {
+                             bool forceDeclCreation = false,
+                             clang::VarDecl::InitializationStyle IS =
+                                 clang::VarDecl::InitializationStyle::CInit) {
       assert(E && "cannot infer type from null expression");
-      return StoreAndRef(E,
-                         getNonConstType(E->getType(), m_Context, m_Sema),
-                         d,
-                         prefix,
-                         forceDeclCreation);
+      return StoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema), d,
+                         prefix, forceDeclCreation, IS);
     }
 
     /// An overload allowing to specify the type for the variable.
-    clang::Expr* StoreAndRef(clang::Expr* E,
-                             clang::QualType Type,
+    clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type,
                              direction d = forward,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false) {
+                             bool forceDeclCreation = false,
+                             clang::VarDecl::InitializationStyle IS =
+                                 clang::VarDecl::InitializationStyle::CInit) {
       // Name reverse temporaries as "_r" instead of "_t".
       if ((d == reverse) && (prefix == "_t"))
         prefix = "_r";
-      return VisitorBase::StoreAndRef(
-          E, Type, getCurrentBlock(d), prefix, forceDeclCreation);
+      return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix,
+                                      forceDeclCreation, IS);
     }
 
     /// For an expr E, decides if it is useful to store it in a global temporary
@@ -234,8 +226,8 @@ namespace clad {
     ///
     ///\param[in] FD - the function that will be differentiated.
     ///
-    ///\returns The gradient of the function and potentially created enclosing
-    /// context.
+    ///\returns The gradient of the function, potentially created enclosing
+    /// context and if generated, its overload.
     ///
     /// We name the gradient of f as 'f_grad'.
     /// If the gradient of the same function is requested several times
@@ -250,8 +242,8 @@ namespace clad {
     /// Improved naming scheme is required. Hence, we append the indices to of
     /// the requested parameters to 'f_grad', i.e. in the previous example "x,
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
-    DeclWithContext Derive(const clang::FunctionDecl* FD,
-                           const DiffRequest& request);
+    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
+                                     const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
@@ -294,6 +286,14 @@ namespace clad {
            "attempt to differentiate unsupported operator, ignored.",
            args);
     }
+    /// Builds an overload for the gradient function that has derived params for
+    /// all the arguments of the requested function and it calls the original
+    /// gradient function internally
+    clang::FunctionDecl* CreateGradientOverload(
+        llvm::SmallVectorImpl<clang::QualType>& GradientParamTypes,
+        llvm::SmallVectorImpl<clang::ParmVarDecl*>& GradientParams,
+        clang::DeclarationNameInfo& GradientName,
+        clang::FunctionDecl* GradientFD);
   };
 } // end namespace clad
 
