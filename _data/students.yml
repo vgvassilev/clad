@@ -22,21 +22,6 @@
   mentors: Vassil Vassilev, David Lange
   current: 1
 
-- name: "Ajay Uppili Arasanipalai"
-  photo: Ajay.png
-  info: 'Modernize the LLVM "Building A JIT" Tutorial Series'
-  email: aua2@illinois.edu
-  education: "University of Illinois at Urbana-Champaign, Grainger College of Engineering"
-  description: |
-    The LLVM JIT API has changed many times over the years. 
-    However, the official tutorials have failed to keep up. 
-    This project aims to update the official “Building a JIT” tutorials to use 
-    the latest version of the OrcJIT API and add new content that might be relevant 
-    to new LLVM users interested in writing their own JIT compilers.
-  proposal: https://summerofcode.withgoogle.com/serve/6211919142191104/
-  mentors: Lang Hames, Vassil Vassilev
-  current: 1
-
 - name: "Parth Arora"
   photo: Parth.jpg
   info: 'Add support for differentiating functor objects in clad'
@@ -87,6 +72,20 @@
   info: See <a href="/vacancies">openings</a> for more info
   email: vvasilev@cern.ch
   current: 1
+
+- name: "Ajay Uppili Arasanipalai"
+  photo: Ajay.png
+  info: 'Modernize the LLVM "Building A JIT" Tutorial Series'
+  email: aua2@illinois.edu
+  education: "University of Illinois at Urbana-Champaign, Grainger College of Engineering"
+  description: |
+    The LLVM JIT API has changed many times over the years.
+    However, the official tutorials have failed to keep up.
+    This project aims to update the official “Building a JIT” tutorials to use
+    the latest version of the OrcJIT API and add new content that might be relevant
+    to new LLVM users interested in writing their own JIT compilers.
+  proposal: https://summerofcode.withgoogle.com/serve/6211919142191104/
+  mentors: Lang Hames, Vassil Vassilev
 
 - name: Vaibhav Garg
   info: "Enable Modules on Windows, GSoC 2020"
