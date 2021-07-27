@@ -737,6 +737,65 @@ double f16(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f17(double i, double j, double k) {
+  j = 2*i;
+  return j;
+}
+
+// CHECK: void f17_grad_0(double i, double j, double k, clad::array_ref<double> _d_i) {
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_k = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     j = 2 * _t0;
+// CHECK-NEXT:     double f17_return = j;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_j += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_j;
+// CHECK-NEXT:         double _r0 = _r_d0 * _t0;
+// CHECK-NEXT:         double _r1 = 2 * _r_d0;
+// CHECK-NEXT:         * _d_i += _r1;
+// CHECK-NEXT:         _d_j -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f18(double i, double j, double k) {
+  k = 2*i + 2*j;
+  k += i;
+  return k;
+}
+
+// CHECK: void f18_grad_0_1(double i, double j, double k, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double _d_k = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     _t1 = j;
+// CHECK-NEXT:     k = 2 * _t0 + 2 * _t1;
+// CHECK-NEXT:     k += i;
+// CHECK-NEXT:     double f18_return = k;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_k += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d1 = _d_k;
+// CHECK-NEXT:         _d_k += _r_d1;
+// CHECK-NEXT:         * _d_i += _r_d1;
+// CHECK-NEXT:         _d_k -= _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d_k;
+// CHECK-NEXT:         double _r0 = _r_d0 * _t0;
+// CHECK-NEXT:         double _r1 = 2 * _r_d0;
+// CHECK-NEXT:         * _d_i += _r1;
+// CHECK-NEXT:         double _r2 = _r_d0 * _t1;
+// CHECK-NEXT:         double _r3 = 2 * _r_d0;
+// CHECK-NEXT:         * _d_j += _r3;
+// CHECK-NEXT:         _d_k -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 #define TEST(F, x, y)                                                          \
   {                                                                            \
@@ -746,6 +805,37 @@ double f16(double i, double j) {
     F##grad.execute(x, y, &result[0], &result[1]);                             \
     printf("{%.2f, %.2f}\n", result[0], result[1]);                            \
   }
+
+template<typename FirstArg>
+void set_to_zero(FirstArg firstArg) {
+  *firstArg = 0;
+}
+
+template<typename FirstArg, typename... Args>
+void set_to_zero(FirstArg firstArg, Args... args) {
+  *firstArg = 0;
+  set_to_zero(args...);
+}
+
+template<typename FirstArg>
+void display(FirstArg firstArg) {
+  printf("%.2f", *firstArg);
+}
+
+template<typename FirstArg, typename... Args>
+void display(FirstArg firstArg, Args... args) {
+  printf("%.2f, ", *firstArg);
+  display(args...);
+}
+
+#define VAR_TEST(F, args, x, y, z, ...) {\
+  set_to_zero(__VA_ARGS__);\
+  auto d_##F = clad::gradient(F, args);\
+  d_##F.execute(x, y, z, __VA_ARGS__);\
+  printf("{");\
+  display(__VA_ARGS__);\
+  printf("}\n");\
+}
 
 int main() {
   double result[2] = {};
@@ -765,4 +855,6 @@ int main() {
   TEST(f14, 3, 4);  // CHECK-EXEC: {96.00, 0.00}
   TEST(f15, 3, 4);  // CHECK-EXEC: {30.00, 33.00}
   TEST(f16, 3, 4);  // CHECK-EXEC: {16.00, 12.00}
+  VAR_TEST(f17, "i", 3, 4, 5, &result[0]);  // CHECK-EXEC: {2.00}
+  VAR_TEST(f18, "i, j", 3, 4, 5, &result[0], &result[1]); // CHECK-EXEC: {3.00, 2.00}
 }

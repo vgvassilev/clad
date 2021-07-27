@@ -656,6 +656,7 @@ public:
   double partial_mem_fn(double i, double j) { return (x + y) * i + i * j; }
 
   // CHECK: void partial_mem_fn_grad_0(double i, double j, clad::array_ref<double> _d_i) {
+  // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -674,6 +675,7 @@ public:
   // CHECK-NEXT:         double _r2 = 1 * _t2;
   // CHECK-NEXT:         * _d_i += _r2;
   // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 

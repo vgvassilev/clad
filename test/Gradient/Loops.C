@@ -193,6 +193,7 @@ double f_sum(double *p, int n) {
 }
 
 //CHECK:   void f_sum_grad_0(double *p, int n, clad::array_ref<double> _d_p) {
+//CHECK-NEXT:       int _d_n = 0;
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -240,6 +241,7 @@ double f_sum_squares(double *p, int n) {
 }
 
 //CHECK:   void f_sum_squares_grad_0(double *p, int n, clad::array_ref<double> _d_p) {
+//CHECK-NEXT:       int _d_n = 0;
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -277,6 +279,8 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 }
 
 //CHECK:   void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, clad::array_ref<double> _d_p) {
+//CHECK-NEXT:       double _d_n = 0;
+//CHECK-NEXT:       double _d_sigma = 0;
 //CHECK-NEXT:       double _d_power = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -339,7 +343,9 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:           double _r11 = _r10 * _grad2;
 //CHECK-NEXT:           double _r12 = _r11 * 3.1415926535897931;
 //CHECK-NEXT:           double _r13 = _r10 * _grad3;
+//CHECK-NEXT:           _d_n += _r13;
 //CHECK-NEXT:           double _r14 = _t13 * _r9;
+//CHECK-NEXT:           _d_sigma += _r14;
 //CHECK-NEXT:           double _r15 = _t15 * _d_gaus;
 //CHECK-NEXT:           double _r16 = _r15 * custom_derivatives::exp_darg0(_t16);
 //CHECK-NEXT:           _d_power += _r16;
@@ -354,6 +360,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:           double _grad1 = 0.;
 //CHECK-NEXT:           sq_grad(_t7, &_grad1);
 //CHECK-NEXT:           double _r5 = _r4 * _grad1;
+//CHECK-NEXT:           _d_sigma += _r5;
 //CHECK-NEXT:           _d_power -= _r_d1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       for (; _t0; _t0--) {
