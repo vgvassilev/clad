@@ -374,7 +374,7 @@ namespace clad {
         }
       }
     }
-
+    auto nonDiffParams = params;
     if (isVectorValued) {
       TypeSourceInfo* paramTSI =
           m_Context.getTrivialTypeSourceInfo(DerivedOutputParamType, noLoc);
@@ -449,6 +449,26 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+    // create derived variables for parameters which are not part of
+    // independent variables (args).
+    for (ParmVarDecl* param : nonDiffParams) {
+      // derived variables are already created for independent variables.
+      if (m_Variables.count(param))
+        continue;
+      // in vector mode last non diff parameter is output parameter.
+      if (isVectorValued && param == nonDiffParams.back())
+        continue;
+      auto VDDerivedType = param->getType();
+      // We cannot initialize derived variable for pointer types because
+      // we do not know the correct size.
+      if (isArrayOrPointerType(VDDerivedType))
+        continue;
+      auto VDDerived =
+          BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
+                       getZeroInit(VDDerivedType));
+      m_Variables[param] = BuildDeclRef(VDDerived);
+      addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+    }
     // Start the visitation process which outputs the statements in the current
     // block.
     StmtDiff BodyDiff = Visit(FD->getBody());

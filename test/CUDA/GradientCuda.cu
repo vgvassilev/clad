@@ -25,6 +25,8 @@ gaus_grad_1(double* x, double* p, double sigma, int dim, clad::array_ref<double>
 auto gaus_g = clad::gradient(gaus, "p");
 
 // CHECK:    void gaus_grad_1(double *x, double *p, double sigma, int dim, clad::array_ref<double> _d_p) __attribute__((device)) __attribute__((host)) {
+// CHECK-NEXT:       double _d_sigma = 0;
+// CHECK-NEXT:       int _d_dim = 0;    
 // CHECK-NEXT:       double _d_t = 0;
 // CHECK-NEXT:       unsigned long _t0;
 // CHECK-NEXT:       int _d_i = 0;
@@ -80,11 +82,13 @@ auto gaus_g = clad::gradient(gaus, "p");
 // CHECK-NEXT:           double _r11 = _r10 * 3.1415926535897931;
 // CHECK-NEXT:           double _r12 = _r9 * _grad1;
 // CHECK-NEXT:           double _r13 = _r12 / 2.;
+// CHECK-NEXT:           _d_dim += -_r13;
 // CHECK-NEXT:           double _r14 = _t16 * _r8;
 // CHECK-NEXT:           double _grad2 = 0.;
 // CHECK-NEXT:           double _grad3 = 0.;
 // CHECK-NEXT:           custom_derivatives::pow_grad(_t17, -0.5, &_grad2, &_grad3);
 // CHECK-NEXT:           double _r15 = _r14 * _grad2;
+// CHECK-NEXT:           _d_sigma += _r15;
 // CHECK-NEXT:           double _r16 = _r14 * _grad3;
 // CHECK-NEXT:           double _r17 = _t18 * 1;
 // CHECK-NEXT:           double _r18 = _r17 * custom_derivatives::exp_darg0(_t19);
@@ -98,7 +102,9 @@ auto gaus_g = clad::gradient(gaus, "p");
 // CHECK-NEXT:           double _r4 = _r3 * _t9;
 // CHECK-NEXT:           double _r5 = _r4 * _t10;
 // CHECK-NEXT:           double _r6 = 2 * _r4;
+// CHECK-NEXT:           _d_sigma += _r6;
 // CHECK-NEXT:           double _r7 = _t11 * _r3;
+// CHECK-NEXT:           _d_sigma += _r7;
 // CHECK-NEXT:           _d_t -= _r_d1;
 // CHECK-NEXT:       }
 // CHECK-NEXT:       for (; _t0; _t0--) {
