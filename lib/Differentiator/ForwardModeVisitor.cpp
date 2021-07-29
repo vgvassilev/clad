@@ -97,19 +97,13 @@ namespace clad {
     }
     m_DerivativeOrder = request.CurrentDerivativeOrder;
     std::string s = std::to_string(m_DerivativeOrder);
-    std::string derivativeBaseName;
     if (m_DerivativeOrder == 1)
       s = "";
-    switch (FD->getOverloadedOperator()) {
-      default: derivativeBaseName = request.BaseFunctionName; break;
-      case OO_Call: derivativeBaseName = "operator_call"; break;
-    }
-
     m_ArgIndex = std::distance(
         FD->param_begin(),
         std::find(FD->param_begin(), FD->param_end(), m_IndependentVar));
     IdentifierInfo* II =
-        &m_Context.Idents.get(derivativeBaseName + "_d" + s + "arg" +
+        &m_Context.Idents.get(request.BaseFunctionName + "_d" + s + "arg" +
                               std::to_string(m_ArgIndex) + derivativeSuffix);
     SourceLocation loc{m_Function->getLocation()};
     DeclarationNameInfo name(II, loc);

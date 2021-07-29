@@ -29,6 +29,7 @@ set_property(SOURCE Version.cpp APPEND_STRING PROPERTY COMPILE_DEFINITIONS
 
 # (Ab)use llvm facilities for adding libraries.
 add_llvm_library(cladDifferentiator
+  CladUtils.cpp
   ConstantFolder.cpp
   DerivativeBuilder.cpp
   DiffPlanner.cpp

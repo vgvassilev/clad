@@ -65,6 +65,7 @@ namespace clad {
     IndependentArgRequest.Mode = DiffMode::reverse;
     IndependentArgRequest.Function = firstDerivative;
     IndependentArgRequest.Args = ReverseModeArgs;
+    IndependentArgRequest.BaseFunctionName = firstDerivative->getNameAsString();
     FunctionDecl* secondDerivative =
         plugin::ProcessDiffRequest(CP, IndependentArgRequest);
 

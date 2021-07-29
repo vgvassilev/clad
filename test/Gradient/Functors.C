@@ -14,7 +14,7 @@ struct Experiment {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -23,7 +23,7 @@ struct Experiment {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -47,7 +47,7 @@ struct ExperimentConst {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
+  // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -56,7 +56,7 @@ struct ExperimentConst {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -80,7 +80,7 @@ struct ExperimentVolatile {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
+  // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     volatile double _t2;
@@ -89,7 +89,7 @@ struct ExperimentVolatile {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -113,7 +113,7 @@ struct ExperimentConstVolatile {
     x = val;
   }
 
-  // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
+  // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     volatile double _t2;
@@ -122,7 +122,7 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -148,7 +148,7 @@ namespace outer {
         x = val;
       }
 
-      // CHECK: void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+      // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
       // CHECK-NEXT:     double _t0;
       // CHECK-NEXT:     double _t1;
       // CHECK-NEXT:     double _t2;
@@ -157,7 +157,7 @@ namespace outer {
       // CHECK-NEXT:     _t1 = i;
       // CHECK-NEXT:     _t3 = _t2 * _t1;
       // CHECK-NEXT:     _t0 = j;
-      // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+      // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
       // CHECK-NEXT:     goto _label0;
       // CHECK-NEXT:   _label0:
       // CHECK-NEXT:     {
@@ -198,7 +198,7 @@ int main() {
     return i*i*j;
   };
 
-  // CHECK: inline void operator()_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
+  // CHECK: inline void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -207,7 +207,7 @@ int main() {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -225,7 +225,7 @@ int main() {
     return x*ii*j;
   };
 
-  // CHECK: inline void operator()_grad(double ii, double j, clad::array_ref<double> _d_ii, clad::array_ref<double> _d_j) const {
+  // CHECK: inline void operator_call_grad(double ii, double j, clad::array_ref<double> _d_ii, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -234,7 +234,7 @@ int main() {
   // CHECK-NEXT:     _t1 = ii;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator()_return = _t3 * _t0;
+  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
