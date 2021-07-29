@@ -10,6 +10,7 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
@@ -317,7 +318,7 @@ namespace clad {
       request.Args = E->getArg(1);
       auto derivedFD = cast<FunctionDecl>(DRE->getDecl());
       request.Function = derivedFD;
-      request.BaseFunctionName = derivedFD->getNameAsString();
+      request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
       // FIXME: add support for nested calls to clad::differentiate/gradient
       // inside differentiated functions

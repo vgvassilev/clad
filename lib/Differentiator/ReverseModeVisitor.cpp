@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <numeric>
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
@@ -247,7 +248,7 @@ namespace clad {
           GetCladArrayRefOfType(m_Function->getReturnType());
     }
 
-    auto derivativeBaseName = m_Function->getNameAsString();
+    auto derivativeBaseName = request.BaseFunctionName;
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
@@ -958,7 +959,7 @@ namespace clad {
     // computation (e.g. assignments), we also have to emit it to execute it.
     StoreAndRef(ExprDiff.getExpr(),
                 forward,
-                m_Function->getNameAsString() + "_return",
+                utils::ComputeEffectiveFnName(m_Function) + "_return",
                 /*force*/ true);
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
