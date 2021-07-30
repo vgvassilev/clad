@@ -77,6 +77,27 @@ namespace clad {
     StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
     StmtDiff VisitDoStmt(const clang::DoStmt* DS);
     StmtDiff VisitContinueStmt(const clang::ContinueStmt* ContStmt);
+
+    StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
+    StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
+    
+  private:
+    /// Helper function for differentiating the switch statement body.
+    ///
+    /// It manages scopes and blocks for the switch case labels, checks if
+    /// compound statement to be differentiated is supported and returns the
+    /// active switch case label after processing the given `stmt` argument.
+    ///
+    /// Scope and and block for the last switch case label have to be managed
+    /// manually outside the function because this function have no way of
+    /// knowing when all the statements belonging to last switch case label have
+    /// been processed.
+    ///
+    /// \param[in] stmt Current statement to derive
+    /// \param[in] activeSC Current active switch case label
+    /// \return active switch case label after processing `stmt`
+    clang::SwitchCase* DeriveSwitchStmtBodyHelper(const clang::Stmt* stmt,
+                                                  clang::SwitchCase* activeSC);
   };
 } // end namespace clad
 
