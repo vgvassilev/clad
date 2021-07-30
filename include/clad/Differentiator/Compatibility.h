@@ -468,6 +468,17 @@ static inline CXXThisExpr* Sema_BuildCXXThisExpr(Sema& SemaRef,
 #endif
 }
 
+/// clang >= 11 added more source locations parameters in `Sema::ActOnWhileStmt`
+static inline StmtResult
+Sema_ActOnWhileStmt(Sema& SemaRef, Sema::ConditionResult cond, Stmt* body) {
+  SourceLocation noLoc;
+#if CLANG_VERSION_MAJOR < 11
+  return SemaRef.ActOnWhileStmt(/*WhileLoc=*/noLoc, cond, body);
+#elif CLANG_VERSION_MAJOR >= 11
+  return SemaRef.ActOnWhileStmt(/*WhileLoc=*/noLoc, /*LParenLoc=*/noLoc, cond,
+                                /*RParenLoc=*/noLoc, body);
+#endif
+}
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY

@@ -1018,4 +1018,120 @@ namespace clad {
         IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
     return StmtDiff(Clone(BL), constant0);
   }
+
+  /// Creates and returns a compound statement having statements as follows:
+  /// {`stmt`, all the statement of `CS` in sequence}
+  static CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C,
+                                                    const CompoundStmt* CS,
+                                                    Stmt* stmt) {
+    llvm::SmallVector<Stmt*, 16> block;
+    block.push_back(stmt);
+    block.insert(block.end(), CS->body_begin(), CS->body_end());
+    auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
+    return clad_compat::CompoundStmt_Create(C, stmtsRef, noLoc, noLoc);
+  }
+
+  StmtDiff ForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
+    // begin scope for while loop
+    beginScope(Scope::ContinueScope | Scope::BreakScope | Scope::DeclScope |
+               Scope::ControlScope);
+
+    const VarDecl* condVar = WS->getConditionVariable();
+    VarDecl* condVarClone = nullptr;
+    VarDeclDiff condVarRes;
+    if (condVar) {
+      condVarRes = DifferentiateVarDecl(condVar);
+      condVarClone = condVarRes.getDecl();
+    }
+    Expr* condClone = WS->getCond() ? Clone(WS->getCond()) : nullptr;
+
+    Sema::ConditionResult condRes;
+    if (condVarClone) {
+      condRes = m_Sema.ActOnConditionVariable(condVarClone, noLoc,
+                                              Sema::ConditionKind::Boolean);
+    } else {
+      condRes = m_Sema.ActOnCondition(getCurrentScope(), noLoc, condClone,
+                                      Sema::ConditionKind::Boolean);
+    }
+
+    const Stmt* body = WS->getBody();
+    Stmt* bodyResult = nullptr;
+    if (isa<CompoundStmt>(body)) {
+      bodyResult = Visit(body).getStmt();
+    } else {
+      beginScope(Scope::DeclScope);
+      beginBlock();
+      StmtDiff Result = Visit(body);
+      for (Stmt* S : Result.getBothStmts())
+        addToCurrentBlock(S);
+      CompoundStmt* Block = endBlock();
+      endScope();
+      bodyResult = Block;
+    }
+    // Since condition variable is created and initialized at each iteration,
+    // derivative of condition variable should also get created and initialized
+    // at each iteratrion. Therefore, we need to insert declaration statement
+    // of derivative of condition variable, if any, on top of the derived body
+    // of the while loop.
+    //
+    // while (double b = a) {
+    //   ...
+    //   ...
+    // }
+    //
+    // gets differentiated to,
+    //
+    // while (double b = a) {
+    //   double _d_b = _d_a;
+    //   ...
+    //   ...
+    // }
+    if (condVarClone) {
+      bodyResult =
+          PrependAndCreateCompoundStmt(m_Sema.getASTContext(),
+                                       cast<CompoundStmt>(bodyResult),
+                                       BuildDeclStmt(condVarRes.getDecl_dx()));
+    }
+
+    Stmt* WSDiff = clad_compat::Sema_ActOnWhileStmt(m_Sema, condRes, bodyResult)
+                      .get();
+    // end scope for while loop
+    endScope();
+    return StmtDiff(WSDiff);
+  }
+
+  StmtDiff ForwardModeVisitor::VisitContinueStmt(const ContinueStmt* ContStmt) {
+    return StmtDiff(Clone(ContStmt));
+  }
+
+  StmtDiff ForwardModeVisitor::VisitDoStmt(const DoStmt* DS) {
+    // begin scope for do-while statement
+    beginScope(Scope::ContinueScope | Scope::BreakScope);
+    Expr* clonedCond = DS->getCond() ? Clone(DS->getCond()) : nullptr;
+    const Stmt* body = DS->getBody();
+
+    Stmt* bodyResult = nullptr;
+    if (isa<CompoundStmt>(body)) {
+      bodyResult = Visit(body).getStmt();
+    } else {
+      beginScope(Scope::DeclScope);
+      beginBlock();
+      StmtDiff Result = Visit(body);
+      for (Stmt* S : Result.getBothStmts())
+        addToCurrentBlock(S);
+      CompoundStmt* Block = endBlock();
+      endScope();
+      bodyResult = Block;
+    }
+
+    Stmt* S = m_Sema
+                  .ActOnDoStmt(/*DoLoc=*/noLoc, bodyResult, /*WhileLoc=*/noLoc,
+                               /*CondLParen=*/noLoc, clonedCond,
+                               /*CondRParen=*/noLoc)
+                  .get();
+
+    // end scope for do-while statement
+    endScope();
+    return StmtDiff(S);
+  }
 } // end namespace clad

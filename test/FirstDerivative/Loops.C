@@ -211,6 +211,152 @@ double f4_inc_darg0(double x, int y);
 //CHECK-NEXT:       return _d_r;
 //CHECK-NEXT:   }
 
+double fn5(double i, double j) {
+  int b = 3;
+  double a = 0;
+  while (b) {
+    a += i;
+    b -= 1;
+  }
+  return a;
+}
+
+// CHECK: double fn5_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     int _d_b = 0;
+// CHECK-NEXT:     int b = 3;
+// CHECK-NEXT:     double _d_a = 0;
+// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     while (b)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_a += _d_i;
+// CHECK-NEXT:             a += i;
+// CHECK-NEXT:             _d_b -= 0;
+// CHECK-NEXT:             b -= 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     return _d_a;
+// CHECK-NEXT: }
+
+double fn6(double i, double j) {
+  int b = 3;
+  double a = 0;
+  do {
+    a += i;
+    b -= 1;
+  } while (b);
+  return a;
+}
+
+// CHECK: double fn6_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     int _d_b = 0;
+// CHECK-NEXT:     int b = 3;
+// CHECK-NEXT:     double _d_a = 0;
+// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     do {
+// CHECK-NEXT:         _d_a += _d_i;
+// CHECK-NEXT:         a += i;
+// CHECK-NEXT:         _d_b -= 0;
+// CHECK-NEXT:         b -= 1;
+// CHECK-NEXT:     } while (b);
+// CHECK-NEXT:     return _d_a;
+// CHECK-NEXT: }
+
+double fn7(double i, double j) {
+  int b = 3;
+  double res = 0;
+  while (double a = b) {
+    a += i;
+    res += a;
+    b -= 1;
+  }
+  b = 1;
+  while (b)
+    b -= 1;
+  return res;
+}
+
+// CHECK: double fn7_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     int _d_b = 0;
+// CHECK-NEXT:     int b = 3;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     while (double a = b)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _d_a = _d_b;
+// CHECK-NEXT:             _d_a += _d_i;
+// CHECK-NEXT:             a += i;
+// CHECK-NEXT:             _d_res += _d_a;
+// CHECK-NEXT:             res += a;
+// CHECK-NEXT:             _d_b -= 0;
+// CHECK-NEXT:             b -= 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     _d_b = 0;
+// CHECK-NEXT:     b = 1;
+// CHECK-NEXT:     while (b)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             _d_b -= 0;
+// CHECK-NEXT:             b -= 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+double fn8(double i, double j) {
+  do
+  continue;
+  while(0);
+  return i*i;
+}
+
+// CHECK: double fn8_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     do {
+// CHECK-NEXT:         continue;
+// CHECK-NEXT:     } while (0);
+// CHECK-NEXT:     return _d_i * i + i * _d_i;
+// CHECK-NEXT: }
+
+double fn9(double i, double j) {
+  int counter = 4;
+  double a = i*j;
+  while (int num = counter) {
+    counter-=1;
+    if (num == 2)
+      continue;
+    a += i*i;
+  }
+  return a;
+}
+
+// CHECK: double fn9_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     int _d_counter = 0;
+// CHECK-NEXT:     int counter = 4;
+// CHECK-NEXT:     double _d_a = _d_i * j + i * _d_j;
+// CHECK-NEXT:     double a = i * j;
+// CHECK-NEXT:     while (int num = counter)
+// CHECK-NEXT:         {
+// CHECK-NEXT:             int _d_num = _d_counter;
+// CHECK-NEXT:             _d_counter -= 0;
+// CHECK-NEXT:             counter -= 1;
+// CHECK-NEXT:             if (num == 2)
+// CHECK-NEXT:                 continue;
+// CHECK-NEXT:             _d_a += _d_i * i + i * _d_i;
+// CHECK-NEXT:             a += i * i;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     return _d_a;
+// CHECK-NEXT: }
+
+#define TEST(fn)\
+auto d_##fn = clad::differentiate(fn, "i");\
+printf("%.2f\n", d_##fn.execute(3, 5));
+
 int main() {
   clad::differentiate(f1, 0);
   printf("Result is = %.2f\n", f1_darg0(10, 2)); // CHECK-EXEC: Result is = 20.00
@@ -235,7 +381,10 @@ int main() {
 
   clad::differentiate(f4_inc, 0);
   printf("Result is = %.2f\n", f4_inc_darg0(M_PI/4, 8)); // CHECK-EXEC: Result is = 0.50
-  
+
+  TEST(fn5);  // CHECK-EXEC: 3.00
+  TEST(fn6);  // CHECK-EXEC: 3.00
+  TEST(fn7);  // CHECK-EXEC: 3.00
+  TEST(fn8);  // CHECK-EXEC: 6.00
+  TEST(fn9);  // CHECK-EXEC: 23.00
 }
-
-
