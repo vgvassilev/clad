@@ -10,7 +10,7 @@
 
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Scope.h"
 
@@ -113,7 +113,11 @@ namespace utils {
     DECLARE_CLONE_FN(CXXConstructExpr)
     DECLARE_CLONE_FN(CXXTemporaryObjectExpr)
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
-
+    // `ConstantExpr` node is only available after clang 7.
+    #if CLANG_VERSION_MAJOR > 7
+    DECLARE_CLONE_FN(ConstantExpr)
+    #endif
+    
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
 

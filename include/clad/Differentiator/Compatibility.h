@@ -479,6 +479,35 @@ Sema_ActOnWhileStmt(Sema& SemaRef, Sema::ConditionResult cond, Stmt* body) {
                                 /*RParenLoc=*/noLoc, body);
 #endif
 }
+
+/// Clang >= 12 has more source locations parameters in `Sema::ActOnStartOfSwitchStmt`
+static inline StmtResult
+Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
+                            Sema::ConditionResult Cond) {
+  SourceLocation noLoc;
+#if CLANG_VERSION_MAJOR >= 12
+  return SemaRef.ActOnStartOfSwitchStmt(
+      /*SwitchLoc=*/noLoc,
+      /*LParenLoc=*/noLoc, initStmt, Cond,
+      /*RParenLoc=*/noLoc);
+#elif CLANG_VERSION_MAJOR < 12
+  return SemaRef.ActOnStartOfSwitchStmt(/*SwitchLoc=*/noLoc, initStmt, Cond);
+#endif
+}
+
+/// Clang 9 added an extra parameter for result storage kind in
+/// ConstantExpr::Create 
+/// Clang 11 added an extra parameter for immediate invocation in
+/// ConstantExpr::Create
+#if CLANG_VERSION_MAJOR < 9
+#define CLAD_COMPAT_ConstantExpr_Create_ExtraParams
+#elif CLANG_VERSION_MAJOR < 11
+#define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
+  , Node->getResultStorageKind()
+#elif CLANG_VERSION_MAJOR >= 11
+#define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
+  , Node->getResultStorageKind(), Node->isImmediateInvocation()
+#endif
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY

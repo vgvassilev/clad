@@ -17,6 +17,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
@@ -1127,5 +1128,220 @@ namespace clad {
     // end scope for do-while statement
     endScope();
     return StmtDiff(S);
+  }
+
+  /// returns first switch case label contained in the compound statement `CS`.
+  static SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
+    for (Stmt* stmt : CS->body()) {
+      if (auto SC = dyn_cast<SwitchCase>(stmt))
+        return SC;
+      else if (auto nestedCS = dyn_cast<CompoundStmt>(stmt)) {
+        if (SwitchCase* nestedRes = getContainedSwitchCaseStmt(nestedCS))
+          return nestedRes;
+      }
+    }
+    return nullptr;
+  }
+
+  static void setSwitchCaseSubStmt(SwitchCase* SC, Stmt* subStmt) {
+    if (auto caseStmt = dyn_cast<CaseStmt>(SC)) {
+      caseStmt->setSubStmt(subStmt);
+    } else if (auto defaultStmt = dyn_cast<DefaultStmt>(SC)) {
+      defaultStmt->setSubStmt(subStmt);
+    } else {
+      assert(0 && "Unsupported switch case statement");
+    }
+  }
+
+  /// Returns top switch statement in the `SwitchStack` of the given
+  /// Function Scope.
+  static SwitchStmt*
+  getTopSwitchStmtOfSwitchStack(sema::FunctionScopeInfo* FSI) {
+  #if CLANG_VERSION_MAJOR < 7
+    return FSI->SwitchStack.back();
+  #elif CLANG_VERSION_MAJOR >= 7
+    return FSI->SwitchStack.back().getPointer();
+  #endif
+  }
+
+  StmtDiff ForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
+    // Scope and block for initializing derived variables for condition
+    // variable and switch-init declaration.
+    beginScope(Scope::DeclScope);
+    beginBlock();
+
+    const VarDecl* condVarDecl = SS->getConditionVariable();
+    VarDecl* condVarClone = nullptr;
+    if (condVarDecl) {
+      VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
+      condVarClone = condVarDeclDiff.getDecl();
+      addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
+    }
+
+    StmtDiff initVarRes = (SS->getInit() ? Visit(SS->getInit()) : StmtDiff());
+    addToCurrentBlock(initVarRes.getStmt_dx());
+
+    // TODO: we can check if expr is null in `VisitorBase::Clone`, if it is
+    // null then it can be safely returned without any cloning.
+    Expr* clonedCond = (SS->getCond() ? Clone(SS->getCond()) : nullptr);
+
+    Sema::ConditionResult condResult;
+    if (condVarClone)
+      condResult = m_Sema.ActOnConditionVariable(condVarClone, noLoc,
+                                                 Sema::ConditionKind::Switch);
+    else
+      condResult = m_Sema.ActOnCondition(getCurrentScope(), noLoc, clonedCond,
+                                         Sema::ConditionKind::Switch);
+
+    // Scope for the switch statement
+    beginScope(Scope::SwitchScope | Scope::ControlScope | Scope::BreakScope |
+               Scope::DeclScope);
+    Stmt* switchStmtDiff = clad_compat::
+                               Sema_ActOnStartOfSwitchStmt(m_Sema,
+                                                           initVarRes.getStmt(),
+                                                           condResult)
+                                   .get();
+    // Scope and block for the corresponding compound statement of the
+    // switch statement
+    beginScope(Scope::DeclScope);
+    beginBlock();
+
+    // stores currently active switch case label. It is used to determine
+    // the corresponding case label of the statements that are currently
+    // being processed.
+    // It will always be equal to the last visited case/default label.
+    SwitchCase* activeSC = nullptr;
+
+    if (auto CS = dyn_cast<CompoundStmt>(SS->getBody())) {
+      // Visit(CS) cannot be used because then we will not be easily able to
+      // determine when active switch case label should be changed.
+      for (Stmt* stmt : CS->body()) {
+        activeSC = DeriveSwitchStmtBodyHelper(stmt, activeSC);
+      }
+    } else {
+      activeSC = DeriveSwitchStmtBodyHelper(SS->getBody(), activeSC);
+    }
+
+    // scope and block of the last switch case label is not popped in
+    // `DeriveSwitchStmtBodyHelper` because it have no way of knowing
+    // when all the statements belonging to last switch case label have
+    // been processed aka when all the statments in switch statement body
+    // have been processed.
+    if (activeSC) {
+      setSwitchCaseSubStmt(activeSC, endBlock());
+      endScope();
+      activeSC = nullptr;
+    }
+
+    // for corresponding compound statement of the switch block
+    endScope();
+    switchStmtDiff = m_Sema
+                         .ActOnFinishSwitchStmt(noLoc, switchStmtDiff,
+                                                endBlock())
+                         .get();
+
+    // for switch statement
+    endScope();
+
+    addToCurrentBlock(switchStmtDiff);
+    // for scope created for derived condition variable and switch init
+    // statement.
+    endScope();
+    return StmtDiff(endBlock());
+  }
+
+  SwitchCase*
+  ForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
+                                                 SwitchCase* activeSC) {
+    if (auto SC = dyn_cast<SwitchCase>(stmt)) {
+      // New switch case label have been visited. Pop the scope and block
+      // corresponding to the active switch case label, and update its
+      // substatement.
+      if (activeSC) {
+        setSwitchCaseSubStmt(activeSC, endBlock());
+        endScope();
+      }
+      // sub statement will be updated later, either when the corresponding
+      // next label is visited or the corresponding switch statement ends.
+      SwitchCase* newActiveSC = nullptr;
+
+      // We are not cloning the switch case label here because cloning will
+      // also unnecessary clone substatement of the switch case label.
+      if (auto newCaseSC = dyn_cast<CaseStmt>(SC)) {
+        Expr* lhsClone = (newCaseSC->getLHS() ? Clone(newCaseSC->getLHS())
+                                              : nullptr);
+        Expr* rhsClone = (newCaseSC->getRHS() ? Clone(newCaseSC->getRHS())
+                                              : nullptr);
+        newActiveSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(),
+                                                   lhsClone, rhsClone, noLoc,
+                                                   noLoc, noLoc);
+      } else if (auto newDefaultSC = dyn_cast<DefaultStmt>(SC)) {
+        newActiveSC = new (m_Sema.getASTContext())
+            DefaultStmt(noLoc, noLoc, nullptr);
+      }
+
+      SwitchStmt* activeSwitch = getTopSwitchStmtOfSwitchStack(
+          m_Sema.getCurFunction());
+      activeSwitch->addSwitchCase(newActiveSC);
+      // Add new switch case label to the switch statement block and
+      // create new scope and block for it to store statements belonging to it.
+      addToCurrentBlock(newActiveSC);
+      beginScope(Scope::DeclScope);
+      beginBlock();
+
+      activeSC = newActiveSC;
+      activeSC = DeriveSwitchStmtBodyHelper(SC->getSubStmt(), activeSC);
+      return activeSC;
+    } else {
+      if (auto CS = dyn_cast<CompoundStmt>(stmt)) {
+        if (auto containedSC = getContainedSwitchCaseStmt(CS)) {
+          // FIXME: One way to support this is strategically modifying the
+          // compound statement blocks such that the meaning of code remains
+          // the same and no switch case label is contained in the compound
+          // statement.
+          //
+          // For example,
+          // switch(var) {
+          //  {
+          //    case 1:
+          //    ...
+          //    ...
+          //  }
+          //  ...
+          //  case 2:
+          //  ...
+          // }
+          //
+          // this code snippet can safely be transformed to,
+          // switch(var) {
+          //
+          //  case 1: {
+          //    ...
+          //    ...
+          //  }
+          //  ...
+          //  case 2:
+          //  ...
+          // }
+          //
+          // We can also solve this issue by creating new scope and compound
+          // statement block wherever they are required instead of enclosing all
+          // the statements of a case label in a single compound statement.
+          diag(DiagnosticsEngine::Error, containedSC->getBeginLoc(),
+               "Differentiating switch case label contained in a compound "
+               "statement, other than the switch statement compound "
+               "statement, is not supported.");
+          return activeSC;
+        }
+      }
+      StmtDiff stmtRes = Visit(stmt);
+      addToCurrentBlock(stmtRes.getStmt_dx());
+      addToCurrentBlock(stmtRes.getStmt());
+      return activeSC;
+    }
+  }
+
+  StmtDiff ForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
+    return StmtDiff(Clone(stmt));
   }
 } // end namespace clad
