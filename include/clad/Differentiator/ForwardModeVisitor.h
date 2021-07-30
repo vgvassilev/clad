@@ -74,6 +74,9 @@ namespace clad {
                          set to 0",
            args);
     }
+    StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
+    StmtDiff VisitDoStmt(const clang::DoStmt* DS);
+    StmtDiff VisitContinueStmt(const clang::ContinueStmt* ContStmt);
   };
 } // end namespace clad
 
