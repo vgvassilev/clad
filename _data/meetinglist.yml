@@ -4,8 +4,18 @@
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_05Aug2021
   agenda:
-    - title: "TBD"
+    - title: "A brief history of Cxx.jl"
       speaker: "Keno Fischer, JuliaComputing"
+      description: |
+        Cxx.jl is one of the oldest Julia packages and provides extremely tight
+        integration between Julia and C++. With advanced features including a
+        C++, REPL environment, the ability to perform cross-language template
+        instantiation as well as cross-language object implementation, it is a
+        powerful tool for developers seeking to integrate the two languages.
+        However, despite these capabilities, the package never fully became
+        mainstream due to a number of technical limitations. In this talk, I
+        will explore the design and featureset of Cxx.jl, and what limitations
+        in Clang and Julia prevented its full adoption in the Julia world.
     - title: "Calling ROOT from Julia in practice"
       speaker: "Oliver Schulz, Max-Planck-Institut für Physik"
       description: |
