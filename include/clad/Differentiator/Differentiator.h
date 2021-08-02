@@ -380,15 +380,45 @@ namespace clad {
                                    code, f);
   }
 
+  /// Generates function which computes jacobian matrix of the given function
+  /// wrt the parameters specified in `args` using reverse mode differentiation.
+  ///
+  /// \param[in] fn function to differentiate
+  /// \param[in] args independent parameters information
+  /// \returns `CladFunction` object to access the corresponding derived
+  /// function.
   template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = JacobianDerivedFnTraits_t<F>>
-  CladFunction<DerivedFnType> __attribute__((annotate("J")))
+            typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("J")))
   jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType>(
-        derivedFn /* will be replaced by Jacobian*/, code);
+    return CladFunction<
+        DerivedFnType,
+        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by Jacobian*/,
+                                   code);
+  }
+
+  /// Specialization for differentiating functors.
+  /// The specialization is needed because objects have to be passed
+  /// by reference whereas functions have to be passed by value.
+  template <typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("J")))
+  jacobian(F&& f, ArgSpec args = "",
+           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+           const char* code = "") {
+    return CladFunction<
+        DerivedFnType,
+        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by Jacobian*/,
+                                   code, f);
   }
 }
 #endif // CLAD_DIFFERENTIATOR
