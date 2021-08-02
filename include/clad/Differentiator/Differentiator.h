@@ -339,18 +339,45 @@ namespace clad {
         derivedFn /* will be replaced by gradient*/, code, f);
   }
 
-  /// Function for Hessian matrix computation
-  /// Given  a function f, clad::hessian generates all the second derivatives
-  /// of the original function, (they are also columns of a Hessian matrix)
+  /// Generates function which computes hessian matrix of the given function wrt
+  /// the parameters specified in `args`.
+  ///
+  /// \param[in] fn function to differentiate
+  /// \param[in] args independent parameters information
+  /// \returns `CladFunction` object to access the corresponding derived
+  /// function.
   template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = HessianDerivedFnTraits_t<F>>
-  CladFunction<DerivedFnType> __attribute__((annotate("H")))
+            typename DerivedFnType = HessianDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("H")))
   hessian(F f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
           const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType>(derivedFn /* will be replaced by hessian*/,
-                                       code);
+    return CladFunction<
+        DerivedFnType,
+        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by hessian*/,
+                                   code);
+  }
+
+  /// Specialization for differentiating functors.
+  /// The specialization is needed because objects have to be passed
+  /// by reference whereas functions have to be passed by value.
+  template <typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = HessianDerivedFnTraits_t<F>,
+            typename = typename std::enable_if<
+                std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("H")))
+  hessian(F&& f, ArgSpec args = "",
+          DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+          const char* code = "") {
+    return CladFunction<
+        DerivedFnType,
+        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by hessian*/,
+                                   code, f);
   }
 
   template <typename ArgSpec = const char*, typename F,

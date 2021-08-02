@@ -512,7 +512,7 @@ namespace clad {
 
   JacobianDerivedFnTraits_AddCON(()); // Declares all the specializations
 
-  template <class T> struct HessianDerivedFnTraits {};
+  template <class T, class = void> struct HessianDerivedFnTraits {};
 
   // HessianDerivedFnTraits is used to deduce type of the derived functions
   // derived using hessian mode
@@ -562,6 +562,28 @@ namespace clad {
   HessianDerivedFnTraits_AddVOL(var, ) HessianDerivedFnTraits_AddVOL(var, const)
 
   HessianDerivedFnTraits_AddCON(()); // Declares all the specializations
+
+  /// Specialization for class types
+  /// If class have exactly one user defined call operator, then defines
+  /// member typedef `type` same as the type of the derived function of the
+  /// call operator, otherwise defines member typedef `type` as the type of
+  /// `NoFunction*`.
+  template <class F>
+  struct HessianDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
+    using ClassType = typename std::decay<
+        remove_reference_and_pointer_t<F>>::type;
+    using type = HessianDerivedFnTraits_t<decltype(&ClassType::operator())>;
+  };
+  template <class F>
+  struct HessianDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
 
   /// Compute type of derived function of function, method or functor when
   /// differentiated using forward differentiation mode

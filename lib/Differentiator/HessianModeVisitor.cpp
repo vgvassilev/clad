@@ -209,11 +209,12 @@ namespace clad {
 
     paramTypes.back() = GetCladArrayRefOfType(m_Function->getReturnType());
 
+    auto originalFnProtoType = cast<FunctionProtoType>(m_Function->getType());
     QualType hessianFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
         // Cast to function pointer.
-        FunctionProtoType::ExtProtoInfo());
+        originalFnProtoType->getExtProtoInfo());
 
     // Create the gradient function declaration.
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
