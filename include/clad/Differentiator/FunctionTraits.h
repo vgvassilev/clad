@@ -460,7 +460,7 @@ namespace clad {
     using type = typename SelectLast<Args...>::type;
   };
 
-  template <class T> struct JacobianDerivedFnTraits {};
+  template <class T, class = void> struct JacobianDerivedFnTraits {};
 
   // JacobianDerivedFnTraits is used to deduce type of the derived functions
   // derived using jacobian mode
@@ -511,6 +511,28 @@ namespace clad {
       JacobianDerivedFnTraits_AddVOL(var, const)
 
   JacobianDerivedFnTraits_AddCON(()); // Declares all the specializations
+
+  /// Specialization for class types
+  /// If class have exactly one user defined call operator, then defines
+  /// member typedef `type` same as the type of the derived function of the
+  /// call operator, otherwise defines member typedef `type` as the type of
+  /// `NoFunction*`.
+  template <class F>
+  struct JacobianDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
+    using ClassType = typename std::decay<
+        remove_reference_and_pointer_t<F>>::type;
+    using type = JacobianDerivedFnTraits_t<decltype(&ClassType::operator())>;
+  };
+  template <class F>
+  struct JacobianDerivedFnTraits<
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
+    using type = NoFunction*;
+  };
 
   template <class T, class = void> struct HessianDerivedFnTraits {};
 

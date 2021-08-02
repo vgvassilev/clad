@@ -25,7 +25,7 @@ class Equation {
   public:
   Equation(double x, double y) : m_x(x), m_y(y) {}
   double operator()(double i, double j) {
-    return m_x*i*j; + m_y*i*j;
+    return m_x*i*j + m_y*i*j;
   }
   void setX(double x) {
     m_x = x;
@@ -54,7 +54,7 @@ int main() {
   // calculate differentiation of `E` when (i, j) = (7, 9)
   double res1 = d_E.execute(7, 9);
   double res2 = d_E_pointer.execute(7, 9);
-  printf("%.2f %.2f", res1, res2);
+  printf("%.2f %.2f\n", res1, res2);
 
   Equation AnotherE(11, 13);
 
@@ -68,7 +68,7 @@ int main() {
   // calculate differentiation of `AnotherE` when (i, j) = (7, 9)
   res1 = d_E.execute(7, 9);
   res2 = d_E_pointer.execute(7, 9);
-  printf("%.2f %.2f", res1, res2);
+  printf("%.2f %.2f\n", res1, res2);
 
   // Differentiation of any other functor of the same type can also be computed
   // without changing the saved object in `CladFunction` object by explicitly
@@ -77,9 +77,9 @@ int main() {
   // Calculates differentiation of `E` when (i, j) = (7, 9)
   res1 = d_E.execute(E, 7, 9);
   res2 = d_E_pointer.execute(E, 7, 9);
-  printf("%.2f %.2f", res1, res2);
+  printf("%.2f %.2f\n", res1, res2);
 
-  // Saved object in `CladFunction` object can be removed using
+  // Saved object in `CladFunction` object can be removed by using
   // `CladFunction::clearObject`
   d_E.clearObject();
   d_E_pointer.clearObject();
@@ -90,5 +90,5 @@ int main() {
   res1 = d_E.execute(E, 7, 9);
   // Calculates differentiation of `AnotherE` when (i, j) = (7, 9)
   res2 = d_E_pointer.execute(AnotherE, 7, 9);
-  printf("%.2f %.2f", res1, res2);
+  printf("%.2f %.2f\n", res1, res2);
 }
