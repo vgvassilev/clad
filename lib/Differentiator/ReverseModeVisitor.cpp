@@ -245,7 +245,7 @@ namespace clad {
     // If we are in error estimation mode, we have an extra `double&`
     // parameter that stores the final error
     unsigned numExtraParam = m_ErrorEstimationEnabled ? 1 : 0;
-    paramTypes.reserve(m_Function->getNumParams() * 2 + numExtraParam);
+    paramTypes.reserve(m_Function->getNumParams() * 2);
     outputParamTypes.reserve(args.size());
     for (auto* PVD : m_Function->parameters()) {
       paramTypes.push_back(PVD->getType());
@@ -274,7 +274,8 @@ namespace clad {
     bool shouldCreateOverload = false;
     // Calculate the total number of parameters that would be present in the
     // derived function if all args are requested
-    size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
+    size_t totalDerivedParamsSize = m_Function->getNumParams() * 2 +
+                                    numExtraParam;
     if (paramTypes.size() != totalDerivedParamsSize && !isVectorValued)
       shouldCreateOverload = true;
 
@@ -435,7 +436,6 @@ namespace clad {
     // Reference to the final error statement
     if (m_ErrorEstimationEnabled)
       errorEstHandler->SetFinalErrorExpr(BuildDeclRef(params.back()));
-
     // Function body scope.
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
@@ -485,8 +485,7 @@ namespace clad {
     // Since 'return' is not an assignment, add its error to _final_error
     // given it is not a DeclRefExpr.
     if (m_ErrorEstimationEnabled)
-      errorEstHandler->EmitFinalErrorStmts(params, numParams);
-
+      errorEstHandler->EmitFinalErrorStmts(params, m_Function->getNumParams());
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
     endScope(); // Function body scope
@@ -640,7 +639,7 @@ namespace clad {
         return BranchDiff;
       } else {
         beginBlock(forward);
-        StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, nullptr,
+        StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr,
                                                       /*shouldEmit=*/false);
         addToCurrentBlock(BranchDiff.getStmt(), forward);
         // In error estimation, manually emit the code here instead of
@@ -887,7 +886,8 @@ namespace clad {
       beginBlock(forward);
       // Add loop increment in in the first place in the body.
       addToCurrentBlock(CounterIncrement);
-      BodyDiff = DifferentiateSingleStmt(body, nullptr, /*shouldEmit=*/false);
+      BodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr,
+                                         /*shouldEmit=*/false);
       addToCurrentBlock(BodyDiff.getStmt(), forward);
       // Emit some statemnts later to maintain correct statement order.
       if (m_ErrorEstimationEnabled) {
@@ -990,11 +990,11 @@ namespace clad {
       addToCurrentBlock(S, forward);
     // Since returned expression may have some side effects affecting reverse
     // computation (e.g. assignments), we also have to emit it to execute it.
-    auto retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(), forward,
-                                      utils::ComputeEffectiveFnName(
-                                          m_Function) +
-                                          "_return",
-                                      /*forceDeclCreation=*/true);
+    Expr* retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(), forward,
+                                       utils::ComputeEffectiveFnName(
+                                           m_Function) +
+                                           "_return",
+                                       /*forceDeclCreation=*/true);
     // If the return expression is not a DeclRefExpression and is of type
     // float, we should add it to the error estimate because returns are
     // similiar to implicit assigns.
@@ -1159,8 +1159,6 @@ namespace clad {
     // f(x = y))
     // FIXME: What about pass-by-reference calls?
     if (!dfdx()) {
-      // unsigned int i = 0;
-      // const FunctionDecl* fnDecl = CE->getDirectCallee();
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
@@ -1169,8 +1167,7 @@ namespace clad {
         // we should build an error expression here and store it to emit later.
         // FIXME: We need a derivative wrt each pass-by-reference input here.
         // if (m_ErrorEstimationEnabled) {
-        //   errorEstHandler->EmitNestedFunctionParamError(
-        //       fnDecl, StmtDiff(ArgDiff.getExpr(), ArgDiff.getExpr_dx()));
+        //   errorEstHandler->EmitNestedFunctionParamError(...);
         // }
         // i++;
       }
@@ -1405,11 +1402,8 @@ namespace clad {
         // in the input prameters (if they are reference types) to call and
         // save to emit them later.
         if (m_ErrorEstimationEnabled) {
-          errorEstHandler
-              ->EmitNestedFunctionParamError(fnDecl,
-                                             StmtDiff(CallArgs[0],
-                                                      BuildDeclRef(
-                                                          ArgResultDecls[0])));
+          errorEstHandler->EmitNestedFunctionParamError(fnDecl, CallArgs,
+                                                        ArgResultDecls, 1);
         }
       } else {
         // Put Result array declaration in the function body.
@@ -1436,17 +1430,6 @@ namespace clad {
             Expr* di = BuildOp(BO_Mul, dfdx(), ithResult);
 
             PerformImplicitConversionAndAssign(ArgResultDecls[i], di);
-            // If in error estimation, build the statement for the error
-            // in the input prameters (if of reference type) to call and save to
-            // emit them later.
-            if (m_ErrorEstimationEnabled) {
-              errorEstHandler
-                  ->EmitNestedFunctionParamError(fnDecl,
-                                                 StmtDiff(CallArgs[i],
-                                                          BuildDeclRef(
-                                                              ArgResultDecls
-                                                                  [i])));
-            }
           }
         } else {
           //          block.reserve(32);
@@ -1455,6 +1438,14 @@ namespace clad {
           it += ArgDeclStmts.size();
           // Insert the CallExpr to the derived function
           block.insert(it, OverloadedDerivedFn);
+          // If in error estimation, build the statement for the error
+          // in the input prameters (if of reference type) to call and save to
+          // emit them later.
+          if (m_ErrorEstimationEnabled) {
+            errorEstHandler->EmitNestedFunctionParamError(fnDecl, CallArgs,
+                                                          ArgResultDecls,
+                                                          CE->getNumArgs());
+          }
         }
       }
     }

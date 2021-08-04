@@ -97,3 +97,42 @@
 // Demo: ODE Solver Sensitivity
 //-----------------------------------------------------------------------------/
 // RUN: %cladclang -lstdc++ %S/../../demos/ODESolverSensitivity.cpp -I%S/../../include -oODESolverSensitivity.out
+
+//-----------------------------------------------------------------------------/
+// Demo: Custom Error Estimation Plugin
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
+// RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/CustomModel/libcladCustomModelPlugin%shlibext \
+// RUN:   %S/../../demos/ErrorEstimation/CustomModel/test.cpp \
+// RUN: -I%S/../../include -oCustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL %s
+
+// CHECK_CUSTOM_MODEL-NOT: Could not load {{.*}}cladCustomModelPlugin{{.*}}
+
+// RUN: ./CustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL_EXEC %s
+// CHECK_CUSTOM_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
+// CHECK_CUSTOM_MODEL_EXEC: The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_z = 0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z1;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float func_return = z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _delta_z += _r_d0 * _EERepl_z1;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_x = 0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _delta_x += * _d_x * x;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_y = 0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _delta_y += * _d_y * y;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
+// CHECK_CUSTOM_MODEL_EXEC-NEXT: }

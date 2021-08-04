@@ -50,8 +50,21 @@ namespace clad {
       // _final_error += _delta_arr[pop(_t0)] += <-Error Expr->
       // to avoid storage of the pop value.
       Expr* popVal = ASE->getIdx();
-      if (isInsideLoop)
+      if (isInsideLoop) {
+        LookupResult& Pop = GetCladTapePop();
+        CXXScopeSpec CSS;
+        CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+        auto PopDRE = m_Sema
+                          .BuildDeclarationNameExpr(CSS, Pop,
+                                                    /*AcceptInvalidDecl=*/false)
+                          .get();
+        Expr* tapeRef = dyn_cast<CallExpr>(popVal)->getArg(0);
+        popVal = m_Sema
+                     .ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, tapeRef,
+                                    noLoc)
+                     .get();
         popVal = StoreAndRef(popVal, reverse);
+      }
       // If the variable declration referes to an array element
       // create the suitable _delta_arr[i] (because we have not done
       // this before).
@@ -101,23 +114,28 @@ namespace clad {
                       forward);
   }
 
-  void
-  ErrorEstimationHandler::EmitNestedFunctionParamError(FunctionDecl* fnDecl,
-                                                       StmtDiff arg) {
-    if (!fnDecl || !fnDecl->getParamDecl(0)->getType()->isLValueReferenceType())
+  void ErrorEstimationHandler::EmitNestedFunctionParamError(
+      FunctionDecl* fnDecl, llvm::SmallVectorImpl<Expr*>& CallArgs,
+      llvm::SmallVectorImpl<VarDecl*>& ArgResultDecls, size_t numArgs) {
+    if (!fnDecl)
       return;
 
-    Expr* errorExpr = m_EstModel->AssignError(arg);
-    Expr* errorStmt = BuildOp(BO_AddAssign, m_FinalError, errorExpr);
-    m_ReverseErrorStmts.push_back(errorStmt);
+    for (size_t i = 0; i < numArgs; i++) {
+      if (!fnDecl->getParamDecl(0)->getType()->isLValueReferenceType())
+        continue;
+      Expr* errorExpr = m_EstModel->AssignError(
+          {CallArgs[i], BuildDeclRef(ArgResultDecls[i])});
+      Expr* errorStmt = BuildOp(BO_AddAssign, m_FinalError, errorExpr);
+      m_ReverseErrorStmts.push_back(errorStmt);
+    }
   }
 
   StmtDiff ErrorEstimationHandler::SaveValue(Expr* val,
                                              bool isInsideLoop /*=false*/) {
     // Definite not null.
-    std::string name = "_EERepl_" + GetUnderlyingDeclRefOrNull(val)
-                                        ->getDecl()
-                                        ->getNameAsString();
+    DeclRefExpr* declRefVal = GetUnderlyingDeclRefOrNull(val);
+    assert(declRefVal && "Val cannot be null!");
+    std::string name = "_EERepl_" + declRefVal->getDecl()->getNameAsString();
     if (isInsideLoop) {
       auto tape = MakeCladTapeFor(val, name);
       m_ForwardReplStmts.push_back(tape.Push);
@@ -141,10 +159,10 @@ namespace clad {
     if (!paramRef)
       return;
     VarDecl* paramDecl = cast<VarDecl>(paramRef->getDecl());
-    m_ParamRepls.emplace(paramDecl,
-                         StoreAndRef(paramRef, forward,
+    auto savedDecl = GlobalStoreImpl(paramRef->getType(),
                                      "_EERepl_" + paramDecl->getNameAsString(),
-                                     /*forceDeclCreation=*/true));
+                                     paramRef);
+    m_ParamRepls.emplace(paramDecl, BuildDeclRef(savedDecl));
   }
 
   Expr*
@@ -156,7 +174,7 @@ namespace clad {
     Expr* init = m_EstModel->SetError(VD);
     auto VDType = VD->getType();
     // The type of the _delta_ value should be customisable.
-    auto QType = VDType->isArrayType() ? VDType : m_Context.DoubleTy;
+    auto QType = isArrayOrPointerType(VDType) ? VDType : m_Context.DoubleTy;
     init = init ? init : getZeroInit(QType);
     Expr* deltaVar = nullptr;
     // Store the "_delta_*" value.
@@ -178,9 +196,14 @@ namespace clad {
 
     // Get the types on the declartion and initalization expression.
     QualType varDeclBase = VD->getType();
-    const Type* varDeclType = varDeclBase->isArrayType()
-                                  ? varDeclBase->getArrayElementTypeNoTypeQual()
-                                  : varDeclBase.getTypePtr();
+    QualType varDeclType;
+    if (varDeclBase->isArrayType()) {
+      varDeclType = varDeclBase->getAsArrayTypeUnsafe()->getElementType();
+    } else if (auto PTType = varDeclBase->getAs<PointerType>()) {
+      varDeclType = PTType->getPointeeType();
+    } else {
+      varDeclType = varDeclBase;
+    }
     const Expr* init = VD->getInit();
     // If declarationg type in not floating point type, we want to do two
     // things.
@@ -234,14 +257,13 @@ namespace clad {
   }
 
   void ErrorEstimationHandler::EmitFinalErrorStmts(
-      llvm::SmallVector<ParmVarDecl*, 4> params, int numParams) {
+      llvm::SmallVectorImpl<ParmVarDecl*>& params, int numParams) {
     // Emit error variables of parameters at the end.
     for (size_t i = 0; i < numParams; i++) {
       // Right now, we just ignore them since we have no way of knowing
       // the size of an array.
-      if (params[i]->getType()->isArrayType() ||
-          params[i]->getType()->isPointerType())
-        continue;
+      // if (isArrayOrPointerType(params[i]->getType()))
+      //   continue;
 
       // Check if the declaration was registered
       auto decl = dyn_cast<VarDecl>(params[i]);
@@ -255,13 +277,71 @@ namespace clad {
 
       // If till now, we have a delta declaration, emit it into the code.
       if (deltaVar) {
-        // Since we need the input value of x, check for a replacement.
-        // If no replacement found, use the actual declRefExpr.
-        auto savedVal = GetParamReplacement(dyn_cast<ParmVarDecl>(decl));
-        savedVal = savedVal ? savedVal : BuildDeclRef(decl);
-        // Finally emit the error.
-        auto errorExpr = GetError(savedVal, m_Variables[decl]);
-        addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr));
+        if (!isArrayOrPointerType(params[i]->getType())) {
+          // Since we need the input value of x, check for a replacement.
+          // If no replacement found, use the actual declRefExpr.
+          auto savedVal = GetParamReplacement(params[i]);
+          savedVal = savedVal ? savedVal : BuildDeclRef(decl);
+          // Finally emit the error.
+          auto errorExpr = GetError(savedVal, m_Variables[decl]);
+          addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr));
+        } else {
+          auto LdiffExpr = m_Variables[decl];
+          VarDecl* idxExprDecl = nullptr;
+          // Save our index expression so it can be used later.
+          if (!m_IdxExpr) {
+            idxExprDecl = BuildVarDecl(m_Context.IntTy, "i",
+                                       getZeroInit(m_Context.IntTy));
+            m_IdxExpr = BuildDeclRef(idxExprDecl);
+          }
+          Expr* Ldiff;
+          // Build the different expressions to be used in errro output.
+          if (isArrayRefType(LdiffExpr->getType())) {
+            Ldiff = m_Sema
+                        .ActOnArraySubscriptExpr(getCurrentScope(), LdiffExpr,
+                                                 decl->getLocation(), m_IdxExpr,
+                                                 noLoc)
+                        .get();
+          } else {
+            Ldiff = m_Sema
+                        .CreateBuiltinArraySubscriptExpr(LdiffExpr, noLoc,
+                                                         m_IdxExpr, noLoc)
+                        .get();
+          }
+          auto Ldelta = m_Sema
+                            .CreateBuiltinArraySubscriptExpr(deltaVar, noLoc,
+                                                             m_IdxExpr, noLoc)
+                            .get();
+          auto savedVal = GetParamReplacement(params[i]);
+          savedVal = savedVal ? savedVal : BuildDeclRef(decl);
+          auto LRepl = m_Sema
+                           .CreateBuiltinArraySubscriptExpr(savedVal, noLoc,
+                                                            m_IdxExpr, noLoc)
+                           .get();
+          // Build the loop to put in reverse mode.
+          Expr* deltaAssignExpr = BuildOp(BO_AddAssign, Ldelta,
+                                          GetError(LRepl, Ldiff));
+          Expr* finalAssignExpr = BuildOp(BO_AddAssign, m_FinalError, Ldelta);
+          Stmts loopBody;
+          loopBody.push_back(deltaAssignExpr);
+          loopBody.push_back(finalAssignExpr);
+          Expr* conditionExpr = BuildOp(BO_LT, m_IdxExpr,
+                                        BuildArrayRefSizeExpr(LdiffExpr));
+          Expr* incExpr = BuildOp(UO_PostInc, m_IdxExpr);
+          Stmt* ArrayParamLoop = new (m_Context)
+              ForStmt(m_Context, nullptr, conditionExpr, nullptr, incExpr,
+                      MakeCompoundStmt(loopBody), noLoc, noLoc, noLoc);
+          // For multiple array parameters, we want to keep the same
+          // iterative variable, so reset that here in the case that this
+          // is not out first array.
+          if (!idxExprDecl) {
+            addToCurrentBlock(
+                BuildOp(BO_Assign, m_IdxExpr, getZeroInit(m_Context.IntTy)));
+          } else {
+            addToCurrentBlock(BuildDeclStmt(idxExprDecl));
+          }
+          addToCurrentBlock(ArrayParamLoop);
+        }
       }
     }
     BuildFinalErrorStmt();
@@ -303,9 +383,7 @@ namespace clad {
     // However, for compound assignment operators, the RHS may be a
     // declRefExpr but here we will need to emit its error.
     // This variable checks for the above conditions.
-    bool declRefOk = (!RRef || !isAssign) &&
-                     (!LExpr->getType()->isArrayType() ||
-                      !LExpr->getType()->isPointerType());
+    bool declRefOk = !RRef || !isAssign;
     Expr* deltaVar = nullptr;
     // If the LHS can be decayed to a VarDecl and all other requirements
     // are met, we should register the variable if it has not been already.

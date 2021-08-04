@@ -264,7 +264,6 @@ option(CLAD_BUILD_STATIC_ONLY "Does not build shared libraries. Useful when we h
 if (NOT CLAD_BUILD_STATIC_ONLY AND NOT LLVM_ENABLE_PLUGINS)
   message(FATAL_ERROR "LLVM_ENABLE_PLUGINS is set to OFF. Please build clad with -DCLAD_BUILD_STATIC_ONLY=ON.")
 endif()
-
 add_subdirectory(lib)
 add_subdirectory(tools)
 
@@ -276,6 +275,7 @@ endif()
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_subdirectory(test)
+  add_subdirectory(demos/ErrorEstimation/CustomModel)
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell

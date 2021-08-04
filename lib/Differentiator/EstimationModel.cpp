@@ -31,7 +31,7 @@ namespace clad {
       // Errors through array subscript expressions are already captured
       // to avoid having long add expression at the end and to only add
       // the values to the final error that have a non zero delta.
-      if (var.first->getType()->isArrayType())
+      if (isArrayOrPointerType(var.first->getType()))
         continue;
 
       if (!addExpr) {

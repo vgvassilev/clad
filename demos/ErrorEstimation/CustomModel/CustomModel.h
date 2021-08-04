@@ -8,8 +8,8 @@
 //----------------------------------------------------------------------------//
 // For information on how to run this demo, please take a look at the README.
 
+#include "ClangPlugin.h"
 #include "clad/Differentiator/EstimationModel.h"
-#include "clad/tools/ClangPlugin.h"
 
 /// This is our dummy estimation model class.
 // We will be using this to override the virtual function in the

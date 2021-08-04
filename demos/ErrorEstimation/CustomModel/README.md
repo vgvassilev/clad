@@ -32,9 +32,9 @@ So a typical invocation to clad would then look like the following:
 To verify your results, you can build the dummy ```test.cpp``` file with the commands shown above. Once you compile and run the test file correctly, you will notice the generated code is as follows:
 
 ```cpp
-void func_grad(float x, float y, float *_result, double &_final_error) {
+The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
     double _delta_z = 0;
-    double _EERepl_z0;
+    float _EERepl_z0;
     float _d_z = 0;
     float _EERepl_z1;
     float z;
@@ -47,12 +47,16 @@ void func_grad(float x, float y, float *_result, double &_final_error) {
     _d_z += 1;
     {
         float _r_d0 = _d_z;
-        _result[0UL] += _r_d0;
-        _result[1UL] += _r_d0;
+        * _d_x += _r_d0;
+        * _d_y += _r_d0;
         _delta_z += _r_d0 * _EERepl_z1;
         _d_z -= _r_d0;
     }
-    _final_error += _delta_z;
+    double _delta_x = 0;
+    _delta_x += * _d_x * x;
+    double _delta_y = 0;
+    _delta_y += * _d_y * y;
+    _final_error += _delta_y + _delta_z + _delta_x;
 }
 ```
 
