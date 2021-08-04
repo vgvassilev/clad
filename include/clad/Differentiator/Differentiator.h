@@ -422,7 +422,7 @@ namespace clad {
   }
 
   template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = ExtractEstDerivedFnTraits_t<F>>
+            typename DerivedFnType = GradientDerivedEstFnTraits_t<F>>
   CladFunction<DerivedFnType> __attribute__((annotate("E")))
   estimate_error(F f, ArgSpec args = "",
                  DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),

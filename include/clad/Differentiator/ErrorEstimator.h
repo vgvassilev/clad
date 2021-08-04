@@ -24,19 +24,23 @@ namespace clad {
     /// function.
     clang::Expr* m_FinalError;
     /// Reference to the return error expression.
-    clang::Expr* m_RetErrorExpr = nullptr;
+    clang::Expr* m_RetErrorExpr;
     /// An instance of the custom error estimation model to be used.
     FPErrorEstimationModel* m_EstModel; // We do not own this.
     /// A set of assignments resulting for declaration statments.
     VisitorBase::Stmts m_ForwardReplStmts;
     /// A vector to keep track of error statements for delayed emission.
     VisitorBase::Stmts m_ReverseErrorStmts;
+    /// The index expression for emitting final errors for input param errors.
+    clang::Expr* m_IdxExpr;
     /// A set of declRefExprs for parameter value replacements.
     std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ParamRepls;
 
   public:
     ErrorEstimationHandler(DerivativeBuilder& builder)
-        : ReverseModeVisitor(builder) {}
+        : ReverseModeVisitor(builder), m_DoNotEmitDelta(false),
+          m_FinalError(nullptr), m_RetErrorExpr(nullptr), m_EstModel(nullptr),
+          m_IdxExpr(nullptr) {}
     ~ErrorEstimationHandler() {}
 
     /// Function to set the error estimation model currently in use.
@@ -86,9 +90,13 @@ namespace clad {
     /// Emit the error for parameters of nested functions.
     ///
     /// \param[in] fnDecl The function declaration of the nested function.
-    /// \param[in] arg A pair of the orignal arg and it's derivative.
-    void EmitNestedFunctionParamError(clang::FunctionDecl* fnDecl,
-                                      StmtDiff arg);
+    /// \param[in] CallArgs The orignal call arguments of the function call.
+    /// \param[in] ArgResultDecls The differentiated call arguments.
+    /// \param[in] numArgs The number of call args.
+    void EmitNestedFunctionParamError(
+        clang::FunctionDecl* fnDecl,
+        llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+        llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls, size_t numArgs);
 
     /// Save values of registered variables so that they can be replaced
     /// properly in case of re-assignments.
@@ -169,7 +177,7 @@ namespace clad {
     ///
     /// \param[in] params A vector of the parameter decls.
     /// \param[in] numParams The number of orignal parameters.
-    void EmitFinalErrorStmts(llvm::SmallVector<clang::ParmVarDecl*, 4> params,
+    void EmitFinalErrorStmts(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
                              int numParams);
 
     /// This function emits the error in unary operations.
