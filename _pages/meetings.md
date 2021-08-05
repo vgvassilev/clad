@@ -30,10 +30,13 @@ permalink: /meetings/
       {% if item.speaker %}
         ({{item.speaker}})
       {% endif %}
+      {% if item.slides %}
       <a style="text-decoration:none;" href="{{item.slides}}">Slides</a>
+      {% endif %}
       {% if item.video %}
       <a style="text-decoration:none;" href="{{item.video}}">Video</a>
       {% endif %}
+      {{ item.link }}
     </li>
     {% endfor %}</ul>
 </div>
