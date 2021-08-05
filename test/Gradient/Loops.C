@@ -383,7 +383,7 @@ double f_const(const double a, const double b) {
   return r;
 }
 
-void f_const_grad(const double, const double, double *);
+void f_const_grad(const double, const double, clad::array_ref<double>, clad::array_ref<double>);
 //CHECK:   void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
 //CHECK-NEXT:       int _d_r = 0;
 //CHECK-NEXT:       unsigned long _t0;
@@ -414,9 +414,76 @@ void f_const_grad(const double, const double, double *);
 //CHECK-NEXT:               * _d_b += _r0;
 //CHECK-NEXT:               double _r1 = clad::pop(_t2) * _d_sq;
 //CHECK-NEXT:               * _d_b += _r1;
+// CHECK-NEXT:              _d_sq = 0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
+
+double f6 (double i, double j) {
+  double a = 0;
+  for (int counter=0; counter<3; ++counter) {
+    double b = i*i;
+    double c = j*j;
+    b += j;
+    a += b + c + i;
+  }
+  return a;
+}
+
+// CHECK: void f6_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:     double _d_a = 0;
+  // CHECK-NEXT:     unsigned long _t0;
+  // CHECK-NEXT:     int _d_counter = 0;
+  // CHECK-NEXT:     clad::tape<double> _t1 = {};
+  // CHECK-NEXT:     clad::tape<double> _t2 = {};
+  // CHECK-NEXT:     double _d_b = 0;
+  // CHECK-NEXT:     clad::tape<double> _t3 = {};
+  // CHECK-NEXT:     clad::tape<double> _t4 = {};
+  // CHECK-NEXT:     double _d_c = 0;
+  // CHECK-NEXT:     double a = 0;
+  // CHECK-NEXT:     _t0 = 0;
+  // CHECK-NEXT:     for (int counter = 0; counter < 3; ++counter) {
+  // CHECK-NEXT:         _t0++;
+  // CHECK-NEXT:         double b = clad::push(_t2, i) * clad::push(_t1, i);
+  // CHECK-NEXT:         double c = clad::push(_t4, j) * clad::push(_t3, j);
+  // CHECK-NEXT:         b += j;
+  // CHECK-NEXT:         a += b + c + i;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     double f6_return = a;
+  // CHECK-NEXT:     goto _label0;
+  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _d_a += 1;
+  // CHECK-NEXT:     for (; _t0; _t0--) {
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             double _r_d1 = _d_a;
+  // CHECK-NEXT:             _d_a += _r_d1;
+  // CHECK-NEXT:             _d_b += _r_d1;
+  // CHECK-NEXT:             _d_c += _r_d1;
+  // CHECK-NEXT:             * _d_i += _r_d1;
+  // CHECK-NEXT:             _d_a -= _r_d1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             double _r_d0 = _d_b;
+  // CHECK-NEXT:             _d_b += _r_d0;
+  // CHECK-NEXT:             * _d_j += _r_d0;
+  // CHECK-NEXT:             _d_b -= _r_d0;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             double _r2 = _d_c * clad::pop(_t3);
+  // CHECK-NEXT:             * _d_j += _r2;
+  // CHECK-NEXT:             double _r3 = clad::pop(_t4) * _d_c;
+  // CHECK-NEXT:             * _d_j += _r3;
+  // CHECK-NEXT:             _d_c = 0;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             double _r0 = _d_b * clad::pop(_t1);
+  // CHECK-NEXT:             * _d_i += _r0;
+  // CHECK-NEXT:             double _r1 = clad::pop(_t2) * _d_b;
+  // CHECK-NEXT:             * _d_i += _r1;
+  // CHECK-NEXT:             _d_b = 0;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -424,6 +491,14 @@ void f_const_grad(const double, const double, double *);
   F##grad.execute(x, result);\
   printf("{%.2f}\n", result[0]); \
 }
+
+#define TEST_2(F, x, y)                                                        \
+  {                                                                            \
+    result[0] = result[1] = 0;                                                 \
+    auto d_##F = clad::gradient(F);                                            \
+    d_##F.execute(x, y, result, result + 1);                                   \
+    printf("{%.2f, %.2f}\n", result[0], result[1]);                            \
+  }
 
 int main() {
   double result[5] = {};
@@ -451,9 +526,7 @@ int main() {
   double x[] = { 1, 1, 1, 1, 1 };
   f_log_gaus_d_means.execute(x, p, 5, 2.0, result_ref);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {0.00, -0.25, -0.50, -0.75, -1.00}
-  result[0] = 0;
-  result[1] = 0;
-  auto f_const_d = clad::gradient(f_const);
-  f_const_d.execute(2, 3, &result[0], &result[1]);
-  printf("{%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: {0.00, 18.00}
+  
+  TEST_2(f_const, 2, 3); // CHECK-EXEC: {0.00, 12.00}
+  TEST_2(f6, 3, 5); // CHECK-EXEC: {21.00, 33.00}
 }
