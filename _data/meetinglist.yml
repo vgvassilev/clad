@@ -16,6 +16,7 @@
         mainstream due to a number of technical limitations. In this talk, I
         will explore the design and featureset of Cxx.jl, and what limitations
         in Clang and Julia prevented its full adoption in the Julia world.
+      slides: "/assets/presentations/K_Fischer_Cxx_jl.pdf"
     - title: "Calling ROOT from Julia in practice"
       speaker: "Oliver Schulz, Max-Planck-Institut für Physik"
       description: |
