@@ -130,9 +130,13 @@ namespace clad {
       return true; // Happiness
     }
 
+    static void ProcessTopLevelDecl(CompilerInstance& CI, Decl* D) {
+      CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(D));
+    }
+
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       const FunctionDecl* FD = request.Function;
-      //set up printing policy
+      // set up printing policy
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
@@ -197,8 +201,9 @@ namespace clad {
         bool isTU = DerivativeDeclOrEnclosingContext->getDeclContext()->
           isTranslationUnit();
         if (isTU) {
-          m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(
-            DerivativeDeclOrEnclosingContext));
+          ProcessTopLevelDecl(m_CI, DerivativeDeclOrEnclosingContext);
+          if (OverloadedDerivativeDecl)
+            ProcessTopLevelDecl(m_CI, OverloadedDerivativeDecl);
         }
 
         // Last requested order was computed, return the result.

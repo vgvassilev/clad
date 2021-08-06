@@ -45,10 +45,16 @@ namespace clad {
     // otherwise it would end up in the LookupResult.
     derivedFD->getDeclContext()->addDecl(derivedFD);
 
-    if (R.empty())
-      return;
-    // Register the function on the redecl chain.
-    derivedFD->setPreviousDecl(cast<FunctionDecl>(R.getFoundDecl()));
+    for (NamedDecl* I : R) {
+      if (auto* FD = dyn_cast<FunctionDecl>(I)) {
+        if (semaRef.getASTContext()
+                .hasSameFunctionTypeIgnoringExceptionSpec(derivedFD->getType(),
+                                                          FD->getType())) {
+          // Register the function on the redecl chain.
+          derivedFD->setPreviousDecl(FD);
+        }
+      }
+    }
   }
 
   static bool hasAttribute(const Decl *D, attr::Kind Kind) {
@@ -132,24 +138,25 @@ namespace clad {
     if (request.Mode == DiffMode::forward) {
       ForwardModeVisitor V(*this);
       result = V.Derive(FD, request);
-    }
-    else if (request.Mode == DiffMode::reverse) {
+    } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);
-    } if (request.Mode == DiffMode::jacobian) {
+    }
+    if (request.Mode == DiffMode::jacobian) {
       JacobianModeVisitor J(*this);
       result = J.Derive(FD, request);
     }
 
     // FIXME: if the derivatives aren't registered in this order and the
     //   derivative is a member function it goes into an infinite loop
-    if (auto OFD = getOverloadFD(result))
-      registerDerivative(OFD, m_Sema);
     if (auto FD = getOriginalFD(result))
       registerDerivative(FD, m_Sema);
+    if (auto OFD = getOverloadFD(result))
+      registerDerivative(OFD, m_Sema);
+
     return result;
   }
 }// end namespace clad
