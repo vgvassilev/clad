@@ -614,7 +614,7 @@ namespace clad {
                      /*Fn=*/exprFunc,
                      /*LParenLoc=*/noLoc,
                      /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
-                     /*RParenLoc=*/noLoc)
+                     /*RParenLoc=*/m_Function->getLocation())
                  .get();
     }
     return call;
