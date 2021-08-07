@@ -2,6 +2,7 @@
 #define CLAD_TAPE_H
 
 #include <cassert>
+#include <cstdio>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -44,7 +45,8 @@ namespace clad {
     CUDA_HOST_DEVICE void emplace_back(ArgsT&&... args) {
       if (_size >= _capacity)
         grow();
-      ::new (end()) T(std::forward<ArgsT>(args)...);
+      ::new (const_cast<void*>(static_cast<const volatile void*>(end())))
+          T(std::forward<ArgsT>(args)...);
       _size += 1;
     }
 
@@ -80,6 +82,27 @@ namespace clad {
     }
 
   private:
+    // Copies the data from a storage to another.
+    // Implementation taken from std::uninitialized_copy
+    template <class InputIt, class NoThrowForwardIt>
+    CUDA_HOST_DEVICE void MoveData(InputIt first, InputIt last,
+                                   NoThrowForwardIt d_first) {
+      NoThrowForwardIt current = d_first;
+      // We specifically add and remove the CV qualifications here so that
+      // cases where NoThrowForwardIt is CV qualified, we can still do the
+      // allocation properly.
+      for (; first != last; ++first, (void)++current) {
+        auto new_data = ::new (const_cast<void*>(
+            static_cast<const volatile void*>(std::addressof(*current))))
+            T(std::move(*first));
+        if (!new_data) {
+          // clean up the memory mess just in case!
+          destroy(d_first, current);
+          fprintf(stderr, "Allocation failure during tape resize! Aborting.");
+          exit(EXIT_FAILURE);
+        }
+      }
+    }
     /// Initial capacity (allocated whenever a value is pushed into empty tape).
     constexpr static std::size_t _init_capacity = 32;
     CUDA_HOST_DEVICE void grow() {
@@ -94,13 +117,12 @@ namespace clad {
       // Move values from old storage to the new storage. Should call move
       // constructors on non-trivial types, otherwise is expected to use
       // memcpy/memmove.
-      for (auto i = begin(), e = end(); i != e; ++i, ++new_data)
-        new(new_data) T(std::move(*i));
+      MoveData(begin(), end(), new_data);
       // Destroy all values in the old storage.
       destroy(begin(), end());
       _data = new_data;
     }
-    
+
     template <typename It>
     using value_type_of = decltype(*std::declval<It>());
 
