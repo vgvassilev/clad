@@ -111,7 +111,7 @@ double f8(float x) {
 // CHECK-NEXT:   return custom_derivatives::pow_darg0(x, 2) * (_d_x + 0);
 // CHECK-NEXT: }
 
-void f8_grad(float x, double* _d_x);
+void f8_grad(float x, clad::array_ref<double> _d_x);
 
 // CHECK: void f8_grad(float x, clad::array_ref<double> _d_x) {
 // CHECK-NEXT:     float _t0;
