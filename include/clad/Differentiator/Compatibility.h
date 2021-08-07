@@ -343,10 +343,11 @@ static inline ConstexprSpecKind Function_GetConstexprKind(const FunctionDecl* F)
 // Clang 9 add one extra param (Ctx) in some constructors.
 
 #if CLANG_VERSION_MAJOR < 9
-   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams /**/
+   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR) /**/
 #elif CLANG_VERSION_MAJOR >= 9
-   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams ,Node->isNonOdrUse()
+   #define CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR) ,NOUR
 #endif
+
 
 
 // Clang 9 change PragmaIntroducerKind ===> PragmaIntroducer.

@@ -93,8 +93,8 @@ Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
                                   Node->getType(),
                                   Node->getValueKind(),
                                   Node->getObjectKind()
-                                  CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams
-                                  );
+                                  CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+                                      Node->isNonOdrUse()));
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
   return result;

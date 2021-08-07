@@ -573,31 +573,21 @@ namespace clad {
   clang::Expr* 
   VisitorBase::BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
                   llvm::MutableArrayRef<clang::Expr*> argExprs) {
-    auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
-    CXXScopeSpec CS;
-    CS.Adopt(FD->getQualifierLoc());
-    auto memExpr = m_Sema
-                       .BuildMemberReferenceExpr(
-                           /*Base=*/thisExpr,
-                           /*BaseType=*/thisExpr->getType(),
-                           /*OpLoc=*/noLoc,
-                           /*isArrow=*/true,
-                           /*SS=*/CS,
-                           /*TemplateKWLoc=*/noLoc,
-                           /*FirstQualifierInScope=*/FD,
-                           /*NameInfo=*/FD->getNameInfo(),
-                           /*TemplateArgs=*/nullptr,
-                           /*S=*/getCurrentScope())
-                       .get();
-    auto call = m_Sema
-                    .BuildCallToMemberFunction(
-                        getCurrentScope(),
-                        /*MemExprE=*/memExpr,
-                        /*LParenLoc=*/noLoc,
-                        /*Args=*/llvm::MutableArrayRef<Expr*>(argExprs),
-                        /*RParenLoc=*/noLoc)
-                    .get();
-    return call;
+    Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
+    NestedNameSpecifierLoc NNS(FD->getQualifier(),
+                               /*Data=*/nullptr);
+    auto DAP = DeclAccessPair::make(FD, FD->getAccess());
+    auto memberExpr = MemberExpr::
+        Create(m_Context, thisExpr, /*isArrow=*/true, noLoc, NNS, noLoc, FD,
+               DAP, FD->getNameInfo(),
+               /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+               ExprValueKind::VK_RValue,
+               ExprObjectKind::OK_Ordinary
+               CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
+    return m_Sema
+        .BuildCallToMemberFunction(getCurrentScope(), memberExpr, noLoc,
+                                   argExprs, noLoc)
+        .get();
   }
 
   Expr* 
