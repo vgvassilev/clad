@@ -172,40 +172,7 @@ namespace clad {
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
 
-    Expr* callExpr = nullptr;
-    if (auto* gradientCMD = dyn_cast<CXXMethodDecl>(GradientFD)) {
-      Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, gradientCMD);
-      // FIXME: Find a method to do this in a consistent way across all clang
-      //  versions.
-      // BuildMemberReferenceExpr returns a dependent type which is incompatible
-      // with BuildCallToMemberFunction
-#if CLANG_VERSION_MAJOR < 9
-      // This method is unable to lookup the GradientFD in clang versions 10
-      // and above
-      callExpr = BuildCallExprToMemFn(thisExpr,
-                                      /*isArrow=*/true, GradientFD->getName(),
-                                      callArgsRef);
-#else
-      // NOUR_None is not supported in clang versions 6 and below
-      NestedNameSpecifierLoc NNS(gradientCMD->getQualifier(),
-                                 /*Data=*/nullptr);
-      auto DAP = DeclAccessPair::make(gradientCMD, gradientCMD->getAccess());
-      auto memberExpr =
-          MemberExpr::Create(m_Context, thisExpr, /*isArrow=*/true, noLoc, NNS,
-                             noLoc, gradientCMD, DAP,
-                             gradientCMD->getNameInfo(),
-                             /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-                             ExprValueKind::VK_RValue,
-                             ExprObjectKind::OK_Ordinary, NOUR_None);
-      callExpr = m_Sema
-                     .BuildCallToMemberFunction(getCurrentScope(), memberExpr,
-                                                noLoc, callArgsRef, noLoc)
-                     .get();
-#endif
-    } else {
-      assert(isa<FunctionDecl>(GradientFD) && "Unexpected!");
-      callExpr = BuildCallExprToFunction(GradientFD, callArgsRef);
-    }
+    Expr* callExpr = BuildCallExprToFunction(GradientFD, callArgsRef);
     addToCurrentBlock(callExpr);
     Stmt* gradientOverloadBody = endBlock();
 
