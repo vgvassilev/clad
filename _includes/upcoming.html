@@ -1,0 +1,32 @@
+{% assign sorted_meetings = site.data.meetinglist | where_exp: "item", "item.date >= site.time" %}
+{% assign sorted_meetings_size = sorted_meetings | size %}
+
+{% if sorted_meetings_size > 0 %}
+<div id="upcoming_events" class="well">
+<h4>Upcoming</h4>
+
+{% for event in sorted_meetings limit:3 %}
+<p future-date="{{ event.date | date_to_rfc822 }}">
+  <b>{{ event.agenda[0].title}}</b>, <i>{{ event.agenda[0].speaker }}</i>
+  <a href="meetings#{{ event.label }}">({{ event.name }} {{event.date}})</a>
+</p>
+{% endfor %}
+
+</div>
+
+<script>
+  $(document).ready(function() {
+    var upcoming = document.getElementById("upcoming_events");
+    var elements = upcoming.querySelectorAll('[future-date]');
+    Array.prototype.forEach.call(elements, function(el, i) {
+        var jekyll_date = new Date(el.getAttribute('future-date'));
+        if (jekyll_date.getTime() <= new Date().getTime())
+          el.remove();
+    });
+    if (upcoming.getElementsByTagName("p").length == 0)
+      upcoming.remove();
+  });
+</script>
+
+
+{% endif %}

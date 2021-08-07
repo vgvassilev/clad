@@ -1,5 +1,20 @@
 - name: "CaaS Monthly Meeting"
-  date: 2021-08-05 17:00
+  date: 2021-09-02 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
+  label: caas_02Sep2021
+  agenda:
+    - title: "TBD: Cppyy"
+      speaker: "Wim Lavrijsen, LBL"
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 7 October 1700
+
+- name: "CaaS Monthly Meeting"
+  date: 2021-08-05 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_05Aug2021
@@ -33,7 +48,7 @@
       link: 2 September 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-07-01 17:00
+  date: 2021-07-01 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_01Jul2021
@@ -62,7 +77,7 @@
       link: 5 August 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-06-03 17:00
+  date: 2021-06-03 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_03Jun2021
@@ -78,7 +93,7 @@
       link: 1 July 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-05-06 17:00
+  date: 2021-05-06 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_06May2021
@@ -95,7 +110,7 @@
       link: 3 June 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-03-25 17:00
+  date: 2021-03-25 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
   label: caas_25Mar2021
@@ -119,7 +134,7 @@
 
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-03-04 17:00
+  date: 2021-03-04 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
   label: caas_04Mar2021
@@ -145,7 +160,7 @@
 
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-02-04 17:00
+  date: 2021-02-04 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98188314867?pwd=Q2tJWlN1Qkk0eStJc3lCWnRvQ250QT09)"
   label: caas_04Feb2021
@@ -169,7 +184,7 @@
       link: 04 Mar 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2021-01-14 17:00
+  date: 2021-01-14 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/99436382635?pwd=NEhzdkhLbTBhdDBBc0tpK3FSLzFpdz09)"
   label: caas_14Jan2021
@@ -183,7 +198,7 @@
       link: 04 Feb 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2020-12-03 17:00
+  date: 2020-12-03 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/99436382635?pwd=NEhzdkhLbTBhdDBBc0tpK3FSLzFpdz09)"
   label: caas_03Dec2020
@@ -197,7 +212,7 @@
       link: 14 January 1700
 
 - name: "CaaS Monthly Meeting"
-  date: 2020-10-22 18:00
+  date: 2020-10-22 18:00:00 +0200
   time_cest: "18:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98806538025?pwd=Mjlnb2cvemdYYTM4TDVWNUNTNUNDUT09)"
   label: caas_22Oct2020
@@ -211,7 +226,7 @@
       link: "[Doodle pool for week of November 30](https://doodle.com/poll/bkkahvx9d5rrbka2)"
 
 - name: "CaaS Monthly Meeting"
-  date: 2020-09-17 18:00
+  date: 2020-09-17 18:00:00 +0200
   time_cest: "18:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/98806538025?pwd=Mjlnb2cvemdYYTM4TDVWNUNTNUNDUT09)"
   label: caas_17Sept2020
