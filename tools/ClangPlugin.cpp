@@ -111,6 +111,15 @@ namespace clad {
       if (!m_DerivativeBuilder)
         m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
 
+      // if HandleTopLevelDecl was called through clad we don't need to process
+      // it for diff requests
+      if (m_HandleTopLevelDeclInternal)
+        return true;
+
+      DiffSchedule requests{};
+      DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
+                              m_CI.getSema());
+
       // FIXME: Remove the PerformPendingInstantiations altogether. We should
       // somehow make the relevant functions referenced.
       // Instantiate all pending for instantiations templates, because we will
@@ -120,15 +129,6 @@ namespace clad {
         S.PerformPendingInstantiations();
         m_PendingInstantiationsInFlight = false;
       }
-
-      // if HandleTopLevelDecl was called through clad we don't need to process
-      // it for diff requests
-      if (m_HandleTopLevelDeclInternal)
-        return true;
-
-      DiffSchedule requests{};
-      DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
-                              m_CI.getSema());
 
       for (DiffRequest& request : requests)
         ProcessDiffRequest(request);
