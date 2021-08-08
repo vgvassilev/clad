@@ -206,7 +206,6 @@ namespace clad {
     clang::QualType DerivedOutputParamType;
     if (request.Mode == DiffMode::jacobian) {
       isVectorValued = true;
-      args.pop_back();
       unsigned lastArgN = m_Function->getNumParams() - 1;
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
       DerivedOutputParamType = m_Function->getParamDecl(lastArgN)->getType();
@@ -219,13 +218,18 @@ namespace clad {
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
-    if (!std::equal(FD->param_begin(), FD->param_end(), std::begin(args))) {
+    if (!(args.size() == FD->getNumParams() &&
+          std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))) {
       for (auto arg : args) {
         auto it = std::find(FD->param_begin(), FD->param_end(), arg);
         auto idx = std::distance(FD->param_begin(), it);
         gradientName += ('_' + std::to_string(idx));
       }
     }
+
+    if (isVectorValued)
+      args.pop_back();
+
     IdentifierInfo* II = &m_Context.Idents.get(gradientName);
     DeclarationNameInfo name(II, noLoc);
 
