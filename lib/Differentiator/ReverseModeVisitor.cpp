@@ -787,39 +787,25 @@ namespace clad {
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
                Scope::ContinueScope);
-    // Counter that is used to count number of executed iterations of the loop,
-    // to be able to use the same number of iterations in reverse pass.
-    Expr* Counter = nullptr;
-    Expr* Pop = nullptr;
-    // If current loop is inside another loop, counter also has to be stored
-    // in a tape.
-    if (isInsideLoop) {
-      auto zero = ConstantFolder::synthesizeLiteral(m_Context.getSizeType(),
-                                                    m_Context,
-                                                    0);
-      auto CounterTape = MakeCladTapeFor(zero);
-      addToCurrentBlock(CounterTape.Push, forward);
-      Counter = CounterTape.Last();
-      Pop = CounterTape.Pop;
-    } else
-      Counter = GlobalStoreAndRef(getZeroInit(m_Context.IntTy),
-                                  m_Context.getSizeType(), "_t",
-                                  /*force=*/true)
-                    .getExpr();
+
+    LoopCounter loopCounter(*this);
+    if (loopCounter.getPush())
+      addToCurrentBlock(loopCounter.getPush());
     beginBlock(forward);
     beginBlock(reverse);
     const Stmt* init = FS->getInit();
     StmtDiff initResult = init ? DifferentiateSingleStmt(init) : StmtDiff{};
 
-    VarDecl* condVarDecl = FS->getConditionVariable();
+    // Save the isInsideLoop value (we may be inside another loop).
+    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
+    isInsideLoop = true;
+
+    StmtDiff condVarRes;
     VarDecl* condVarClone = nullptr;
-    if (condVarDecl) {
-      VarDeclDiff condVarResult = DifferentiateVarDecl(condVarDecl);
-      condVarClone = condVarResult.getDecl();
-      // If there is a variable declared, store its derivative as a global,
-      // as we usually do with declarations in reverse mode.
-      if (condVarResult.getDecl_dx())
-        addToBlock(BuildDeclStmt(condVarResult.getDecl_dx()), m_Globals);
+    if (FS->getConditionVariable()) {
+      condVarRes = DifferentiateSingleStmt(FS->getConditionVariableDeclStmt());
+      Decl* decl = cast<DeclStmt>(condVarRes.getStmt())->getSingleDecl();
+      condVarClone = cast<VarDecl>(decl);
     }
 
     // FIXME: for now we assume that cond has no differentiable effects,
@@ -830,11 +816,6 @@ namespace clad {
     auto IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
     const Expr* inc = IDRE ? Visit(FS->getInc()).getExpr() : FS->getInc();
 
-    // Save the isInsideLoop value (we may be inside another loop).
-    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
-    isInsideLoop = true;
-
-    Expr* CounterIncrement = BuildOp(UO_PostInc, Counter);
     // Differentiate the increment expression of the for loop
     // incExprDiff.getExpr() is the reconstructed expression, incDiff.getStmt()
     // a block with all the intermediate statements used to reconstruct it on
@@ -870,32 +851,10 @@ namespace clad {
     }
 
     const Stmt* body = FS->getBody();
-    StmtDiff BodyDiff;
-    if (isa<CompoundStmt>(body)) {
-      BodyDiff = Visit(body);
-      beginBlock(forward);
-      // Add loop increment in in the first place in the body.
-      addToCurrentBlock(CounterIncrement);
-      for (Stmt* S : cast<CompoundStmt>(BodyDiff.getStmt())->body())
-        addToCurrentBlock(S);
-      BodyDiff = {endBlock(forward), BodyDiff.getStmt_dx()};
-    } else {
-      beginScope(Scope::DeclScope);
-      beginBlock(forward);
-      // Add loop increment in in the first place in the body.
-      addToCurrentBlock(CounterIncrement);
-      BodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr,
-                                         /*shouldEmit=*/false);
-      addToCurrentBlock(BodyDiff.getStmt(), forward);
-      // Emit some statemnts later to maintain correct statement order.
-      if (m_ErrorEstimationEnabled) {
-        errorEstHandler->EmitErrorEstimationStmts(forward);
-      }
-      Stmt* Forward = endBlock(forward);
-      Stmt* Reverse = unwrapIfSingleStmt(BodyDiff.getStmt_dx());
-      BodyDiff = {Forward, Reverse};
-      endScope();
-    }
+    StmtDiff BodyDiff = DifferentiateLoopBody(body, loopCounter,
+                                              condVarRes.getStmt_dx(),
+                                              incDiff.getStmt_dx(),
+                                              /*isForLoop=*/true);
 
     Stmt* Forward = new (m_Context) ForStmt(m_Context,
                                             initResult.getStmt(),
@@ -910,28 +869,18 @@ namespace clad {
     // Create a condition testing counter for being zero, and its decrement.
     // To match the number of iterations in the forward pass, the reverse loop
     // will look like: for(; Counter; Counter--) ...
-    Expr* CounterCondition = m_Sema
-                                 .ActOnCondition(m_CurScope,
-                                                 noLoc,
-                                                 Counter,
-                                                 Sema::ConditionKind::Boolean)
-                                 .get()
-                                 .second;
-    Expr* CounterDecrement = BuildOp(UO_PostDec, Counter);
+    Expr*
+        CounterCondition = loopCounter.getCounterConditionResult().get().second;
+    Expr* CounterDecrement = loopCounter.getCounterDecrement();
 
-    beginBlock(reverse);
-    // First, reverse the original loop increment expression, then loop's body.
-    addToCurrentBlock(incDiff.getStmt_dx(), reverse);
-    addToCurrentBlock(BodyDiff.getStmt_dx(), reverse);
-    CompoundStmt* ReverseBody = endBlock(reverse);
-    std::reverse(ReverseBody->body_begin(), ReverseBody->body_end());
+    Stmt* ReverseBody = BodyDiff.getStmt_dx();
     Stmt* ReverseResult = unwrapIfSingleStmt(ReverseBody);
     if (!ReverseResult)
       ReverseResult = new (m_Context) NullStmt(noLoc);
     Stmt* Reverse = new (m_Context) ForStmt(m_Context,
                                             nullptr,
                                             CounterCondition,
-                                            condVarClone,
+                                            nullptr,
                                             CounterDecrement,
                                             ReverseResult,
                                             noLoc,
@@ -939,7 +888,7 @@ namespace clad {
                                             noLoc);
     addToCurrentBlock(Forward, forward);
     Forward = endBlock(forward);
-    addToCurrentBlock(Pop, reverse);
+    addToCurrentBlock(loopCounter.getPop(), reverse);
     addToCurrentBlock(Reverse, reverse);
     Reverse = endBlock(reverse);
     endScope();
@@ -2147,5 +2096,204 @@ namespace clad {
                                 /*isConstant*/ false,
                                 /*isInsideLoop*/ false};
     }
+  }
+
+  ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
+      : m_RMV(RMV) {
+    ASTContext& C = m_RMV.m_Context;
+    if (RMV.isInsideLoop) {
+      auto zero = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
+                                                    /*val=*/0);
+      auto counterTape = m_RMV.MakeCladTapeFor(zero);
+      m_Ref = counterTape.Last();
+      m_Pop = counterTape.Pop;
+      m_Push = counterTape.Push;
+    } else {
+      m_Ref = m_RMV
+                  .GlobalStoreAndRef(m_RMV.getZeroInit(C.IntTy),
+                                     C.getSizeType(), "_t",
+                                     /*force=*/true)
+                  .getExpr();
+    }
+  }
+
+  StmtDiff ReverseModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
+    LoopCounter loopCounter(*this);
+    if (loopCounter.getPush())
+      addToCurrentBlock(loopCounter.getPush());
+
+    // begin scope for while statement
+    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
+               Scope::ContinueScope);
+
+    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
+    isInsideLoop = true;
+
+    Expr* condClone = (WS->getCond() ? Clone(WS->getCond()) : nullptr);
+    const VarDecl* condVarDecl = WS->getConditionVariable();
+    StmtDiff condVarRes;
+    if (condVarDecl)
+      condVarRes = DifferentiateSingleStmt(WS->getConditionVariableDeclStmt());
+
+    // compute condition result object for the forward pass `while`
+    // statement.
+    Sema::ConditionResult condResult;
+    if (condVarDecl) {
+      Decl* condVarClone = cast<DeclStmt>(condVarRes.getStmt())
+                               ->getSingleDecl();
+      condResult = m_Sema.ActOnConditionVariable(condVarClone, noLoc,
+                                                 Sema::ConditionKind::Boolean);
+    } else {
+      condResult = m_Sema.ActOnCondition(getCurrentScope(), noLoc, condClone,
+                                         Sema::ConditionKind::Boolean);
+    }
+
+    const Stmt* body = WS->getBody();
+    StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter,
+                                              condVarRes.getStmt_dx());
+    // Create forward-pass `while` loop.
+    Stmt* forwardWS = clad_compat::Sema_ActOnWhileStmt(m_Sema, condResult,
+                                                       bodyDiff.getStmt())
+                          .get();
+
+    // Create reverse-pass `while` loop.
+    Sema::ConditionResult CounterCondition = loopCounter
+                                                 .getCounterConditionResult();
+    Stmt* reverseWS = clad_compat::Sema_ActOnWhileStmt(m_Sema, CounterCondition,
+                                                       bodyDiff.getStmt_dx())
+                          .get();
+    // for while statement
+    endScope();
+    Stmt* reverseBlock = reverseWS;
+    // If loop counter have to be popped then create a compound statement
+    // enclosing the reverse pass while statement and loop counter pop
+    // expression.
+    //
+    // Therefore, reverse pass code will look like this:
+    // {
+    //   while (_t) {
+    //
+    //   }
+    //   clad::pop(_t);
+    // }
+    if (loopCounter.getPop()) {
+      beginBlock(reverse);
+      addToCurrentBlock(loopCounter.getPop(), reverse);
+      addToCurrentBlock(reverseWS, reverse);
+      reverseBlock = endBlock(reverse);
+    }
+    return {forwardWS, reverseBlock};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitDoStmt(const DoStmt* DS) {
+    LoopCounter loopCounter(*this);
+    if (loopCounter.getPush())
+      addToCurrentBlock(loopCounter.getPush());
+
+    // begin scope for do statement
+    beginScope(Scope::ContinueScope | Scope::BreakScope);
+
+    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
+    isInsideLoop = true;
+
+    Expr* clonedCond = (DS->getCond() ? Clone(DS->getCond()) : nullptr);
+
+    const Stmt* body = DS->getBody();
+    StmtDiff bodyDiff = DifferentiateLoopBody(body, loopCounter);
+
+    // Create forward-pass `do-while` statement.
+    Stmt* forwardDS = m_Sema
+                          .ActOnDoStmt(/*DoLoc=*/noLoc, bodyDiff.getStmt(),
+                                       /*WhileLoc=*/noLoc,
+                                       /*CondLParen=*/noLoc, clonedCond,
+                                       /*CondRParen=*/noLoc)
+                          .get();
+
+    // create reverse-pass `do-while` statement.
+    Expr*
+        counterCondition = loopCounter.getCounterConditionResult().get().second;
+    Stmt* reverseDS = m_Sema
+                          .ActOnDoStmt(/*DoLoc=*/noLoc, bodyDiff.getStmt_dx(),
+                                       /*WhileLoc=*/noLoc,
+                                       /*CondLParen=*/noLoc, counterCondition,
+                                       /*RCondRParen=*/noLoc)
+                          .get();
+    // for do-while statement
+    endScope();
+    Stmt* reverseBlock = reverseDS;
+    // If loop counter have to be popped then create a compound statement
+    // enclosing the reverse pass while statement and loop counter pop
+    // expression.
+    //
+    // Therefore, reverse pass code will look like this:
+    // {
+    //   do {
+    //
+    //   } while (_t);
+    //   clad::pop(_t);
+    // }
+    if (loopCounter.getPop()) {
+      beginBlock(reverse);
+      addToCurrentBlock(loopCounter.getPop(), reverse);
+      addToCurrentBlock(reverseDS, reverse);
+      reverseBlock = endBlock(reverse);
+    }
+    return {forwardDS, reverseBlock};
+  }
+
+  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
+                                                     LoopCounter& loopCounter,
+                                                     Stmt* condVarDiff,
+                                                     Stmt* forLoopIncDiff,
+                                                     bool isForLoop) {
+    Expr* counterIncrement = loopCounter.getCounterIncrement();
+    // differentiate loop body and add loop increment expression
+    // in the forward block.
+    StmtDiff bodyDiff = nullptr;
+    if (isa<CompoundStmt>(body)) {
+      bodyDiff = Visit(body);
+      beginBlock(forward);
+      addToCurrentBlock(counterIncrement);
+      for (Stmt* S : cast<CompoundStmt>(bodyDiff.getStmt())->body())
+        addToCurrentBlock(S);
+      bodyDiff = {endBlock(forward), bodyDiff.getStmt_dx()};
+    } else {
+      // for forward-pass loop statement body
+      beginScope(Scope::DeclScope);
+      beginBlock(forward);
+      addToCurrentBlock(counterIncrement);
+      bodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr,
+                                         /*shouldEmit=*/false);
+      addToCurrentBlock(bodyDiff.getStmt());
+      // Emit some statemnts later to maintain correct statement order.
+      if (m_ErrorEstimationEnabled) {
+        errorEstHandler->EmitErrorEstimationStmts(forward);
+      }
+      Stmt* reverseBlock = unwrapIfSingleStmt(bodyDiff.getStmt_dx());
+      bodyDiff = {endBlock(forward), reverseBlock};
+      // for forward-pass loop statement body
+      endScope();
+    }
+
+    Expr* counterDecrement = loopCounter.getCounterDecrement();
+
+    // Create reverse pass loop body statements by arranging various
+    // differentiated statements in the correct order.
+    // Order used:
+    //
+    // 1) `for` loop increment differentiation statements
+    // 2) loop body differentiation statements
+    // 3) condition variable differentiation statements
+    // 4) counter decrement expression
+    beginBlock(reverse);
+    // `for` loops have counter decrement expression in the
+    // loop iteration-expression.
+    if (!isForLoop)
+      addToCurrentBlock(counterDecrement, reverse);
+    addToCurrentBlock(condVarDiff, reverse);
+    addToCurrentBlock(bodyDiff.getStmt_dx(), reverse);
+    addToCurrentBlock(forLoopIncDiff, reverse);
+    bodyDiff = {bodyDiff.getStmt(), endBlock(reverse)};
+    return bodyDiff;
   }
 } // end namespace clad

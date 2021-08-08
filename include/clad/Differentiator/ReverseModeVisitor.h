@@ -298,6 +298,8 @@ namespace clad {
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.
+    StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
+    StmtDiff VisitDoStmt(const clang::DoStmt* DS);
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
 
     /// A helper method to differentiate a single Stmt in the reverse mode.
@@ -340,6 +342,70 @@ namespace clad {
         llvm::SmallVectorImpl<clang::ParmVarDecl*>& GradientParams,
         clang::DeclarationNameInfo& GradientName,
         clang::FunctionDecl* GradientFD);
+
+    /// Allows to easily create and manage a counter for counting the number of
+    /// executed iterations of a loop. 
+    ///
+    /// It is required to save the number of executed iterations to use the
+    /// same number of iterations in the reverse pass.
+    /// If we are currently inside a loop, then a clad tape object is created
+    /// to be used as the counter; otherwise, a temporary global variable (in
+    /// function scope) is created to be used as the counter.
+    class LoopCounter {
+      clang::Expr *m_Ref = nullptr;
+      clang::Expr *m_Pop = nullptr;
+      clang::Expr *m_Push = nullptr;
+      ReverseModeVisitor& m_RMV;
+
+    public:
+      LoopCounter(ReverseModeVisitor& RMV);
+      /// Returns `clad::push(_t, 0UL)` expression if clad tape is used
+      /// for counter; otherwise, returns nullptr.
+      clang::Expr* getPush() const { return m_Push; }
+
+      /// Returns `clad::pop(_t)` expression if clad tape is used for 
+      /// for counter; otherwise, returns nullptr.
+      clang::Expr* getPop() const { return m_Pop; }
+
+      /// Returns reference to the last object of the clad tape if clad tape 
+      /// is used as the counter; otherwise returns reference to the counter
+      /// variable.
+      clang::Expr* getRef() const { return m_Ref; }
+
+      /// Returns counter post-increment expression (`counter++`).
+      clang::Expr* getCounterIncrement() {
+        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostInc, m_Ref);
+      }
+
+      /// Returns counter post-decrement expression (`counter--`)
+      clang::Expr* getCounterDecrement() {
+        return m_RMV.BuildOp(clang::UnaryOperatorKind::UO_PostDec, m_Ref);
+      }
+
+      /// Returns `ConditionResult` object for the counter.
+      clang::Sema::ConditionResult getCounterConditionResult() {
+        return m_RMV.m_Sema.ActOnCondition(m_RMV.m_CurScope, noLoc, m_Ref,
+                                           clang::Sema::ConditionKind::Boolean);
+      }
+    };
+
+    /// Helper function to differentiate a loop body.
+    ///
+    ///\param[in] body body of the loop
+    ///\param[in] loopCounter associated `LoopCounter` object of the loop.
+    ///\param[in] condVarDiff derived statements of the condition
+    /// variable, if any.
+    ///\param[in] forLoopIncDiff derived statements of the `for` loop
+    /// increment statement, if any.
+    ///\param[in] isForLoop should be true if we are differentiating a `for`
+    /// loop body; otherwise false.
+    ///\returns {forward pass statements, reverse pass statements} for the loop
+    /// body.
+    StmtDiff DifferentiateLoopBody(const clang::Stmt* body,
+                                   LoopCounter& loopCounter,
+                                   clang::Stmt* condVarDifff = nullptr,
+                                   clang::Stmt* forLoopIncDiff = nullptr,
+                                   bool isForLoop = false);
   };
 } // end namespace clad
 
