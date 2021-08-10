@@ -53,6 +53,7 @@ namespace clad {
       DerivativesSet m_Derivatives;
       bool m_HasRuntime = false;
       bool m_PendingInstantiationsInFlight = false;
+      bool m_HandleTopLevelDeclInternal = false;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
@@ -60,6 +61,7 @@ namespace clad {
       clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
     private:
       bool CheckBuiltins();
+      void ProcessTopLevelDecl(clang::Decl* D);
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,

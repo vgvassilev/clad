@@ -121,6 +121,11 @@ namespace clad {
         m_PendingInstantiationsInFlight = false;
       }
 
+      // if HandleTopLevelDecl was called through clad we don't need to process
+      // it for diff requests
+      if (m_HandleTopLevelDeclInternal)
+        return true;
+
       DiffSchedule requests{};
       DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
                               m_CI.getSema());
@@ -130,8 +135,10 @@ namespace clad {
       return true; // Happiness
     }
 
-    static void ProcessTopLevelDecl(CompilerInstance& CI, Decl* D) {
-      CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(D));
+    void CladPlugin::ProcessTopLevelDecl(Decl* D) {
+      m_HandleTopLevelDeclInternal = true;
+      m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(D));
+      m_HandleTopLevelDeclInternal = false;
     }
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
@@ -201,9 +208,9 @@ namespace clad {
         bool isTU = DerivativeDeclOrEnclosingContext->getDeclContext()->
           isTranslationUnit();
         if (isTU) {
-          ProcessTopLevelDecl(m_CI, DerivativeDeclOrEnclosingContext);
+          ProcessTopLevelDecl(DerivativeDeclOrEnclosingContext);
           if (OverloadedDerivativeDecl)
-            ProcessTopLevelDecl(m_CI, OverloadedDerivativeDecl);
+            ProcessTopLevelDecl(OverloadedDerivativeDecl);
         }
 
         // Last requested order was computed, return the result.
