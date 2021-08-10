@@ -317,7 +317,11 @@ namespace clad {
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
-    if (!isInInterval(E->getEndLoc()))
+    // FIXME: Generated code does not usually have valid source locations.
+    // In that case we should ask the enclosing ast nodes for a source
+    // location and check if it is within range.
+    SourceLocation endLoc = E->getEndLoc();
+    if (endLoc.isInvalid() || !isInInterval(endLoc))
         return true;
 
     FunctionDecl* FD = E->getDirectCallee();
