@@ -384,18 +384,15 @@ namespace clad {
     // If in error estimation mode, create the error parameter
     if (m_ErrorEstimationEnabled) {
       // Repeat the above but for the error ouput var "_final_error"
-      params.push_back(
-          ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
-                              &m_Context.Idents.get("_final_error"),
-                              paramTypes.back(),
-                              m_Context
-                                  .getTrivialTypeSourceInfo(paramTypes.back(),
-                                                            noLoc),
-                              params.front()->getStorageClass(),
-                              /*DefArg=*/nullptr));
-      if (params.back()->getIdentifier())
-        m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
-                                 /*AddToContext=*/false);
+      ParmVarDecl *errorVarDecl = ParmVarDecl::Create(
+          m_Context, gradientFD, noLoc, noLoc,
+          &m_Context.Idents.get("_final_error"), paramTypes.back(),
+          m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
+          params.front()->getStorageClass(),
+          /*DefArg=*/nullptr);
+      params.push_back(errorVarDecl);
+      m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
+                               /*AddToContext=*/false);
     }
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         llvm::makeArrayRef(params.data(), params.size());
@@ -1169,7 +1166,6 @@ namespace clad {
         // if (m_ErrorEstimationEnabled) {
         //   errorEstHandler->EmitNestedFunctionParamError(...);
         // }
-        // i++;
       }
       Expr* call = m_Sema
                        .ActOnCallExpr(getCurrentScope(),
@@ -1403,7 +1399,8 @@ namespace clad {
         // save to emit them later.
         if (m_ErrorEstimationEnabled) {
           errorEstHandler->EmitNestedFunctionParamError(fnDecl, CallArgs,
-                                                        ArgResultDecls, 1);
+                                                        ArgResultDecls,
+                                                        /*numArgs=*/1);
         }
       } else {
         // Put Result array declaration in the function body.

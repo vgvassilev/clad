@@ -19,7 +19,7 @@ namespace clad {
   /// to fetch derivatives.
   class ErrorEstimationHandler : public ReverseModeVisitor {
     /// Keeps a track of the delta error expression we shouldn't emit.
-    bool m_DoNotEmitDelta = false;
+    bool m_DoNotEmitDelta;
     /// Reference to the final error parameter in the augumented target
     /// function.
     clang::Expr* m_FinalError;
@@ -178,7 +178,7 @@ namespace clad {
     /// \param[in] params A vector of the parameter decls.
     /// \param[in] numParams The number of orignal parameters.
     void EmitFinalErrorStmts(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params,
-                             int numParams);
+                             unsigned numParams);
 
     /// This function emits the error in unary operations.
     ///
