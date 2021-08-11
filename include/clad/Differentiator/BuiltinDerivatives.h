@@ -63,6 +63,11 @@ namespace custom_derivatives {
   }
 
   template<typename T>
+  CUDA_HOST_DEVICE T exp_darg0_darg0(T x) {
+    return exp(x);
+  }
+
+  template<typename T>
   CUDA_HOST_DEVICE T sin_darg0(T x) {
     return cos(x);
   }
@@ -73,13 +78,32 @@ namespace custom_derivatives {
   }
 
   template<typename T>
+  CUDA_HOST_DEVICE T sin_darg0_darg0(T x) {
+    return cos_darg0(x);
+  }
+
+  template<typename T>
+  CUDA_HOST_DEVICE T cos_darg0_darg0(T x) {
+    return (-1) * sin_darg0(x);
+  }
+
+  template<typename T>
   CUDA_HOST_DEVICE T sqrt_darg0(T x) {
     return ((T)1)/(((T)2)*sqrt(x));
+  }
+
+  template<typename T>
+  CUDA_HOST_DEVICE T sqrt_darg0_darg0(T x) {
+    return ((T)-1)/(((T)4) * sqrt(x) * x);
   }
 
 #ifdef MACOS
   float sqrtf_darg0(float x) {
     return 1.F/(2.F*sqrtf(x));
+  }
+
+  float sqrtf_darg0_darg0(float x) {
+    return -1.F/(4.F * sqrtf(x) * x);
   }
 #endif
 
@@ -93,6 +117,26 @@ namespace custom_derivatives {
     return pow(x, exponent) * log(x);
   }
 
+  template<typename T1, typename T2>
+  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg0_darg0(T1 x, T2 exponent) {
+    return exponent * pow(x, exponent-((T2)1));
+  }
+
+  template<typename T1, typename T2>
+  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg0_darg1(T1 x, T2 exponent) {
+    return exponent * pow_darg1(x, exponent-((T2)1)) + pow(x, exponent-((T2)1));
+  }
+
+  template <typename T1, typename T2>
+  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg1_darg0(T1 x, T2 exponent) {
+    return exponent * pow_darg1(x, exponent-((T2)1)) + pow(x, exponent-((T2)1));
+  }
+
+  template <typename T1, typename T2>
+  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg1_darg1(T1 x, T2 exponent) {
+    return pow(x, exponent) * log(x) * log(x);
+  }
+
   template <typename T1, typename T2>
   CUDA_HOST_DEVICE void
   pow_grad(T1 x, T2 exponent, clad::array_ref<decltype(pow(T1(), T2()))> _d_x,
@@ -101,9 +145,30 @@ namespace custom_derivatives {
     *_d_y += pow_darg1(x, exponent);
   }
 
+  template <typename T1, typename T2>
+  CUDA_HOST_DEVICE void
+  pow_darg0_grad(T1 x, T2 exponent, clad::array_ref<decltype(pow(T1(), T2()))> _d_x,
+           clad::array_ref<decltype(pow(T1(), T2()))> _d_y) {
+    *_d_x += pow_darg0_darg0(x, exponent);
+    *_d_y += pow_darg0_darg1(x, exponent);
+  }
+
+  template <typename T1, typename T2>
+  CUDA_HOST_DEVICE void
+  pow_darg1_grad(T1 x, T2 exponent, clad::array_ref<decltype(pow(T1(), T2()))> _d_x,
+                 clad::array_ref<decltype(pow(T1(), T2()))> _d_y) {
+    *_d_x += pow_darg1_darg0(x, exponent);
+    *_d_y += pow_darg1_darg1(x, exponent);
+  }
+
   template <typename T>
   CUDA_HOST_DEVICE T log_darg0(T x) {
     return 1.0/x;
+  }
+
+  template <typename T>
+  CUDA_HOST_DEVICE T log_darg0_darg0(T x) {
+    return - 1.0/(x * x);
   }
 
   // FIXME: These math functions depend on promote_2 just like pow:
