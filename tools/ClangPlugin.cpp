@@ -162,9 +162,15 @@ namespace clad {
       if (m_DO.CustomEstimationModel) {
         std::string Err;
         if (llvm::sys::DynamicLibrary::
-                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err))
-          llvm::errs() << "Could not load " << m_DO.CustomModelName << " "
-                       << Err;
+                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
+          auto& SemaInst = m_CI.getSema();
+          unsigned diagID = SemaInst.Diags.getCustomDiagID(
+              DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
+          clang::Sema::SemaDiagnosticBuilder stream = SemaInst.Diag(noLoc,
+                                                                    diagID);
+          stream << m_DO.CustomModelName << Err;
+          return nullptr;
+        }
         for (auto it = ErrorEstimationModelRegistry::begin(),
                   ie = ErrorEstimationModelRegistry::end();
              it != ie; ++it) {

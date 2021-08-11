@@ -8,10 +8,23 @@ The aim of this demo is to illustrate how one can integrate a custom model with 
 
 Before we can use the custom model, it must be compiled into a [shared object](https://www.thegeekstuff.com/2012/06/linux-shared-libraries/). To do this, you can use your favourite compiler. For this demo, we will be using the clang compiler.
 
-In a terminal, run the following:
+Firstly, we shall set up some environment variables to simplify following the rest of the tutorial.
+
+After building the code as specifed in the [README.md](https://github.com/vgvassilev/clad#how-to-install), run the following command to set environment variables which we will use later:
 
 ```bash
-$ /path/to/clang -Ipath/to/install/include -fPIC -shared -fno-rtti -Wl,-undefined -Wl,suppress path/to/CustomModel.cpp -o libCustomModel.so
+$ export CLAD_INST=$PWD/../inst;
+$ export CLAD_BASE=$PWD/../clad;
+```
+---
+**TIP:**
+You can put the above lines in your ~/.bashrc or equivalent shell "rc" file to maintain the same variables across multiple sessions.
+---
+
+Now, in a terminal, run the following:
+
+```bash
+$ clang -ICLAD_INST/include -fPIC -shared -fno-rtti -Wl,-undefined -Wl,suppress CLAD_BASE/demos/CustomModel/CustomModel.cpp -o libCustomModel.so
 ``` 
  The above should create a ```libCustomModel.so``` in the same directory you executed that command in. Once the shared object is created, we are ready to run it with clad.
 
@@ -25,7 +38,7 @@ Now, to use your custom estimation model, you can just specify the ```.so``` cre
 So a typical invocation to clad would then look like the following:
 
 ```bash
-./bin/clang -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang path/to/clad.so -I../include/ -x c++ -lstdc++ -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad -Xclang ./libCustomModel.so /path/to/some.cpp
+clang -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/clad.so -ICLAD_INST/include -x c++ -lstdc++ -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad -Xclang ./libCustomModel.so CLAD_BASE/demos/CustomModel/test.cpp
 ```
 ## Verifying results
 
@@ -61,5 +74,7 @@ The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad:
 ```
 
 Here, notice that the result in the ```_delta_z``` variable  now reflects the error expression defined in the custom model we just compiled!
+
+This demo is also a runnable test under ```CLAD_BASE/test/Misc/RunDemos.C``` and will run as a part of the lit test suite. Thus, the same can be verfied by running ```make check-clad```.
 
 > For information on how to use clad functions and more dev related information, check out our docs here! <<!--TODO: Add doc link>>

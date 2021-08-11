@@ -99,6 +99,48 @@
 // RUN: %cladclang -lstdc++ %S/../../demos/ODESolverSensitivity.cpp -I%S/../../include -oODESolverSensitivity.out
 
 //-----------------------------------------------------------------------------/
+// Demo: Error Estimation Float Sum
+//-----------------------------------------------------------------------------/
+
+// RUN: %cladclang -x c++ -lm -lstdc++ %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include 2>&1  | FileCheck -check-prefix CHECK_FLOAT_SUM %s
+//CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
+
+//CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, clad::array_ref<float> _d_x, clad::array_ref<float> _d_n, double &_final_error) {
+//CHECK_FLOAT_SUM:     double _delta_sum = 0;
+//CHECK_FLOAT_SUM:     float _EERepl_sum0;
+//CHECK_FLOAT_SUM:     float _d_sum = 0;
+//CHECK_FLOAT_SUM:     unsigned long _t0;
+//CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
+//CHECK_FLOAT_SUM:     clad::tape<float> _EERepl_sum1 = {};
+//CHECK_FLOAT_SUM:     float sum = 0.;
+//CHECK_FLOAT_SUM:     _EERepl_sum0 = sum;
+//CHECK_FLOAT_SUM:     _t0 = 0;
+//CHECK_FLOAT_SUM:     for (unsigned int i = 0; i < n; i++) {
+//CHECK_FLOAT_SUM:         _t0++;
+//CHECK_FLOAT_SUM:         sum = sum + x;
+//CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
+//CHECK_FLOAT_SUM:     }
+//CHECK_FLOAT_SUM:     float vanillaSum_return = sum;
+//CHECK_FLOAT_SUM:     goto _label0;
+//CHECK_FLOAT_SUM:   _label0:
+//CHECK_FLOAT_SUM:     _d_sum += 1;
+//CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
+//CHECK_FLOAT_SUM:         {
+//CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
+//CHECK_FLOAT_SUM:             _d_sum += _r_d0;
+//CHECK_FLOAT_SUM:             * _d_x += _r_d0;
+//CHECK_FLOAT_SUM:             float _r0 = clad::pop(_EERepl_sum1);
+//CHECK_FLOAT_SUM:             _delta_sum += _r_d0 * _r0 * {{.+}};
+//CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
+//CHECK_FLOAT_SUM:         }
+//CHECK_FLOAT_SUM:     }
+//CHECK_FLOAT_SUM:     _delta_sum += _d_sum * _EERepl_sum0 * {{.+}};
+//CHECK_FLOAT_SUM:     double _delta_x = 0;
+//CHECK_FLOAT_SUM:     _delta_x += * _d_x * x * {{.+}};
+//CHECK_FLOAT_SUM:     _final_error += _delta_{{x|sum}} + _delta_{{x|sum}};
+//CHECK_FLOAT_SUM: }
+
+//-----------------------------------------------------------------------------/
 // Demo: Custom Error Estimation Plugin
 //-----------------------------------------------------------------------------/
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \

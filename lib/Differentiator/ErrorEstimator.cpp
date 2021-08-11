@@ -117,9 +117,7 @@ namespace clad {
   void ErrorEstimationHandler::EmitNestedFunctionParamError(
       FunctionDecl* fnDecl, llvm::SmallVectorImpl<Expr*>& CallArgs,
       llvm::SmallVectorImpl<VarDecl*>& ArgResultDecls, size_t numArgs) {
-    if (!fnDecl)
-      return;
-
+    assert(fnDecl && "Must have a value");
     for (size_t i = 0; i < numArgs; i++) {
       if (!fnDecl->getParamDecl(0)->getType()->isLValueReferenceType())
         continue;
@@ -156,8 +154,7 @@ namespace clad {
   }
 
   void ErrorEstimationHandler::SaveParamValue(DeclRefExpr* paramRef) {
-    if (!paramRef)
-      return;
+    assert(paramRef && "Must have a value");
     VarDecl* paramDecl = cast<VarDecl>(paramRef->getDecl());
     auto savedDecl = GlobalStoreImpl(paramRef->getType(),
                                      "_EERepl_" + paramDecl->getNameAsString(),
@@ -257,7 +254,7 @@ namespace clad {
   }
 
   void ErrorEstimationHandler::EmitFinalErrorStmts(
-      llvm::SmallVectorImpl<ParmVarDecl*>& params, int numParams) {
+      llvm::SmallVectorImpl<ParmVarDecl*>& params, unsigned numParams) {
     // Emit error variables of parameters at the end.
     for (size_t i = 0; i < numParams; i++) {
       // Right now, we just ignore them since we have no way of knowing
