@@ -4,7 +4,6 @@
 #include "clad/Differentiator/Differentiator.h"
 
 #include <cmath>
-#include <iostream>
 
 // Add/Sub operations
 float func(float x, float y) {

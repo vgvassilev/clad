@@ -3,8 +3,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#include <iostream>
-
 // Arrays in loops
 float func(float* p, int n) {
   float sum = 0;

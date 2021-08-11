@@ -22,7 +22,6 @@
 // To plot the results install gnuplot and type:
 // gnuplot -e "plot 'sens.dat' using 1:2 with lines; pause -1"
 
-#include <iostream>
 #include <fstream>
 #include <cmath>
 
