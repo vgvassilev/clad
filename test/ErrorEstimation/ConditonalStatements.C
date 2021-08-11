@@ -3,8 +3,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#include <iostream>
-
 // Single statement if/else
 float func(float x, float y) {
   if (x > y) {

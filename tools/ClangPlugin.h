@@ -123,9 +123,7 @@ namespace clad {
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
-              llvm::errs()
-                  << "No shared object was specified, please refer help "
-                     "for more information. Terminating build.";
+              llvm::errs() << "No shared object was specified.";
               return false;
             }
             m_DO.CustomModelName = args[i];

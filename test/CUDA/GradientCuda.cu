@@ -6,7 +6,6 @@
 
 // expected-no-diagnostics
 
-//#include <iostream>
 #include "clad/Differentiator/Differentiator.h"
 
 #define N 3
