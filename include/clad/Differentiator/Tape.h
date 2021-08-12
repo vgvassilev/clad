@@ -28,6 +28,13 @@ namespace clad {
     using iterator = pointer;
     using const_iterator = const_pointer;
 
+    CUDA_HOST_DEVICE ~tape_impl(){
+      destroy(begin(), end());
+      // delete the old data here to make sure we do not leak anything.
+      ::operator delete(const_cast<void*>(
+            static_cast<const volatile void*>(_data)));
+    }
+
     /// Move values from old to new storage
     CUDA_HOST_DEVICE T* AllocateRawStorage(std::size_t _capacity) {
       #ifdef __CUDACC__
@@ -120,6 +127,9 @@ namespace clad {
       MoveData(begin(), end(), new_data);
       // Destroy all values in the old storage.
       destroy(begin(), end());
+      // delete the old data here to make sure we do not leak anything.
+      ::operator delete(const_cast<void*>(
+            static_cast<const volatile void*>(_data)));
       _data = new_data;
     }
 
