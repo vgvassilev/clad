@@ -57,7 +57,7 @@ namespace clad {
       _size += 1;
     }
 
-    CUDA_HOST_DEVICE std::size_t size() const { return size; }
+    CUDA_HOST_DEVICE std::size_t size() const { return _size; }
     CUDA_HOST_DEVICE iterator begin() {
       return reinterpret_cast<iterator>(_data);
     }
