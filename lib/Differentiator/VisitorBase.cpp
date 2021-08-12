@@ -581,7 +581,7 @@ namespace clad {
         Create(m_Context, thisExpr, /*isArrow=*/true, noLoc, NNS, noLoc, FD,
                DAP, FD->getNameInfo(),
                /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-               ExprValueKind::VK_RValue,
+               CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
                ExprObjectKind::OK_Ordinary
                CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
     return m_Sema

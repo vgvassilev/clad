@@ -153,7 +153,7 @@ namespace clad {
           auto newFnDRE = clad_compat::GetResult<Expr*>(
               m_SemaRef.BuildDeclRefExpr(callOperator,
                                          callOperator->getType(),
-                                         ExprValueKind::VK_RValue,
+                                         CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
                                          noLoc,
                                          &CSS));
           m_FnDRE = cast<DeclRefExpr>(newFnDRE);          
