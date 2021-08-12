@@ -15,9 +15,9 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   ## Define clad supported version of clang and llvm
 
   set(CLANG_MIN_SUPPORTED 5.0)
-  set(CLANG_MAX_SUPPORTED 12.0.1)
+  set(CLANG_MAX_SUPPORTED 13.0.0-rc1)
   set(LLVM_MIN_SUPPORTED 5.0)
-  set(LLVM_MAX_SUPPORTED 12.0.1)
+  set(LLVM_MAX_SUPPORTED 13.0.0-rc1)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})

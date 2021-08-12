@@ -509,6 +509,18 @@ Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
 #define CLAD_COMPAT_ConstantExpr_Create_ExtraParams\
   , Node->getResultStorageKind(), Node->isImmediateInvocation()
 #endif
+
+#if CLANG_VERSION_MAJOR < 13
+#define CLAD_COMPAT_ExprValueKind_R_or_PR_Value ExprValueKind::VK_RValue
+#elif CLANG_VERSION_MAJOR >= 13
+#define CLAD_COMPAT_ExprValueKind_R_or_PR_Value ExprValueKind::VK_PRValue
+#endif
+
+#if LLVM_VERSION_MAJOR < 13
+#define CLAD_COMPAT_llvm_sys_fs_Append llvm::sys::fs::F_Append
+#elif LLVM_VERSION_MAJOR >= 13
+#define CLAD_COMPAT_llvm_sys_fs_Append llvm::sys::fs::OF_Append
+#endif
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY

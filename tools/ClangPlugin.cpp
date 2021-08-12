@@ -198,7 +198,8 @@ namespace clad {
         // if enabled, print the derivatives in a file.
         if (m_DO.GenerateSourceFile) {
           std::error_code err;
-          llvm::raw_fd_ostream f("Derivatives.cpp", err, llvm::sys::fs::F_Append);
+          llvm::raw_fd_ostream f("Derivatives.cpp",
+                                 err, CLAD_COMPAT_llvm_sys_fs_Append);
           DerivativeDecl->print(f, Policy);
           f.flush();
         }
