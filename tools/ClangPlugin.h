@@ -38,7 +38,7 @@ namespace clad {
     struct DifferentiationOptions {
       DifferentiationOptions()
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-            DumpDerivedAST(false), GenerateSourceFile(false),
+            DumpDerivedAST(false), EnableReverseModeTesting(false), GenerateSourceFile(false),
             ValidateClangVersion(false), CustomEstimationModel(false),
             CustomModelName("") {}
 
@@ -46,6 +46,7 @@ namespace clad {
       bool DumpSourceFnAST : 1;
       bool DumpDerivedFn : 1;
       bool DumpDerivedAST : 1;
+      bool EnableReverseModeTesting: 1;
       bool GenerateSourceFile : 1;
       bool ValidateClangVersion : 1;
       bool CustomEstimationModel : 1;
@@ -65,7 +66,9 @@ namespace clad {
       ~CladPlugin();
       bool HandleTopLevelDecl(clang::DeclGroupRef DGR) override;
       clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
-
+      bool isReverseModeTestingEnabled() const  {
+        return m_DO.EnableReverseModeTesting;
+      }
     private:
       bool CheckBuiltins();
       void ProcessTopLevelDecl(clang::Decl* D);
@@ -76,7 +79,11 @@ namespace clad {
       return P.ProcessDiffRequest(request);
     }
 
-    template <typename ConsumerType>
+    bool isReverseModeTestingEnabled(CladPlugin& P) {
+      return P.isReverseModeTestingEnabled();
+    }
+
+    template<typename ConsumerType>
     class Action : public clang::PluginASTAction {
     private:
       DifferentiationOptions m_DO;
@@ -127,6 +134,8 @@ namespace clad {
               return false;
             }
             m_DO.CustomModelName = args[i];
+          } else if(args[i] == "-fenable-reverse-mode-testing") {
+            m_DO.EnableReverseModeTesting = true;
           } else if (args[i] == "-help") {
             // Print some help info.
             llvm::errs()
@@ -143,7 +152,9 @@ namespace clad {
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
                 << "-fcustom-estimation-model - allows user to send in a "
-                   "shared object to use as the custom estimation model.\n";
+                   "shared object to use as the custom estimation model.\n"
+                << "-fenable-reverse-mode-testing - Enable testing of reverse mode "
+                   "differentiation using forward mode differentiation\n";                   
 
             llvm::errs() << "-help - Prints out this screen.\n\n";
           } else {
