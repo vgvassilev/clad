@@ -36,12 +36,16 @@ public:
 // CHECK: float operator_call_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: float _d_x0 = 0;
+// CHECK-NEXT: float _d_y0 = 0;
 // CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 
 // CHECK: float operator_call_darg1(float x, float y) {
 // CHECK-NEXT: float _d_x = 0;
 // CHECK-NEXT: float _d_y = 1;
+// CHECK-NEXT: float _d_x0 = 0;
+// CHECK-NEXT: float _d_y0 = 0;
 // CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 // CHECK-NEXT: }
 

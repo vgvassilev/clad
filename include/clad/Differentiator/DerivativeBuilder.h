@@ -71,12 +71,12 @@ namespace clad {
   /// and optionally it's overload FunctionDecl
   using OverloadedDeclWithContext =
       std::tuple<clang::FunctionDecl*, clang::Decl*, clang::FunctionDecl*>;
-  using DiffParams = llvm::SmallVector<const clang::VarDecl*, 16>;
+  using DiffParams = llvm::SmallVector<const clang::ValueDecl*, 16>;
   using IndexIntervalTable = llvm::SmallVector<IndexInterval, 16>;
   using DiffParamsWithIndices = std::pair<DiffParams, IndexIntervalTable>;
 
   using VectorOutputs =
-      std::vector<std::unordered_map<const clang::VarDecl*, clang::Expr*>>;
+      std::vector<std::unordered_map<const clang::ValueDecl*, clang::Expr*>>;
 
   static clang::SourceLocation noLoc{};
   class VisitorBase;

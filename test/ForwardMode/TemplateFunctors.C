@@ -14,10 +14,12 @@ template <typename T> struct Experiment {
 // CHECK: double operator_call_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     double &_t0 = this->x;
 // CHECK-NEXT:     double _t1 = _t0 * i;
 // CHECK-NEXT:     double &_t2 = this->y;
-// CHECK-NEXT:     return (0. * i + _t0 * _d_i) * i + _t1 * _d_i + 0. * j + _t2 * _d_j;
+// CHECK-NEXT:     return (_d_x * i + _t0 * _d_i) * i + _t1 * _d_i + _d_y * j + _t2 * _d_j;
 // CHECK-NEXT: }
 
 template <> struct Experiment<long double> {
@@ -30,11 +32,13 @@ template <> struct Experiment<long double> {
 // CHECK: long double operator_call_darg0(long double i, long double j) {
 // CHECK-NEXT:     long double _d_i = 1;
 // CHECK-NEXT:     long double _d_j = 0;
+// CHECK-NEXT:     long double _d_x = 0;
+// CHECK-NEXT:     long double _d_y = 0;
 // CHECK-NEXT:     long double &_t0 = this->x;
 // CHECK-NEXT:     long double _t1 = _t0 * i;
 // CHECK-NEXT:     long double _t2 = _t1 * i;
 // CHECK-NEXT:     long double &_t3 = this->y;
-// CHECK-NEXT:     return ((0.L * i + _t0 * _d_i) * i + _t1 * _d_i) * j + _t2 * _d_j + 0.L * j + _t3 * _d_j;
+// CHECK-NEXT:     return ((_d_x * i + _t0 * _d_i) * i + _t1 * _d_i) * j + _t2 * _d_j + _d_y * j + _t3 * _d_j;
 // CHECK-NEXT: }
 
 template <typename T> struct ExperimentConstVolatile {
@@ -47,10 +51,12 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK: double operator_call_darg0(double i, double j) const volatile {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     volatile double &_t0 = this->x;
 // CHECK-NEXT:     double _t1 = _t0 * i;
 // CHECK-NEXT:     volatile double &_t2 = this->y;
-// CHECK-NEXT:     return (0. * i + _t0 * _d_i) * i + _t1 * _d_i + 0. * j + _t2 * _d_j;
+// CHECK-NEXT:     return (_d_x * i + _t0 * _d_i) * i + _t1 * _d_i + _d_y * j + _t2 * _d_j;
 // CHECK-NEXT: }
 
 template <> struct ExperimentConstVolatile<long double> {
@@ -65,11 +71,13 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK: long double operator_call_darg0(long double i, long double j) const volatile {
 // CHECK-NEXT:     long double _d_i = 1;
 // CHECK-NEXT:     long double _d_j = 0;
+// CHECK-NEXT:     long double _d_x = 0;
+// CHECK-NEXT:     long double _d_y = 0;
 // CHECK-NEXT:     volatile long double &_t0 = this->x;
 // CHECK-NEXT:     long double _t1 = _t0 * i;
 // CHECK-NEXT:     long double _t2 = _t1 * i;
 // CHECK-NEXT:     volatile long double &_t3 = this->y;
-// CHECK-NEXT:     return ((0.L * i + _t0 * _d_i) * i + _t1 * _d_i) * j + _t2 * _d_j + 0.L * j + _t3 * _d_j;
+// CHECK-NEXT:     return ((_d_x * i + _t0 * _d_i) * i + _t1 * _d_i) * j + _t2 * _d_j + _d_y * j + _t3 * _d_j;
 // CHECK-NEXT: }
 
 #define INIT(E)                                                                \

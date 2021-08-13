@@ -27,7 +27,7 @@ namespace clad {
     /// Determines if an error estimation is in process; helps decide whether
     /// to visit error estimation specific code in calls to VisitStmt.
     bool m_ErrorEstimationEnabled = false;
-    llvm::SmallVector<const clang::VarDecl*, 16> m_IndependentVars;
+    llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.

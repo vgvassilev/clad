@@ -42,6 +42,7 @@ namespace clad {
                              const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
+    m_Functor = request.Functor;
     assert(!m_DerivativeInFlight &&
            "Doesn't support recursive diff. Use DiffPlan.");
     m_DerivativeInFlight = true;
@@ -101,9 +102,22 @@ namespace clad {
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
       s = "";
-    m_ArgIndex = std::distance(
-        FD->param_begin(),
-        std::find(FD->param_begin(), FD->param_end(), m_IndependentVar));
+
+    // If we are differentiating a call operator, that has no parameters,
+    // then the specified independent argument is a member variable of the
+    // class defining the call operator. 
+    // Thus, we need to find index of the member variable instead.
+    if (m_Function->param_empty() && m_Functor) {
+      m_ArgIndex = std::distance(m_Functor->field_begin(),
+                                 std::find(m_Functor->field_begin(),
+                                           m_Functor->field_end(),
+                                           m_IndependentVar));
+    } else {
+      m_ArgIndex = std::distance(FD->param_begin(),
+                                 std::find(FD->param_begin(), FD->param_end(),
+                                           m_IndependentVar));
+    }
+
     IdentifierInfo* II =
         &m_Context.Idents.get(request.BaseFunctionName + "_d" + s + "arg" +
                               std::to_string(m_ArgIndex) + derivativeSuffix);
@@ -191,6 +205,63 @@ namespace clad {
       // in the future, it's derivative dParam is found (unless reassigned with
       // something new).
       m_Variables[param] = dParam;
+    }
+
+    // Create derived variable for each member variable if we are
+    // differentiating a call operator.
+    if (m_Functor) {
+      for (FieldDecl* fieldDecl : m_Functor->fields()) {
+        Expr* dInitializer = nullptr;
+        QualType fieldType = fieldDecl->getType();
+
+        if (auto arrType = dyn_cast<ConstantArrayType>(
+                fieldType.getTypePtr())) {
+          if (!arrType->getElementType()->isRealType())
+            continue;
+
+          auto arrSize = arrType->getSize().getZExtValue();
+          std::vector<Expr*> dArrVal;
+
+          // Create an initializer list to initialize derived variable created
+          // for array member variable.
+          // For example, if we are differentiating wrt arr[3], then
+          // ```
+          // double arr[7];
+          // ```
+          // will get differentiated to,
+          //
+          // ```
+          // double _d_arr[7] = {0, 0, 0, 1, 0, 0, 0};
+          // ```
+          for (size_t i = 0; i < arrSize; ++i) {
+            int dValue = (fieldDecl == m_IndependentVar &&
+                          i == m_IndependentVarIndex);
+            auto dValueLiteral = ConstantFolder::synthesizeLiteral(m_Context
+                                                                       .IntTy,
+                                                                   m_Context,
+                                                                   dValue);
+            dArrVal.push_back(dValueLiteral);
+          }
+          dInitializer = m_Sema.ActOnInitList(noLoc, dArrVal, noLoc).get();
+        } else if (auto ptrType = dyn_cast<PointerType>(
+                       fieldType.getTypePtr())) {
+          if (!ptrType->getPointeeType()->isRealType())
+            continue;
+          // Pointer member variables should be initialised by `nullptr`.
+          dInitializer = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
+        } else {
+          int dValue = (fieldDecl == m_IndependentVar);
+          dInitializer = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                           m_Context, dValue);
+        }
+        VarDecl*
+            derivedFieldDecl = BuildVarDecl(fieldType.getNonReferenceType(),
+                                            "_d_" +
+                                                fieldDecl->getNameAsString(),
+                                            dInitializer);
+        addToCurrentBlock(BuildDeclStmt(derivedFieldDecl));
+        m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
+      }
     }
 
     Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
@@ -470,14 +541,27 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
+    auto memberDecl = ME->getMemberDecl();
     auto clonedME = dyn_cast<MemberExpr>(Clone(ME));
-    // Copy paste from VisitDeclRefExpr.
-    QualType Ty = ME->getType();
-    if (clonedME->getMemberDecl() == m_IndependentVar)
+
+    // Currently, we only differentiate member variables if we are
+    // differentiating a call operator.
+    if (m_Functor) {
+      // Try to find the derivative of the member variable wrt independent
+      // variable
+      if (m_Variables.find(memberDecl) != std::end(m_Variables)) {
+        return StmtDiff(clonedME, m_Variables[memberDecl]);
+      }
+
+      // Is not a real variable. Therefore, derivative is 0.
+      auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                    0);
+      return StmtDiff(clonedME, zero);
+    } else {
+      QualType Ty = ME->getType();
       return StmtDiff(clonedME,
-                      ConstantFolder::synthesizeLiteral(Ty, m_Context, 1));
-    return StmtDiff(clonedME,
-                    ConstantFolder::synthesizeLiteral(Ty, m_Context, 0));
+                      ConstantFolder::synthesizeLiteral(Ty, m_Context, 0));
+    }
   }
 
   StmtDiff ForwardModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
@@ -509,12 +593,31 @@ namespace clad {
 
     auto zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
-      return StmtDiff(cloned, zero);
-    auto DRE = cast<DeclRefExpr>(clonedBase->IgnoreParenImpCasts());
-    if (!isa<VarDecl>(DRE->getDecl()))
-      return StmtDiff(cloned, zero);
-    auto VD = cast<VarDecl>(DRE->getDecl());
+    ValueDecl* VD;        
+    // Derived variables for member variables are also created when we are 
+    // differentiating a call operator.
+    if (m_Functor) {
+      if (auto ME = dyn_cast<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
+        ValueDecl* decl = ME->getMemberDecl();
+        auto it = m_Variables.find(decl);
+        // If the original field is of constant array type, then,
+        // the derived variable of `arr[i]` is `_d_arr[i]`.
+        if (it != m_Variables.end() && decl->getType()->isConstantArrayType()) {
+          auto result_at_i = BuildArraySubscript(it->second, clonedIndices);
+          return StmtDiff{cloned, result_at_i};
+        }
+
+        VD = decl;
+      }
+    } else {
+      if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
+        return StmtDiff(cloned, zero);
+      auto DRE = cast<DeclRefExpr>(clonedBase->IgnoreParenImpCasts());
+      assert(isa<VarDecl>(DRE->getDecl()) &&
+             "declaration represented by clonedBase Should always be VarDecl "
+             "when clonedBase is DeclRefExpr");
+      VD = DRE->getDecl();
+    }        
     if (VD == m_IndependentVar) {
       llvm::APSInt index;
       Expr* diffExpr = nullptr;

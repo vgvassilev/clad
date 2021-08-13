@@ -589,6 +589,23 @@ public:
   // CHECK-NEXT:     return (0. + 0.) * i + _t0 * _d_i + (_d_i * j + i * _d_j) * j + _t1 * _d_j;
   // CHECK-NEXT: }
 
+  double* arr[10];
+
+  double use_mem_var(double i, double j) {
+    double *p;
+    p = arr[1];
+    return i;
+  }
+
+  // CHECK:   double use_mem_var_darg0(double i, double j) {
+  // CHECK-NEXT:       double _d_i = 1;
+  // CHECK-NEXT:       double _d_j = 0;
+  // CHECK-NEXT:       double *_d_p;
+  // CHECK-NEXT:       double *p;
+  // CHECK-NEXT:       _d_p = 0;
+  // CHECK-NEXT:       p = this->arr[1];
+  // CHECK-NEXT:       return _d_i;
+  // CHECK-NEXT:   }
 };
 
 #define TEST(name,i,j) \
@@ -752,10 +769,12 @@ int main() {
   RVAL_REF_TEST(const_volatile_rval_ref_noexcept_mem_fn_with_var_arg_list, 3, 5)  // CHECK-EXEC: 30.00 
                                                                                   // CHECK-EXEC: 33.00 
   d_mem_fn.setObject(&expr_1);
-  printf("%.2f %.2f", d_mem_fn.execute(3, 5), d_mem_fn.execute(expr_2, 3, 5));  // CHECK-EXEC: 30.00
+  printf("%.2f %.2f\n", d_mem_fn.execute(3, 5), d_mem_fn.execute(expr_2, 3, 5));  // CHECK-EXEC: 30.00
                                                                                 // CHECK-EXEC: 33.00
   d_mem_fn.clearObject();
   d_mem_fn.setObject(expr_1);
-  printf("%.2f %.2f", d_mem_fn.execute(3, 5), d_mem_fn.execute(expr_2, 3, 5));  // CHECK-EXEC: 30.00
+  printf("%.2f %.2f\n", d_mem_fn.execute(3, 5), d_mem_fn.execute(expr_2, 3, 5));  // CHECK-EXEC: 30.00
                                                                                 // CHECK-EXEC: 33.00
+
+  auto d_use_mem_var = clad::differentiate(&SimpleFunctions::use_mem_var, "i");
 }
