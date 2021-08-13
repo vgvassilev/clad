@@ -249,7 +249,6 @@ namespace clad {
       }
     }
     if (isVectorValued) {
-      unsigned lastArgN = m_Function->getNumParams() - 1;
       paramTypes.push_back(DerivedOutputParamType);
     } else {
       paramTypes.insert(paramTypes.end(), outputParamTypes.begin(),
@@ -374,20 +373,6 @@ namespace clad {
     if (isVectorValued) {
       // Reference to the output parameter.
       m_Result = BuildDeclRef(params.back());
-
-      // Turns output array dimension input into APSInt
-      auto PVDTotalArgs =
-          m_Function->getParamDecl((m_Function->getNumParams() - 1));
-      auto VD = ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
-                                    PVDTotalArgs->getIdentifier(),
-                                    PVDTotalArgs->getType(),
-                                    PVDTotalArgs->getTypeSourceInfo(),
-                                    PVDTotalArgs->getStorageClass(),
-                                    // Clone default arg if present.
-                                    (PVDTotalArgs->hasDefaultArg()
-                                         ? Clone(PVDTotalArgs->getDefaultArg())
-                                         : nullptr));
-      auto DRETotalArgs = (Expr*)BuildDeclRef(VD);
       numParams = args.size();
 
       // Creates the ArraySubscriptExprs for the independent variables
@@ -1592,7 +1577,6 @@ namespace clad {
                      .get();
           auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
           StmtDiff ReturnDiff = ReturnResult.first;
-          StmtDiff ExprDiff = ReturnResult.second;
           Stmt* Reverse = ReturnDiff.getStmt_dx();
           addToCurrentBlock(Reverse, reverse);
           for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
