@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseLoops.out 2>&1 -lstdc++ -lm | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -plugin-arg-clad -Xclang -fenable-reverse-mode-testing -oReverseLoops.out 2>&1 -lstdc++ -lm | FileCheck %s
 // RUN: ./ReverseLoops.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -13,6 +13,7 @@ double f1(double x) {
 } // == x^3
 
 //CHECK:   void f1_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:       double _p_x0 = x;
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -36,6 +37,8 @@ double f1(double x) {
 //CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:       }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f1_darg0(_p_x0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "Loops.C", 0, "f1_grad");
 //CHECK-NEXT:   }
 
 double f2(double x) {
@@ -47,6 +50,7 @@ double f2(double x) {
 } // == x^9
 
 //CHECK:   void f2_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:       double _p_x0 = x;
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -79,6 +83,8 @@ double f2(double x) {
 //CHECK-NEXT:           }
 //CHECK-NEXT:           clad::pop(_t1);
 //CHECK-NEXT:       }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f2_darg0(_p_x0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "Loops.C", 0, "f2_grad");
 //CHECK-NEXT:   }
 
 double f3(double x) {
@@ -92,6 +98,7 @@ double f3(double x) {
 } // == x^2
 
 //CHECK:   void f3_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:       double _p_x0 = x;
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -129,6 +136,8 @@ double f3(double x) {
 //CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f3_darg0(_p_x0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "Loops.C", 0, "f3_grad");
 //CHECK-NEXT:   }
 
 double f4(double x) {
@@ -139,6 +148,7 @@ double f4(double x) {
 } // == x^3
 
 //CHECK:   void f4_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:       double _p_x0 = x;
 //CHECK-NEXT:       double _d_t = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -161,6 +171,8 @@ double f4(double x) {
 //CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:       }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f4_darg0(_p_x0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "Loops.C", 0, "f4_grad");
 //CHECK-NEXT:   }
 
 double f5(double x){
@@ -170,6 +182,7 @@ double f5(double x){
 } // == x + 10
 
 //CHECK:   void f5_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:       double _p_x0 = x;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
 //CHECK-NEXT:       _t0 = 0;
@@ -183,6 +196,8 @@ double f5(double x){
 //CHECK-NEXT:       * _d_x += 1;
 //CHECK-NEXT:       for (; _t0; _t0--)
 //CHECK-NEXT:           ;
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f5_darg0(_p_x0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "Loops.C", 0, "f5_grad");
 //CHECK-NEXT:   }
 
 double f_sum(double *p, int n) {
@@ -193,6 +208,8 @@ double f_sum(double *p, int n) {
 }
 
 //CHECK:   void f_sum_grad_0(double *p, int n, clad::array_ref<double> _d_p) {
+// CHECK-NEXT:       double *_p_p0 = p;
+// CHECK-NEXT:       int _p_n0 = n;
 //CHECK-NEXT:       int _d_n = 0;
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       unsigned long _t0;
@@ -218,6 +235,7 @@ double f_sum(double *p, int n) {
 
 double sq(double x) { return x * x; }
 //CHECK:   void sq_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:       double _p_x0 = x;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t1 = x;
@@ -231,6 +249,8 @@ double sq(double x) { return x * x; }
 //CHECK-NEXT:           double _r1 = _t1 * 1;
 //CHECK-NEXT:           * _d_x += _r1;
 //CHECK-NEXT:       }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, sq_darg0(_p_x0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "Loops.C", 0, "sq_grad");
 //CHECK-NEXT:   }
 
 double f_sum_squares(double *p, int n) {
@@ -241,6 +261,8 @@ double f_sum_squares(double *p, int n) {
 }
 
 //CHECK:   void f_sum_squares_grad_0(double *p, int n, clad::array_ref<double> _d_p) {
+// CHECK-NEXT:       double *_p_p0 = p;
+// CHECK-NEXT:       int _p_n0 = n;
 //CHECK-NEXT:       int _d_n = 0;
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       unsigned long _t0;
@@ -279,6 +301,10 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 }
 
 //CHECK:   void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, clad::array_ref<double> _d_p) {
+// CHECK-NEXT:       double *_p_x0 = x;
+// CHECK-NEXT:       double *_p_p0 = p;
+// CHECK-NEXT:       double _p_n0 = n;
+// CHECK-NEXT:       double _p_sigma0 = sigma;
 //CHECK-NEXT:       double _d_n = 0;
 //CHECK-NEXT:       double _d_sigma = 0;
 //CHECK-NEXT:       double _d_power = 0;
@@ -385,6 +411,8 @@ double f_const(const double a, const double b) {
 
 void f_const_grad(const double, const double, clad::array_ref<double>, clad::array_ref<double>);
 //CHECK:   void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
+// CHECK-NEXT:       const double _p_a0 = a;
+// CHECK-NEXT:       const double _p_b0 = b;
 //CHECK-NEXT:       int _d_r = 0;
 //CHECK-NEXT:       unsigned long _t0;
 //CHECK-NEXT:       int _d_i = 0;
@@ -417,6 +445,10 @@ void f_const_grad(const double, const double, clad::array_ref<double>, clad::arr
 // CHECK-NEXT:              _d_sq = 0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_a, f_const_darg0(_p_a0, _p_b0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'a' in forward and reverse differentiation mode", "Loops.C", 0, "f_const_grad");
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_b, f_const_darg1(_p_a0, _p_b0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'b' in forward and reverse differentiation mode", "Loops.C", 0, "f_const_grad");
 //CHECK-NEXT:   }
 
 double f6 (double i, double j) {
@@ -431,59 +463,65 @@ double f6 (double i, double j) {
 }
 
 // CHECK: void f6_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-  // CHECK-NEXT:     double _d_a = 0;
-  // CHECK-NEXT:     unsigned long _t0;
-  // CHECK-NEXT:     int _d_counter = 0;
-  // CHECK-NEXT:     clad::tape<double> _t1 = {};
-  // CHECK-NEXT:     clad::tape<double> _t2 = {};
-  // CHECK-NEXT:     double _d_b = 0;
-  // CHECK-NEXT:     clad::tape<double> _t3 = {};
-  // CHECK-NEXT:     clad::tape<double> _t4 = {};
-  // CHECK-NEXT:     double _d_c = 0;
-  // CHECK-NEXT:     double a = 0;
-  // CHECK-NEXT:     _t0 = 0;
-  // CHECK-NEXT:     for (int counter = 0; counter < 3; ++counter) {
-  // CHECK-NEXT:         _t0++;
-  // CHECK-NEXT:         double b = clad::push(_t2, i) * clad::push(_t1, i);
-  // CHECK-NEXT:         double c = clad::push(_t4, j) * clad::push(_t3, j);
-  // CHECK-NEXT:         b += j;
-  // CHECK-NEXT:         a += b + c + i;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT:     double f6_return = a;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
-  // CHECK-NEXT:     _d_a += 1;
-  // CHECK-NEXT:     for (; _t0; _t0--) {
-  // CHECK-NEXT:         {
-  // CHECK-NEXT:             double _r_d1 = _d_a;
-  // CHECK-NEXT:             _d_a += _r_d1;
-  // CHECK-NEXT:             _d_b += _r_d1;
-  // CHECK-NEXT:             _d_c += _r_d1;
-  // CHECK-NEXT:             * _d_i += _r_d1;
-  // CHECK-NEXT:             _d_a -= _r_d1;
-  // CHECK-NEXT:         }
-  // CHECK-NEXT:         {
-  // CHECK-NEXT:             double _r_d0 = _d_b;
-  // CHECK-NEXT:             _d_b += _r_d0;
-  // CHECK-NEXT:             * _d_j += _r_d0;
-  // CHECK-NEXT:             _d_b -= _r_d0;
-  // CHECK-NEXT:         }
-  // CHECK-NEXT:         {
-  // CHECK-NEXT:             double _r2 = _d_c * clad::pop(_t3);
-  // CHECK-NEXT:             * _d_j += _r2;
-  // CHECK-NEXT:             double _r3 = clad::pop(_t4) * _d_c;
-  // CHECK-NEXT:             * _d_j += _r3;
-  // CHECK-NEXT:             _d_c = 0;
-  // CHECK-NEXT:         }
-  // CHECK-NEXT:         {
-  // CHECK-NEXT:             double _r0 = _d_b * clad::pop(_t1);
-  // CHECK-NEXT:             * _d_i += _r0;
-  // CHECK-NEXT:             double _r1 = clad::pop(_t2) * _d_b;
-  // CHECK-NEXT:             * _d_i += _r1;
-  // CHECK-NEXT:             _d_b = 0;
-  // CHECK-NEXT:         }
-  // CHECK-NEXT:     }
-  // CHECK-NEXT: }
+// CHECK-NEXT:       double _p_i0 = i;
+// CHECK-NEXT:       double _p_j0 = j;
+// CHECK-NEXT:     double _d_a = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_counter = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_b = 0;
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     double _d_c = 0;
+// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (int counter = 0; counter < 3; ++counter) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         double b = clad::push(_t2, i) * clad::push(_t1, i);
+// CHECK-NEXT:         double c = clad::push(_t4, j) * clad::push(_t3, j);
+// CHECK-NEXT:         b += j;
+// CHECK-NEXT:         a += b + c + i;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     double f6_return = a;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_a += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d1 = _d_a;
+// CHECK-NEXT:             _d_a += _r_d1;
+// CHECK-NEXT:             _d_b += _r_d1;
+// CHECK-NEXT:             _d_c += _r_d1;
+// CHECK-NEXT:             * _d_i += _r_d1;
+// CHECK-NEXT:             _d_a -= _r_d1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r_d0 = _d_b;
+// CHECK-NEXT:             _d_b += _r_d0;
+// CHECK-NEXT:             * _d_j += _r_d0;
+// CHECK-NEXT:             _d_b -= _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r2 = _d_c * clad::pop(_t3);
+// CHECK-NEXT:             * _d_j += _r2;
+// CHECK-NEXT:             double _r3 = clad::pop(_t4) * _d_c;
+// CHECK-NEXT:             * _d_j += _r3;
+// CHECK-NEXT:             _d_c = 0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r0 = _d_b * clad::pop(_t1);
+// CHECK-NEXT:             * _d_i += _r0;
+// CHECK-NEXT:             double _r1 = clad::pop(_t2) * _d_b;
+// CHECK-NEXT:             * _d_i += _r1;
+// CHECK-NEXT:             _d_b = 0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, f6_darg0(_p_i0, _p_j0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Loops.C", 0, "f6_grad");
+// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, f6_darg1(_p_i0, _p_j0))))
+// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Loops.C", 0, "f6_grad");
+// CHECK-NEXT: }
 
 #define TEST(F, x) { \
   result[0] = 0; \

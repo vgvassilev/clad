@@ -17,6 +17,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <cmath>
 
 extern "C" {
   int printf(const char* fmt, ...);
@@ -32,6 +33,38 @@ extern "C" {
 }
 
 namespace clad {
+  void assert_fail(const char* assertion, const char* file, unsigned int line,
+                   const char* function) {
+#if __APPLE__
+    __assert_rtn(assertion, file, line, function);
+#else
+    __assert_fail(assertion, file, line, function);
+#endif
+  }
+
+  // FIXME: These functions should perhaps be moved to some more appropriate 
+  // file.
+
+  /// Returns true if 2 given numbers are essentially equal; otherwise false.
+  ///
+  /// For integral types, 2 numbers are essentially equal if they are equal.
+  //
+  /// For floating point types, an approximate method is used to account for
+  /// floating point arithmetic limitations
+  ///\param[in] a,b numbers to compare
+  template <typename T>
+  typename std::enable_if<std::is_integral<T>::value, bool>::type
+  EssentiallyEqual(T a, T b) {
+    return a == b;
+  }
+  template <typename T>
+  typename std::enable_if<std::is_floating_point<T>::value, bool>::type
+  EssentiallyEqual(T a, T b) {
+    // FIXME: We should select epsilon value in a more robust way.
+    const T epsilon = 1e-12;
+    return std::fabs(a - b) <=
+           ((std::fabs(a > b) ? std::fabs(b) : std::fabs(a)) * epsilon);
+  }
   /// \returns the size of a c-style string
   CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     unsigned int count;

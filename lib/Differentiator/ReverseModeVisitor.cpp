@@ -8,6 +8,7 @@
 
 #include "ConstantFolder.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -192,6 +193,54 @@ namespace clad {
     return gradientOverloadFD;
   }
 
+  static std::string getBaseFilename(std::string filename) {
+    std::string baseFilename = filename;
+    auto lastForwardSlash = filename.rfind('/');
+    if (lastForwardSlash != std::string::npos)
+      baseFilename = filename.substr(lastForwardSlash + 1);
+    return baseFilename;
+  }
+
+  /// Returns specialization of `clad::EssentiallyEqual` function template
+  /// that should be used with `args`.
+  static FunctionDecl*
+  getCladEssentiallyEqualSpecialization(Sema& SemaRef,
+                                        llvm::ArrayRef<Expr*> args) {
+    FunctionDecl* specialization = nullptr;
+
+    ASTContext& C = SemaRef.getASTContext();
+    // looking up `clad` namespace declaration.
+    IdentifierInfo& cladIdentifier = C.Idents.get("clad");
+    LookupResult cladR(SemaRef, DeclarationName(&cladIdentifier), noLoc,
+                       Sema::LookupNamespaceName,
+                       clad_compat::Sema_ForVisibleRedeclaration);
+    SemaRef.LookupQualifiedName(cladR, C.getTranslationUnitDecl());
+    NamespaceDecl* cladND = cast<NamespaceDecl>(cladR.getFoundDecl());
+
+    // looking up `clad::EssentiallyEqual` template declaration.
+    IdentifierInfo& essentiallyEqualIdentifier = C.Idents.get(
+        "EssentiallyEqual");
+    CXXScopeSpec SS;
+    SS.Extend(C, cladND, noLoc, noLoc);
+    LookupResult R(SemaRef, DeclarationName(&essentiallyEqualIdentifier), noLoc,
+                   Sema::LookupNameKind::LookupOrdinaryName);
+    // R.setTemplateNameLookup(true);
+    SemaRef.LookupQualifiedName(R, cladND, SS);
+    for (auto decl : R) {
+      if (auto templ = dyn_cast<FunctionTemplateDecl>(decl)) {
+        sema::TemplateDeductionInfo TDI(noLoc);
+        SemaRef.DeduceTemplateArguments(templ, nullptr, args, specialization,
+                                        TDI, false,
+                                        [](llvm::ArrayRef<QualType>) {
+                                          return false;
+                                        });
+        if (specialization)
+          return specialization;
+      }
+    }
+    return nullptr;
+  }
+
   OverloadedDeclWithContext
   ReverseModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
@@ -207,6 +256,37 @@ namespace clad {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())
       return {};
+
+    // Stores forward mode derivatives of the `m_Function` differentiated wrt
+    // all the non-array independent parameters.
+    std::vector<FunctionDecl*> forwModeDerivatives;
+    // Check if automatic reverse mode testing is enabled, if it is, then
+    // differentiate the `m_Function` wrt to  all the non-array independent
+    // parameters in forward mode.
+    if (request.Mode == DiffMode::reverse &&
+        plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
+      forwModeDerivatives.reserve(args.size());
+      auto deriveUsingForwMode = [this, &request, &args,
+                                  &forwModeDerivatives](const VarDecl* param) {
+        // We cannot do testing for the array parameters because we do not know
+        // the size of the array parameters at compile time. We need their size
+        // at compile time to generate forward mode derivatives for all the
+        // valid indexes of the array parameters.
+        if (isArrayOrPointerType(param->getType()))
+          return;
+
+        DiffRequest forwModeRequest = request;
+        forwModeRequest.Args = utils::CreateStringLiteral(this->m_Context,
+                                                          param->getName());
+        forwModeRequest.Mode = DiffMode::forward;
+        forwModeRequest.CallUpdateRequired = false;
+        FunctionDecl*
+            firstDerivative = plugin::ProcessDiffRequest(m_CladPlugin,
+                                                         forwModeRequest);
+        forwModeDerivatives.push_back(firstDerivative);
+      };
+      std::for_each(args.begin(), args.end(), deriveUsingForwMode);
+    }
 
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
@@ -438,6 +518,18 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+    std::vector<Expr*> originalArgValues;
+    if (request.Mode == DiffMode::reverse &&
+        plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
+      originalArgValues.reserve(nonDiffParams.size());
+      for (ParmVarDecl* param : nonDiffParams) {
+        auto paramCopy = BuildVarDecl(param->getType().getNonReferenceType(),
+                                      "_p_" + param->getNameAsString(),
+                                      BuildDeclRef(param));
+        originalArgValues.push_back(BuildDeclRef(paramCopy));
+        addToBlock(BuildDeclStmt(paramCopy), m_Globals);
+      }
+    }
     // create derived variables for parameters which are not part of
     // independent variables (args).
     for (ParmVarDecl* param : nonDiffParams) {
@@ -484,6 +576,52 @@ namespace clad {
     // given it is not a DeclRefExpr.
     if (m_ErrorEstimationEnabled)
       errorEstHandler->EmitFinalErrorStmts(params, m_Function->getNumParams());
+    // Check if automatic reverse mode testing is enabled, if it is then add
+    // assert checks for testing derived results.
+    if (request.Mode == DiffMode::reverse &&
+        plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
+
+      size_t forwDerivedFnCounter = 0;
+      std::string completeFileName = m_Sema.SourceMgr
+                                         .getFilename(m_Function->getBeginLoc())
+                                         .str();
+      std::string baseFileName = getBaseFilename(completeFileName);
+      std::string qualifiedGradientName = gradientFD->getQualifiedNameAsString();
+      for (const auto& arg : args) {
+        // We cannot do testing for the array parameters because we do not know
+        // the size of the array parameters at compile time. We need their size
+        // at compile time to generate forward mode derivatives for all the
+        // valid indexes of the array parameters.
+        if (isArrayOrPointerType(arg->getType()))
+          continue;
+        auto& forwDerivedFn = forwModeDerivatives[forwDerivedFnCounter];
+        ++forwDerivedFnCounter;
+        Expr* forwDiffResult = BuildCallExprToFunction(forwDerivedFn,
+                                                       originalArgValues);
+        Expr* revDiffResult = m_Variables[arg];
+        std::vector<Expr*> conditionArgs = {revDiffResult, forwDiffResult};
+        FunctionDecl* essentiallyEqualFD =
+            getCladEssentiallyEqualSpecialization(m_Sema, conditionArgs);
+        CXXScopeSpec CSS;
+        CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+        auto essentiallyEqualDRE = m_Sema.BuildDeclarationNameExpr(
+            CSS, essentiallyEqualFD->getNameInfo(), essentiallyEqualFD).get();
+        auto compareResultsCond = m_Sema.ActOnCallExpr(getCurrentScope(),
+                                                       essentiallyEqualDRE,
+                                                       noLoc,
+                                                       conditionArgs,
+                                                       noLoc).get();
+        std::string
+            assertMessage = "Inconsistent differentiation result with respect "
+                            "to the parameter '" +
+                            arg->getNameAsString() +
+                            "' in forward and reverse differentiation mode";
+        auto assertExpr = CreateAssert(compareResultsCond, assertMessage,
+                                       baseFileName, qualifiedGradientName);
+        addToCurrentBlock(assertExpr, forward);
+      }
+    }
+
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
     endScope(); // Function body scope
@@ -2147,5 +2285,76 @@ namespace clad {
                                 /*isConstant*/ false,
                                 /*isInsideLoop*/ false};
     }
+  }
+  /// returns `FunctionDecl` of `clad::assert_fail` function.
+  static FunctionDecl* getCladAssertFailFunctionDecl(Sema& SemaRef) {
+    ASTContext& C = SemaRef.getASTContext();
+    // looking up `clad` namespace declaration.
+    IdentifierInfo& cladIdentifier = C.Idents.get("clad");
+    LookupResult cladR(SemaRef, DeclarationName(&cladIdentifier), noLoc,
+                       Sema::LookupNamespaceName,
+                       clad_compat::Sema_ForVisibleRedeclaration);
+    SemaRef.LookupQualifiedName(cladR, C.getTranslationUnitDecl());
+    NamespaceDecl* cladND = cast<NamespaceDecl>(cladR.getFoundDecl());
+
+    // looking up `clad::assert_fail` declaration.
+    IdentifierInfo& assertFailIdentifier = C.Idents.get("assert_fail");
+    CXXScopeSpec SS;
+    SS.Extend(C, cladND, noLoc, noLoc);
+    LookupResult R(SemaRef, DeclarationName(&assertFailIdentifier), noLoc,
+                   Sema::LookupNameKind::LookupOrdinaryName);
+    SemaRef.LookupQualifiedName(R, cladND, SS);
+    assert(R.isSingleResult() &&
+           "There should only be one clad::assert_fail function");
+    FunctionDecl* assertFailFD = cast<FunctionDecl>(R.getFoundDecl());
+    return assertFailFD;
+  }
+
+  Stmt* ReverseModeVisitor::CreateAssert(Expr* cond,
+                                         llvm::StringRef assertMessage,
+                                         llvm::StringRef fileName,
+                                         llvm::StringRef fnName) {
+    FunctionDecl* assertFailFD = getCladAssertFailFunctionDecl(m_Sema);
+    // creating assert_fail argument expressions
+    std::vector<Expr*> assertFailArgs(assertFailFD->getNumParams());
+    auto zeroInt = getZeroInit(m_Context.IntTy);
+    // assert message
+    assertFailArgs[0] = utils::CreateStringLiteral(m_Context, assertMessage);
+    // file name
+    assertFailArgs[1] = utils::CreateStringLiteral(m_Context, fileName);
+    // line number, using 0 for denoting no valid line number exists
+    assertFailArgs[2] = zeroInt;
+    // name of the function which called the assert
+    assertFailArgs[3] = utils::CreateStringLiteral(m_Context, fnName);
+
+    // creating assert call
+    NamespaceDecl* cladND = GetCladNamespace();
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, cladND, noLoc, noLoc);
+    auto assertFailDRE = m_Sema
+                             .BuildDeclarationNameExpr(CSS,
+                                                       assertFailFD
+                                                           ->getNameInfo(),
+                                                       assertFailFD)
+                             .get();
+    auto assertCall = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), assertFailDRE,
+                                         noLoc, assertFailArgs, noLoc)
+                          .get();
+
+    // create `!(cond)` expression.
+    Expr* condWithParen = m_Sema.ActOnParenExpr(noLoc, noLoc, cond).get();
+    Expr* finalCond = BuildOp(UnaryOperatorKind::UO_LNot, condWithParen);
+
+    // Make a conditional if statement which calls the `assert_fail`
+    // function, if the condition (`cond`) is false.
+    auto IfStmt = clad_compat::IfStmt_Create(m_Context, /*IL=*/noLoc,
+                                             /*IsConstxxpr=*/false,
+                                             /*Init=*/nullptr,
+                                             /*Var=*/nullptr, finalCond,
+                                             /*LPL=*/noLoc, /*RPL=*/noLoc,
+                                             assertCall, /*EL=*/noLoc,
+                                             /*Else=*/nullptr);
+    return IfStmt;
   }
 } // end namespace clad

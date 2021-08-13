@@ -35,9 +35,9 @@ namespace clad {
   struct DiffRequest;
   namespace plugin {
     class CladPlugin;
-    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
-                                            DiffRequest& request);
-  } // namespace plugin
+    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P, DiffRequest& request);
+    bool isReverseModeTestingEnabled(CladPlugin& P);
+  }
 
   struct IndexInterval {
     size_t Start;
