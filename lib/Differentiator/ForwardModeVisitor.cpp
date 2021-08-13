@@ -1275,7 +1275,7 @@ namespace clad {
         newActiveSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(),
                                                    lhsClone, rhsClone, noLoc,
                                                    noLoc, noLoc);
-      } else if (auto newDefaultSC = dyn_cast<DefaultStmt>(SC)) {
+      } else if (isa<DefaultStmt>(SC)) {
         newActiveSC = new (m_Sema.getASTContext())
             DefaultStmt(noLoc, noLoc, nullptr);
       }

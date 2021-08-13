@@ -26,9 +26,9 @@ namespace clad {
   DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     struct Finder :
       RecursiveASTVisitor<Finder> {
-        DeclRefExpr* m_FnDRE = nullptr;
-        SourceLocation m_BeginLoc;
         Sema& m_SemaRef;
+        SourceLocation m_BeginLoc;
+        DeclRefExpr* m_FnDRE = nullptr;
         Finder(Sema& SemaRef, SourceLocation beginLoc)
             : m_SemaRef(SemaRef), m_BeginLoc(beginLoc) {}
 
