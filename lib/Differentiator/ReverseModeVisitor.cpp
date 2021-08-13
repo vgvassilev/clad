@@ -1669,7 +1669,7 @@ namespace clad {
           if (isVectorValued) {
             outputArrayCursor = intIdx.getExtValue();
 
-            std::unordered_map<const clang::VarDecl*, clang::Expr*>
+            std::unordered_map<const clang::ValueDecl*, clang::Expr*>
                 temp_m_Variables;
             for (unsigned i = 0; i < numParams; i++) {
               auto size_type = m_Context.getSizeType();

@@ -93,7 +93,7 @@ namespace clad {
 
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
-    std::unordered_map<const clang::VarDecl*, clang::Expr*> m_Variables;
+    std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
     /// Map contains variable declarations replacements. If the original
     /// function contains a declaration which name collides with something
     /// already created inside derivative's body, the declaration is replaced
@@ -106,6 +106,8 @@ namespace clad {
     std::vector<Stmts> m_Blocks;
     /// Stores output variables for vector-valued functions
     VectorOutputs m_VectorOutput;
+    /// The functor type that is currently being differentiated, if any.
+    const clang::CXXRecordDecl* m_Functor = nullptr;
     /// A function used to wrap result of visiting E in a lambda. Returns a call
     /// to the built lambda. Func is a functor that will be invoked inside
     /// lambda scope and block. Statements inside lambda are expected to be

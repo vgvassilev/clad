@@ -299,6 +299,17 @@ namespace clad {
     }
   }
 
+  /// Returns true if `FD` is a call operator; otherwise returns false.
+  static bool isCallOperator(ASTContext& Context, const FunctionDecl* FD) {
+    if (auto method = dyn_cast<CXXMethodDecl>(FD)) {
+      DeclarationName
+          callOperatorDeclName = Context.DeclarationNames.getCXXOperatorName(
+              OverloadedOperatorKind::OO_Call);
+      return method->getNameInfo().getName() == callOperatorDeclName;              
+    }
+    return false;
+  }
+
   bool DiffCollector::isInInterval(SourceLocation Loc) const {
     const SourceManager &SM = m_Sema.getSourceManager();
     for (size_t i = 0, e = m_Interval.size(); i < e; ++i) {
@@ -365,6 +376,10 @@ namespace clad {
       auto derivedFD = cast<FunctionDecl>(DRE->getDecl());
       request.Function = derivedFD;
       request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
+
+      if (isCallOperator(m_Sema.getASTContext(), request.Function)) {
+        request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
+      }
 
       // FIXME: add support for nested calls to clad::differentiate/gradient
       // inside differentiated functions

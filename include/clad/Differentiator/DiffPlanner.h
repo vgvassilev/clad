@@ -51,6 +51,13 @@ namespace clad {
     /// Puts the derived function and its code in the diff call
     void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                     clang::Sema& SemaRef);
+    /// Functor type to be differentiated, if any.
+    ///
+    /// It is required because we cannot always determine if we are
+    /// differentiating a call operator using the function to be
+    /// differentiated, for example, when we are computing higher
+    /// order derivatives.
+    const clang::CXXRecordDecl* Functor = nullptr;
   };
 
   using DiffSchedule = llvm::SmallVector<DiffRequest, 16>;

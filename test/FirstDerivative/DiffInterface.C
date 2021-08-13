@@ -95,19 +95,19 @@ int main () {
 
   clad::differentiate(f_2, 2);
 
-  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
+  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
 
-  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index -1 among 3 argument(s)}}
+  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
 
-  clad::differentiate(f_2, 3); // expected-error {{Invalid argument index 3 among 3 argument(s)}}
+  clad::differentiate(f_2, 3); // expected-error {{Invalid argument index '3' of '3' argument(s)}}
 
-  clad::differentiate(f_2, 9); // expected-error {{Invalid argument index 9 among 3 argument(s)}}
+  clad::differentiate(f_2, 9); // expected-error {{Invalid argument index '9' of '3' argument(s)}}
 
   clad::differentiate(f_2, x); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
   clad::differentiate(f_2, f_2); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
-  clad::differentiate(f_3, 0); // expected-error {{Invalid argument index 0 among 0 argument(s)}}
+  clad::differentiate(f_3, 0); // expected-error {{Invalid argument index '0' of '0' argument(s)}}
 
   float one = 1.0;
   clad::differentiate(f_2, one); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}

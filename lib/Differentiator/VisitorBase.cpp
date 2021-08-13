@@ -56,24 +56,39 @@ namespace clad {
         std::tie(name, string) = string.split(',');
         names.push_back(name.trim());
       } while (!string.empty());
-      // Find function's parameters corresponding to the specified names.
-      llvm::SmallVector<std::pair<llvm::StringRef, VarDecl*>, 16>
-          param_names_map{};
-      for (auto PVD : FD->parameters())
-        param_names_map.emplace_back(PVD->getName(), PVD);
+      // Stores parameters and field declarations to be used as candidates for
+      // independent arguments.
+      // If we are differentiating a call operator that have no parameters, 
+      // then candidates for independent argument are member variables of the 
+      // class that defines the call operator.
+      // Otherwise, candidates are parameters of the function that we are
+      // differentiating.
+      llvm::SmallVector<std::pair<llvm::StringRef, ValueDecl*>, 16>
+          candidates{};
+
+      // find and store candidate parameters.
+      if (FD->param_empty() && m_Functor) {
+        for (FieldDecl* fieldDecl : m_Functor->fields())
+          candidates.emplace_back(fieldDecl->getName(), fieldDecl);
+
+      } else {
+        for (auto PVD : FD->parameters())
+          candidates.emplace_back(PVD->getName(), PVD);
+      }
+
       for (const auto& name : names) {
         size_t loc = name.find('[');
         loc = (loc == llvm::StringRef::npos) ? name.size() : loc;
         llvm::StringRef base = name.substr(0, loc);
 
         auto it = std::find_if(
-            std::begin(param_names_map),
-            std::end(param_names_map),
-            [&base](const std::pair<llvm::StringRef, VarDecl*>& p) {
+            std::begin(candidates),
+            std::end(candidates),
+            [&base](const std::pair<llvm::StringRef, ValueDecl*>& p) {
               return p.first == base;
             });
 
-        if (it == std::end(param_names_map)) {
+        if (it == std::end(candidates)) {
           // Fail if the function has no parameter with specified name.
           diag(DiagnosticsEngine::Error,
                diffArgs->getEndLoc(),
@@ -131,15 +146,31 @@ namespace clad {
     llvm::APSInt intValue;
     if (clad_compat::Expr_EvaluateAsInt(E, intValue, m_Context)) {
       auto idx = intValue.getExtValue();
-      // Fail if the specified index is invalid.
-      if ((idx < 0) || (idx >= FD->getNumParams())) {
-        diag(DiagnosticsEngine::Error,
-             diffArgs->getEndLoc(),
-             "Invalid argument index %0 among %1 argument(s)",
-             {std::to_string(idx), std::to_string(FD->getNumParams())});
-        return {};
+      // If we are differentiating a call operator that have no parameters, then
+      // we need to search for independent parameters in fields of the
+      // class that defines the call operator instead.
+      if (FD->param_empty() && m_Functor) {
+        size_t totalFields = std::distance(m_Functor->field_begin(),
+                                           m_Functor->field_end());
+        // Fail if the specified index is invalid.
+        if ((idx < 0) || idx >= totalFields) {
+          diag(DiagnosticsEngine::Error, diffArgs->getEndLoc(),
+               "Invalid member variable index '%0' of '%1' member variable(s)",
+               {std::to_string(idx), std::to_string(totalFields)});
+          return {};
+        }
+        params.push_back(*std::next(m_Functor->field_begin(), idx));
+      } else {
+        // Fail if the specified index is invalid.
+        if ((idx < 0) || (idx >= FD->getNumParams())) {
+          diag(DiagnosticsEngine::Error,
+              diffArgs->getEndLoc(),
+              "Invalid argument index '%0' of '%1' argument(s)",
+              {std::to_string(idx), std::to_string(FD->getNumParams())});
+          return {};
+        }
+        params.push_back(FD->getParamDecl(idx));
       }
-      params.push_back(FD->getParamDecl(idx));
       // Returns a single parameter.
       return {params, {}};
     }

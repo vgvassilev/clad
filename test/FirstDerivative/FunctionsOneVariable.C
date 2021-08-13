@@ -50,7 +50,7 @@ int main () {
   // given arg.
   //clad::differentiate(f_simple, 1);
   clad::differentiate<3>(f_simple, 0);
-  clad::differentiate(f_simple, -1); // expected-error {{Invalid argument index -1 among 1 argument(s)}}
+  clad::differentiate(f_simple, -1); // expected-error {{Invalid argument index '-1' of '1' argument(s)}}
   clad::differentiate(f_simple, 0);
   clad::differentiate(f_simple_negative, 0);
 
