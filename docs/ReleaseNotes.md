@@ -20,17 +20,50 @@ described first.
 
 External Dependencies
 ---------------------
-* Clad now works with clang-5.0 to clang-12
+
+* Clad now works with clang-5.0 to clang-13-rc1
+
 
 Forward Mode & Reverse Mode
 ---------------------------
-* Implement hessian matrices via the `clad::jacobian` interface.
 
+* Add support for differentiating functor-like objects.
+* Preserve the type qualifiers in the derived function.
+* Develop initial support for differentiation of CUDA code.
+* Improve the doxygen-style documentation.
+
+
+Forward Mode
+------------
+
+* Add support for differentiating while and do-while statements
+* Add switch statement differentiation support.
+* Add array differentiation support.
+* Allow the user to specify an array index as a independent variable. For
+  instance, `clad::differentiate(f, "p[1]");`.
+
+
+Reverse Mode
+------------
+
+* Extend the array differentiation support. See more in the
+  [demo]https://github.com/vgvassilev/clad/blob/v0.9/demos/Arrays.cpp).
+
+
+Build System
+------------
+
+* Add cmake variables to control the locations where find_package discovers
+  LLVM and Clang: `LLVM_CONFIG_EXTRA_PATH_HINTS` and
+  `Clang_CONFIG_EXTRA_PATH_HINTS` respectively.
 
 Fixed Bugs
 ----------
 
-* Fixed the discovery of llvm in special builds with clang and libcxx.
+* Fix memory leaks in `clad::Tape`.
+* Fix bug in the `clad::Tape::size()`.
+* Fix codegen Error for class function differentiation
+  ([139](https://github.com/vgvassilev/clad/issues/139))
 
 
 Special Kudos
@@ -41,4 +74,10 @@ listed in the form of Firstname Lastname (#contributions):
 
 FirstName LastName (#commits)
 
-* A B (N)
+* Baidyanath Kundu (21)
+* Parth Arora (21)
+* Vassil Vassilev (3)
+* Garima Singh (3)
+* axmat (1)
+* Ioana Ifrim (1)
+* Alexander Penev (1)
