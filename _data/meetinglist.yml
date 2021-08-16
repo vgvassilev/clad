@@ -39,6 +39,7 @@
         use basically all of ROOT's capabilities directly from Julia, including
         reading/writing TFiles and user ROOT's GUI features. I'll present some
         past experiences and practical examples of Julia/ROOT interaction.
+      slides: "/assets/presentations/O_Schulz-Julia_ROOT.pdf"
     - title: Update
       speaker: Vassil
       slides: "/assets/presentations/CaaS_05_08_2021.pdf"
