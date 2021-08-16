@@ -1,3 +1,7 @@
+- date: 16 August 2021
+  headline: "Clad 0.9 released"
+  link: "https://github.com/vgvassilev/clad/releases/tag/v0.9"
+
 - date: 30 June 2021
   headline: "Cling Transitions to LLVM's Clang-Repl"
   link: "https://root.cern/blog/cling-in-llvm/"
