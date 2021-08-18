@@ -12,8 +12,8 @@ template <typename T> struct Experiment {
 };
 
 // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-// CHECK-NEXT:     double _p_i0 = i;
-// CHECK-NEXT:     double _p_j0 = j;
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _t2;
@@ -40,10 +40,8 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:         double _r5 = _t5 * 1;
 // CHECK-NEXT:         * _d_j += _r5;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-// CHECK-NEXT:         clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "Experiment<double>::operator_call_grad");
-// CHECK-NEXT:     if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-// CHECK-NEXT:         clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "Experiment<double>::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "TemplateFunctors.C", "Experiment<double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "TemplateFunctors.C", "Experiment<double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
 // CHECK-NEXT: }
 
 template <> struct Experiment<long double> {
@@ -56,8 +54,8 @@ template <> struct Experiment<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) {
-// CHECK-NEXT:       long double _p_i0 = i;
-// CHECK-NEXT:       long double _p_j0 = j;
+  // CHECK-NEXT:       long double _p_i0 = i;
+  // CHECK-NEXT:       long double _p_j0 = j;
 // CHECK-NEXT:     long double _t0;
 // CHECK-NEXT:     long double _t1;
 // CHECK-NEXT:     long double _t2;
@@ -98,10 +96,8 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:         long double _r9 = _t9 * 1;
 // CHECK-NEXT:         * _d_i += _r9;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-// CHECK-NEXT:         clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "Experiment<long double>::operator_call_grad");
-// CHECK-NEXT:     if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-// CHECK-NEXT:         clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "Experiment<long double>::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "TemplateFunctors.C", "Experiment<long double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "TemplateFunctors.C", "Experiment<long double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
 // CHECK-NEXT: }
 
 template <typename T> struct ExperimentConstVolatile {
@@ -112,8 +108,8 @@ template <typename T> struct ExperimentConstVolatile {
 };
 
 // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
-// CHECK-NEXT:       double _p_i0 = i;
-// CHECK-NEXT:       double _p_j0 = j;
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     volatile double _t2;
@@ -140,10 +136,8 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK-NEXT:         double _r5 = _t5 * 1;
 // CHECK-NEXT:         * _d_j += _r5;
 // CHECK-NEXT:     }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "ExperimentConstVolatile<double>::operator_call_grad");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "ExperimentConstVolatile<double>::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "TemplateFunctors.C", "ExperimentConstVolatile<double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "TemplateFunctors.C", "ExperimentConstVolatile<double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
 // CHECK-NEXT: }
 
 template <> struct ExperimentConstVolatile<long double> {
@@ -156,8 +150,8 @@ template <> struct ExperimentConstVolatile<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) const volatile {
-// CHECK-NEXT:       long double _p_i0 = i;
-// CHECK-NEXT:       long double _p_j0 = j;
+  // CHECK-NEXT:       long double _p_i0 = i;
+  // CHECK-NEXT:       long double _p_j0 = j;
 // CHECK-NEXT:     long double _t0;
 // CHECK-NEXT:     long double _t1;
 // CHECK-NEXT:     long double _t2;
@@ -198,10 +192,8 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK-NEXT:         long double _r9 = _t9 * 1;
 // CHECK-NEXT:         * _d_i += _r9;
 // CHECK-NEXT:     }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "ExperimentConstVolatile<long double>::operator_call_grad");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "TemplateFunctors.C", 0, "ExperimentConstVolatile<long double>::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "TemplateFunctors.C", "ExperimentConstVolatile<long double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "TemplateFunctors.C", "ExperimentConstVolatile<long double>::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
 // CHECK-NEXT: }
 
 #define INIT(E)                                                                \
