@@ -420,10 +420,13 @@ namespace clad {
     ///
     /// \param[in] FD callee member function
     /// \param[in] argExprs function arguments expressions
+    /// \param[in] useRefQualifiedThisObj If true, then the `this` object is
+    /// perfectly forwarded while calling member functions.
     /// \returns Built member function call expression
     clang::Expr*
     BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
-        llvm::MutableArrayRef<clang::Expr*> argExprs);
+                         llvm::MutableArrayRef<clang::Expr*> argExprs,
+                         bool useRefQualifiedThisObj = false);
 
     /// Build a call to a free function or member function through
     /// this pointer depending on whether the `FD` argument corresponds to a
@@ -431,10 +434,13 @@ namespace clad {
     ///
     /// \param[in] FD callee function
     /// \param[in] argExprs function arguments expressions
+    /// \param[in] useRefQualifiedThisObj If true, then the `this` object is
+    /// perfectly forwarded while calling member functions.
     /// \returns Built call expression
     clang::Expr*
     BuildCallExprToFunction(clang::FunctionDecl* FD,
-                            llvm::MutableArrayRef<clang::Expr*> argExprs);
+                            llvm::MutableArrayRef<clang::Expr*> argExprs,
+                            bool useRefQualifiedThisObj = false);
     /// Find declaration of clad::array_ref templated type.
     clang::TemplateDecl* GetCladArrayRefDecl();
     /// Create clad::array_ref<T> type.

@@ -766,4 +766,56 @@ int main() {
   for(unsigned i=0;i<2;++i) {
     printf("%.2f ",result[i]);  //CHECK-EXEC: 40.00 16.00
   }
+  
+  auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
+
+  // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, clad::array_ref<double> _d_i) const volatile & {
+  // CHECK-NEXT:       double _d_j = 0;
+  // CHECK-NEXT:       double _t0;
+  // CHECK-NEXT:       double _t1;
+  // CHECK-NEXT:       double _t2;
+  // CHECK-NEXT:       double _t3;
+  // CHECK-NEXT:       _t1 = (this->x + this->y);
+  // CHECK-NEXT:       _t0 = i;
+  // CHECK-NEXT:       _t3 = i;
+  // CHECK-NEXT:       _t2 = j;
+  // CHECK-NEXT:       double const_volatile_lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
+  // CHECK-NEXT:       goto _label0;
+  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:       {
+  // CHECK-NEXT:           double _r0 = 1 * _t0;
+  // CHECK-NEXT:           double _r1 = _t1 * 1;
+  // CHECK-NEXT:           * _d_i += _r1;
+  // CHECK-NEXT:           double _r2 = 1 * _t2;
+  // CHECK-NEXT:           * _d_i += _r2;
+  // CHECK-NEXT:           double _r3 = _t3 * 1;
+  // CHECK-NEXT:           _d_j += _r3;
+  // CHECK-NEXT:       }
+  // CHECK-NEXT:   }
+
+  auto d_const_volatile_rval_ref_mem_fn_j = clad::gradient(&SimpleFunctions::const_volatile_rval_ref_mem_fn, "j");
+
+  // CHECK:   void const_volatile_rval_ref_mem_fn_grad_1(double i, double j, clad::array_ref<double> _d_j) const volatile && {
+  // CHECK-NEXT:       double _d_i = 0;
+  // CHECK-NEXT:       double _t0;
+  // CHECK-NEXT:       double _t1;
+  // CHECK-NEXT:       double _t2;
+  // CHECK-NEXT:       double _t3;
+  // CHECK-NEXT:       _t1 = (this->x + this->y);
+  // CHECK-NEXT:       _t0 = i;
+  // CHECK-NEXT:       _t3 = i;
+  // CHECK-NEXT:       _t2 = j;
+  // CHECK-NEXT:       double const_volatile_rval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
+  // CHECK-NEXT:       goto _label0;
+  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:       {
+  // CHECK-NEXT:           double _r0 = 1 * _t0;
+  // CHECK-NEXT:           double _r1 = _t1 * 1;
+  // CHECK-NEXT:           _d_i += _r1;
+  // CHECK-NEXT:           double _r2 = 1 * _t2;
+  // CHECK-NEXT:           _d_i += _r2;
+  // CHECK-NEXT:           double _r3 = _t3 * 1;
+  // CHECK-NEXT:           * _d_j += _r3;
+  // CHECK-NEXT:       }
+  // CHECK-NEXT:   }
 }

@@ -521,6 +521,20 @@ Sema_ActOnStartOfSwitchStmt(Sema& SemaRef, Stmt* initStmt,
 #elif LLVM_VERSION_MAJOR >= 13
 #define CLAD_COMPAT_llvm_sys_fs_Append llvm::sys::fs::OF_Append
 #endif
+
+#if CLANG_VERSION_MAJOR > 8
+static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
+   return MD->getMethodQualifiers();
+}
+#elif CLANG_VERSION_MAJOR == 8
+static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
+   return MD->getTypeQualifiers();
+}
+#elif CLANG_VERSION_MAJOR < 8
+static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
+   return Qualifiers::fromFastMask(MD->getTypeQualifiers());
+}
+#endif
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY
