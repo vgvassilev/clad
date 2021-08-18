@@ -573,32 +573,61 @@ namespace clad {
         .get();
   }
 
-  clang::Expr* 
-  VisitorBase::BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
-                  llvm::MutableArrayRef<clang::Expr*> argExprs) {
+  static QualType getRefQualifiedThisType(ASTContext& C, CXXMethodDecl* MD) {
+    CXXRecordDecl* RD = MD->getParent();
+    auto RDType = RD->getTypeForDecl();
+    auto thisObjectQType = C.getQualifiedType(
+        RDType, clad_compat::CXXMethodDecl_getMethodQualifiers(MD));        
+    if (MD->getRefQualifier() == RefQualifierKind::RQ_LValue)
+      thisObjectQType = C.getLValueReferenceType(thisObjectQType);
+    else if (MD->getRefQualifier() == RefQualifierKind::RQ_RValue)
+      thisObjectQType = C.getRValueReferenceType(thisObjectQType);
+    return thisObjectQType;
+  }
+
+  Expr* VisitorBase::BuildCallExprToMemFn(
+      clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
+      bool useRefQualifiedThisObj) {
     Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
+    bool isArrow = true;
+
+    if (useRefQualifiedThisObj) {
+      auto thisQType = getRefQualifiedThisType(m_Context, FD);
+      // Build `static_cast<ReferenceQualifiedThisObjectType>(*this)`
+      // expression.
+      thisExpr = m_Sema
+                     .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
+                                        m_Context.getTrivialTypeSourceInfo(
+                                            thisQType),
+                                        BuildOp(UnaryOperatorKind::UO_Deref,
+                                                thisExpr),
+                                        noLoc, noLoc)
+                     .get();
+      isArrow = false;
+    }
     NestedNameSpecifierLoc NNS(FD->getQualifier(),
                                /*Data=*/nullptr);
     auto DAP = DeclAccessPair::make(FD, FD->getAccess());
     auto memberExpr = MemberExpr::
-        Create(m_Context, thisExpr, /*isArrow=*/true, noLoc, NNS, noLoc, FD,
-               DAP, FD->getNameInfo(),
+        Create(m_Context, thisExpr, isArrow, noLoc, NNS, noLoc, FD, DAP,
+               FD->getNameInfo(),
                /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
                CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
                ExprObjectKind::OK_Ordinary
-               CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
+                   CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
     return m_Sema
         .BuildCallToMemberFunction(getCurrentScope(), memberExpr, noLoc,
                                    argExprs, noLoc)
         .get();
   }
 
-  Expr* 
-  VisitorBase::BuildCallExprToFunction(FunctionDecl* FD, 
-                  llvm::MutableArrayRef<Expr*> argExprs) {
+  Expr*
+  VisitorBase::BuildCallExprToFunction(FunctionDecl* FD,
+                                       llvm::MutableArrayRef<Expr*> argExprs,
+                                       bool useRefQualifiedThisObj) {
     Expr* call = nullptr;
     if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
-      call = BuildCallExprToMemFn(derMethod, argExprs);
+      call = BuildCallExprToMemFn(derMethod, argExprs, useRefQualifiedThisObj);
     } else {
       Expr* exprFunc = BuildDeclRef(FD);
       call = m_Sema

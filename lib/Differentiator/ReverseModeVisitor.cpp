@@ -177,7 +177,8 @@ namespace clad {
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
 
-    Expr* callExpr = BuildCallExprToFunction(GradientFD, callArgsRef);
+    Expr* callExpr = BuildCallExprToFunction(GradientFD, callArgsRef,
+                                             /*UseRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);
     Stmt* gradientOverloadBody = endBlock();
 
