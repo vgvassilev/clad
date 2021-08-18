@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -Xclang -plugin-arg-clad -Xclang -fenable-reverse-mode-testing -oPointers.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
 // RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -9,7 +9,6 @@ double nonMemFn(double i) {
 }
 
 // CHECK: void nonMemFn_grad(double i, clad::array_ref<double> _d_i) {
-// CHECK-NEXT:       double _p_i0 = i;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t1 = i;
@@ -23,8 +22,6 @@ double nonMemFn(double i) {
 // CHECK-NEXT:         double _r1 = _t1 * 1;
 // CHECK-NEXT:         * _d_i += _r1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, nonMemFn_darg0(_p_i0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Pointers.C", 0, "nonMemFn_grad");
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\

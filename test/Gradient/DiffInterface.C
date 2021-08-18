@@ -13,9 +13,9 @@ double f_1(double x, double y, double z) {
 
 // all
 //CHECK:   void f_1_grad(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
@@ -36,19 +36,16 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           * _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad", "Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad", "Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // x
 //CHECK:   void f_1_grad_0(double x, double y, double z, clad::array_ref<double> _d_x) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _d_y = 0;
 //CHECK-NEXT:       double _d_z = 0;  
 //CHECK-NEXT:       double _t0;
@@ -71,15 +68,14 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_0");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_0", "Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // y
 //CHECK:   void f_1_grad_1(double x, double y, double z, clad::array_ref<double> _d_y) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _d_x = 0;
 //CHECK-NEXT:       double _d_z = 0;  
 //CHECK-NEXT:       double _t0;
@@ -102,15 +98,14 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_1");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_1", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // z
 //CHECK:   void f_1_grad_2(double x, double y, double z, clad::array_ref<double> _d_z) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _d_x = 0;
 //CHECK-NEXT:       double _d_y = 0;
 //CHECK-NEXT:       double _t0;
@@ -133,15 +128,14 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           * _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_2");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_2", "Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // x, y
 //CHECK:   void f_1_grad_0_1(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _d_z = 0; 
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
@@ -163,17 +157,15 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_0_1");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_0_1");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_0_1", "Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_0_1", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // y, x
 //CHECK:   void f_1_grad_1_0(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _d_z = 0; 
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
@@ -195,17 +187,15 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 // CHECK-NEXT:         _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_1_0");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_1_0");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_1_0", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_1_0", "Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // y, z
 //CHECK:   void f_1_grad_1_2(double x, double y, double z, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 // CHECK-NEXT:     double _d_x = 0;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
@@ -227,17 +217,15 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           * _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_1_2");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_1_2");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_1_2", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_1_2", "Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // x, y, z
 //CHECK:   void f_1_grad(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
@@ -258,19 +246,16 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           * _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad", "Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad", "Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 // z, y, z
 //CHECK:   void f_1_grad_2_1_0(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
-// CHECK-NEXT:       double _p_x0 = x;
-// CHECK-NEXT:       double _p_y0 = y;
-// CHECK-NEXT:       double _p_z0 = z;
+  // CHECK-NEXT:       double _p_x0 = x;
+  // CHECK-NEXT:       double _p_y0 = y;
+  // CHECK-NEXT:       double _p_z0 = z;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
@@ -291,12 +276,9 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:           double _r5 = 2 * 1;
 //CHECK-NEXT:           * _d_z += _r5;
 //CHECK-NEXT:       }
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_2_1_0");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_2_1_0");
-// CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0))))
-// CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode", "DiffInterface.C", 0, "f_1_grad_2_1_0");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_z, f_1_darg2(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_2_1_0", "Inconsistent differentiation result with respect to the parameter 'z' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_y, f_1_darg1(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_2_1_0", "Inconsistent differentiation result with respect to the parameter 'y' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_x, f_1_darg0(_p_x0, _p_y0, _p_z0), "DiffInterface.C", "f_1_grad_2_1_0", "Inconsistent differentiation result with respect to the parameter 'x' in forward and reverse differentiation mode");
 //CHECK-NEXT:   }
 
 #define TEST(F, ...)                                                           \

@@ -201,10 +201,10 @@ namespace clad {
     return baseFilename;
   }
 
-  /// Returns specialization of `clad::EssentiallyEqual` function template
+  /// Returns specialization of `clad::VerifyResult` function template
   /// that should be used with `args`.
   static FunctionDecl*
-  getCladEssentiallyEqualSpecialization(Sema& SemaRef,
+  getCladVerifyResultSpecialization(Sema& SemaRef,
                                         llvm::ArrayRef<Expr*> args) {
     FunctionDecl* specialization = nullptr;
 
@@ -217,12 +217,12 @@ namespace clad {
     SemaRef.LookupQualifiedName(cladR, C.getTranslationUnitDecl());
     NamespaceDecl* cladND = cast<NamespaceDecl>(cladR.getFoundDecl());
 
-    // looking up `clad::EssentiallyEqual` template declaration.
-    IdentifierInfo& essentiallyEqualIdentifier = C.Idents.get(
-        "EssentiallyEqual");
+    // looking up `clad::VerifyResult` template declaration.
+    IdentifierInfo& VerifyResultIdentifier = C.Idents.get(
+        "VerifyResult");
     CXXScopeSpec SS;
     SS.Extend(C, cladND, noLoc, noLoc);
-    LookupResult R(SemaRef, DeclarationName(&essentiallyEqualIdentifier), noLoc,
+    LookupResult R(SemaRef, DeclarationName(&VerifyResultIdentifier), noLoc,
                    Sema::LookupNameKind::LookupOrdinaryName);
     // R.setTemplateNameLookup(true);
     SemaRef.LookupQualifiedName(R, cladND, SS);
@@ -586,7 +586,8 @@ namespace clad {
                                          .getFilename(m_Function->getBeginLoc())
                                          .str();
       std::string baseFileName = getBaseFilename(completeFileName);
-      std::string qualifiedGradientName = gradientFD->getQualifiedNameAsString();
+      std::string qualifiedGradientName = gradientFD
+                                              ->getQualifiedNameAsString();
       for (const auto& arg : args) {
         // We cannot do testing for the array parameters because we do not know
         // the size of the array parameters at compile time. We need their size
@@ -599,26 +600,38 @@ namespace clad {
         Expr* forwDiffResult = BuildCallExprToFunction(forwDerivedFn,
                                                        originalArgValues);
         Expr* revDiffResult = m_Variables[arg];
-        std::vector<Expr*> conditionArgs = {revDiffResult, forwDiffResult};
-        FunctionDecl* essentiallyEqualFD =
-            getCladEssentiallyEqualSpecialization(m_Sema, conditionArgs);
-        CXXScopeSpec CSS;
-        CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
-        auto essentiallyEqualDRE = m_Sema.BuildDeclarationNameExpr(
-            CSS, essentiallyEqualFD->getNameInfo(), essentiallyEqualFD).get();
-        auto compareResultsCond = m_Sema.ActOnCallExpr(getCurrentScope(),
-                                                       essentiallyEqualDRE,
-                                                       noLoc,
-                                                       conditionArgs,
-                                                       noLoc).get();
         std::string
             assertMessage = "Inconsistent differentiation result with respect "
                             "to the parameter '" +
                             arg->getNameAsString() +
                             "' in forward and reverse differentiation mode";
-        auto assertExpr = CreateAssert(compareResultsCond, assertMessage,
-                                       baseFileName, qualifiedGradientName);
-        addToCurrentBlock(assertExpr, forward);
+        auto fileNameLiteral = utils::CreateStringLiteral(m_Context,
+                                                          baseFileName);
+        auto fnNameLiteral = utils::CreateStringLiteral(m_Context,
+                                                        qualifiedGradientName);
+        auto assertMessageLiteral = utils::CreateStringLiteral(m_Context,
+                                                               assertMessage);
+
+        std::vector<Expr*> verifyResultArgs = {revDiffResult, forwDiffResult,
+                                               fileNameLiteral, fnNameLiteral,
+                                               assertMessageLiteral};
+        FunctionDecl* verifyResultFD =
+            getCladVerifyResultSpecialization(m_Sema, verifyResultArgs);
+        CXXScopeSpec CSS;
+        CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+        auto
+            verifyResultDRE = m_Sema
+                                  .BuildDeclarationNameExpr(CSS,
+                                                            verifyResultFD
+                                                                ->getNameInfo(),
+                                                            verifyResultFD)
+                                  .get();
+        Expr* verifyResultCallExpr = m_Sema.ActOnCallExpr(getCurrentScope(),
+                                                          verifyResultDRE,
+                                                          /*LParenLoc=*/noLoc,
+                                                          verifyResultArgs,
+                                                          /*RParenLoc=*/noLoc).get();
+        addToCurrentBlock(verifyResultCallExpr, forward);
       }
     }
 
@@ -2285,76 +2298,5 @@ namespace clad {
                                 /*isConstant*/ false,
                                 /*isInsideLoop*/ false};
     }
-  }
-  /// returns `FunctionDecl` of `clad::assert_fail` function.
-  static FunctionDecl* getCladAssertFailFunctionDecl(Sema& SemaRef) {
-    ASTContext& C = SemaRef.getASTContext();
-    // looking up `clad` namespace declaration.
-    IdentifierInfo& cladIdentifier = C.Idents.get("clad");
-    LookupResult cladR(SemaRef, DeclarationName(&cladIdentifier), noLoc,
-                       Sema::LookupNamespaceName,
-                       clad_compat::Sema_ForVisibleRedeclaration);
-    SemaRef.LookupQualifiedName(cladR, C.getTranslationUnitDecl());
-    NamespaceDecl* cladND = cast<NamespaceDecl>(cladR.getFoundDecl());
-
-    // looking up `clad::assert_fail` declaration.
-    IdentifierInfo& assertFailIdentifier = C.Idents.get("assert_fail");
-    CXXScopeSpec SS;
-    SS.Extend(C, cladND, noLoc, noLoc);
-    LookupResult R(SemaRef, DeclarationName(&assertFailIdentifier), noLoc,
-                   Sema::LookupNameKind::LookupOrdinaryName);
-    SemaRef.LookupQualifiedName(R, cladND, SS);
-    assert(R.isSingleResult() &&
-           "There should only be one clad::assert_fail function");
-    FunctionDecl* assertFailFD = cast<FunctionDecl>(R.getFoundDecl());
-    return assertFailFD;
-  }
-
-  Stmt* ReverseModeVisitor::CreateAssert(Expr* cond,
-                                         llvm::StringRef assertMessage,
-                                         llvm::StringRef fileName,
-                                         llvm::StringRef fnName) {
-    FunctionDecl* assertFailFD = getCladAssertFailFunctionDecl(m_Sema);
-    // creating assert_fail argument expressions
-    std::vector<Expr*> assertFailArgs(assertFailFD->getNumParams());
-    auto zeroInt = getZeroInit(m_Context.IntTy);
-    // assert message
-    assertFailArgs[0] = utils::CreateStringLiteral(m_Context, assertMessage);
-    // file name
-    assertFailArgs[1] = utils::CreateStringLiteral(m_Context, fileName);
-    // line number, using 0 for denoting no valid line number exists
-    assertFailArgs[2] = zeroInt;
-    // name of the function which called the assert
-    assertFailArgs[3] = utils::CreateStringLiteral(m_Context, fnName);
-
-    // creating assert call
-    NamespaceDecl* cladND = GetCladNamespace();
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, cladND, noLoc, noLoc);
-    auto assertFailDRE = m_Sema
-                             .BuildDeclarationNameExpr(CSS,
-                                                       assertFailFD
-                                                           ->getNameInfo(),
-                                                       assertFailFD)
-                             .get();
-    auto assertCall = m_Sema
-                          .ActOnCallExpr(getCurrentScope(), assertFailDRE,
-                                         noLoc, assertFailArgs, noLoc)
-                          .get();
-
-    // create `!(cond)` expression.
-    Expr* condWithParen = m_Sema.ActOnParenExpr(noLoc, noLoc, cond).get();
-    Expr* finalCond = BuildOp(UnaryOperatorKind::UO_LNot, condWithParen);
-
-    // Make a conditional if statement which calls the `assert_fail`
-    // function, if the condition (`cond`) is false.
-    auto IfStmt = clad_compat::IfStmt_Create(m_Context, /*IL=*/noLoc,
-                                             /*IsConstxxpr=*/false,
-                                             /*Init=*/nullptr,
-                                             /*Var=*/nullptr, finalCond,
-                                             /*LPL=*/noLoc, /*RPL=*/noLoc,
-                                             assertCall, /*EL=*/noLoc,
-                                             /*Else=*/nullptr);
-    return IfStmt;
   }
 } // end namespace clad

@@ -340,20 +340,6 @@ namespace clad {
         llvm::SmallVectorImpl<clang::ParmVarDecl*>& GradientParams,
         clang::DeclarationNameInfo& GradientName,
         clang::FunctionDecl* GradientFD);
-
-    /// This function create a code which offers functionality of the
-    /// `assert` macro.
-    ///
-    /// Expression created by this function is as follows:
-    /// if (!(`cond`))
-    ///   assert_fail("`assertMessage`", "`filename`", 0, "`fnName`")
-    ///
-    ///\param cond assert condition
-    ///\param assertMessage assert message
-    ///\param fileName file name to be displayed in the assert fail message
-    ///\param fnName function name to be displayed in the assert fail message
-    clang::Stmt* CreateAssert(clang::Expr* cond, llvm::StringRef assertMessage,
-                              llvm::StringRef fileName, llvm::StringRef fnName);
   };
 } // end namespace clad
 

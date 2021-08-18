@@ -65,6 +65,25 @@ namespace clad {
     return std::fabs(a - b) <=
            ((std::fabs(a > b) ? std::fabs(b) : std::fabs(a)) * epsilon);
   }
+
+  /// Verifies that `res1` and `res2` are essentially equal.
+  ///
+  /// If verification fails, prints an `Assertion failed` message and 
+  /// aborts. 
+  ///
+  ///\param[in] res1,res2 results to verify
+  ///\param[in] assertMessage assertion message
+  ///\param[in] file file name to display in the `Assertion failed` message
+  ///\param[in] function function name to display in the `Assertion failed` message
+  template <typename T>
+  void VerifyResult(T res1, T res2, const char* assertMessage, const char* file,
+                    const char* function) {
+    if (!EssentiallyEqual(res1, res2)) {
+      // 0 represents that no valid line number exists.
+      assert_fail(assertMessage, file, /*line=*/0, function);
+    }
+  }
+
   /// \returns the size of a c-style string
   CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     unsigned int count;

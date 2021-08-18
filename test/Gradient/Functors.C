@@ -14,33 +14,31 @@ struct Experiment {
     x = val;
   }
 
-  // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK:   void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:       double _p_i0 = i;
   // CHECK-NEXT:       double _p_j0 = j;
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Functors.C", 0, "Experiment::operator_call_grad");
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "Experiment::operator_call_grad");
-  // CHECK-NEXT: }
+  // CHECK-NEXT:       double _t0;
+  // CHECK-NEXT:       double _t1;
+  // CHECK-NEXT:       double _t2;
+  // CHECK-NEXT:       double _t3;
+  // CHECK-NEXT:       _t2 = this->x;
+  // CHECK-NEXT:       _t1 = i;
+  // CHECK-NEXT:       _t3 = _t2 * _t1;
+  // CHECK-NEXT:       _t0 = j;
+  // CHECK-NEXT:       double operator_call_return = _t3 * _t0;
+  // CHECK-NEXT:       goto _label0;
+  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:       {
+  // CHECK-NEXT:           double _r0 = 1 * _t0;
+  // CHECK-NEXT:           double _r1 = _r0 * _t1;
+  // CHECK-NEXT:           double _r2 = _t2 * _r0;
+  // CHECK-NEXT:           * _d_i += _r2;
+  // CHECK-NEXT:           double _r3 = _t3 * 1;
+  // CHECK-NEXT:           * _d_j += _r3;
+  // CHECK-NEXT:       }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "Experiment::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "Experiment::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
+  // CHECK-NEXT:   }
 };
 
 struct ExperimentConst {
@@ -75,10 +73,8 @@ struct ExperimentConst {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Functors.C", 0, "ExperimentConst::operator_call_grad");
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "ExperimentConst::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "ExperimentConst::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "ExperimentConst::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 };
 
@@ -114,10 +110,8 @@ struct ExperimentVolatile {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Functors.C", 0, "ExperimentVolatile::operator_call_grad");
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "ExperimentVolatile::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "ExperimentVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "ExperimentVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 };
 
@@ -153,10 +147,8 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Functors.C", 0, "ExperimentConstVolatile::operator_call_grad");
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "ExperimentConstVolatile::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "ExperimentConstVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "ExperimentConstVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 };
 
@@ -173,8 +165,8 @@ namespace outer {
       }
 
       // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-      // CHECK-NEXT:       double _p_i0 = i;
-      // CHECK-NEXT:       double _p_j0 = j;
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
       // CHECK-NEXT:     double _t0;
       // CHECK-NEXT:     double _t1;
       // CHECK-NEXT:     double _t2;
@@ -194,10 +186,8 @@ namespace outer {
       // CHECK-NEXT:         double _r3 = _t3 * 1;
       // CHECK-NEXT:         * _d_j += _r3;
       // CHECK-NEXT:     }
-      // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-      // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Functors.C", 0, "outer::inner::ExperimentNNS::operator_call_grad");
-      // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-      // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "outer::inner::ExperimentNNS::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "outer::inner::ExperimentNNS::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "outer::inner::ExperimentNNS::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
       // CHECK-NEXT: }
     };
   }
@@ -251,10 +241,8 @@ int main() {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_i, this->operator_call_darg0(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode", "Functors.C", 0, "main()::(anonymous class)::operator_call_grad");
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_i0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "main()::(anonymous class)::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 
   auto lambdaWithCapture = [&](double ii, double j) {
@@ -283,10 +271,8 @@ int main() {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_ii, this->operator_call_darg0(_p_ii0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'ii' in forward and reverse differentiation mode", "Functors.C", 0, "main()::(anonymous class)::operator_call_grad");
-  // CHECK-NEXT:       if (!(clad::EssentiallyEqual(* _d_j, this->operator_call_darg1(_p_ii0, _p_j0))))
-  // CHECK-NEXT:           clad::assert_fail("Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode", "Functors.C", 0, "main()::(anonymous class)::operator_call_grad");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_ii, this->operator_call_darg0(_p_ii0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'ii' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_ii0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 
   double res[2];
