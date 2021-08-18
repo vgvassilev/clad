@@ -8,6 +8,7 @@
 
 #include "ConstantFolder.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -191,6 +192,54 @@ namespace clad {
     return gradientOverloadFD;
   }
 
+  static std::string getBaseFilename(std::string filename) {
+    std::string baseFilename = filename;
+    auto lastForwardSlash = filename.rfind('/');
+    if (lastForwardSlash != std::string::npos)
+      baseFilename = filename.substr(lastForwardSlash + 1);
+    return baseFilename;
+  }
+
+  /// Returns specialization of `clad::VerifyResult` function template
+  /// that should be used with `args`.
+  static FunctionDecl*
+  getCladVerifyResultSpecialization(Sema& SemaRef,
+                                        llvm::ArrayRef<Expr*> args) {
+    FunctionDecl* specialization = nullptr;
+
+    ASTContext& C = SemaRef.getASTContext();
+    // looking up `clad` namespace declaration.
+    IdentifierInfo& cladIdentifier = C.Idents.get("clad");
+    LookupResult cladR(SemaRef, DeclarationName(&cladIdentifier), noLoc,
+                       Sema::LookupNamespaceName,
+                       clad_compat::Sema_ForVisibleRedeclaration);
+    SemaRef.LookupQualifiedName(cladR, C.getTranslationUnitDecl());
+    NamespaceDecl* cladND = cast<NamespaceDecl>(cladR.getFoundDecl());
+
+    // looking up `clad::VerifyResult` template declaration.
+    IdentifierInfo& VerifyResultIdentifier = C.Idents.get(
+        "VerifyResult");
+    CXXScopeSpec SS;
+    SS.Extend(C, cladND, noLoc, noLoc);
+    LookupResult R(SemaRef, DeclarationName(&VerifyResultIdentifier), noLoc,
+                   Sema::LookupNameKind::LookupOrdinaryName);
+    // R.setTemplateNameLookup(true);
+    SemaRef.LookupQualifiedName(R, cladND, SS);
+    for (auto decl : R) {
+      if (auto templ = dyn_cast<FunctionTemplateDecl>(decl)) {
+        sema::TemplateDeductionInfo TDI(noLoc);
+        SemaRef.DeduceTemplateArguments(templ, nullptr, args, specialization,
+                                        TDI, false,
+                                        [](llvm::ArrayRef<QualType>) {
+                                          return false;
+                                        });
+        if (specialization)
+          return specialization;
+      }
+    }
+    return nullptr;
+  }
+
   OverloadedDeclWithContext
   ReverseModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
@@ -206,6 +255,37 @@ namespace clad {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())
       return {};
+
+    // Stores forward mode derivatives of the `m_Function` differentiated wrt
+    // all the non-array independent parameters.
+    std::vector<FunctionDecl*> forwModeDerivatives;
+    // Check if automatic reverse mode testing is enabled, if it is, then
+    // differentiate the `m_Function` wrt to  all the non-array independent
+    // parameters in forward mode.
+    if (request.Mode == DiffMode::reverse &&
+        plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
+      forwModeDerivatives.reserve(args.size());
+      auto deriveUsingForwMode = [this, &request, &args,
+                                  &forwModeDerivatives](const VarDecl* param) {
+        // We cannot do testing for the array parameters because we do not know
+        // the size of the array parameters at compile time. We need their size
+        // at compile time to generate forward mode derivatives for all the
+        // valid indexes of the array parameters.
+        if (isArrayOrPointerType(param->getType()))
+          return;
+
+        DiffRequest forwModeRequest = request;
+        forwModeRequest.Args = utils::CreateStringLiteral(this->m_Context,
+                                                          param->getName());
+        forwModeRequest.Mode = DiffMode::forward;
+        forwModeRequest.CallUpdateRequired = false;
+        FunctionDecl*
+            firstDerivative = plugin::ProcessDiffRequest(m_CladPlugin,
+                                                         forwModeRequest);
+        forwModeDerivatives.push_back(firstDerivative);
+      };
+      std::for_each(args.begin(), args.end(), deriveUsingForwMode);
+    }
 
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
@@ -437,6 +517,18 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+    std::vector<Expr*> originalArgValues;
+    if (request.Mode == DiffMode::reverse &&
+        plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
+      originalArgValues.reserve(nonDiffParams.size());
+      for (ParmVarDecl* param : nonDiffParams) {
+        auto paramCopy = BuildVarDecl(param->getType().getNonReferenceType(),
+                                      "_p_" + param->getNameAsString(),
+                                      BuildDeclRef(param));
+        originalArgValues.push_back(BuildDeclRef(paramCopy));
+        addToBlock(BuildDeclStmt(paramCopy), m_Globals);
+      }
+    }
     // create derived variables for parameters which are not part of
     // independent variables (args).
     for (ParmVarDecl* param : nonDiffParams) {
@@ -483,6 +575,65 @@ namespace clad {
     // given it is not a DeclRefExpr.
     if (m_ErrorEstimationEnabled)
       errorEstHandler->EmitFinalErrorStmts(params, m_Function->getNumParams());
+    // Check if automatic reverse mode testing is enabled, if it is then add
+    // assert checks for testing derived results.
+    if (request.Mode == DiffMode::reverse &&
+        plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
+
+      size_t forwDerivedFnCounter = 0;
+      std::string completeFileName = m_Sema.SourceMgr
+                                         .getFilename(m_Function->getBeginLoc())
+                                         .str();
+      std::string baseFileName = getBaseFilename(completeFileName);
+      std::string qualifiedGradientName = gradientFD
+                                              ->getQualifiedNameAsString();
+      for (const auto& arg : args) {
+        // We cannot do testing for the array parameters because we do not know
+        // the size of the array parameters at compile time. We need their size
+        // at compile time to generate forward mode derivatives for all the
+        // valid indexes of the array parameters.
+        if (isArrayOrPointerType(arg->getType()))
+          continue;
+        auto& forwDerivedFn = forwModeDerivatives[forwDerivedFnCounter];
+        ++forwDerivedFnCounter;
+        Expr* forwDiffResult = BuildCallExprToFunction(forwDerivedFn,
+                                                       originalArgValues);
+        Expr* revDiffResult = m_Variables[arg];
+        std::string
+            assertMessage = "Inconsistent differentiation result with respect "
+                            "to the parameter '" +
+                            arg->getNameAsString() +
+                            "' in forward and reverse differentiation mode";
+        auto fileNameLiteral = utils::CreateStringLiteral(m_Context,
+                                                          baseFileName);
+        auto fnNameLiteral = utils::CreateStringLiteral(m_Context,
+                                                        qualifiedGradientName);
+        auto assertMessageLiteral = utils::CreateStringLiteral(m_Context,
+                                                               assertMessage);
+
+        std::vector<Expr*> verifyResultArgs = {revDiffResult, forwDiffResult,
+                                               fileNameLiteral, fnNameLiteral,
+                                               assertMessageLiteral};
+        FunctionDecl* verifyResultFD =
+            getCladVerifyResultSpecialization(m_Sema, verifyResultArgs);
+        CXXScopeSpec CSS;
+        CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+        auto
+            verifyResultDRE = m_Sema
+                                  .BuildDeclarationNameExpr(CSS,
+                                                            verifyResultFD
+                                                                ->getNameInfo(),
+                                                            verifyResultFD)
+                                  .get();
+        Expr* verifyResultCallExpr = m_Sema.ActOnCallExpr(getCurrentScope(),
+                                                          verifyResultDRE,
+                                                          /*LParenLoc=*/noLoc,
+                                                          verifyResultArgs,
+                                                          /*RParenLoc=*/noLoc).get();
+        addToCurrentBlock(verifyResultCallExpr, forward);
+      }
+    }
+
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
     endScope(); // Function body scope

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -plugin-arg-clad -Xclang -fenable-reverse-mode-testing -oFunctors.out 2>&1 | FileCheck %s
 // RUN: ./Functors.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -14,27 +14,31 @@ struct Experiment {
     x = val;
   }
 
-  // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT: }
+  // CHECK:   void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
+  // CHECK-NEXT:       double _t0;
+  // CHECK-NEXT:       double _t1;
+  // CHECK-NEXT:       double _t2;
+  // CHECK-NEXT:       double _t3;
+  // CHECK-NEXT:       _t2 = this->x;
+  // CHECK-NEXT:       _t1 = i;
+  // CHECK-NEXT:       _t3 = _t2 * _t1;
+  // CHECK-NEXT:       _t0 = j;
+  // CHECK-NEXT:       double operator_call_return = _t3 * _t0;
+  // CHECK-NEXT:       goto _label0;
+  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:       {
+  // CHECK-NEXT:           double _r0 = 1 * _t0;
+  // CHECK-NEXT:           double _r1 = _r0 * _t1;
+  // CHECK-NEXT:           double _r2 = _t2 * _r0;
+  // CHECK-NEXT:           * _d_i += _r2;
+  // CHECK-NEXT:           double _r3 = _t3 * 1;
+  // CHECK-NEXT:           * _d_j += _r3;
+  // CHECK-NEXT:       }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "Experiment::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "Experiment::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
+  // CHECK-NEXT:   }
 };
 
 struct ExperimentConst {
@@ -48,6 +52,8 @@ struct ExperimentConst {
   }
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -67,6 +73,8 @@ struct ExperimentConst {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "ExperimentConst::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "ExperimentConst::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 };
 
@@ -81,6 +89,8 @@ struct ExperimentVolatile {
   }
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     volatile double _t2;
@@ -100,6 +110,8 @@ struct ExperimentVolatile {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "ExperimentVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "ExperimentVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 };
 
@@ -114,6 +126,8 @@ struct ExperimentConstVolatile {
   }
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     volatile double _t2;
@@ -133,6 +147,8 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "ExperimentConstVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "ExperimentConstVolatile::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 };
 
@@ -149,6 +165,8 @@ namespace outer {
       }
 
       // CHECK: void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
       // CHECK-NEXT:     double _t0;
       // CHECK-NEXT:     double _t1;
       // CHECK-NEXT:     double _t2;
@@ -168,6 +186,8 @@ namespace outer {
       // CHECK-NEXT:         double _r3 = _t3 * 1;
       // CHECK-NEXT:         * _d_j += _r3;
       // CHECK-NEXT:     }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "outer::inner::ExperimentNNS::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "outer::inner::ExperimentNNS::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
       // CHECK-NEXT: }
     };
   }
@@ -199,6 +219,8 @@ int main() {
   };
 
   // CHECK: inline void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
+  // CHECK-NEXT:       double _p_i0 = i;
+  // CHECK-NEXT:       double _p_j0 = j;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -219,6 +241,8 @@ int main() {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_i, this->operator_call_darg0(_p_i0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'i' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_i0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 
   auto lambdaWithCapture = [&](double ii, double j) {
@@ -226,6 +250,8 @@ int main() {
   };
 
   // CHECK: inline void operator_call_grad(double ii, double j, clad::array_ref<double> _d_ii, clad::array_ref<double> _d_j) const {
+  // CHECK-NEXT:       double _p_ii0 = ii;
+  // CHECK-NEXT:       double _p_j0 = j;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -245,6 +271,8 @@ int main() {
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
+  // CHECK-NEXT:       clad::VerifyResult(* _d_ii, this->operator_call_darg0(_p_ii0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'ii' in forward and reverse differentiation mode");
+  // CHECK-NEXT:       clad::VerifyResult(* _d_j, this->operator_call_darg1(_p_ii0, _p_j0), "Functors.C", "main()::(anonymous class)::operator_call_grad", "Inconsistent differentiation result with respect to the parameter 'j' in forward and reverse differentiation mode");
   // CHECK-NEXT: }
 
   double res[2];

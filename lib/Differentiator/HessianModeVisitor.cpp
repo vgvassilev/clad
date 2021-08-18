@@ -6,6 +6,7 @@
 
 #include "clad/Differentiator/HessianModeVisitor.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -31,23 +32,6 @@ namespace clad {
       : VisitorBase(builder) {}
 
   HessianModeVisitor::~HessianModeVisitor() {}
-
-  /// Converts the string str into a StringLiteral
-  static const StringLiteral* CreateStringLiteral(ASTContext& C,
-                                                  std::string str) {
-    QualType CharTyConst = C.CharTy.withConst();
-    QualType StrTy =
-        clad_compat::getConstantArrayType(C, CharTyConst,
-                                          llvm::APInt(/*numBits=*/32,
-                                                      str.size() + 1),
-                                          /*SizeExpr=*/nullptr,
-                                          /*ASM=*/ArrayType::Normal,
-                                          /*IndexTypeQuals*/ 0);
-    const StringLiteral* SL =
-        StringLiteral::Create(C, str, /*Kind=*/StringLiteral::Ascii,
-                              /*Pascal=*/false, StrTy, noLoc);
-    return SL;
-  }
 
   /// Derives the function w.r.t both forward and reverse mode and returns the
   /// FunctionDecl obtained from reverse mode differentiation
@@ -160,7 +144,7 @@ namespace clad {
             auto independentArgString =
                 PVD->getNameAsString() + "[" + std::to_string(i) + "]";
             auto ForwardModeIASL =
-                CreateStringLiteral(m_Context, independentArgString);
+                utils::CreateStringLiteral(m_Context, independentArgString);
             auto DFD =
                 DeriveUsingForwardAndReverseMode(m_CladPlugin, request,
                                                  ForwardModeIASL, request.Args);
@@ -173,7 +157,7 @@ namespace clad {
           // Derive the function w.r.t. to the current arg in forward mode and
           // then in reverse mode w.r.t to all requested args
           auto ForwardModeIASL =
-              CreateStringLiteral(m_Context, PVD->getNameAsString());
+              utils::CreateStringLiteral(m_Context, PVD->getNameAsString());
           auto DFD =
               DeriveUsingForwardAndReverseMode(m_CladPlugin, request,
                                                ForwardModeIASL, request.Args);
