@@ -100,13 +100,13 @@ namespace clad {
       // allocation properly.
       for (; first != last; ++first, (void)++current) {
         auto new_data = ::new (const_cast<void*>(
-            static_cast<const volatile void*>(std::addressof(*current))))
+            static_cast<const volatile void*>(addressof(current))))
             T(std::move(*first));
         if (!new_data) {
           // clean up the memory mess just in case!
           destroy(d_first, current);
-          fprintf(stderr, "Allocation failure during tape resize! Aborting.");
-          exit(EXIT_FAILURE);
+          printf("Allocation failure during tape resize! Aborting.");
+          trap(EXIT_FAILURE);
         }
       }
     }
