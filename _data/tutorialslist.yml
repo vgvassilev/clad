@@ -27,3 +27,16 @@
 
   url: /tutorials/clad_jupyter/
   date: 2021-08-20
+
+- title: Floating-Point Error Estimation Using Automatic Differentiation with Clad
+  author: Garima Singh
+  abstract: |
+    CLAD provides an in-built floating-point error estimation framework that
+    can automatically annotate code with error estimation information. This
+    framework also provides the ability for users to write their own error models
+    and use the same for generating error estimates. The aim of this tutorial is 
+    to demonstrate building a simple custom error model and using it in conjunction
+    with CLAD's error estimation framework.
+
+  url: /tutorials/fp_error_estimation_clad_tutorial/
+  date: 2021-08-21
