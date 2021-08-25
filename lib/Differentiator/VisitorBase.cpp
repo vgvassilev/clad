@@ -418,11 +418,15 @@ namespace clad {
 
   Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E,
                              SourceLocation OpLoc) {
+    if (!E)
+      return nullptr;
     return m_Sema.BuildUnaryOp(nullptr, OpLoc, OpCode, E).get();
   }
 
   Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, Expr* L, Expr* R,
                              SourceLocation OpLoc) {
+    if (!L || !R)
+      return nullptr;
     return m_Sema.BuildBinOp(nullptr, OpLoc, OpCode, L, R).get();
   }
 

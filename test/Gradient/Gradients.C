@@ -863,6 +863,42 @@ void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, 
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+// FIXME: This will not run, fix: #246
+float running_sum(float* p, int n) {
+  for (int i = 1; i < n; i++) {
+    p[i] += p[i - 1];     
+  }
+  return p[n - 1];
+}
+
+//CHECK: void running_sum_grad(float *p, int n, clad::array_ref<float> _d_p, clad::array_ref<float> _d_n) {
+//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     clad::tape<int> _t1 = {};
+//CHECK-NEXT:     clad::tape<int> _t2 = {};
+//CHECK-NEXT:     int _t3;
+//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     for (int i = 1; i < n; i++) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         p[clad::push(_t1, i)] += p[clad::push(_t2, i - 1)];
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _t3 = n - 1;
+//CHECK-NEXT:     float running_sum_return = p[_t3];
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     _d_p[_t3] += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             float _r_d0 = _d_p[clad::pop(_t1)];
+//CHECK-NEXT:             _d_p[clad::pop(_t1)] += _r_d0;
+//CHECK-NEXT:             _d_p[clad::pop(_t2)] += _r_d0;
+//CHECK-NEXT:             _d_p[clad::pop(_t1)] -= _r_d0;
+//CHECK-NEXT:             _d_p[clad::pop(_t1)];
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -903,6 +939,7 @@ int main() {
   TEST(f_decls3, 0, 100); // CHECK-EXEC: Result is = {0.00, 0.00}
   TEST(f_issue138, 1, 2); // CHECK-EXEC: Result is = {4.00, 32.00}
   TEST(f_const, 2, 3); // CHECK-EXEC: Result is = {3.00, 2.00}
+  clad::gradient(running_sum);
 
 }
 

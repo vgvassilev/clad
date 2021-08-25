@@ -199,7 +199,8 @@ namespace clad {
     /// \endcode
     /// \param[in] OpCode The code for the unary operation to be built.
     /// \param[in] E The expression to build the unary operation with.
-    /// \returns An expression of the newly built unary operation.
+    /// \returns An expression of the newly built unary operation or null if the
+    /// operand in null.
     clang::Expr* BuildOp(clang::UnaryOperatorKind OpCode, clang::Expr* E,
                          clang::SourceLocation OpLoc = noLoc);
     /// A shorthand to simplify syntax for creation of new expressions.
@@ -217,7 +218,8 @@ namespace clad {
     /// \param[in] OpCode The code for the binary operation to be built.
     /// \param[in] L The LHS expression to build the binary operation with.
     /// \param[in] R The RHS expression to build the binary operation with.
-    /// \returns An expression of the newly built binary operation.
+    /// \returns An expression of the newly built binary operation or null if
+    /// either LHS or RHS is null.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
 

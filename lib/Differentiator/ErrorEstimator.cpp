@@ -33,9 +33,8 @@ namespace clad {
     }
 
     // Finally add the final error expression to the derivative body.
-    if (addErrorExpr)
-      addToCurrentBlock(BuildOp(BO_AddAssign, m_FinalError, addErrorExpr),
-                        forward);
+    addToCurrentBlock(BuildOp(BO_AddAssign, m_FinalError, addErrorExpr),
+                      forward);
   }
 
   void
