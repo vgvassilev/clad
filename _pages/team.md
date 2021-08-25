@@ -96,6 +96,19 @@ Jump to [staff](#staff), [students](#students)
     <a href="{{ member.proposal }}" target=_blank >URL</a>
   </p>
   <p> <strong>Mentors:</strong> {{ member.mentors }} </p>
+  {% if member.past_projects %}
+  <h5>Past Projects</h5>
+  <i>{{ member.past_info }}</i>
+  <p class="text-justify">
+    <strong>Project description:</strong> {{ member.past_description }}
+  </p>
+  <p>
+    <strong>Project Proposal:</strong>
+    <a href="{{ member.past_proposal }}" target=_blank >URL</a>
+  </p>
+  <p> <strong>Mentors:</strong> {{ member.past_mentors }} </p>
+  {% assign number_printed = number_printed | plus: 1 %}
+  {% endif %}
   {% endunless %}
 </div>
 
@@ -133,6 +146,19 @@ Jump to [staff](#staff), [students](#students)
   </p>
   <p> <strong>Final Report:</strong> {{ member.report }} </p>
   <p> <strong>Mentors:</strong> {{ member.mentors }} </p>
+  {% if member.past_projects %}
+  <h5>Past Projects</h5>
+  <i>{{ member.past_info }}</i>
+  <p class="text-justify">
+    <strong>Project description:</strong> {{ member.past_description }}
+  </p>
+  <p>
+    <strong>Final Report:</strong>
+    <a href="{{ member.final_report }}" target=_blank >URL</a>
+  </p>
+  <p> <strong>Mentors:</strong> {{ member.past_mentors }} </p>
+  {% assign number_printed = number_printed | plus: 1 %}
+  {% endif %}
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}

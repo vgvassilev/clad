@@ -1,9 +1,26 @@
 - name: "Garima Singh"
   photo: Garima_Singh.jpg
-  info: "Floating point error evaluation with Clad"
+  info: "Add Numerical Differentiation Support in Clad"
   email: garimasingh0028@gmail.com
   education: "B. Tech in Information Technology, Manipal Institute of Technology, Manipal, India"
   description: |
+    In mathematics and computer algebra, automatic differentiation (AD) is a set
+    of techniques to numerically evaluate the derivative of a function specified
+    by a computer program. Automatic differentiation is an alternative technique
+    to Symbolic differentiation and Numerical differentiation (the method of finite
+    differences). Clad is based on Clang which provides the necessary facilities
+    for code transformation. The AD library can differentiate non-trivial functions,
+    find a partial derivative for trivial cases, and has good unit test coverage.
+    In several cases, due to different limitations, it is either inefficient or
+    impossible to differentiate a function. For example, clad cannot differentiate
+    declared-but-not-defined functions. In that case, it issues an error. Instead,
+    clad should fall back to its future numerical differentiation facilities.
+  proposal: /assets/docs/Garima_Singh_Proposal_2021.pdf
+  mentors:  Vassil Vassilev, Alexander Penev
+  current: 1
+  past_projects: 1
+  past_info: "Floating point error evaluation with Clad"
+  past_description: |
     Floating-point estimation errors have been a testament to the finite nature
     of computing. Moreover, the predominance of Floating-point numbers in
     real-valued computation does not help that fact. Float computations are
@@ -18,9 +35,8 @@
     approximation model. It will allow users to select their preferable
     estimation logic and automatically generate functions augmented with code
     for the specified error estimator.
-  proposal: /assets/docs/Garima_Singh_Proposal_2020.pdf
-  mentors: Vassil Vassilev, David Lange
-  current: 1
+  past_proposal: /assets/docs/Garima_Singh_Proposal_2020.pdf
+  past_mentors: Vassil Vassilev, David Lange
 
 - name: "Parth Arora"
   photo: Parth.jpg
