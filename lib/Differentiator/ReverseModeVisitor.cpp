@@ -1396,8 +1396,12 @@ namespace clad {
           }
           CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
                                   OverloadedDerivedFn);
-          if (!OverloadedDerivedFn)
+          if (!OverloadedDerivedFn) {
+            auto& block = getCurrentBlock(reverse);
+            block.insert(block.begin(), ArgDeclStmts.begin(),
+                         ArgDeclStmts.end());
             return StmtDiff(Clone(CE));
+          }
         } else {
           OverloadedDerivedFn = m_Sema
                                     .ActOnCallExpr(getCurrentScope(),
