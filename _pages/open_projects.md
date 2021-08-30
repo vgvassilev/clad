@@ -19,13 +19,13 @@ permalink: /open_projects
     {% continue %}
   {% endif %}
 
-# {{ project.name }}
+## {{ project.name }}
 
-## Description
+### Description
 
 {{ project.description | markdownify }}
 
-## Task ideas and expected results
+### Task ideas and expected results
 
 {{ project.tasks | markdownify }}
 
