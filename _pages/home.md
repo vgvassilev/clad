@@ -21,9 +21,8 @@ and D.
 
 
 
-Interested in joining the development to to use our work? Join our
-[cppaas-announce google groups forum](https://groups.google.com/forum/#!forum/cppaas-announce)
-[here](https://groups.google.com/forum/#!forum/cppaas-announce/join).
+Interested in joining the development or to use our work? Join our
+[compiler-research-announce google groups forum](https://groups.google.com/g/compiler-research-announce).
 
 
 **We are looking for and passionate undergrad and graduate students. Please visit
