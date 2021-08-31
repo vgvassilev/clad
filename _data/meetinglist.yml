@@ -4,8 +4,31 @@
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
   label: caas_02Sep2021
   agenda:
-    - title: "TBD: Cppyy"
+    - title: "Cppyy"
       speaker: "Wim Lavrijsen, LBL"
+      description: |
+        cppyy provides automatic Python bindings to C++ code, at runtime,
+        through Cling, the C++ interpreter. Python is itself a dynamic language
+        executed by an interpreter, thus the interaction with C++ code becomes
+        more natural when intermediated by Cling. Examples include runtime
+        template instantiations, callbacks, cross-language inheritance,
+        automatic downcasting, and exception mapping. Many advanced C++ features
+        such as placement new, multiple virtual inheritance, variadic templates,
+        etc., are also naturally handled.
+
+        cppyy achieves high performance through an all-lazy approach and
+        specialization of common cases through runtime reflection. As such, it
+        has a much lower call overhead than other binders, notably in its
+        implementation for PyPy, a fully compatible Python interpreter sporting
+        a tracing JIT. Furthermore, cppyy makes maintaining a large software
+        stack simpler: except for cppyy’s own python-interpreter binding, it
+        does not have any compiled code that is Python-dependent. I.e.,
+        cppyy-based extension modules require no recompilation when switching
+        Python interpreters.
+
+        In this presentation I'll show the benefits of runtime Python-C++
+        bindings and give a bird's eye overview of the implementation
+        underpinning cppyy.
     - title: Update
       speaker: Vassil
     - title: Round Table
