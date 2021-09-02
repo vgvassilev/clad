@@ -29,6 +29,7 @@
         In this presentation I'll show the benefits of runtime Python-C++
         bindings and give a bird's eye overview of the implementation
         underpinning cppyy.
+      slides: "/assets/presentations/W_Lavrijsen-CaaS_Cppyy.pdf"
     - title: Update
       speaker: Vassil
       slides: "/assets/presentations/CaaS_02_09_2021.pdf"
