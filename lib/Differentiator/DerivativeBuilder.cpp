@@ -14,7 +14,6 @@
 
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
-
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Sema/Sema.h"
