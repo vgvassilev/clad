@@ -11,6 +11,8 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/ExternalRMVSource.h"
+#include "clad/Differentiator/MultiplexExternalRMVSource.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -81,9 +83,19 @@ namespace clad {
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder), m_Result(nullptr) {}
+      : VisitorBase(builder), m_Result(nullptr) {
+    m_ExternalSource = new MultiplexExternalRMVSource;
+  }
 
-  ReverseModeVisitor::~ReverseModeVisitor() {}
+  ReverseModeVisitor::~ReverseModeVisitor() {
+    if (m_ExternalSource) {
+      // Inform external sources that `ReverseModeVisitor` object no longer
+      // exists.
+      m_ExternalSource->ForgetRMV();
+      // Free the external sources multiplexer since we own this resource.
+      delete m_ExternalSource;
+    }
+  }
 
   FunctionDecl* ReverseModeVisitor::CreateGradientOverload(
       SmallVectorImpl<QualType>& GradientParamTypes,
@@ -195,6 +207,7 @@ namespace clad {
   OverloadedDeclWithContext
   ReverseModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
+    m_ExternalSource->ActOnStartOfDerive();                               
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     assert(m_Function && "Must not be null.");
@@ -209,6 +222,7 @@ namespace clad {
     if (args.empty())
       return {};
 
+    m_ExternalSource->ActAfterParsingDiffArgs(request, args);
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
     clang::QualType DerivedOutputParamType;
@@ -309,11 +323,15 @@ namespace clad {
     FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
+    m_ExternalSource->ActBeforeCreatingDerivedFnScope();
+
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
+
+    m_ExternalSource->ActAfterCreatingDerivedFnScope();
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params;
@@ -439,6 +457,8 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+    m_ExternalSource->ActOnStartOfDerivedFnBody();
+
     // create derived variables for parameters which are not part of
     // independent variables (args).
     for (ParmVarDecl* param : nonDiffParams) {
@@ -485,6 +505,9 @@ namespace clad {
     // given it is not a DeclRefExpr.
     if (m_ErrorEstimationEnabled)
       errorEstHandler->EmitFinalErrorStmts(params, m_Function->getNumParams());
+
+    m_ExternalSource->ActOnEndOfDerivedFnBody();
+
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
     endScope(); // Function body scope
@@ -2435,5 +2458,10 @@ namespace clad {
     m_RMV.m_Sema.ActOnFinishSwitchStmt(noLoc, CFSS, bodyDiff.getStmt_dx());
 
     bodyDiff = {bodyDiff.getStmt(), CFSS};
+  }
+  
+  void ReverseModeVisitor::AddExternalSource(ExternalRMVSource& source) {
+    source.InitialiseRMV(*this);
+    m_ExternalSource->AddSource(source);
   }
 } // end namespace clad

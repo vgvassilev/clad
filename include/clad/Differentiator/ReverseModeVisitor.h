@@ -19,6 +19,9 @@
 #include <unordered_map>
 
 namespace clad {
+  class MultiplexExternalRMVSource;
+  class ExternalRMVSource;
+
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
@@ -53,6 +56,7 @@ namespace clad {
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     bool isVectorValued = false;
+    MultiplexExternalRMVSource* m_ExternalSource = nullptr;
 
     const char* funcPostfix() const {
       if (isVectorValued)
@@ -406,7 +410,6 @@ namespace clad {
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
 
-
     /// This class modifies forward and reverse blocks of the loop
     /// body so that `break` and `continue` statements are correctly
     /// handled. `break` and `continue` statements are handled by 
@@ -503,6 +506,13 @@ namespace clad {
     void PopBreakContStmtHandler() {
       m_BreakContStmtHandlers.pop_back();
     }
+                                   
+    /// Registers an external RMV source.
+    ///
+    /// Multiple external RMV source can be registered by calling this function
+    /// multiple times.
+    ///\paramp[in] source An external RMV source
+    void AddExternalSource(ExternalRMVSource& source);
   };
 } // end namespace clad
 
