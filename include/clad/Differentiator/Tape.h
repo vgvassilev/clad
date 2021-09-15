@@ -99,26 +99,66 @@ namespace clad {
     }
 
   private:
+    // Specialization for non trivial types
+    template <bool TrivialValueTypes>
+    struct move_data {
+      template <class InputIt, class NoThrowForwardIt>
+      CUDA_HOST_DEVICE static void execute(InputIt first, InputIt last,
+                                    NoThrowForwardIt d_first) {
+        NoThrowForwardIt current = d_first;
+        // We specifically add and remove the CV qualifications here so that
+        // cases where NoThrowForwardIt is CV qualified, we can still do the
+        // allocation properly.
+        for (; first != last; ++first, (void)++current) {
+          auto new_data = ::new (const_cast<void*>(
+                                     static_cast<const volatile void*>(addressof(current))))
+              T(std::move(*first));
+          if (!new_data) {
+            // clean up the memory mess just in case!
+            destroy(d_first, current);
+            printf("Allocation failure during tape resize! Aborting.");
+            trap(EXIT_FAILURE);
+          }
+        }
+      }
+    };
+
+    // Specialization for non trivial types
+    template <>
+    struct move_data<true> {
+      template <class InputIt, class NoThrowForwardIt>
+      CUDA_HOST_DEVICE static void execute(InputIt first, InputIt last,
+                                    NoThrowForwardIt d_first) {
+        // The original implementation uses std::copy but for this
+        // specialization the following should be enough
+        for (; first != last; ++d_first, (void)++first)
+          *d_first = std::move(*first);
+      }
+    };
     // Copies the data from a storage to another.
     // Implementation taken from std::uninitialized_copy
     template <class InputIt, class NoThrowForwardIt>
     CUDA_HOST_DEVICE void MoveData(InputIt first, InputIt last,
                                    NoThrowForwardIt d_first) {
-      NoThrowForwardIt current = d_first;
-      // We specifically add and remove the CV qualifications here so that
-      // cases where NoThrowForwardIt is CV qualified, we can still do the
-      // allocation properly.
-      for (; first != last; ++first, (void)++current) {
-        auto new_data = ::new (const_cast<void*>(
-            static_cast<const volatile void*>(addressof(current))))
-            T(std::move(*first));
-        if (!new_data) {
-          // clean up the memory mess just in case!
-          destroy(d_first, current);
-          printf("Allocation failure during tape resize! Aborting.");
-          trap(EXIT_FAILURE);
-        }
-      }
+      typedef typename std::iterator_traits<InputIt>::value_type InputValueType;
+      typedef typename std::iterator_traits<NoThrowForwardIt>::value_type ResultValueType;
+      const bool is_input_trivial =
+          std::is_trivially_copyable<InputValueType>::value &&
+          std::is_trivially_default_constructible<InputValueType>::value;
+
+#if __cplusplus < 201103L
+      typedef typename iterator_traits<_InputIterator>::reference From;
+#else
+      using From = decltype(*first);
+#endif
+      const bool is_result_assignable =
+          std::is_assignable<ResultValueType&, From>::value;
+      const bool is_result_contructible =
+          std::is_constructible<ResultValueType, From>::value;
+
+      move_data<is_input_trivial &&
+                is_result_assignable &&
+                is_result_contructible>::execute(first, last, d_first);
     }
     /// Initial capacity (allocated whenever a value is pushed into empty tape).
     constexpr static std::size_t _init_capacity = 32;
