@@ -267,7 +267,7 @@ namespace clad {
         plugin::isReverseModeTestingEnabled(m_Builder.m_CladPlugin)) {
       forwModeDerivatives.reserve(args.size());
       auto deriveUsingForwMode = [this, &request, &args,
-                                  &forwModeDerivatives](const VarDecl* param) {
+                                  &forwModeDerivatives](const ValueDecl* param) {
         // We cannot do testing for the array parameters because we do not know
         // the size of the array parameters at compile time. We need their size
         // at compile time to generate forward mode derivatives for all the

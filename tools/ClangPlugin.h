@@ -158,7 +158,7 @@ namespace clad {
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
                    "calculated numerical diff errors, this flag is overriden "
-                   "by -DCLAD_NO_NUM_DIFF.\n";
+                   "by -DCLAD_NO_NUM_DIFF.\n"
                 << "-fenable-reverse-mode-testing - Enable testing of reverse mode "
                    "differentiation using forward mode differentiation\n";                   
 
