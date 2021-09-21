@@ -10,7 +10,7 @@ endif()
 # generate it by default. Then the library requires _ZTIN4clad22FPErrorEstimationModelE
 # but it does not find it and fails to load.
 target_compile_options(cladCustomModelPlugin PUBLIC -fno-rtti)
-target_include_directories(cladCustomModelPlugin PUBLIC ${CMAKE_SOURCE_DIR}/tools/)
+target_include_directories(cladCustomModelPlugin PUBLIC ${CLAD_SOURCE_DIR})
 
 set_target_properties(cladCustomModelPlugin PROPERTIES  LIBRARY_OUTPUT_DIRECTORY ".")
 if(APPLE)
