@@ -160,8 +160,7 @@ int main(void) {
    compute<<<N/256+1, 256>>>(h_gauss, d_x, d_y, d_sigma, N, dx_result, dy_result);
    cudaDeviceSynchronize();
 
-   // After computation, the results hosted on the device should be copied to
-   host
+   // After computation, the results hosted on the device should be copied to host
    cudaMemcpy(result_x, dx_result, N*sizeof(double), cudaMemcpyDeviceToHost);
    cudaMemcpy(result_y, dy_result, N*sizeof(double), cudaMemcpyDeviceToHost);
 }
