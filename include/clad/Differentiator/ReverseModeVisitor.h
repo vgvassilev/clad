@@ -7,8 +7,9 @@
 #ifndef CLAD_REVERSE_MODE_VISITOR_H
 #define CLAD_REVERSE_MODE_VISITOR_H
 
-#include "Compatibility.h"
-#include "VisitorBase.h"
+#include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/VisitorBase.h"
+#include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -75,6 +76,8 @@ namespace clad {
     }
 
   public:
+    using direction = rmv::direction;
+    
     clang::Expr* dfdx() {
       if (m_Stack.empty())
         return nullptr;
@@ -92,31 +95,29 @@ namespace clad {
       return result;
     }
 
-    /// An enum to operate between forward and reverse passes.
-    enum direction { forward, reverse };
     /// Get the latest block of code (i.e. place for statements output).
-    Stmts& getCurrentBlock(direction d = forward) {
-      if (d == forward)
+    Stmts& getCurrentBlock(direction d = direction::forward) {
+      if (d == direction::forward)
         return m_Blocks.back();
       else
         return m_Reverse.back();
     }
     /// Create new block.
-    Stmts& beginBlock(direction d = forward) {
-      if (d == forward)
+    Stmts& beginBlock(direction d = direction::forward) {
+      if (d == direction::forward)
         m_Blocks.push_back({});
       else
         m_Reverse.push_back({});
       return getCurrentBlock(d);
     }
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
-    clang::CompoundStmt* endBlock(direction d = forward) {
-      if (d == forward) {
-        auto CS = MakeCompoundStmt(getCurrentBlock(forward));
+    clang::CompoundStmt* endBlock(direction d = direction::forward) {
+      if (d == direction::forward) {
+        auto CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
         m_Blocks.pop_back();
         return CS;
       } else {
-        auto CS = MakeCompoundStmt(getCurrentBlock(reverse));
+        auto CS = MakeCompoundStmt(getCurrentBlock(direction::reverse));
         std::reverse(CS->body_begin(), CS->body_end());
         m_Reverse.pop_back();
         return CS;
@@ -124,7 +125,7 @@ namespace clad {
     }
     /// Output a statement to the current block. If Stmt is null or is an unused
     /// expression, it is not output and false is returned.
-    bool addToCurrentBlock(clang::Stmt* S, direction d = forward) {
+    bool addToCurrentBlock(clang::Stmt* S, direction d = direction::forward) {
       return addToBlock(S, getCurrentBlock(d));
     }
 
@@ -141,7 +142,7 @@ namespace clad {
     /// variable declaration. Otherwise, temporary variable is created only
     /// if E requires evaluation (e.g. there is no point to store literals or
     /// direct references in intermediate variables)
-    clang::Expr* StoreAndRef(clang::Expr* E, direction d = forward,
+    clang::Expr* StoreAndRef(clang::Expr* E, direction d = direction::forward,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false,
                              clang::VarDecl::InitializationStyle IS =
@@ -153,13 +154,13 @@ namespace clad {
 
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type,
-                             direction d = forward,
+                             direction d = direction::forward,
                              llvm::StringRef prefix = "_t",
                              bool forceDeclCreation = false,
                              clang::VarDecl::InitializationStyle IS =
                                  clang::VarDecl::InitializationStyle::CInit) {
       // Name reverse temporaries as "_r" instead of "_t".
-      if ((d == reverse) && (prefix == "_t"))
+      if ((d == direction::reverse) && (prefix == "_t"))
         prefix = "_r";
       return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix,
                                       forceDeclCreation, IS);
