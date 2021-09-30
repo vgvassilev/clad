@@ -3,7 +3,7 @@
 
 #include "EstimationModel.h"
 #include "ReverseModeVisitor.h"
-
+#include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 namespace clang {
   class Stmt;
   class Expr;
@@ -87,7 +87,7 @@ namespace clad {
     ///
     /// \param[in] d The direction of the block in which to emit the
     /// statements.
-    void EmitErrorEstimationStmts(direction d = forward);
+    void EmitErrorEstimationStmts(direction d = direction::forward);
 
     /// We should save the return value if it is an arithmetic expression,
     /// since we also need to take into account the error in that expression.

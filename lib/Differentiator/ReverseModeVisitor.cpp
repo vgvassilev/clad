@@ -487,26 +487,26 @@ namespace clad {
     // Create the body of the function.
     // Firstly, all "global" Stmts are put into fn's body.
     for (Stmt* S : m_Globals)
-      addToCurrentBlock(S, forward);
+      addToCurrentBlock(S, direction::forward);
     // Forward pass.
     if (auto CS = dyn_cast<CompoundStmt>(Forward))
       for (Stmt* S : CS->body())
-        addToCurrentBlock(S, forward);
+        addToCurrentBlock(S, direction::forward);
     else
-      addToCurrentBlock(Forward, forward);
+      addToCurrentBlock(Forward, direction::forward);
     // Reverse pass.
     if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
       for (Stmt* S : RCS->body())
-        addToCurrentBlock(S, forward);
+        addToCurrentBlock(S, direction::forward);
     else
-      addToCurrentBlock(Reverse, forward);
+      addToCurrentBlock(Reverse, direction::forward);
+
+    m_ExternalSource->ActOnEndOfDerivedFnBody();
 
     // Since 'return' is not an assignment, add its error to _final_error
     // given it is not a DeclRefExpr.
     if (m_ErrorEstimationEnabled)
       errorEstHandler->EmitFinalErrorStmts(params, m_Function->getNumParams());
-
-    m_ExternalSource->ActOnEndOfDerivedFnBody();
 
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
@@ -536,23 +536,23 @@ namespace clad {
 
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     beginScope(Scope::DeclScope);
-    beginBlock(forward);
-    beginBlock(reverse);
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
     for (Stmt* S : CS->body()) {
       StmtDiff SDiff = DifferentiateSingleStmt(S);
-      addToCurrentBlock(SDiff.getStmt(), forward);
-      addToCurrentBlock(SDiff.getStmt_dx(), reverse);
+      addToCurrentBlock(SDiff.getStmt(), direction::forward);
+      addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
       // In error estimation mode, if we have any residual statements
       // to be emitted into the forward or revese blocks, we should
       // emit them here. This is to maintain the correct order of
       // statements generated.
       if (m_ErrorEstimationEnabled) {
-        errorEstHandler->EmitErrorEstimationStmts(forward);
-        errorEstHandler->EmitErrorEstimationStmts(reverse);
+        errorEstHandler->EmitErrorEstimationStmts(direction::forward);
+        errorEstHandler->EmitErrorEstimationStmts(direction::reverse);
       }
     }
-    CompoundStmt* Forward = endBlock(forward);
-    CompoundStmt* Reverse = endBlock(reverse);
+    CompoundStmt* Forward = endBlock(direction::forward);
+    CompoundStmt* Reverse = endBlock(direction::reverse);
     endScope();
     return StmtDiff(Forward, Reverse);
   }
@@ -596,7 +596,7 @@ namespace clad {
       // if (clad::push(..., _t) { ... }
       // is incorrect when if contains return statement inside: return will
       // skip corresponding push.
-      cond = StoreAndRef(condExpr.getExpr(), forward, "_t",
+      cond = StoreAndRef(condExpr.getExpr(), direction::forward, "_t",
                          /*forceDeclCreation=*/true);
       StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
       PushCond = condPushPop.getExpr();
@@ -620,8 +620,8 @@ namespace clad {
     //   ...
     //  if (...) {...}
     // }
-    beginBlock(forward);
-    beginBlock(reverse);
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
     const Stmt* init = If->getInit();
     StmtDiff initResult = init ? Visit(init) : StmtDiff{};
     // If there is Init, it's derivative will be output in the block before if:
@@ -660,16 +660,16 @@ namespace clad {
         StmtDiff BranchDiff = Visit(Branch);
         return BranchDiff;
       } else {
-        beginBlock(forward);
+        beginBlock(direction::forward);
         StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr,
                                                       /*shouldEmit=*/false);
-        addToCurrentBlock(BranchDiff.getStmt(), forward);
+        addToCurrentBlock(BranchDiff.getStmt(), direction::forward);
         // In error estimation, manually emit the code here instead of
         // DifferentiateSingleStmt to maintain correct order.
         if (m_ErrorEstimationEnabled) {
-          errorEstHandler->EmitErrorEstimationStmts(forward);
+          errorEstHandler->EmitErrorEstimationStmts(direction::forward);
         }
-        Stmt* Forward = unwrapIfSingleStmt(endBlock(forward));
+        Stmt* Forward = unwrapIfSingleStmt(endBlock(direction::forward));
         Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
         return StmtDiff(Forward, Reverse);
       }
@@ -691,11 +691,11 @@ namespace clad {
                                                thenDiff.getStmt(),
                                                noLoc,
                                                elseDiff.getStmt());
-    addToCurrentBlock(Forward, forward);
+    addToCurrentBlock(Forward, direction::forward);
 
     Expr* reverseCond = cond.getExpr_dx();
     if (isInsideLoop) {
-      addToCurrentBlock(PushCond, forward);
+      addToCurrentBlock(PushCond, direction::forward);
       reverseCond = PopCond;
     }
     Stmt* Reverse = clad_compat::IfStmt_Create(m_Context,
@@ -709,9 +709,9 @@ namespace clad {
                                                thenDiff.getStmt_dx(),
                                                noLoc,
                                                elseDiff.getStmt_dx());
-    addToCurrentBlock(Reverse, reverse);
-    CompoundStmt* ForwardBlock = endBlock(forward);
-    CompoundStmt* ReverseBlock = endBlock(reverse);
+    addToCurrentBlock(Reverse, direction::reverse);
+    CompoundStmt* ForwardBlock = endBlock(direction::forward);
+    CompoundStmt* ReverseBlock = endBlock(direction::reverse);
     endScope();
     return StmtDiff(unwrapIfSingleStmt(ForwardBlock),
                     unwrapIfSingleStmt(ReverseBlock));
@@ -779,9 +779,9 @@ namespace clad {
                             ifTrueDiff.getStmt_dx(),
                             ifFalseDiff.getStmt_dx());
     if (Forward)
-      addToCurrentBlock(Forward, forward);
+      addToCurrentBlock(Forward, direction::forward);
     if (Reverse)
-      addToCurrentBlock(Reverse, reverse);
+      addToCurrentBlock(Reverse, direction::reverse);
 
     Expr* condExpr = m_Sema
                          .ActOnConditionalOp(noLoc,
@@ -815,8 +815,8 @@ namespace clad {
     LoopCounter loopCounter(*this);
     if (loopCounter.getPush())
       addToCurrentBlock(loopCounter.getPush());
-    beginBlock(forward);
-    beginBlock(reverse);
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
     const Stmt* init = FS->getInit();
     StmtDiff initResult = init ? DifferentiateSingleStmt(init) : StmtDiff{};
 
@@ -910,11 +910,11 @@ namespace clad {
                                             noLoc,
                                             noLoc,
                                             noLoc);
-    addToCurrentBlock(Forward, forward);
-    Forward = endBlock(forward);
-    addToCurrentBlock(loopCounter.getPop(), reverse);
-    addToCurrentBlock(Reverse, reverse);
-    Reverse = endBlock(reverse);
+    addToCurrentBlock(Forward, direction::forward);
+    Forward = endBlock(direction::forward);
+    addToCurrentBlock(loopCounter.getPop(), direction::reverse);
+    addToCurrentBlock(Reverse, direction::reverse);
+    Reverse = endBlock(direction::reverse);
     endScope();
 
     return {unwrapIfSingleStmt(Forward), unwrapIfSingleStmt(Reverse)};
@@ -956,12 +956,12 @@ namespace clad {
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
     Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
-    addToCurrentBlock(LS, reverse);
+    addToCurrentBlock(LS, direction::reverse);
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
-      addToCurrentBlock(S, forward);
-    // Since returned expression may have some side effects affecting reverse
-    // computation (e.g. assignments), we also have to emit it to execute it.
-    Expr* retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(), forward,
+      addToCurrentBlock(S, direction::forward);
+    // // Since returned expression may have some side effects affecting reverse
+    // // computation (e.g. assignments), we also have to emit it to execute it.
+    Expr* retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(), direction::forward,
                                        utils::ComputeEffectiveFnName(
                                            m_Function) +
                                            "_return",
@@ -1019,7 +1019,7 @@ namespace clad {
         VarDecl* popVal = BuildVarDecl(popExpr->getType(), "_t", popExpr,
                                        /*DirectInit=*/true);
         if (dfdx())
-          addToCurrentBlock(BuildDeclStmt(popVal), reverse);
+          addToCurrentBlock(BuildDeclStmt(popVal), direction::reverse);
         else
           m_PopIdxValues.push_back(BuildDeclStmt(popVal));
         IdxStored = StmtDiff(IdxStored.getExpr(), BuildDeclRef(popVal));
@@ -1048,7 +1048,7 @@ namespace clad {
     if (dfdx()) {
       auto add_assign = BuildOp(BO_AddAssign, result, dfdx());
       // Add it to the body statements.
-      addToCurrentBlock(add_assign, reverse);
+      addToCurrentBlock(add_assign, direction::reverse);
     }
     return StmtDiff(cloned, result);
   }
@@ -1089,7 +1089,7 @@ namespace clad {
         if (dfdx()) {
           auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
           // Add it to the body statements.
-          addToCurrentBlock(add_assign, reverse);
+          addToCurrentBlock(add_assign, direction::reverse);
         }
       } else {
         // Check DeclRefExpr is a reference to an independent variable.
@@ -1102,7 +1102,7 @@ namespace clad {
         if (dfdx()) {
           Expr* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
           // Add it to the body statements.
-          addToCurrentBlock(add_assign, reverse);
+          addToCurrentBlock(add_assign, direction::reverse);
         }
         return StmtDiff(clonedDRE, it->second);
       }
@@ -1173,7 +1173,7 @@ namespace clad {
     llvm::SmallVector<DeclStmt*, 16> ArgDeclStmts{};
     // Save current index in the current block, to potentially put some
     // statements there later.
-    std::size_t insertionPoint = getCurrentBlock(reverse).size();
+    std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
     // Store the type to reduce call overhead that would occur if used in the
     // loop
@@ -1189,11 +1189,11 @@ namespace clad {
       if (isArrayOrPointerType(Arg->getType())) {
         Expr* nullptrLiteral = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
         dArg = StoreAndRef(nullptrLiteral, GetCladArrayRefOfType(CEType),
-                           reverse, "_r",
+                           direction::reverse, "_r",
                            /*forceDeclCreation=*/true,
                            VarDecl::InitializationStyle::CallInit);
       } else {
-        dArg = StoreAndRef(/*E=*/nullptr, CEType, reverse, "_r",
+        dArg = StoreAndRef(/*E=*/nullptr, CEType, direction::reverse, "_r",
                            /*forceDeclCreation=*/true);
       }
       ArgResultDecls.push_back(
@@ -1364,7 +1364,7 @@ namespace clad {
           CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
                                   OverloadedDerivedFn);
           if (!OverloadedDerivedFn) {
-            auto& block = getCurrentBlock(reverse);
+            auto& block = getCurrentBlock(direction::reverse);
             block.insert(block.begin(), ArgDeclStmts.begin(),
                          ArgDeclStmts.end());
             return StmtDiff(Clone(CE));
@@ -1402,7 +1402,7 @@ namespace clad {
       } else {
         // Put Result array declaration in the function body.
         // Call the gradient, passing Result as the last Arg.
-        auto& block = getCurrentBlock(reverse);
+        auto& block = getCurrentBlock(direction::reverse);
         auto it = std::begin(block) + insertionPoint;
 
         // Insert the _gradX declaration statements
@@ -1525,7 +1525,7 @@ namespace clad {
       Expr* dl = nullptr;
       if (dfdx()) {
         dl = BuildOp(BO_Mul, dfdx(), RResult.getExpr_dx());
-        dl = StoreAndRef(dl, reverse);
+        dl = StoreAndRef(dl, direction::reverse);
       }
       Ldiff = Visit(L, dl);
       // dxi/xr = xl
@@ -1540,7 +1540,7 @@ namespace clad {
           StmtDiff LResult = GlobalStoreAndRef(LStored);
           LStored = LResult.getExpr();
           dr = BuildOp(BO_Mul, LResult.getExpr_dx(), dfdx());
-          dr = StoreAndRef(dr, reverse);
+          dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);
         // Assign right multiplier's variable with R.
@@ -1553,11 +1553,11 @@ namespace clad {
       // df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
       auto RDelayed = DelayedGlobalStoreAndRef(R);
       StmtDiff RResult = RDelayed.Result;
-      Expr* RStored = StoreAndRef(RResult.getExpr_dx(), reverse);
+      Expr* RStored = StoreAndRef(RResult.getExpr_dx(), direction::reverse);
       Expr* dl = nullptr;
       if (dfdx()) {
         dl = BuildOp(BO_Div, dfdx(), RStored);
-        dl = StoreAndRef(dl, reverse);
+        dl = StoreAndRef(dl, direction::reverse);
       }
       Ldiff = Visit(L, dl);
       // dxi/xr = -xl / (xr * xr)
@@ -1575,7 +1575,7 @@ namespace clad {
                        dfdx(),
                        BuildOp(UO_Minus,
                                BuildOp(BO_Div, LResult.getExpr_dx(), RxR)));
-          dr = StoreAndRef(dr, reverse);
+          dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);
         RDelayed.Finalize(Rdiff.getExpr());
@@ -1643,17 +1643,17 @@ namespace clad {
           auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
           StmtDiff ReturnDiff = ReturnResult.first;
           Stmt* Reverse = ReturnDiff.getStmt_dx();
-          addToCurrentBlock(Reverse, reverse);
+          addToCurrentBlock(Reverse, direction::reverse);
           for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
-            addToCurrentBlock(S, forward);
+            addToCurrentBlock(S, direction::forward);
         }
       }
 
       // Visit LHS, but delay emission of its derivative statements, save them
       // in Lblock
-      beginBlock(reverse);
+      beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
-      auto Lblock = endBlock(reverse);
+      auto Lblock = endBlock(direction::reverse);
       Expr* LCloned = Ldiff.getExpr();
       // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
       // like (x = y) it propagates recursively, so _d_x is also returned.
@@ -1677,11 +1677,11 @@ namespace clad {
       auto Lblock_begin = Lblock->body_rbegin();
       auto Lblock_end = Lblock->body_rend();
       if (dfdx() && Lblock->size()) {
-        addToCurrentBlock(*Lblock_begin, reverse);
+        addToCurrentBlock(*Lblock_begin, direction::reverse);
         Lblock_begin = std::next(Lblock_begin);
       }
       while(!m_PopIdxValues.empty())
-        addToCurrentBlock(m_PopIdxValues.pop_back_val(), reverse);
+        addToCurrentBlock(m_PopIdxValues.pop_back_val(), direction::reverse);
       Expr* deltaVar = nullptr;
       if (m_ErrorEstimationEnabled)
         deltaVar = errorEstHandler->RegisterBinaryOpLHS(LCloned, R,
@@ -1689,17 +1689,17 @@ namespace clad {
                                                             BO_Assign);
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
-      auto oldValue = StoreAndRef(AssignedDiff, reverse, "_r_d",
+      auto oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
                                   /*forceDeclCreation=*/true);
       if (opCode == BO_Assign) {
         Rdiff = Visit(R, oldValue);
       } else if (opCode == BO_AddAssign) {
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue),
-                          reverse);
+                          direction::reverse);
         Rdiff = Visit(R, oldValue);
       } else if (opCode == BO_SubAssign) {
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue),
-                          reverse);
+                          direction::reverse);
         Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
       } else if (opCode == BO_MulAssign) {
         auto RDelayed = DelayedGlobalStoreAndRef(R);
@@ -1708,7 +1708,7 @@ namespace clad {
             BuildOp(BO_AddAssign,
                     AssignedDiff,
                     BuildOp(BO_Mul, oldValue, RResult.getExpr_dx())),
-            reverse);
+            direction::reverse);
         Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
           // Create a reference variable to keep the result of LHS, since it
@@ -1726,14 +1726,14 @@ namespace clad {
           //   double r = _ref0 *= z;
           if (LCloned->HasSideEffects(m_Context)) {
             auto RefType = getNonConstType(L->getType(), m_Context, m_Sema);
-            LRef = StoreAndRef(LCloned, RefType, forward, "_ref",
+            LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
                                /*forceDeclCreation=*/true);
           }
           StmtDiff LResult = GlobalStoreAndRef(LRef);
           if (isInsideLoop)
-            addToCurrentBlock(LResult.getExpr(), forward);
+            addToCurrentBlock(LResult.getExpr(), direction::forward);
           Expr* dr = BuildOp(BO_Mul, LResult.getExpr_dx(), oldValue);
-          dr = StoreAndRef(dr, reverse);
+          dr = StoreAndRef(dr, direction::reverse);
           Rdiff = Visit(R, dr);
           RDelayed.Finalize(Rdiff.getExpr());
         }
@@ -1741,28 +1741,28 @@ namespace clad {
       } else if (opCode == BO_DivAssign) {
         auto RDelayed = DelayedGlobalStoreAndRef(R);
         StmtDiff RResult = RDelayed.Result;
-        Expr* RStored = StoreAndRef(RResult.getExpr_dx(), reverse);
+        Expr* RStored = StoreAndRef(RResult.getExpr_dx(), direction::reverse);
         addToCurrentBlock(BuildOp(BO_AddAssign,
                                   AssignedDiff,
                                   BuildOp(BO_Div, oldValue, RStored)),
-                          reverse);
+                          direction::reverse);
         Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
           if (LCloned->HasSideEffects(m_Context)) {
             QualType RefType = m_Context.getLValueReferenceType(
                 getNonConstType(L->getType(), m_Context, m_Sema));
-            LRef = StoreAndRef(LCloned, RefType, forward, "_ref",
+            LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
                                /*forceDeclCreation=*/true);
           }
           StmtDiff LResult = GlobalStoreAndRef(LRef);
           if (isInsideLoop)
-            addToCurrentBlock(LResult.getExpr(), forward);
+            addToCurrentBlock(LResult.getExpr(), direction::forward);
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
           Expr* dr = BuildOp(
               BO_Mul,
               oldValue,
               BuildOp(UO_Minus, BuildOp(BO_Div, LResult.getExpr_dx(), RxR)));
-          dr = StoreAndRef(dr, reverse);
+          dr = StoreAndRef(dr, direction::reverse);
           Rdiff = Visit(R, dr);
           RDelayed.Finalize(Rdiff.getExpr());
         }
@@ -1775,10 +1775,10 @@ namespace clad {
         errorEstHandler->EmitBinaryOpErrorStmts(LCloned, oldValue, deltaVar,
                                                 isInsideLoop);
       // Update the derivative.
-      addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), reverse);
+      addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), direction::reverse);
       // Output statements from Visit(L).
       for (auto it = Lblock_begin; it != Lblock_end; ++it)
-        addToCurrentBlock(*it, reverse);
+        addToCurrentBlock(*it, direction::reverse);
     } else if (opCode == BO_Comma) {
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
@@ -1872,7 +1872,7 @@ namespace clad {
         Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign,
                                      BuildDeclRef(VDDerived),
                                      getZeroInit(VDDerivedType));
-        addToCurrentBlock(assignToZero, reverse);
+        addToCurrentBlock(assignToZero, direction::reverse);
       }
     }
     VarDecl* VDClone = BuildVarDecl(VD->getType(),
@@ -1886,13 +1886,13 @@ namespace clad {
   StmtDiff
   ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS,
                                               bool shouldEmit /*=true*/) {
-    beginBlock(reverse);
+    beginBlock(direction::reverse);
     StmtDiff SDiff = Visit(S, dfdS);
     // We might have some expressions to emit, so do that here.
     if (m_ErrorEstimationEnabled && shouldEmit)
-      errorEstHandler->EmitErrorEstimationStmts(reverse);
-    addToCurrentBlock(SDiff.getStmt_dx(), reverse);
-    CompoundStmt* RCS = endBlock(reverse);
+      errorEstHandler->EmitErrorEstimationStmts(direction::reverse);
+    addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
+    CompoundStmt* RCS = endBlock(direction::reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
     return StmtDiff(SDiff.getStmt(), ReverseResult);
@@ -1900,14 +1900,14 @@ namespace clad {
 
   std::pair<StmtDiff, StmtDiff>
   ReverseModeVisitor::DifferentiateSingleExpr(const Expr* E, Expr* dfdE) {
-    beginBlock(forward);
-    beginBlock(reverse);
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
     StmtDiff EDiff = Visit(E, dfdE);
     // We might have some expressions to emit, so do that here.
     if (m_ErrorEstimationEnabled)
-      errorEstHandler->EmitErrorEstimationStmts(reverse);
-    CompoundStmt* RCS = endBlock(reverse);
-    Stmt* ForwardResult = endBlock(forward);
+      errorEstHandler->EmitErrorEstimationStmts(direction::reverse);
+    CompoundStmt* RCS = endBlock(direction::reverse);
+    Stmt* ForwardResult = endBlock(direction::forward);
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
     return {StmtDiff(ForwardResult, ReverseResult), EDiff};
@@ -2062,7 +2062,7 @@ namespace clad {
       Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix));
       if (E) {
         Expr* Set = BuildOp(BO_Assign, Ref, E);
-        addToCurrentBlock(Set, forward);
+        addToCurrentBlock(Set, direction::forward);
       }
       return {Ref, Ref};
     }
@@ -2085,7 +2085,7 @@ namespace clad {
       Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
     } else {
       V.addToCurrentBlock(V.BuildOp(BO_Assign, Result.getExpr(), New),
-                          ReverseModeVisitor::forward);
+                          direction::forward);
     }
   }
 
@@ -2199,10 +2199,10 @@ namespace clad {
     //   clad::pop(_t);
     // }
     if (loopCounter.getPop()) {
-      beginBlock(reverse);
-      addToCurrentBlock(loopCounter.getPop(), reverse);
-      addToCurrentBlock(reverseWS, reverse);
-      reverseBlock = endBlock(reverse);
+      beginBlock(direction::reverse);
+      addToCurrentBlock(loopCounter.getPop(), direction::reverse);
+      addToCurrentBlock(reverseWS, direction::reverse);
+      reverseBlock = endBlock(direction::reverse);
     }
     return {forwardWS, reverseBlock};
   }
@@ -2255,10 +2255,10 @@ namespace clad {
     //   clad::pop(_t);
     // }
     if (loopCounter.getPop()) {
-      beginBlock(reverse);
-      addToCurrentBlock(loopCounter.getPop(), reverse);
-      addToCurrentBlock(reverseDS, reverse);
-      reverseBlock = endBlock(reverse);
+      beginBlock(direction::reverse);
+      addToCurrentBlock(loopCounter.getPop(), direction::reverse);
+      addToCurrentBlock(reverseDS, direction::reverse);
+      reverseBlock = endBlock(direction::reverse);
     }
     return {forwardDS, reverseBlock};
   }
@@ -2276,25 +2276,25 @@ namespace clad {
     StmtDiff bodyDiff = nullptr;
     if (isa<CompoundStmt>(body)) {
       bodyDiff = Visit(body);
-      beginBlock(forward);
+      beginBlock(direction::forward);
       addToCurrentBlock(counterIncrement);
       for (Stmt* S : cast<CompoundStmt>(bodyDiff.getStmt())->body())
         addToCurrentBlock(S);
-      bodyDiff = {endBlock(forward), bodyDiff.getStmt_dx()};
+      bodyDiff = {endBlock(direction::forward), bodyDiff.getStmt_dx()};
     } else {
       // for forward-pass loop statement body
       beginScope(Scope::DeclScope);
-      beginBlock(forward);
+      beginBlock(direction::forward);
       addToCurrentBlock(counterIncrement);
       bodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr,
                                          /*shouldEmit=*/false);
       addToCurrentBlock(bodyDiff.getStmt());
       // Emit some statemnts later to maintain correct statement order.
       if (m_ErrorEstimationEnabled) {
-        errorEstHandler->EmitErrorEstimationStmts(forward);
+        errorEstHandler->EmitErrorEstimationStmts(direction::forward);
       }
       Stmt* reverseBlock = unwrapIfSingleStmt(bodyDiff.getStmt_dx());
-      bodyDiff = {endBlock(forward), reverseBlock};
+      bodyDiff = {endBlock(direction::forward), reverseBlock};
       // for forward-pass loop statement body
       endScope();
     }
@@ -2313,20 +2313,20 @@ namespace clad {
     // 2) loop body differentiation statements
     // 3) condition variable differentiation statements
     // 4) counter decrement expression
-    beginBlock(reverse);
+    beginBlock(direction::reverse);
     // `for` loops have counter decrement expression in the
     // loop iteration-expression.
     if (!isForLoop)
-      addToCurrentBlock(counterDecrement, reverse);
-    addToCurrentBlock(condVarDiff, reverse);
-    addToCurrentBlock(bodyDiff.getStmt_dx(), reverse);
-    addToCurrentBlock(forLoopIncDiff, reverse);
-    bodyDiff = {bodyDiff.getStmt(), endBlock(reverse)};
+      addToCurrentBlock(counterDecrement, direction::reverse);
+    addToCurrentBlock(condVarDiff, direction::reverse);
+    addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
+    addToCurrentBlock(forLoopIncDiff, direction::reverse);
+    bodyDiff = {bodyDiff.getStmt(), endBlock(direction::reverse)};
     return bodyDiff;
   }
 
   StmtDiff ReverseModeVisitor::VisitContinueStmt(const ContinueStmt* CS) {
-    beginBlock(forward);
+    beginBlock(direction::forward);
     Stmt* newCS = m_Sema.ActOnContinueStmt(noLoc, getCurrentScope()).get();
     auto activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
@@ -2334,11 +2334,11 @@ namespace clad {
                                       ->CreateCFTapePushExprToCurrentCase();
     addToCurrentBlock(pushExprToCurrentCase);
     addToCurrentBlock(newCS);
-    return {endBlock(forward), CFCaseStmt};
+    return {endBlock(direction::forward), CFCaseStmt};
   }
 
   StmtDiff ReverseModeVisitor::VisitBreakStmt(const BreakStmt* BS) {
-    beginBlock(forward);
+    beginBlock(direction::forward);
     Stmt* newBS = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
     auto activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
@@ -2346,7 +2346,7 @@ namespace clad {
                                       ->CreateCFTapePushExprToCurrentCase();
     addToCurrentBlock(pushExprToCurrentCase);
     addToCurrentBlock(newBS);
-    return {endBlock(forward), CFCaseStmt};
+    return {endBlock(direction::forward), CFCaseStmt};
   }
 
   Expr* ReverseModeVisitor::BreakContStmtHandler::CreateSizeTLiteralExpr(

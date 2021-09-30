@@ -56,7 +56,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
 
     // Finally add the final error expression to the derivative body.
     addToCurrentBlock(BuildOp(BO_AddAssign, m_FinalError, addErrorExpr),
-                      forward);
+                      direction::forward);
   }
 
   void
@@ -84,25 +84,25 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
                      .ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, tapeRef,
                                     noLoc)
                      .get();
-        popVal = StoreAndRef(popVal, reverse);
+        popVal = StoreAndRef(popVal, direction::reverse);
       }
       // If the variable declration refers to an array element
       // create the suitable _delta_arr[i] (because we have not done
       // this before).
       deltaVar = getArraySubscriptExpr(deltaVar, popVal);
-      addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr), reverse);
+      addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr), direction::reverse);
       // immediately emit fin_err += delta_[].
       // This is done to avoid adding all errors at the end
       // and only add the errors that were calculated.
-      addToCurrentBlock(BuildOp(BO_AddAssign, m_FinalError, deltaVar), reverse);
+      addToCurrentBlock(BuildOp(BO_AddAssign, m_FinalError, deltaVar), direction::reverse);
 
     } else
-      addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr), reverse);
+      addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr), direction::reverse);
   }
 
   void
   ErrorEstimationHandler::EmitErrorEstimationStmts(direction d /*=forward*/) {
-    if (d == forward) {
+    if (d == direction::forward) {
       while (!m_ForwardReplStmts.empty())
         addToCurrentBlock(m_ForwardReplStmts.pop_back_val(), d);
     } else {
@@ -129,7 +129,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
       m_RetErrorExpr = BuildDeclRef(retVarDecl);
     }
     addToCurrentBlock(BuildOp(BO_Assign, m_RetErrorExpr, retDeclRefExpr),
-                      forward);
+                      direction::forward);
   }
 
   void ErrorEstimationHandler::EmitNestedFunctionParamError(
@@ -157,7 +157,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
       m_ForwardReplStmts.push_back(tape.Push);
       // Nice to store pop values becuase user might refer to getExpr
       // multiple times in Assign Error.
-      Expr* popVal = StoreAndRef(tape.Pop, reverse);
+      Expr* popVal = StoreAndRef(tape.Pop, direction::reverse);
       return StmtDiff(tape.Push, popVal);
     } else {
       QualType QTval = val->getType();
@@ -232,7 +232,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
       if (!toCurrentScope)
         AddToGlobalBlock(BuildDeclStmt(EstVD));
       else
-        addToCurrentBlock(BuildDeclStmt(EstVD), forward);
+        addToCurrentBlock(BuildDeclStmt(EstVD), direction::forward);
       deltaVar = BuildDeclRef(EstVD);
     } else {
       QType = isArrayOrPointerType(VDType) ? VDType : m_Context.DoubleTy;
@@ -244,7 +244,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
         deltaVar = BuildDeclRef(EstVD);
       } else {
         deltaVar =
-            StoreAndRef(init, QType, forward, "_delta_" + VD->getNameAsString(),
+            StoreAndRef(init, QType, direction::forward, "_delta_" + VD->getNameAsString(),
                         /*forceDeclCreation=*/true);
       }
     }
@@ -408,7 +408,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
           // We do not know how many times the user will use dx,
           // hence we should pop values beforehand to avoid unequal pushes
           // and and pops.
-          Expr* popVal = StoreAndRef(savedVar.getExpr_dx(), reverse);
+          Expr* popVal = StoreAndRef(savedVar.getExpr_dx(), direction::reverse);
           savedVar = {savedVar.getExpr(), popVal};
         }
         Expr* erroExpr = GetError(savedVar.getExpr_dx(), var.getExpr_dx());
@@ -458,7 +458,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
     Expr* errorExpr = GetError(savedExpr.getExpr_dx(), oldValue);
     AddErrorStmtToBlock(LExpr, deltaVar, errorExpr, isInsideLoop);
     // If there are assign statements to emit in reverse, do that.
-    EmitErrorEstimationStmts(reverse);
+    EmitErrorEstimationStmts(direction::reverse);
   }
 
   void ErrorEstimationHandler::EmitDeclErrorStmts(VarDeclDiff VDDiff,
