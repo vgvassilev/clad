@@ -2,6 +2,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
 #include "clad/Differentiator/Compatibility.h"
@@ -132,5 +133,25 @@ namespace clad {
       }
       return DC;
     }
-    } // namespace utils
+    
+    StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
+      // Copied and adapted from clang::Sema::ActOnStringLiteral.
+      QualType CharTyConst = C.CharTy.withConst();
+      QualType
+          StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
+                                                    llvm::APInt(/*numBits=*/32,
+                                                                str.size() + 1),
+                                                    /*SizeExpr=*/nullptr,
+                                                    /*ASM=*/ArrayType::Normal,
+                                                    /*IndexTypeQuals*/ 0);
+      StringLiteral* SL = StringLiteral::Create(C, str,
+                                                /*Kind=*/StringLiteral::Ascii,
+                                                /*Pascal=*/false, StrTy, noLoc);
+      return SL;
+    }
+
+    bool isArrayOrPointerType(const clang::QualType QT) {
+      return QT->isArrayType() || QT->isPointerType();
+    }
+  } // namespace utils
 } // namespace clad

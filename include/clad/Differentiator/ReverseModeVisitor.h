@@ -20,18 +20,22 @@
 #include <unordered_map>
 
 namespace clad {
-  class MultiplexExternalRMVSource;
+  class ErrorEstimationHandler;
   class ExternalRMVSource;
+  class MultiplexExternalRMVSource;
 
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public VisitorBase {
+  
   private:
-    /// Determines if an error estimation is in process; helps decide whether
-    /// to visit error estimation specific code in calls to VisitStmt.
-    bool m_ErrorEstimationEnabled = false;
+    // FIXME: We should remove friend-dependency of the plugin classes here.
+    // For this we will need to separate out AST related functions in
+    // a separate namespace, as well as add getters/setters function of
+    // several private/protected members of the visitor classes.
+    friend class ErrorEstimationHandler;
     llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
@@ -57,6 +61,9 @@ namespace clad {
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     bool isVectorValued = false;
+    // FIXME: Should we make this an object instead of a pointer?
+    // Downside of making it an object: We will need to include
+    // 'MultiplexExternalRMVSource.h' file
     MultiplexExternalRMVSource* m_ExternalSource = nullptr;
 
     const char* funcPostfix() const {
@@ -77,7 +84,6 @@ namespace clad {
 
   public:
     using direction = rmv::direction;
-    
     clang::Expr* dfdx() {
       if (m_Stack.empty())
         return nullptr;
@@ -315,15 +321,9 @@ namespace clad {
     ///
     /// \param[in] dfdS The expression to propogate to Visit
     ///
-    /// \param[in] doNotEmit This parameter is error estimation specific
-    /// and tells the function to not emit the accumulated forward/reverse
-    /// expressions yet. This is useful in the cases where this function
-    /// is called directly and not through VisitCompountStmt
-    ///
     /// \returns The orignal (cloned) and differentiated forms of S
     StmtDiff DifferentiateSingleStmt(const clang::Stmt* S,
-                                     clang::Expr* dfdS = nullptr,
-                                     bool shouldEmit = true);
+                                     clang::Expr* dfdS = nullptr);
     /// A helper method used to keep substatements created by Visit(E, expr) in
     /// separate forward/reverse blocks instead of putting them into current
     /// blocks. First result is a StmtDiff of forward/reverse blocks with

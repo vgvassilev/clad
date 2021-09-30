@@ -213,27 +213,7 @@ namespace clad {
       FD->print(Out, Policy);
       Out.flush();
 
-      // Copied and adapted from clang::Sema::ActOnStringLiteral.
-      QualType CharTyConst = C.CharTy;
-      CharTyConst.addConst();
-      // Get an array type for the string, according to C99 6.4.5. This includes
-      // the nul terminator character as well as the string length for pascal
-      // strings.
-      QualType StrTy =
-          clad_compat::getConstantArrayType(C, CharTyConst,
-                                            llvm::APInt(32,
-                                                        Out.str().size() + 1),
-                                            /*SizeExpr=*/nullptr,
-                                            ArrayType::Normal,
-                                            /*IndexTypeQuals*/ 0);
-
-      StringLiteral* SL =
-        StringLiteral::Create(C,
-                              Out.str(),
-                              StringLiteral::Ascii,
-                              /*Pascal*/false,
-                              StrTy,
-                              noLoc);
+      StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());
       Expr* newArg =
         SemaRef.ImpCastExprToType(SL,
                                   Arg->getType(),

@@ -31,12 +31,10 @@ using namespace clang;
 
 namespace clad {
 
-  std::unique_ptr<ErrorEstimationHandler> errorEstHandler = nullptr;
-
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
-      m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
+      m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr), m_ErrorEstHandler(nullptr) {}
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
@@ -178,16 +176,18 @@ namespace clad {
       JacobianModeVisitor J(*this);
       result = J.Derive(FD, request);
     } else if (request.Mode == DiffMode::error_estimation) {
+      ReverseModeVisitor R(*this);
       // Set the handler.
-      errorEstHandler.reset(new ErrorEstimationHandler(*this));
+      m_ErrorEstHandler.reset(new ErrorEstimationHandler());
       // Set error estimation model. If no custom model provided by user,
       // use the built in Taylor approximation model.
       if (!m_EstModel) {
         m_EstModel.reset(new TaylorApprox(*this));
       }
-      errorEstHandler->SetErrorEstimationModel(m_EstModel.get());
+      m_ErrorEstHandler->SetErrorEstimationModel(m_EstModel.get());
+      R.AddExternalSource(*m_ErrorEstHandler);
       // Finally begin estimation.
-      result = errorEstHandler->Derive(FD, request);
+      result = R.Derive(FD, request);
       // Once we are done, we want to clear the model for any further
       // calls to estimate_error.
       m_EstModel->clearEstimationVariables();
