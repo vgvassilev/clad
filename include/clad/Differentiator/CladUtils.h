@@ -7,9 +7,16 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Sema.h"
+#include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <string>
+
+namespace clang {
+  class ASTContext;
+  class FunctionDecl;
+  class StringLiteral;
+}
 
 namespace clad {
   namespace utils {
@@ -125,7 +132,18 @@ namespace clad {
     /// \param[in] DC
     clang::DeclContext* GetOutermostDC(clang::Sema& semaRef,
                                        clang::DeclContext* DC);
-    } // namespace utils
+
+    /// Creates a `StringLiteral` node to represent string literal
+    /// "`str`".
+    ///
+    ///\param C reference to `ASTContext` object.
+    ///\param[in] str string literal to create.
+    clang::StringLiteral* CreateStringLiteral(clang::ASTContext& C,
+                                              llvm::StringRef str);
+
+    /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
+    bool isArrayOrPointerType(const clang::QualType QT);
+  } // namespace utils
 }
 
 #endif

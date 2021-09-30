@@ -44,8 +44,6 @@ namespace clad {
 namespace clad {
   class ErrorEstimationHandler;
   class FPErrorEstimationModel;
-  // A pointer to a the handler to be used for estimation requests.
-  extern std::unique_ptr<ErrorEstimationHandler> errorEstHandler;
 
   /// A pair of FunctionDecl and potential enclosing context, e.g. a function
   /// in nested namespaces.
@@ -84,6 +82,8 @@ namespace clad {
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
+    // A pointer to a the handler to be used for estimation requests.
+    std::unique_ptr<ErrorEstimationHandler> m_ErrorEstHandler;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB, clang::DeclContext* DC,
                                   clang::Sema& m_Sema,

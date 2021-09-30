@@ -83,9 +83,7 @@ namespace clad {
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder), m_Result(nullptr) {
-    m_ExternalSource = new MultiplexExternalRMVSource;
-  }
+      : VisitorBase(builder), m_Result(nullptr) {}
 
   ReverseModeVisitor::~ReverseModeVisitor() {
     if (m_ExternalSource) {
@@ -207,11 +205,11 @@ namespace clad {
   OverloadedDeclWithContext
   ReverseModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
-    m_ExternalSource->ActOnStartOfDerive();                               
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnStartOfDerive();                               
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     assert(m_Function && "Must not be null.");
-    m_ErrorEstimationEnabled = request.Mode == DiffMode::error_estimation;
 
     DiffParams args{};
     if (request.Args) {
@@ -222,7 +220,8 @@ namespace clad {
     if (args.empty())
       return {};
 
-    m_ExternalSource->ActAfterParsingDiffArgs(request, args);
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterParsingDiffArgs(request, args);
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
     clang::QualType DerivedOutputParamType;
@@ -260,7 +259,9 @@ namespace clad {
     llvm::SmallVector<QualType, 16> outputParamTypes;
     // If we are in error estimation mode, we have an extra `double&`
     // parameter that stores the final error
-    unsigned numExtraParam = m_ErrorEstimationEnabled ? 1 : 0;
+    unsigned numExtraParam = 0;
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeCreatingDerivedFnParamTypes(numExtraParam);
     paramTypes.reserve(m_Function->getNumParams() * 2);
     outputParamTypes.reserve(args.size());
     for (auto* PVD : m_Function->parameters()) {
@@ -279,12 +280,10 @@ namespace clad {
       paramTypes.insert(paramTypes.end(), outputParamTypes.begin(),
                         outputParamTypes.end());
     }
-    // If we are performing error estimation, our gradient function
-    // will have an extra argument which will hold the final error value
-    if (m_ErrorEstimationEnabled) {
-      paramTypes.push_back(
-          m_Context.getLValueReferenceType(m_Context.DoubleTy));
-    }
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
+
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
@@ -323,7 +322,8 @@ namespace clad {
     FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
-    m_ExternalSource->ActBeforeCreatingDerivedFnScope();
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeCreatingDerivedFnScope();
 
     // Function declaration scope
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -331,7 +331,8 @@ namespace clad {
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
-    m_ExternalSource->ActAfterCreatingDerivedFnScope();
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnScope();
 
     // Create parameter declarations.
     llvm::SmallVector<ParmVarDecl*, 4> params;
@@ -373,7 +374,7 @@ namespace clad {
             m_Sema.PushOnScopeChains(DVD, getCurrentScope(),
                                      /*AddToContext=*/false);
           outputParams.push_back(DVD);
-          if (isArrayOrPointerType(PVD->getType())) {
+          if (utils::isArrayOrPointerType(PVD->getType())) {
             m_Variables[*it] = (Expr*)BuildDeclRef(DVD);
           } else {
             m_Variables[*it] =
@@ -401,19 +402,10 @@ namespace clad {
       m_IndependentVars.insert(m_IndependentVars.end(), args.begin(),
                                args.end());
     }
-    // If in error estimation mode, create the error parameter
-    if (m_ErrorEstimationEnabled) {
-      // Repeat the above but for the error ouput var "_final_error"
-      ParmVarDecl *errorVarDecl = ParmVarDecl::Create(
-          m_Context, gradientFD, noLoc, noLoc,
-          &m_Context.Idents.get("_final_error"), paramTypes.back(),
-          m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
-          params.front()->getStorageClass(),
-          /*DefArg=*/nullptr);
-      params.push_back(errorVarDecl);
-      m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
-                               /*AddToContext=*/false);
-    }
+    
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
+
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         llvm::makeArrayRef(params.data(), params.size());
     gradientFD->setParams(paramsRef);
@@ -429,7 +421,7 @@ namespace clad {
       for (auto arg : args) {
         // FIXME: fix when adding array inputs, now we are just skipping all
         // array/pointer inputs (not treating them as independent variables).
-        if (isArrayOrPointerType(arg->getType())) {
+        if (utils::isArrayOrPointerType(arg->getType())) {
           if (arg->getName() == "p")
             m_Variables[arg] = m_Result;
           idx += 1;
@@ -450,14 +442,16 @@ namespace clad {
         m_IndependentVars.push_back(arg);
       }
     }
-    // Reference to the final error statement
-    if (m_ErrorEstimationEnabled)
-      errorEstHandler->SetFinalErrorExpr(BuildDeclRef(params.back()));
+    
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
+
     // Function body scope.
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
-    m_ExternalSource->ActOnStartOfDerivedFnBody();
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnStartOfDerivedFnBody(request);
 
     // create derived variables for parameters which are not part of
     // independent variables (args).
@@ -471,7 +465,7 @@ namespace clad {
       auto VDDerivedType = param->getType();
       // We cannot initialize derived variable for pointer types because
       // we do not know the correct size.
-      if (isArrayOrPointerType(VDDerivedType))
+      if (utils::isArrayOrPointerType(VDDerivedType))
         continue;
       auto VDDerived =
           BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
@@ -501,12 +495,8 @@ namespace clad {
     else
       addToCurrentBlock(Reverse, direction::forward);
 
-    m_ExternalSource->ActOnEndOfDerivedFnBody();
-
-    // Since 'return' is not an assignment, add its error to _final_error
-    // given it is not a DeclRefExpr.
-    if (m_ErrorEstimationEnabled)
-      errorEstHandler->EmitFinalErrorStmts(params, m_Function->getNumParams());
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnEndOfDerivedFnBody();
 
     Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
@@ -539,17 +529,14 @@ namespace clad {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     for (Stmt* S : CS->body()) {
+      if (m_ExternalSource)
+        m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), direction::forward);
       addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
-      // In error estimation mode, if we have any residual statements
-      // to be emitted into the forward or revese blocks, we should
-      // emit them here. This is to maintain the correct order of
-      // statements generated.
-      if (m_ErrorEstimationEnabled) {
-        errorEstHandler->EmitErrorEstimationStmts(direction::forward);
-        errorEstHandler->EmitErrorEstimationStmts(direction::reverse);
-      }
+      
+      if (m_ExternalSource)
+        m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
     }
     CompoundStmt* Forward = endBlock(direction::forward);
     CompoundStmt* Reverse = endBlock(direction::reverse);
@@ -661,14 +648,14 @@ namespace clad {
         return BranchDiff;
       } else {
         beginBlock(direction::forward);
-        StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr,
-                                                      /*shouldEmit=*/false);
+        if (m_ExternalSource)
+          m_ExternalSource->ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt();
+        StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr);
         addToCurrentBlock(BranchDiff.getStmt(), direction::forward);
-        // In error estimation, manually emit the code here instead of
-        // DifferentiateSingleStmt to maintain correct order.
-        if (m_ErrorEstimationEnabled) {
-          errorEstHandler->EmitErrorEstimationStmts(direction::forward);
-        }
+        
+        if (m_ExternalSource)
+          m_ExternalSource->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
+
         Stmt* Forward = unwrapIfSingleStmt(endBlock(direction::forward));
         Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
         return StmtDiff(Forward, Reverse);
@@ -818,6 +805,8 @@ namespace clad {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     const Stmt* init = FS->getInit();
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeDifferentiatingLoopInitStmt();
     StmtDiff initResult = init ? DifferentiateSingleStmt(init) : StmtDiff{};
 
     // Save the isInsideLoop value (we may be inside another loop).
@@ -897,8 +886,7 @@ namespace clad {
         CounterCondition = loopCounter.getCounterConditionResult().get().second;
     Expr* CounterDecrement = loopCounter.getCounterDecrement();
 
-    Stmt* ReverseBody = BodyDiff.getStmt_dx();
-    Stmt* ReverseResult = unwrapIfSingleStmt(ReverseBody);
+    Stmt* ReverseResult = BodyDiff.getStmt_dx();
     if (!ReverseResult)
       ReverseResult = new (m_Context) NullStmt(noLoc);
     Stmt* Reverse = new (m_Context) ForStmt(m_Context,
@@ -959,20 +947,17 @@ namespace clad {
     addToCurrentBlock(LS, direction::reverse);
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
       addToCurrentBlock(S, direction::forward);
-    // // Since returned expression may have some side effects affecting reverse
-    // // computation (e.g. assignments), we also have to emit it to execute it.
+    // Since returned expression may have some side effects affecting reverse
+    // computation (e.g. assignments), we also have to emit it to execute it.
     Expr* retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(), direction::forward,
                                        utils::ComputeEffectiveFnName(
                                            m_Function) +
                                            "_return",
                                        /*forceDeclCreation=*/true);
-    // If the return expression is not a DeclRefExpression and is of type
-    // float, we should add it to the error estimate because returns are
-    // similiar to implicit assigns.
-    if (m_ErrorEstimationEnabled) {
-      errorEstHandler->SaveReturnExpr(ExprDiff.getExpr(),
-                                      cast<DeclRefExpr>(retDeclRefExpr));
-    }
+    
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff, retDeclRefExpr);
+    
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
   }
@@ -1033,7 +1018,7 @@ namespace clad {
     if (!target)
       return cloned;
     Expr* result = nullptr;
-    if (isArrayOrPointerType(target->getType()))
+    if (utils::isArrayOrPointerType(target->getType()))
       // Create the target[idx] expression.
       result = BuildArraySubscript(target, reverseIndices);
     else if (isCladArrayType(target->getType())) {
@@ -1186,7 +1171,7 @@ namespace clad {
       // as the call expression as it is the type used to declare the _gradX
       // array
       Expr* dArg;
-      if (isArrayOrPointerType(Arg->getType())) {
+      if (utils::isArrayOrPointerType(Arg->getType())) {
         Expr* nullptrLiteral = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
         dArg = StoreAndRef(nullptrLiteral, GetCladArrayRefOfType(CEType),
                            direction::reverse, "_r",
@@ -1391,14 +1376,6 @@ namespace clad {
         Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
 
         PerformImplicitConversionAndAssign(ArgResultDecls[0], d);
-        // If in error estimation, build the statement for the error
-        // in the input prameters (if they are reference types) to call and
-        // save to emit them later.
-        if (m_ErrorEstimationEnabled) {
-          errorEstHandler->EmitNestedFunctionParamError(fnDecl, CallArgs,
-                                                        ArgResultDecls,
-                                                        /*numArgs=*/1);
-        }
       } else {
         // Put Result array declaration in the function body.
         // Call the gradient, passing Result as the last Arg.
@@ -1413,15 +1390,11 @@ namespace clad {
         it += NumericalDiffMultiArg.size();
         // Insert the CallExpr to the derived function
         block.insert(it, OverloadedDerivedFn);
-        // If in error estimation, build the statement for the error
-        // in the input prameters (if of reference type) to call and save to
-        // emit them later.
-        if (m_ErrorEstimationEnabled) {
-          errorEstHandler->EmitNestedFunctionParamError(
-              fnDecl, CallArgs, ArgResultDecls, CE->getNumArgs());
-        }
       }
     }
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
+        CE, OverloadedDerivedFn, CallArgs, ArgResultDecls, asGrad);
 
     // Re-clone function arguments again, since they are required at 2 places:
     // call to gradient and call to original function.
@@ -1462,8 +1435,8 @@ namespace clad {
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(UnOp->getSubExpr(), dfdx());
       ResultRef = diff.getExpr_dx();
-      if (m_ErrorEstimationEnabled)
-        errorEstHandler->EmitUnaryOpErrorStmts(diff, isInsideLoop);
+      if (m_ExternalSource)
+        m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       diff = Visit(UnOp->getSubExpr(), dfdx());
     } else {
@@ -1682,11 +1655,10 @@ namespace clad {
       }
       while(!m_PopIdxValues.empty())
         addToCurrentBlock(m_PopIdxValues.pop_back_val(), direction::reverse);
-      Expr* deltaVar = nullptr;
-      if (m_ErrorEstimationEnabled)
-        deltaVar = errorEstHandler->RegisterBinaryOpLHS(LCloned, R,
-                                                        /*isAssign=*/opCode ==
-                                                            BO_Assign);
+
+      if (m_ExternalSource)
+        m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
+
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
       auto oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
@@ -1769,11 +1741,9 @@ namespace clad {
         std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
       } else
         llvm_unreachable("unknown assignment opCode");
-      // Now, we should emit the delta for LHS if it met all the
-      // requirements previously.
-      if (m_ErrorEstimationEnabled)
-        errorEstHandler->EmitBinaryOpErrorStmts(LCloned, oldValue, deltaVar,
-                                                isInsideLoop);
+      if (m_ExternalSource)
+        m_ExternalSource->ActBeforeFinalisingAssignOp(LCloned, oldValue);
+
       // Update the derivative.
       addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), direction::reverse);
       // Output statements from Visit(L).
@@ -1882,15 +1852,20 @@ namespace clad {
     m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
     return VarDeclDiff(VDClone, VDDerived);
   }
-
+  
+  // TODO: 'shouldEmit' parameter should be removed after converting
+  // Error estimation framework to callback style. Some more research
+  // need to be done to 
   StmtDiff
-  ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS,
-                                              bool shouldEmit /*=true*/) {
+  ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS) {
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);
     StmtDiff SDiff = Visit(S, dfdS);
-    // We might have some expressions to emit, so do that here.
-    if (m_ErrorEstimationEnabled && shouldEmit)
-      errorEstHandler->EmitErrorEstimationStmts(direction::reverse);
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeFinalizingDifferentiateSingleStmt(direction::reverse);
+
     addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
     CompoundStmt* RCS = endBlock(direction::reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
@@ -1903,9 +1878,8 @@ namespace clad {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     StmtDiff EDiff = Visit(E, dfdE);
-    // We might have some expressions to emit, so do that here.
-    if (m_ErrorEstimationEnabled)
-      errorEstHandler->EmitErrorEstimationStmts(direction::reverse);
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeFinalizingDifferentiateSingleExpr(direction::reverse);
     CompoundStmt* RCS = endBlock(direction::reverse);
     Stmt* ForwardResult = endBlock(direction::forward);
     std::reverse(RCS->body_begin(), RCS->body_end());
@@ -1958,15 +1932,8 @@ namespace clad {
     Stmt* DSDiff = BuildDeclStmt(declsDiff);
     addToBlock(DSDiff, m_Globals);
 
-    // For all dependent variables, we register them for estimation
-    // here.
-    if (m_ErrorEstimationEnabled) {
-      for (size_t i = 0; i < decls.size(); i++) {
-        VarDeclDiff VDDiff(static_cast<VarDecl*>(decls[0]),
-                           static_cast<VarDecl*>(declsDiff[0]));
-        errorEstHandler->EmitDeclErrorStmts(VDDiff, isInsideLoop);
-      }
-    }
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     return StmtDiff(DSClone);
   }
 
@@ -2286,13 +2253,13 @@ namespace clad {
       beginScope(Scope::DeclScope);
       beginBlock(direction::forward);
       addToCurrentBlock(counterIncrement);
-      bodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr,
-                                         /*shouldEmit=*/false);
+      if (m_ExternalSource)
+        m_ExternalSource->ActBeforeDifferentiatingSingleStmtLoopBody();
+      bodyDiff = DifferentiateSingleStmt(body, /*dfdS=*/nullptr);
       addToCurrentBlock(bodyDiff.getStmt());
-      // Emit some statemnts later to maintain correct statement order.
-      if (m_ErrorEstimationEnabled) {
-        errorEstHandler->EmitErrorEstimationStmts(direction::forward);
-      }
+      if (m_ExternalSource)
+        m_ExternalSource->ActAfterProcessingSingleStmtBodyInVisitForLoop();
+
       Stmt* reverseBlock = unwrapIfSingleStmt(bodyDiff.getStmt_dx());
       bodyDiff = {endBlock(direction::forward), reverseBlock};
       // for forward-pass loop statement body
@@ -2321,7 +2288,8 @@ namespace clad {
     addToCurrentBlock(condVarDiff, direction::reverse);
     addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
     addToCurrentBlock(forLoopIncDiff, direction::reverse);
-    bodyDiff = {bodyDiff.getStmt(), endBlock(direction::reverse)};
+    bodyDiff = {bodyDiff.getStmt(),
+                unwrapIfSingleStmt(endBlock(direction::reverse))};
     return bodyDiff;
   }
 
@@ -2461,6 +2429,8 @@ namespace clad {
   }
   
   void ReverseModeVisitor::AddExternalSource(ExternalRMVSource& source) {
+    if (!m_ExternalSource)
+      m_ExternalSource = new MultiplexExternalRMVSource();
     source.InitialiseRMV(*this);
     m_ExternalSource->AddSource(source);
   }
