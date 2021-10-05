@@ -1,4 +1,47 @@
 - name: "CaaS Monthly Meeting"
+  date: 2021-10-07 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
+  label: caas_07Oct2021
+  agenda:
+    - title: "Proposal for a C++ Language Interoperability Layer"
+      speaker: "Vassil Vassilev, Princeton"
+      description: |
+        The C++ programming language is used for many numerically intensive
+        scientific applications. A combination of performance and solid backward
+        compatibility has led to its use for many research software codes over
+        the past 20 years. Despite its power, C++ is often seen as difficult to
+        learn and inconsistent with rapid application development. Exploration
+        and prototyping is slowed down by the long edit-compile-run cycles
+        during development. Exploratory programming is an effective way to gain
+        a deeper understanding of a project's requirements; reduce the
+        complexity of a problem; and provide an early validation of the system’s
+        design and implementation. This is amongst the strengths of Python and a
+        major design goal of new languages such as Julia, D and Swift.
+
+        Two of the most widely used languages by researchers are C++ and Python.
+        Python has grown steadily as a language of choice for data science and
+        application control. The interactive nature of Python and its many
+        available libraries make it an excellent choice for scripting tasks and
+        code prototyping. However, native computational performance of Python is
+        mediocre. Python includes functionality for replacing the most critical
+        components of a processing kernel with implementations in C. This
+        functionality is insufficient to fully cover many scientific use cases
+        because crossing the language boundary is expensive due to limitations
+        in current tools.
+
+        This document describes the specifications for language interoperability
+        for C++ using an automated binding approach. The primary initial focus
+        is to support automatic binding to and from Python. Furthermore, the
+        approach is generic enough to fit other languages such as D and Julia.
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 4 Nov 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2021-09-02 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
