@@ -16,10 +16,14 @@
 
 
 # -- Project information -----------------------------------------------------
+import os
 
-project = 'Clad'
-copyright = '2014, Vassil Vassilev'
-author = 'Vassil Vassilev'
+project = "Clad"
+copyright = "2014, Vassil Vassilev"
+author = "Vassil Vassilev"
+
+# The full version, including alpha/beta/rc tags
+release = "2014"
 
 
 # -- General configuration ---------------------------------------------------
@@ -27,11 +31,10 @@ author = 'Vassil Vassilev'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [
-]
+extensions = ["sphinx.ext.todo"]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -44,20 +47,48 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = "alabaster"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
-CLAD_ROOT = '../..'
+html_theme_options = {
+    "github_user": "vgvassilev",
+    "github_repo": "clad",
+    "github_banner": True,
+    "fixed_sidebar": True,
+}
 
-html_extra_path = [CLAD_ROOT + '/build/docs/doxygen/html']
+highlight_language = "C++"
 
-import subprocess
-command = 'mkdir {0}/build; cd {0}/build; cmake ../ -DClang_DIR=/usr/lib/llvm-10\
-          -DLLVM_DIR=/usr/lib/llvm-10 -DCLAD_ENABLE_DOXYGEN=ON\
-          -DCLAD_INCLUDE_DOCS=ON'.format(CLAD_ROOT)
-subprocess.call(command, shell=True)
-subprocess.call('doxygen {0}/build/docs/doxygen.cfg'.format(CLAD_ROOT), shell=True)
+
+todo_include_todos = True
+
+current_file_dir = os.path.dirname(os.path.realpath(__file__))
+CLAD_ROOT = current_file_dir + "/../../.."
+
+with open(CLAD_ROOT + "/VERSION", "r") as f:
+    version = f.read()
+
+
+if os.environ.get("CLAD_BUILD_INTERNAL_DOCS"):
+    html_extra_path = [CLAD_ROOT + "/build/docs/"]
+
+    import subprocess
+
+    CMAKE_CONFIGURE_COMMAND = (
+        "mkdir {0}/build; cd {0}/build; cmake ../ "
+        "-DClang_DIR=/usr/lib/llvm-10 -DLLVM_DIR="
+        "/usr/lib/llvm-10 -DCLAD_ENABLE_DOXYGEN=ON "
+        "-DCLAD_INCLUDE_DOCS=ON"
+    ).format(CLAD_ROOT)
+    subprocess.call(CMAKE_CONFIGURE_COMMAND, shell=True)
+
+    INTERNAL_DOCS_DIR = "{0}/build/docs/internalDocs".format(CLAD_ROOT)
+    RUN_DOXYGEN_COMMAND = (
+        "(cat doxygen.cfg; echo 'OUTPUT_DIRECTORY = .') | doxygen -"
+    ).format(INTERNAL_DOCS_DIR)
+    print(RUN_DOXYGEN_COMMAND)
+    subprocess.call(RUN_DOXYGEN_COMMAND, shell=True, cwd=INTERNAL_DOCS_DIR)

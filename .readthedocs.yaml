@@ -1,7 +1,8 @@
 version: 2
 
 sphinx:
-  configuration: docs/sphinx/conf.py
+  configuration: docs/userDocs/source/conf.py
+  builder: html
 
 build:
   image: latest
