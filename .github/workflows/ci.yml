@@ -512,7 +512,8 @@ jobs:
         fi
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
-        sudo apt install -y python-setuptools
+        sudo -H python3 -m pip install -U pip
+        sudo -H python3 -m pip install -U setuptools
         sudo -H python3 -m pip install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
