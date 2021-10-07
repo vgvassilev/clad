@@ -23,80 +23,9 @@ jobs:
             compiler: clang
             clang-runtime: '5.0'
 
-          - name: ubu18-gcc5-runtime5
-            os: ubuntu-18.04
-            compiler: gcc-5
-            clang-runtime: '5.0'
-
-          - name: ubu18-gcc6-runtime5-coverity
-            os: ubuntu-18.04
-            compiler: gcc-6
-            clang-runtime: '5.0'
-            coverity: true
-
-          - name: ubu18-gcc6-runtime5
-            os: ubuntu-18.04
-            compiler: gcc-6
-            clang-runtime: '5.0'
-
-          - name: ubu18-gcc8-runtime5
-            os: ubuntu-18.04
-            compiler: gcc-8
-            clang-runtime: '5.0'
-
-          - name: ubu18-gcc9-runtime5
-            os: ubuntu-18.04
-            compiler: gcc-9
-            clang-runtime: '5.0'
-
-          - name: ubu18-clang4-runtime5
-            os: ubuntu-18.04
-            compiler: 'clang-4.0'
-            clang-runtime: '5.0'
-
-          - name: ubu18-clang8-runtime5
-            os: ubuntu-18.04
-            compiler: clang-8
-            clang-runtime: '5.0'
-
-          - name: ubu18-clang9-runtime5
-            os: ubuntu-18.04
-            compiler: clang-9
-            clang-runtime: '5.0'
-
           - name: osx-clang-runtime6
             os: macos-latest
             compiler: clang
-            clang-runtime: '6.0'
-
-          - name: ubu18-gcc5-runtime6
-            os: ubuntu-18.04
-            compiler: gcc-5
-            clang-runtime: '6.0'
-
-          - name: ubu18-gcc8-runtime6
-            os: ubuntu-18.04
-            compiler: gcc-8
-            clang-runtime: '6.0'
-
-          - name: ubu18-gcc9-runtime6
-            os: ubuntu-18.04
-            compiler: gcc-9
-            clang-runtime: '6.0'
-
-          - name: ubu18-clang4-runtime6
-            os: ubuntu-18.04
-            compiler: 'clang-4.0'
-            clang-runtime: '6.0'
-
-          - name: ubu18-clang8-runtime6
-            os: ubuntu-18.04
-            compiler: clang-8
-            clang-runtime: '6.0'
-
-          - name: ubu18-clang9-runtime6
-            os: ubuntu-18.04
-            compiler: clang-9
             clang-runtime: '6.0'
 
           - name: osx-clang-runtime7
@@ -104,40 +33,126 @@ jobs:
             compiler: clang
             clang-runtime: '7'
 
-          - name: ubu18-gcc5-runtime7
-            os: ubuntu-18.04
-            compiler: gcc-5
-            clang-runtime: '7'
-
-          - name: ubu18-gcc8-runtime7
-            os: ubuntu-18.04
-            compiler: gcc-8
-            clang-runtime: '7'
-
-          - name: ubu18-gcc9-runtime7
-            os: ubuntu-18.04
-            compiler: gcc-9
-            clang-runtime: '7'
-
-          - name: ubu18-clang4-runtime7
-            os: ubuntu-18.04
-            compiler: 'clang-4.0'
-            clang-runtime: '7'
-
-          - name: ubu18-clang8-runtime7
-            os: ubuntu-18.04
-            compiler: clang-8
-            clang-runtime: '7'
-
-          - name: ubu18-clang9-runtime7
-            os: ubuntu-18.04
-            compiler: clang-9
-            clang-runtime: '7'
-
           - name: osx-clang-runtime8
             os: macos-latest
             compiler: clang
             clang-runtime: '8'
+
+          - name: osx-clang-runtime9
+            os: macos-latest
+            compiler: clang
+            clang-runtime: '9'
+
+          - name: osx-clang-runtime10
+            os: macos-latest
+            compiler: clang
+            clang-runtime: '10'
+
+          - name: osx-clang-runtime11
+            os: macos-latest
+            compiler: clang
+            clang-runtime: '11'
+
+          - name: ubu18-gcc5-runtime8
+            os: ubuntu-18.04
+            compiler: gcc-5
+            clang-runtime: '8'
+
+          - name: ubu18-gcc6-runtime8-coverity
+            os: ubuntu-18.04
+            compiler: gcc-6
+            clang-runtime: '8'
+            coverity: true
+
+          - name: ubu18-gcc6-runtime8
+            os: ubuntu-18.04
+            compiler: gcc-6
+            clang-runtime: '8'
+
+          - name: ubu18-gcc8-runtime8
+            os: ubuntu-18.04
+            compiler: gcc-8
+            clang-runtime: '8'
+
+          - name: ubu18-gcc9-runtime8
+            os: ubuntu-18.04
+            compiler: gcc-9
+            clang-runtime: '8'
+
+          - name: ubu18-clang4-runtime8
+            os: ubuntu-18.04
+            compiler: 'clang-4.0'
+            clang-runtime: '8'
+
+          - name: ubu18-clang8-runtime8
+            os: ubuntu-18.04
+            compiler: clang-8
+            clang-runtime: '8'
+
+          - name: ubu18-clang9-runtime8
+            os: ubuntu-18.04
+            compiler: clang-9
+            clang-runtime: '8'
+
+          - name: ubu18-gcc5-runtime9
+            os: ubuntu-18.04
+            compiler: gcc-5
+            clang-runtime: '9'
+
+          - name: ubu18-gcc8-runtime9
+            os: ubuntu-18.04
+            compiler: gcc-8
+            clang-runtime: '9'
+
+          - name: ubu18-gcc9-runtime9
+            os: ubuntu-18.04
+            compiler: gcc-9
+            clang-runtime: '9'
+
+          - name: ubu18-clang4-runtime9
+            os: ubuntu-18.04
+            compiler: 'clang-4.0'
+            clang-runtime: '9'
+
+          - name: ubu18-clang8-runtime9
+            os: ubuntu-18.04
+            compiler: clang-8
+            clang-runtime: '9'
+
+          - name: ubu18-clang9-runtime9
+            os: ubuntu-18.04
+            compiler: clang-9
+            clang-runtime: '9'
+
+          - name: ubu18-gcc5-runtime10
+            os: ubuntu-18.04
+            compiler: gcc-5
+            clang-runtime: '10'
+
+          - name: ubu18-gcc8-runtime10
+            os: ubuntu-18.04
+            compiler: gcc-8
+            clang-runtime: '10'
+
+          - name: ubu18-gcc9-runtime10
+            os: ubuntu-18.04
+            compiler: gcc-9
+            clang-runtime: '10'
+
+          - name: ubu18-clang4-runtime10
+            os: ubuntu-18.04
+            compiler: 'clang-4.0'
+            clang-runtime: '10'
+
+          - name: ubu18-clang8-runtime10
+            os: ubuntu-18.04
+            compiler: clang-8
+            clang-runtime: '10'
+
+          - name: ubu18-clang9-runtime10
+            os: ubuntu-18.04
+            compiler: clang-9
+            clang-runtime: '10'
 
           - name: ubu20-gcc5-runtime8
             os: ubuntu-20.04
@@ -169,11 +184,6 @@ jobs:
             compiler: clang-9
             clang-runtime: '8'
 
-          - name: osx-clang-runtime9
-            os: macos-latest
-            compiler: clang
-            clang-runtime: '9'
-
           - name: ubu20-gcc5-runtime9
             os: ubuntu-20.04
             compiler: gcc-5
@@ -203,11 +213,6 @@ jobs:
             os: ubuntu-20.04
             compiler: clang-9
             clang-runtime: '9'
-
-          - name: osx-clang-runtime10
-            os: macos-latest
-            compiler: clang
-            clang-runtime: '10'
 
           - name: ubu20-gcc5-runtime10
             os: ubuntu-20.04
@@ -243,11 +248,6 @@ jobs:
             os: ubuntu-20.04
             compiler: clang-10
             clang-runtime: '10'
-
-          - name: osx-clang-runtime11
-            os: macos-latest
-            compiler: clang
-            clang-runtime: '11'
 
           - name: ubu20-gcc5-runtime11
             os: ubuntu-20.04
@@ -322,28 +322,37 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        UNIX_DISTRO=$(lsb_release -rs)
+        case "$UNIX_DISTRO" in
+          "18.04")
+            UNIX_DISTRO_CODENAME=bionic
+            ;;
+          "20.04")
+            UNIX_DISTRO_CODENAME=focal
+            ;;
+        esac
         if [[ ${{ matrix.clang-runtime }} == '7' ]]; then
-          echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-7 main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-7 main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
         fi
         if [[ ${{ matrix.clang-runtime }} == '8' ]]; then
-          echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal-8 main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-8 main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
         fi
         if [[ ${{ matrix.clang-runtime }} == '9' ]]; then
-          echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal-9 main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-9 main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
         fi
         if [[ ${{ matrix.clang-runtime }} == '10' ]]; then
-          echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal-10 main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-10 main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
         fi
         if [[ ${{ matrix.clang-runtime }} == '11' ]]; then
-          echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main" | sudo tee -a /etc/apt/sources.list
+          echo "deb http://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-11 main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
         fi
@@ -460,6 +469,7 @@ jobs:
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
+        ### TODO: remove if runtime 5.0 not used
         # Ubuntu 16.04 & Ubuntu 18.04 & ?20.04? llvm/clang-5.0 package is broken - install it from binary build.
         if [[ ${{ matrix.clang-runtime }} == '5.0' ]]; then
           # Install clang-5.0 to run the plugin with.
@@ -475,6 +485,8 @@ jobs:
           fi
           popd
         fi
+        ###
+        ### TODO: remove if runtime 6.0 not used
         # Ubuntu 16.04 & 18.04 & ?20.04? llvm/clang-6.0 package is broken - install it from binary build.
         if [[ ${{ matrix.clang-runtime }} == '6.0' ]]; then
           # Install clang-6.0 to run the plugin with.
@@ -490,6 +502,7 @@ jobs:
           fi
           popd
         fi
+        ###
         # llvm-8-tools is broken as it depends on python2.7 we use FileCheck from llvm-7-tools
         if [[ ${{ matrix.clang-runtime }} == '8' ]]; then
           if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
