@@ -30,10 +30,11 @@
         because crossing the language boundary is expensive due to limitations
         in current tools.
 
-        This document describes the specifications for language interoperability
-        for C++ using an automated binding approach. The primary initial focus
-        is to support automatic binding to and from Python. Furthermore, the
-        approach is generic enough to fit other languages such as D and Julia.
+        This talk describes key aspects of language interoperability for C++
+        using an automated binding approach. The primary initial focus is to
+        support automatic binding to and from Python. Furthermore, the approach
+        is generic enough to fit other languages such as D and Julia.
+      slides: "/assets/presentations/V_Vassilev-CaaS_LibInterOp.pdf"
     - title: Update
       speaker: Vassil
       slides: "/assets/presentations/CaaS_07_10_2021.pdf"
