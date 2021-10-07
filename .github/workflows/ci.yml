@@ -58,10 +58,17 @@ jobs:
             compiler: gcc-5
             clang-runtime: '8'
 
-          - name: ubu18-gcc6-runtime8-coverity
+          - name: ubu18-gcc6-runtime11-analyzers
             os: ubuntu-18.04
             compiler: gcc-6
-            clang-runtime: '8'
+            clang-runtime: '11'
+            coverage: true
+            #clang-format: true
+
+          - name: ubu18-gcc6-runtime11-coverity
+            os: ubuntu-18.04
+            compiler: gcc-6
+            clang-runtime: '11'
             coverity: true
 
           - name: ubu18-gcc6-runtime8
@@ -153,13 +160,6 @@ jobs:
             os: ubuntu-18.04
             compiler: clang-9
             clang-runtime: '10'
-
-          - name: ubu18-gcc7-runtime11-analyzers
-            os: ubuntu-18.04
-            compiler: gcc-7
-            clang-runtime: '11'
-            coverage: true
-            clang-format: true
 
           - name: ubu20-gcc7-runtime9
             os: ubuntu-20.04
