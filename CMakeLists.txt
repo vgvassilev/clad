@@ -268,7 +268,9 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 
 option(CLAD_INCLUDE_DOCS "Generate build targets for the clad docs.")
-option(CLAD_ENABLE_DOXYGEN "Use doxygen to generate clad API documentation.")
+# Should we instead name the options as CLAD_INTERNAL_DOCS and CLAD_EXTERNAL_DOCS?
+option(CLAD_ENABLE_DOXYGEN "Use doxygen to generate clad interal API documentation.")
+option(CLAD_ENABLE_SPHINX "Use sphinx to generage clad user documentation")
 if (CLAD_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()

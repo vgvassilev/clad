@@ -51,7 +51,7 @@ PROJECT_LOGO           =
 # If a relative path is entered, it will be relative to the location 
 # where doxygen was started. If left blank the current directory will be used.
 
-OUTPUT_DIRECTORY       = @docs_builddir@/doxygen
+OUTPUT_DIRECTORY       = @docs_builddir@/build
 
 # If the CREATE_SUBDIRS tag is set to YES, then doxygen will create 
 # 4096 sub-directories (in 2 levels) under the output directory of each output 
@@ -1617,7 +1617,7 @@ SEARCH_INCLUDES        = YES
 # contain include files that are not input files but should be processed by 
 # the preprocessor.
 
-INCLUDE_PATH           = ../include
+INCLUDE_PATH           = @CMAKE_SOURCE_DIR@/include
 
 # You can use the INCLUDE_FILE_PATTERNS tag to specify one or more wildcard 
 # patterns (like *.h and *.hpp) to filter out the header-files in the 

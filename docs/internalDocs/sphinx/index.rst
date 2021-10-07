@@ -11,7 +11,6 @@ Welcome to Clad's documentation!
    :caption: Contents:
 
 
-
 Indices and tables
 ==================
 
