@@ -161,6 +161,12 @@ jobs:
             compiler: clang-9
             clang-runtime: '10'
 
+          - name: ubu18-clang9-runtime10-cuda
+            os: ubuntu-18.04
+            compiler: clang-9
+            clang-runtime: '10'
+            cuda: true
+
           - name: ubu20-gcc7-runtime9
             os: ubuntu-20.04
             compiler: gcc-7
@@ -270,6 +276,21 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Save PR Info
+      if: ${{ matrix.coverage == true }}
+      run: |
+        mkdir -p ./pr
+        echo ${{ github.event.number }} > ./pr/NR
+        echo ${{ github.repository }} > ./pr/REPO
+    - uses: actions/upload-artifact@v2
+      if: ${{ matrix.coverage == true }}
+      with:
+        name: pr
+        path: pr/
     - uses: nelonoel/branch-name@v1.0.1
     - name: Setup default Build Type
       run: |
@@ -279,7 +300,7 @@ jobs:
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
         # FIXME: Ideally the check should be in the if: block of the action
-        if [ $BRANCH_NAME == "coverity_scan" ]; then
+        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
           # wget -q https://scan.coverity.com/download/cxx/linux64 --post-data "token=$TOKEN&project=vgvassilev/clad" -O cov-analysis-linux64.tar.gz
           mkdir cov-analysis-linux64
           # tar xzf cov-analysis-linux64.tar.gz --strip 1 -C cov-analysis-linux64
@@ -292,38 +313,12 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        UNIX_DISTRO=$(lsb_release -rs)
-        case "$UNIX_DISTRO" in
-          "18.04")
-            UNIX_DISTRO_CODENAME=bionic
-            ;;
-          "20.04")
-            UNIX_DISTRO_CODENAME=focal
-            ;;
-        esac
-        if [[ ${{ matrix.clang-runtime }} == '7' ]]; then
-          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-7 main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
-          sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
-        fi
-        if [[ ${{ matrix.clang-runtime }} == '8' ]]; then
-          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-8 main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
+        os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
+        echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
+        sudo apt update
+        if [[ '${{ matrix.clang-runtime }}' == '8' ]]; then
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
-        fi
-        if [[ ${{ matrix.clang-runtime }} == '9' ]]; then
-          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-9 main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
-          sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
-        fi
-        if [[ ${{ matrix.clang-runtime }} == '10' ]]; then
-          echo "deb https://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-10 main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
-          sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
-        fi
-        if [[ ${{ matrix.clang-runtime }} == '11' ]]; then
-          echo "deb http://apt.llvm.org/${UNIX_DISTRO_CODENAME}/ llvm-toolchain-${UNIX_DISTRO_CODENAME}-11 main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
+        else # ==7, >=9
           sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
         fi
     - name: Setup compiler on Linux
@@ -331,12 +326,16 @@ jobs:
       run: |
         # https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html
         vers="${compiler#*-}"
+        os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
         sudo apt update
-        if [[ ${{ matrix.compiler }} == *"gcc"* ]]; then
+        if [[ "${{ matrix.compiler }}" == *"gcc"* ]]; then
           sudo apt install -y gcc-${vers} g++-${vers}
           echo "CC=gcc-${vers}" >> $GITHUB_ENV
           echo "CXX=g++-${vers}" >> $GITHUB_ENV
         else
+          curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${vers} main" | sudo tee -a /etc/apt/sources.list
+          sudo apt update
           sudo apt install -y clang-${vers}
           echo "CC=clang-${vers}" >> $GITHUB_ENV
           echo "CXX=clang++-${vers}" >> $GITHUB_ENV
@@ -360,7 +359,7 @@ jobs:
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
         PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
         # Package llvm@5 is not supported on brew. We must install it from binary build.
-        if [[ ${{ matrix.clang-runtime }} == '5.0' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '5.0' ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
           pushd /usr/local/opt
           sudo curl -L https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
@@ -379,7 +378,7 @@ jobs:
           popd
         fi
         # Package llvm@6
-        if [[ ${{ matrix.clang-runtime }} == '6.0' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '6.0' ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
           pushd /usr/local/opt
           sudo curl -L https://releases.llvm.org/6.0.0/clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
@@ -397,21 +396,16 @@ jobs:
           fi
           popd
         fi
-        if [[ ${{ matrix.clang-runtime }} == '7' || ${{ matrix.clang-runtime }} == '8' || ${{ matrix.clang-runtime }} == '9' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '7' || '${{ matrix.clang-runtime }}' == '8' || '${{ matrix.clang-runtime }}' == '9' || '${{ matrix.clang-runtime }}' == '11' ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         fi
-        # Package llvm@10 == llvm. FIXME: Remove when official brew package llvm@10 is released.
-        if [[ ${{ matrix.clang-runtime }} == '10' ]]; then
-          export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@10/
-          sudo ln -s /usr/local/opt/llvm /usr/local/opt/llvm@10
-        fi
-        # Package llvm@11 is not supported (yet) on brew. FIXME: Remove when official brew package is released.
-        if [[ ${{ matrix.clang-runtime }} == '11' ]]; then
-          PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@11/
+        # Package llvm@10 is not supported on brew. FIXME: Remove when official brew package is released.
+        if [[ '${{ matrix.clang-runtime }}' == '10' ]]; then
+          PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@10/
           pushd /usr/local/opt
-          sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc2/clang+llvm-11.0.0-rc2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+          sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
           sudo rm -fr /usr/local/clang*
-          sudo mv clang+llvm-11.0.0-rc2-x86_64-apple-darwin/ llvm@11/
+          sudo mv clang+llvm-10.0.0-x86_64-apple-darwin/ llvm@10/
           # Use llvm/llvm@10/llvm@6 Filecheck
           if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
             if [[ -f /usr/local/opt/llvm/bin/FileCheck ]]; then
@@ -424,7 +418,16 @@ jobs:
           fi
           popd
         fi
-        sudo -H python3 -m pip install lit # LLVM lit is not part of the llvm releases...
+
+        # Package llvm@12 == llvm. FIXME: Remove when official brew package llvm@12 is released.
+        if [[ '${{ matrix.clang-runtime }}' == '12' ]]; then
+          brew install llvm
+          export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@12/
+          sudo ln -s /usr/local/opt/llvm /usr/local/opt/llvm@12
+        fi
+
+        pip3 install lit # LLVM lit is not part of the llvm releases...
+
         # We need headers in correct place
         for file in $(xcrun --show-sdk-path)/usr/include/*
         do
@@ -439,8 +442,23 @@ jobs:
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
-        # Ubuntu 16.04 & 18.04 & 20.04 llvm/clang-6.0 package is broken - install it from binary build.
-        if [[ ${{ matrix.clang-runtime }} == '6.0' ]]; then
+        # Ubuntu 16.04 & 18.04 llvm/clang-5.0 package is broken - install it from binary build.
+        if [[ '${{ matrix.clang-runtime }}' == '5.0' ]]; then
+          # Install clang-5.0 to run the plugin with.
+          PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${{ matrix.clang-runtime }}/
+          sudo mkdir -p /usr/lib/opt
+          pushd /usr/lib/opt
+          sudo curl -L https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
+          sudo rm -fr /usr/lib/clang*
+          sudo mv clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-5.0/
+          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
+            sudo apt install llvm-5.0-dev llvm-5.0-tools
+            sudo ln -s /usr/lib/llvm-5.0/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
+          fi
+          popd
+        fi
+        # Ubuntu 16.04 & 18.04 llvm/clang-6.0 package is broken - install it from binary build.
+        if [[ '${{ matrix.clang-runtime }}' == '6.0' ]]; then
           # Install clang-6.0 to run the plugin with.
           PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${{ matrix.clang-runtime }}/
           sudo mkdir -p /usr/lib/opt
@@ -455,19 +473,31 @@ jobs:
           popd
         fi
         # llvm-8-tools is broken as it depends on python2.7 we use FileCheck from llvm-7-tools
-        if [[ ${{ matrix.clang-runtime }} == '8' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '8' ]]; then
           if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            sudo apt install llvm-7-dev llvm-7-tools
-            sudo ln -s /usr/lib/llvm-7/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
+            sudo apt install llvm-9-dev llvm-9-tools
+            sudo ln -s /usr/lib/llvm-9/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
           fi
         fi
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
-        sudo -H python3 -m pip install -U pip
-        sudo -H python3 -m pip install -U setuptools
-        sudo -H python3 -m pip install lit # LLVM lit is not part of the llvm releases...
+        pip3 install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+    - name: Setup CUDA 8 on Linux
+      if: ${{ matrix.cuda == true }}
+      run: |     
+        wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/local_installers/cuda_8.0.61_375.26_linux-run 
+        wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/patches/2/cuda_8.0.61.2_linux-run
+        sh ./cuda_8.0.61_375.26_linux-run --tar mxvf
+        sudo cp InstallUtils.pm /usr/lib/x86_64-linux-gnu/perl-base
+        export $PERL5LIB
+        sudo sh cuda_8.0.61_375.26_linux-run --override --no-opengl-lib --silent --toolkit --kernel-source-path=/lib/modules/4.15.0-1113-azure/build 
+        sudo sh cuda_8.0.61.2_linux-run --silent --accept-eula 
+        export PATH=/usr/local/cuda-8.0/bin:${PATH} 
+        export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-8.0/lib64
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "PATH=$PATH" >> $GITHUB_ENV
     - name: Setup code coverage
       if: ${{ (matrix.coverage == true) }}
       run: |
@@ -499,8 +529,8 @@ jobs:
       if: ${{ matrix.coverity == true }}
       run: |
         # FIXME: Ideally the check should be in the if: block of the action
-        if [ $BRANCH_NAME == "coverity_scan" ]; then
-          if [[ ${{ matrix.compiler }} == "gcc-6" ]]; then
+        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
+          if [[ "${{ matrix.compiler }}" == "gcc-6" ]]; then
             mkdir obj && cd obj
             cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
               -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
@@ -518,52 +548,48 @@ jobs:
       if: ${{ failure() }}
       run: |
         export
-        if [[ runner.os == "Linux" ]]; then
+        if [[ "runner.os" == "Linux" ]]; then
           apt-mark showhold
           dpkg-query -L libclang-${{ matrix.clang-runtime }}-dev
           dpkg-query -L clang-${{ matrix.clang-runtime }}
           dpkg-query -L llvm-${{ matrix.clang-runtime }}-dev
           find /usr/lib/llvm-${{ matrix.clang-runtime }}/
+        fi
+        if [[ "runner.os" == "macOS" ]]; then
+          brew search llvm
           find /usr/local/opt/llvm@*/
         fi
-        if [[ runner.os == "macOS" ]]; then
-          brew search llvm
-        fi
-        python3 -m pip show lit
+        pip show lit
         cat obj/CMakeCache.txt
         cat obj/CMakeFiles/*.log
-    - name: Invoke workflow clang-format on compiler-research
-      if: ${{ success() && (matrix.clang-format == true) }}
-      uses: benc-uk/workflow-dispatch@v1
-      with:
-        workflow: SuggestFormattingChanges
-        repo: compiler-research/knowall
-        token: ${{ secrets.PERSONAL_TOKEN }}
-        ref: main # The SuggestFormattingChanges branch
-        inputs: '{ "repo": "${{ github.repository }}", "pull_id": "${{ github.event.number }}" }'
     - name: Setup tmate session
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
       timeout-minutes: 1 # When debugging increase to a suitable value!
-    - name: Code coverage report
+    - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
         # Create lcov report
         # capture coverage info
-        lcov --directory . --capture --output-file coverage.info
+        vers="${CC#*-}"
+        lcov --directory . --capture --output-file coverage.info --gcov-tool /usr/bin/gcov-${vers}
         # filter out system and extra files.
         # To also not include test code in coverage add them with full path to the patterns: '*/tests/*'
         lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' "$GITHUB_WORKSPACE"'/test/*' --output-file coverage.info
         # output coverage data for debugging (optional)
         lcov --list coverage.info
-        # Uploading to CodeCov
-        # '-f' specifies file(s) to use and disables manual coverage gathering and file search which has already been done above
-        bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+
+    - name: Upload to codecov.io
+      if: ${{ success() && (matrix.coverage == true) }}
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.info
+
     - name: Upload report to coverity_scan
       if: ${{ success() && (matrix.coverity == true) }}
       run: |
         # FIXME: Ideally the check should be in the if: block of the action
-        if [ $BRANCH_NAME == "coverity_scan" ]; then
+        if [ "$BRANCH_NAME" == "coverity_scan" ]; then
           # Upload to coverity
           tar czvf clad.tgz cov-out
           # curl \
