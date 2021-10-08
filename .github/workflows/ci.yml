@@ -53,6 +53,11 @@ jobs:
             compiler: clang
             clang-runtime: '11'
 
+          - name: osx-clang-runtime12
+            os: macos-latest
+            compiler: clang
+            clang-runtime: '12'
+
           - name: ubu18-gcc5-runtime8
             os: ubuntu-18.04
             compiler: gcc-5
@@ -99,6 +104,11 @@ jobs:
           - name: ubu18-clang9-runtime8
             os: ubuntu-18.04
             compiler: clang-9
+            clang-runtime: '8'
+
+          - name: ubu18-clang10-runtime8
+            os: ubuntu-18.04
+            compiler: clang-10
             clang-runtime: '8'
 
           - name: ubu18-gcc5-runtime9
@@ -160,6 +170,66 @@ jobs:
             os: ubuntu-18.04
             compiler: clang-9
             clang-runtime: '10'
+
+          - name: ubu18-gcc5-runtime11
+            os: ubuntu-18.04
+            compiler: gcc-5
+            clang-runtime: '11'
+
+          - name: ubu18-gcc8-runtime11
+            os: ubuntu-18.04
+            compiler: gcc-8
+            clang-runtime: '11'
+
+          - name: ubu18-gcc9-runtime11
+            os: ubuntu-18.04
+            compiler: gcc-9
+            clang-runtime: '11'
+
+          - name: ubu18-clang4-runtime11
+            os: ubuntu-18.04
+            compiler: 'clang-4.0'
+            clang-runtime: '11'
+
+          - name: ubu18-clang8-runtime11
+            os: ubuntu-18.04
+            compiler: clang-8
+            clang-runtime: '11'
+
+          - name: ubu18-clang9-runtime11
+            os: ubuntu-18.04
+            compiler: clang-9
+            clang-runtime: '11'
+
+          - name: ubu18-gcc5-runtime12
+            os: ubuntu-18.04
+            compiler: gcc-5
+            clang-runtime: '12'
+
+          - name: ubu18-gcc8-runtime12
+            os: ubuntu-18.04
+            compiler: gcc-8
+            clang-runtime: '12'
+
+          - name: ubu18-gcc9-runtime12
+            os: ubuntu-18.04
+            compiler: gcc-9
+            clang-runtime: '12'
+
+          - name: ubu18-clang4-runtime12
+            os: ubuntu-18.04
+            compiler: 'clang-4.0'
+            clang-runtime: '12'
+
+          - name: ubu18-clang8-runtime12
+            os: ubuntu-18.04
+            compiler: clang-8
+            clang-runtime: '12'
+
+          - name: ubu18-clang9-runtime12
+            os: ubuntu-18.04
+            compiler: clang-9
+            clang-runtime: '12'
 
           - name: ubu18-clang9-runtime10-cuda
             os: ubuntu-18.04
@@ -271,6 +341,51 @@ jobs:
             os: ubuntu-20.04
             compiler: clang-11
             clang-runtime: '11'
+
+          - name: ubu20-gcc7-runtime12
+            os: ubuntu-20.04
+            compiler: gcc-7
+            clang-runtime: '12'
+
+          - name: ubu20-gcc8-runtime12
+            os: ubuntu-20.04
+            compiler: gcc-8
+            clang-runtime: '12'
+
+          - name: ubu20-gcc9-runtime12
+            os: ubuntu-20.04
+            compiler: gcc-9
+            clang-runtime: '12'
+
+          - name: ubu20-clang6-runtime12
+            os: ubuntu-20.04
+            compiler: 'clang-6.0'
+            clang-runtime: '12'
+
+          - name: ubu20-clang8-runtime12
+            os: ubuntu-20.04
+            compiler: clang-8
+            clang-runtime: '12'
+
+          - name: ubu20-clang9-runtime12
+            os: ubuntu-20.04
+            compiler: clang-9
+            clang-runtime: '12'
+
+          - name: ubu20-clang10-runtime12
+            os: ubuntu-20.04
+            compiler: clang-10
+            clang-runtime: '12'
+
+          - name: ubu20-clang11-runtime12
+            os: ubuntu-20.04
+            compiler: clang-11
+            clang-runtime: '12'
+
+          - name: ubu20-clang12-runtime12
+            os: ubuntu-20.04
+            compiler: clang-12
+            clang-runtime: '12'
 
     steps:
     - uses: actions/checkout@v2
