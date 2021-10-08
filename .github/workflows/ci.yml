@@ -334,7 +334,7 @@ jobs:
           echo "CXX=g++-${vers}" >> $GITHUB_ENV
         else
           sudo apt install -y clang-${vers}
-          if [[ "$?" != "0" ]] then
+          if [[ "$?" != "0" ]]; then
             curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
             echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${vers} main" | sudo tee -a /etc/apt/sources.list
             sudo apt update
