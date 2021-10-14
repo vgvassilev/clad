@@ -409,7 +409,7 @@ namespace clad {
     }
 
     bool IsRValue(const clang::Expr* E) {
-      return E->isRValue() || E->isXValue();
+      return clad_compat::IsPRValue(E) || E->isXValue();
     }
 
     void AppendIndividualStmts(llvm::SmallVectorImpl<clang::Stmt*>& block,

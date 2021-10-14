@@ -264,6 +264,7 @@ int main () { //expected-no-diagnostics
   printf("Result is = %f\n", f10_darg0.execute(3, 4)); //CHECK-EXEC: Result is = 108.000000
 
   f_result[0] = f_result[1] = 0;
+  i_result[0] = 0;
   clad::gradient(f10);
   f10_grad(3, 4, &f_result[0], &i_result[0]);
   printf("Result is = {%f, %d}\n", f_result[0], i_result[0]); //CHECK-EXEC: Result is = {108.000000, 88}
