@@ -48,8 +48,8 @@ double fn3(double i, double j) {
 // CHECK: double fn3_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     double *_d_p = new double [2](/*implicit*/(double [2])0);
-// CHECK-NEXT:     double *p = new double [2](/*implicit*/(double [2])0);
+// CHECK-NEXT:     double *_d_p = new double [2](/*implicit*/(double{{ ?}}[2])0);
+// CHECK-NEXT:     double *p = new double [2](/*implicit*/(double{{ ?}}[2])0);
 // CHECK-NEXT:     _d_p[0] = _d_i + _d_j;
 // CHECK-NEXT:     p[0] = i + j;
 // CHECK-NEXT:     _d_p[1] = _d_i * j + i * _d_j;

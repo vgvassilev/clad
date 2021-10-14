@@ -107,8 +107,13 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
    return new (Ctx) IfStmt(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
 #elif CLANG_VERSION_MAJOR < 12
    return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
-#elif CLANG_VERSION_MAJOR >= 12
+#elif CLANG_VERSION_MAJOR < 14
    return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, LPL, RPL, Then, EL, Else);
+#elif CLANG_VERSION_MAJOR >= 14
+   IfStatementKind kind = IfStatementKind::Ordinary;
+   if (IsConstexpr)
+      kind = IfStatementKind::Constexpr;
+   return IfStmt::Create(Ctx, IL, kind, Init, Var, Cond, LPL, RPL, Then, EL, Else);   
 #endif
 }
 
@@ -536,6 +541,18 @@ static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* 
 }
 #endif
 
+#if CLANG_VERSION_MAJOR <= 13
+#define CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD) /**/
+#elif CLANG_VERSION_MAJOR > 13
+#define CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD) , FD->UsesFPIntrin()
+#endif
+
+#if CLANG_VERSION_MAJOR <= 13
+#define CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node) Node->isConstexpr()
+#elif CLANG_VERSION_MAJOR > 13
+#define CLAD_COMPAT_IfStmt_Create_IfStmtKind_Param(Node) Node->getStatementKind()
+#endif
+
 #if CLANG_VERSION_MAJOR < 9
 static inline MemberExpr* BuildMemberExpr(
     Sema& semaRef, Expr* base, bool isArrow, SourceLocation opLoc,
@@ -621,6 +638,12 @@ template <typename T> const T& Optional_GetValue(const T& val) { return val; }
 template <typename T> const T& Optional_GetValue(const llvm::Optional<T>& opt) {
   return opt.getValue();
 }
+#endif
+
+#if CLANG_VERSION_MAJOR < 13
+static inline bool IsPRValue(const Expr* E) { return E->isRValue(); }
+#else
+static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
 #endif
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

@@ -131,7 +131,7 @@ namespace clad {
       }
 
       bool ParseArgs(const clang::CompilerInstance& CI,
-                     const std::vector<std::string>& args) {
+                     const std::vector<std::string>& args) override {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
           if (args[i] == "-fdump-source-fn") {
             m_DO.DumpSourceFn = true;

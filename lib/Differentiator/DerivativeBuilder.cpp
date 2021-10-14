@@ -103,7 +103,8 @@ namespace clad {
                                          name,
                                          functionType, 
                                          FD->getTypeSourceInfo(),
-                                         FD->getStorageClass(),
+                                         FD->getStorageClass()
+                                         CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
                                          FD->isInlineSpecified(),
                                          clad_compat::Function_GetConstexprKind
                                          (FD), noLoc);
@@ -117,7 +118,8 @@ namespace clad {
                                         name, 
                                         functionType,
                                         FD->getTypeSourceInfo(),
-                                        FD->getStorageClass(),
+                                        FD->getStorageClass()
+                                        CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
                                         FD->isInlineSpecified(),
                                         FD->hasWrittenPrototype(),
                                         clad_compat::Function_GetConstexprKind(FD)CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause()));
