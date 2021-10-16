@@ -60,9 +60,11 @@ Features
 - Features numerical differentiation support, to be used where automatic
   differentiation is not feasible.
 
-.. todo::
+.. comment::
 
-   Add more features such as error estimation, custom derivatives etc.
+   .. todo::
+
+      Add more features such as error estimation, custom derivatives etc.
 
 The User Guide
 ---------------
