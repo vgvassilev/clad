@@ -245,19 +245,21 @@ derivative functions. The whole clad's operation sequence is the following:
 
 .. _clad_limitations:
 
-Clad limitations
-------------------
+.. comment::
 
-.. todo::
-  Add clad limitations, some of the limitations are:
+   Clad limitations
+   ------------------
+
+   .. todo::
+      Add clad limitations, some of the limitations are:
   
-  1) Do not support differentiating overloaded functions.
-  2) Clad differentiation functions do not work in non top-level contexts, 
-     such as inside a function.
-  3) Many C++ syntax are not supported such as complex pointer usage,
-     for-range loops, new and delete operators, iterators usage, custom classes etc
-  4) Currently ``clad::jacobian`` do not support array differentiation.
-  5) Error estimation framework do not support forward propagation of errors.
+      1) Do not support differentiating overloaded functions.
+      2) Clad differentiation functions do not work in non top-level contexts, 
+         such as inside a function.
+      3) Many C++ syntax are not supported such as complex pointer usage,
+         for-range loops, new and delete operators, iterators usage, custom classes etc
+      4) Currently ``clad::jacobian`` do not support array differentiation.
+      5) Error estimation framework do not support forward propagation of errors.
 
 .. note::
 

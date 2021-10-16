@@ -90,10 +90,12 @@ by one directly to the clang compiler. This method also preserve all the
 options and flags that are usually set by the compiler driver such as 
 default header search paths. 
 
-.. todo::
+.. comment::
+   
+   .. todo::
 
-   Should we explain about or give an external link to read more about difference
-   between the clang compiler driver and the clang compiler?
+      Should we explain about or give an external link to read more about difference
+      between the clang compiler driver and the clang compiler?
 
 What can Clad differentiate
 ----------------------------
@@ -143,9 +145,11 @@ We can also print the generated derived function, for studying or
 debugging purposes, through a ``clad::CladFunction`` object by calling 
 ``clad::CladFunction::dump`` member function.
 
-.. todo:: 
+.. comment::
+   
+   .. todo:: 
 
-   Should we add more information about CladFunction here?
+      Should we add more information about CladFunction here?
 
 Differentiating a function
 ----------------------------
@@ -429,24 +433,32 @@ Few important things to note through this example:
     // passing function by pointer
     auto d_E = clad::differentiate(&E, "i");
 
-Array differentiation
---------------------------------
-
-.. todo:: 
-
-   Add array differentiation quickstart documentation.
-
-
-Automatically shifting to Numerical differentiation
------------------------------------------------------
-
-.. todo::
-
-   Add numerical differentiation quickstart documentation.
-
-Error estimation framework
--------------------------------
-
-.. todo::
+.. comment::
    
-   Add error estimation framework quickstart documentation.
+   Array differentiation
+   --------------------------------
+
+   .. todo:: 
+
+      Add array differentiation quickstart documentation.
+
+
+.. comment::
+
+   Automatically shifting to Numerical differentiation
+   -----------------------------------------------------
+
+
+   .. todo::
+
+      Add numerical differentiation quickstart documentation.
+
+.. comment::
+
+   Error estimation framework
+   -------------------------------
+
+
+   .. todo::
+   
+      Add error estimation framework quickstart documentation.
