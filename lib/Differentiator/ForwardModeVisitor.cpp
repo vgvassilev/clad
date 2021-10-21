@@ -1023,16 +1023,36 @@ namespace clad {
       } else if (opCode == BO_Assign || opCode == BO_AddAssign ||
                  opCode == BO_SubAssign)
         opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
-      else if (opCode == BO_MulAssign) {
-        Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
-        Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
-        opDiff =
-            BuildOp(BO_Assign, Ldiff.getExpr_dx(), deriveMul(Ldiff, Rdiff));
-      } else if (opCode == BO_DivAssign) {
-        Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
-        Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
-        opDiff =
-            BuildOp(BO_Assign, Ldiff.getExpr_dx(), deriveDiv(Ldiff, Rdiff));
+      else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
+        // if both original expression and derived expression and evaluatable,
+        // then derived expression reference needs to be stored before
+        // the original expression reference to correctly evaluate
+        // the derivative. For example, 
+        //
+        // ```
+        // (t *= x) *= 1;
+        // ```
+        //
+        // Should evaluate to, 
+        //
+        // ```
+        // double &_t0 = (_d_t = _d_t*x + t*_d_x); // derived statement 
+        //                                            reference
+        // double &_t1 = (t*=x);  // original statement reference
+        // _t0 = _t0*1 + _t1*0;
+        // _t1 *= 1;
+        // ```
+        // 
+        auto LdiffExprDx = StoreAndRef(Ldiff.getExpr_dx());
+        Ldiff = {StoreAndRef(Ldiff.getExpr()), LdiffExprDx};
+        auto RdiffExprDx = StoreAndRef(Rdiff.getExpr_dx());
+        Rdiff = {StoreAndRef(Rdiff.getExpr()), RdiffExprDx};
+        if (opCode == BO_MulAssign)
+          opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(),
+                           deriveMul(Ldiff, Rdiff));
+        else if (opCode == BO_DivAssign)
+          opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(),
+                           deriveDiv(Ldiff, Rdiff));
       }
     } else if (opCode == BO_Comma) {
       if (!isUnusedResult(Ldiff.getExpr_dx()))

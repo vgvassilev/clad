@@ -201,9 +201,10 @@ double f4_inc_darg0(double x, int y);
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_i = 0;
 //CHECK-NEXT:           for (i = 0; i < y; [&]             {
-//CHECK-NEXT:                   double _t1 = std::sin(x);
-//CHECK-NEXT:                   _d_r = _d_r * _t1 + r * (custom_derivatives::sin_darg0(x) * _d_x);
-//CHECK-NEXT:                   r *= _t1;
+//CHECK-NEXT:               double _t2 = custom_derivatives::sin_darg0(x) * _d_x;
+//CHECK-NEXT:               double _t3 = std::sin(x);
+//CHECK-NEXT:               _d_r = _d_r * _t3 + r * _t2;
+//CHECK-NEXT:               r *= _t3;
 //CHECK:        }
 //CHECK:        ())
 //CHECK-NEXT:           i++;
