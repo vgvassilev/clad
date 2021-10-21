@@ -302,15 +302,17 @@ struct WidgetPointer {
   // CHECK-NEXT:       double &_t0 = this->arr[3];
   // CHECK-NEXT:       double &_t1 = this->arr[3];
   // CHECK-NEXT:       double &_t2 = this->i;
-  // CHECK-NEXT:       double _t3 = _t0 * _t1;
-  // CHECK-NEXT:       _d_i = _d_i * _t3 + _t2 * (1 * _t1 + _t0 * 1);
-  // CHECK-NEXT:       _t2 *= _t3;
-  // CHECK-NEXT:       double &_t4 = this->arr[5];
+  // CHECK-NEXT:       double _t3 = 1 * _t1 + _t0 * 1;
+  // CHECK-NEXT:       double _t4 = _t0 * _t1;
+  // CHECK-NEXT:       _d_i = _d_i * _t4 + _t2 * _t3;
+  // CHECK-NEXT:       _t2 *= _t4;
   // CHECK-NEXT:       double &_t5 = this->arr[5];
-  // CHECK-NEXT:       double &_t6 = this->j;
-  // CHECK-NEXT:       double _t7 = _t4 * _t5;
-  // CHECK-NEXT:       _d_j = _d_j * _t7 + _t6 * (0 * _t5 + _t4 * 0);
-  // CHECK-NEXT:       _t6 *= _t7;
+  // CHECK-NEXT:       double &_t6 = this->arr[5];
+  // CHECK-NEXT:       double &_t7 = this->j;
+  // CHECK-NEXT:       double _t8 = 0 * _t6 + _t5 * 0;
+  // CHECK-NEXT:       double _t9 = _t5 * _t6;
+  // CHECK-NEXT:       _d_j = _d_j * _t9 + _t7 * _t8;
+  // CHECK-NEXT:       _t7 *= _t9;
   // CHECK-NEXT:       return _d_i + _d_j + _d_temp;
   // CHECK-NEXT:   }
 
@@ -330,15 +332,17 @@ struct WidgetPointer {
   // CHECK-NEXT:       double &_t0 = this->arr[3];
   // CHECK-NEXT:       double &_t1 = this->arr[3];
   // CHECK-NEXT:       double &_t2 = this->i;
-  // CHECK-NEXT:       double _t3 = _t0 * _t1;
-  // CHECK-NEXT:       _d_i = _d_i * _t3 + _t2 * (0 * _t1 + _t0 * 0);
-  // CHECK-NEXT:       _t2 *= _t3;
-  // CHECK-NEXT:       double &_t4 = this->arr[5];
+  // CHECK-NEXT:       double _t3 = 0 * _t1 + _t0 * 0;
+  // CHECK-NEXT:       double _t4 = _t0 * _t1;
+  // CHECK-NEXT:       _d_i = _d_i * _t4 + _t2 * _t3;
+  // CHECK-NEXT:       _t2 *= _t4;
   // CHECK-NEXT:       double &_t5 = this->arr[5];
-  // CHECK-NEXT:       double &_t6 = this->j;
-  // CHECK-NEXT:       double _t7 = _t4 * _t5;
-  // CHECK-NEXT:       _d_j = _d_j * _t7 + _t6 * (1 * _t5 + _t4 * 1);
-  // CHECK-NEXT:       _t6 *= _t7;
+  // CHECK-NEXT:       double &_t6 = this->arr[5];
+  // CHECK-NEXT:       double &_t7 = this->j;
+  // CHECK-NEXT:       double _t8 = 1 * _t6 + _t5 * 1;
+  // CHECK-NEXT:       double _t9 = _t5 * _t6;
+  // CHECK-NEXT:       _d_j = _d_j * _t9 + _t7 * _t8;
+  // CHECK-NEXT:       _t7 *= _t9;
   // CHECK-NEXT:       return _d_i + _d_j + _d_temp;
   // CHECK-NEXT:   }
 
