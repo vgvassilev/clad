@@ -18,6 +18,15 @@
   date: 2021-09-01
   speaker: B Kundu
   artifacts: "[Link to slides](https://indico.cern.ch/event/1066812/contributions/4509414/attachments/2301766/3915408/Utilize%20second%20order%20derivatives%20from%20Clad%20in%20ROOT.pdf)"
+  
+- title: "Add support for differentiating functors"
+  description:
+  location: "[IRIS-HEP GSoC presentations meeting](https://indico.cern.ch/event/1066812/)" 
+  date: 2021-09-01
+  speaker: P Arora
+  artifacts:
+    - "[presentation](https://indico.cern.ch/event/1066812/contributions/4485920/attachments/2301761/3915402/IRIS-HEP-Add-support-for-differentiating-functors-presentation.pdf), "
+    - "[Poster](/assets/presentations/add-support-for-differentiating-functors-poster.pdf)"
 
 - title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
   description:
