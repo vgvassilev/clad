@@ -12,6 +12,13 @@
   speaker: G Singh
   artifacts: "[Link to slides](https://indico.cern.ch/event/1040761/contributions/4371613/attachments/2268248/3851583/floating_point_error_est.pdf)"
 
+- title: "Utilise Second Order Derivatives from Clad in ROOT"
+  description:
+  location: "[IRIS-HEP GSoC presentations meeting](https://indico.cern.ch/event/1066812/)"
+  date: 2021-09-01
+  speaker: B Kundu
+  artifacts: "[Link to slides](https://indico.cern.ch/event/1066812/contributions/4509414/attachments/2301766/3915408/Utilize%20second%20order%20derivatives%20from%20Clad%20in%20ROOT.pdf)"
+
 - title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
   description:
   location: "[IRIS-HEP topical meeting](https://indico.cern.ch/event/1040761/)"
