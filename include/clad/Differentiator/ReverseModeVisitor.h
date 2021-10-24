@@ -14,6 +14,7 @@
 #include "clang/Sema/Sema.h"
 
 #include <array>
+#include <memory>
 #include <stack>
 #include <unordered_map>
 
@@ -300,6 +301,8 @@ namespace clad {
     /// Decl is not Stmt, so it cannot be visited directly.
     StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
     StmtDiff VisitDoStmt(const clang::DoStmt* DS);
+    StmtDiff VisitContinueStmt(const clang::ContinueStmt* CS);
+    StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
 
     /// A helper method to differentiate a single Stmt in the reverse mode.
@@ -406,6 +409,104 @@ namespace clad {
                                    clang::Stmt* condVarDifff = nullptr,
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
+
+
+    /// This class modifies forward and reverse blocks of the loop
+    /// body so that `break` and `continue` statements are correctly
+    /// handled. `break` and `continue` statements are handled by 
+    /// enclosing entire reverse block loop body in a switch statement
+    /// and only executing the statements, with the help of case labels,
+    /// that were executed in the associated forward iteration. This is 
+    /// determined by keeping track of which `break`/`continue` statement 
+    /// was hit in which iteration and that in turn helps to determine which
+    /// case label should be selected.
+    ///
+    /// Class usage:
+    ///
+    /// ```cpp
+    /// auto activeBreakContStmtHandler = PushBreakContStmtHandler();
+    /// activeBreakContHandler->BeginCFSwitchStmtScope();
+    /// ....
+    /// Differentiate loop body, and save results in StmtDiff BodyDiff
+    /// ...
+    /// activeBreakContHandler->EndCFSwitchStmtScope();
+    /// activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
+    /// PopBreakContStmtHandler();
+    /// ```
+    class BreakContStmtHandler {
+      /// Keeps track of all the created switch cases. It is required
+      /// because we need to register all the switch cases later with the
+      /// switch statement that will be used to manage the control flow in
+      /// the reverse block.
+      llvm::SmallVector<clang::SwitchCase*, 4> m_SwitchCases;
+
+      /// `m_ControlFlowTape` tape keeps track of which `break`/`continue`
+      /// statement was hit in which iteration.
+      /// \note `m_ControlFlowTape` is only initialized if the body contains
+      /// `continue` or `break` statement.
+      std::unique_ptr<CladTapeResult> m_ControlFlowTape;
+      
+      /// Each `break` and `continue` statement is assigned a unique number,
+      /// starting from 1, that is used as the case label corresponding to that `break`/`continue`
+      /// statement. `m_CaseCounter` stores the value that was used for last
+      /// `break`/`continue` statement.
+      std::size_t m_CaseCounter = 0;
+
+      ReverseModeVisitor& m_RMV;
+
+      /// Builds and returns a literal expression of type `std::size_t` with
+      /// `value` as value.
+      clang::Expr* CreateSizeTLiteralExpr(std::size_t value);
+
+      /// Initialise the `m_ControlFlowTape`.
+      /// \note `m_ControlFlowTape` is not initialised in the constructor
+      /// because it is only initialised if it is required. It is only required
+      /// if body contains `break` or `continue` statement.
+      void InitializeCFTape();
+
+      /// Builds and returns `clad::push(tapeRef, value)` expression.
+      clang::Expr* CreateCFTapePushExpr(std::size_t value);
+
+    public:
+      BreakContStmtHandler(ReverseModeVisitor& RMV) : m_RMV(RMV) {}
+
+      /// Begins control flow switch statement scope.
+      /// Control flow switch statement is used to refer to the
+      /// switch statement that manages the control flow of the reverse
+      /// block.
+      void BeginCFSwitchStmtScope() const;
+
+      /// Ends control flow switch statement scope.
+      void EndCFSwitchStmtScope() const;
+
+      /// Builds and returns a switch case statement that corresponds
+      /// to a `break` or `continue` statement and is registered in the
+      /// control flow switch statement.
+      clang::CaseStmt* GetNextCFCaseStmt();
+
+      /// Builds and returns `clad::push(TapeRef, m_CurrentCounter)` 
+      /// expression, where `TapeRef` and `m_CurrentCounter` are replaced
+      /// by their actual values respectively.
+      clang::Stmt* CreateCFTapePushExprToCurrentCase();
+
+      /// Does final modifications on forward and reverse blocks
+      /// so that `break` and `continue` statements are handled
+      /// accurately.
+      void UpdateForwAndRevBlocks(StmtDiff& bodyDiff);
+    };
+    // Keeps track of active control flow switch statements.
+    llvm::SmallVector<BreakContStmtHandler, 4> m_BreakContStmtHandlers;
+
+    BreakContStmtHandler* GetActiveBreakContStmtHandler() {
+      return &m_BreakContStmtHandlers.back();
+    }
+    BreakContStmtHandler* PushBreakContStmtHandler() {
+      m_BreakContStmtHandlers.emplace_back(*this);
+      return &m_BreakContStmtHandlers.back();
+    }
+    void PopBreakContStmtHandler() {
+      m_BreakContStmtHandlers.pop_back();
+    }
   };
 } // end namespace clad
 

@@ -8,6 +8,7 @@
 
 #include "ConstantFolder.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -1144,18 +1145,6 @@ namespace clad {
     return StmtDiff(Clone(BL), constant0);
   }
 
-  /// Creates and returns a compound statement having statements as follows:
-  /// {`stmt`, all the statement of `CS` in sequence}
-  static CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C,
-                                                    const CompoundStmt* CS,
-                                                    Stmt* stmt) {
-    llvm::SmallVector<Stmt*, 16> block;
-    block.push_back(stmt);
-    block.insert(block.end(), CS->body_begin(), CS->body_end());
-    auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
-    return clad_compat::CompoundStmt_Create(C, stmtsRef, noLoc, noLoc);
-  }
-
   StmtDiff ForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     // begin scope for while loop
     beginScope(Scope::ContinueScope | Scope::BreakScope | Scope::DeclScope |
@@ -1213,7 +1202,7 @@ namespace clad {
     // }
     if (condVarClone) {
       bodyResult =
-          PrependAndCreateCompoundStmt(m_Sema.getASTContext(),
+          utils::PrependAndCreateCompoundStmt(m_Sema.getASTContext(),
                                        cast<CompoundStmt>(bodyResult),
                                        BuildDeclStmt(condVarRes.getDecl_dx()));
     }

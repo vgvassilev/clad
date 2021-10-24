@@ -387,6 +387,8 @@ namespace clad {
     /// Instantiate clad::tape<T> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
 
+    clang::DeclRefExpr* GetCladTapePushDRE();
+
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit
     /// conversions while assigning values to variables which are initialized

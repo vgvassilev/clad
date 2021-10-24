@@ -2247,6 +2247,8 @@ namespace clad {
                                                      Stmt* forLoopIncDiff,
                                                      bool isForLoop) {
     Expr* counterIncrement = loopCounter.getCounterIncrement();
+    auto activeBreakContHandler = PushBreakContStmtHandler();
+    activeBreakContHandler->BeginCFSwitchStmtScope();
     // differentiate loop body and add loop increment expression
     // in the forward block.
     StmtDiff bodyDiff = nullptr;
@@ -2275,6 +2277,10 @@ namespace clad {
       endScope();
     }
 
+    activeBreakContHandler->EndCFSwitchStmtScope();
+    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
+    PopBreakContStmtHandler();
+
     Expr* counterDecrement = loopCounter.getCounterDecrement();
 
     // Create reverse pass loop body statements by arranging various
@@ -2295,5 +2301,140 @@ namespace clad {
     addToCurrentBlock(forLoopIncDiff, reverse);
     bodyDiff = {bodyDiff.getStmt(), endBlock(reverse)};
     return bodyDiff;
+  }
+
+  StmtDiff ReverseModeVisitor::VisitContinueStmt(const ContinueStmt* CS) {
+    beginBlock(forward);
+    Stmt* newCS = m_Sema.ActOnContinueStmt(noLoc, getCurrentScope()).get();
+    auto activeBreakContHandler = GetActiveBreakContStmtHandler();
+    Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
+    Stmt* pushExprToCurrentCase = activeBreakContHandler
+                                      ->CreateCFTapePushExprToCurrentCase();
+    addToCurrentBlock(pushExprToCurrentCase);
+    addToCurrentBlock(newCS);
+    return {endBlock(forward), CFCaseStmt};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitBreakStmt(const BreakStmt* BS) {
+    beginBlock(forward);
+    Stmt* newBS = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    auto activeBreakContHandler = GetActiveBreakContStmtHandler();
+    Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
+    Stmt* pushExprToCurrentCase = activeBreakContHandler
+                                      ->CreateCFTapePushExprToCurrentCase();
+    addToCurrentBlock(pushExprToCurrentCase);
+    addToCurrentBlock(newBS);
+    return {endBlock(forward), CFCaseStmt};
+  }
+
+  Expr* ReverseModeVisitor::BreakContStmtHandler::CreateSizeTLiteralExpr(
+      std::size_t value) {
+    ASTContext& C = m_RMV.m_Context;
+    auto literalExpr = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
+                                                         value);
+    return literalExpr;
+  }
+
+  void ReverseModeVisitor::BreakContStmtHandler::InitializeCFTape() {
+    assert(!m_ControlFlowTape && "InitializeCFTape() should not be called if "
+                                 "m_ControlFlowTape is already initialized");
+
+    auto zeroLiteral = CreateSizeTLiteralExpr(0);
+    m_ControlFlowTape.reset(
+        new CladTapeResult(m_RMV.MakeCladTapeFor(zeroLiteral)));
+  }
+
+  Expr* ReverseModeVisitor::BreakContStmtHandler::CreateCFTapePushExpr(
+      std::size_t value) {
+    Expr* pushDRE = m_RMV.GetCladTapePushDRE();
+    Expr* callArgs[] = {m_ControlFlowTape->Ref, CreateSizeTLiteralExpr(value)};
+    Expr* pushExpr = m_RMV.m_Sema
+                         .ActOnCallExpr(m_RMV.getCurrentScope(), pushDRE, noLoc,
+                                        callArgs, noLoc)
+                         .get();
+    return pushExpr;
+  }
+
+  void
+  ReverseModeVisitor::BreakContStmtHandler::BeginCFSwitchStmtScope() const {
+    m_RMV.beginScope(Scope::SwitchScope | Scope::ControlScope |
+                     Scope::BreakScope | Scope::DeclScope);
+  }
+
+  void ReverseModeVisitor::BreakContStmtHandler::EndCFSwitchStmtScope() const {
+    m_RMV.endScope();
+  }
+
+  CaseStmt* ReverseModeVisitor::BreakContStmtHandler::GetNextCFCaseStmt() {
+    // End scope for currenly active case statement, if any.
+    if (!m_SwitchCases.empty())
+      m_RMV.endScope();
+
+    ++m_CaseCounter;
+    auto counterLiteral = CreateSizeTLiteralExpr(m_CaseCounter);
+    CaseStmt* CS = clad_compat::CaseStmt_Create(m_RMV.m_Context, counterLiteral,
+                                                nullptr, noLoc, noLoc, noLoc);
+
+    // Initialise switch case statements with null statement because it is
+    // necessary for switch case statements to have a substatement but it
+    // is possible that there are no statements after the corresponding
+    // break/continue statement. It's also easier to just set null statement
+    // as substatement instead of keeping track of switch cases and
+    // corresponding next statements.
+    CS->setSubStmt(m_RMV.m_Sema.ActOnNullStmt(noLoc).get());
+
+    // begin scope for the new active switch case statement.
+    m_RMV.beginScope(Scope::DeclScope);
+    m_SwitchCases.push_back(CS);
+    return CS;
+  }
+
+  Stmt* ReverseModeVisitor::BreakContStmtHandler::
+      CreateCFTapePushExprToCurrentCase() {
+    if (!m_ControlFlowTape)
+      InitializeCFTape();
+    return CreateCFTapePushExpr(m_CaseCounter);
+  }
+
+  void ReverseModeVisitor::BreakContStmtHandler::UpdateForwAndRevBlocks(
+      StmtDiff& bodyDiff) {
+    if (m_SwitchCases.empty())
+      return;
+
+    // end scope for last switch case.
+    m_RMV.endScope();
+
+    // Add case statement in the beginning of the reverse block
+    // and corresponding push expression for this case statement
+    // at the end of the forward block to cover the case when no
+    // `break`/`continue` statements are hit.
+    auto lastSC = GetNextCFCaseStmt();
+    auto pushExprToCurrentCase = CreateCFTapePushExprToCurrentCase();
+
+    Stmt *forwBlock, *revBlock;
+
+    forwBlock = utils::AppendAndCreateCompoundStmt(m_RMV.m_Context,
+                                                   bodyDiff.getStmt(),
+                                                   pushExprToCurrentCase);
+    revBlock = utils::PrependAndCreateCompoundStmt(m_RMV.m_Context,
+                                                   bodyDiff.getStmt_dx(),
+                                                   lastSC);
+
+    bodyDiff = {forwBlock, revBlock};
+
+    auto condResult = m_RMV.m_Sema.ActOnCondition(m_RMV.getCurrentScope(),
+                                                  noLoc, m_ControlFlowTape->Pop,
+                                                  Sema::ConditionKind::Switch);
+    SwitchStmt* CFSS = clad_compat::Sema_ActOnStartOfSwitchStmt(m_RMV.m_Sema,
+                                                                nullptr,
+                                                                condResult)
+                           .getAs<SwitchStmt>();
+    // Registers all the switch cases
+    for (auto SC : m_SwitchCases) {
+      CFSS->addSwitchCase(SC);
+    }
+    m_RMV.m_Sema.ActOnFinishSwitchStmt(noLoc, CFSS, bodyDiff.getStmt_dx());
+
+    bodyDiff = {bodyDiff.getStmt(), CFSS};
   }
 } // end namespace clad
