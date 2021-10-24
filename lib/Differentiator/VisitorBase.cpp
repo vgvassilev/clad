@@ -571,6 +571,15 @@ namespace clad {
     return Result.getValue();
   }
 
+  DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
+    LookupResult& pushLR = GetCladTapePush();
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    DeclRefExpr* pushDRE = m_Sema.BuildDeclarationNameExpr(CSS, pushLR, false)
+                               .getAs<DeclRefExpr>();
+    return pushDRE;
+  }
+
   LookupResult& VisitorBase::GetCladTapePop() {
     static llvm::Optional<LookupResult> Result{};
     if (Result)

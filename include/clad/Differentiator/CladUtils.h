@@ -3,11 +3,10 @@
 #ifndef CLAD_UTILS_CLADUTILS_H
 #define CLAD_UTILS_CLADUTILS_H
 
-#include <string>
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 
-namespace clang {
-  class FunctionDecl;
-}
+#include <string>
 
 namespace clad {
   namespace utils {
@@ -16,6 +15,18 @@ namespace clad {
     /// Otherwise if `FD` is an ordinary function, returns the name of the
     /// function `FD`.
     std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD);
+
+    /// Creates and returns a compound statement having statements as follows:
+    /// {`S`, all the statement of `initial` in sequence}    
+    clang::CompoundStmt* PrependAndCreateCompoundStmt(clang::ASTContext& C,
+                                                      clang::Stmt* initial,
+                                                      clang::Stmt* S);
+
+    /// Creates and returns a compound statement having statements as follows:
+    /// {all the statements of `initial` in sequence, `S`}
+    clang::CompoundStmt* AppendAndCreateCompoundStmt(clang::ASTContext& C,
+                                                     clang::Stmt* initial,
+                                                     clang::Stmt* S);
   }
 }
 
