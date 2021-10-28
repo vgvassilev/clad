@@ -68,6 +68,7 @@ jobs:
             compiler: gcc-6
             clang-runtime: '11'
             coverage: true
+            extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On'
             #clang-format: true
 
           - name: ubu18-gcc6-runtime11-coverity
@@ -626,8 +627,10 @@ jobs:
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCODE_COVERAGE=${CODE_COVERAGE}  \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
-          $GITHUB_WORKSPACE
-        cmake --build . --target check-clad -- -j4
+          $GITHUB_WORKSPACE                 \
+          ${{ matrix.extra_cmake_options }}
+
+        cmake --build . -- -j4
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
       run: |
@@ -646,6 +649,13 @@ jobs:
           fi
         else
           echo "This action only runs on branch coverity_scan"
+        fi
+    - name: Test Clad
+      run: |
+        if [[ -d obj ]]; then
+          cd obj
+          cmake --build . --target check-clad -- -j4
+          ctest -V
         fi
     - name: Failed job config
       if: ${{ failure() }}

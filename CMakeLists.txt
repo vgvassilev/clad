@@ -7,6 +7,12 @@ if(POLICY CMP0077)
   cmake_policy(SET CMP0077 NEW)
 endif()
 
+set(CMAKE_MODULE_PATH
+  ${CMAKE_MODULE_PATH}
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules"
+  )
+
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
@@ -278,6 +284,16 @@ endif()
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_subdirectory(test)
   add_subdirectory(demos/ErrorEstimation/CustomModel)
+
+  # Add benchmarking infrastructure.
+  if (CLAD_ENABLE_BENCHMARKS)
+    set(CTEST_BUILD_NAME ${ROOT_ARCHITECTURE}-${CMAKE_BUILD_TYPE})
+    enable_testing()
+    include(GoogleBenchmark)
+    include(AddCladBenchmark)
+    add_subdirectory(benchmark)
+  endif(CLAD_ENABLE_BENCHMARKS)
+
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell
