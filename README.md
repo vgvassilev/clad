@@ -151,6 +151,30 @@ Note: Clad provides custom derivatives for some mathematical functions from `<cm
 
 Note: *the concept of custom_derivatives will be reviewed soon, we intend to provide a different interface and avoid function name-based specifications and by-name lookups*.
 
+## Using Clad's floating point error estimation framework
+
+Clad is capable of annotating a given function with floating point error estimation code using the reverse mode of AD. An interface similar to `clad::gradient(f)` is provided as follows:
+
+`clad::estimate_error(f)` takes 1 argument:
+1. `f` is a pointer to the function or method to be annotated with floating point error estimation code.
+
+The function signature of the generated code is the same as from `clad::gradient(f)` with the exception that it has an extra argument at the end of type `double&`, which returns the total floating point error in the function by reference. For a user function `double f(double, double)` example usage is described below:
+
+```cpp
+// Generate the floating point error estimation code for 'f'.
+auto df = clad::estimate_error(f);
+// Print the generated code to standard output.
+df.dump();
+// Declare the necessary variables.
+double x, y, d_x, d_y, final_error = 0;
+// Finally call execute on the generated code.
+df.execute(x, y, &d_x, &d_y, final_error);
+// After this, 'final_error' contains the floating point error in function 'f'.
+```
+The above example generates the the error code using an in-built taylor approximation model. However, clad is capable of using any user defined custom model, for information on how to use you own custom model, please visit [this demo](https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel).
+
+More details on this framework can be found [here](https://indico.cern.ch/event/1040761/contributions/4371613/attachments/2268248/3851583/floating_point_error_est.pdf).
+
 ## How Clad works
 Clad is a plugin for the Clang compiler. It relies on the Clang to build the AST ([Clang AST](https://clang.llvm.org/docs/IntroductionToTheClangAST.html)) of user's source code. Then, [CladPlugin](https://github.com/vgvassilev/clad/blob/a264195f00792feeebe63ac7a8ab815c02d20eee/tools/ClangPlugin.h#L48), implemented as `clang::ASTConsumer` analyzes the AST to find differentiation requests for clad and process those requests by building Clang AST for derivative functions. The whole clad's operation sequence is the following:
 * Clang parses user's source code and builds the AST.
