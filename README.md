@@ -112,6 +112,8 @@ The following subset of C++ syntax is supported at the moment:
 
 Note: Clad currently differentiates types such as `int`/`char`/`boolean` as any real type (such as `float`, `double`, etc.) would be differentiated. Users should keep in mind that Clad *does not* warn against lossy casts, which on differentiation may result in incorrect derivatives.
 
+Note: If for any reason clad is unable to algorithmically differentiate a function, it automatically switches to numerically differentiating the same. To disable this behavior, please compile your programs with the `-DCLAD_NO_NUM_DIFF` flag. The numerical differentiation functionality can also be used standalone over a wide range of function signatures with minimal user intervention. [This presentation](https://indico.cern.ch/event/1066812/contributions/4495279/attachments/2301763/3915404/Numerical%20Differentiaition%20.pdf) provides more information on what can be numerically differentiated. For a comprehensive demo on using custom user defined types with numerical differentiation, you can check out [this demo](https://github.com/vgvassilev/clad/blob/master/demos/CustomTypeNumDiff.cpp).
+
 ## Specifying custom derivatives
 Sometimes Clad may be unable to differentiate your function (e.g. if its definition is in a library and source code is not available). Alternatively, an efficient/more numerically stable expression for derivatives may be know. In such cases, it is useful to be able to specify a custom derivatives for your function.
 
