@@ -1,16 +1,15 @@
 # Using your custom estimation model with clad 
-Clad's error estimation framework provides users with a choice to write their own custom error models and use those to generate estimation code. By default clad uses the Taylor series approximation model to estimate errors in a function, however this model might not be the most sutiable alternative in many cases. In such scenarios, a user may prefer to write their own model to get better fp error estimates. 
+Clad's error estimation framework provides users with a choice to write their own custom error models and use those to generate estimation code. By default clad uses the Taylor series approximation model to estimate errors in a function, however this model might not be the most suitable alternative in many cases. In such scenarios, a user may prefer to write their own model to get better fp error estimates. 
 
-The aim of this demo is to illustrate how one can integrate a custom model with clad. For in depth information on how to *write* your own custom estimation model, check out the tutorials here.
- <!--- TODO: Add doc link -->
+The aim of this demo is to illustrate how one can integrate a custom model with clad. For in depth information on how to *write* your own custom estimation model, check out [this tutorial](https://compiler-research.org/tutorials/fp_error_estimation_clad_tutorial/).
 
 ## Building the demo
 
-Before we can use the custom model, it must be compiled into a [shared object](https://www.thegeekstuff.com/2012/06/linux-shared-libraries/). To do this, you can use your favourite compiler. For this demo, we will be using the clang compiler.
+Before we can use the custom model, it must be compiled into a [shared object](https://www.thegeekstuff.com/2012/06/linux-shared-libraries/). To do this, you can use your favorite compiler. For this demo, we will be using the clang compiler.
 
 Firstly, we shall set up some environment variables to simplify following the rest of the tutorial.
 
-After building the code as specifed in the [README.md](https://github.com/vgvassilev/clad#how-to-install), run the following command to set environment variables which we will use later:
+After building the code as specified in the [README.md](https://github.com/vgvassilev/clad#how-to-install), run the following command to set environment variables which we will use later:
 
 ```bash
 $ export CLAD_INST=$PWD/../inst;
@@ -75,6 +74,4 @@ The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad:
 
 Here, notice that the result in the ```_delta_z``` variable  now reflects the error expression defined in the custom model we just compiled!
 
-This demo is also a runnable test under ```CLAD_BASE/test/Misc/RunDemos.C``` and will run as a part of the lit test suite. Thus, the same can be verfied by running ```make check-clad```.
-
-> For information on how to use clad functions and more dev related information, check out our docs here! <<!--TODO: Add doc link>>
+This demo is also a runnable test under ```CLAD_BASE/test/Misc/RunDemos.C``` and will run as a part of the lit test suite. Thus, the same can be verified by running ```make check-clad```.
