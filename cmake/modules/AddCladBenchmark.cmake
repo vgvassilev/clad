@@ -1,6 +1,9 @@
 # Change the default compiler to the clang which we run clad upon.
 set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
-
+execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                COMMAND git rev-parse --abbrev-ref HEAD
+                OUTPUT_VARIABLE CURRENT_REPO_BRANCH
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
 #----------------------------------------------------------------------------
 # function CB_ADD_GBENCHMARK(<benchmark> source1 source2... LIBRARIES libs)
 #----------------------------------------------------------------------------
@@ -13,12 +16,22 @@ function(CB_ADD_GBENCHMARK benchmark)
   # Add the clad plugin
   target_compile_options(${benchmark} PUBLIC -fplugin=$<TARGET_FILE:clad>)
 
-  # Debugging
+  # Debugging. Emitting the derivatives' source code.
   #target_compile_options(${benchmark} PUBLIC "SHELL:-Xclang -plugin-arg-clad"
   #  "SHELL: -Xclang -fdump-derived-fn")
 
-  # Optimize the produced code
-  target_compile_options(${benchmark} PUBLIC -O2)
+  # Debugging. Emit llvm IR.
+  #target_compile_options(${benchmark} PUBLIC -S -emit-llvm)
+
+  # Debugging. Optimization misses.
+  #target_compile_options(${benchmark} PUBLIC "SHELL:-Xclang -Rpass-missed=.*inline.*")
+
+  # Optimize the produced code.
+  target_compile_options(${benchmark} PUBLIC -O3)
+
+  # Turn off numerical diff fallback.
+  target_compile_definitions(${benchmark} PUBLIC CLAD_NO_NUM_DIFF)
+
   add_dependencies(${benchmark} clad)
   # Clad requires us to link against these libraries.
   target_link_libraries(${benchmark} PUBLIC stdc++ pthread m)
@@ -44,7 +57,9 @@ function(CB_ADD_GBENCHMARK benchmark)
 
   # Add benchmark as a CTest
   add_test(NAME clad-${benchmark}
-           COMMAND ${benchmark} --benchmark_out_format=csv --benchmark_out=clad-gbenchmark-${benchmark}.csv --benchmark_color=false)
+    COMMAND ${benchmark} --benchmark_out_format=json
+    --benchmark_out=clad-gbenchmark-${benchmark}-${CURRENT_REPO_BRANCH}.json
+    --benchmark_color=false)
   set_tests_properties(clad-${benchmark} PROPERTIES
                        TIMEOUT "${TIMEOUT_VALUE}" LABELS "${LABEL}" RUN_SERIAL TRUE)
 endfunction(CB_ADD_GBENCHMARK)

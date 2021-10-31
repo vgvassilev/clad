@@ -68,8 +68,14 @@ jobs:
             compiler: gcc-6
             clang-runtime: '11'
             coverage: true
-            extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On'
             #clang-format: true
+
+          - name: ubu18-gcc6-runtime11-benchmarks
+            os: ubuntu-18.04
+            compiler: gcc-6
+            clang-runtime: '11'
+            extra_cmake_options: '-DCLAD_ENABLE_BENCHMARKS=On'
+            benchmark: true
 
           - name: ubu18-gcc6-runtime11-coverity
             os: ubuntu-18.04
@@ -651,12 +657,23 @@ jobs:
           echo "This action only runs on branch coverity_scan"
         fi
     - name: Test Clad
+      if: ${{ matrix.coverity == false }}
       run: |
-        if [[ -d obj ]]; then
-          cd obj
-          cmake --build . --target check-clad -- -j4
-          ctest -V
-        fi
+        cd obj
+        cmake --build . --target check-clad -- -j4
+    - name: Benchmark Clad
+      if: ${{ matrix.benchmark }}
+      run: |
+        cd obj
+        ctest -V
+        cd ..
+
+        # Get the performance for the current master
+        git checkout master
+        cd obj
+        cmake --build . --target check-clad -- -j4
+        ctest -V
+
     - name: Failed job config
       if: ${{ failure() }}
       run: |
