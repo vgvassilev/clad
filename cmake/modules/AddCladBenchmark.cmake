@@ -4,6 +4,7 @@ execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                 COMMAND git rev-parse --abbrev-ref HEAD
                 OUTPUT_VARIABLE CURRENT_REPO_BRANCH
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 #----------------------------------------------------------------------------
 # function CB_ADD_GBENCHMARK(<benchmark> source1 source2... LIBRARIES libs)
 #----------------------------------------------------------------------------
@@ -32,7 +33,6 @@ function(CB_ADD_GBENCHMARK benchmark)
   # Turn off numerical diff fallback.
   target_compile_definitions(${benchmark} PUBLIC CLAD_NO_NUM_DIFF)
 
-  add_dependencies(${benchmark} clad)
   # Clad requires us to link against these libraries.
   target_link_libraries(${benchmark} PUBLIC stdc++ pthread m)
 
@@ -43,6 +43,9 @@ function(CB_ADD_GBENCHMARK benchmark)
   if (NOT APPLE)
     target_link_libraries(${benchmark} PUBLIC rt)
   endif()
+
+  add_dependencies(${benchmark} clad)
+
   set (TIMEOUT_VALUE 1200)
   set (LABEL "short")
   if (ARG_LABEL AND "${ARG_LABEL}" STREQUAL "long")
