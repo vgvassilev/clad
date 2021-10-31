@@ -671,9 +671,25 @@ jobs:
         # Get the performance for the current master
         git checkout master
         cd obj
-        cmake --build . --target check-clad -- -j4
+        cmake --build . --target clean -- -j4
+        # FIXME: Add a target called clad-benchmarks and build only it.
+        cmake --build . -- -j4
         ctest -V
 
+        # Compare:
+        pip3 install -r  ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
+        cd benchmark
+        COMPARER='../googlebenchmark-prefix/src/googlebenchmark/tools/compare.py'
+        for baseline in *-master.json
+        do
+          common=${baseline:0:-12}
+          pr_change=$(find . ! -name '*master.json'  -name "${common}*.json")
+
+          echo "Running 'python3 ${COMPARER} benchmarks ${baseline} ${pr_file}'"
+          python3 ${COMPARER} benchmarks ${baseline} ${pr_change}
+        done
+
+        cd ..
     - name: Failed job config
       if: ${{ failure() }}
       run: |
