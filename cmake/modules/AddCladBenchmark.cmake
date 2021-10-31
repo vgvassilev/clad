@@ -12,6 +12,11 @@ function(CB_ADD_GBENCHMARK benchmark)
 
   # Add the clad plugin
   target_compile_options(${benchmark} PUBLIC -fplugin=$<TARGET_FILE:clad>)
+
+  # Debugging
+  #target_compile_options(${benchmark} PUBLIC "SHELL:-Xclang -plugin-arg-clad"
+  #  "SHELL: -Xclang -fdump-derived-fn")
+
   # Optimize the produced code
   target_compile_options(${benchmark} PUBLIC -O2)
   add_dependencies(${benchmark} clad)
