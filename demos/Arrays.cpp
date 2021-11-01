@@ -78,8 +78,8 @@ int main() {
   // Generates the Hessian matrix for weighted_avg w.r.t. to arr.
   auto hessian_arr = clad::hessian(weighted_avg, "arr[0:2]");
 
-  double matrix_all[36];
-  double matrix_arr[9];
+  double matrix_all[36] = {0};
+  double matrix_arr[9] = {0};
 
   clad::array_ref<double> matrix_all_ref(matrix_all, 36);
   clad::array_ref<double> matrix_arr_ref(matrix_arr, 9);
