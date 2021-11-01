@@ -1,10 +1,5 @@
 # Change the default compiler to the clang which we run clad upon.
 set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
-execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                COMMAND git rev-parse --abbrev-ref HEAD
-                OUTPUT_VARIABLE CURRENT_REPO_BRANCH
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-
 #----------------------------------------------------------------------------
 # function CB_ADD_GBENCHMARK(<benchmark> source1 source2... LIBRARIES libs)
 #----------------------------------------------------------------------------
@@ -57,6 +52,12 @@ function(CB_ADD_GBENCHMARK benchmark)
   if(ARG_DEPENDS)
     add_dependencies(${benchmark} ${ARG_DEPENDS})
   endif()
+
+  # Find the current branch.
+  execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                  COMMAND git rev-parse --abbrev-ref HEAD
+                  OUTPUT_VARIABLE CURRENT_REPO_BRANCH
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
 
   # Add benchmark as a CTest
   add_test(NAME clad-${benchmark}

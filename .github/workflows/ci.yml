@@ -668,8 +668,11 @@ jobs:
         ctest -V
         cd ..
 
-        # Get the performance for the current master
-        git checkout master
+        # Get the performance for previous version. If it were a PR the master
+        # or the previous hash
+        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo master)
+        echo "Running git checkout $hash"
+        git checkout $hash
         cd obj
         cmake --build . --target clean -- -j4
         # FIXME: Add a target called clad-benchmarks and build only it.
@@ -692,7 +695,10 @@ jobs:
         cd ..
     - name: Failed job config
       if: ${{ failure() }}
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
       run: |
+        echo "$GITHUB_CONTEXT"
         export
         if [[ "runner.os" == "Linux" ]]; then
           apt-mark showhold
@@ -711,7 +717,7 @@ jobs:
     - name: Setup tmate session
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 1 # When debugging increase to a suitable value!
+      timeout-minutes: 20 # When debugging increase to a suitable value!
     - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
