@@ -304,3 +304,9 @@ if( CLAD_BUILT_STANDALONE AND MSVC_VERSION EQUAL 1600 )
     file(APPEND "${CLAD_SLN_FILENAME}" "\n# This should be regenerated!\n")
   endif()
 endif()
+
+# Add clad deps
+if (TARGET clangBasic)
+  add_dependencies(clad clangBasic)
+endif()
+
