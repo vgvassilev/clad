@@ -44,3 +44,7 @@ add_llvm_library(cladDifferentiator
   VisitorBase.cpp
   ${version_inc}
   )
+
+if (TARGET clangBasic)
+  add_dependencies(cladDifferentiator clangBasic)
+endif()
