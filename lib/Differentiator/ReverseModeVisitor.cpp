@@ -985,6 +985,19 @@ namespace clad {
     for (std::size_t i = 0; i < Indices.size(); i++) {
       StmtDiff IdxDiff = Visit(Indices[i]);
       StmtDiff IdxStored = GlobalStoreAndRef(IdxDiff.getExpr());
+      if (isInsideLoop) {
+        // Here we make sure that we are popping each time we push.
+        // Since the max no of pushes = no. of array index expressions in the
+        // loop.
+        Expr* popExpr = IdxStored.getExpr_dx();
+        VarDecl* popVal = BuildVarDecl(popExpr->getType(), "_t", popExpr,
+                                       /*DirectInit=*/true);
+        if (dfdx())
+          addToCurrentBlock(BuildDeclStmt(popVal), reverse);
+        else
+          m_PopIdxValues.push_back(BuildDeclStmt(popVal));
+        IdxStored = StmtDiff(IdxStored.getExpr(), BuildDeclRef(popVal));
+      }
       clonedIndices[i] = IdxStored.getExpr();
       reverseIndices[i] = IdxStored.getExpr_dx();
     }
@@ -1687,6 +1700,8 @@ namespace clad {
         addToCurrentBlock(*Lblock_begin, reverse);
         Lblock_begin = std::next(Lblock_begin);
       }
+      while(!m_PopIdxValues.empty())
+        addToCurrentBlock(m_PopIdxValues.pop_back_val(), reverse);
       Expr* deltaVar = nullptr;
       if (m_ErrorEstimationEnabled)
         deltaVar = errorEstHandler->RegisterBinaryOpLHS(LCloned, R,

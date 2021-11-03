@@ -36,7 +36,8 @@ float func(float* p, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             float _r_d0 = _d_sum;
 //CHECK-NEXT:             _d_sum += _r_d0;
-//CHECK-NEXT:             _d_p[clad::pop(_t1)] += _r_d0;
+//CHECK-NEXT:             int _t2 = clad::pop(_t1);
+//CHECK-NEXT:             _d_p[_t2] += _r_d0;
 //CHECK-NEXT:             float _r0 = clad::pop(_EERepl_sum1);
 //CHECK-NEXT:             _delta_sum += _r_d0 * _r0 * {{.+}};
 //CHECK-NEXT:             _d_sum -= _r_d0;
@@ -191,18 +192,18 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     float *_delta_x = 0;
 //CHECK-NEXT:     float *_EERepl_x0 = x;
-//CHECK-NEXT:     clad::tape<int> _t2 = {};
-//CHECK-NEXT:     clad::tape<float> _EERepl_x1 = {};
 //CHECK-NEXT:     clad::tape<int> _t3 = {};
+//CHECK-NEXT:     clad::tape<float> _EERepl_x1 = {};
+//CHECK-NEXT:     clad::tape<int> _t5 = {};
 //CHECK-NEXT:     clad::tape<float> _EERepl_sum1 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _EERepl_sum0 = sum;
 //CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         x[clad::push(_t1, i)] += y[clad::push(_t2, i)];
+//CHECK-NEXT:         x[clad::push(_t1, i)] += y[clad::push(_t3, i)];
 //CHECK-NEXT:         clad::push(_EERepl_x1, x[clad::push(_t1, i)]);
-//CHECK-NEXT:         sum += x[clad::push(_t3, i)];
+//CHECK-NEXT:         sum += x[clad::push(_t5, i)];
 //CHECK-NEXT:         clad::push(_EERepl_sum1, sum);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     float func4_return = sum;
@@ -213,21 +214,24 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             float _r_d1 = _d_sum;
 //CHECK-NEXT:             _d_sum += _r_d1;
-//CHECK-NEXT:             _d_x[clad::pop(_t3)] += _r_d1;
+//CHECK-NEXT:             int _t6 = clad::pop(_t5);
+//CHECK-NEXT:             _d_x[_t6] += _r_d1;
 //CHECK-NEXT:             float _r2 = clad::pop(_EERepl_sum1);
 //CHECK-NEXT:             _delta_sum += _r_d1 * _r2 * {{.+}};
 //CHECK-NEXT:             _d_sum -= _r_d1;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
-//CHECK-NEXT:             float _r_d0 = _d_x[clad::pop(_t1)];
-//CHECK-NEXT:             _d_x[clad::pop(_t1)] += _r_d0;
-//CHECK-NEXT:             _d_y[clad::pop(_t2)] += _r_d0;
+//CHECK-NEXT:             int _t2 = clad::pop(_t1);
+//CHECK-NEXT:             float _r_d0 = _d_x[_t2];
+//CHECK-NEXT:             _d_x[_t2] += _r_d0;
+//CHECK-NEXT:             int _t4 = clad::pop(_t3);
+//CHECK-NEXT:             _d_y[_t4] += _r_d0;
 //CHECK-NEXT:             float _r0 = clad::pop(_EERepl_x1);
 //CHECK-NEXT:             int _r1 = clad::pop(_t1);
 //CHECK-NEXT:             _delta_x[_r1] += _r_d0 * _r0 * {{.+}};
 //CHECK-NEXT:             _final_error += _delta_x[_r1];
-//CHECK-NEXT:             _d_x[clad::pop(_t1)] -= _r_d0;
-//CHECK-NEXT:             _d_x[clad::pop(_t1)];
+//CHECK-NEXT:             _d_x[_t2] -= _r_d0;
+//CHECK-NEXT:             _d_x[_t2];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += _d_sum * _EERepl_sum0 * {{.+}};
