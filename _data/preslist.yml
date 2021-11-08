@@ -44,6 +44,13 @@
     - "[pdf](/assets/presentations/ErrorEstimationWithClad_15_12_2020.pdf), " 
     - "[pptx](/assets/presentations/ErrorEstimationWithClad_15_12_2020.pptx)"
 
+- title: "Adding CUDA® Support to Cling: JIT Compile to GPUs"
+  description: My abstract
+  location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
+  speaker: S Ehrig
+  date: 2020-10-08
+  artifacts: "[Link to slides and video](https://zenodo.org/record/4021877)"
+
 - title: "Error estimates of floating-point numbers and Jacobian matrix computation in Clad"
   location: "[2020 LLVM workshop](https://llvm.org/devmtg/2020-09/)"
   speaker: V Vassilev
