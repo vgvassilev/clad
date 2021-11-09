@@ -40,3 +40,14 @@
 
   url: /tutorials/fp_error_estimation_clad_tutorial/
   date: 2021-08-21
+
+- title: Game of Life on GPU Using Cling-CUDA
+  author: Simeon Ehrig
+  abstract: |
+    This tutorial demonstrates some functions of Cling-CUDA and Jupyter Notebooks
+    and gives an idea what you can do with C++ in a web browser. The example
+    shows the usual workflow of simulation and analysis. The simulation runs
+    Conway's Game of Life on a GPU.
+
+  url: /tutorials/gol_cling_cuda_jupyter/
+  date: 2021-11-09

@@ -17,53 +17,45 @@ custom_jss: jupyter
 {::nomarkdown}
 
 <br /> <br /> <br />
-<div class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light"
-     style="box-shadow: 5px 10px 18px #000">
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
 
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>xeus-cling provides a Jupyter kernel for C++ with the help of the C++
-      interpreter cling and the native implementation of the Jupyter protocol xeus.</p>
 
-      <p>Within the xeus-cling framework, Clad can enable automatic differentiation (AD)
-      such that users can automatically generate C++ code for their computation of
-      derivatives of their functions.</p>
-    </div>
-  </div>
+<div tabindex="-1" id="notebook" class="border-box-sizing">
+  <div class="container" id="notebook-container">
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+          <h1 id="Game-of-Life-on-GPU---Interactive-&amp;-Extensible">Game of Life on GPU - Interactive &amp; Extensible<a class="anchor-link" href="#Game-of-Life-on-GPU---Interactive-&amp;-Extensible">&#182;</a></h1>
+          <p>
+            xeus-cling provides a Jupyter kernel for C++ with the help of the C++
+            interpreter cling and the native implementation of the Jupyter protocol xeus.
+          </p>
 
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <h2 id="Rosenbrock-Function">Rosenbrock Function<a class="anchor-link" href=
-      "#Rosenbrock-Function">&para;</a></h2>
-    </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>In mathematical optimization, the Rosenbrock function is a non-convex function
-      used as a performance test problem for optimization problems. The function is
-      defined as:</p>
-    </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[1]:
+          <p>
+            Within the xeus-cling framework, Clad can enable automatic differentiation (AD)
+            such that users can automatically generate C++ code for their computation of
+            derivatives of their functions.
+          </p>
         </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+      </div>
+    </div>
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+          <h2 id="Rosenbrock-Function">Rosenbrock Function<a class="anchor-link" href="#Rosenbrock-Function">&para;</a></h2>
+          <p>In mathematical optimization, the Rosenbrock function is a non-convex function
+             used as a performance test problem for optimization problems. The function is
+             defined as:
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[1]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="cp">#include</span> <span class=
@@ -75,20 +67,13 @@ custom_jss: jupyter
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[2]:
-        </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[2]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
-              <pre>
+             <pre>
 <span class="c1">// Rosenbrock function declaration</span>
 <span class="kt">double</span> <span class="nf">rosenbrock_func</span><span class=
 "p">(</span><span class="kt">double</span> <span class="n">x</span><span class=
@@ -111,52 +96,36 @@ custom_jss: jupyter
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>In order to compute the function&rsquo;s derivatives, we can employ both
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+          <p>In order to compute the function&rsquo;s derivatives, we can employ both
       Clad&rsquo;s Forward Mode or Reverse Mode as detailed below:</p>
-    </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <h2 id="Forward-Mode-AD">Forward Mode AD<a class="anchor-link" href=
-      "#Forward-Mode-AD">&para;</a></h2>
-    </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>For a function <em>f</em> of several inputs and single (scalar) output, forward
-      mode AD can be used to compute (or, in case of Clad, create a function) computing a
-      directional derivative of <em>f</em> with respect to a single specified input
-      variable. Moreover, the generated derivative function has the same signature as the
-      original function <em>f</em>, however its return value is the value of the
-      derivative.</p>
-    </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[3]:
         </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+      </div>
+    </div>
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+          <h2 id="Forward-Mode-AD">Forward Mode AD<a class="anchor-link" href="#Forward-Mode-AD">&para;</a></h2>
+          <p>
+            For a function <em>f</em> of several inputs and single (scalar) output, forward
+            mode AD can be used to compute (or, in case of Clad, create a function) computing a
+            directional derivative of <em>f</em> with respect to a single specified input
+            variable. Moreover, the generated derivative function has the same signature as the
+            original function <em>f</em>, however its return value is the value of the
+            derivative.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[3]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="kt">double</span> <span class="nf">rosenbrock_forward</span><span class=
@@ -205,18 +174,11 @@ custom_jss: jupyter
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[4]:
-        </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[4]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="k">const</span> <span class="kt">int</span> <span class=
@@ -240,18 +202,11 @@ custom_jss: jupyter
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[6]:
-        </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[5]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="kt">double</span> <span class="n">forward_time</span> <span class=
@@ -261,62 +216,46 @@ custom_jss: jupyter
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="jp-Cell-outputWrapper">
-      <div class="jp-OutputArea jp-Cell-outputArea">
-        <div class="jp-OutputArea-child">
-          <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-
-          <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
-            <pre>
+      <div class="output_wrapper">
+        <div class="output">
+          <div class="output_area">
+            <div class="prompt output_prompt">Out[5]:</div>
+            <div class="output_text output_subarea output_execute_result">
+              <pre>
 Elapsed time for rosenbrock_forward: 3.038005 s
 The result of the function is 3232877463.475859.
 </pre>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+         <h2 id="Reverse-Mode-AD">Reverse Mode AD<a class="anchor-link" href="#Reverse-Mode-AD">&para;</a></h2>
+           <p>
+             Reverse-mode AD enables the gradient computation within a single pass of the
+             computation graph of <em>f</em> using at most a constant factor (around 4) more
+             arithmetical operations compared to the original function. While its constant
+             factor and memory overhead is higher than that of the forward-mode, it is
+             independent of the number of inputs.</p>
 
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <h2 id="Reverse-Mode-AD">Reverse Mode AD<a class="anchor-link" href=
-      "#Reverse-Mode-AD">&para;</a></h2>
-    </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>Reverse-mode AD enables the gradient computation within a single pass of the
-      computation graph of <em>f</em> using at most a constant factor (around 4) more
-      arithmetical operations compared to the original function. While its constant
-      factor and memory overhead is higher than that of the forward-mode, it is
-      independent of the number of inputs.</p>
-
-      <p>Moreover, the generated function has void return type and same input arguments.
-      The function has an additional argument of type T*, where T is the return type of
-      <em>f</em>. This is the &ldquo;result&rdquo; argument which has to point to the
-      beginning of the vector where the gradient will be stored.</p>
-    </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[7]:
+           <p>
+             Moreover, the generated function has void return type and same input arguments.
+             The function has an additional argument of type T*, where T is the return type of
+             <em>f</em>. This is the &ldquo;result&rdquo; argument which has to point to the
+             beginning of the vector where the gradient will be stored.
+           </p>
         </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+      </div>
+    </div>
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[6]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="kt">double</span> <span class="nf">rosenbrock_reverse</span><span class=
@@ -358,79 +297,56 @@ The result of the function is 3232877463.475859.
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[9]:
-        </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[7]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
-<span class="kt">double</span> <span class="n">reverse_time</span> <span class=
-"o">=</span> <span class="n">timeReverseMode</span><span class="p">();</span>
+<span class="kt">double</span> <span class="n">forward_time</span> <span class=
+"o">=</span> <span class="n">timeForwardMode</span><span class="p">();</span>
+</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="output_wrapper">
+        <div class="output">
+          <div class="output_area">
+            <div class="prompt output_prompt">Out[7]:</div>
+            <div class="output_text output_subarea output_execute_result">
+              <pre>
+Elapsed time for rosenbrock_forward: 3.038005 s
+The result of the function is 3232877463.475859.
 </pre>
             </div>
           </div>
         </div>
       </div>
     </div>
-
-    <div class="jp-Cell-outputWrapper">
-      <div class="jp-OutputArea jp-Cell-outputArea">
-        <div class="jp-OutputArea-child">
-          <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-
-          <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
-            <pre>
-Elapsed time for rosenbrock_reverse: 2.912199 s
-The result of the function is 3232877463.475859.
-</pre>
-          </div>
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+          <h2 id="Performance-Comparison">Performance Comparison<a class="anchor-link" href="#Performance-Comparison">&para;</a></h2>
+          <p>
+            The derivative function created by the forward-mode AD is guaranteed to have at
+            most a constant factor (around 2-3) more arithmetical operations compared to the
+            original function. Whilst for the reverse-mode AD for a function having N inputs
+            and consisting of T arithmetical operations, computing its gradient takes a single
+            execution of the reverse-mode AD and around 4T operations. In comparison, it would
+            take N executions of the forward-mode, this requiring up to N3*T operations.
+          </p>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <h2 id="Performance-Comparison">Performance Comparison<a class="anchor-link" href=
-      "#Performance-Comparison">&para;</a></h2>
-    </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>The derivative function created by the forward-mode AD is guaranteed to have at
-      most a constant factor (around 2-3) more arithmetical operations compared to the
-      original function. Whilst for the reverse-mode AD for a function having N inputs
-      and consisting of T arithmetical operations, computing its gradient takes a single
-      execution of the reverse-mode AD and around 4T operations. In comparison, it would
-      take N executions of the forward-mode, this requiring up to N3*T operations.</p>
-    </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[10]:
-        </div>
-
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[8]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="kt">double</span> <span class="n">difference</span> <span class=
@@ -446,54 +362,39 @@ The result of the function is 3232877463.475859.
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="jp-Cell-outputWrapper">
-      <div class="jp-OutputArea jp-Cell-outputArea">
-        <div class="jp-OutputArea-child">
-          <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-
-          <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
-            <pre>
+      <div class="output_wrapper">
+        <div class="output">
+          <div class="output_area">
+            <div class="prompt output_prompt">Out[8]:</div>
+            <div class="output_text output_subarea output_execute_result">
+              <pre>
 Forward - Reverse timing for an array of size: 100000000 is: 0.125806s
 </pre>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <h2 id="Clad-Produced-Code">Clad Produced Code<a class="anchor-link" href=
-      "#Clad-Produced-Code">&para;</a></h2>
-    </div>
-  </div>
-
-  <div class="jp-Cell-inputWrapper">
-    <div class="jp-InputPrompt jp-InputArea-prompt"></div>
-
-    <div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput"
-    data-mime-type="text/markdown">
-      <p>We can now call <code>rosenbrockX</code> / <code>rosenbrockY</code> /
-      <code>rosenbrock_dX_dY.dump()</code> to obtain a print out of the Clad&rsquo;s
-      generated code. As an illustration, the reverse-mode produced code is:</p>
-    </div>
-  </div>
-
-  <div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-    <div class="jp-Cell-inputWrapper">
-      <div class="jp-InputArea jp-Cell-inputArea">
-        <div class="jp-InputPrompt jp-InputArea-prompt">
-          In&nbsp;[11]:
+    <div class="cell border-box-sizing text_cell rendered">
+      <div class="prompt input_prompt"></div>
+      <div class="inner_cell">
+        <div class="text_cell_render border-box-sizing rendered_html">
+          <h2 id="Clad-Produced-Code">Clad Produced Code<a class="anchor-link" href="#Clad-Produced-Code">&para;</a></h2>
+          <p>
+            We can now call <code>rosenbrockX</code> / <code>rosenbrockY</code> /
+            <code>rosenbrock_dX_dY.dump()</code> to obtain a print out of the Clad&rsquo;s
+            generated code. As an illustration, the reverse-mode produced code is:
+          </p>
         </div>
+      </div>
+    </div>
 
-        <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type=
-        "inline">
-          <div class="CodeMirror cm-s-jupyter">
+    <div class="cell border-box-sizing code_cell rendered">
+      <div class="input">
+        <div class="prompt input_prompt">In&nbsp;[9]:</div>
+        <div class="inner_cell">
+          <div class="input_area">
             <div class=" highlight hl-c++">
               <pre>
 <span class="k">auto</span> <span class="n">rosenbrock_dX_dY</span> <span class=
@@ -507,14 +408,11 @@ Forward - Reverse timing for an array of size: 100000000 is: 0.125806s
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="jp-Cell-outputWrapper">
-      <div class="jp-OutputArea jp-Cell-outputArea">
-        <div class="jp-OutputArea-child">
-          <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-
-          <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+      <div class="output_wrapper">
+        <div class="output">
+          <div class="output_area">
+            <div class="prompt output_prompt">Out[9]:</div>
+            <div class="output_text output_subarea output_execute_result">
             <pre>
 The code is: void rosenbrock_func_grad(double x, double y, double *_result) {
     double _t2;
@@ -561,12 +459,18 @@ The code is: void rosenbrock_func_grad(double x, double y, double *_result) {
 }
 
 </pre>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+
+
   </div>
 </div>
+
+
 <br /> <br /> <br />
 
 {:/}
