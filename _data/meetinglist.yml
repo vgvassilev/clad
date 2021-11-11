@@ -6,6 +6,7 @@
   agenda:
     - title: Update
       speaker: Vassil
+      slides: "/assets/presentations/CaaS_11_11_2021.pdf"
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
