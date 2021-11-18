@@ -109,15 +109,9 @@ namespace clad {
       // cases where NoThrowForwardIt is CV qualified, we can still do the
       // allocation properly.
       for (; first != last; ++first, (void)++current) {
-        auto new_data = ::new (const_cast<void*>(
-            static_cast<const volatile void*>(addressof(current))))
-            T(std::move(*first));
-        if (!new_data) {
-          // clean up the memory mess just in case!
-          destroy(d_first, current);
-          printf("Allocation failure during tape resize! Aborting.");
-          trap(EXIT_FAILURE);
-        }
+        ::new (const_cast<void*>(
+            static_cast<const volatile void*>(addressof(*current))))
+          T(std::move(*first));
       }
     }
     /// Initial capacity (allocated whenever a value is pushed into empty tape).
@@ -130,7 +124,14 @@ namespace clad {
         // Double the capacity on each reallocation.
         _capacity *= 2;
       T* new_data = AllocateRawStorage(_capacity);
-      assert(new_data);
+
+      if (!new_data) {
+        // clean up the memory mess just in case!
+        destroy(begin(), end());
+        printf("Allocation failure during tape resize! Aborting.\n");
+        trap(EXIT_FAILURE);
+      }
+
       // Move values from old storage to the new storage. Should call move
       // constructors on non-trivial types, otherwise is expected to use
       // memcpy/memmove.

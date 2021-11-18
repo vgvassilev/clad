@@ -4,7 +4,9 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-class A {};
+struct A {
+  bool operator!=(const A& other){ return false; }
+};
 
 // Minimum viable code to test for tape pushes/pops
 template <typename T> void func(T x, int n) {
@@ -13,7 +15,9 @@ template <typename T> void func(T x, int n) {
     clad::push<T>(t, x);
   }
   for (int i = 0; i < n; i++) {
-    clad::pop<T>(t);
+    T seen = clad::pop<T>(t);
+    if (seen != x)
+      printf("error: tape is invalid!\n");
   }
 }
 
@@ -23,13 +27,13 @@ int main() {
   int dummy = 0;
   for (int i = 0; i < n; i++, block *= 2) {
     // Scalar types
-    func<bool>(0, block);
-    func<char>(0, block);
-    func<int>(0, block);
-    func<float>(0, block);
-    func<double>(0, block);
-    func<long>(0, block);
-    func<long double>(0, block);
+    func<bool>(1, block);
+    func<char>(1, block);
+    func<int>(1, block);
+    func<float>(1, block);
+    func<double>(1, block);
+    func<long>(1, block);
+    func<long double>(1, block);
     // Const/Volatile types
     func<const int>(static_cast<const int>(dummy), block);
     func<volatile float>(static_cast<volatile float>(dummy), block);
