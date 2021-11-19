@@ -1,5 +1,19 @@
+# Find the current branch.
+execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                COMMAND git rev-parse --abbrev-ref HEAD
+                OUTPUT_VARIABLE CURRENT_REPO_BRANCH
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+string(REPLACE "/" "" CURRENT_REPO_BRANCH ${CURRENT_REPO_BRANCH})
+
+# Ask cmake to reconfigure each time we change the branch so that it can change
+# the value of CURRENT_REPO_BRANCH.
+set_property(DIRECTORY APPEND PROPERTY
+             CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/HEAD")
+
+
 # Change the default compiler to the clang which we run clad upon.
 set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
+
 #----------------------------------------------------------------------------
 # function CB_ADD_GBENCHMARK(<benchmark> source1 source2... LIBRARIES libs)
 #----------------------------------------------------------------------------
@@ -53,17 +67,14 @@ function(CB_ADD_GBENCHMARK benchmark)
     add_dependencies(${benchmark} ${ARG_DEPENDS})
   endif()
 
-  # Find the current branch.
-  execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                  COMMAND git rev-parse --abbrev-ref HEAD
-                  OUTPUT_VARIABLE CURRENT_REPO_BRANCH
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-
   # Add benchmark as a CTest
   add_test(NAME clad-${benchmark}
     COMMAND ${benchmark} --benchmark_out_format=json
     --benchmark_out=clad-gbenchmark-${benchmark}-${CURRENT_REPO_BRANCH}.json
     --benchmark_color=false)
   set_tests_properties(clad-${benchmark} PROPERTIES
-                       TIMEOUT "${TIMEOUT_VALUE}" LABELS "${LABEL}" RUN_SERIAL TRUE)
+                       TIMEOUT "${TIMEOUT_VALUE}"
+                       LABELS "benchmark;${LABEL}"
+                       RUN_SERIAL TRUE
+                       DEPENDS ${benchmark})
 endfunction(CB_ADD_GBENCHMARK)
