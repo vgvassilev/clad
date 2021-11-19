@@ -19,6 +19,6 @@ foreach (name ${_benchmark_names})
 endforeach()
 
 add_custom_target(benchmark-clad COMMAND ${CMAKE_CTEST_COMMAND} -V
-  DEPENDS ${CLAD_BENCHMARK_DEPS})
+  DEPENDS ${CLAD_BENCHMARK_DEPS} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 set_target_properties(benchmark-clad PROPERTIES FOLDER "Clad benchmarks")

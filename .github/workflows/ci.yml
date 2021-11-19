@@ -678,9 +678,9 @@ jobs:
         cmake --build . --target benchmark-clad -j4
 
         # Compare:
-        pip3 install -r  ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
         cd benchmark
-        COMPARER='../googlebenchmark-prefix/src/googlebenchmark/tools/compare.py'
+        pip3 install -r  ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
+        COMPARER='./googlebenchmark-prefix/src/googlebenchmark/tools/compare.py'
         for baseline in *-master.json
         do
           common=${baseline:0:-12}
