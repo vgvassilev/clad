@@ -665,7 +665,7 @@ jobs:
       if: ${{ matrix.benchmark }}
       run: |
         cd obj
-        ctest -V
+        cmake --build . --target benchmark-clad -j4
         cd ..
 
         # Get the performance for previous version. If it were a PR the master
@@ -675,9 +675,7 @@ jobs:
         git checkout $hash
         cd obj
         cmake --build . --target clean -- -j4
-        # FIXME: Add a target called clad-benchmarks and build only it.
-        cmake --build . -- -j4
-        ctest -V
+        cmake --build . --target benchmark-clad -j4
 
         # Compare:
         pip3 install -r  ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt

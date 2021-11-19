@@ -287,10 +287,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
 
   # Add benchmarking infrastructure.
   if (CLAD_ENABLE_BENCHMARKS)
-    set(CTEST_BUILD_NAME ${ROOT_ARCHITECTURE}-${CMAKE_BUILD_TYPE})
-    enable_testing()
-    include(GoogleBenchmark)
-    include(AddCladBenchmark)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
