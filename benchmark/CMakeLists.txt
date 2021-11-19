@@ -6,6 +6,7 @@ include(AddCladBenchmark)
 
 CB_ADD_GBENCHMARK(Simple Simple.cpp)
 CB_ADD_GBENCHMARK(AlgorithmicComplexity AlgorithmicComplexity.cpp)
+CB_ADD_GBENCHMARK(MemoryComplexity MemoryComplexity.cpp)
 
 set (CLAD_BENCHMARK_DEPS clad)
 get_property(_benchmark_names DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY TESTS)
