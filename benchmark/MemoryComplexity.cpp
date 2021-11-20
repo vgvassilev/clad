@@ -22,6 +22,25 @@ namespace {
     InstrumentationRegistrer() { benchmark::RegisterMemoryManager(mm.get()); }
     ~InstrumentationRegistrer() { benchmark::RegisterMemoryManager(nullptr); }
   } __mem_mgr_register;
+
+  class AddBMCounterRAII {
+    MemoryManager& MemMgr;
+    benchmark::State& State;
+
+  public:
+    AddBMCounterRAII(MemoryManager& mm, benchmark::State& state)
+        : MemMgr(mm), State(state) {
+      mm.cur_num_allocs = 0;
+      mm.cur_max_bytes_used = 0;
+    }
+    ~AddBMCounterRAII() { pop(); }
+
+    void pop() {
+      State.counters["AllocN"] = MemMgr.cur_num_allocs;
+      State.counters["DellocN"] = MemMgr.cur_num_deallocs;
+      State.counters["AllocBytes"] = MemMgr.cur_max_bytes_used;
+    }
+  };
 } // namespace
 
 void* operator new(size_t size) {
@@ -49,18 +68,37 @@ template <typename T> void func(clad::tape<T>& t, T x, int n) {
 
 static void BM_TapeMemory(benchmark::State& state) {
   int block = state.range(0);
-  mm->cur_num_allocs = 0;
-  mm->cur_max_bytes_used = 0;
+  AddBMCounterRAII MemCounters(*mm.get(), state);
   clad::tape<double> t;
   for (auto _ : state) {
     func<double>(t, 1, block * 2 + 1);
   }
-  state.counters["AllocN"] = mm->cur_num_allocs;
-  state.counters["DellocN"] = mm->cur_num_deallocs;
-  state.counters["AllocBytes"] = mm->cur_max_bytes_used;
 }
-
 BENCHMARK(BM_TapeMemory)->RangeMultiplier(2)->Range(0, 4096)->Iterations(1);
+
+#include "BenchmarkedFunctions.h"
+
+static void BM_ReverseGausMemoryP(benchmark::State& state) {
+  auto dfdp_grad = clad::gradient(gaus, "p");
+  unsigned dim = state.range(0);
+  double* x = new double[dim]();
+  double* p = new double[dim]();
+  double* result = new double[dim]();
+  for (unsigned i = 0; i < dim; i++) {
+    result[i] = 0;
+    x[i] = 1;
+    p[i] = i;
+  }
+  clad::array_ref<double> result_ref(result, dim);
+  AddBMCounterRAII MemCounters(*mm.get(), state);
+  for (auto _ : state) {
+    dfdp_grad.execute(x, p, /*sigma*/ 2, dim, result_ref);
+  }
+}
+BENCHMARK(BM_ReverseGausMemoryP)
+    ->RangeMultiplier(2)
+    ->Range(0, 4096)
+    ->Iterations(1);
 
 // Define our main.
 BENCHMARK_MAIN();
