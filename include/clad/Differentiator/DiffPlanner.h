@@ -89,7 +89,7 @@ namespace clad {
                   const DerivativesSet& Derivatives,
                   DiffSchedule& plans, clang::Sema& S);
     bool VisitCallExpr(clang::CallExpr* E);
-
+    bool VisitCXXRecordDecl(clang::CXXRecordDecl* RD);
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
   };

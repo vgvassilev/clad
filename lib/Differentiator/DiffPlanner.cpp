@@ -326,6 +326,19 @@ namespace clad {
     return false;
   }
 
+  bool DiffCollector::VisitCXXRecordDecl(CXXRecordDecl* RD) {
+    if (!RD->getName().startswith("__clad") || RD->hasDefinition()) {
+      return true;
+    }
+    llvm::outs() << RD->getNameAsString() << "\n";
+    auto RDWithDef = CXXRecordDecl::Create(m_Sema.getASTContext(),
+                                           RD->getTagKind(),
+                                           RD->getDeclContext(), noLoc, noLoc,
+                                           RD->getIdentifier(), RD);
+                                               
+    return true;
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     // FIXME: Generated code does not usually have valid source locations.
