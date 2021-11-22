@@ -29,6 +29,22 @@ Since Clad is a Clang plugin, it must be properly attached when Clang compiler i
 ```
 clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
 ```
+
+To compile using clang-9, use: 
+```
+clang-9 -I /full/path/to/include/  -x c++ -std=c++11 -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -o sourcefile -lstdc++ -lm
+```
+
+To save the Clad generated derivative code to `Deritives.cpp` add:
+```
+-Xclang -plugin-arg-clad -Xclang -fgenerate-source-file
+```
+
+To print the Clad generated derivative add:
+```
+-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn
+```
+
 Clad provides four API functions:
 - `clad::differentiate` to use forward-mode AD
 - `clad::gradient` to use reverse-mode AD
