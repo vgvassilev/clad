@@ -670,8 +670,8 @@ jobs:
 
         # Get the performance for previous version. If it were a PR the master
         # or the previous hash
-        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo master)
-        echo "Running git checkout $hash"
+        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo ${{ github.base_ref }})
+        echo "Running git checkout '$hash'"
         git checkout $hash
         cd obj
         cmake --build . --target clean -- -j4
@@ -679,14 +679,14 @@ jobs:
 
         # Compare:
         cd benchmark
-        pip3 install -r  ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
+        pip3 install -r ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
         COMPARER='./googlebenchmark-prefix/src/googlebenchmark/tools/compare.py'
-        for baseline in *-master.json
+        for baseline in *-$hash.json
         do
           common=${baseline:0:-12}
-          pr_change=$(find . ! -name '*master.json'  -name "${common}*.json")
+          pr_change=$(find . ! -name '*$hash.json'  -name "${common}*.json")
 
-          echo "Running 'python3 ${COMPARER} benchmarks ${baseline} ${pr_file}'"
+          echo "Running 'python3 ${COMPARER} benchmarks '${baseline}' '${pr_change}''"
           python3 ${COMPARER} benchmarks ${baseline} ${pr_change}
         done
 
