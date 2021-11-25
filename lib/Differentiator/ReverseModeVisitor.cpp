@@ -1011,7 +1011,7 @@ namespace clad {
     if (isArrayOrPointerType(target->getType()))
       // Create the target[idx] expression.
       result = BuildArraySubscript(target, reverseIndices);
-    else if (isArrayRefType(target->getType())) {
+    else if (isCladArrayType(target->getType())) {
       result = m_Sema
                    .ActOnArraySubscriptExpr(getCurrentScope(), target,
                                             ASE->getExprLoc(),
@@ -1250,7 +1250,7 @@ namespace clad {
           Result = nullptr;
           ResultExpr = nullptr;
           ResultII = CreateUniqueIdentifier(funcPostfix());
-          if (arg && (isArrayRefType(arg->getType()) ||
+          if (arg && (isCladArrayType(arg->getType()) ||
                       isArrayOrPointerType(arg->getType()))) {
             Expr* SizeE;
             if (auto CAT = dyn_cast<ConstantArrayType>(arg->getType())) {
@@ -1259,7 +1259,7 @@ namespace clad {
                                                         CAT->getSize()
                                                             .getZExtValue());
             } else {
-              assert(isArrayRefType(arg->getType()) &&
+              assert(isCladArrayType(arg->getType()) &&
                      "Size couldn't be determined. Please make sure the diff "
                      "variables are either constant sized arrays or of type "
                      "clad::array_ref");

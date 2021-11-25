@@ -221,7 +221,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
     QualType QType;
     Expr* deltaVar = nullptr;
     auto diffVar = m_Variables[VD];
-    if (isArrayRefType(diffVar->getType())) {
+    if (isCladArrayType(diffVar->getType())) {
       VarDecl* EstVD;
       auto sizeExpr = BuildArrayRefSizeExpr(diffVar);
       QType = GetCladArrayOfType(getUnderlyingArrayType(VDType, m_Context));
@@ -352,7 +352,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
           }
           Expr *Ldiff, *Ldelta;
           Ldiff = getArraySubscriptExpr(LdiffExpr, m_IdxExpr,
-                                        isArrayRefType(LdiffExpr->getType()));
+                                        isCladArrayType(LdiffExpr->getType()));
           Ldelta = getArraySubscriptExpr(deltaVar, m_IdxExpr);
           auto savedVal = GetParamReplacement(params[i]);
           savedVal = savedVal ? savedVal : BuildDeclRef(decl);
