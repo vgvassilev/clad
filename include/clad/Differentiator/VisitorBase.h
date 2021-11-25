@@ -435,8 +435,8 @@ namespace clad {
     clang::TemplateDecl* GetCladArrayRefDecl();
     /// Create clad::array_ref<T> type.
     clang::QualType GetCladArrayRefOfType(clang::QualType T);
-    /// Checks if the type is of clad::array_ref<T> type
-    bool isArrayRefType(clang::QualType QT);
+    /// Checks if the type is of clad::array<T> or clad::array_ref<T> type
+    bool isCladArrayType(clang::QualType QT);
     /// Find declaration of clad::array templated type.
     clang::TemplateDecl* GetCladArrayDecl();
     /// Create clad::array<T> type.

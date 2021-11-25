@@ -560,8 +560,10 @@ namespace clad {
                                 /*MemberFunctionName=*/"slice", Args);
   }
 
-  bool VisitorBase::isArrayRefType(QualType QT) {
-    return QT.getAsString().find("clad::array_ref") != std::string::npos;
+  bool VisitorBase::isCladArrayType(QualType QT) {
+    // FIXME: Replace this check with a clang decl check
+    return QT.getAsString().find("clad::array") != std::string::npos ||
+           QT.getAsString().find("clad::array_ref") != std::string::npos;
   }
 
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
