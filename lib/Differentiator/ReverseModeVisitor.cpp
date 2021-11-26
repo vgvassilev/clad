@@ -1835,6 +1835,7 @@ namespace clad {
     Expr* VDDerivedInit = nullptr;
     auto VDDerivedType = getNonConstType(VD->getType(), m_Context, m_Sema);
     bool isVDRefType = VD->getType()->isReferenceType();
+    VarDecl* VDDerived = nullptr;
     // If VD is a reference to a local variable, then the initial value is set
     // to the derived variable of the corresponding local variable.
     // If VD is a reference to a non-local variable (global variable, struct
@@ -1850,13 +1851,22 @@ namespace clad {
         VDDerivedType = VDDerivedType.getNonReferenceType();
         VDDerivedInit = getZeroInit(VDDerivedType);
       }
+      VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                               VDDerivedInit);
+    } else if (auto VDCAT = dyn_cast<ConstantArrayType>(VD->getType())) {
+      VDDerivedType =
+          GetCladArrayOfType(QualType(VDCAT->getPointeeOrArrayElementType(),
+                                      VDCAT->getIndexTypeCVRQualifiers()));
+      VDDerivedInit = ConstantFolder::synthesizeLiteral(
+          m_Context.getSizeType(), m_Context, VDCAT->getSize().getZExtValue());
+      VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                               VDDerivedInit, false, nullptr,
+                               clang::VarDecl::InitializationStyle::CallInit);
     } else {
       VDDerivedInit = getZeroInit(VD->getType());
+      VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                               VDDerivedInit);
     }
-    VarDecl* VDDerived =
-        BuildVarDecl(VDDerivedType,
-                     "_d_" + VD->getNameAsString(),
-                     VDDerivedInit);
 
     // If `VD` is a reference to a local variable, then it is already
     // differentiated and should not be differentiated again.
@@ -2032,7 +2042,17 @@ namespace clad {
     assert(m_DerivativeFnScope && "must be set");
     m_CurScope = m_DerivativeFnScope;
 
-    VarDecl* Var = BuildVarDecl(Type, identifier, init);
+    VarDecl* Var = nullptr;
+    if (auto CAT = dyn_cast<ConstantArrayType>(Type)) {
+      Type = GetCladArrayOfType(QualType(CAT->getPointeeOrArrayElementType(),
+                                         Type.getCVRQualifiers()));
+      init = ConstantFolder::synthesizeLiteral(
+          m_Context.getSizeType(), m_Context, CAT->getSize().getZExtValue());
+      Var = BuildVarDecl(Type, identifier, init, false, nullptr,
+                         clang::VarDecl::InitializationStyle::CallInit);
+    } else {
+      Var = BuildVarDecl(Type, identifier, init);
+    }
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);
