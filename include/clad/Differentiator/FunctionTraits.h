@@ -718,13 +718,18 @@ namespace clad {
   using ExtractDerivedFnTraitsForwMode_t =
       typename ExtractDerivedFnTraitsForwMode<F>::type;
 
-  /// Specialization for free function pointer type
-  template <class F>
-  struct ExtractDerivedFnTraitsForwMode<
-      F*,
-      typename std::enable_if<std::is_function<F>::value>::type> {
-    using type = remove_reference_and_pointer_t<F>*;
+  // /// Specialization for free function pointer type
+  // template <class F>
+  // struct ExtractDerivedFnTraitsForwMode<
+  //     F*,
+  //     typename std::enable_if<std::is_function<F>::value>::type> {
+  //   using type = remove_reference_and_pointer_t<F>*;
+  // };
+  template<class ReturnType, typename... Args>
+  struct ExtractDerivedFnTraitsForwMode<ReturnType (*)(Args...)> {
+    using type = void* (*)(Args...);
   };
+
 
   /// Specialization for member function pointer type
   template <class F>

@@ -2,6 +2,10 @@
 
 #include "llvm/ADT/SmallSet.h"
 
+#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
+
+#include <map>
+#include <string>
 namespace clang {
   class ASTContext;
   class CallExpr;
@@ -82,12 +86,18 @@ namespace clad {
     /// add them for implicit diff.
     ///
     const clang::FunctionDecl* m_TopMostFD = nullptr;
+
+    llvm::SmallVector<clang::CXXRecordDecl*, 16>& m_RequestedDerivedRecords;
+    std::map<std::string, DerivedTypeEssentials>& m_RequestedDTEs;
     clang::Sema& m_Sema;
 
   public:
-    DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
-                  const DerivativesSet& Derivatives,
-                  DiffSchedule& plans, clang::Sema& S);
+    DiffCollector(
+        clang::DeclGroupRef DGR, DiffInterval& Interval,
+        const DerivativesSet& Derivatives, DiffSchedule& plans,
+        llvm::SmallVector<clang::CXXRecordDecl*, 16>& requestedDerivedRecords,
+        std::map<std::string, DerivedTypeEssentials>& requestedDTEs,
+        clang::Sema& S);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitCXXRecordDecl(clang::CXXRecordDecl* RD);
   private:

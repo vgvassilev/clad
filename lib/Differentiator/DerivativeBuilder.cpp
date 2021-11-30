@@ -16,6 +16,7 @@
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Scope.h"
@@ -180,5 +181,16 @@ namespace clad {
       registerDerivative(OFD, m_Sema);
 
     return result;
+  }
+
+  void DerivativeBuilder::AddDerivedType(llvm::StringRef typeName, QualType qType) {
+    m_DerivedTypes[typeName] = qType;
+  }
+
+  QualType DerivativeBuilder::GetDerivedType(llvm::StringRef typeName) const {
+    auto iter = m_DerivedTypes.find(typeName);
+    if (iter != m_DerivedTypes.end())
+      return iter->second;
+    return QualType();
   }
 }// end namespace clad

@@ -10,8 +10,10 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clad/Differentiator/ASTHelper.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
 
 using namespace clang;
 
@@ -281,11 +283,15 @@ namespace clad {
     }
   }
 
-  DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
-                               const DerivativesSet& Derivatives,
-                               DiffSchedule& plans, clang::Sema& S)
-    : m_Interval(Interval), m_GeneratedDerivatives(Derivatives),
-      m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
+  DiffCollector::DiffCollector(
+      DeclGroupRef DGR, DiffInterval& Interval,
+      const DerivativesSet& Derivatives, DiffSchedule& plans,
+      llvm::SmallVector<clang::CXXRecordDecl*, 16>& requestedDerivedRecords,
+      std::map<std::string, DerivedTypeEssentials>& requestedDTEs,
+      clang::Sema& S)
+      : m_Interval(Interval), m_GeneratedDerivatives(Derivatives),
+        m_DiffPlans(plans), m_TopMostFD(nullptr),
+        m_RequestedDerivedRecords(requestedDerivedRecords), m_RequestedDTEs(requestedDTEs), m_Sema(S) {
 
     if (Interval.empty())
       return;
@@ -326,18 +332,51 @@ namespace clad {
     return false;
   }
 
+  static void FillDerivedType(Sema& semaRef, CXXRecordDecl* derivedRD,
+                              QualType YType, CXXRecordDecl* XRD) {
+    for (auto field : XRD->fields()) {
+      auto& C = semaRef.getASTContext();
+      auto& newFieldId = C.Idents.get("d_" + field->getNameAsString());
+      auto newField = FieldDecl::Create(C, derivedRD, noLoc, noLoc, &newFieldId,
+                                        YType,
+                                        C.getTrivialTypeSourceInfo(YType,
+                                                                   noLoc),
+                                        nullptr, false, ICIS_NoInit);
+      newField->setAccess(AS_public);
+      derivedRD->addDecl(newField);
+    }
+  }
+
   bool DiffCollector::VisitCXXRecordDecl(CXXRecordDecl* RD) {
-    if (!RD->getName().startswith("__clad") || RD->hasDefinition()) {
+    if (!RD->getName().startswith("__clad_")) {
       return true;
     }
-    llvm::outs() << RD->getNameAsString() << "\n";
-    auto RDWithDef = CXXRecordDecl::Create(m_Sema.getASTContext(),
-                                           RD->getTagKind(),
-                                           RD->getDeclContext(), noLoc, noLoc,
-                                           RD->getIdentifier(), RD);
-                                               
+    if (!RD->hasDefinition())
+      return true;
+    if (RD->getName() == "__clad_ComplexNumber_wrt_ComplexNumber")
+      return true;
+    auto& C = m_Sema.getASTContext();
+    RD = RD->getDefinition();
+    auto derivedTypeName = RD->getName();
+    auto YXTypeNames = utils::ComputeYAndXTypeNames(derivedTypeName);
+    llvm::outs() << "Type names are as follows: " << YXTypeNames.first << " "
+                 << YXTypeNames.second << "\n";
+    auto yQType = ASTHelper::FindCorrespondingType(m_Sema, YXTypeNames.first);
+    auto xQType = ASTHelper::FindCorrespondingType(m_Sema, YXTypeNames.second);
+    DerivedTypeInitialiser DTI(m_Sema, yQType, xQType, RD);
+    auto DTE = DTI.CreateDerivedTypeEssentials();
+    m_RequestedDTEs["abc"] = DTE;
+    // if (XRD) {
+    //   llvm::errs()<<"XRD Found: "<<XRD->getNameAsString()<<"\n";
+    // } else {
+    //   llvm::errs()<<"XRD Not Found\n";
+    // }
+    // auto YType = ASTHelper::ComputeQTypeFromTypeName(C, YXTypeNames.first);
+    // FillDerivedType(m_Sema, RD, YType, XRD);
+    // m_RequestedDerivedRecords.push_back(RD);
     return true;
   }
+
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.

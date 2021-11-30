@@ -8,6 +8,7 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/EstimationModel.h"
+#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
 
 #include "clad/Differentiator/Version.h"
 
@@ -28,6 +29,9 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "clad/Differentiator/Compatibility.h"
+
+#include <map>
+#include <string>
 
 using namespace clang;
 
@@ -118,8 +122,10 @@ namespace clad {
         return true;
 
       DiffSchedule requests{};
+      llvm::SmallVector<CXXRecordDecl*, 16> requestedDerivedRecords;
+      std::map<std::string, DerivedTypeEssentials> requestedDTEs;
       DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
-                              m_CI.getSema());
+                              requestedDerivedRecords, requestedDTEs, m_CI.getSema());
 
       // FIXME: Remove the PerformPendingInstantiations altogether. We should
       // somehow make the relevant functions referenced.
@@ -133,6 +139,15 @@ namespace clad {
 
       for (DiffRequest& request : requests)
         ProcessDiffRequest(request);
+      
+      for (auto RD : requestedDerivedRecords) {
+        auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+        m_DerivativeBuilder->AddDerivedType(RD->getName(), RDQType);
+      }
+      for (auto item : requestedDTEs) {
+        llvm::errs()<<item<<" : "<<item.second.GetDerivedAddFnDecl()<<"\n";
+        m_DerivativeBuilder->SetDerivedTypeEssential(item.first, item.second);
+      }
       return true; // Happiness
     }
 

@@ -11,14 +11,16 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
-
+#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
 #include <array>
+#include <map>
 #include <stack>
 #include <unordered_map>
 
 namespace clang {
   class ASTContext;
   class CXXOperatorCallExpr;
+  class CXXRecordDecl;
   class DeclRefExpr;
   class FunctionDecl;
   class MemberExpr;
@@ -101,6 +103,12 @@ namespace clad {
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
+    /// Stores mapping of derived type names and the corresponding derived
+    /// types.
+    ///
+    /// Derived types are the types that are used to store the derivatives.
+    std::map<std::string, clang::QualType> m_DerivedTypes;
+    std::map<std::string, DerivedTypeEssentials> m_DerivedTypesEssentials;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB, clang::DeclContext* DC,
                                   clang::Sema& m_Sema,
@@ -172,6 +180,15 @@ namespace clad {
     ///
     OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
                                      const DiffRequest& request);
+    void AddDerivedType(llvm::StringRef typeName, clang::QualType qType);
+    clang::QualType GetDerivedType(llvm::StringRef typeName) const;
+
+    void SetDerivedTypeEssential(llvm::StringRef name, DerivedTypeEssentials DTE) {
+      m_DerivedTypesEssentials[name] = DTE;
+    }
+    DerivedTypeEssentials GetDerivedTypeEssential(llvm::StringRef name) {
+      m_DerivedTypesEssentials[name];
+    }
   };
 
 } // end namespace clad
