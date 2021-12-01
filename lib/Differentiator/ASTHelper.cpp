@@ -341,7 +341,7 @@ namespace clad {
                                                   clang::QualType qType) {
     if (qType.isNull()) {
       qType = VD->getType();
-    }                                                    
+    }
     // TODO: Confirm that we should always take non-reference type here.
     qType = qType.getNonReferenceType();
     return semaRef.BuildDeclRefExpr(VD, qType, ExprValueKind::VK_LValue, noLoc);
@@ -351,11 +351,29 @@ namespace clad {
     return ASTHelper::BuildDeclStmt(m_Sema, D);
   }
 
-  clang::DeclStmt* ASTHelper::BuildDeclStmt(clang::Sema& semaRef, clang::Decl* D) {
+  clang::DeclStmt* ASTHelper::BuildDeclStmt(clang::Sema& semaRef,
+                                            clang::Decl* D) {
     auto DS = semaRef
                   .ActOnDeclStmt(semaRef.ConvertDeclToDeclGroup(D), noLoc,
                                  noLoc)
                   .getAs<DeclStmt>();
-    return DS;                
+    return DS;
+  }
+
+  clang::FieldDecl* ASTHelper::BuildFieldDecl(clang::DeclContext* DC,
+                                              clang::IdentifierInfo* II,
+                                              clang::QualType qType) {
+    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType);
+  }
+
+  clang::FieldDecl* ASTHelper::BuildFieldDecl(clang::Sema& semaRef,
+                                              clang::DeclContext* DC,
+                                              clang::IdentifierInfo* II,
+                                              clang::QualType qType) {
+    auto& C = semaRef.getASTContext();
+    auto FD = FieldDecl::Create(C, DC, noLoc, noLoc, II, qType,
+                                C.getTrivialTypeSourceInfo(qType), nullptr,
+                                false, InClassInitStyle::ICIS_NoInit);
+    return FD;                                
   }
 } // namespace clad

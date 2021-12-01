@@ -2,6 +2,8 @@
 #define CLAD_DERIVED_TYPE_INITIALISER_H
 
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceLocation.h"
+#include "clang/Sema/Scope.h"
 #include "llvm/ADT/SmallVector.h"
 #include "clad/Differentiator/ASTHelper.h"
 
@@ -21,8 +23,7 @@ namespace clad {
   class DerivedTypeEssentials {
     clang::FunctionDecl* m_DerivedAddFn=nullptr;
     public:
-    DerivedTypeEssentials() = default;
-    DerivedTypeEssentials(clang::FunctionDecl* derivedAddFn) : m_DerivedAddFn(derivedAddFn) {}
+    DerivedTypeEssentials(clang::FunctionDecl* derivedAddFn=nullptr) : m_DerivedAddFn(derivedAddFn) {}
     clang::FunctionDecl* GetDerivedAddFnDecl() {
       return m_DerivedAddFn;
     }
@@ -38,6 +39,7 @@ namespace clad {
     clang::QualType m_DerivedType;
     std::map<std::string, clang::Expr*> m_Variables;
     clang::FunctionDecl* m_DerivedAddFnDecl;
+    clang::Scope* m_CurScope;
   public:
     DerivedTypeInitialiser(clang::Sema& semaRef, clang::QualType yQType,
                            clang::QualType xQType,
@@ -45,7 +47,7 @@ namespace clad {
     DerivedTypeEssentials CreateDerivedTypeEssentials();
 
   private:
-    // bool FillDerivedRecord();
+    void FillDerivedRecord();
     // bool CreateInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;
@@ -54,6 +56,10 @@ namespace clad {
     // bool CreateDerivedSubFn();
     clang::QualType ComputeDerivedAddSubFnType() const;
     llvm::SmallVector<clang::ParmVarDecl*, 2> CreateDerivedAddSubFnParams();
+
+    void beginScope(unsigned);
+    void endScope();
+    
   };
 } // namespace clad
 

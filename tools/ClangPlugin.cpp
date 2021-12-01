@@ -145,7 +145,10 @@ namespace clad {
         m_DerivativeBuilder->AddDerivedType(RD->getName(), RDQType);
       }
       for (auto item : requestedDTEs) {
-        llvm::errs()<<item<<" : "<<item.second.GetDerivedAddFnDecl()<<"\n";
+        llvm::errs()<<item.first<<" : "<<item.second.GetDerivedAddFnDecl()<<"\n";
+        bool isTU = item.second.GetDerivedAddFnDecl()->getDeclContext()->isTranslationUnit();
+        if (isTU)
+          ProcessTopLevelDecl(item.second.GetDerivedAddFnDecl());
         m_DerivativeBuilder->SetDerivedTypeEssential(item.first, item.second);
       }
       return true; // Happiness

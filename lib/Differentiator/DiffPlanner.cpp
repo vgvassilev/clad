@@ -341,7 +341,7 @@ namespace clad {
                                         YType,
                                         C.getTrivialTypeSourceInfo(YType,
                                                                    noLoc),
-                                        nullptr, false, ICIS_NoInit);
+                                        nullptr, false, InClassInitStyle::ICIS_NoInit);
       newField->setAccess(AS_public);
       derivedRD->addDecl(newField);
     }

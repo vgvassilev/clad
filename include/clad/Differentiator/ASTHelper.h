@@ -19,6 +19,7 @@ namespace clang {
   class DeclRefExpr;
   class DeclStmt;
   class Expr;
+  class FieldDecl;
   class IdentifierInfo;
   class MemberExpr;
   class NamespaceDecl;
@@ -136,13 +137,22 @@ namespace clad {
                                                 clang::IdentifierInfo* II,
                                                 clang::QualType qType);
 
-    clang::DeclRefExpr* BuildDeclRefExpr(clang::ValueDecl* VD,
-                                         clang::QualType qType=clang::QualType());
-    static clang::DeclRefExpr* BuildDeclRefExpr(clang::Sema& semaRef,
-                                                clang::ValueDecl* VD,
-                                                clang::QualType qType=clang::QualType());
+    clang::DeclRefExpr*
+    BuildDeclRefExpr(clang::ValueDecl* VD,
+                     clang::QualType qType = clang::QualType());
+    static clang::DeclRefExpr*
+    BuildDeclRefExpr(clang::Sema& semaRef, clang::ValueDecl* VD,
+                     clang::QualType qType = clang::QualType());
     clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
     static clang::DeclStmt* BuildDeclStmt(clang::Sema& semaRef, clang::Decl* D);
+
+    clang::FieldDecl* BuildFieldDecl(clang::DeclContext* DC,
+                                     clang::IdentifierInfo* II,
+                                     clang::QualType qType);
+    static clang::FieldDecl* BuildFieldDecl(clang::Sema& sema,
+                                            clang::DeclContext* DC,
+                                            clang::IdentifierInfo* II,
+                                            clang::QualType qType);
   };
 } // namespace clad
 #endif

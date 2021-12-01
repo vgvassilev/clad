@@ -638,28 +638,28 @@ namespace clad {
                               BuildOp(UnaryOperatorKind::UO_Deref, diffResDRE),
                               diff));
 
-    auto dumpMethod = m_ASTHelper
-                          .FindUniqueFnDecl(diff->getType()
-                                                      ->getAsCXXRecordDecl(),
-                                                  m_ASTHelper.CreateDeclName(
-                                                      "dump"));
+    // auto dumpMethod = m_ASTHelper
+    //                       .FindUniqueFnDecl(diff->getType()
+    //                                                   ->getAsCXXRecordDecl(),
+    //                                               m_ASTHelper.CreateDeclName(
+    //                                                   "dump"));
 
-    NestedNameSpecifierLoc NNS(dumpMethod->getQualifier(),
-                               /*Data=*/nullptr);
-    auto DAP = DeclAccessPair::make(dumpMethod, dumpMethod->getAccess());
-    auto memberExpr = MemberExpr::
-        Create(m_Context, diffResDRE, true, noLoc, NNS, noLoc, dumpMethod, DAP,
-               dumpMethod->getNameInfo(),
-               /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-               CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-               ExprObjectKind::OK_Ordinary
-                   CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
-    auto dumpCall = m_Sema
-                        .BuildCallToMemberFunction(getCurrentScope(),
-                                                   memberExpr, noLoc,
-                                                   MultiExprArg(), noLoc)
-                        .get();
-    addToCurrentBlock(dumpCall);
+    // NestedNameSpecifierLoc NNS(dumpMethod->getQualifier(),
+    //                            /*Data=*/nullptr);
+    // auto DAP = DeclAccessPair::make(dumpMethod, dumpMethod->getAccess());
+    // auto memberExpr = MemberExpr::
+    //     Create(m_Context, diffResDRE, true, noLoc, NNS, noLoc, dumpMethod, DAP,
+    //            dumpMethod->getNameInfo(),
+    //            /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+    //            CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+    //            ExprObjectKind::OK_Ordinary
+    //                CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
+    // auto dumpCall = m_Sema
+    //                     .BuildCallToMemberFunction(getCurrentScope(),
+    //                                                memberExpr, noLoc,
+    //                                                MultiExprArg(), noLoc)
+    //                     .get();
+    // addToCurrentBlock(dumpCall);
 
     Stmt* returnStmt =
         m_Sema
@@ -1185,9 +1185,13 @@ namespace clad {
         //                       .FindUniqueFnDecl(GetCladNamespace(),
         //                                         m_ASTHelper.CreateDeclName(
         //                                             "dAdd"));
-        auto dAddFnDecl = m_Builder.GetDerivedTypeEssential("abc").GetDerivedAddFnDecl();
-        llvm::errs()<<"dAdd function found: "<<dAddFnDecl<<"\n";
-        dAddFnDecl->dump();
+        auto temp = m_Builder.GetDerivedTypeEssential("abc");        
+        FunctionDecl* dAddFn = temp.GetDerivedAddFnDecl();
+        dAddFn = temp.GetDerivedAddFnDecl();
+        llvm::errs()
+            << "dAdd function found: " << dAddFn << " "
+            << "\n";
+        dAddFn->dump();
         
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr_dx());
@@ -1195,7 +1199,7 @@ namespace clad {
         llvm::MutableArrayRef<Expr*>
             callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
                                                     callArgs.size());
-        opDiff = BuildCallExprToFunction(dAddFnDecl, callArgsRef);
+        opDiff = BuildCallExprToFunction(dAddFn, callArgsRef);
       } else {
         opDiff = BuildOp(BO_Add, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
       }
