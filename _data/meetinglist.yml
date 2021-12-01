@@ -1,4 +1,17 @@
 - name: "CaaS Monthly Meeting"
+  date: 2021-12-09 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
+  label: caas_09Dec2021
+  agenda:
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 6 Jan 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2021-11-11 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92544354004?pwd=ajFYajc5bnhFWXBOdFVrMXdFRSt3Zz09)"
@@ -10,7 +23,7 @@
     - title: Round Table
     - title: Next meeting
       speaker: Vassil
-      link: 2 Dec 1700
+      link: 9 Dec 1700
 
 - name: "CaaS Monthly Meeting"
   date: 2021-10-07 17:00:00 +0200
