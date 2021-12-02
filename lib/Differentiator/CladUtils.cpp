@@ -632,5 +632,12 @@ namespace clad {
       finder.TraverseStmt(const_cast<Stmt*>(S));
       return finder.hasCallExpr;
     }
+
+    void SetSwitchCaseSubStmt(SwitchCase* SC, Stmt* subStmt) {
+      if (auto caseStmt = dyn_cast<CaseStmt>(SC))
+        caseStmt->setSubStmt(subStmt);
+      else
+        cast<DefaultStmt>(SC)->setSubStmt(subStmt);
+    }
   } // namespace utils
 } // namespace clad

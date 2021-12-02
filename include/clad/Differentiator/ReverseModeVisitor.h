@@ -374,6 +374,9 @@ namespace clad {
     StmtDiff
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
+    StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
+    StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
+    StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
@@ -485,7 +488,7 @@ namespace clad {
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
 
-    /// This class modifies forward and reverse blocks of the loop
+    /// This class modifies forward and reverse blocks of the loop/switch
     /// body so that `break` and `continue` statements are correctly
     /// handled. `break` and `continue` statements are handled by
     /// enclosing entire reverse block loop body in a switch statement
@@ -528,6 +531,7 @@ namespace clad {
 
       ReverseModeVisitor& m_RMV;
 
+      const bool m_IsInvokedBySwitchStmt = false;
       /// Builds and returns a literal expression of type `std::size_t` with
       /// `value` as value.
       clang::Expr* CreateSizeTLiteralExpr(std::size_t value);
@@ -542,7 +546,8 @@ namespace clad {
       clang::Expr* CreateCFTapePushExpr(std::size_t value);
 
     public:
-      BreakContStmtHandler(ReverseModeVisitor& RMV) : m_RMV(RMV) {}
+      BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
+          : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
       /// Begins control flow switch statement scope.
       /// Control flow switch statement is used to refer to the
@@ -574,8 +579,8 @@ namespace clad {
     BreakContStmtHandler* GetActiveBreakContStmtHandler() {
       return &m_BreakContStmtHandlers.back();
     }
-    BreakContStmtHandler* PushBreakContStmtHandler() {
-      m_BreakContStmtHandlers.emplace_back(*this);
+    BreakContStmtHandler* PushBreakContStmtHandler(bool forSwitchStmt = false) {
+      m_BreakContStmtHandlers.emplace_back(*this, forSwitchStmt);
       return &m_BreakContStmtHandlers.back();
     }
     void PopBreakContStmtHandler() {
@@ -609,6 +614,26 @@ namespace clad {
 
     clang::QualType ComputeAdjointType(clang::QualType T);
     clang::QualType ComputeParamType(clang::QualType T);
+    /// Stores data required for differentiating a switch statement.
+    struct SwitchStmtInfo {
+      llvm::SmallVector<clang::SwitchCase*, 16> cases;
+      clang::Expr* switchStmtCond = nullptr;
+      clang::IfStmt* defaultIfBreakExpr = nullptr;
+    };
+
+    /// Maintains a stack of `SwitchStmtInfo`.
+    llvm::SmallVector<SwitchStmtInfo, 4> m_SwitchStmtsData;
+
+    SwitchStmtInfo* GetActiveSwitchStmtInfo() {
+      return &m_SwitchStmtsData.back();
+    }
+
+    SwitchStmtInfo* PushSwitchStmtInfo() {
+      m_SwitchStmtsData.emplace_back();
+      return &m_SwitchStmtsData.back();
+    }
+
+    void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
   };
 } // end namespace clad
 
