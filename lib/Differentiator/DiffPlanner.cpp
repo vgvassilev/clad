@@ -13,8 +13,8 @@
 #include "clad/Differentiator/ASTHelper.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
-
+#include "clad/Differentiator/DerivedTypeEssentials.h"
+#include "clad/Differentiator/DerivedTypeInitialiser.h"
 using namespace clang;
 
 namespace clad {
@@ -353,8 +353,8 @@ namespace clad {
     }
     if (!RD->hasDefinition())
       return true;
-    if (RD->getName() == "__clad_ComplexNumber_wrt_ComplexNumber")
-      return true;
+    // if (RD->getName() == "__clad_ComplexNumber_wrt_ComplexNumber")
+    //   return true;
     auto& C = m_Sema.getASTContext();
     RD = RD->getDefinition();
     auto derivedTypeName = RD->getName();

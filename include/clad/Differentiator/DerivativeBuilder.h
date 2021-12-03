@@ -11,7 +11,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
-#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
+#include "clad/Differentiator/DerivedTypeEssentials.h"
 #include <array>
 #include <map>
 #include <stack>

@@ -1,11 +1,11 @@
-#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
+#include "clad/Differentiator/DerivedTypeInitialiser.h"
 
+#include "ConstantFolder.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
-
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "clad/Differentiator/Compatibility.h"
@@ -21,30 +21,30 @@ namespace clad {
   DerivedTypeInitialiser::DerivedTypeInitialiser(Sema& semaRef, QualType yType,
                                                  QualType xType,
                                                  CXXRecordDecl* derivedRecord)
-      : m_Sema(semaRef), m_Context(semaRef.getASTContext()), m_CurScope(semaRef.TUScope),
-        m_ASTHelper(semaRef), m_yQType(yType), m_xQType(xType),
-        m_DerivedRecord(derivedRecord),
+      : m_Sema(semaRef), m_Context(semaRef.getASTContext()),
+        m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_yQType(yType),
+        m_xQType(xType), m_DerivedRecord(derivedRecord),
         m_DerivedType(
             derivedRecord->getTypeForDecl()->getCanonicalTypeInternal()) {
-    FillDerivedRecord();              
-    m_DerivedAddFnDecl = CreateDerivedAddFn();
-  }
-  
-  void DerivedTypeInitialiser::beginScope(unsigned ScopeFlags) {
-      // FIXME: since Sema::CurScope is private, we cannot access it and have
-      // to use separate member variable m_CurScope. The only options to set
-      // CurScope of Sema seemt to be through Parser or ContextAndScopeRAII.
-      m_CurScope =
-          new clang::Scope(m_CurScope, ScopeFlags, m_Sema.Diags);
+    FillDerivedRecord();
+    if (m_yQType == m_xQType) {
+      CreateInitialiseSeedsFn();
     }
+    if (m_yQType->isRealType()) {
+      m_DerivedAddFnDecl = CreateDerivedAddFn();
+    }
+  }
+
+  void DerivedTypeInitialiser::beginScope(unsigned ScopeFlags) {
+    m_CurScope = new clang::Scope(m_CurScope, ScopeFlags, m_Sema.Diags);
+  }
 
   void DerivedTypeInitialiser::endScope() {
-      // This will remove all the decls in the scope from the IdResolver.
-      m_Sema.ActOnPopScope(clang::SourceLocation(), m_CurScope);
-      auto oldScope = m_CurScope;
-      m_CurScope = oldScope->getParent();
-      delete oldScope;
-    }
+    m_Sema.ActOnPopScope(noLoc, m_CurScope);
+    auto oldScope = m_CurScope;
+    m_CurScope = oldScope->getParent();
+    delete oldScope;
+  }
 
   void DerivedTypeInitialiser::FillDerivedRecord() {
     auto xRD = m_xQType->getAsCXXRecordDecl();
@@ -88,36 +88,33 @@ namespace clad {
 
   clang::FunctionDecl* DerivedTypeInitialiser::CreateDerivedAddFn() {
     m_Variables.clear();
-    // auto cladND = BuildCladNamespace();
-    auto fnType = ComputeDerivedAddSubFnType();
-    auto dAddDNameInfo = m_ASTHelper.CreateDeclNameInfo("dAdd");
-    auto TSI = m_Context.getTrivialTypeSourceInfo(fnType);
+    auto fnQType = ComputeDerivedAddSubFnType();
+    auto dAddDNameInfo = m_ASTHelper.CreateDeclName("dAdd");
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-    auto FD = FunctionDecl::Create(m_Context, m_Sema.CurContext, noLoc, dAddDNameInfo,
-                                   fnType, TSI, StorageClass::SC_None, false,
-                                   true, ConstexprSpecKind::CSK_unspecified,
-                                   nullptr);
-    // cladND->addDecl(FD);
-    // m_Sema.CurContext->addDecl(FD);
-    // FD->setAccess(AccessSpecifier::AS_public);
+    auto FD = m_ASTHelper.BuildFnDecl(m_Sema.CurContext, dAddDNameInfo,
+                                      fnQType);
+
     m_Sema.CurContext = FD->getDeclContext();
 
-    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-               Scope::DeclScope);
+    beginScope(ASTHelper::Scope::FunctionBeginScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(m_CurScope, FD);
 
     llvm::SmallVector<Stmt*, 16> block;
+
     auto params = CreateDerivedAddSubFnParams();
     FD->setParams(params);
+
+    // Function body scope
+    beginScope(ASTHelper::Scope::FunctionBodyScope);
+
     auto resVD = m_ASTHelper.BuildVarDecl(m_Sema.CurContext,
                                           &m_Context.Idents.get("d_res"),
                                           m_DerivedType);
     block.push_back(m_ASTHelper.BuildDeclStmt(resVD));
-    for (auto param : params)
-      m_Variables[param->getNameAsString()] = m_ASTHelper.BuildDeclRefExpr(
-          param);
-    m_Variables[resVD->getNameAsString()] = m_ASTHelper.BuildDeclRefExpr(resVD);
+
+    ComputeAndStoreDRE({resVD, params[0], params[1]});
+
     for (auto field : m_DerivedRecord->fields()) {
       if (!(field->getType()->isRealType()))
         continue;
@@ -137,39 +134,25 @@ namespace clad {
       block.push_back(assignExpr);
     }
 
-    auto returnExpr = m_Sema.ActOnReturnStmt(noLoc, m_Variables["d_res"], m_CurScope).get();
+    auto returnExpr = m_Sema
+                          .ActOnReturnStmt(noLoc, m_Variables["d_res"],
+                                           m_CurScope)
+                          .get();
     block.push_back(returnExpr);
-    auto CS = clad_compat::CompoundStmt_Create(m_Context, block, noLoc, noLoc);
+    auto CS = m_ASTHelper.BuildCompoundStmt(block);
     FD->setBody(CS);
+    endScope();
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    LookupResult R(m_Sema, FD->getNameInfo(), Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(R, FD->getDeclContext(),
-                                /*allowBuiltinCreation*/ false);
-    FD->getDeclContext()->addDecl(FD);
-    for (NamedDecl* D : R) {
-      if (auto anotherFD = dyn_cast<FunctionDecl>(D)) {
-        if (m_Sema.getASTContext()
-                .hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(),
-                                                          anotherFD->getType())) {
-          llvm::errs()<<"Same function found\n";
-          // Register the function on the redecl chain.
-          FD->setPreviousDecl(anotherFD);
-        }
-      }
-    }
+    m_ASTHelper.RegisterFn(FD->getDeclContext(), FD);
     llvm::errs() << "Dumping derived add fn\n";
-    LangOptions langOpts;
-    langOpts.CPlusPlus = true;
-    clang::PrintingPolicy policy(langOpts);
-    policy.Bool = true;
-    FD->print(llvm::errs(), policy);
-    llvm::errs()<<"FD address: "<<FD<<"\n";
-    FD->dump();
-    llvm::errs() << "isDefined: " << FD->isDefined() << " "
-                 << "hasBody: " << FD->hasBody() << "\n";
+    // LangOptions langOpts;
+    // langOpts.CPlusPlus = true;
+    // clang::PrintingPolicy policy(langOpts);
+    // policy.Bool = true;
+    // FD->print(llvm::errs(), policy);
     return FD;
   }
 
@@ -185,7 +168,90 @@ namespace clad {
     return params;
   }
 
+  void
+  DerivedTypeInitialiser::ComputeAndStoreDRE(llvm::ArrayRef<ValueDecl*> decls) {
+    for (auto decl : decls) {
+      m_Variables[decl->getNameAsString()] = m_ASTHelper.BuildDeclRefExpr(decl);
+    }
+  }
+
   DerivedTypeEssentials DerivedTypeInitialiser::CreateDerivedTypeEssentials() {
     return DerivedTypeEssentials(m_DerivedAddFnDecl);
+  }
+
+  FunctionDecl* DerivedTypeInitialiser::CreateInitialiseSeedsFn() {
+    m_Variables.clear();
+    auto memFnType = ComputeInitialiseSeedsFnType();
+    llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
+    auto memFn = m_ASTHelper.BuildMemFnDecl(m_DerivedRecord,
+                                            m_ASTHelper.CreateDeclNameInfo(
+                                                "InitialiseSeeds"),
+                                            memFnType);
+    m_Sema.CurContext = memFn->getDeclContext();
+
+    beginScope(ASTHelper::Scope::FunctionBeginScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(m_CurScope, memFn);
+
+    llvm::SmallVector<Stmt*, 16> block;
+
+    memFn->setParams({});
+
+    // Function body scope
+    beginScope(ASTHelper::Scope::FunctionBodyScope);
+    auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, memFn);
+
+    for (auto field : m_DerivedRecord->fields()) {
+      auto RD = field->getType()->getAsCXXRecordDecl();
+      FieldDecl* independentField = nullptr;
+      LookupResult R(m_Sema, field->getDeclName(), noLoc,
+                     Sema::LookupNameKind::LookupMemberName);
+      CXXScopeSpec CSS();
+      m_Sema.LookupQualifiedName(R, RD, CSS);
+      if (R.isSingleResult()) {
+        if (auto decl = dyn_cast<FieldDecl>(R.getFoundDecl())) {
+          independentField = decl;
+        }
+      }
+      if (!independentField || !(independentField->getType()->isRealType()))
+        continue;
+      auto baseExpr = m_ASTHelper.BuildMemberExpr(thisExpr, field);
+      auto independentFieldExpr = m_ASTHelper.BuildMemberExpr(baseExpr,
+                                                              independentField);
+      independentFieldExpr->dumpColor();
+      auto assignExpr = m_Sema
+                            .BuildBinOp(m_CurScope, noLoc,
+                                        BinaryOperatorKind::BO_Assign,
+                                        independentFieldExpr,
+                                        ConstantFolder::
+                                            synthesizeLiteral(independentField
+                                                                  ->getType(),
+                                                              m_Context, 1))
+                            .get();
+      assignExpr->dumpColor();                            
+      block.push_back(assignExpr);
+    }
+    auto CS = m_ASTHelper.BuildCompoundStmt(block);
+    memFn->setBody(CS);
+    endScope();
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    m_ASTHelper.RegisterFn(memFn->getDeclContext(), memFn);
+    llvm::errs() << "Dumping derived add fn\n";
+    LangOptions langOpts;
+    langOpts.CPlusPlus = true;
+    clang::PrintingPolicy policy(langOpts);
+    policy.Bool = true;
+    memFn->print(llvm::errs(), policy);
+    return memFn;
+  }
+
+  QualType DerivedTypeInitialiser::ComputeInitialiseSeedsFnType() const {
+    auto returnType = m_Context.VoidTy;
+    auto fnType = m_Context.getFunctionType(returnType, {},
+                                            FunctionProtoType::ExtProtoInfo());
+    return fnType;
   }
 } // namespace clad

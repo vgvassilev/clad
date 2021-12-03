@@ -8,7 +8,7 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/EstimationModel.h"
-#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
+#include "clad/Differentiator/DerivedTypeEssentials.h"
 
 #include "clad/Differentiator/Version.h"
 

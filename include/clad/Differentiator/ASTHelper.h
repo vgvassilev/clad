@@ -5,7 +5,10 @@
 #define CLAD_AST_HELPERS_H
 
 #include "clang/AST/Type.h"
+#include "clang/Sema/Scope.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringRef.h"
+#include "clad/Differentiator/Compatibility.h"
 
 namespace clang {
   class ASTContext;
@@ -35,6 +38,14 @@ namespace clad {
     clang::ASTContext& m_Context;
 
   public:
+    struct Scope {
+      static const unsigned
+          FunctionBeginScope = clang::Scope::FunctionPrototypeScope |
+                               clang::Scope::FunctionDeclarationScope |
+                               clang::Scope::DeclScope;
+      static const unsigned FunctionBodyScope = clang::Scope::FnScope |
+                                                clang::Scope::DeclScope;
+    };
     ASTHelper(clang::Sema& sema);
 
     clang::CXXRecordDecl* FindCXXRecordDecl(clang::DeclarationName recordName);
@@ -153,6 +164,29 @@ namespace clad {
                                             clang::DeclContext* DC,
                                             clang::IdentifierInfo* II,
                                             clang::QualType qType);
+
+    void RegisterFn(clang::DeclContext* DC, clang::FunctionDecl* FD);
+    static void RegisterFn(clang::Sema& semaRef, clang::DeclContext* DC,
+                           clang::FunctionDecl* FD);
+
+    clang::CompoundStmt* BuildCompoundStmt(llvm::ArrayRef<clang::Stmt*> block);
+    static clang::CompoundStmt*
+    BuildCompoundStmt(clang::Sema& semaRef, llvm::ArrayRef<clang::Stmt*> block);
+
+    clang::FunctionDecl* BuildFnDecl(clang::DeclContext* DC,
+                                     clang::DeclarationName fnName,
+                                     clang::QualType fnQType);
+    static clang::FunctionDecl* BuildFnDecl(clang::Sema& semaRef,
+                                            clang::DeclContext* DC,
+                                            clang::DeclarationName fnName,
+                                            clang::QualType fnQType);
+
+    clang::CXXMethodDecl* BuildMemFnDecl(clang::CXXRecordDecl* RD,
+                                         clang::DeclarationNameInfo nameInfo,
+                                         clang::QualType qType);
+    static clang::CXXMethodDecl* BuildMemFnDecl(clang::Sema& semaRef, clang::CXXRecordDecl* RD,
+                                         clang::DeclarationNameInfo nameInfo,
+                                         clang::QualType qType);
   };
 } // namespace clad
 #endif

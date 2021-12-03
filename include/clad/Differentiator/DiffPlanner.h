@@ -2,7 +2,7 @@
 
 #include "llvm/ADT/SmallSet.h"
 
-#include "clad/Differentiator/DerivedTypeInitialiser.hpp"
+#include "clad/Differentiator/DerivedTypeEssentials.h"
 
 #include <map>
 #include <string>

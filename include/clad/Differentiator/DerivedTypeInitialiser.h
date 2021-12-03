@@ -4,30 +4,26 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Scope.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "clad/Differentiator/ASTHelper.h"
+#include "clad/Differentiator/DerivedTypeEssentials.h"
 
 #include <map>
 
 namespace clang {
   class ASTContext;
   class CXXRecordDecl;
+  class DeclarationNameInfo;
   class Expr;
   class FunctionDecl;
   class NamespaceDecl;
   class ParamVarDecl;
   class Sema;
+  class ValueDecl;
 } // namespace clang
 
 namespace clad {
-  class DerivedTypeEssentials {
-    clang::FunctionDecl* m_DerivedAddFn=nullptr;
-    public:
-    DerivedTypeEssentials(clang::FunctionDecl* derivedAddFn=nullptr) : m_DerivedAddFn(derivedAddFn) {}
-    clang::FunctionDecl* GetDerivedAddFnDecl() {
-      return m_DerivedAddFn;
-    }
-  };
 
   class DerivedTypeInitialiser {
     clang::Sema& m_Sema;
@@ -48,18 +44,18 @@ namespace clad {
 
   private:
     void FillDerivedRecord();
-    // bool CreateInitialiseSeedsFn();
+    clang::FunctionDecl* CreateInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;
     clang::NamespaceDecl* BuildCladNamespace();
     clang::FunctionDecl* CreateDerivedAddFn();
     // bool CreateDerivedSubFn();
     clang::QualType ComputeDerivedAddSubFnType() const;
+    clang::QualType ComputeInitialiseSeedsFnType() const;
     llvm::SmallVector<clang::ParmVarDecl*, 2> CreateDerivedAddSubFnParams();
-
+    void ComputeAndStoreDRE(llvm::ArrayRef<clang::ValueDecl*> decls);
     void beginScope(unsigned);
     void endScope();
-    
   };
 } // namespace clad
 

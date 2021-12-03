@@ -118,7 +118,10 @@ namespace clad {
     CXXScopeSpec CSS;
     DeclarationName DN(&C.Idents.get(member->getName()));
     DeclarationNameInfo DNI(DN, noLoc);
-    return semaRef.BuildMemberExpr(base, false, noLoc, &CSS, noLoc, member, DAP,
+    bool isArrow = false;
+    if (base->getType()->isPointerType())
+      isArrow = true;
+    return semaRef.BuildMemberExpr(base, isArrow, noLoc, &CSS, noLoc, member, DAP,
                                    false, DNI, member->getType(),
                                    ExprValueKind::VK_LValue,
                                    ExprObjectKind::OK_Ordinary);
@@ -374,6 +377,76 @@ namespace clad {
     auto FD = FieldDecl::Create(C, DC, noLoc, noLoc, II, qType,
                                 C.getTrivialTypeSourceInfo(qType), nullptr,
                                 false, InClassInitStyle::ICIS_NoInit);
-    return FD;                                
+    return FD;
+  }
+
+  void ASTHelper::RegisterFn(DeclContext* DC, FunctionDecl* FD) {
+    return ASTHelper::RegisterFn(m_Sema, DC, FD);
+  }
+
+  void ASTHelper::RegisterFn(Sema& semaRef, DeclContext* DC, FunctionDecl* FD) {
+    auto& C = semaRef.getASTContext();
+    LookupResult R(semaRef, FD->getNameInfo(), Sema::LookupOrdinaryName);
+    semaRef.LookupQualifiedName(R, FD->getDeclContext(),
+                                /*allowBuiltinCreation*/ false);
+    FD->getDeclContext()->addDecl(FD);
+    for (NamedDecl* D : R) {
+      if (auto anotherFD = dyn_cast<FunctionDecl>(D)) {
+        if (semaRef.getASTContext()
+                .hasSameFunctionTypeIgnoringExceptionSpec(FD->getType(),
+                                                          anotherFD
+                                                              ->getType())) {
+          // Register the function on the redecl chain.
+          FD->setPreviousDecl(anotherFD);
+        }
+      }
+    }
+  }
+
+  CompoundStmt* ASTHelper::BuildCompoundStmt(llvm::ArrayRef<Stmt*> block) {
+    return ASTHelper::BuildCompoundStmt(m_Sema, block);
+  }
+
+  CompoundStmt* ASTHelper::BuildCompoundStmt(Sema& semaRef,
+                                             llvm::ArrayRef<Stmt*> block) {
+    auto& C = semaRef.getASTContext();
+    return clad_compat::CompoundStmt_Create(C, block, noLoc, noLoc);
+  }
+
+  FunctionDecl* ASTHelper::BuildFnDecl(clang::DeclContext* DC,
+                                       clang::DeclarationName fnName,
+                                       clang::QualType fnQType) {
+    return ASTHelper::BuildFnDecl(m_Sema, DC, fnName, fnQType);
+  }
+
+  clang::FunctionDecl* ASTHelper::BuildFnDecl(Sema& semaRef,
+                                              clang::DeclContext* DC,
+                                              clang::DeclarationName fnName,
+                                              clang::QualType fnQType) {
+    auto& C = semaRef.getASTContext();
+    auto TSI = C.getTrivialTypeSourceInfo(fnQType);
+    auto fnDecl = FunctionDecl::Create(C, DC, noLoc, noLoc, fnName, fnQType,
+                                       TSI, StorageClass::SC_None, false, true,
+                                       ConstexprSpecKind::CSK_unspecified);
+    return fnDecl;
+  }
+
+  CXXMethodDecl* ASTHelper::BuildMemFnDecl(clang::CXXRecordDecl* RD,
+                                           clang::DeclarationNameInfo nameInfo,
+                                           clang::QualType qType) {
+    return ASTHelper::BuildMemFnDecl(m_Sema, RD, nameInfo, qType);
+  }
+
+  CXXMethodDecl* ASTHelper::BuildMemFnDecl(clang::Sema& semaRef,
+                                           clang::CXXRecordDecl* RD,
+                                           clang::DeclarationNameInfo nameInfo,
+                                           clang::QualType qType) {
+    auto& C = semaRef.getASTContext();
+    auto TSI = C.getTrivialTypeSourceInfo(qType);
+    auto methodDecl = CXXMethodDecl::Create(C, RD, noLoc, nameInfo, qType, TSI,
+                                            StorageClass::SC_None, false,
+                                            ConstexprSpecKind::CSK_unspecified,
+                                            noLoc);
+    return methodDecl;
   }
 } // namespace clad
