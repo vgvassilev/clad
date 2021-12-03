@@ -186,11 +186,11 @@ namespace clad {
     void SetDerivedTypeEssential(llvm::StringRef name, DerivedTypeEssentials DTE) {
       m_DerivedTypesEssentials[name] = DTE;
       llvm::errs()<<"In SetDerivedTypeEssential\n";
-      llvm::errs()<<name<<" : "<<DTE.GetDerivedAddFnDecl()<<"\n";
+      llvm::errs()<<name<<" : "<<DTE.GetDerivedAddFn()<<"\n";
     }
-    DerivedTypeEssentials GetDerivedTypeEssential(llvm::StringRef name) {
-      llvm::errs()<<"In GetDerivedTypeEssential\n";
-      llvm::errs()<<name<<m_DerivedTypesEssentials[name].GetDerivedAddFnDecl()<<"\n";
+    DerivedTypeEssentials GetDerivedTypeEssentials(llvm::StringRef name) {
+      llvm::errs()<<"In GetDerivedTypeEssentials\n";
+      llvm::errs()<<name<<" : "<<m_DerivedTypesEssentials[name].GetInitialiseSeedsFn()<<"\n";
       return m_DerivedTypesEssentials[name];
     }
   };

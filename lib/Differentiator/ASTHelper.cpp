@@ -121,8 +121,8 @@ namespace clad {
     bool isArrow = false;
     if (base->getType()->isPointerType())
       isArrow = true;
-    return semaRef.BuildMemberExpr(base, isArrow, noLoc, &CSS, noLoc, member, DAP,
-                                   false, DNI, member->getType(),
+    return semaRef.BuildMemberExpr(base, isArrow, noLoc, &CSS, noLoc, member,
+                                   DAP, false, DNI, member->getType(),
                                    ExprValueKind::VK_LValue,
                                    ExprObjectKind::OK_Ordinary);
   }
@@ -448,5 +448,22 @@ namespace clad {
                                             ConstexprSpecKind::CSK_unspecified,
                                             noLoc);
     return methodDecl;
+  }
+
+  Expr* ASTHelper::BuildCallToMemFn(Scope* S, Expr* base, CXXMethodDecl* memFn,
+                                    llvm::MutableArrayRef<Expr*> args) {
+    return ASTHelper::BuildCallToMemFn(m_Sema, S, base, memFn, args);
+  }
+
+  clang::Expr* ASTHelper::BuildCallToMemFn(clang::Sema& semaRef, Scope* S,
+                                           Expr* base,
+                                           clang::CXXMethodDecl* memFn,
+                                           llvm::MutableArrayRef<Expr*> args) {
+    auto memExpr = BuildMemberExpr(semaRef, base, memFn);
+    auto callExpr = semaRef
+                        .BuildCallToMemberFunction(S, memExpr, noLoc, args,
+                                                   noLoc)
+                        .get();
+    return callExpr;
   }
 } // namespace clad

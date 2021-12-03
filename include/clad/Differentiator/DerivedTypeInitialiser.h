@@ -34,7 +34,11 @@ namespace clad {
     clang::CXXRecordDecl* m_DerivedRecord = nullptr;
     clang::QualType m_DerivedType;
     std::map<std::string, clang::Expr*> m_Variables;
-    clang::FunctionDecl* m_DerivedAddFnDecl;
+    clang::FunctionDecl* m_DerivedAddFn = nullptr;
+    clang::FunctionDecl* m_DerivedSubFn = nullptr;
+    clang::FunctionDecl* m_DerivedMultiplyFn = nullptr;
+    clang::FunctionDecl* m_DerivedDivideFn = nullptr;
+    clang::CXXMethodDecl* m_InitialiseSeedsFn = nullptr;
     clang::Scope* m_CurScope;
   public:
     DerivedTypeInitialiser(clang::Sema& semaRef, clang::QualType yQType,
@@ -44,11 +48,12 @@ namespace clad {
 
   private:
     void FillDerivedRecord();
-    clang::FunctionDecl* CreateInitialiseSeedsFn();
+    clang::CXXMethodDecl* CreateInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;
     clang::NamespaceDecl* BuildCladNamespace();
     clang::FunctionDecl* CreateDerivedAddFn();
+    clang::FunctionDecl* BuildDerivedSubFn();
     // bool CreateDerivedSubFn();
     clang::QualType ComputeDerivedAddSubFnType() const;
     clang::QualType ComputeInitialiseSeedsFnType() const;

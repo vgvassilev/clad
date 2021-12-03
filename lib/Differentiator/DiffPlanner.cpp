@@ -365,7 +365,7 @@ namespace clad {
     auto xQType = ASTHelper::FindCorrespondingType(m_Sema, YXTypeNames.second);
     DerivedTypeInitialiser DTI(m_Sema, yQType, xQType, RD);
     auto DTE = DTI.CreateDerivedTypeEssentials();
-    m_RequestedDTEs["abc"] = DTE;
+    m_RequestedDTEs[RD->getNameAsString()] = DTE;
     // if (XRD) {
     //   llvm::errs()<<"XRD Found: "<<XRD->getNameAsString()<<"\n";
     // } else {

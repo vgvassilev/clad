@@ -258,25 +258,28 @@ namespace clad {
         dParam = m_Sema.ActOnParenExpr(noLoc, noLoc, dParam).get();
       }
       if (param == m_IndependentVar) {
-        auto initMethodDecl = m_ASTHelper.FindUniqueFnDecl(
-            derivedType->getAsCXXRecordDecl(),
-            m_ASTHelper.CreateDeclName("IndependentVarInit"));
-        NestedNameSpecifierLoc NNS(initMethodDecl->getQualifier(),
-                                   /*Data=*/nullptr);
-        auto DAP = DeclAccessPair::make(initMethodDecl,
-                                        initMethodDecl->getAccess());
-        auto memberExpr = MemberExpr::
-            Create(m_Context, dParam, false, noLoc, NNS, noLoc, initMethodDecl,
-                   DAP, initMethodDecl->getNameInfo(),
-                   /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-                   CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-                   ExprObjectKind::OK_Ordinary
-                       CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
-        auto initCall = m_Sema
-                            .BuildCallToMemberFunction(getCurrentScope(),
-                                                       memberExpr, noLoc,
-                                                       MultiExprArg(), noLoc)
-                            .get();
+        auto initialiseSeedsMethod = m_Builder.GetDerivedTypeEssentials(
+            utils::GetRecordName(derivedType)).GetInitialiseSeedsFn();
+        llvm::errs()<<"initialiseSeedsMethod: "<<initialiseSeedsMethod<<"\n";            
+        // NestedNameSpecifierLoc NNS(initMethodDecl->getQualifier(),
+        //                            /*Data=*/nullptr);
+        // auto DAP = DeclAccessPair::make(initMethodDecl,
+        //                                 initMethodDecl->getAccess());
+        // auto memberExpr = MemberExpr::
+        //     Create(m_Context, dParam, false, noLoc, NNS, noLoc, initMethodDecl,
+        //            DAP, initMethodDecl->getNameInfo(),
+        //            /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+        //            CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+        //            ExprObjectKind::OK_Ordinary
+        //                CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
+        // auto initCall = m_Sema
+        //                     .BuildCallToMemberFunction(getCurrentScope(),
+        //                                                memberExpr, noLoc,
+        //                                                MultiExprArg(), noLoc)
+        //                     .get();
+        auto initCall = m_ASTHelper.BuildCallToMemFn(getCurrentScope(), dParam,
+                                                     initialiseSeedsMethod,
+                                                     MultiExprArg());
         addToCurrentBlock(initCall);
       }
       llvm::errs()<<"Reaching after BuildDeclRef\n";
@@ -1185,9 +1188,13 @@ namespace clad {
         //                       .FindUniqueFnDecl(GetCladNamespace(),
         //                                         m_ASTHelper.CreateDeclName(
         //                                             "dAdd"));
-        auto temp = m_Builder.GetDerivedTypeEssential("abc");        
-        FunctionDecl* dAddFn = temp.GetDerivedAddFnDecl();
-        dAddFn = temp.GetDerivedAddFnDecl();
+        llvm::errs() << "Ldiff.getExpr_dx type name: "
+                     << Ldiff.getExpr_dx()->getType().getAsString() << "\n";
+        Ldiff.getExpr_dx()->dumpColor();                     
+        auto temp = m_Builder.GetDerivedTypeEssentials(
+            utils::GetRecordName(Ldiff.getExpr_dx()->getType()));
+        FunctionDecl* dAddFn = temp.GetDerivedAddFn();
+        dAddFn = temp.GetDerivedAddFn();
         llvm::errs()
             << "dAdd function found: " << dAddFn << " "
             << "\n";
@@ -1235,10 +1242,27 @@ namespace clad {
              "expr, assignment ignored");
         opDiff =
             ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      } else if (opCode == BO_Assign || opCode == BO_AddAssign ||
-                 opCode == BO_SubAssign)
-        opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
-      else if (opCode == BO_MulAssign) {
+      } else if (opCode == BO_Assign)
+          opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
+      else if (opCode == BO_AddAssign) {
+        auto derivedAddFn = m_Builder
+                                .GetDerivedTypeEssentials(utils::GetRecordName(
+                                    Ldiff.getExpr_dx()->getType()))
+                                .GetDerivedAddFn();
+        llvm::SmallVector<Expr*, 4> callArgs;
+        callArgs.push_back(Ldiff.getExpr_dx());
+        callArgs.push_back(Rdiff.getExpr_dx());
+        llvm::MutableArrayRef<Expr*>
+            callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
+                                                    callArgs.size());                                
+        auto derivedAddFnCall = BuildCallExprToFunction(derivedAddFn,
+                                                        callArgs);
+        opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(), derivedAddFnCall);
+      } else if (opCode == BO_SubAssign) {
+        opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(),
+                         BuildOp(BO_Sub, Ldiff.getExpr_dx(),
+                                 Rdiff.getExpr_dx()));
+      } else if (opCode == BO_MulAssign) {
         Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
         Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
         opDiff =

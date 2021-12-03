@@ -8,6 +8,7 @@
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SaveAndRestore.h"
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
 #include "clang/AST/PrettyPrinter.h"
@@ -28,10 +29,11 @@ namespace clad {
             derivedRecord->getTypeForDecl()->getCanonicalTypeInternal()) {
     FillDerivedRecord();
     if (m_yQType == m_xQType) {
-      CreateInitialiseSeedsFn();
+      m_InitialiseSeedsFn = CreateInitialiseSeedsFn();
     }
     if (m_yQType->isRealType()) {
-      m_DerivedAddFnDecl = CreateDerivedAddFn();
+      m_DerivedAddFn = CreateDerivedAddFn();
+      m_DerivedSubFn = BuildDerivedSubFn();
     }
   }
 
@@ -49,8 +51,21 @@ namespace clad {
   void DerivedTypeInitialiser::FillDerivedRecord() {
     auto xRD = m_xQType->getAsCXXRecordDecl();
     for (auto field : xRD->fields()) {
+      if (!(field->getType()->isRealType()))
+        continue;
+      QualType derivedFieldType;
+      if (m_yQType->isRealType())
+        derivedFieldType = m_yQType;
+      else if (m_yQType->isClassType()) {
+        auto name = "__clad_" + std::string("double") + "_wrt_" +
+                    utils::GetRecordName(m_yQType);
+        auto RD = m_ASTHelper.FindCXXRecordDecl(
+            m_ASTHelper.CreateDeclName(name));
+        derivedFieldType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+      }
       auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
-                                           field->getIdentifier(), m_yQType);
+                                           field->getIdentifier(),
+                                           derivedFieldType);
       FD->setAccess(AccessSpecifier::AS_public);
       m_DerivedRecord->addDecl(FD);
     }
@@ -96,7 +111,7 @@ namespace clad {
 
     m_Sema.CurContext = FD->getDeclContext();
 
-    beginScope(ASTHelper::Scope::FunctionBeginScope);
+    beginScope(ASTHelper::CustomScope::FunctionBeginScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(m_CurScope, FD);
 
@@ -106,7 +121,7 @@ namespace clad {
     FD->setParams(params);
 
     // Function body scope
-    beginScope(ASTHelper::Scope::FunctionBodyScope);
+    beginScope(ASTHelper::CustomScope::FunctionBodyScope);
 
     auto resVD = m_ASTHelper.BuildVarDecl(m_Sema.CurContext,
                                           &m_Context.Idents.get("d_res"),
@@ -124,6 +139,76 @@ namespace clad {
       auto addDerivExpr = m_Sema
                               .BuildBinOp(nullptr, noLoc,
                                           BinaryOperatorKind::BO_Add, dAMem,
+                                          dBMem)
+                              .get();
+      auto assignExpr = m_Sema
+                            .BuildBinOp(nullptr, noLoc,
+                                        BinaryOperatorKind::BO_Assign, dResMem,
+                                        addDerivExpr)
+                            .get();
+      block.push_back(assignExpr);
+    }
+
+    auto returnExpr = m_Sema
+                          .ActOnReturnStmt(noLoc, m_Variables["d_res"],
+                                           m_CurScope)
+                          .get();
+    block.push_back(returnExpr);
+    auto CS = m_ASTHelper.BuildCompoundStmt(block);
+    FD->setBody(CS);
+    endScope();
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    m_ASTHelper.RegisterFn(FD->getDeclContext(), FD);
+    llvm::errs() << "Dumping derived add fn\n";
+    // LangOptions langOpts;
+    // langOpts.CPlusPlus = true;
+    // clang::PrintingPolicy policy(langOpts);
+    // policy.Bool = true;
+    // FD->print(llvm::errs(), policy);
+    return FD;
+  }
+
+  clang::FunctionDecl* DerivedTypeInitialiser::BuildDerivedSubFn() {
+    m_Variables.clear();
+    auto fnQType = ComputeDerivedAddSubFnType();
+    auto dAddDNameInfo = m_ASTHelper.CreateDeclName("dSub");
+    llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
+    auto FD = m_ASTHelper.BuildFnDecl(m_Sema.CurContext, dAddDNameInfo,
+                                      fnQType);
+
+    m_Sema.CurContext = FD->getDeclContext();
+
+    beginScope(ASTHelper::CustomScope::FunctionBeginScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(m_CurScope, FD);
+
+    llvm::SmallVector<Stmt*, 16> block;
+
+    auto params = CreateDerivedAddSubFnParams();
+    FD->setParams(params);
+
+    // Function body scope
+    beginScope(ASTHelper::CustomScope::FunctionBodyScope);
+
+    auto resVD = m_ASTHelper.BuildVarDecl(m_Sema.CurContext,
+                                          &m_Context.Idents.get("d_res"),
+                                          m_DerivedType);
+    block.push_back(m_ASTHelper.BuildDeclStmt(resVD));
+
+    ComputeAndStoreDRE({resVD, params[0], params[1]});
+
+    for (auto field : m_DerivedRecord->fields()) {
+      if (!(field->getType()->isRealType()))
+        continue;
+      auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
+      auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
+      auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
+      auto addDerivExpr = m_Sema
+                              .BuildBinOp(nullptr, noLoc,
+                                          BinaryOperatorKind::BO_Sub, dAMem,
                                           dBMem)
                               .get();
       auto assignExpr = m_Sema
@@ -176,10 +261,12 @@ namespace clad {
   }
 
   DerivedTypeEssentials DerivedTypeInitialiser::CreateDerivedTypeEssentials() {
-    return DerivedTypeEssentials(m_DerivedAddFnDecl);
+    return DerivedTypeEssentials(m_DerivedAddFn, m_DerivedSubFn,
+                                 m_DerivedMultiplyFn, m_DerivedDivideFn,
+                                 m_InitialiseSeedsFn);
   }
 
-  FunctionDecl* DerivedTypeInitialiser::CreateInitialiseSeedsFn() {
+  CXXMethodDecl* DerivedTypeInitialiser::CreateInitialiseSeedsFn() {
     m_Variables.clear();
     auto memFnType = ComputeInitialiseSeedsFnType();
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
@@ -189,7 +276,7 @@ namespace clad {
                                             memFnType);
     m_Sema.CurContext = memFn->getDeclContext();
 
-    beginScope(ASTHelper::Scope::FunctionBeginScope);
+    beginScope(ASTHelper::CustomScope::FunctionBeginScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(m_CurScope, memFn);
 
@@ -198,7 +285,7 @@ namespace clad {
     memFn->setParams({});
 
     // Function body scope
-    beginScope(ASTHelper::Scope::FunctionBodyScope);
+    beginScope(ASTHelper::CustomScope::FunctionBodyScope);
     auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, memFn);
 
     for (auto field : m_DerivedRecord->fields()) {
@@ -228,7 +315,7 @@ namespace clad {
                                                                   ->getType(),
                                                               m_Context, 1))
                             .get();
-      assignExpr->dumpColor();                            
+      assignExpr->dumpColor();
       block.push_back(assignExpr);
     }
     auto CS = m_ASTHelper.BuildCompoundStmt(block);

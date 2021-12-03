@@ -7,6 +7,7 @@
 #include "clang/AST/Type.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "clad/Differentiator/Compatibility.h"
 
@@ -29,6 +30,7 @@ namespace clang {
   class ParmVarDecl;
   class ValueDecl;
   class VarDecl;
+  class Scope;
   class Sema;
   class SourceLocation;
 } // namespace clang
@@ -38,7 +40,7 @@ namespace clad {
     clang::ASTContext& m_Context;
 
   public:
-    struct Scope {
+    struct CustomScope {
       static const unsigned
           FunctionBeginScope = clang::Scope::FunctionPrototypeScope |
                                clang::Scope::FunctionDeclarationScope |
@@ -187,6 +189,12 @@ namespace clad {
     static clang::CXXMethodDecl* BuildMemFnDecl(clang::Sema& semaRef, clang::CXXRecordDecl* RD,
                                          clang::DeclarationNameInfo nameInfo,
                                          clang::QualType qType);
+
+    clang::Expr* BuildCallToMemFn(clang::Scope* S, clang::Expr* base, clang::CXXMethodDecl* memFn,
+                                  llvm::MutableArrayRef<clang::Expr*> args);
+    static clang::Expr* BuildCallToMemFn(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
+                                         clang::CXXMethodDecl* memFn,
+                                         llvm::MutableArrayRef<clang::Expr*> args);
   };
 } // namespace clad
 #endif

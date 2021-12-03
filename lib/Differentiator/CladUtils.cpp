@@ -35,5 +35,10 @@ namespace clad {
       return "__clad_" + YName.str() + "_wrt_" + XName.str();
     }
 
+    std::string GetRecordName(clang::QualType qType) {
+      auto name = qType.getAsString();
+      auto pos = name.rfind(" ");
+      return name.substr(pos+1);
+    }
   } // namespace utils
 } // namespace clad

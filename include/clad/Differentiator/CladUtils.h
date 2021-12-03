@@ -3,8 +3,8 @@
 #ifndef CLAD_UTILS_CLADUTILS_H
 #define CLAD_UTILS_CLADUTILS_H
 
+#include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
-
 #include <string>
 #include <utility>
 
@@ -26,6 +26,8 @@ namespace clad {
 
     std::string CreateDerivedTypeName(llvm::StringRef YName,
                                       llvm::StringRef XName);
+
+    std::string GetRecordName(clang::QualType qType);                                      
   } // namespace utils
 } // namespace clad
 
