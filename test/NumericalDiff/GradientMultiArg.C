@@ -26,7 +26,7 @@ double test_1(double x, double y){
 // CHECK-NEXT:         clad::tape<clad::array_ref<double> > _t2 = {};
 // CHECK-NEXT:         clad::push(_t2, &_grad0);
 // CHECK-NEXT:         clad::push(_t2, &_grad1);
-// CHECK-NEXT:         numerical_diff::central_difference(std::hypot, _t2, 0, _t0, _t1);
+// CHECK-NEXT:         numerical_diff::central_difference((double (*)(double, double){{.*}})std::hypot, _t2, 0, _t0, _t1);
 // CHECK-NEXT:         double _r0 = 1 * _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         double _r1 = 1 * _grad1;

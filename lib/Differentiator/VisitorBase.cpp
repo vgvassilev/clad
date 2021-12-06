@@ -736,7 +736,15 @@ namespace clad {
     DeclarationNameInfo DNInfo(name, noLoc);
     // Build function args.
     llvm::SmallVector<Expr*, 16U> NumDiffArgs;
-    NumDiffArgs.push_back(targetFuncCall);
+    // build a c style cast around target function call to avoid ambiguity 
+    // for overload and function templates when the generated code is printed.
+    QualType targetQT = targetFuncCall->getType();
+    auto castExp = CStyleCastExpr::Create(
+        m_Context, targetQT, targetFuncCall->getValueKind(), CastKind::CK_NoOp,
+        targetFuncCall, 0 /*FPO=*/CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO,
+        m_Context.getTrivialTypeSourceInfo(targetQT),
+        targetFuncCall->getBeginLoc(), targetFuncCall->getEndLoc());
+    NumDiffArgs.push_back(castExp);
     NumDiffArgs.push_back(targetArg);
     NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
                                                             m_Context,
@@ -761,7 +769,15 @@ namespace clad {
     DeclarationName name(II);
     DeclarationNameInfo DNInfo(name, noLoc);
     llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
-    NumDiffArgs.push_back(targetFuncCall);
+    // build a c style cast around target function call to avoid ambiguity 
+    // for overload and function templates when the generated code is printed.
+    QualType targetQT = targetFuncCall->getType();
+    auto castExp = CStyleCastExpr::Create(
+        m_Context, targetQT, targetFuncCall->getValueKind(), CastKind::CK_NoOp,
+        targetFuncCall, 0 /*FPO=*/CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO,
+        m_Context.getTrivialTypeSourceInfo(targetQT),
+        targetFuncCall->getBeginLoc(), targetFuncCall->getEndLoc());
+    NumDiffArgs.push_back(castExp);
     // build the clad::tape<clad::array_ref>> = {};
     QualType RefType = GetCladArrayRefOfType(retType);
     QualType TapeType = GetCladTapeOfType(RefType);
