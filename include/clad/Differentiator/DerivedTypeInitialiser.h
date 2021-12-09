@@ -1,6 +1,7 @@
 #ifndef CLAD_DERIVED_TYPE_INITIALISER_H
 #define CLAD_DERIVED_TYPE_INITIALISER_H
 
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Scope.h"
@@ -10,6 +11,7 @@
 #include "clad/Differentiator/DerivedTypeEssentials.h"
 
 #include <map>
+#include <vector>
 
 namespace clang {
   class ASTContext;
@@ -40,6 +42,9 @@ namespace clad {
     clang::FunctionDecl* m_DerivedDivideFn = nullptr;
     clang::CXXMethodDecl* m_InitialiseSeedsFn = nullptr;
     clang::Scope* m_CurScope;
+
+    using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
+    std::vector<Stmts> m_Blocks;
   public:
     DerivedTypeInitialiser(clang::Sema& semaRef, clang::QualType yQType,
                            clang::QualType xQType,
@@ -47,20 +52,33 @@ namespace clad {
     DerivedTypeEssentials CreateDerivedTypeEssentials();
 
   private:
+    void BuildDerivedRecordDefinition();
     void FillDerivedRecord();
-    clang::CXXMethodDecl* CreateInitialiseSeedsFn();
+    clang::CXXMethodDecl* BuildInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;
     clang::NamespaceDecl* BuildCladNamespace();
-    clang::FunctionDecl* CreateDerivedAddFn();
+    clang::FunctionDecl* BuildDerivedAddFn();
     clang::FunctionDecl* BuildDerivedSubFn();
-    // bool CreateDerivedSubFn();
+    clang::FunctionDecl* BuildDerivedMultiplyFn();
+    template <class ComputeDerivedFnTypeT, class BuildDerivedFnParamsT,
+              class BuildFnBodyT>
+    clang::FunctionDecl*
+    GenerateDerivedArithmeticFn(clang::DeclarationName fnDName,
+                                ComputeDerivedFnTypeT ComputeDerivedFnType,
+                                BuildDerivedFnParamsT BuildDerivedFnParams,
+                                BuildFnBodyT buildFnBody);
     clang::QualType ComputeDerivedAddSubFnType() const;
+    clang::QualType ComputeDerivedMultiplyDivideFnType();
     clang::QualType ComputeInitialiseSeedsFnType() const;
-    llvm::SmallVector<clang::ParmVarDecl*, 2> CreateDerivedAddSubFnParams();
+    llvm::SmallVector<clang::ParmVarDecl*, 2> BuildDerivedAddSubFnParams();
+    llvm::SmallVector<clang::ParmVarDecl*, 4> BuildDerivedMultiplyDivideFnParams();
     void ComputeAndStoreDRE(llvm::ArrayRef<clang::ValueDecl*> decls);
     void beginScope(unsigned);
     void endScope();
+    bool AddToCurrentBlock(clang::Stmt* S);
+    Stmts& BeginBlock();
+    clang::CompoundStmt* EndBlock();
   };
 } // namespace clad
 

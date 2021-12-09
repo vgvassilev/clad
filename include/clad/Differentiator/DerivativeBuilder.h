@@ -184,14 +184,11 @@ namespace clad {
     clang::QualType GetDerivedType(llvm::StringRef typeName) const;
 
     void SetDerivedTypeEssential(llvm::StringRef name, DerivedTypeEssentials DTE) {
-      m_DerivedTypesEssentials[name] = DTE;
-      llvm::errs()<<"In SetDerivedTypeEssential\n";
-      llvm::errs()<<name<<" : "<<DTE.GetDerivedAddFn()<<"\n";
+      m_DerivedTypesEssentials[name.str()] = DTE;
     }
     DerivedTypeEssentials GetDerivedTypeEssentials(llvm::StringRef name) {
       llvm::errs()<<"In GetDerivedTypeEssentials\n";
-      llvm::errs()<<name<<" : "<<m_DerivedTypesEssentials[name].GetInitialiseSeedsFn()<<"\n";
-      return m_DerivedTypesEssentials[name];
+      return m_DerivedTypesEssentials[name.str()];
     }
   };
 

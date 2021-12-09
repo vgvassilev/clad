@@ -136,7 +136,6 @@ namespace clad {
                                                  Expr* initializer,
                                                  SourceLocation B) {
     auto& C = semaRef.getASTContext();
-    initializer->dumpColor();
     auto newExpr = semaRef
                        .BuildCXXNew(SourceRange(), false, noLoc, MultiExprArg(),
                                     noLoc, SourceRange(), qType,
@@ -236,10 +235,8 @@ namespace clad {
            "class types");
     auto copyConstructor = FindCopyConstructor(semaRef,
                                                qType->getAsCXXRecordDecl());
-    copyConstructor->dumpColor();
     E = semaRef.ImpCastExprToType(E, qType.withConst(), CastKind::CK_NoOp)
             .get();
-    E->dumpColor();
     auto initialize = semaRef
                           .BuildCXXConstructExpr(
                               noLoc, qType, copyConstructor, false,
@@ -247,7 +244,6 @@ namespace clad {
                               CXXConstructExpr::ConstructionKind::CK_Complete,
                               SourceRange())
                           .get();
-    initialize->dumpColor();
     return initialize;
   }
 
@@ -465,5 +461,29 @@ namespace clad {
                                                    noLoc)
                         .get();
     return callExpr;
+  }
+
+  clang::ReturnStmt* ASTHelper::BuildReturnStmt(clang::Expr* retValExpr,
+                                                clang::Scope* curScope) {
+    return ASTHelper::BuildReturnStmt(m_Sema, retValExpr, curScope);
+  }
+  clang::ReturnStmt* ASTHelper::BuildReturnStmt(Sema& semaRef,
+                                                clang::Expr* retValExpr,
+                                                clang::Scope* curScope) {
+    auto RetStmt = semaRef.ActOnReturnStmt(noLoc, retValExpr, curScope)
+                       .getAs<ReturnStmt>();
+  }
+
+  clang::Expr* ASTHelper::BuildOp(clang::BinaryOperatorKind opCode,
+                                  clang::Expr* L, clang::Expr* R,
+                                  clang::Scope* S) {
+    return ASTHelper::BuildOp(m_Sema, opCode, L, R, S);
+  }
+
+  clang::Expr* ASTHelper::BuildOp(clang::Sema& semaRef,
+                                  clang::BinaryOperatorKind opCode,
+                                  clang::Expr* L, clang::Expr* R,
+                                  clang::Scope* S) {
+    return semaRef.BuildBinOp(S, noLoc, opCode, L, R).get();
   }
 } // namespace clad

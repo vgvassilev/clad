@@ -1,8 +1,12 @@
 #ifndef CLAD_DERIVED_TYPE_ESSENTIALS
 #define CLAD_DERIVED_TYPE_ESSENTIALS
 
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/DeclGroup.h"
+
 namespace clang {
   class FunctionDecl;
+  class CXXMethodDecl;
 }
 namespace clad {
   class DerivedTypeEssentials {
@@ -27,7 +31,10 @@ namespace clad {
     clang::FunctionDecl* GetDerivedSubFn() { return m_DerivedSubFn; }
     clang::FunctionDecl* GetDerivedMultiplyFn() { return m_DerivedMultiplyFn; }
     clang::FunctionDecl* GetDerivedDivideFn() { return m_DerivedDivideFn; }
+  
+    void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
   };
+
 } // namespace clad
 
 #endif

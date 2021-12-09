@@ -184,11 +184,11 @@ namespace clad {
   }
 
   void DerivativeBuilder::AddDerivedType(llvm::StringRef typeName, QualType qType) {
-    m_DerivedTypes[typeName] = qType;
+    m_DerivedTypes[typeName.str()] = qType;
   }
 
   QualType DerivativeBuilder::GetDerivedType(llvm::StringRef typeName) const {
-    auto iter = m_DerivedTypes.find(typeName);
+    auto iter = m_DerivedTypes.find(typeName.str());
     if (iter != m_DerivedTypes.end())
       return iter->second;
     return QualType();

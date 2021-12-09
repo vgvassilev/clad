@@ -351,12 +351,12 @@ namespace clad {
     if (!RD->getName().startswith("__clad_")) {
       return true;
     }
-    if (!RD->hasDefinition())
-      return true;
+    // if (!RD->hasDefinition())
+    //   return true;
     // if (RD->getName() == "__clad_ComplexNumber_wrt_ComplexNumber")
     //   return true;
     auto& C = m_Sema.getASTContext();
-    RD = RD->getDefinition();
+    // RD = RD->getDefinition();
     auto derivedTypeName = RD->getName();
     auto YXTypeNames = utils::ComputeYAndXTypeNames(derivedTypeName);
     llvm::outs() << "Type names are as follows: " << YXTypeNames.first << " "

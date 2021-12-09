@@ -146,13 +146,13 @@ namespace clad {
       }
       for (auto item : requestedDTEs) {
         m_DerivativeBuilder->SetDerivedTypeEssential(item.first, item.second);
-        llvm::errs()<<item.first<<" : "<<item.second.GetInitialiseSeedsFn()<<"\n";
-        auto derivedFn = item.second.GetDerivedAddFn();
-        if (!derivedFn)
-          continue;
-        bool isTU = derivedFn->getDeclContext()->isTranslationUnit();
-        if (isTU)
-          ProcessTopLevelDecl(item.second.GetDerivedAddFn());
+        // auto derivedFn = item.second.GetDerivedAddFn();
+        // if (!derivedFn)
+        //   continue;
+        // bool isTU = derivedFn->getDeclContext()->isTranslationUnit();
+        // if (isTU)
+        //   ProcessTopLevelDecl(item.second.GetDerivedAddFn());
+        item.second.ProcessTopLevelDeclarations(m_CI.getASTConsumer());
       }
       return true; // Happiness
     }

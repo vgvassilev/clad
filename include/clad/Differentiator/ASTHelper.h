@@ -28,6 +28,7 @@ namespace clang {
   class MemberExpr;
   class NamespaceDecl;
   class ParmVarDecl;
+  class ReturnStmt;
   class ValueDecl;
   class VarDecl;
   class Scope;
@@ -186,15 +187,30 @@ namespace clad {
     clang::CXXMethodDecl* BuildMemFnDecl(clang::CXXRecordDecl* RD,
                                          clang::DeclarationNameInfo nameInfo,
                                          clang::QualType qType);
-    static clang::CXXMethodDecl* BuildMemFnDecl(clang::Sema& semaRef, clang::CXXRecordDecl* RD,
-                                         clang::DeclarationNameInfo nameInfo,
-                                         clang::QualType qType);
+    static clang::CXXMethodDecl*
+    BuildMemFnDecl(clang::Sema& semaRef, clang::CXXRecordDecl* RD,
+                   clang::DeclarationNameInfo nameInfo, clang::QualType qType);
 
-    clang::Expr* BuildCallToMemFn(clang::Scope* S, clang::Expr* base, clang::CXXMethodDecl* memFn,
+    clang::Expr* BuildCallToMemFn(clang::Scope* S, clang::Expr* base,
+                                  clang::CXXMethodDecl* memFn,
                                   llvm::MutableArrayRef<clang::Expr*> args);
-    static clang::Expr* BuildCallToMemFn(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
-                                         clang::CXXMethodDecl* memFn,
-                                         llvm::MutableArrayRef<clang::Expr*> args);
+    static clang::Expr*
+    BuildCallToMemFn(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
+                     clang::CXXMethodDecl* memFn,
+                     llvm::MutableArrayRef<clang::Expr*> args);
+
+    clang::ReturnStmt* BuildReturnStmt(clang::Expr* retValExpr,
+                                       clang::Scope* curScope);
+    static clang::ReturnStmt* BuildReturnStmt(clang::Sema& semaRef,
+                                              clang::Expr* retValExpr,
+                                              clang::Scope* curScope);
+
+    clang::Expr* BuildOp(clang::BinaryOperatorKind opCode, clang::Expr* L,
+                         clang::Expr* R, clang::Scope* S = nullptr);
+    static clang::Expr* BuildOp(clang::Sema& semaRef,
+                                clang::BinaryOperatorKind opCode,
+                                clang::Expr* L, clang::Expr* R,
+                                clang::Scope* S = nullptr);
   };
 } // namespace clad
 #endif

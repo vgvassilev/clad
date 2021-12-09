@@ -40,7 +40,7 @@ namespace clad {
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
   static std::string GetWithoutClassPrefixFromTypeName(llvm::StringRef name) {
-    return name.substr(6);
+    return name.substr(6).str();
   }
 
   QualType
@@ -250,7 +250,7 @@ namespace clad {
       auto dParamDecl = BuildVarDecl(derivedType,
                                      "_d_" + param->getNameAsString(),
                                      dParam);
-      dParamDecl->dumpColor();                                     
+      // dParamDecl->dumpColor();                                     
       addToCurrentBlock(BuildDeclStmt(dParamDecl));
       dParam = BuildDeclRef(dParamDecl);
       if (derivedType->isPointerType()) {
@@ -628,11 +628,11 @@ namespace clad {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     auto diff = retValDiff.getExpr_dx();
     llvm::errs()<<"In VisitReturnStmt\n";
-    diff->getType()->dump();
+    // diff->getType()->dump();
     auto initializer = m_ASTHelper.BuildCXXCopyConstructExpr(diff->getType(), diff);
     initializer->dumpColor();
     auto newExpr = m_ASTHelper.CreateNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
-    newExpr->dumpColor();
+    // newExpr->dumpColor();
     auto diffResDecl = BuildVarDecl(m_Context.getPointerType(diff->getType()),
                                     "_t", newExpr);
     auto diffResDRE = BuildDeclRef(diffResDecl);
@@ -698,7 +698,7 @@ namespace clad {
       return StmtDiff(clonedME, zero);
     } else {
       // QualType Ty = ME->getType();
-      ME->getBase()->dumpColor();
+      // ME->getBase()->dumpColor();
       auto declDRE = cast<DeclRefExpr>(ME->getBase());
       auto declDiff = VisitDeclRefExpr(declDRE);
       auto derivedDRE = cast<DeclRefExpr>(
@@ -1123,17 +1123,18 @@ namespace clad {
     auto deriveMul = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
       Expr* diff = nullptr;
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-        auto dMultiplyFnDecl = m_ASTHelper
-                              .FindUniqueFnDecl(GetCladNamespace(),
-                                                m_ASTHelper.CreateDeclName(
-                                                    "dMultiply"));
+        auto dMultiplyFnDecl = m_Builder
+                                   .GetDerivedTypeEssentials(
+                                       utils::GetRecordName(
+                                           Ldiff.getExpr_dx()->getType()))
+                                   .GetDerivedMultiplyFn();
         llvm::errs()<<"dMulitply function found: "<<dMultiplyFnDecl<<"\n";
-        dMultiplyFnDecl->dump();
+        // dMultiplyFnDecl->dump();
         
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr());
-        callArgs.push_back(Rdiff.getExpr());
         callArgs.push_back(Ldiff.getExpr_dx());
+        callArgs.push_back(Rdiff.getExpr());
         callArgs.push_back(Rdiff.getExpr_dx());
         llvm::MutableArrayRef<Expr*>
             callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
@@ -1190,7 +1191,6 @@ namespace clad {
         //                                             "dAdd"));
         llvm::errs() << "Ldiff.getExpr_dx type name: "
                      << Ldiff.getExpr_dx()->getType().getAsString() << "\n";
-        Ldiff.getExpr_dx()->dumpColor();                     
         auto temp = m_Builder.GetDerivedTypeEssentials(
             utils::GetRecordName(Ldiff.getExpr_dx()->getType()));
         FunctionDecl* dAddFn = temp.GetDerivedAddFn();
@@ -1198,7 +1198,7 @@ namespace clad {
         llvm::errs()
             << "dAdd function found: " << dAddFn << " "
             << "\n";
-        dAddFn->dump();
+        // dAddFn->dump();
         
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr_dx());
@@ -1219,7 +1219,7 @@ namespace clad {
                                                 m_ASTHelper.CreateDeclName(
                                                     "dSub"));
         llvm::errs()<<"dSub function found: "<<dSubFnDecl<<"\n";
-        dSubFnDecl->dump();
+        // dSubFnDecl->dump();
         
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr_dx());

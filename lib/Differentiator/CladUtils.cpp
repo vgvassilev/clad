@@ -2,7 +2,6 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
-
 namespace clad {
   namespace utils {
     std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD) {
@@ -24,9 +23,9 @@ namespace clad {
       if (wrtPos == llvm::StringRef::npos)
         return typeNames;
       typeNames.first = cladDerivedTypeName.substr(prefixLength,
-                                                   wrtPos - prefixLength);
+                                                   wrtPos - prefixLength).str();
       typeNames.second = cladDerivedTypeName.substr(wrtPos +
-                                                    wrtSeparaterLength);
+                                                    wrtSeparaterLength).str();
       return typeNames;
     }
 
