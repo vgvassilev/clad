@@ -61,6 +61,7 @@ namespace clad {
     clang::FunctionDecl* BuildDerivedAddFn();
     clang::FunctionDecl* BuildDerivedSubFn();
     clang::FunctionDecl* BuildDerivedMultiplyFn();
+    clang::FunctionDecl* BuildDerivedDivideFn();
     template <class ComputeDerivedFnTypeT, class BuildDerivedFnParamsT,
               class BuildFnBodyT>
     clang::FunctionDecl*

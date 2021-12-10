@@ -31,9 +31,9 @@ namespace clad {
     /// Constructor for clad::array types
     CUDA_HOST_DEVICE array_ref(array<T>& a)
         : m_arr(a.ptr()), m_size(a.size()) {}
-
     /// Returns the size of the underlying array
     CUDA_HOST_DEVICE std::size_t size() { return m_size; }
+    CUDA_HOST_DEVICE T* ptr() { return m_arr; }
     /// Returns an array_ref to a part of the underlying array starting at
     /// offset and having the specified size
     CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset, std::size_t size) {
@@ -80,6 +80,30 @@ namespace clad {
       for (std::size_t i = 0; i < m_size; i++)
         m_arr[i] -= Ar[i];
       return *this;
+    }
+  };
+
+  template <> class array_ref<void> {
+  private:
+    /// The pointer to the underlying array
+    void* m_arr = nullptr;
+    /// The size of the array
+    std::size_t m_size = 0;
+
+  public:
+    array_ref(void* arr, std::size_t size = 1) : m_arr(arr), m_size(size) {}
+    template <typename T>
+    array_ref(const array_ref<T>& other)
+        : m_arr(other.ptr()), m_size(other.size()) {}
+    template<typename T> 
+    operator array_ref<T>() {
+      return array_ref<T>(static_cast<T*>(m_arr), m_size);
+    }
+    void* ptr() const {
+      return m_arr;
+    }        
+    std::size_t size() const {
+      return m_size;
     }
   };
 } // namespace clad

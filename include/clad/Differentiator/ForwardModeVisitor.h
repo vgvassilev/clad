@@ -9,7 +9,6 @@
 
 #include "Compatibility.h"
 #include "VisitorBase.h"
-#include "clad/Differentiator/ASTHelper.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -29,7 +28,6 @@ namespace clad {
     unsigned m_IndependentVarIndex = ~0;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
-    ASTHelper m_ASTHelper;
     clang::QualType m_IndependentVarQType;
   public:
     ForwardModeVisitor(DerivativeBuilder& builder);

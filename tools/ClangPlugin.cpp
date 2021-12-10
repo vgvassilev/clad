@@ -223,7 +223,10 @@ namespace clad {
                  OverloadedDerivativeDecl) =
             m_DerivativeBuilder->Derive(FD, request);
       }
-
+      if (OverloadedDerivativeDecl) {
+        llvm::errs()<<"Dumping OverloadedDerivativeDecl:\n";
+        OverloadedDerivativeDecl->print(llvm::errs(), Policy);
+      }
       if (DerivativeDecl) {
         auto I = m_Derivatives.insert(DerivativeDecl);
         (void)I;

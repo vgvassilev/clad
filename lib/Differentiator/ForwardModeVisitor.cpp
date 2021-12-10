@@ -35,7 +35,7 @@ using namespace clang;
 
 namespace clad {
   ForwardModeVisitor::ForwardModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder), m_ASTHelper(m_Sema) {}
+      : VisitorBase(builder) {}
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
@@ -1155,20 +1155,39 @@ namespace clad {
     };
 
     auto deriveDiv = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
-      Expr* LHS = BuildOp(BO_Mul,
-                          BuildParens(Ldiff.getExpr_dx()),
-                          BuildParens(Rdiff.getExpr()));
+      Expr* diff = nullptr;
+      if (Ldiff.getExpr_dx()->getType()->isClassType()) {
+        auto dDivideFnDecl = m_Builder
+                                 .GetDerivedTypeEssentials(utils::GetRecordName(
+                                     Ldiff.getExpr_dx()->getType()))
+                                 .GetDerivedDivideFn();
+        llvm::errs() << "dMulitply function found: " << dDivideFnDecl << "\n";
+        // dMultiplyFnDecl->dump();
 
-      Expr* RHS = BuildOp(BO_Mul,
-                          BuildParens(Ldiff.getExpr()),
-                          BuildParens(Rdiff.getExpr_dx()));
+        llvm::SmallVector<Expr*, 4> callArgs;
+        callArgs.push_back(Ldiff.getExpr());
+        callArgs.push_back(Ldiff.getExpr_dx());
+        callArgs.push_back(Rdiff.getExpr());
+        callArgs.push_back(Rdiff.getExpr_dx());
+        llvm::MutableArrayRef<Expr*>
+            callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
+                                                    callArgs.size());
+        diff = BuildCallExprToFunction(dDivideFnDecl, callArgsRef);
+      } else {
+        Expr* LHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr_dx()),
+                            BuildParens(Rdiff.getExpr()));
 
-      Expr* nominator = BuildOp(BO_Sub, LHS, RHS);
+        Expr* RHS = BuildOp(BO_Mul, BuildParens(Ldiff.getExpr()),
+                            BuildParens(Rdiff.getExpr_dx()));
 
-      Expr* RParens = BuildParens(Rdiff.getExpr());
-      Expr* denominator = BuildOp(BO_Mul, RParens, RParens);
+        Expr* nominator = BuildOp(BO_Sub, LHS, RHS);
 
-      return BuildOp(BO_Div, BuildParens(nominator), BuildParens(denominator));
+        Expr* RParens = BuildParens(Rdiff.getExpr());
+        Expr* denominator = BuildOp(BO_Mul, RParens, RParens);
+        diff = BuildOp(BO_Div, BuildParens(nominator),
+                       BuildParens(denominator));
+      }
+      return diff;
     };
 
     if (opCode == BO_Mul) {
@@ -1214,20 +1233,20 @@ namespace clad {
     }
     else if (opCode == BO_Sub) {
         if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-        auto dSubFnDecl = m_ASTHelper
-                              .FindUniqueFnDecl(GetCladNamespace(),
-                                                m_ASTHelper.CreateDeclName(
-                                                    "dSub"));
-        llvm::errs()<<"dSub function found: "<<dSubFnDecl<<"\n";
-        // dSubFnDecl->dump();
-        
-        llvm::SmallVector<Expr*, 4> callArgs;
-        callArgs.push_back(Ldiff.getExpr_dx());
-        callArgs.push_back(Rdiff.getExpr_dx());
-        llvm::MutableArrayRef<Expr*>
-            callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
-                                                    callArgs.size());
-        opDiff = BuildCallExprToFunction(dSubFnDecl, callArgsRef);
+          auto dSubFnDecl = m_Builder
+                                .GetDerivedTypeEssentials(utils::GetRecordName(
+                                    Ldiff.getExpr_dx()->getType()))
+                                .GetDerivedSubFn();
+          llvm::errs() << "dSub function found: " << dSubFnDecl << "\n";
+          // dSubFnDecl->dump();
+
+          llvm::SmallVector<Expr*, 4> callArgs;
+          callArgs.push_back(Ldiff.getExpr_dx());
+          callArgs.push_back(Rdiff.getExpr_dx());
+          llvm::MutableArrayRef<Expr*>
+              callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
+                                                      callArgs.size());
+          opDiff = BuildCallExprToFunction(dSubFnDecl, callArgsRef);
       } else {
         opDiff =
             BuildOp(BO_Sub, Ldiff.getExpr_dx(), BuildParens(Rdiff.getExpr_dx()));

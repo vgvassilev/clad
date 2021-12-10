@@ -211,6 +211,9 @@ namespace clad {
                                 clang::BinaryOperatorKind opCode,
                                 clang::Expr* L, clang::Expr* R,
                                 clang::Scope* S = nullptr);
+
+    clang::ParenExpr* BuildParenExpr(clang::Expr* E);
+    static clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
   };
 } // namespace clad
 #endif

@@ -26,8 +26,6 @@ namespace clad {
       : m_Sema(semaRef), m_Context(semaRef.getASTContext()),
         m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_yQType(yType),
         m_xQType(xType), m_DerivedRecord(derivedRecord)
-  // m_DerivedType(
-  //     derivedRecord->getTypeForDecl()->getCanonicalTypeInternal())
   {
     BuildDerivedRecordDefinition();
     FillDerivedRecord();
@@ -38,6 +36,7 @@ namespace clad {
       m_DerivedAddFn = BuildDerivedAddFn();
       m_DerivedSubFn = BuildDerivedSubFn();
       m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
+      m_DerivedDivideFn = BuildDerivedDivideFn();
     }
   }
 
@@ -264,13 +263,12 @@ namespace clad {
 
         auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem, b);
 
-        auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a,
-                                            dBMem);
+        auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a, dBMem);
 
-        auto addDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Add,
-                                               diff1, diff2);
+        auto addDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Add, diff1,
+                                            diff2);
         auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
-                                                 dResMem, addDiffs);
+                                              dResMem, addDiffs);
         AddToCurrentBlock(assignExpr);
       }
       auto returnExpr = m_Sema
@@ -289,8 +287,45 @@ namespace clad {
     langOpts.CPlusPlus = true;
     clang::PrintingPolicy policy(langOpts);
     policy.Bool = true;
-    FD->print(llvm::errs(), policy);        
+    FD->print(llvm::errs(), policy);
     return FD;
+  }
+
+  clang::FunctionDecl* DerivedTypeInitialiser::BuildDerivedDivideFn() {
+    auto buildDiffBody = [this]() {
+      auto a = m_Variables["a"];
+      auto b = m_Variables["b"];
+      for (auto field : m_DerivedRecord->fields()) {
+        if (!(field->getType()->isRealType()))
+          continue;
+        auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
+        auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
+        auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
+
+        auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem, b);
+
+        auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a, dBMem);
+
+        auto subDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub, diff1,
+                                            diff2);
+        auto bSquare = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, b, b);
+        auto divideExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Div,
+                                              subDiffs, bSquare);
+        auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                              dResMem, divideExpr);
+        AddToCurrentBlock(assignExpr);
+      }
+      auto returnExpr = m_Sema
+                            .ActOnReturnStmt(noLoc, m_Variables["d_res"],
+                                             m_CurScope)
+                            .get();
+      AddToCurrentBlock(returnExpr);
+    };
+    auto FD = GenerateDerivedArithmeticFn(
+        m_ASTHelper.CreateDeclName("dDivide"),
+        &DerivedTypeInitialiser::ComputeDerivedMultiplyDivideFnType,
+        &DerivedTypeInitialiser::BuildDerivedMultiplyDivideFnParams,
+        buildDiffBody);
   }
 
   llvm::SmallVector<clang::ParmVarDecl*, 2>

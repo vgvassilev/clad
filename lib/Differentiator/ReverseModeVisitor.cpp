@@ -217,8 +217,9 @@ namespace clad {
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
       DerivedOutputParamType = m_Function->getParamDecl(lastArgN)->getType();
     } else {
-      DerivedOutputParamType =
-          GetCladArrayRefOfType(m_Function->getReturnType());
+      // DerivedOutputParamType =
+      //     GetCladArrayRefOfType(m_Function->getReturnType());
+      DerivedOutputParamType = GetCladArrayRefOfType(m_Context.VoidTy);
     }
 
     auto derivativeBaseName = request.BaseFunctionName;
@@ -357,8 +358,9 @@ namespace clad {
           if (isArrayOrPointerType(PVD->getType())) {
             m_Variables[*it] = (Expr*)BuildDeclRef(DVD);
           } else {
-            m_Variables[*it] =
-                BuildOp(UO_Deref, BuildDeclRef(DVD), m_Function->getLocation());
+            // m_Variables[*it] =
+            //     BuildOp(UO_Deref, BuildDeclRef(DVD), m_Function->getLocation());
+            m_Variables[*it] = BuildDeclRef(DVD);
           }
         }
       }
@@ -438,6 +440,24 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+    for (auto it=m_Variables.begin(); it != m_Variables.end(); ++it) {
+      if (it->second->getType()->isClassType()) {
+        QualType derivedQType = m_Function->getReturnType();
+        if (it->first->getType()->isClassType()) {
+
+        }
+        auto derivedVarArrayRefType = GetCladArrayRefOfType(derivedQType);
+        auto derivedVar = BuildVarDecl(derivedVarArrayRefType,
+                                       "_d" + it->first->getNameAsString(),
+                                       it->second);
+        it->second = BuildOp(UnaryOperatorKind::UO_Deref,
+                             BuildDeclRef(derivedVar));
+        if (it->second->getType()->isClassType()) {
+          it->second = m_ASTHelper.BuildParenExpr(it->second);
+        }                             
+        addToCurrentBlock(BuildDeclStmt(derivedVar));
+      }
+    }
     // create derived variables for parameters which are not part of
     // independent variables (args).
     for (ParmVarDecl* param : nonDiffParams) {

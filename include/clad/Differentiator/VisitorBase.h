@@ -13,6 +13,7 @@ namespace clad {
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
+#include "clad/Differentiator/ASTHelper.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -73,11 +74,12 @@ namespace clad {
           m_CladPlugin(builder.m_CladPlugin), m_Context(builder.m_Context),
           m_CurScope(m_Sema.TUScope), m_DerivativeFnScope(nullptr),
           m_DerivativeInFlight(false), m_Derivative(nullptr),
-          m_Function(nullptr) {}
+          m_Function(nullptr), m_ASTHelper(builder.m_Sema) {}
 
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
 
     DerivativeBuilder& m_Builder;
+    ASTHelper m_ASTHelper;
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;

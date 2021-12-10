@@ -368,7 +368,8 @@ namespace clad {
       DropArgs_AddCON((, ...)); // Declares all the specializations
 
   template <class T, class R> struct OutputParamType {
-    using type = array_ref<R>;
+    // using type = array_ref<R>;
+    using type = array_ref<void>;
   };
 
   template <class T, class R>
