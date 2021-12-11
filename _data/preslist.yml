@@ -1,3 +1,208 @@
+- title: "GPU Acceleration of Automatic Differentiation in C++ with Clad, ACAT 2021"
+  description: |
+    Automatic Differentiation (AD) is instrumental for science and industry. It
+    is a tool to evaluate the derivative of a function specified through a
+    computer program. The range of AD application domain spans from Machine
+    Learning to Robotics to High Energy Physics. Computing gradients with the
+    help of AD is guaranteed to be more precise than the numerical alternative
+    and have at most a constant factor (4) more arithmetical operations compared
+    to the original function. Moreover, AD applications to domain problems
+    typically are computationally bound. They are often limited by the
+    computational requirements of high-dimensional transformation parameters and
+    thus can greatly benefit from parallel implementations on graphics
+    processing units (GPUs).
+
+    Clad aims to enable differentiable analysis for C/C++ and CUDA and is a
+    compiler-assisted AD tool available both as a compiler extension and in
+    ROOT. Moreover, Clad works as a compiler plugin extending the Clang
+    compiler; as a plugin extending the interactive interpreter Cling; and as
+    a Jupyter kernel extension based on xeus-cling.
+
+    In this talk, we demonstrate the advantages of parallel gradient
+    computations on graphics processing units (GPUs) with Clad. We explain how
+    to bring forth a new layer of optimisation and a proportional speed up by
+    extending the usage of Clad for CUDA. The gradients of well-behaved C++
+    functions can be automatically executed on a GPU. Thus, across the spectrum
+    of fields, researchers can reuse their existing models and have workloads
+    scheduled on parallel processors without the need to optimize their
+    computational kernels. The library can be easily integrated into existing
+    frameworks or used interactively, and provides optimal performance.
+    Furthermore, we demonstrate the achieved application performance
+    improvements, including (~10x) in ROOT histogram fitting and corresponding
+    performance gains from offloading to GPUs.
+
+  location: "[ACAT 2021](https://indico.cern.ch/event/855454)"
+  date: 2021-11-30
+  speaker: I Ifrim
+  image: "CppADCudaACAT21"
+  artifacts: "[Link to slides](/assets/presentations/I_Ifrim-ACAT21_GPU_AD.pdf)"
+  highlight: 1
+
+- title: "Enabling Interactive C++ with Clang, LLVM Developers' Meeting 2021"
+  description: |
+    The design of LLVM and Clang enables them to be used as libraries, and has
+    led to the creation of an entire compiler-assisted ecosystem of tools. The
+    relatively friendly codebase of Clang and advancements in the JIT
+    infrastructure in LLVM further enable research into different methods for
+    processing C++ by blurring the boundary between compile time and runtime.
+    Challenges include incremental compilation and fitting compile/link time
+    optimizations into a more dynamic environment.
+
+    Incremental compilation pipelines process code chunk-by-chunk by building an
+    ever-growing translation unit. Code is then lowered into the LLVM IR and
+    subsequently run by the LLVM JIT. Such a pipeline allows creation of
+    efficient interpreters. The interpreter enables interactive exploration and
+    makes the C++ language more user friendly. The incremental compilation mode
+    is used by the interactive C++ interpreter, Cling, initially developed to
+    enable interactive high-energy physics analysis in a C++ environment. Cling
+    is now used for interactive development in Jupyter Notebooks
+    (via xeus-cling), dynamic python bindings (via cppyy) and interactive CUDA
+    development.
+
+    In this talk we dive into the details of implementing incremental
+    compilation with Clang. We outline a path forward for `Clang-Repl` which is
+    built with the experience gained in Cling and is now available in mainstream
+    llvm. We describe how the new Orc JIT infrastructure allows us to naturally
+    perform static optimizations at runtime, and enables linker voodoo to make
+    the compiler/interpreter boundaries disappear. We explain the potential of
+    having a compiler-as-a-service architecture in the context of automatic
+    language interoperability for Python and beyond.
+  location: "[LLVM Developers' Meeting 2021](https://llvm.swoogo.com/2021devmtg/)"
+  date: 2021-11-17
+  speaker: V Vassilev
+  image: "InteractiveCppLLVMDev21"
+  artifacts: "[Link to slides](/assets/presentations/V_Vassilev-LLVMDev21_InteractiveCpp.pdf)"
+  highlight: 1
+
+- title: "Enabling Interactive C++ with Clang, LLVM Developers' Meeting 2021"
+  description: |
+    Clad enables automatic differentiation (AD) for C++ algorithms through
+    source-to-source transformation. It is based on LLVM compiler infrastructure
+    and as a Clang compiler plugin. Different from other tools, Clad manipulates
+    the high-level code representation (the AST) rather than implementing its
+    own C++ parser and does not require modifications to existing code bases.
+    This methodology is both easier to adopt and potentially more performant
+    than other approaches. Having full access to the Clang compiler's internals
+    means that Clad is able to follow the high-level semantics of algorithms and
+    can perform domain-specific optimisations; automatically generate code
+    (re-targeting C++) on accelerator hardware with appropriate scheduling;
+    and has a direct connection to compiler diagnostics engine and thus
+    producing precise and expressive diagnostics positioned at desired source
+    locations.
+
+    In this talk, we showcase the above mentioned advantages through examples
+    and outline Clad&#8217;s features, applications and support extensions. We
+    describe the challenges coming from supporting automatic differentiation of
+    broader C++ and present how Clad can compute derivatives of functions,
+    member functions, functors and lambda expressions. We show the newly added
+    support of array differentiation which provides the basis utility for CUDA
+    support and parallelisation of gradient computation. Moreover, we will demo
+    different interactive use-cases of Clad, either within a Jupyter environment
+    as a kernel extension based on xeus-cling or within a gpu-cpu environment
+    where the gradient computation can be accelerated through gpu-code produced
+    by Clad and run with the help of the Cling interpreter.
+
+  location: "[24th EuroAD Workshop 2021](http://www.autodiff.org/?module=Workshops&submenu=EuroAD%2F24%2Fprogramme)"
+  date: 2021-11-04
+  speaker: I Ifrim
+  image: "CppADCudaEuroAD21"
+  artifacts: "[Link to slides](/assets/presentations/I_Ifrim-EuroAD21_GPU_AD.pdf)"
+  highlight: 1
+
+- title: "Interactive C++ for Data Science, CppCon21"
+  description: |
+    C++ is used for many numerically intensive applications. A combination of
+    performance and solid backward compatibility has led to its use for many
+    research software codes over the past 20 years. Despite its power, C++ is
+    often seen as difficult to learn and not well suited with rapid application
+    development. The long edit-compile-run cycle is a large impediment to
+    exploration and prototyping during development.
+
+    Cling has emerged as a recognized capability that enables interactivity,
+    dynamic interoperability and rapid prototyping capabilities for C++
+    developers. Cling is an interactive C++ interpreter, built on top of the
+    Clang and LLVM compiler infrastructure. The interpreter enables interactive
+    exploration and makes the C++ language more welcoming for research. Cling
+    supports the full C++ feature set including the use of templates, lambdas,
+    and virtual inheritance.Cling’s field of origin is the field of high energy
+    physics where it facilitates the processing of scientific data. The
+    interpreter was an essential part of the software tools of the LHC
+    experimental program and was part of the software used to detect the
+    gravitational waves of the LIGO experiment. Interactive C++ has proven to be
+    useful for other communities. The Cling ecosystem includes dynamic bindings
+    tools to languages including python, D and Julia (cppyy); C++ in Jupyter
+    Notebooks (xeus-cling); interactive CUDA; and automatic differentiation on
+    the fly (clad).
+
+    This talk outlines key properties of interactive C++ such as execution
+    results, entity redefinition, error recovery and code undo. It demonstrates
+    the capability enabled by an interactive C++ platform in the context of data
+    science. For example, the use of eval-style programming, C++ in Jupyter
+    notebooks and CUDA C++. We talk about design and implementation challenges
+    and go beyond just interpreting C++. We showcase template instantiation on
+    demand, language interoperability on demand and bridging compiled and
+    interpreted code. We show how to easily build new capabilities using the
+    Cling infrastructure through developing an automatic differentiation plugin
+    for C++ and CUDA.
+  location: "[CppCon21](https://cppcon.org/program2021/)"
+  date: 2021-10-27
+  speaker: V Vassilev
+  image: "InteractiveCppCppCon21"
+  artifacts: "[Link to slides](/assets/presentations/V_Vassilev-CppCon21_InteractiveCpp.pdf)"
+  highlight: 1
+
+- title: "Differentiable Programming in C++, CppCon21"
+  description: |
+    Mathematical derivatives are vital components of many computing algorithms
+    including: neural networks, numerical optimization, Bayesian inference,
+    nonlinear equation solvers, physics simulations, sensitivity analysis, and
+    nonlinear inverse problems. Derivatives track the rate of change of an
+    output parameter with respect to an input parameter, such as how much
+    reducing an individuals’ carbon footprint will impact the Earth’s
+    temperature. Derivatives (and generalizations such as gradients, jacobians,
+    hessians, etc) allow us to explore the properties of a function and better
+    describe the underlying process as a whole. In recent years, the use of
+    gradient-based optimizations such as training neural networks have become
+    widespread, leading to many languages making differentiation a first-class
+    citizen.
+
+    Derivatives can be computed numerically, but unfortunately the accumulation
+    of floating-point errors and high-computational complexity presents several
+    challenges. These problems become worse with higher order derivatives and
+    more parameters to differentiate.
+
+    Many derivative-based algorithms require gradients, or the computation of
+    the derivative of an output parameter with respect to many input parameters.
+    As such, developing techniques for computing gradients that are scalable in
+    the number of input parameters is crucial for the performance of such
+    algorithms. This paper describes a broad set of domains where scalable
+    derivative computations are essential. We make an overview of the major
+    techniques in computing derivatives, and finally, we introduce the flagman
+    of computational differential calculus -- algorithmic (also known as
+    automatic) differentiation (AD). AD makes clever use of the ‘nice’
+    mathematical properties of the chained rule and generative programming to
+    solve the scalability issues by inverting the dependence on the number of
+    input variables to the number of output variables. AD provides mechanisms to
+    augment the regular function computation with instructions calculating its
+    derivatives.
+
+    Differentiable programming is a programming paradigm in which the programs
+    can be differentiated throughout, usually via automatic differentiation.
+    This talk introduces the differentiable programming paradigm in terms of
+    C++. It shows its applications in science as applicable for data science
+    and industry. The authors make an overview of the existing tools in the area
+    and the two common implementation approaches -- template metaprogramming and
+    custom parsers. We demonstrate implementation pros and cons and propose
+    compiler toolchain-based implementation either in clang AST or LLVM IR. We
+    would like to briefly outline our current efforts in standardization of that
+    feature.
+  location: "[CppCon21](https://cppcon.org/program2021/)"
+  date: 2021-10-26
+  speaker: "W Moses, V Vassilev"
+  image: DifferentiableProgrammingInCppCppCon21
+  artifacts: "[Link to slides](/assets/presentations/W_Moses_V_Vassilev-CppCon21_DifferentiableProgrammingInCpp.pdf)"
+  highlight: 1
+
 - title: "Add Numerical Differentiation Support To Clad"
   description:
   location: "[IRIS-HEP GSoC presentations meeting](https://indico.cern.ch/event/1066812/)"

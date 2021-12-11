@@ -1,0 +1,8 @@
+.gif-animated-static {
+  position:absolute;
+  background: white;
+}
+
+.gif-animated-static:hover {
+  opacity:0;
+}
