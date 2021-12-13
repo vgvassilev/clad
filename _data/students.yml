@@ -40,18 +40,33 @@
 
 - name: "Parth Arora"
   photo: Parth.jpg
-  info: 'Add support for differentiating functor objects in clad'
   email: partharora99160808@gmail.com
   education: "B.Tech in Computer Science, USICT, Guru Gobind Singh Indraprastha University, New Delhi, India"
+  current: 1
+  info: "Add support for custom types in Clad with a focus on the Softsusy library."
   description: |
+    User-defined types in C++ helps to make code more readable and maintainable.
+    Many user-defined programs and almost every major library uses user-defined 
+    types. Thus it is very crucial for clad to support differentiating user-defined
+    types. The first goal of the project is to add support for differentiating 
+    user-defined types in clad. Clad currently also does not support many C++ 
+    syntaxes. Many of these are essential and are very well used in day-to-day 
+    programming such as break and continue statements. The second goal of the 
+    project is to battle test clad on Eigen and softsusy library codebases to 
+    find and add support for most of the missing syntax as well as to improve
+    support for differentiating function calls.
+  proposal: /assets/docs/Parth_Arora_Proposal_2022.pdf
+  mentors: Vassil Vassilev, David Lange
+  past_projects: 1
+  past_info: 'Add support for differentiating functor objects in clad'
+  past_description: |
     Differentiation support for functions is available in clad. But support for direct
     differentiation of functors and lambda expressions is missing. Many computations are
     modelled using functors and functors and lambda expressions are becoming more and
     more relevant in modern C++. This project aims to add support for directly differentiating 
     functors and lambda expressions in clad.
-  proposal: /assets/docs/Parth_Arora_Proposal_2021.pdf
-  mentors: Vassil Vassilev, David Lange
-  current: 1
+  past_proposal: /assets/docs/Parth_Arora_Proposal_2021.pdf
+  past_mentors: Vassil Vassilev, David Lange
 
 - name: "Baidyanath Kundu"
   photo: Baidyanath.png
