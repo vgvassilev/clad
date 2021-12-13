@@ -6,10 +6,11 @@
 
 #include "ClangPlugin.h"
 
+#include "clad/Differentiator/ASTHelper.h"
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/EstimationModel.h"
-#include "clad/Differentiator/DerivedTypeEssentials.h"
-
+#include "clad/Differentiator/DerivedTypesHandler.h"
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/ASTConsumer.h"
@@ -102,7 +103,7 @@ namespace clad {
     };
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-      : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
+        : m_CI(CI), m_DO(DO), m_HasRuntime(false) {}
     CladPlugin::~CladPlugin() {}
 
     // We cannot use HandleTranslationUnit because codegen already emits code on
@@ -113,8 +114,11 @@ namespace clad {
 
       Sema& S = m_CI.getSema();
 
+      if (!m_DTH)
+        m_DTH.reset(new DerivedTypesHandler(m_CI.getASTConsumer(), m_CI.getSema()));
+
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
+        m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this, *m_DTH));
 
       // if HandleTopLevelDecl was called through clad we don't need to process
       // it for diff requests
@@ -122,10 +126,9 @@ namespace clad {
         return true;
 
       DiffSchedule requests{};
-      llvm::SmallVector<CXXRecordDecl*, 16> requestedDerivedRecords;
-      std::map<std::string, DerivedTypeEssentials> requestedDTEs;
+      llvm::SmallVector<CXXRecordDecl*, 16> derivedTypeRequests;
       DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
-                              requestedDerivedRecords, requestedDTEs, m_CI.getSema());
+                              derivedTypeRequests, m_CI.getSema());
 
       // FIXME: Remove the PerformPendingInstantiations altogether. We should
       // somehow make the relevant functions referenced.
@@ -137,23 +140,13 @@ namespace clad {
         m_PendingInstantiationsInFlight = false;
       }
 
+      for (auto RD : derivedTypeRequests) {
+        ProcessDerivedTypeRequest(RD);
+      }
+
       for (DiffRequest& request : requests)
         ProcessDiffRequest(request);
       
-      for (auto RD : requestedDerivedRecords) {
-        auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
-        m_DerivativeBuilder->AddDerivedType(RD->getName(), RDQType);
-      }
-      for (auto item : requestedDTEs) {
-        m_DerivativeBuilder->SetDerivedTypeEssential(item.first, item.second);
-        // auto derivedFn = item.second.GetDerivedAddFn();
-        // if (!derivedFn)
-        //   continue;
-        // bool isTU = derivedFn->getDeclContext()->isTranslationUnit();
-        // if (isTU)
-        //   ProcessTopLevelDecl(item.second.GetDerivedAddFn());
-        item.second.ProcessTopLevelDeclarations(m_CI.getASTConsumer());
-      }
       return true; // Happiness
     }
 
@@ -162,7 +155,14 @@ namespace clad {
       m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(D));
       m_HandleTopLevelDeclInternal = false;
     }
-
+    void CladPlugin::ProcessDerivedTypeRequest(CXXRecordDecl* RD) {
+      auto& semaRef = m_CI.getSema();
+      auto derivedTypeName = RD->getName();
+      auto YXTypeNames = utils::ComputeYAndXTypeNames(derivedTypeName);
+      auto yQType = ASTHelper::FindCorrespondingType(semaRef, YXTypeNames.first);
+      auto xQType = ASTHelper::FindCorrespondingType(semaRef, YXTypeNames.second);
+      m_DTH->InitialiseDerivedType(yQType, xQType, RD);
+    }
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       const FunctionDecl* FD = request.Function;
       // set up printing policy

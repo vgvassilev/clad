@@ -35,9 +35,9 @@ namespace clad {
 
   std::unique_ptr<ErrorEstimationHandler> errorEstHandler = nullptr;
 
-  DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
+  DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P, DerivedTypesHandler& DTH)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
-      m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
+      m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)), m_DTH(DTH),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
   DerivativeBuilder::~DerivativeBuilder() {}

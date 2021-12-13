@@ -1,6 +1,7 @@
 #include "clad/Differentiator/DerivedTypeInitialiser.h"
 
 #include "ConstantFolder.h"
+#include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -11,6 +12,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
+#include "clad/Differentiator/DerivedTypesHandler.h"
 
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/LangOptions.h"
@@ -20,13 +22,14 @@ using namespace clang;
 namespace clad {
   static SourceLocation noLoc;
 
-  DerivedTypeInitialiser::DerivedTypeInitialiser(Sema& semaRef, QualType yType,
-                                                 QualType xType,
+  DerivedTypeInitialiser::DerivedTypeInitialiser(ASTConsumer& consumer,
+                                                 Sema& semaRef,
+                                                 DerivedTypesHandler& DTH,
+                                                 QualType yType, QualType xType,
                                                  CXXRecordDecl* derivedRecord)
-      : m_Sema(semaRef), m_Context(semaRef.getASTContext()),
+      : m_Sema(semaRef), m_Context(semaRef.getASTContext()), m_DTH(DTH),
         m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_yQType(yType),
-        m_xQType(xType), m_DerivedRecord(derivedRecord)
-  {
+        m_xQType(xType), m_DerivedRecord(derivedRecord) {
     BuildDerivedRecordDefinition();
     FillDerivedRecord();
     if (m_yQType == m_xQType) {
@@ -38,6 +41,7 @@ namespace clad {
       m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
       m_DerivedDivideFn = BuildDerivedDivideFn();
     }
+    ProcessTopLevelDeclarations(consumer);
   }
 
   void DerivedTypeInitialiser::BuildDerivedRecordDefinition() {
@@ -282,12 +286,12 @@ namespace clad {
         &DerivedTypeInitialiser::ComputeDerivedMultiplyDivideFnType,
         &DerivedTypeInitialiser::BuildDerivedMultiplyDivideFnParams,
         buildDiffBody);
-    llvm::errs() << "Dumping derived multiply fn\n";
-    LangOptions langOpts;
-    langOpts.CPlusPlus = true;
-    clang::PrintingPolicy policy(langOpts);
-    policy.Bool = true;
-    FD->print(llvm::errs(), policy);
+    // llvm::errs() << "Dumping derived multiply fn\n";
+    // LangOptions langOpts;
+    // langOpts.CPlusPlus = true;
+    // clang::PrintingPolicy policy(langOpts);
+    // policy.Bool = true;
+    // FD->print(llvm::errs(), policy);
     return FD;
   }
 
@@ -460,5 +464,20 @@ namespace clad {
     auto CS = m_ASTHelper.BuildCompoundStmt(m_Blocks.back());
     m_Blocks.pop_back();
     return CS;
+  }
+
+  void DerivedTypeInitialiser::ProcessTopLevelDeclarations(
+      clang::ASTConsumer& consumer) {
+    auto processTopLevelDecl = [&consumer](Decl* D) {
+      if (!D)
+        return;
+      bool isTU = D->getDeclContext()->isTranslationUnit();
+      if (isTU)
+        consumer.HandleTopLevelDecl(DeclGroupRef(D));
+    };
+    processTopLevelDecl(m_DerivedAddFn);
+    processTopLevelDecl(m_DerivedSubFn);
+    processTopLevelDecl(m_DerivedMultiplyFn);
+    processTopLevelDecl(m_DerivedDivideFn);
   }
 } // namespace clad

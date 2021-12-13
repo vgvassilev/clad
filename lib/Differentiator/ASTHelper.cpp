@@ -486,4 +486,12 @@ namespace clad {
                                   clang::Scope* S) {
     return semaRef.BuildBinOp(S, noLoc, opCode, L, R).get();
   }
+
+  ParenExpr* ASTHelper::BuildParenExpr(clang::Expr* E) {
+    return ASTHelper::BuildParenExpr(m_Sema, E);
+  }
+
+  clang::ParenExpr* ASTHelper::BuildParenExpr(clang::Sema& semaRef, clang::Expr* E) {
+    return semaRef.ActOnParenExpr(noLoc, noLoc, E).getAs<ParenExpr>();
+  }
 } // namespace clad

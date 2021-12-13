@@ -8,6 +8,7 @@
 #define CLAD_CLANG_PLUGIN
 
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DerivedTypesHandler.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Version.h"
 
@@ -22,6 +23,7 @@ namespace clang {
   class ASTContext;
   class CallExpr;
   class CompilerInstance;
+  class CXXRecordDecl;
   class DeclGroupRef;
   class Expr;
   class FunctionDecl;
@@ -32,6 +34,7 @@ namespace clang {
 namespace clad {
   struct DiffRequest;
   class EstimationPlugin;
+  class DerivedTypesHandler;
   namespace plugin {
     /// Register any custom error estimation model a user provides
     using ErrorEstimationModelRegistry = llvm::Registry<EstimationPlugin>;
@@ -57,6 +60,7 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
+      std::unique_ptr<DerivedTypesHandler> m_DTH;
       DerivativesSet m_Derivatives;
       bool m_HasRuntime = false;
       bool m_PendingInstantiationsInFlight = false;
@@ -70,6 +74,7 @@ namespace clad {
     private:
       bool CheckBuiltins();
       void ProcessTopLevelDecl(clang::Decl* D);
+      void ProcessDerivedTypeRequest(clang::CXXRecordDecl* RD);
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,

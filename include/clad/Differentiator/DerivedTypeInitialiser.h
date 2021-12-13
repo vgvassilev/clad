@@ -14,6 +14,7 @@
 #include <vector>
 
 namespace clang {
+  class ASTConsumer;
   class ASTContext;
   class CXXRecordDecl;
   class DeclarationNameInfo;
@@ -26,10 +27,11 @@ namespace clang {
 } // namespace clang
 
 namespace clad {
-
+  class DerivedTypesHandler;
   class DerivedTypeInitialiser {
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
+    DerivedTypesHandler& m_DTH;
     ASTHelper m_ASTHelper;
     clang::QualType m_yQType;
     clang::QualType m_xQType;
@@ -45,8 +47,10 @@ namespace clad {
 
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
     std::vector<Stmts> m_Blocks;
+
   public:
-    DerivedTypeInitialiser(clang::Sema& semaRef, clang::QualType yQType,
+    DerivedTypeInitialiser(clang::ASTConsumer& consumer, clang::Sema& semaRef,
+                           DerivedTypesHandler& DTH, clang::QualType yQType,
                            clang::QualType xQType,
                            clang::CXXRecordDecl* derivedRecord);
     DerivedTypeEssentials CreateDerivedTypeEssentials();
@@ -73,13 +77,15 @@ namespace clad {
     clang::QualType ComputeDerivedMultiplyDivideFnType();
     clang::QualType ComputeInitialiseSeedsFnType() const;
     llvm::SmallVector<clang::ParmVarDecl*, 2> BuildDerivedAddSubFnParams();
-    llvm::SmallVector<clang::ParmVarDecl*, 4> BuildDerivedMultiplyDivideFnParams();
+    llvm::SmallVector<clang::ParmVarDecl*, 4>
+    BuildDerivedMultiplyDivideFnParams();
     void ComputeAndStoreDRE(llvm::ArrayRef<clang::ValueDecl*> decls);
     void beginScope(unsigned);
     void endScope();
     bool AddToCurrentBlock(clang::Stmt* S);
     Stmts& BeginBlock();
     clang::CompoundStmt* EndBlock();
+    void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
   };
 } // namespace clad
 

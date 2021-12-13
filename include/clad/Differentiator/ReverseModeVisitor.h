@@ -406,6 +406,10 @@ namespace clad {
                                    clang::Stmt* condVarDifff = nullptr,
                                    clang::Stmt* forLoopIncDiff = nullptr,
                                    bool isForLoop = false);
+    
+    clang::QualType ComputeDerivedType(clang::QualType yType,
+                                       clang::QualType xType,
+                                       bool computePointerType = false);
   };
 } // end namespace clad
 

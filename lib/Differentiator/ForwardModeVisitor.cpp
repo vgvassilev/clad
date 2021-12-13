@@ -258,7 +258,7 @@ namespace clad {
         dParam = m_Sema.ActOnParenExpr(noLoc, noLoc, dParam).get();
       }
       if (param == m_IndependentVar) {
-        auto initialiseSeedsMethod = m_Builder.GetDerivedTypeEssentials(
+        auto initialiseSeedsMethod = m_Builder.m_DTH.GetDTE(
             utils::GetRecordName(derivedType)).GetInitialiseSeedsFn();
         llvm::errs()<<"initialiseSeedsMethod: "<<initialiseSeedsMethod<<"\n";            
         // NestedNameSpecifierLoc NNS(initMethodDecl->getQualifier(),
@@ -1123,8 +1123,8 @@ namespace clad {
     auto deriveMul = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
       Expr* diff = nullptr;
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-        auto dMultiplyFnDecl = m_Builder
-                                   .GetDerivedTypeEssentials(
+        auto dMultiplyFnDecl = m_Builder.m_DTH
+                                   .GetDTE(
                                        utils::GetRecordName(
                                            Ldiff.getExpr_dx()->getType()))
                                    .GetDerivedMultiplyFn();
@@ -1157,8 +1157,8 @@ namespace clad {
     auto deriveDiv = [this](StmtDiff& Ldiff, StmtDiff& Rdiff) {
       Expr* diff = nullptr;
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-        auto dDivideFnDecl = m_Builder
-                                 .GetDerivedTypeEssentials(utils::GetRecordName(
+        auto dDivideFnDecl = m_Builder.m_DTH
+                                 .GetDTE(utils::GetRecordName(
                                      Ldiff.getExpr_dx()->getType()))
                                  .GetDerivedDivideFn();
         llvm::errs() << "dMulitply function found: " << dDivideFnDecl << "\n";
@@ -1210,7 +1210,7 @@ namespace clad {
         //                                             "dAdd"));
         llvm::errs() << "Ldiff.getExpr_dx type name: "
                      << Ldiff.getExpr_dx()->getType().getAsString() << "\n";
-        auto temp = m_Builder.GetDerivedTypeEssentials(
+        auto temp = m_Builder.m_DTH.GetDTE(
             utils::GetRecordName(Ldiff.getExpr_dx()->getType()));
         FunctionDecl* dAddFn = temp.GetDerivedAddFn();
         dAddFn = temp.GetDerivedAddFn();
@@ -1233,8 +1233,8 @@ namespace clad {
     }
     else if (opCode == BO_Sub) {
         if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-          auto dSubFnDecl = m_Builder
-                                .GetDerivedTypeEssentials(utils::GetRecordName(
+          auto dSubFnDecl = m_Builder.m_DTH
+                                .GetDTE(utils::GetRecordName(
                                     Ldiff.getExpr_dx()->getType()))
                                 .GetDerivedSubFn();
           llvm::errs() << "dSub function found: " << dSubFnDecl << "\n";
@@ -1264,23 +1264,38 @@ namespace clad {
       } else if (opCode == BO_Assign)
           opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
       else if (opCode == BO_AddAssign) {
-        auto derivedAddFn = m_Builder
-                                .GetDerivedTypeEssentials(utils::GetRecordName(
-                                    Ldiff.getExpr_dx()->getType()))
-                                .GetDerivedAddFn();
-        llvm::SmallVector<Expr*, 4> callArgs;
-        callArgs.push_back(Ldiff.getExpr_dx());
-        callArgs.push_back(Rdiff.getExpr_dx());
-        llvm::MutableArrayRef<Expr*>
-            callArgsRef = llvm::makeMutableArrayRef(callArgs.data(),
-                                                    callArgs.size());                                
-        auto derivedAddFnCall = BuildCallExprToFunction(derivedAddFn,
-                                                        callArgs);
-        opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(), derivedAddFnCall);
+        if (!(Ldiff.getExpr_dx()->getType()->isClassType())) {
+          opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
+        } else {
+
+          auto derivedAddFn = m_Builder.m_DTH
+                                  .GetDTE(
+                                      utils::GetRecordName(
+                                          Ldiff.getExpr_dx()->getType()))
+                                  .GetDerivedAddFn();
+          llvm::SmallVector<Expr*, 4> callArgs;
+          callArgs.push_back(Ldiff.getExpr_dx());
+          callArgs.push_back(Rdiff.getExpr_dx());
+          auto derivedAddFnCall = BuildCallExprToFunction(derivedAddFn,
+                                                          callArgs);
+          opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(), derivedAddFnCall);
+        }
       } else if (opCode == BO_SubAssign) {
-        opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(),
-                         BuildOp(BO_Sub, Ldiff.getExpr_dx(),
-                                 Rdiff.getExpr_dx()));
+        if (!(Ldiff.getExpr_dx()->getType()->isClassType())) {
+          opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
+        } else {
+          auto derivedSubFn = m_Builder.m_DTH
+                                  .GetDTE(
+                                      utils::GetRecordName(
+                                          Ldiff.getExpr_dx()->getType()))
+                                  .GetDerivedSubFn();
+          llvm::SmallVector<Expr*, 4> callArgs;
+          callArgs.push_back(Ldiff.getExpr_dx());
+          callArgs.push_back(Rdiff.getExpr_dx());
+          auto derivedSubFnCall = BuildCallExprToFunction(derivedSubFn,
+                                                          callArgs);
+          opDiff = BuildOp(BO_Assign, Ldiff.getExpr_dx(), derivedSubFnCall);
+        }
       } else if (opCode == BO_MulAssign) {
         Ldiff = {StoreAndRef(Ldiff.getExpr()), Ldiff.getExpr_dx()};
         Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};

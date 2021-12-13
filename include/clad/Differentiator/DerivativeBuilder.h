@@ -8,6 +8,7 @@
 #define CLAD_DERIVATIVE_BUILDER_H
 
 #include "Compatibility.h"
+#include "clad/Differentiator/DerivedTypesHandler.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -59,6 +60,7 @@ namespace clad {
 
 namespace clad {
   class ErrorEstimationHandler;
+  class DerivedTypesHandler;
   class FPErrorEstimationModel;
   // A pointer to a the handler to be used for estimation requests.
   extern std::unique_ptr<ErrorEstimationHandler> errorEstHandler;
@@ -95,6 +97,7 @@ namespace clad {
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
+    DerivedTypesHandler& m_DTH;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     /// A reference to the model to use for error estimation (if any).
@@ -108,7 +111,6 @@ namespace clad {
     ///
     /// Derived types are the types that are used to store the derivatives.
     std::map<std::string, clang::QualType> m_DerivedTypes;
-    std::map<std::string, DerivedTypeEssentials> m_DerivedTypesEssentials;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB, clang::DeclContext* DC,
                                   clang::Sema& m_Sema,
@@ -150,7 +152,7 @@ namespace clad {
     }
 
   public:
-    DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P);
+    DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P, DerivedTypesHandler& DTH);
     ~DerivativeBuilder();
     /// Reset the model use for error estimation (if any).
     /// \param[in] estModel The error estimation model, can be either
@@ -182,14 +184,6 @@ namespace clad {
                                      const DiffRequest& request);
     void AddDerivedType(llvm::StringRef typeName, clang::QualType qType);
     clang::QualType GetDerivedType(llvm::StringRef typeName) const;
-
-    void SetDerivedTypeEssential(llvm::StringRef name, DerivedTypeEssentials DTE) {
-      m_DerivedTypesEssentials[name.str()] = DTE;
-    }
-    DerivedTypeEssentials GetDerivedTypeEssentials(llvm::StringRef name) {
-      llvm::errs()<<"In GetDerivedTypeEssentials\n";
-      return m_DerivedTypesEssentials[name.str()];
-    }
   };
 
 } // end namespace clad

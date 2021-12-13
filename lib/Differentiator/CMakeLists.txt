@@ -34,6 +34,7 @@ add_llvm_library(cladDifferentiator
   ConstantFolder.cpp
   DerivativeBuilder.cpp
   DerivedTypeEssentials.cpp
+  DerivedTypesHandler.cpp
   DerivedTypeInitialiser.cpp
   DiffPlanner.cpp
   ForwardModeVisitor.cpp
