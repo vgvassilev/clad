@@ -23,7 +23,12 @@ permalink: /presentations/
 
 <div class="col-sm-12 clearfix">
  <div class="well text-justify">
-  <pubtit>{{ presi.title }}</pubtit>
+  <pubtit>{{ presi.title }},
+    {{ presi.location | markdownify | remove: '<p>' |remove: '</p>' | strip_newlines }},
+    <em>{{ presi.speaker }}</em>,
+    {{ presi.date | date: "%-d %B %Y" }},
+    {{ presi.artifacts | markdownify | remove: '<p>' |remove: '</p>' | strip_newlines }}
+  </pubtit>
   <img src="{{ site.url }}{{ site.baseurl }}/images/pubpic/{{ presi.image }}.gif"
        class="img-responsive"
        style="border-radius:2px; max-width:512px; float: left;" />
@@ -31,11 +36,6 @@ permalink: /presentations/
        class="gif-animated-static img-responsive "
        style="border-radius:2px; max-width:512px; float: left;" />
   {{ presi.description | markdownify }}
-  <p><em>{{ presi.speaker }}</em>,
-    {{ presi.location | markdownify | remove: '<p>' |remove: '</p>' | strip_newlines }},
-    {{ presi.date | date: "%-d %B %Y" }},
-    {{ presi.artifacts | markdownify | remove: '<p>' |remove: '</p>' | strip_newlines }}
-  </p>
  </div>
 </div>
 

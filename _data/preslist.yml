@@ -1,4 +1,4 @@
-- title: "GPU Acceleration of Automatic Differentiation in C++ with Clad, ACAT 2021"
+- title: "GPU Acceleration of Automatic Differentiation in C++ with Clad"
   description: |
     Automatic Differentiation (AD) is instrumental for science and industry. It
     is a tool to evaluate the derivative of a function specified through a
@@ -38,7 +38,7 @@
   artifacts: "[Link to slides](/assets/presentations/I_Ifrim-ACAT21_GPU_AD.pdf)"
   highlight: 1
 
-- title: "Enabling Interactive C++ with Clang, LLVM Developers' Meeting 2021"
+- title: "Enabling Interactive C++ with Clang"
   description: |
     The design of LLVM and Clang enables them to be used as libraries, and has
     led to the creation of an entire compiler-assisted ecosystem of tools. The
@@ -74,7 +74,7 @@
   artifacts: "[Link to slides](/assets/presentations/V_Vassilev-LLVMDev21_InteractiveCpp.pdf)"
   highlight: 1
 
-- title: "Enabling Interactive C++ with Clang, LLVM Developers' Meeting 2021"
+- title: "Enabling Interactive C++ with Clang"
   description: |
     Clad enables automatic differentiation (AD) for C++ algorithms through
     source-to-source transformation. It is based on LLVM compiler infrastructure
@@ -109,7 +109,7 @@
   artifacts: "[Link to slides](/assets/presentations/I_Ifrim-EuroAD21_GPU_AD.pdf)"
   highlight: 1
 
-- title: "Interactive C++ for Data Science, CppCon21"
+- title: "Interactive C++ for Data Science"
   description: |
     C++ is used for many numerically intensive applications. A combination of
     performance and solid backward compatibility has led to its use for many
@@ -151,7 +151,7 @@
   artifacts: "[Link to slides](/assets/presentations/V_Vassilev-CppCon21_InteractiveCpp.pdf)"
   highlight: 1
 
-- title: "Differentiable Programming in C++, CppCon21"
+- title: "Differentiable Programming in C++"
   description: |
     Mathematical derivatives are vital components of many computing algorithms
     including: neural networks, numerical optimization, Bayesian inference,
