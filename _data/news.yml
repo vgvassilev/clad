@@ -1,3 +1,7 @@
+- date: 4 October 2021
+  headline: "Clang-Repl released in LLVM 13"
+  link: "https://github.com/llvm/llvm-project/releases/tag/llvmorg-13.0.0"
+
 - date: 16 August 2021
   headline: "Clad 0.9 released"
   link: "https://github.com/vgvassilev/clad/releases/tag/v0.9"
