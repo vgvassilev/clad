@@ -22,7 +22,7 @@ permalink: /presentations/
 {% endif %}
 
 <div class="col-sm-12 clearfix">
- <div class="well">
+ <div class="well text-justify">
   <pubtit>{{ presi.title }}</pubtit>
   <img src="{{ site.url }}{{ site.baseurl }}/images/pubpic/{{ presi.image }}.gif"
        class="img-responsive"
