@@ -30,6 +30,10 @@ namespace clad {
       : m_Sema(semaRef), m_Context(semaRef.getASTContext()), m_DTH(DTH),
         m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_yQType(yType),
         m_xQType(xType), m_DerivedRecord(derivedRecord) {
+    assert((m_xQType->isRealType() || m_xQType->isClassType()) &&
+           "x should either be of a real type or a class type");
+    assert((m_yQType->isRealType() || m_yQType->isClassType()) &&
+           "y should either be of a real type or a class type");
     BuildDerivedRecordDefinition();
     FillDerivedRecord();
     if (m_yQType == m_xQType) {
@@ -51,15 +55,6 @@ namespace clad {
     bool ownedDecl, isDependent;
     TypeResult underlyingType;
     beginScope(Scope::DeclScope | Scope::ClassScope);
-    // auto temp = m_Sema.ActOnTag(m_CurScope, DeclSpec::TST::TST_class,
-    //                             Sema::TagUseKind::TUK_Definition, noLoc, CSS,
-    //                             m_DerivedRecord->getIdentifier(), noLoc, PAV,
-    //                             AccessSpecifier::AS_none, noLoc, {},
-    //                             ownedDecl, isDependent, noLoc, false,
-    //                             underlyingType, false, false);
-    // m_Sema.ActOnTagStartDefinition(m_CurScope, m_DerivedRecord);
-    // m_Sema.ActOnTagFinishDefinition(m_CurScope, m_DerivedRecord,
-    // m_ASTHelper.GetValidSR());
     auto temp = CXXRecordDecl::Create(m_Context, TagTypeKind::TTK_Class,
                                       m_Sema.CurContext, noLoc, noLoc,
                                       m_DerivedRecord->getIdentifier(),
@@ -84,25 +79,53 @@ namespace clad {
   }
 
   void DerivedTypeInitialiser::FillDerivedRecord() {
-    auto xRD = m_xQType->getAsCXXRecordDecl();
-    for (auto field : xRD->fields()) {
-      if (!(field->getType()->isRealType()))
-        continue;
-      QualType derivedFieldType;
-      if (m_yQType->isRealType())
-        derivedFieldType = m_yQType;
-      else if (m_yQType->isClassType()) {
-        auto name = "__clad_" + std::string("double") + "_wrt_" +
-                    utils::GetRecordName(m_yQType);
-        auto RD = m_ASTHelper.FindCXXRecordDecl(
-            m_ASTHelper.CreateDeclName(name));
-        derivedFieldType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+    if (m_yQType->isRealType()) {
+      auto xRD = m_xQType->getAsCXXRecordDecl();
+      for (auto field : xRD->fields()) {
+        QualType derivedFieldType;
+        if (field->getType()->isRealType()) {
+          derivedFieldType = m_Context.DoubleTy;
+        } else if (field->getType()->isClassType()) {
+          derivedFieldType = m_DTH.GetDerivedType(m_Context.DoubleTy,
+                                                  field->getType());
+          assert(!derivedFieldType.isNull() &&
+                 "Required derived field type not found!!");
+        } else {
+          continue;
+        }
+        auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
+                                             field->getIdentifier(),
+                                             derivedFieldType,
+                                             AccessSpecifier::AS_public, true);
       }
-      auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
-                                           field->getIdentifier(),
-                                           derivedFieldType);
-      FD->setAccess(AccessSpecifier::AS_public);
-      m_DerivedRecord->addDecl(FD);
+    } else if (m_yQType->isClassType()) {
+      auto yRD = m_yQType->getAsCXXRecordDecl();
+      for (auto field : yRD->fields()) {
+        QualType derivedFieldType;
+        if (field->getType()->isRealType()) {
+          if (m_xQType->isRealType()) {
+            derivedFieldType = m_Context.DoubleTy;
+          } else if (m_xQType->isClassType()) {
+            derivedFieldType = m_DTH.GetDerivedType(m_Context.DoubleTy,
+                                                    m_xQType);
+            assert(!derivedFieldType.isNull() &&
+                   "Required derived field type not found!!");
+          }
+        } else if (field->getType()->isClassType()) {
+          derivedFieldType = m_DTH.GetDerivedType(field->getType(), m_xQType);
+          assert(!derivedFieldType.isNull() &&
+                 "Required derived field type not found!!");
+        } else {
+          continue;
+        }
+        auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
+                                             field->getIdentifier(),
+                                             derivedFieldType,
+                                             AccessSpecifier::AS_public, true);
+      }
+    } else {
+      assert("Unexpected case!! y Type should either be a real type or a class "
+             "type.");
     }
   }
 
@@ -202,17 +225,22 @@ namespace clad {
 
     auto buildDiffBody = [this]() {
       for (auto field : m_DerivedRecord->fields()) {
-        if (!(field->getType()->isRealType()))
-          continue;
         auto dResMem = m_ASTHelper.BuildMemberExpr(this->m_Variables["d_res"],
                                                    field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
-        auto addDerivExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Add,
-                                                dAMem, dBMem);
-        auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
-                                              dResMem, addDerivExpr);
-        AddToCurrentBlock(assignExpr);
+        if (field->getType()->isRealType()) {
+          auto addDerivExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Add,
+                                                  dAMem, dBMem);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, addDerivExpr);
+          AddToCurrentBlock(assignExpr);
+        } else if (field->getType()->isClassType()) {
+          auto DTE = m_DTH.GetDTE(field->getType().getAsString());
+          assert(DTE.isValid() && "Required Derived Type Essesentials not found!!");
+          auto memberDAddFn = DTE.GetDerivedAddFn();
+          // auto dAddFnCall = m_ASTHelper.BuildCall
+        }
       }
 
       auto returnExpr = m_ASTHelper.BuildReturnStmt(m_Variables["d_res"],
@@ -369,9 +397,9 @@ namespace clad {
   }
 
   DerivedTypeEssentials DerivedTypeInitialiser::CreateDerivedTypeEssentials() {
-    return DerivedTypeEssentials(m_DerivedAddFn, m_DerivedSubFn,
-                                 m_DerivedMultiplyFn, m_DerivedDivideFn,
-                                 m_InitialiseSeedsFn);
+    return DerivedTypeEssentials(m_DerivedRecord, m_DerivedAddFn,
+                                 m_DerivedSubFn, m_DerivedMultiplyFn,
+                                 m_DerivedDivideFn, m_InitialiseSeedsFn);
   }
 
   CXXMethodDecl* DerivedTypeInitialiser::BuildInitialiseSeedsFn() {

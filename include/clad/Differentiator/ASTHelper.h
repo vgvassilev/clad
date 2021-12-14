@@ -4,6 +4,7 @@
 #ifndef CLAD_AST_HELPERS_H
 #define CLAD_AST_HELPERS_H
 
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/APInt.h"
@@ -160,13 +161,16 @@ namespace clad {
     clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
     static clang::DeclStmt* BuildDeclStmt(clang::Sema& semaRef, clang::Decl* D);
 
-    clang::FieldDecl* BuildFieldDecl(clang::DeclContext* DC,
-                                     clang::IdentifierInfo* II,
-                                     clang::QualType qType);
-    static clang::FieldDecl* BuildFieldDecl(clang::Sema& sema,
-                                            clang::DeclContext* DC,
-                                            clang::IdentifierInfo* II,
-                                            clang::QualType qType);
+    clang::FieldDecl*
+    BuildFieldDecl(clang::DeclContext* DC, clang::IdentifierInfo* II,
+                   clang::QualType qType,
+                   clang::AccessSpecifier AS = clang::AccessSpecifier::AS_none,
+                   bool addToDecl = false);
+    static clang::FieldDecl*
+    BuildFieldDecl(clang::Sema& sema, clang::DeclContext* DC,
+                   clang::IdentifierInfo* II, clang::QualType qType,
+                   clang::AccessSpecifier AS = clang::AccessSpecifier::AS_none,
+                   bool addToDecl = false);
 
     void RegisterFn(clang::DeclContext* DC, clang::FunctionDecl* FD);
     static void RegisterFn(clang::Sema& semaRef, clang::DeclContext* DC,
@@ -213,7 +217,8 @@ namespace clad {
                                 clang::Scope* S = nullptr);
 
     clang::ParenExpr* BuildParenExpr(clang::Expr* E);
-    static clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
+    static clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef,
+                                            clang::Expr* E);
   };
 } // namespace clad
 #endif

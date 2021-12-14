@@ -361,18 +361,23 @@ namespace clad {
 
   clang::FieldDecl* ASTHelper::BuildFieldDecl(clang::DeclContext* DC,
                                               clang::IdentifierInfo* II,
-                                              clang::QualType qType) {
-    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType);
+                                              clang::QualType qType,
+                                              clang::AccessSpecifier AS,
+                                              bool addToDecl) {
+    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType, AS, addToDecl);
   }
 
-  clang::FieldDecl* ASTHelper::BuildFieldDecl(clang::Sema& semaRef,
-                                              clang::DeclContext* DC,
-                                              clang::IdentifierInfo* II,
-                                              clang::QualType qType) {
+  clang::FieldDecl*
+  ASTHelper::BuildFieldDecl(clang::Sema& semaRef, clang::DeclContext* DC,
+                            clang::IdentifierInfo* II, clang::QualType qType,
+                            clang::AccessSpecifier AS, bool addToDecl) {
     auto& C = semaRef.getASTContext();
     auto FD = FieldDecl::Create(C, DC, noLoc, noLoc, II, qType,
                                 C.getTrivialTypeSourceInfo(qType), nullptr,
                                 false, InClassInitStyle::ICIS_NoInit);
+    FD->setAccess(AS);
+    if (addToDecl)
+      DC->addDecl(FD);
     return FD;
   }
 
@@ -491,7 +496,8 @@ namespace clad {
     return ASTHelper::BuildParenExpr(m_Sema, E);
   }
 
-  clang::ParenExpr* ASTHelper::BuildParenExpr(clang::Sema& semaRef, clang::Expr* E) {
+  clang::ParenExpr* ASTHelper::BuildParenExpr(clang::Sema& semaRef,
+                                              clang::Expr* E) {
     return semaRef.ActOnParenExpr(noLoc, noLoc, E).getAs<ParenExpr>();
   }
 } // namespace clad

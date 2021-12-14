@@ -86,6 +86,7 @@ namespace clad {
     Stmts& BeginBlock();
     clang::CompoundStmt* EndBlock();
     void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
+
   };
 } // namespace clad
 

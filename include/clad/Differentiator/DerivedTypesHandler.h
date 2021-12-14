@@ -27,6 +27,8 @@ namespace clad {
     void InitialiseDerivedType(clang::QualType yQType, clang::QualType xQType,
                                clang::CXXRecordDecl* RD);
     DerivedTypeEssentials GetDTE(llvm::StringRef name);
+    clang::QualType GetDerivedType(clang::QualType yQType,
+                                         clang::QualType xQType);
   };
 } // namespace clad
 

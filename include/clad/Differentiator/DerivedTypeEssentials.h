@@ -7,9 +7,11 @@
 namespace clang {
   class FunctionDecl;
   class CXXMethodDecl;
-}
+  class CXXRecordDecl;
+} // namespace clang
 namespace clad {
   class DerivedTypeEssentials {
+    clang::CXXRecordDecl* m_DerivedRD = nullptr;
     clang::FunctionDecl* m_DerivedAddFn = nullptr;
     clang::CXXMethodDecl* m_InitialiseSeedsFn = nullptr;
     clang::FunctionDecl* m_DerivedSubFn = nullptr;
@@ -17,13 +19,14 @@ namespace clad {
     clang::FunctionDecl* m_DerivedDivideFn = nullptr;
 
   public:
-    DerivedTypeEssentials(clang::FunctionDecl* derivedAddFn = nullptr,
+    DerivedTypeEssentials(clang::CXXRecordDecl* derivedRD = nullptr,
+                          clang::FunctionDecl* derivedAddFn = nullptr,
                           clang::FunctionDecl* derivedSubFn = nullptr,
                           clang::FunctionDecl* derivedMultiplyFn = nullptr,
                           clang::FunctionDecl* derivedDivideFn = nullptr,
                           clang::CXXMethodDecl* initialiseSeedsFn = nullptr)
-        : m_DerivedAddFn(derivedAddFn), m_DerivedSubFn(derivedSubFn),
-          m_DerivedMultiplyFn(derivedMultiplyFn),
+        : m_DerivedRD(derivedRD), m_DerivedAddFn(derivedAddFn),
+          m_DerivedSubFn(derivedSubFn), m_DerivedMultiplyFn(derivedMultiplyFn),
           m_DerivedDivideFn(derivedDivideFn),
           m_InitialiseSeedsFn(initialiseSeedsFn) {}
     clang::CXXMethodDecl* GetInitialiseSeedsFn() { return m_InitialiseSeedsFn; }
@@ -31,8 +34,10 @@ namespace clad {
     clang::FunctionDecl* GetDerivedSubFn() { return m_DerivedSubFn; }
     clang::FunctionDecl* GetDerivedMultiplyFn() { return m_DerivedMultiplyFn; }
     clang::FunctionDecl* GetDerivedDivideFn() { return m_DerivedDivideFn; }
-  
-    void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
+    clang::CXXRecordDecl* GetDerivedRD() { return m_DerivedRD; }
+    bool isValid() const {
+      return m_DerivedRD != nullptr;
+    }
   };
 
 } // namespace clad

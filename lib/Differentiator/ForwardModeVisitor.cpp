@@ -637,9 +637,6 @@ namespace clad {
                                     "_t", newExpr);
     auto diffResDRE = BuildDeclRef(diffResDecl);
     addToCurrentBlock(BuildDeclStmt(diffResDecl));
-    addToCurrentBlock(BuildOp(BinaryOperatorKind::BO_Assign,
-                              BuildOp(UnaryOperatorKind::UO_Deref, diffResDRE),
-                              diff));
 
     // auto dumpMethod = m_ASTHelper
     //                       .FindUniqueFnDecl(diff->getType()
