@@ -34,7 +34,7 @@
   location: "[ACAT 2021](https://indico.cern.ch/event/855454)"
   date: 2021-11-30
   speaker: I Ifrim
-  image: "CppADCudaACAT21"
+  id: "CppADCudaACAT21"
   artifacts: "[Link to slides](/assets/presentations/I_Ifrim-ACAT21_GPU_AD.pdf)"
   highlight: 1
 
@@ -70,7 +70,7 @@
   location: "[LLVM Developers' Meeting 2021](https://llvm.swoogo.com/2021devmtg/)"
   date: 2021-11-17
   speaker: V Vassilev
-  image: "InteractiveCppLLVMDev21"
+  id: "InteractiveCppLLVMDev21"
   artifacts: "[Link to slides](/assets/presentations/V_Vassilev-LLVMDev21_InteractiveCpp.pdf)"
   highlight: 1
 
@@ -105,7 +105,7 @@
   location: "[24th EuroAD Workshop 2021](http://www.autodiff.org/?module=Workshops&submenu=EuroAD%2F24%2Fprogramme)"
   date: 2021-11-04
   speaker: I Ifrim
-  image: "CppADCudaEuroAD21"
+  id: "CppADCudaEuroAD21"
   artifacts: "[Link to slides](/assets/presentations/I_Ifrim-EuroAD21_GPU_AD.pdf)"
   highlight: 1
 
@@ -147,7 +147,7 @@
   location: "[CppCon21](https://cppcon.org/program2021/)"
   date: 2021-10-27
   speaker: V Vassilev
-  image: "InteractiveCppCppCon21"
+  id: "InteractiveCppCppCon21"
   artifacts: "[Link to slides](/assets/presentations/V_Vassilev-CppCon21_InteractiveCpp.pdf)"
   highlight: 1
 
@@ -199,7 +199,7 @@
   location: "[CppCon21](https://cppcon.org/program2021/)"
   date: 2021-10-26
   speaker: "W Moses, V Vassilev"
-  image: DifferentiableProgrammingInCppCppCon21
+  id: DifferentiableProgrammingInCppCppCon21
   artifacts: "[Link to slides](/assets/presentations/W_Moses_V_Vassilev-CppCon21_DifferentiableProgrammingInCpp.pdf)"
   highlight: 1
 

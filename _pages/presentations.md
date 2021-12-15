@@ -21,18 +21,21 @@ permalink: /presentations/
 <div class="row">
 {% endif %}
 
+<span id="{{presi.id}}">&nbsp;</span>
 <div class="col-sm-12 clearfix">
  <div class="well text-justify">
-  <pubtit>{{ presi.title }},
-    {{ presi.location | markdownify | remove: '<p>' |remove: '</p>' | strip_newlines }},
-    <em>{{ presi.speaker }}</em>,
-    {{ presi.date | date: "%-d %B %Y" }},
-    {{ presi.artifacts | markdownify | remove: '<p>' |remove: '</p>' | strip_newlines }}
+  <pubtit>
+    <a style="text-decoration:none;" href="#{{presi.id}}"> {{ presi.title }},
+      {{ presi.location | markdownify | remove: '<p>' | remove: '</p>' | strip_newlines }},
+      <em>{{ presi.speaker }}</em>,
+      {{ presi.date | date: "%-d %B %Y" }},
+      {{ presi.artifacts | markdownify | remove: '<p>' | remove: '</p>' | strip_newlines }}
+    </a>
   </pubtit>
-  <img src="{{ site.url }}{{ site.baseurl }}/images/pubpic/{{ presi.image }}.gif"
+  <img src="{{ site.url }}{{ site.baseurl }}/images/pubpic/{{ presi.id }}.gif"
        class="img-responsive"
        style="border-radius:2px; max-width:512px; float: left;" />
-  <img src="{{ site.url }}{{ site.baseurl }}/images/pubpic/{{ presi.image }}.png"
+  <img src="{{ site.url }}{{ site.baseurl }}/images/pubpic/{{ presi.id }}.png"
        class="gif-animated-static img-responsive "
        style="border-radius:2px; max-width:512px; float: left;" />
   {{ presi.description | markdownify }}
