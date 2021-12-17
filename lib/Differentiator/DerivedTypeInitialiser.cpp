@@ -28,24 +28,33 @@ namespace clad {
                                                  QualType yType, QualType xType,
                                                  CXXRecordDecl* derivedRecord)
       : m_Sema(semaRef), m_Context(semaRef.getASTContext()), m_DTH(DTH),
-        m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_yQType(yType),
-        m_xQType(xType), m_DerivedRecord(derivedRecord) {
-    assert((m_xQType->isRealType() || m_xQType->isClassType()) &&
+        m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_YQType(yType),
+        m_XQType(xType), m_DerivedRecord(derivedRecord) {
+    assert((m_XQType->isRealType() || m_XQType->isClassType()) &&
            "x should either be of a real type or a class type");
-    assert((m_yQType->isRealType() || m_yQType->isClassType()) &&
+    assert((m_YQType->isRealType() || m_YQType->isClassType()) &&
            "y should either be of a real type or a class type");
     BuildDerivedRecordDefinition();
     FillDerivedRecord();
-    if (m_yQType == m_xQType) {
+    if (m_YQType == m_XQType) {
       m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
-    }
-    if (m_yQType->isRealType()) {
       m_DerivedAddFn = BuildDerivedAddFn();
-      m_DerivedSubFn = BuildDerivedSubFn();
-      m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
-      m_DerivedDivideFn = BuildDerivedDivideFn();
+    } else {
+      m_DerivedAddFn = BuildDerivedAddFn();
+      // m_DerivedSubFn = BuildDerivedSubFn();
+      // m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
+      // m_DerivedDivideFn = BuildDerivedDivideFn();
     }
     ProcessTopLevelDeclarations(consumer);
+  }
+
+  static void PrintDecl(Decl* FD) {
+    LangOptions langOpts;
+    langOpts.CPlusPlus = true;
+    clang::PrintingPolicy policy(langOpts);
+    policy.Bool = true;
+    FD->print(llvm::errs(), policy);
+    llvm::errs() << "\n";
   }
 
   void DerivedTypeInitialiser::BuildDerivedRecordDefinition() {
@@ -79,8 +88,8 @@ namespace clad {
   }
 
   void DerivedTypeInitialiser::FillDerivedRecord() {
-    if (m_yQType->isRealType()) {
-      auto xRD = m_xQType->getAsCXXRecordDecl();
+    if (m_YQType->isRealType()) {
+      auto xRD = m_XQType->getAsCXXRecordDecl();
       for (auto field : xRD->fields()) {
         QualType derivedFieldType;
         if (field->getType()->isRealType()) {
@@ -93,40 +102,49 @@ namespace clad {
         } else {
           continue;
         }
+        Expr* init = nullptr;
+        if (derivedFieldType == m_Context.DoubleTy)
+          init = ConstantFolder::synthesizeLiteral(derivedFieldType, m_Context,
+                                                   0);
         auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
                                              field->getIdentifier(),
-                                             derivedFieldType,
+                                             derivedFieldType, init,
                                              AccessSpecifier::AS_public, true);
       }
-    } else if (m_yQType->isClassType()) {
-      auto yRD = m_yQType->getAsCXXRecordDecl();
+    } else if (m_YQType->isClassType()) {
+      auto yRD = m_YQType->getAsCXXRecordDecl();
       for (auto field : yRD->fields()) {
         QualType derivedFieldType;
         if (field->getType()->isRealType()) {
-          if (m_xQType->isRealType()) {
+          if (m_XQType->isRealType()) {
             derivedFieldType = m_Context.DoubleTy;
-          } else if (m_xQType->isClassType()) {
+          } else if (m_XQType->isClassType()) {
             derivedFieldType = m_DTH.GetDerivedType(m_Context.DoubleTy,
-                                                    m_xQType);
+                                                    m_XQType);
             assert(!derivedFieldType.isNull() &&
                    "Required derived field type not found!!");
           }
         } else if (field->getType()->isClassType()) {
-          derivedFieldType = m_DTH.GetDerivedType(field->getType(), m_xQType);
+          derivedFieldType = m_DTH.GetDerivedType(field->getType(), m_XQType);
           assert(!derivedFieldType.isNull() &&
                  "Required derived field type not found!!");
         } else {
           continue;
         }
+        Expr* init = nullptr;
+        if (derivedFieldType == m_Context.DoubleTy)
+          init = ConstantFolder::synthesizeLiteral(derivedFieldType, m_Context,
+                                                   0);
         auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
                                              field->getIdentifier(),
-                                             derivedFieldType,
+                                             derivedFieldType, init,
                                              AccessSpecifier::AS_public, true);
       }
     } else {
       assert("Unexpected case!! y Type should either be a real type or a class "
              "type.");
     }
+    // PrintDecl(m_DerivedRecord);
   }
 
   NamespaceDecl* DerivedTypeInitialiser::BuildCladNamespace() {
@@ -147,7 +165,7 @@ namespace clad {
   }
 
   clang::QualType DerivedTypeInitialiser::GetNonDerivedParamType() const {
-    return m_yQType;
+    return m_YQType;
   }
 
   QualType DerivedTypeInitialiser::ComputeDerivedAddSubFnType() const {
@@ -211,13 +229,6 @@ namespace clad {
     endScope(); // Function decl scope
     m_ASTHelper.RegisterFn(FD->getDeclContext(), FD);
 
-    // llvm::errs() << "Dumping derived add fn\n";
-    // LangOptions langOpts;
-    // langOpts.CPlusPlus = true;
-    // clang::PrintingPolicy policy(langOpts);
-    // policy.Bool = true;
-    // FD->print(llvm::errs(), policy);
-
     return FD;
   }
 
@@ -225,8 +236,7 @@ namespace clad {
 
     auto buildDiffBody = [this]() {
       for (auto field : m_DerivedRecord->fields()) {
-        auto dResMem = m_ASTHelper.BuildMemberExpr(this->m_Variables["d_res"],
-                                                   field);
+        auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
         if (field->getType()->isRealType()) {
@@ -236,10 +246,18 @@ namespace clad {
                                                 dResMem, addDerivExpr);
           AddToCurrentBlock(assignExpr);
         } else if (field->getType()->isClassType()) {
-          auto DTE = m_DTH.GetDTE(field->getType().getAsString());
-          assert(DTE.isValid() && "Required Derived Type Essesentials not found!!");
+          auto DTE = m_DTH.GetDTE(utils::GetRecordName(field->getType()));
+          assert(DTE.isValid() &&
+                 "Required Derived Type Essesentials not found!!");
           auto memberDAddFn = DTE.GetDerivedAddFn();
-          // auto dAddFnCall = m_ASTHelper.BuildCall
+          llvm::SmallVector<Expr*, 2> argsRef;
+          argsRef.push_back(dAMem);
+          argsRef.push_back(dBMem);
+          auto dAddFnCall = m_ASTHelper.BuildCallToFn(GetCurrentScope(),
+                                                      memberDAddFn, argsRef);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, dAddFnCall);
+          AddToCurrentBlock(assignExpr);
         }
       }
 
@@ -251,6 +269,7 @@ namespace clad {
         m_ASTHelper.CreateDeclName("dAdd"),
         &DerivedTypeInitialiser::ComputeDerivedAddSubFnType,
         &DerivedTypeInitialiser::BuildDerivedAddSubFnParams, buildDiffBody);
+    // PrintDecl(FD);
     return FD;
   }
 
@@ -314,12 +333,6 @@ namespace clad {
         &DerivedTypeInitialiser::ComputeDerivedMultiplyDivideFnType,
         &DerivedTypeInitialiser::BuildDerivedMultiplyDivideFnParams,
         buildDiffBody);
-    // llvm::errs() << "Dumping derived multiply fn\n";
-    // LangOptions langOpts;
-    // langOpts.CPlusPlus = true;
-    // clang::PrintingPolicy policy(langOpts);
-    // policy.Bool = true;
-    // FD->print(llvm::errs(), policy);
     return FD;
   }
 
@@ -397,9 +410,42 @@ namespace clad {
   }
 
   DerivedTypeEssentials DerivedTypeInitialiser::CreateDerivedTypeEssentials() {
-    return DerivedTypeEssentials(m_DerivedRecord, m_DerivedAddFn,
-                                 m_DerivedSubFn, m_DerivedMultiplyFn,
-                                 m_DerivedDivideFn, m_InitialiseSeedsFn);
+    return DerivedTypeEssentials(m_YQType, m_XQType, m_DerivedRecord,
+                                 m_DerivedAddFn, m_DerivedSubFn,
+                                 m_DerivedMultiplyFn, m_DerivedDivideFn,
+                                 m_InitialiseSeedsFn);
+  }
+
+  void DerivedTypeInitialiser::InitialiseIndependentFields(
+      Expr* base, llvm::SmallVector<std::string, 4> path) {
+    if (m_DTH.GetYType(base->getType()) == m_Context.DoubleTy) {
+      Expr* E = base;
+      for (auto fieldName : path) {
+        auto RD = E->getType()->getAsCXXRecordDecl();
+        auto field = m_ASTHelper.FindRecordDeclMember(RD, fieldName);
+        E = m_ASTHelper.BuildMemberExpr(E, field);
+      }
+      auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign, E,
+                                            ConstantFolder::
+                                                synthesizeLiteral(E->getType(),
+                                                                  m_Context,
+                                                                  1));
+      AddToCurrentBlock(assignExpr);
+      return;
+    }
+
+    QualType baseQType = base->getType();
+    if (base->getType()->isPointerType()) {
+      baseQType = base->getType()->getPointeeType();
+    }
+
+    auto RD = baseQType->getAsCXXRecordDecl();
+    for (auto field : RD->fields()) {
+      auto ME = m_ASTHelper.BuildMemberExpr(base, field);
+      auto updated_path = path;
+      updated_path.push_back(field->getNameAsString());
+      InitialiseIndependentFields(ME, updated_path);
+    }
   }
 
   CXXMethodDecl* DerivedTypeInitialiser::BuildInitialiseSeedsFn() {
@@ -416,45 +462,46 @@ namespace clad {
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(m_CurScope, memFn);
 
-    llvm::SmallVector<Stmt*, 16> block;
-
+    BeginBlock();
     memFn->setParams({});
 
     // Function body scope
     beginScope(ASTHelper::CustomScope::FunctionBodyScope);
-    auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, memFn);
+    // auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, memFn);
 
-    for (auto field : m_DerivedRecord->fields()) {
-      auto RD = field->getType()->getAsCXXRecordDecl();
-      FieldDecl* independentField = nullptr;
-      LookupResult R(m_Sema, field->getDeclName(), noLoc,
-                     Sema::LookupNameKind::LookupMemberName);
-      CXXScopeSpec CSS();
-      m_Sema.LookupQualifiedName(R, RD, CSS);
-      if (R.isSingleResult()) {
-        if (auto decl = dyn_cast<FieldDecl>(R.getFoundDecl())) {
-          independentField = decl;
-        }
-      }
-      if (!independentField || !(independentField->getType()->isRealType()))
-        continue;
-      auto baseExpr = m_ASTHelper.BuildMemberExpr(thisExpr, field);
-      auto independentFieldExpr = m_ASTHelper.BuildMemberExpr(baseExpr,
-                                                              independentField);
-      independentFieldExpr->dumpColor();
-      auto assignExpr = m_Sema
-                            .BuildBinOp(m_CurScope, noLoc,
-                                        BinaryOperatorKind::BO_Assign,
-                                        independentFieldExpr,
-                                        ConstantFolder::
-                                            synthesizeLiteral(independentField
-                                                                  ->getType(),
-                                                              m_Context, 1))
-                            .get();
-      assignExpr->dumpColor();
-      block.push_back(assignExpr);
-    }
-    auto CS = m_ASTHelper.BuildCompoundStmt(block);
+    // for (auto field : m_DerivedRecord->fields()) {
+    //   auto RD = field->getType()->getAsCXXRecordDecl();
+    //   FieldDecl* independentField = nullptr;
+    //   LookupResult R(m_Sema, field->getDeclName(), noLoc,
+    //                  Sema::LookupNameKind::LookupMemberName);
+    //   CXXScopeSpec CSS();
+    //   m_Sema.LookupQualifiedName(R, RD, CSS);
+    //   if (R.isSingleResult()) {
+    //     if (auto decl = dyn_cast<FieldDecl>(R.getFoundDecl())) {
+    //       independentField = decl;
+    //     }
+    //   }
+    //   if (!independentField || !(independentField->getType()->isRealType()))
+    //     continue;
+    //   auto baseExpr = m_ASTHelper.BuildMemberExpr(thisExpr, field);
+    //   auto independentFieldExpr = m_ASTHelper.BuildMemberExpr(baseExpr,
+    //                                                           independentField);
+    //   independentFieldExpr->dumpColor();
+    //   auto assignExpr = m_Sema
+    //                         .BuildBinOp(m_CurScope, noLoc,
+    //                                     BinaryOperatorKind::BO_Assign,
+    //                                     independentFieldExpr,
+    //                                     ConstantFolder::
+    //                                         synthesizeLiteral(independentField
+    //                                                               ->getType(),
+    //                                                           m_Context, 1))
+    //                         .get();
+    //   assignExpr->dumpColor();
+    //   block.push_back(assignExpr);
+    // }
+    auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, memFn);
+    InitialiseIndependentFields(thisExpr, {});
+    auto CS = m_ASTHelper.BuildCompoundStmt(EndBlock());
     memFn->setBody(CS);
     endScope();
     m_Sema.PopFunctionScopeInfo();
@@ -462,12 +509,6 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_ASTHelper.RegisterFn(memFn->getDeclContext(), memFn);
-    llvm::errs() << "Dumping derived add fn\n";
-    LangOptions langOpts;
-    langOpts.CPlusPlus = true;
-    clang::PrintingPolicy policy(langOpts);
-    policy.Bool = true;
-    memFn->print(llvm::errs(), policy);
     return memFn;
   }
 
@@ -508,4 +549,6 @@ namespace clad {
     processTopLevelDecl(m_DerivedMultiplyFn);
     processTopLevelDecl(m_DerivedDivideFn);
   }
+
+  Scope* DerivedTypeInitialiser::GetCurrentScope() { return m_CurScope; }
 } // namespace clad

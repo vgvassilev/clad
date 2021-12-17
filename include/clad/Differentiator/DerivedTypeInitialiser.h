@@ -11,6 +11,7 @@
 #include "clad/Differentiator/DerivedTypeEssentials.h"
 
 #include <map>
+#include <string>
 #include <vector>
 
 namespace clang {
@@ -33,8 +34,8 @@ namespace clad {
     clang::ASTContext& m_Context;
     DerivedTypesHandler& m_DTH;
     ASTHelper m_ASTHelper;
-    clang::QualType m_yQType;
-    clang::QualType m_xQType;
+    clang::QualType m_YQType;
+    clang::QualType m_XQType;
     clang::CXXRecordDecl* m_DerivedRecord = nullptr;
     clang::QualType m_DerivedType;
     std::map<std::string, clang::Expr*> m_Variables;
@@ -44,7 +45,7 @@ namespace clad {
     clang::FunctionDecl* m_DerivedDivideFn = nullptr;
     clang::CXXMethodDecl* m_InitialiseSeedsFn = nullptr;
     clang::Scope* m_CurScope;
-
+    
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
     std::vector<Stmts> m_Blocks;
 
@@ -58,6 +59,7 @@ namespace clad {
   private:
     void BuildDerivedRecordDefinition();
     void FillDerivedRecord();
+    void InitialiseIndependentFields(clang::Expr* base, llvm::SmallVector<std::string, 4> path);
     clang::CXXMethodDecl* BuildInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;
@@ -86,7 +88,7 @@ namespace clad {
     Stmts& BeginBlock();
     clang::CompoundStmt* EndBlock();
     void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
-
+    clang::Scope* GetCurrentScope();
   };
 } // namespace clad
 

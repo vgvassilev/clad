@@ -55,7 +55,6 @@ namespace clad {
       xTypeName = GetWithoutClassPrefixFromTypeName(xTypeName);
     }
     auto xQType = m_ASTHelper.GetFundamentalType(xTypeName);
-    llvm::errs()<<"yType Name: "<<yTypeName<<" "<<"xType Name: "<<xTypeName<<"\n";
     // TODO: Add support for differentiating user-defined types with respect to scalar types
     if (!xQType.isNull()) {
       return xQType;
@@ -63,7 +62,6 @@ namespace clad {
     auto derivedTypeName = utils::CreateDerivedTypeName(yTypeName,
                                                         xTypeName);
     auto derivedType = m_ASTHelper.ComputeQTypeFromTypeName(derivedTypeName);
-    llvm::errs()<<"derivedType = "<<derivedType.getAsString()<<"\n";
     if (computePointerType) {
       return m_Context.getPointerType(derivedType);
     }
@@ -242,15 +240,12 @@ namespace clad {
                                          m_IndependentVarQType, false);
       }
 
-      llvm::errs()<<"just above derivedType->isPointerType()\n";
       if (derivedType->isClassType()) {
         dParam = nullptr;
       }                                         
-      llvm::errs()<<"just after derivedType->isPointerType()\n";
       auto dParamDecl = BuildVarDecl(derivedType,
                                      "_d_" + param->getNameAsString(),
                                      dParam);
-      // dParamDecl->dumpColor();                                     
       addToCurrentBlock(BuildDeclStmt(dParamDecl));
       dParam = BuildDeclRef(dParamDecl);
       if (derivedType->isPointerType()) {
@@ -260,7 +255,6 @@ namespace clad {
       if (param == m_IndependentVar) {
         auto initialiseSeedsMethod = m_Builder.m_DTH.GetDTE(
             utils::GetRecordName(derivedType)).GetInitialiseSeedsFn();
-        llvm::errs()<<"initialiseSeedsMethod: "<<initialiseSeedsMethod<<"\n";            
         // NestedNameSpecifierLoc NNS(initMethodDecl->getQualifier(),
         //                            /*Data=*/nullptr);
         // auto DAP = DeclAccessPair::make(initMethodDecl,
@@ -282,7 +276,6 @@ namespace clad {
                                                      MultiExprArg());
         addToCurrentBlock(initCall);
       }
-      llvm::errs()<<"Reaching after BuildDeclRef\n";
       // Memorize the derivative of param, i.e. whenever the param is visited
       // in the future, it's derivative dParam is found (unless reassigned with
       // something new).
@@ -627,12 +620,8 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     auto diff = retValDiff.getExpr_dx();
-    llvm::errs()<<"In VisitReturnStmt\n";
-    // diff->getType()->dump();
     auto initializer = m_ASTHelper.BuildCXXCopyConstructExpr(diff->getType(), diff);
-    initializer->dumpColor();
     auto newExpr = m_ASTHelper.CreateNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
-    // newExpr->dumpColor();
     auto diffResDecl = BuildVarDecl(m_Context.getPointerType(diff->getType()),
                                     "_t", newExpr);
     auto diffResDRE = BuildDeclRef(diffResDecl);
@@ -694,21 +683,15 @@ namespace clad {
                                                     0);
       return StmtDiff(clonedME, zero);
     } else {
-      // QualType Ty = ME->getType();
-      // ME->getBase()->dumpColor();
-      auto declDRE = cast<DeclRefExpr>(ME->getBase());
-      auto declDiff = VisitDeclRefExpr(declDRE);
-      auto derivedDRE = cast<DeclRefExpr>(
-          m_ASTHelper.IgnoreParenImpCastsUnaryOp(declDiff.getExpr_dx()));
-      llvm::errs()<<"Assigned derivedDRE\n";
-      auto derivedType = derivedDRE->getType();
-      if (derivedType->isPointerType()) {
-        derivedType = derivedType->getPointeeType();
+      auto baseDiff = Visit(clonedME->getBase());
+      auto derivedBaseExpr = baseDiff.getExpr_dx();
+      auto derivedBaseType = derivedBaseExpr->getType();
+      if (derivedBaseType->isPointerType()) {
+        derivedBaseType = derivedBaseType->getPointeeType();
       }
-      auto derivedRD = derivedType->getAsCXXRecordDecl();
-      auto member = m_ASTHelper.FindRecordDeclMember(derivedRD, memberDecl->getName());
-      llvm::errs()<<"Found member: "<<member->getName()<<"\n";
-      auto derivedME = m_ASTHelper.BuildMemberExpr(declDiff.getExpr_dx(), member);
+      auto derivedBaseRD = derivedBaseType->getAsCXXRecordDecl();
+      auto member = m_ASTHelper.FindRecordDeclMember(derivedBaseRD, memberDecl->getName());
+      auto derivedME = m_ASTHelper.BuildMemberExpr(derivedBaseExpr, member);
       return StmtDiff(clonedME,
                       derivedME);
       // return StmtDiff(clonedME,
@@ -1201,20 +1184,10 @@ namespace clad {
       opDiff = deriveDiv(Ldiff, Rdiff);
     } else if (opCode == BO_Add) {
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-        // auto dAddFnDecl = m_ASTHelper
-        //                       .FindUniqueFnDecl(GetCladNamespace(),
-        //                                         m_ASTHelper.CreateDeclName(
-        //                                             "dAdd"));
-        llvm::errs() << "Ldiff.getExpr_dx type name: "
-                     << Ldiff.getExpr_dx()->getType().getAsString() << "\n";
         auto temp = m_Builder.m_DTH.GetDTE(
             utils::GetRecordName(Ldiff.getExpr_dx()->getType()));
         FunctionDecl* dAddFn = temp.GetDerivedAddFn();
         dAddFn = temp.GetDerivedAddFn();
-        llvm::errs()
-            << "dAdd function found: " << dAddFn << " "
-            << "\n";
-        // dAddFn->dump();
         
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr_dx());
@@ -1327,10 +1300,9 @@ namespace clad {
 
   VarDeclDiff ForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
-    VarDecl* VDClone = BuildVarDecl(VD->getType(),
-                                    VD->getNameAsString(),
-                                    initDiff.getExpr(),
-                                    VD->isDirectInit());
+    VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+                                    initDiff.getExpr(), VD->isDirectInit(),
+                                    nullptr, VD->getInitStyle());
     auto derivedType = ComputeDerivedType(VD->getType(), m_IndependentVarQType);                              
 
     VarDecl* VDDerived = BuildVarDecl(derivedType,
@@ -1745,5 +1717,9 @@ namespace clad {
 
   StmtDiff ForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
     return StmtDiff(Clone(stmt));
+  }
+
+  StmtDiff ForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+    return StmtDiff(Clone(CE));
   }
 } // end namespace clad

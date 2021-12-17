@@ -99,7 +99,6 @@ namespace clad {
   ASTHelper::FindRecordDeclMember(Sema& semaRef, CXXRecordDecl* RD,
                                   llvm::StringRef memberName) {
     for (auto field : RD->fields()) {
-      llvm::errs() << "field name: " << field->getName() << "\n";
       if (field->getName() == memberName) {
         return field;
       }
@@ -229,7 +228,6 @@ namespace clad {
 
   Expr* ASTHelper::BuildCXXCopyConstructExpr(Sema& semaRef, QualType qType,
                                              Expr* E) {
-    llvm::errs() << "In BuildCXXCopyConstructorExpr\n";
     assert(qType->getAsCXXRecordDecl() &&
            "Currently default constructor expression is only supported for "
            "class types");
@@ -359,25 +357,34 @@ namespace clad {
     return DS;
   }
 
-  clang::FieldDecl* ASTHelper::BuildFieldDecl(clang::DeclContext* DC,
-                                              clang::IdentifierInfo* II,
-                                              clang::QualType qType,
-                                              clang::AccessSpecifier AS,
-                                              bool addToDecl) {
-    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType, AS, addToDecl);
+  clang::FieldDecl*
+  ASTHelper::BuildFieldDecl(clang::DeclContext* DC, clang::IdentifierInfo* II,
+                            clang::QualType qType, clang::Expr* init,
+                            clang::AccessSpecifier AS, bool addToDecl) {
+    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType, init, AS, addToDecl);
   }
 
   clang::FieldDecl*
   ASTHelper::BuildFieldDecl(clang::Sema& semaRef, clang::DeclContext* DC,
                             clang::IdentifierInfo* II, clang::QualType qType,
-                            clang::AccessSpecifier AS, bool addToDecl) {
+                            clang::Expr* init, clang::AccessSpecifier AS,
+                            bool addToDecl) {
     auto& C = semaRef.getASTContext();
+    auto initStyle = InClassInitStyle::ICIS_NoInit;
+    if (init)
+      initStyle = InClassInitStyle::ICIS_CopyInit;
     auto FD = FieldDecl::Create(C, DC, noLoc, noLoc, II, qType,
                                 C.getTrivialTypeSourceInfo(qType), nullptr,
-                                false, InClassInitStyle::ICIS_NoInit);
+                                false, initStyle);
+
+    if (init) {
+      FD->setInClassInitializer(init);
+    }
+
     FD->setAccess(AS);
     if (addToDecl)
       DC->addDecl(FD);
+
     return FD;
   }
 
@@ -449,6 +456,17 @@ namespace clad {
                                             ConstexprSpecKind::CSK_unspecified,
                                             noLoc);
     return methodDecl;
+  }
+
+  Expr* ASTHelper::BuildCallToFn(Scope* S, FunctionDecl* FD,
+                                 llvm::MutableArrayRef<Expr*> args) {
+    return ASTHelper::BuildCallToFn(m_Sema, S, FD, args);
+  }
+
+  Expr* ASTHelper::BuildCallToFn(Sema& m_Sema, Scope* S, FunctionDecl* FD,
+                                 llvm::MutableArrayRef<Expr*> args) {
+    auto FnExpr = BuildDeclRefExpr(m_Sema, FD);
+    return m_Sema.ActOnCallExpr(S, FnExpr, noLoc, args, noLoc).get();
   }
 
   Expr* ASTHelper::BuildCallToMemFn(Scope* S, Expr* base, CXXMethodDecl* memFn,

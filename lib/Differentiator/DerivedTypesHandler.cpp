@@ -51,4 +51,12 @@ namespace clad {
     }
     return QualType();
   }
+
+  clang::QualType DerivedTypesHandler::GetYType(clang::QualType derivedQType) {
+    auto it = m_DerivedTypesEssentials.find(utils::GetRecordName(derivedQType));
+    if (it == m_DerivedTypesEssentials.end()) {
+      return QualType();
+    }
+    return it->second.GetYQType();
+  }
 } // namespace clad

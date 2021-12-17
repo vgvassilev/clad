@@ -443,8 +443,6 @@ namespace clad {
     beginBlock();
     for (auto it=m_Variables.begin(); it != m_Variables.end(); ++it) {
       if (it->second->getType()->isClassType()) {
-        llvm::errs()<<"Dumping it->first\n";
-        it->first->dumpColor();
         QualType derivedQType = ComputeDerivedType(m_Function->getReturnType(),
                                                    it->first->getType());
         auto derivedVarArrayRefType = GetCladArrayRefOfType(derivedQType);
@@ -1993,8 +1991,6 @@ namespace clad {
     // return StmtDiff(Clone(ME));
     auto clonedME = cast<MemberExpr>(Clone(ME));
     auto clonedDRE = cast<DeclRefExpr>(clonedME->getBase());
-    llvm::errs()<<"Dumping clonedDRE\n";
-    clonedDRE->dumpColor();
     auto it = m_Variables.find(clonedDRE->getDecl());
     if (it == std::end(m_Variables)) {
       return StmtDiff(clonedME);
@@ -2004,8 +2000,6 @@ namespace clad {
                       .FindRecordDeclMember(derivedRD,
                                             ME->getMemberDecl()->getName());
     auto derivedME = m_ASTHelper.BuildMemberExpr(it->second, member);
-    llvm::errs()<<"Dumping dfdx()\n";
-    dfdx()->dumpColor();
     if (dfdx()) {
       Expr* addAssign = BuildOp(BinaryOperatorKind::BO_AddAssign, derivedME,
                                 dfdx());

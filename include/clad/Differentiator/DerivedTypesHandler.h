@@ -28,7 +28,8 @@ namespace clad {
                                clang::CXXRecordDecl* RD);
     DerivedTypeEssentials GetDTE(llvm::StringRef name);
     clang::QualType GetDerivedType(clang::QualType yQType,
-                                         clang::QualType xQType);
+                                   clang::QualType xQType);
+    clang::QualType GetYType(clang::QualType derivedQType);                                   
   };
 } // namespace clad
 

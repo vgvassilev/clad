@@ -80,7 +80,7 @@ namespace clad {
 
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
-    
+    StmtDiff VisitCXXConstructExpr(const clang::CXXConstructExpr* CE);
   private:
     /// Helper function for differentiating the switch statement body.
     ///

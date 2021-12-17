@@ -4,6 +4,7 @@
 #ifndef CLAD_AST_HELPERS_H
 #define CLAD_AST_HELPERS_H
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Sema/Scope.h"
@@ -163,12 +164,13 @@ namespace clad {
 
     clang::FieldDecl*
     BuildFieldDecl(clang::DeclContext* DC, clang::IdentifierInfo* II,
-                   clang::QualType qType,
+                   clang::QualType qType, clang::Expr* init = nullptr,
                    clang::AccessSpecifier AS = clang::AccessSpecifier::AS_none,
                    bool addToDecl = false);
     static clang::FieldDecl*
     BuildFieldDecl(clang::Sema& sema, clang::DeclContext* DC,
                    clang::IdentifierInfo* II, clang::QualType qType,
+                   clang::Expr* init = nullptr,
                    clang::AccessSpecifier AS = clang::AccessSpecifier::AS_none,
                    bool addToDecl = false);
 
@@ -194,6 +196,12 @@ namespace clad {
     static clang::CXXMethodDecl*
     BuildMemFnDecl(clang::Sema& semaRef, clang::CXXRecordDecl* RD,
                    clang::DeclarationNameInfo nameInfo, clang::QualType qType);
+
+    clang::Expr* BuildCallToFn(clang::Scope* S, clang::FunctionDecl* FD,
+                               llvm::MutableArrayRef<clang::Expr*> args);
+    clang::Expr* BuildCallToFn(clang::Sema& semaRef, clang::Scope* S,
+                               clang::FunctionDecl* FD,
+                               llvm::MutableArrayRef<clang::Expr*> args);
 
     clang::Expr* BuildCallToMemFn(clang::Scope* S, clang::Expr* base,
                                   clang::CXXMethodDecl* memFn,
