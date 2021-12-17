@@ -10,8 +10,8 @@ public:
   ComplexNumber(double p_real = 0, double p_im = 0) : real(p_real), im(p_im) {}
 };
 
-class __clad_double_wrt_ComplexNumber;
-class __clad_ComplexNumber_wrt_ComplexNumber;
+class __clad_double_wrt_ComplexNumber {};
+class __clad_ComplexNumber_wrt_ComplexNumber {};
 
 double fn(ComplexNumber c, double i) {
   ComplexNumber d;

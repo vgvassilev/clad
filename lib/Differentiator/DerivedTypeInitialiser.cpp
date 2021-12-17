@@ -34,7 +34,9 @@ namespace clad {
            "x should either be of a real type or a class type");
     assert((m_YQType->isRealType() || m_YQType->isClassType()) &&
            "y should either be of a real type or a class type");
-    BuildDerivedRecordDefinition();
+    // BuildDerivedRecordDefinition();
+    m_DerivedType = m_DerivedRecord->getTypeForDecl()
+                        ->getCanonicalTypeInternal();
     FillDerivedRecord();
     if (m_YQType == m_XQType) {
       m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
@@ -144,7 +146,7 @@ namespace clad {
       assert("Unexpected case!! y Type should either be a real type or a class "
              "type.");
     }
-    // PrintDecl(m_DerivedRecord);
+    PrintDecl(m_DerivedRecord);
   }
 
   NamespaceDecl* DerivedTypeInitialiser::BuildCladNamespace() {
@@ -269,7 +271,7 @@ namespace clad {
         m_ASTHelper.CreateDeclName("dAdd"),
         &DerivedTypeInitialiser::ComputeDerivedAddSubFnType,
         &DerivedTypeInitialiser::BuildDerivedAddSubFnParams, buildDiffBody);
-    // PrintDecl(FD);
+    PrintDecl(FD);
     return FD;
   }
 
