@@ -353,8 +353,8 @@ namespace clad {
     auto DS = semaRef
                   .ActOnDeclStmt(semaRef.ConvertDeclToDeclGroup(D), noLoc,
                                  noLoc)
-                  .getAs<DeclStmt>();
-    return DS;
+                  .get();
+    return cast<DeclStmt>(DS);
   }
 
   clang::FieldDecl*
