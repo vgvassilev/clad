@@ -495,6 +495,7 @@ namespace clad {
                                                 clang::Scope* curScope) {
     auto RetStmt = semaRef.ActOnReturnStmt(noLoc, retValExpr, curScope)
                        .getAs<ReturnStmt>();
+    return RetStmt;                       
   }
 
   clang::Expr* ASTHelper::BuildOp(clang::BinaryOperatorKind opCode,

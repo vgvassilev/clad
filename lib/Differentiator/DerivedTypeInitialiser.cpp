@@ -524,6 +524,7 @@ namespace clad {
   bool DerivedTypeInitialiser::AddToCurrentBlock(clang::Stmt* S) {
     assert(!m_Blocks.empty() && "No block available to add statement in");
     m_Blocks.back().push_back(S);
+    return true;
   }
 
   typename DerivedTypeInitialiser::Stmts& DerivedTypeInitialiser::BeginBlock() {
