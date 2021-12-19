@@ -349,7 +349,7 @@ namespace clad {
     if (!RD->getName().startswith("__clad_")) {
       return true;
     }
-    if (!RD->hasDefinition())
+    if (RD->hasDefinition())
       return true;
     m_DerivedTypeRequests.push_back(RD);
     return true;

@@ -34,7 +34,7 @@ namespace clad {
            "x should either be of a real type or a class type");
     assert((m_YQType->isRealType() || m_YQType->isClassType()) &&
            "y should either be of a real type or a class type");
-    // BuildDerivedRecordDefinition();
+    BuildDerivedRecordDefinition();
     m_DerivedType = m_DerivedRecord->getTypeForDecl()
                         ->getCanonicalTypeInternal();
     FillDerivedRecord();
