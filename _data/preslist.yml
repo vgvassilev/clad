@@ -200,7 +200,9 @@
   date: 2021-10-26
   speaker: "W Moses, V Vassilev"
   id: DifferentiableProgrammingInCppCppCon21
-  artifacts: "[Link to slides](/assets/presentations/W_Moses_V_Vassilev-CppCon21_DifferentiableProgrammingInCpp.pdf)"
+  artifacts: |
+    [Video](https://youtu.be/1QQj1mAV-eY),&nbsp;
+    [Link to slides](/assets/presentations/W_Moses_V_Vassilev-CppCon21_DifferentiableProgrammingInCpp.pdf)
   highlight: 1
 
 - title: "Add Numerical Differentiation Support To Clad"
