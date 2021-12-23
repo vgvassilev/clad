@@ -73,7 +73,9 @@
   date: 2021-11-17
   speaker: V Vassilev
   id: "InteractiveCppLLVMDev21"
-  artifacts: "[Link to slides](/assets/presentations/V_Vassilev-LLVMDev21_InteractiveCpp.pdf)"
+  artifacts: |
+    [Video](https://youtu.be/33ncbIQoa4c),&nbsp;
+    [Link to slides](/assets/presentations/V_Vassilev-LLVMDev21_InteractiveCpp.pdf)
   highlight: 1
 
 - title: "Enabling Interactive C++ with Clang"
