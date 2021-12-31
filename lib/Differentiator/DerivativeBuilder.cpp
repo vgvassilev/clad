@@ -129,8 +129,8 @@ namespace clad {
   }
 
   OverloadedDeclWithContext
-  DerivativeBuilder::Derive(const FunctionDecl* FD,
-                            const DiffRequest& request) {
+  DerivativeBuilder::Derive(const DiffRequest& request) {
+    const FunctionDecl* FD = request.Function;
     //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
     assert(FD && "Must not be null.");
     // If FD is only a declaration, try to find its definition.

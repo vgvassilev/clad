@@ -328,22 +328,6 @@ namespace clad {
 
     /// Updates references in newly cloned statements.
     void updateReferencesOf(clang::Stmt* InSubtree);
-    /// Parses the argument expression for the
-    /// clad::differentiate/clad::gradient call. The argument is used to specify
-    /// independent parameter(s) for differentiation. There are three valid
-    /// options for the argument expression:
-    ///   1) A string literal, containing comma-separated names of function's
-    ///      parameters, as defined in function's definition. If any of the
-    ///      parameters are of array or pointer type the indexes of the array
-    ///      that needs to be differentiated can also be specified, e.g.
-    ///      "arr[1]" or "arr[2:5]". The function will be differentiated w.r.t.
-    ///      all the specified parameters.
-    ///   2) A numeric literal. The function will be differentiated w.r.t. to
-    ///      the parameter corresponding to literal's value index.
-    ///   3) If no argument is provided, a default argument is used. The
-    ///      function will be differentiated w.r.t. to its every parameter.
-    DiffParamsWithIndices parseDiffArgs(const clang::Expr* diffArgs,
-                                        const clang::FunctionDecl* FD);
 
     /// Get an expression used to zero-initialize given type.
     /// Returns 0 for scalar types, otherwise {}.

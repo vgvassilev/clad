@@ -14,11 +14,6 @@ double sq(double x) { return x * x; }
 //CHECK-NEXT:       return _d_x * x + x * _d_x;
 //CHECK-NEXT:   } 
 
-//CHECK:   double sq_darg0(double x) {
-//CHECK-NEXT:       double _d_x = 1;
-//CHECK-NEXT:       return _d_x * x + x * _d_x;
-//CHECK-NEXT:   } 
-
 double one(double x) { return sq(std::sin(x)) + sq(std::cos(x)); }
 //CHECK:   double one_darg0(double x) {
 //CHECK-NEXT:       double _d_x = 1;

@@ -4,6 +4,7 @@ endif()
 
 add_llvm_library(cladPlugin
   ClangPlugin.cpp
+  DerivedFnInfo.cpp
   RequiredSymbols.cpp
   )
 
@@ -14,6 +15,7 @@ endif()
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_llvm_loadable_module(clad
     ClangPlugin.cpp
+    DerivedFnInfo.cpp
     RequiredSymbols.cpp
     PLUGIN_TOOL
     clang

@@ -183,24 +183,6 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:       TFormula_example_darg1_2_grad_1(x, p, hessianMatrix.slice(6UL, 3UL));
 //CHECK-NEXT:   }
 
-// forward mode differentiation w.r.t. p[0]:
-//CHECK:   Double_t TFormula_example_darg1_0(Double_t *x, Double_t *p) {
-//CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       return 0 * _t0 + x[0] * (1 + 0 + 0) + custom_derivatives::Exp_darg0(-p[0]) * -1 + custom_derivatives::Abs_darg0(p[1]) * 0;
-//CHECK-NEXT:   }
-
-// forward mode differentiation w.r.t. p[1]:
-//CHECK:   Double_t TFormula_example_darg1_1(Double_t *x, Double_t *p) {
-//CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       return 0 * _t0 + x[0] * (0 + 1 + 0) + custom_derivatives::Exp_darg0(-p[0]) * -0 + custom_derivatives::Abs_darg0(p[1]) * 1;
-//CHECK-NEXT:   }
-
-// forward mode differentiation w.r.t. p[2]:
-//CHECK:   Double_t TFormula_example_darg1_2(Double_t *x, Double_t *p) {
-//CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       return 0 * _t0 + x[0] * (0 + 0 + 1) + custom_derivatives::Exp_darg0(-p[0]) * -0 + custom_derivatives::Abs_darg0(p[1]) * 0;
-//CHECK-NEXT:   }
-
 int main() {
   Double_t x[] = { 3 };
   Double_t p[] = { -std::log(2), -1, 3 };

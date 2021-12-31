@@ -44,11 +44,6 @@ namespace C {
     //CHECK-NEXT:       return 0 * x + 4 * _d_x;
     //CHECK-NEXT:   }
   }
-  
-  //CHECK:   double f_darg0(double x) {
-  //CHECK-NEXT:       double _d_x = 1;
-  //CHECK-NEXT:       return 0 * x + 4 * _d_x;
-  //CHECK-NEXT:   }
 }
 
 namespace {

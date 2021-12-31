@@ -7,16 +7,20 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
+#include "DerivedFnInfo.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Version.h"
 
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/DenseMap.h"
 
 namespace clang {
   class ASTContext;
@@ -31,6 +35,33 @@ namespace clang {
 
 namespace clad {
   struct DiffRequest;
+
+  /// This class is designed to store collection of `DerivedFnInfo` objects.
+  /// It's purpose is to avoid repeated generation of same derivatives by
+  /// making it possible to reuse previously computed derivatives.
+  class DerivedFnCollector {
+    using DerivedFns = llvm::SmallVector<DerivedFnInfo, 16>;
+    /// Mapping to efficiently find out information about all the derivatives of
+    /// a function.
+    llvm::DenseMap<const clang::FunctionDecl*, DerivedFns> m_DerivedFnInfoCollection;
+
+  public:
+    /// Adds a derived function to the collection.
+    void Add(const DerivedFnInfo& DFI);
+
+    /// Finds a `DerivedFnInfo` object in the collection that satisfies the
+    /// given differentiation request.
+    DerivedFnInfo Find(const DiffRequest& request) const;
+
+    bool IsDerivative(const clang::FunctionDecl* FD) const;
+
+  private:
+    /// Returns true if the collection already contains a `DerivedFnInfo`
+    /// object that represents the same derivative object as the provided
+    /// argument `DFI`.
+    bool AlreadyExists(const DerivedFnInfo& DFI) const;
+  };
+
   namespace plugin {
     struct DifferentiationOptions {
       DifferentiationOptions()
@@ -54,10 +85,10 @@ namespace clad {
       clang::CompilerInstance& m_CI;
       DifferentiationOptions m_DO;
       std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
-      DerivativesSet m_Derivatives;
       bool m_HasRuntime = false;
       bool m_PendingInstantiationsInFlight = false;
       bool m_HandleTopLevelDeclInternal = false;
+      DerivedFnCollector m_DFC;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
