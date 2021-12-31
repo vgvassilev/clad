@@ -39,20 +39,6 @@ namespace clad {
                                             DiffRequest& request);
   } // namespace plugin
 
-  struct IndexInterval {
-    size_t Start;
-    size_t Finish;
-
-    IndexInterval() : Start(0), Finish(0) {}
-
-    IndexInterval(size_t first, size_t last) : Start(first), Finish(last + 1) {}
-
-    IndexInterval(size_t index) : Start(index), Finish(index + 1) {}
-
-    size_t size() { return Finish - Start; }
-
-    bool isInInterval(size_t n) { return n >= Start && n <= Finish; }
-  };
 } // namespace clad
 
 namespace clad {
@@ -71,9 +57,6 @@ namespace clad {
   /// and optionally it's overload FunctionDecl
   using OverloadedDeclWithContext =
       std::tuple<clang::FunctionDecl*, clang::Decl*, clang::FunctionDecl*>;
-  using DiffParams = llvm::SmallVector<const clang::ValueDecl*, 16>;
-  using IndexIntervalTable = llvm::SmallVector<IndexInterval, 16>;
-  using DiffParamsWithIndices = std::pair<DiffParams, IndexIntervalTable>;
 
   using VectorOutputs =
       std::vector<std::unordered_map<const clang::ValueDecl*, clang::Expr*>>;
@@ -170,8 +153,7 @@ namespace clad {
     ///\returns The differentiated function and potentially created enclosing
     /// context.
     ///
-    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
-                                     const DiffRequest& request);
+    OverloadedDeclWithContext Derive(const DiffRequest& request);
   };
 
 } // end namespace clad

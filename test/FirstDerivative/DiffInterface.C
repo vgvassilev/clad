@@ -85,6 +85,10 @@ int f_try_catch(int x)
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
+double fn_with_no_params() {
+  return 11;
+}
+
 int main () {
   int x = 4 * 5;
   clad::differentiate(f_1, 0);
@@ -125,6 +129,9 @@ int main () {
   clad::differentiate(f_2, "x, y"); // expected-error {{Forward mode differentiation w.r.t. several parameters at once is not supported, call 'clad::differentiate' for each parameter separately}}
   clad::differentiate(f_2, "t"); // expected-error {{Requested parameter name 't' was not found among function parameters}}
   clad::differentiate(f_2, "x, x"); // expected-error {{Requested parameter 'x' was specified multiple times}}
+  
+  clad::differentiate(f_2, ""); // expected-error {{No parameters were provided}}
+  clad::differentiate(fn_with_no_params); // expected-error {{Attempted to differentiate a function without parameters}}
 
   return 0;
 }

@@ -1,5 +1,9 @@
-#include "clang/AST/RecursiveASTVisitor.h"
+#ifndef CLAD_DIFF_PLANNER_H
+#define CLAD_DIFF_PLANNER_H
 
+#include "clad/Differentiator/DiffMode.h"
+#include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallSet.h"
 
 namespace clang {
@@ -15,15 +19,6 @@ namespace clang {
 } // namespace clang
 
 namespace clad {
-
-  enum class DiffMode {
-    unknown = 0,
-    forward,
-    reverse,
-    hessian,
-    jacobian,
-    error_estimation
-  };
 
   /// A struct containing information about request to differentiate a function.
   struct DiffRequest {
@@ -58,21 +53,34 @@ namespace clad {
     /// differentiated, for example, when we are computing higher
     /// order derivatives.
     const clang::CXXRecordDecl* Functor = nullptr;
+    DiffParamsWithIndices DiffParamsInfo;
+
+    /// Recomputes `DiffParamsInfo` using the current values of data members.
+    ///
+    /// Differentiation parameters info is computed by parsing the argument
+    /// expression for the clad differentiation function calls. The argument is
+    /// used to specify independent parameter(s) for differentiation. There are
+    /// three valid options for the argument expression:
+    ///   1) A string literal, containing comma-separated names of function's
+    ///      parameters, as defined in function's definition. If any of the
+    ///      parameters are of array or pointer type the indexes of the array
+    ///      that needs to be differentiated can also be specified, e.g.
+    ///      "arr[1]" or "arr[2:5]". The function will be differentiated w.r.t.
+    ///      all the specified parameters.
+    ///   2) A numeric literal. The function will be differentiated w.r.t. to
+    ///      the parameter corresponding to literal's value index.
+    ///   3) If no argument is provided, a default argument is used. The
+    ///      function will be differentiated w.r.t. to its every parameter.
+    void UpdateDiffParamsInfo(clang::Sema& semaRef);
   };
 
   using DiffSchedule = llvm::SmallVector<DiffRequest, 16>;
   using DiffInterval = std::vector<clang::SourceRange>;
-  using DerivativesSet = llvm::SmallSet<const clang::Decl*, 16>;
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
     ///
     DiffInterval& m_Interval;
-
-    /// The list of already generated derivatives. There is no need to collect
-    /// calls as there are none.
-    ///
-    const DerivativesSet& m_GeneratedDerivatives;
 
     /// The diff step-by-step plan for differentiation.
     ///
@@ -86,7 +94,6 @@ namespace clad {
 
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
-                  const DerivativesSet& Derivatives,
                   DiffSchedule& plans, clang::Sema& S);
     bool VisitCallExpr(clang::CallExpr* E);
 
@@ -94,3 +101,5 @@ namespace clad {
     bool isInInterval(clang::SourceLocation Loc) const;
   };
 }
+
+#endif

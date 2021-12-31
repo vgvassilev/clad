@@ -5,6 +5,8 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Sema/Sema.h"
 
 #include <string>
 
@@ -27,6 +29,18 @@ namespace clad {
     clang::CompoundStmt* AppendAndCreateCompoundStmt(clang::ASTContext& C,
                                                      clang::Stmt* initial,
                                                      clang::Stmt* S);
+    
+    /// Shorthand to issues a warning or error.
+    template <std::size_t N>
+    void EmitDiag(clang::Sema& semaRef,
+              clang::DiagnosticsEngine::Level level, // Warning or Error
+              clang::SourceLocation loc, const char (&format)[N],
+              llvm::ArrayRef<llvm::StringRef> args = {}) {
+      unsigned diagID = semaRef.Diags.getCustomDiagID(level, format);
+      clang::Sema::SemaDiagnosticBuilder stream = semaRef.Diag(loc, diagID);
+      for (auto arg : args)
+        stream << arg;
+    }
   }
 }
 

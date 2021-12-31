@@ -201,8 +201,9 @@ namespace clad {
     m_ErrorEstimationEnabled = request.Mode == DiffMode::error_estimation;
 
     DiffParams args{};
-    if (request.Args)
-      std::tie(args, std::ignore) = parseDiffArgs(request.Args, FD);
+    if (request.Args) {
+      std::tie(args, std::ignore) = request.DiffParamsInfo;
+    }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())

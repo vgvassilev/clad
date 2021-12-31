@@ -13,6 +13,8 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#include <algorithm>
+
 using namespace clang;
 
 namespace clad {
@@ -282,19 +284,14 @@ namespace clad {
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
-                               const DerivativesSet& Derivatives,
                                DiffSchedule& plans, clang::Sema& S)
-    : m_Interval(Interval), m_GeneratedDerivatives(Derivatives),
-      m_DiffPlans(plans), m_TopMostFD(nullptr), m_Sema(S) {
+      : m_Interval(Interval), m_DiffPlans(plans), m_TopMostFD(nullptr),
+        m_Sema(S) {
 
     if (Interval.empty())
       return;
 
-
     for (Decl* D : DGR) {
-      // Skip over the derivatives that we produce.
-      if (m_GeneratedDerivatives.count(D))
-        continue;
       TraverseDecl(D);
     }
   }
@@ -324,6 +321,179 @@ namespace clad {
         return true;
     }
     return false;
+  }
+
+  void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
+    auto& C = semaRef.getASTContext();
+    const Expr* diffArgs = Args;
+    const FunctionDecl* FD = Function;
+    FD = FD->getDefinition();
+    if (!diffArgs || !FD) {
+      DiffParamsInfo = {{}, {}};
+      return;
+    }
+    DiffParams params{};
+    auto E = diffArgs->IgnoreParenImpCasts();
+    // Case 1)
+    if (auto SL = dyn_cast<StringLiteral>(E)) {
+      IndexIntervalTable indexes{};
+      llvm::StringRef string = SL->getString().trim();
+      if (string.empty()) {
+        utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                        diffArgs->getEndLoc(), "No parameters were provided");
+        return;
+      }
+      // Split the string by ',' characters, trim whitespaces.
+      llvm::SmallVector<llvm::StringRef, 16> names{};
+      llvm::StringRef name{};
+      do {
+        std::tie(name, string) = string.split(',');
+        names.push_back(name.trim());
+      } while (!string.empty());
+      // Stores parameters and field declarations to be used as candidates for
+      // independent arguments.
+      // If we are differentiating a call operator that have no parameters,
+      // then candidates for independent argument are member variables of the
+      // class that defines the call operator.
+      // Otherwise, candidates are parameters of the function that we are
+      // differentiating.
+      llvm::SmallVector<std::pair<llvm::StringRef, ValueDecl*>, 16>
+          candidates{};
+
+      // find and store candidate parameters.
+      if (FD->param_empty() && Functor) {
+        for (FieldDecl* fieldDecl : Functor->fields())
+          candidates.emplace_back(fieldDecl->getName(), fieldDecl);
+
+      } else {
+        for (auto PVD : FD->parameters())
+          candidates.emplace_back(PVD->getName(), PVD);
+      }
+
+      for (const auto& name : names) {
+        size_t loc = name.find('[');
+        loc = (loc == llvm::StringRef::npos) ? name.size() : loc;
+        llvm::StringRef base = name.substr(0, loc);
+
+        auto it = std::find_if(std::begin(candidates), std::end(candidates),
+                               [&base](
+                                   const std::pair<llvm::StringRef, ValueDecl*>&
+                                       p) { return p.first == base; });
+
+        if (it == std::end(candidates)) {
+          // Fail if the function has no parameter with specified name.
+          utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                          diffArgs->getEndLoc(),
+                          "Requested parameter name '%0' was not found among "
+                          "function "
+                          "parameters",
+                          {base});
+          return;
+        }
+
+        auto f_it = std::find(std::begin(params), std::end(params), it->second);
+
+        if (f_it != params.end()) {
+          utils::
+              EmitDiag(semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
+                       "Requested parameter '%0' was specified multiple times",
+                       {it->second->getName()});
+          return;
+        }
+
+        params.push_back(it->second);
+
+        if (loc != name.size()) {
+          llvm::StringRef interval(name.slice(loc + 1, name.find(']')));
+          llvm::StringRef firstStr, lastStr;
+          std::tie(firstStr, lastStr) = interval.split(':');
+
+          if (lastStr.empty()) {
+            // The string is not a range just a single index
+            size_t index;
+            firstStr.getAsInteger(10, index);
+            indexes.push_back(IndexInterval(index));
+          } else {
+            size_t first, last;
+            firstStr.getAsInteger(10, first);
+            lastStr.getAsInteger(10, last);
+            if (first >= last) {
+              utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                              diffArgs->getEndLoc(),
+                              "Range specified in '%0' is in incorrect format",
+                              {name});
+              return;
+            }
+            indexes.push_back(IndexInterval(first, last));
+          }
+        } else {
+          indexes.push_back(IndexInterval());
+        }
+      }
+      // Return a sequence of function's parameters.
+      DiffParamsInfo = {params, indexes};
+      return;
+    }
+    // Case 2)
+    // Check if the provided literal can be evaluated as an integral value.
+    llvm::APSInt intValue;
+    if (clad_compat::Expr_EvaluateAsInt(E, intValue, C)) {
+      auto idx = intValue.getExtValue();
+      // If we are differentiating a call operator that have no parameters, then
+      // we need to search for independent parameters in fields of the
+      // class that defines the call operator instead.
+      if (FD->param_empty() && Functor) {
+        size_t totalFields = std::distance(Functor->field_begin(),
+                                           Functor->field_end());
+        // Fail if the specified index is invalid.
+        if ((idx < 0) || idx >= totalFields) {
+          utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                          diffArgs->getEndLoc(),
+                          "Invalid member variable index '%0' of '%1' member "
+                          "variable(s)",
+                          {std::to_string(idx), std::to_string(totalFields)});
+          return;
+        }
+        params.push_back(*std::next(Functor->field_begin(), idx));
+      } else {
+        // Fail if the specified index is invalid.
+        if ((idx < 0) || (idx >= FD->getNumParams())) {
+          utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                          diffArgs->getEndLoc(),
+                          "Invalid argument index '%0' of '%1' argument(s)",
+                          {std::to_string(idx),
+                           std::to_string(FD->getNumParams())});
+          return;
+        }
+        params.push_back(FD->getParamDecl(idx));
+      }
+      // Returns a single parameter.
+      DiffParamsInfo = {params, {}};
+      return;
+    }
+    // Case 3)
+    // Treat the default (unspecified) argument as a special case, as if all
+    // function's arguments were requested.
+    if (isa<CXXDefaultArgExpr>(E)) {
+      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(params));
+      // If the function has no parameters, then we cannot differentiate it."
+      if (params.empty()) {
+        utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                        CallContext->getEndLoc(),
+                        "Attempted to differentiate a function without "
+                        "parameters");
+        return;
+      }
+      // Returns the sequence with all the function's parameters.
+      DiffParamsInfo = {params, {}};
+      return;
+    }
+    // Fail if the argument is not a string or numeric literal.
+    utils::EmitDiag(semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
+                    "Failed to parse the parameters, must be a string or "
+                    "numeric literal");
+    DiffParamsInfo = {{}, {}};
+    return;
   }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
@@ -380,7 +550,6 @@ namespace clad {
       if (isCallOperator(m_Sema.getASTContext(), request.Function)) {
         request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
       }
-
       // FIXME: add support for nested calls to clad::differentiate/gradient
       // inside differentiated functions
       assert(!m_TopMostFD &&

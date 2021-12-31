@@ -51,7 +51,7 @@ namespace clad {
     DiffParams args{};
     IndexIntervalTable indexIntervalTable{};
     if (request.Args)
-      std::tie(args, indexIntervalTable) = parseDiffArgs(request.Args, FD);
+      std::tie(args, indexIntervalTable) = request.DiffParamsInfo;
     else {
       // FIXME: implement gradient-vector products to fix the issue.
       assert((FD->getNumParams() <= 1) &&
