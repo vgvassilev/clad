@@ -785,9 +785,109 @@ namespace clad {
     return StmtDiff(condExpr);
   }
 
+  class ForLoopInfo {
+    ASTContext &m_Context;
+    const ForStmt* m_FS;
+    ReverseModeVisitor &m_RMV;
+    const VarDecl* m_ControlVar = nullptr;
+    struct LoopRange {
+      const Expr* Start = nullptr;
+      const Expr* Stop = nullptr;
+    } m_Range;
+
+    Expr* getLiteral_1(QualType T) {
+      assert(T->isScalarType());
+      return ConstantFolder::synthesizeLiteral(T, m_Context, 1);
+    }
+  public:
+    ForLoopInfo(ASTContext &C, const ForStmt *FS, ReverseModeVisitor& RMV)
+      : m_Context(C), m_FS(FS), m_RMV(RMV) {}
+    // for (int i=5; i<n; i++) { ... }
+    bool isStandard() {
+      const Stmt *Init = m_FS->getInit();
+      const Expr *Cond = m_FS->getCond(), *Inc = m_FS->getInc();
+      if (!Init || !Cond || !Inc)
+        return false;
+      if (Cond->HasSideEffects(m_Context))
+        return false;
+      // for (...; int y = f(x); ...)
+      if (m_FS->getConditionVariable())
+        return false;
+      if (!isa<DeclStmt>(Init))
+        return false;
+      if (!isa<BinaryOperator>(Cond))
+        return false;
+      if (!isa<UnaryOperator>(Inc))
+        return false;
+
+      const BinaryOperator* CondBO = cast<BinaryOperator>(Cond);
+      const Expr * LHSNoCasts = CondBO->getLHS()->IgnoreImpCasts();
+      if (!isa<DeclRefExpr>(LHSNoCasts))
+        return false;
+
+      const UnaryOperator* IncUO = cast<UnaryOperator>(Inc);
+      if (!IncUO->isIncrementOp())
+        return false;
+
+      const DeclStmt *InitDS = cast<DeclStmt>(Init);
+      if (!InitDS->isSingleDecl())
+        return false;
+
+      m_ControlVar = cast<VarDecl>(InitDS->getSingleDecl());
+      if (m_ControlVar != cast<DeclRefExpr>(LHSNoCasts)->getDecl())
+        return false;
+
+      m_Range.Start = m_ControlVar->getInit();
+      m_Range.Stop = CondBO->getRHS()->IgnoreImpCasts();
+
+      return true;
+    }
+
+    const VarDecl *getControlVar() {
+      assert(isStandard() && "Must be a standard loop.");
+      return isStandard() ? m_ControlVar : nullptr;
+    }
+
+    ForStmt *Invert() {
+      // for (int i = 5; i < n; i++) {...} -> step = 1; start = 5; stop = n
+      // Formula: for (int i = stop-1; i >= start; i--) {...}
+      // Result: for (int i = n-1; i >= 5; i—-) {...}
+      const VarDecl *VD = getControlVar();
+      QualType VDTy = VD->getType();
+      Expr* InvVDInit = m_RMV.BuildOp(BO_Sub, m_RMV.Clone(m_Range.Stop), getLiteral_1(VDTy));
+      VarDecl* InvVD = m_RMV.BuildVarDecl(VDTy, VD->getName(), InvVDInit);
+      Stmt *InvInit = m_RMV.BuildDeclStmt(InvVD);
+      Expr *Cond = m_RMV.BuildOp(BO_GE, m_RMV.BuildDeclRef(InvVD), m_RMV.Clone(m_Range.Start));
+      SourceLocation noLoc;
+      Expr *Inc = m_RMV.BuildOp(UO_PostDec, m_RMV.BuildDeclRef(InvVD));
+      ForStmt* ForLoop = new (m_Context) ForStmt(m_Context, InvInit, Cond,
+                                                 /*condvar*/nullptr, Inc,
+                                                 /*body*/ nullptr, noLoc, noLoc,
+                                                 noLoc);
+      return ForLoop;
+
+
+      // FIXME: Handle these when we relax the `isStandard()`.
+      // for (int i = 5; i < n; i+=2) {...} -> step = 2; start = 5; stop = n
+      // Formula: for (int i = stop-(stop-start-1)%step-1; i >= start; i -= step) {...}
+      // Result: for (int i = n-(n-5-1)%2-1; i >= 5; i -= 2) {...}
+
+      // for (int i = n; i >= 0; i--) {...} -> step = -1; start = n; stop = 0
+      // Formula: for (int i = stop; i < start; i++) {...}
+      // Result: for (int i = 0; i < n; i++) {...}
+
+      // for (int i = n; i > 0; i--) {...} -> step = -1; start = n; stop = 0
+      // Formula: for (int i = stop+1; i < start; i++) {...}
+      // Result: for (int i = 1; i < n; i++) {...}
+    }
+
+  };
+
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
                Scope::ContinueScope);
+
+    ForLoopInfo FLInfo(m_Context, FS, *this);
 
     LoopCounter loopCounter(*this);
     if (loopCounter.getPush())
@@ -851,21 +951,27 @@ namespace clad {
                                   CommaJoin);
     }
 
+
     const Stmt* body = FS->getBody();
     StmtDiff BodyDiff = DifferentiateLoopBody(body, loopCounter,
                                               condVarRes.getStmt_dx(),
                                               incDiff.getStmt_dx(),
                                               /*isForLoop=*/true);
-
-    Stmt* Forward = new (m_Context) ForStmt(m_Context,
-                                            initResult.getStmt(),
-                                            cond.getExpr(),
-                                            condVarClone,
-                                            incResult,
-                                            BodyDiff.getStmt(),
-                                            noLoc,
-                                            noLoc,
-                                            noLoc);
+    Stmt * Forward = nullptr;
+    if (FLInfo.isStandard()) {
+      Forward = FLInfo.Invert();
+      cast<ForStmt>(Forward)->setBody(BodyDiff.getStmt());
+    }
+    else
+      Forward = new (m_Context) ForStmt(m_Context,
+                                        initResult.getStmt(),
+                                        cond.getExpr(),
+                                        condVarClone,
+                                        incResult,
+                                        BodyDiff.getStmt(),
+                                        noLoc,
+                                        noLoc,
+                                        noLoc);
 
     // Create a condition testing counter for being zero, and its decrement.
     // To match the number of iterations in the forward pass, the reverse loop
