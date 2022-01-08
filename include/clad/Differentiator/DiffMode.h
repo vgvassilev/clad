@@ -5,6 +5,7 @@ namespace clad {
   enum class DiffMode {
     unknown = 0,
     forward,
+    experimental_pushforward,
     reverse,
     hessian,
     jacobian,

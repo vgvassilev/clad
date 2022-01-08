@@ -659,4 +659,20 @@ namespace clad {
     }
   }
 
+  ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,
+                                             IdentifierInfo* II,
+                                             bool pushOnScopeChains) {
+    Expr* newPVDDefaultArg = nullptr;
+    if (PVD->hasDefaultArg()) {
+      newPVDDefaultArg = Clone(PVD->getDefaultArg());
+    }
+    auto newPVD = ParmVarDecl::Create(
+        m_Context, m_Sema.CurContext, noLoc, noLoc, II, PVD->getType(),
+        PVD->getTypeSourceInfo(), PVD->getStorageClass(), newPVDDefaultArg);
+    if (pushOnScopeChains && newPVD->getIdentifier()) {
+      m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
+                               /*AddToContext=*/false);
+    }
+    return newPVD;
+  }
 } // end namespace clad

@@ -73,9 +73,164 @@ float test_4(float x) {
 // CHECK-NEXT: return custom_derivatives::overloaded_darg0();
 // CHECK-NEXT: }
 
+double sum_of_squares(double u, double v) {
+  return u*u + v*v;
+}
+
+// CHECK: double sum_of_squares_pushforward(double u, double v, double _d_u, double _d_v) {
+// CHECK-NEXT:     return _d_u * u + u * _d_u + _d_v * v + v * _d_v;
+// CHECK-NEXT: }
+
+double fn1(double i, double j) {
+  double res = sum_of_squares(i, j);
+  res += sum_of_squares(j, i);
+  return res;
+}
+
+// CHECK: double fn1_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_res = sum_of_squares_pushforward(i, j, _d_i, _d_j);
+// CHECK-NEXT:     double res = sum_of_squares(i, j);
+// CHECK-NEXT:     _d_res += sum_of_squares_pushforward(j, i, _d_j, _d_i);
+// CHECK-NEXT:     res += sum_of_squares(j, i);
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+// CHECK: double fn1_pushforward(double i, double j, double _d_i, double _d_j) {
+// CHECK-NEXT:     double _d_res = sum_of_squares_pushforward(i, j, _d_i, _d_j);
+// CHECK-NEXT:     double res = sum_of_squares(i, j);
+// CHECK-NEXT:     _d_res += sum_of_squares_pushforward(j, i, _d_j, _d_i);
+// CHECK-NEXT:     res += sum_of_squares(j, i);
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+double sum_of_pairwise_product(double u, double v, double w) {
+  return u*v + v*w + w*u;
+}
+
+// CHECK: double sum_of_pairwise_product_pushforward(double u, double v, double w, double _d_u, double _d_v, double _d_w) {
+// CHECK-NEXT:     return _d_u * v + u * _d_v + _d_v * w + v * _d_w + _d_w * u + w * _d_u;
+// CHECK-NEXT: }
+
+double fn2(double i, double j) {
+  double res = fn1(i, j);
+  res += sum_of_pairwise_product(res, i, j);
+  return res;
+}
+
+// CHECK: double fn2_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_res = fn1_pushforward(i, j, _d_i, _d_j);
+// CHECK-NEXT:     double res = fn1(i, j);
+// CHECK-NEXT:     _d_res += sum_of_pairwise_product_pushforward(res, i, j, _d_res, _d_i, _d_j);
+// CHECK-NEXT:     res += sum_of_pairwise_product(res, i, j);
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+void square_inplace(double& u) {
+  u = u*u;
+}  
+
+// CHECK: void square_inplace_pushforward(double &u, double &_d_u) {
+// CHECK-NEXT:     _d_u = _d_u * u + u * _d_u;
+// CHECK-NEXT:     u = u * u;
+// CHECK-NEXT: }
+
+double fn3(double i, double j) {
+  square_inplace(i);
+  double res = i;
+  return res;
+}
+
+// CHECK: double fn3_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     square_inplace_pushforward(i, _d_i);
+// CHECK-NEXT:     square_inplace(i);
+// CHECK-NEXT:     double _d_res = _d_i;
+// CHECK-NEXT:     double res = i;
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+double nonRealParamFn(const char* a, const char* b = nullptr) {
+  return 1;
+}
+
+// CHECK: double nonRealParamFn_pushforward(const char *a, const char *b = nullptr) {
+// CHECK-NEXT:     return 0;
+// CHECK-NEXT: }
+
+double fn4(double i, double j) {
+  double res = nonRealParamFn(0, 0);
+  res += i;
+  return res;
+}
+
+// CHECK: double fn4_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_res = nonRealParamFn_pushforward(0, 0);
+// CHECK-NEXT:     double res = nonRealParamFn(0, 0);
+// CHECK-NEXT:     _d_res += _d_i;
+// CHECK-NEXT:     res += i;
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+double fn5(double i, double j) {
+  if (i < 2) {
+    return j;
+  }
+  return fn5(0, i);
+}
+
+// CHECK: double fn5_pushforward(double i, double j, double _d_i, double _d_j) {
+// CHECK-NEXT:     if (i < 2) {
+// CHECK-NEXT:         return _d_j;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return fn5_pushforward(0, i, 0, _d_i);
+// CHECK-NEXT: }
+
+// CHECK: double fn5_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     if (i < 2) {
+// CHECK-NEXT:         return _d_j;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return fn5_pushforward(0, i, 0, _d_i);
+// CHECK-NEXT: }
+
+double fn6(double i, double j, double k) {
+  if (i < 0.5)
+    return 0;
+  return i+j+k + fn6(i-1, j-1, k-1);
+}
+
+// CHECK: double fn6_pushforward(double i, double j, double k, double _d_i, double _d_j, double _d_k) {
+// CHECK-NEXT:     if (i < 0.5)
+// CHECK-NEXT:         return 0;
+// CHECK-NEXT:     return _d_i + _d_j + _d_k + fn6_pushforward(i - 1, j - 1, k - 1, _d_i - 0, _d_j - 0, _d_k - 0);
+// CHECK-NEXT: }
+
+// CHECK: double fn6_darg0(double i, double j, double k) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_k = 0;
+// CHECK-NEXT:     if (i < 0.5)
+// CHECK-NEXT:         return 0;
+// CHECK-NEXT:     return _d_i + _d_j + _d_k + fn6_pushforward(i - 1, j - 1, k - 1, _d_i - 0, _d_j - 0, _d_k - 0);
+// CHECK-NEXT: }
+
 float test_1_darg0(float x);
 float test_2_darg0(float x);
 float test_4_darg0(float x);
+
+#define INIT(fn, ...)\
+  auto d_##fn = clad::differentiate(fn, __VA_ARGS__);
+
+#define TEST(fn, ...)\
+  printf("{%.2f}", d_##fn.execute(__VA_ARGS__));
 
 int main () {
   clad::differentiate(test_1, 0);
@@ -87,5 +242,18 @@ int main () {
   clad::differentiate(test_4, 0);
   printf("Result is = %f\n", test_4_darg0(1.0)); // CHECK-EXEC: Result is = 4
 
+  INIT(fn1, "i");
+  INIT(fn2, "i");
+  INIT(fn3, "i");
+  INIT(fn4, "i");
+  INIT(fn5, "i");
+  INIT(fn6, "i");
+
+  TEST(fn1, 3, 5);    // CHECK-EXEC: {12.00}
+  TEST(fn2, 3, 5);    // CHECK-EXEC: {181.00}
+  TEST(fn3, 3, 5);    // CHECK-EXEC: {6.00}
+  TEST(fn4, 3, 5);    // CHECK-EXEC: {1.00}
+  TEST(fn5, 3, 5);    // CHECK-EXEC: {1.00}
+  TEST(fn6, 3, 5, 7); // CHECK-EXEC: {3.00}
   return 0;
 }
