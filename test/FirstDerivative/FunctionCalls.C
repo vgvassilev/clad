@@ -76,12 +76,16 @@ float test_3() {
 // CHECK-NOT: float test_3_darg0() {
 
 float test_4(int x) {
-  return overloaded(); // expected-warning {{function 'overloaded' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives', and function may not be eligible for numerical differentiation.}}
+  return overloaded();
 }
+
+// CHECK: int overloaded_pushforward() {
+// CHECK-NEXT:     return 0;
+// CHECK-NEXT: }
 
 // CHECK: float test_4_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return 0;
+// CHECK-NEXT: return overloaded_pushforward();
 // CHECK-NEXT: }
 
 float test_5(int x) {

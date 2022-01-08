@@ -12,6 +12,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
+#include "clad/Differentiator/DiffMode.h"
 
 #include <array>
 #include <stack>
@@ -28,7 +29,7 @@ namespace clad {
     unsigned m_IndependentVarIndex = ~0;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
-
+    DiffMode m_Mode;
   public:
     ForwardModeVisitor(DerivativeBuilder& builder);
     ~ForwardModeVisitor();
@@ -42,6 +43,8 @@ namespace clad {
     ///
     OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
                                      const DiffRequest& request);
+    OverloadedDeclWithContext DerivePushforward(const clang::FunctionDecl* FD,
+                                                const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);

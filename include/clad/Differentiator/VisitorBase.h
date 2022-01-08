@@ -449,6 +449,9 @@ namespace clad {
     clang::Expr*
     BuildArrayRefSliceExpr(clang::Expr* Base,
                            llvm::MutableArrayRef<clang::Expr*> Args);
+    clang::ParmVarDecl* CloneParmVarDecl(const clang::ParmVarDecl* PVD,
+                                         clang::IdentifierInfo* II,
+                                         bool pushOnScopeChains = false);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

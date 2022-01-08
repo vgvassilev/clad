@@ -9,28 +9,26 @@
 extern "C" int printf(const char* fmt, ...);
 
 double sq(double x) { return x * x; }
-//CHECK:   double sq_darg0(double x) {
-//CHECK-NEXT:       double _d_x = 1;
-//CHECK-NEXT:       return _d_x * x + x * _d_x;
-//CHECK-NEXT:   } 
+// CHECK: double sq_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return _d_x * x + x * _d_x;
+// CHECK-NEXT: }
 
 double one(double x) { return sq(std::sin(x)) + sq(std::cos(x)); }
-//CHECK:   double one_darg0(double x) {
-//CHECK-NEXT:       double _d_x = 1;
-//CHECK-NEXT:       return sq_darg0(std::sin(x)) * (custom_derivatives::sin_darg0(x) * _d_x) + sq_darg0(std::cos(x)) * (custom_derivatives::cos_darg0(x) * _d_x);
-//CHECK-NEXT:   }
+// CHECK: double one_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return sq_pushforward(std::sin(x), custom_derivatives::sin_darg0(x) * _d_x) + sq_pushforward(std::cos(x), custom_derivatives::cos_darg0(x) * _d_x);
+// CHECK-NEXT: }
 
 double f(double x, double y) {
   double t = one(x);
   return t * y;
 }
-//CHECK:   double f_darg0(double x, double y) {
-//CHECK-NEXT:       double _d_x = 1;
-//CHECK-NEXT:       double _d_y = 0;
-//CHECK-NEXT:       double _d_t = one_darg0(x) * _d_x;
-//CHECK-NEXT:       double t = one(x);
-//CHECK-NEXT:       return _d_t * y + t * _d_y;
-//CHECK-NEXT:   }
+// CHECK: double f_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     double _d_t = one_pushforward(x, _d_x);
+// CHECK-NEXT:     double t = one(x);
+// CHECK-NEXT:     return _d_t * y + t * _d_y;
+// CHECK-NEXT: }
 
 //CHECK:   void sq_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       double _t0;

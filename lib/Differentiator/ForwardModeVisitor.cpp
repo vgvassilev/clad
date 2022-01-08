@@ -39,11 +39,106 @@ namespace clad {
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
   OverloadedDeclWithContext
+  ForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
+                                        const DiffRequest& request) {
+    m_Function = FD;
+    m_Functor = request.Functor;
+    m_DerivativeOrder = request.CurrentDerivativeOrder;
+    m_Mode = DiffMode::experimental_pushforward;
+    assert(!m_DerivativeInFlight &&
+           "Doesn't support recursive diff. Use DiffPlan.");
+    m_DerivativeInFlight = true;
+
+    IdentifierInfo* derivedFnII =
+        &m_Context.Idents.get(m_Function->getNameAsString() + "_pushforward");
+    DeclarationNameInfo derivedFnName(derivedFnII, noLoc);
+    llvm::SmallVector<QualType, 16> paramTypes, derivedParamTypes;
+
+    for (auto* PVD : m_Function->parameters()) {
+      paramTypes.push_back(PVD->getType());
+
+      // Pushforward functions currently only support real parameters
+      QualType nonRefParamType = PVD->getType().getNonReferenceType();
+      if (nonRefParamType->isRealType())
+        derivedParamTypes.push_back(PVD->getType());
+    }
+    paramTypes.insert(paramTypes.end(), derivedParamTypes.begin(),
+                      derivedParamTypes.end());
+
+    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+    QualType derivedFnType =
+        m_Context.getFunctionType(m_Function->getReturnType(), paramTypes,
+                                  originalFnType->getExtProtoInfo());
+    llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
+    llvm::SaveAndRestore<Scope*> saveScope(m_CurScope);
+    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    m_Sema.CurContext = DC;
+
+    DeclWithContext cloneFunctionResult =
+        m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
+                                derivedFnName, derivedFnType);
+    m_Derivative = cloneFunctionResult.first;
+
+    llvm::SmallVector<ParmVarDecl*, 16> params;
+    llvm::SmallVector<ParmVarDecl*, 16> derivedParams;
+    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
+
+    std::size_t numParamsOriginalFn = m_Function->getNumParams();
+    for (std::size_t i = 0; i < numParamsOriginalFn; ++i) {
+      auto PVD = m_Function->getParamDecl(i);
+      auto newPVD = CloneParmVarDecl(PVD, PVD->getIdentifier(),
+                                     /*pushOnScopeChains=*/true);
+      params.push_back(newPVD);
+
+      QualType nonRefParamType = PVD->getType().getNonReferenceType();
+      if (!nonRefParamType->isRealType())
+        continue;
+      auto derivedPVDName = "_d_" + PVD->getNameAsString();
+      auto derivedPVDII = &m_Context.Idents.get(derivedPVDName);
+      // TODO: Check for name conflicts.
+      auto derivedPVD = CloneParmVarDecl(PVD, derivedPVDII,
+                                         /*pushOnScopeChains=*/true);
+      derivedParams.push_back(derivedPVD);
+      m_Variables[newPVD] = BuildDeclRef(derivedPVD);
+    }
+
+    params.insert(params.end(), derivedParams.begin(), derivedParams.end());
+    m_Derivative->setParams(params);
+    m_Derivative->setBody(nullptr);
+
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+    beginBlock();
+
+    Stmt* bodyDiff = Visit(FD->getBody()).getStmt();
+    CompoundStmt* CS = cast<CompoundStmt>(bodyDiff);
+    for (Stmt* S : CS->body())
+      addToCurrentBlock(S);
+
+    Stmt* derivativeBody = endBlock();
+    m_Derivative->setBody(derivativeBody);
+
+    endScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    m_DerivativeInFlight = false;
+    return OverloadedDeclWithContext{cloneFunctionResult.first,
+                                     cloneFunctionResult.second,
+                                     /*OverloadFunctionDecl=*/nullptr};
+  }
+
+  OverloadedDeclWithContext
   ForwardModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     m_Functor = request.Functor;
+    m_Mode = DiffMode::forward;
     assert(!m_DerivativeInFlight &&
            "Doesn't support recursive diff. Use DiffPlan.");
     m_DerivativeInFlight = true;
@@ -837,16 +932,22 @@ namespace clad {
 
     SourceLocation noLoc;
     llvm::SmallVector<Expr*, 4> CallArgs{};
+    llvm::SmallVector<Expr*, 4> diffArgs;
     // For f(g(x)) = f'(x) * g'(x)
     Expr* Multiplier = nullptr;
     for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
-      StmtDiff argDiff = Visit(CE->getArg(i));
+      const Expr* arg = CE->getArg(i);
+      StmtDiff argDiff = Visit(arg);
       if (!Multiplier)
         Multiplier = argDiff.getExpr_dx();
       else {
         Multiplier = BuildOp(BO_Add, Multiplier, argDiff.getExpr_dx());
       }
       CallArgs.push_back(argDiff.getExpr());
+      // FIXME: Add support for pointer and array arguments in the
+      // pushforward mode.
+      if (arg->getType().getNonReferenceType()->isRealType())
+        diffArgs.push_back(argDiff.getExpr_dx());
     }
 
     Expr* call = m_Sema
@@ -859,46 +960,41 @@ namespace clad {
 
     // Try to find an overloaded derivative in 'custom_derivatives'
     Expr* callDiff = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
-
-    // FIXME: add gradient-vector products to fix that.
-    if (!callDiff)
-      assert((CE->getNumArgs() <= 1) &&
-             "forward differentiation of multi-arg calls is currently broken");
-
+    if (callDiff && Multiplier)
+      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
+      
     // Check if it is a recursive call.
-    if (!callDiff && (FD == m_Function)) {
+    if (!callDiff && (FD == m_Function) && m_Mode == DiffMode::experimental_pushforward) {
       // The differentiated function is called recursively.
       Expr* derivativeRef =
           m_Sema
-              .BuildDeclarationNameExpr(CXXScopeSpec(),
-                                        m_Derivative->getNameInfo(),
-                                        m_Derivative)
+              .BuildDeclarationNameExpr(
+                  CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
               .get();
+      CallArgs.insert(CallArgs.end(), diffArgs.begin(), diffArgs.end());
       callDiff =
           m_Sema
               .ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                             derivativeRef,
-                             noLoc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs),
-                             noLoc)
+                             derivativeRef, noLoc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
               .get();
     }
 
     if (!callDiff) {
       // Overloaded derivative was not found, request the CladPlugin to
       // derive the called function.
-      DiffRequest request{};
-      request.Function = FD;
-      request.BaseFunctionName = FD->getNameAsString();
-      request.Mode = DiffMode::forward;
+      DiffRequest pushforwardFnRequest;
+      pushforwardFnRequest.Function = FD;
+      pushforwardFnRequest.Mode = DiffMode::experimental_pushforward;
+      pushforwardFnRequest.BaseFunctionName = FD->getNameAsString();
+      // pushforwardFnRequest.RequestedDerivativeOrder = m_DerivativeOrder;
       // Silence diag outputs in nested derivation process.
-      request.VerboseDiags = false;
-
-      FunctionDecl* derivedFD =
-          plugin::ProcessDiffRequest(m_CladPlugin, request);
+      pushforwardFnRequest.VerboseDiags = false;
+      FunctionDecl* pushforwardFD =
+          plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
       // If clad failed to derive it, try finding its derivative using
       // numerical diff.
-      if (!derivedFD) {
+      if (!pushforwardFD) {
         // FIXME: Extend this for multiarg support
         // Check if the function is eligible for numerical differentiation.
         if (CE->getNumArgs() == 1) {
@@ -914,19 +1010,19 @@ namespace clad {
               ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
           return StmtDiff(call, zero);
         }
+        if (Multiplier)
+          callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
       } else {
+        CallArgs.insert(CallArgs.end(), diffArgs.begin(), diffArgs.end());
         callDiff = m_Sema
                        .ActOnCallExpr(getCurrentScope(),
-                                      BuildDeclRef(derivedFD),
+                                      BuildDeclRef(pushforwardFD),
                                       noLoc,
                                       llvm::MutableArrayRef<Expr*>(CallArgs),
                                       noLoc)
                        .get();
       }
     }
-
-    if (Multiplier)
-      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
     return StmtDiff(call, callDiff);
   }
 
