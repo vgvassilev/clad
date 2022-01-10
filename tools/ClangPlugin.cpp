@@ -23,7 +23,6 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Lookup.h"
 
-#include "llvm/Support/Registry.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -285,7 +284,3 @@ X("clad", "Produces derivatives or arbitrary functions");
 
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
-
-// instantiate our error estimation model registry so that we can register
-// custom models passed by users as a shared lib
-LLVM_INSTANTIATE_REGISTRY(ErrorEstimationModelRegistry)

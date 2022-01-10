@@ -5,6 +5,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/OperationKinds.h"
 
+#include "llvm/Support/Registry.h"
 using namespace clang;
 
 namespace clad {
@@ -63,3 +64,7 @@ namespace clad {
   Expr* TaylorApprox::SetError(VarDecl* declStmt) { return nullptr; }
 
 } // namespace clad
+
+// instantiate our error estimation model registry so that we can register
+// custom models passed by users as a shared lib
+LLVM_INSTANTIATE_REGISTRY(clad::ErrorEstimationModelRegistry)
