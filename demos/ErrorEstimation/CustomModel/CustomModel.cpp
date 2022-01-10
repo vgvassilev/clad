@@ -12,6 +12,6 @@ clang::Expr* CustomModel::SetError(clang::VarDecl* decl) { return nullptr; }
 
 // We need this statement to register our model with clad. Without this, clad
 // will NOT be able to resolve to our overidden functions properly.
-static clad::plugin::ErrorEstimationModelRegistry::Add<
+static clad::ErrorEstimationModelRegistry::Add<
     clad::EstimationPluginHelper<CustomModel>>
     CX("customModel", "Custom model for error estimation in clad");

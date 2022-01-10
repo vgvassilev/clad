@@ -3,6 +3,8 @@
 
 #include "VisitorBase.h"
 
+#include "llvm/Support/Registry.h"
+
 #include <unordered_map>
 
 namespace clang {
@@ -138,6 +140,8 @@ namespace clad {
     clang::Expr* SetError(clang::VarDecl* decl) override;
   };
 
+  /// Register any custom error estimation model a user provides
+  using ErrorEstimationModelRegistry = llvm::Registry<EstimationPlugin>;
 } // namespace clad
 
 #endif // CLAD_ESTIMATION_MODEL_H

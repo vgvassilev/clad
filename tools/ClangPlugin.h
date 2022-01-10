@@ -31,10 +31,7 @@ namespace clang {
 
 namespace clad {
   struct DiffRequest;
-  class EstimationPlugin;
   namespace plugin {
-    /// Register any custom error estimation model a user provides
-    using ErrorEstimationModelRegistry = llvm::Registry<EstimationPlugin>;
     struct DifferentiationOptions {
       DifferentiationOptions()
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
