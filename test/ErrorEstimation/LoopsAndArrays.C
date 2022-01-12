@@ -123,8 +123,8 @@ float func3(float x, float y) {
 }
 
 //CHECK: void func3_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
-//CHECK-NEXT:     double _delta_arr[3] = {};
-//CHECK-NEXT:     double _d_arr[3] = {};
+//CHECK-NEXT:     clad::array<double> _delta_arr(3UL);
+//CHECK-NEXT:     clad::array<double> _d_arr(3UL);
 //CHECK-NEXT:     double _EERepl_arr0;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
@@ -150,6 +150,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _delta_arr[2] += _r_d2 * _EERepl_arr2 * {{.+}};
 //CHECK-NEXT:         _final_error += _delta_arr[2];
 //CHECK-NEXT:         _d_arr[2] -= _r_d2;
+//CHECK-NEXT:         _d_arr[2];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r_d1 = _d_arr[1];
@@ -160,6 +161,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _delta_arr[1] += _r_d1 * _EERepl_arr1 * {{.+}};
 //CHECK-NEXT:         _final_error += _delta_arr[1];
 //CHECK-NEXT:         _d_arr[1] -= _r_d1;
+//CHECK-NEXT:         _d_arr[1];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r_d0 = _d_arr[0];
@@ -168,6 +170,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _delta_arr[0] += _r_d0 * _EERepl_arr0 * {{.+}};
 //CHECK-NEXT:         _final_error += _delta_arr[0];
 //CHECK-NEXT:         _d_arr[0] -= _r_d0;
+//CHECK-NEXT:         _d_arr[0];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     _delta_x += * _d_x * x * {{.+}};
