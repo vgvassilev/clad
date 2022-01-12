@@ -965,8 +965,10 @@ namespace clad {
     for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
       Expr* I =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
-      Expr* array_at_i =
-          m_Sema.CreateBuiltinArraySubscriptExpr(dfdx(), noLoc, I, noLoc).get();
+      Expr* array_at_i = m_Sema
+                             .ActOnArraySubscriptExpr(getCurrentScope(), dfdx(),
+                                                      noLoc, I, noLoc)
+                             .get();
       Expr* clonedEI = Visit(ILE->getInit(i), array_at_i).getExpr();
       clonedExprs[i] = clonedEI;
     }
@@ -1414,9 +1416,10 @@ namespace clad {
                                             llvm::APInt(size_type_bits, i),
                                             size_type, noLoc);
             // Create the Result[I] expression.
-            auto ithResult =
-                m_Sema.CreateBuiltinArraySubscriptExpr(Result, noLoc, I, noLoc)
-                    .get();
+            auto ithResult = m_Sema
+                                 .ActOnArraySubscriptExpr(
+                                     getCurrentScope(), Result, noLoc, I, noLoc)
+                                 .get();
             // Create df/dxi * Result[I]
             Expr* di = BuildOp(BO_Mul, dfdx(), ithResult);
 

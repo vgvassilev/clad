@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseAssignments.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -lstdc++ -oReverseAssignments.out 2>&1 | FileCheck %s
 // RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -281,7 +281,7 @@ double f7(double x, double y) {
 //CHECK:   void f7_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
-//CHECK-NEXT:       double _d_t[3] = {};
+//CHECK-NEXT:       clad::array<double> _d_t(3UL);
 //CHECK-NEXT:       double _t2;
 //CHECK-NEXT:       double _t3;
 //CHECK-NEXT:       double _t4;
@@ -319,6 +319,7 @@ double f7(double x, double y) {
 //CHECK-NEXT:           _d_t[0] += _r_d5;
 //CHECK-NEXT:           _d_t[1] += -_r_d5;
 //CHECK-NEXT:           _d_t[0] -= _r_d5;
+//CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r_d4 = _d_t[0];
@@ -326,6 +327,7 @@ double f7(double x, double y) {
 //CHECK-NEXT:           double _r3 = _r_d4 * -_t5 / (_t4 * _t4);
 //CHECK-NEXT:           _d_t[1] += _r3;
 //CHECK-NEXT:           _d_t[0] -= _r_d4;
+//CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r_d3 = _d_t[0];
@@ -333,12 +335,14 @@ double f7(double x, double y) {
 //CHECK-NEXT:           double _r2 = _t3 * _r_d3;
 //CHECK-NEXT:           _d_t[1] += _r2;
 //CHECK-NEXT:           _d_t[0] -= _r_d3;
+//CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r_d2 = _d_t[0];
 //CHECK-NEXT:           _d_t[0] += _r_d2;
 //CHECK-NEXT:           _d_t[1] += _r_d2;
 //CHECK-NEXT:           _d_t[0] -= _r_d2;
+//CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r_d1 = * _d_x;
@@ -350,7 +354,10 @@ double f7(double x, double y) {
 //CHECK-NEXT:           double _r_d0 = _d_t[0];
 //CHECK-NEXT:           * _d_x += _r_d0;
 //CHECK-NEXT:           _d_t[0] -= _r_d0;
+//CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
+//CHECK-NEXT:       _d_t[0];
+//CHECK-NEXT:       _d_t[0];
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += _d_t[1];
 //CHECK-NEXT:           double _r0 = _d_t[2] * _t0;
@@ -367,7 +374,7 @@ double f8(double x, double y) {
 }
 
 //CHECK:   void f8_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-//CHECK-NEXT:       double _d_t[4] = {};
+//CHECK-NEXT:       clad::array<double> _d_t(4UL);
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double t[4] = {1, x, y, 1};
@@ -393,6 +400,7 @@ double f8(double x, double y) {
 //CHECK-NEXT:           _d_t[0] -= _r_d2;
 //CHECK-NEXT:           * _d_y -= _r_d1;
 //CHECK-NEXT:           _d_t[3] -= _r_d0;
+//CHECK-NEXT:           _d_t[3];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += _d_t[1];
