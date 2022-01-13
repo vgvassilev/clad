@@ -259,7 +259,7 @@ jobs:
           export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@12/
           sudo ln -s /usr/local/opt/llvm /usr/local/opt/llvm@12
         fi
-
+        brew install gfortran
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
         # We need headers in correct place
