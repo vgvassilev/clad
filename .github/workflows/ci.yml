@@ -19,32 +19,32 @@ jobs:
 
         include:
           - name: osx-clang-runtime5
-            os: macos-latest
+            os: macos-10.15
             compiler: clang
             clang-runtime: '5.0'
 
           - name: osx-clang-runtime6
-            os: macos-latest
+            os: macos-10.15
             compiler: clang
             clang-runtime: '6.0'
 
           - name: osx-clang-runtime7
-            os: macos-latest
+            os: macos-10.15
             compiler: clang
             clang-runtime: '7'
 
           - name: osx-clang-runtime8
-            os: macos-latest
+            os: macos-10.15
             compiler: clang
             clang-runtime: '8'
 
           - name: osx-clang-runtime9
-            os: macos-latest
+            os: macos-10.15
             compiler: clang
             clang-runtime: '9'
 
           - name: osx-clang-runtime10
-            os: macos-latest
+            os: macos-10.15
             compiler: clang
             clang-runtime: '10'
 
