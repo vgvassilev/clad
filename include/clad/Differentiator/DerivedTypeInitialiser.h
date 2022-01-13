@@ -44,6 +44,7 @@ namespace clad {
     clang::FunctionDecl* m_DerivedMultiplyFn = nullptr;
     clang::FunctionDecl* m_DerivedDivideFn = nullptr;
     clang::CXXMethodDecl* m_InitialiseSeedsFn = nullptr;
+    clang::ClassTemplateSpecializationDecl* m_DerivedTypeInfoSpec = nullptr;
     clang::Scope* m_CurScope;
     
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
@@ -89,6 +90,7 @@ namespace clad {
     clang::CompoundStmt* EndBlock();
     void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
     clang::Scope* GetCurrentScope();
+    clang::ClassTemplateDecl* LookupDerivedTypeInfoBaseTemplate();
   };
 } // namespace clad
 

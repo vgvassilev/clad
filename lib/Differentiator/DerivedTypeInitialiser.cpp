@@ -5,11 +5,13 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SaveAndRestore.h"
+
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "clad/Differentiator/DerivedTypesHandler.h"
@@ -59,12 +61,19 @@ namespace clad {
     llvm::errs() << "\n";
   }
 
+  ClassTemplateDecl* DerivedTypeInitialiser::LookupDerivedTypeInfoBaseTemplate() {
+    LookupResult R(m_Sema,
+                   m_ASTHelper.CreateDeclNameInfo("DerivedTypeInfo"),
+                   Sema::LookupNameKind::LookupTagName);
+    CXXScopeSpec CSS;
+    m_Sema.LookupQualifiedName(R, m_Context.getTranslationUnitDecl(), CSS);
+    assert(R.isSingleResult() && "should have been a single tag result for DerivedTypeInfo");
+    return cast<ClassTemplateDecl>(R.getFoundDecl());
+  }
+
   void DerivedTypeInitialiser::BuildDerivedRecordDefinition() {
     // TODO: Properly handle CXXScopeSpec;
     CXXScopeSpec CSS;
-    ParsedAttributesView PAV;
-    bool ownedDecl, isDependent;
-    TypeResult underlyingType;
     beginScope(Scope::DeclScope | Scope::ClassScope);
     auto temp = CXXRecordDecl::Create(m_Context, TagTypeKind::TTK_Class,
                                       m_Sema.CurContext, noLoc, noLoc,
@@ -76,6 +85,37 @@ namespace clad {
     m_DerivedType = m_DerivedRecord->getTypeForDecl()
                         ->getCanonicalTypeInternal();
     endScope();
+    auto derivedTypeInfoBase = LookupDerivedTypeInfoBaseTemplate();
+    
+    beginScope(Scope::DeclScope | Scope::ClassScope);
+
+    llvm::SmallVector<TemplateArgument, 2> templateArgs;
+    templateArgs.push_back(m_YQType);
+    templateArgs.push_back(m_XQType);
+
+    auto derivedTypeInfoSpec = ClassTemplateSpecializationDecl::
+        Create(m_Context, TagTypeKind::TTK_Struct, m_Sema.CurContext, noLoc,
+               noLoc, derivedTypeInfoBase, templateArgs, nullptr);
+    derivedTypeInfoSpec->startDefinition();
+    derivedTypeInfoSpec->completeDefinition();
+
+    auto typeId = &m_Context.Idents.get("type");
+    auto TSI = m_Context.getTrivialTypeSourceInfo(m_DerivedType);
+    auto usingTypeDecl = TypeAliasDecl::Create(m_Context, derivedTypeInfoSpec,
+                                               noLoc, noLoc, typeId, TSI);
+    usingTypeDecl->setAccess(AccessSpecifier::AS_public);                                               
+    derivedTypeInfoSpec->addDecl(usingTypeDecl);
+    m_Sema.CurContext->addDecl(derivedTypeInfoSpec);
+
+    m_DerivedTypeInfoSpec = derivedTypeInfoSpec;
+
+    endScope();
+
+    void* insertPos = nullptr;
+    derivedTypeInfoBase->findSpecialization(templateArgs, insertPos);
+    derivedTypeInfoBase->AddSpecialization(m_DerivedTypeInfoSpec, insertPos);
+
+    PrintDecl(derivedTypeInfoSpec);
   }
 
   void DerivedTypeInitialiser::beginScope(unsigned ScopeFlags) {
@@ -551,6 +591,7 @@ namespace clad {
     processTopLevelDecl(m_DerivedSubFn);
     processTopLevelDecl(m_DerivedMultiplyFn);
     processTopLevelDecl(m_DerivedDivideFn);
+    processTopLevelDecl(m_DerivedTypeInfoSpec);
   }
 
   Scope* DerivedTypeInitialiser::GetCurrentScope() { return m_CurScope; }
