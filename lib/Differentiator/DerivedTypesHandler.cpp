@@ -14,7 +14,7 @@ namespace clad {
 
   void DerivedTypesHandler::SetDTE(llvm::StringRef name,
                                    DerivedTypeEssentials DTE) {
-    m_DerivedTypesEssentials[name] = DTE;
+    m_DerivedTypesEssentials[name.str()] = DTE;
   }
 
   void DerivedTypesHandler::InitialiseDerivedType(QualType yQType,
@@ -27,7 +27,7 @@ namespace clad {
   }
 
   DerivedTypeEssentials DerivedTypesHandler::GetDTE(llvm::StringRef name) {
-    auto it = m_DerivedTypesEssentials.find(name);
+    auto it = m_DerivedTypesEssentials.find(name.str());
     if (it == m_DerivedTypesEssentials.end()) {
       return DerivedTypeEssentials();
     }

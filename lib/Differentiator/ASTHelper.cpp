@@ -120,10 +120,11 @@ namespace clad {
     bool isArrow = false;
     if (base->getType()->isPointerType())
       isArrow = true;
-    return semaRef.BuildMemberExpr(base, isArrow, noLoc, &CSS, noLoc, member,
-                                   DAP, false, DNI, member->getType(),
-                                   ExprValueKind::VK_LValue,
-                                   ExprObjectKind::OK_Ordinary);
+    return clad_compat::BuildMemberExpr(semaRef, base, isArrow, noLoc, &CSS,
+                                        noLoc, member, DAP, false, DNI,
+                                        member->getType(),
+                                        ExprValueKind::VK_LValue,
+                                        ExprObjectKind::OK_Ordinary);
   }
   clang::CXXNewExpr* ASTHelper::CreateNewExprFor(clang::QualType qType,
                                                  clang::Expr* initializer,
@@ -138,9 +139,8 @@ namespace clad {
     auto newExpr = semaRef
                        .BuildCXXNew(SourceRange(), false, noLoc, MultiExprArg(),
                                     noLoc, SourceRange(), qType,
-                                    C.getTrivialTypeSourceInfo(qType),
-                                    Optional<Expr*>(), SourceRange(B, B),
-                                    initializer)
+                                    C.getTrivialTypeSourceInfo(qType), nullptr,
+                                    SourceRange(B, B), initializer)
                        .getAs<CXXNewExpr>();
     return newExpr;
   }
@@ -341,7 +341,8 @@ namespace clad {
     }
     // TODO: Confirm that we should always take non-reference type here.
     qType = qType.getNonReferenceType();
-    return semaRef.BuildDeclRefExpr(VD, qType, ExprValueKind::VK_LValue, noLoc);
+    return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
+        semaRef.BuildDeclRefExpr(VD, qType, ExprValueKind::VK_LValue, noLoc)));
   }
 
   clang::DeclStmt* ASTHelper::BuildDeclStmt(clang::Decl* D) {
@@ -361,7 +362,8 @@ namespace clad {
   ASTHelper::BuildFieldDecl(clang::DeclContext* DC, clang::IdentifierInfo* II,
                             clang::QualType qType, clang::Expr* init,
                             clang::AccessSpecifier AS, bool addToDecl) {
-    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType, init, AS, addToDecl);
+    return ASTHelper::BuildFieldDecl(m_Sema, DC, II, qType, init, AS,
+                                     addToDecl);
   }
 
   clang::FieldDecl*
@@ -433,9 +435,9 @@ namespace clad {
                                               clang::QualType fnQType) {
     auto& C = semaRef.getASTContext();
     auto TSI = C.getTrivialTypeSourceInfo(fnQType);
-    auto fnDecl = FunctionDecl::Create(C, DC, noLoc, noLoc, fnName, fnQType,
-                                       TSI, StorageClass::SC_None, false, true,
-                                       ConstexprSpecKind::CSK_unspecified);
+    auto fnDecl = FunctionDecl::
+        Create(C, DC, noLoc, noLoc, fnName, fnQType, TSI, StorageClass::SC_None,
+               false, true, CLAD_COMPAT_ConstexprSpecKind_Unspecified);
     return fnDecl;
   }
 
@@ -451,10 +453,9 @@ namespace clad {
                                            clang::QualType qType) {
     auto& C = semaRef.getASTContext();
     auto TSI = C.getTrivialTypeSourceInfo(qType);
-    auto methodDecl = CXXMethodDecl::Create(C, RD, noLoc, nameInfo, qType, TSI,
-                                            StorageClass::SC_None, false,
-                                            ConstexprSpecKind::CSK_unspecified,
-                                            noLoc);
+    auto methodDecl = CXXMethodDecl::
+        Create(C, RD, noLoc, nameInfo, qType, TSI, StorageClass::SC_None, false,
+               CLAD_COMPAT_ConstexprSpecKind_Unspecified, noLoc);
     return methodDecl;
   }
 
@@ -495,7 +496,7 @@ namespace clad {
                                                 clang::Scope* curScope) {
     auto RetStmt = semaRef.ActOnReturnStmt(noLoc, retValExpr, curScope)
                        .getAs<ReturnStmt>();
-    return RetStmt;                       
+    return RetStmt;
   }
 
   clang::Expr* ASTHelper::BuildOp(clang::BinaryOperatorKind opCode,

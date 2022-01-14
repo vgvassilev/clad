@@ -535,6 +535,42 @@ static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* 
    return Qualifiers::fromFastMask(MD->getTypeQualifiers());
 }
 #endif
+
+#if CLANG_VERSION_MAJOR < 9
+#define CLAD_COMPAT_ConstexprSpecKind_Unspecified false
+#elif CLANG_VERSION_MAJOR < 12
+#define CLAD_COMPAT_ConstexprSpecKind_Unspecified                              \
+  clang::ConstexprSpecKind::CSK_unspecified
+#else
+#define CLAD_COMPAT_ConstexprSpecKind_Unspecified                              \
+  clang::ConstexprSpecKind::Unspecified
+#endif
+
+#if CLANG_VERSION_MAJOR < 9
+static inline MemberExpr* BuildMemberExpr(
+    Sema& semaRef, Expr* base, bool isArrow, SourceLocation opLoc,
+    const CXXScopeSpec* SS, SourceLocation templateKWLoc, ValueDecl* member,
+    DeclAccessPair foundDecl, bool hadMultipleCandidates,
+    const DeclarationNameInfo& memberNameInfo, QualType ty, ExprValueKind VK,
+    ExprObjectKind OK, const TemplateArgumentListInfo* templateArgs = nullptr) {
+  auto& C = semaRef.getASTContext();
+  auto NNSLoc = SS->getWithLocInContext(C);
+  return MemberExpr::Create(C, base, isArrow, opLoc, NNSLoc, templateKWLoc,
+                            member, foundDecl, memberNameInfo, templateArgs, ty,
+                            VK, OK);
+}
+#else
+static inline MemberExpr* BuildMemberExpr(
+    Sema& semaRef, Expr* base, bool isArrow, SourceLocation opLoc,
+    const CXXScopeSpec* SS, SourceLocation templateKWLoc, ValueDecl* member,
+    DeclAccessPair foundDecl, bool hadMultipleCandidates,
+    const DeclarationNameInfo& memberNameInfo, QualType ty, ExprValueKind VK,
+    ExprObjectKind OK, const TemplateArgumentListInfo* templateArgs = nullptr) {
+  return semaRef.BuildMemberExpr(base, isArrow, opLoc, SS, templateKWLoc,
+                                 member, foundDecl, hadMultipleCandidates,
+                                 memberNameInfo, ty, VK, OK, templateArgs);
+}
+#endif
 } // namespace clad_compat
 
 #endif //CLAD_COMPATIBILITY

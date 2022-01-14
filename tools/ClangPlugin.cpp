@@ -109,23 +109,23 @@ namespace clad {
     // We cannot use HandleTranslationUnit because codegen already emits code on
     // HandleTopLevelDecl calls and makes updateCall with no effect.
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
-      llvm::errs()<<"Print declarations:\n";
-      for (auto it=DGR.begin(); it != DGR.end(); ++it) {
-        auto DC = (*it)->getDeclContext();
-        if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
-          if (ND->getNameAsString() == "clad") {
-            continue;
-          } else {
-            llvm::errs()<<"ND: "<<ND->getNameAsString()<<"\n";
-          }
-        }
-        // (*it)->dumpColor();
-        if (auto ND = dyn_cast<NamedDecl>(*it)) {
-          llvm::errs()<<ND->getNameAsString()<<"\n";
-        }
-        llvm::errs()<<"\n";
-      }
-      llvm::errs()<<"END\n\n";
+      // llvm::errs()<<"Print declarations:\n";
+      // for (auto it=DGR.begin(); it != DGR.end(); ++it) {
+      //   auto DC = (*it)->getDeclContext();
+      //   if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
+      //     if (ND->getNameAsString() == "clad") {
+      //       continue;
+      //     } else {
+      //       llvm::errs()<<"ND: "<<ND->getNameAsString()<<"\n";
+      //     }
+      //   }
+      //   // (*it)->dumpColor();
+      //   if (auto ND = dyn_cast<NamedDecl>(*it)) {
+      //     llvm::errs()<<ND->getNameAsString()<<"\n";
+      //   }
+      //   llvm::errs()<<"\n";
+      // }
+      // llvm::errs()<<"END\n\n";
 
       if (!CheckBuiltins())
         return true;
