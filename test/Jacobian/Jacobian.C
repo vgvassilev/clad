@@ -140,6 +140,97 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  }
 //CHECK-NEXT:}
 
+double multiply(double x, double y) { return x * y; }
+//CHECK: void multiply_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK-NEXT:    double _t0;
+//CHECK-NEXT:    double _t1;
+//CHECK-NEXT:    _t1 = x;
+//CHECK-NEXT:    _t0 = y;
+//CHECK-NEXT:    double multiply_return = _t1 * _t0;
+//CHECK-NEXT:    goto _label0;
+//CHECK-NEXT:  _label0:
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r0 = 1 * _t0;
+//CHECK-NEXT:        * _d_x += _r0;
+//CHECK-NEXT:        double _r1 = _t1 * 1;
+//CHECK-NEXT:        * _d_y += _r1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+void f_4(double x, double y, double z, double *_result) {
+  double constant = 42;
+
+  _result[0] = multiply(x, y) * constant;
+  _result[1] = multiply(y, z) * constant;
+  _result[2] = multiply(z, x) * constant;
+}
+
+void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
+//CHECK: void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
+//CHECK-NEXT:    double _d_constant = 0;
+//CHECK-NEXT:    double _t0;
+//CHECK-NEXT:    double _t1;
+//CHECK-NEXT:    double _t2;
+//CHECK-NEXT:    double _t3;
+//CHECK-NEXT:    double _t4;
+//CHECK-NEXT:    double _t5;
+//CHECK-NEXT:    double _t6;
+//CHECK-NEXT:    double _t7;
+//CHECK-NEXT:    double _t8;
+//CHECK-NEXT:    double _t9;
+//CHECK-NEXT:    double _t10;
+//CHECK-NEXT:    double _t11;
+//CHECK-NEXT:    double constant = 42;
+//CHECK-NEXT:    _t1 = x;
+//CHECK-NEXT:    _t2 = y;
+//CHECK-NEXT:    _t3 = multiply(_t1, _t2);
+//CHECK-NEXT:    _t0 = constant;
+//CHECK-NEXT:    _result[0] = multiply(x, y) * constant;
+//CHECK-NEXT:    _t5 = y;
+//CHECK-NEXT:    _t6 = z;
+//CHECK-NEXT:    _t7 = multiply(_t5, _t6);
+//CHECK-NEXT:    _t4 = constant;
+//CHECK-NEXT:    _result[1] = multiply(y, z) * constant;
+//CHECK-NEXT:    _t9 = z;
+//CHECK-NEXT:    _t10 = x;
+//CHECK-NEXT:    _t11 = multiply(_t9, _t10);
+//CHECK-NEXT:    _t8 = constant;
+//CHECK-NEXT:    _result[2] = multiply(z, x) * constant;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r8 = 1 * _t8;
+//CHECK-NEXT:        double _jac4 = 0.;
+//CHECK-NEXT:        double _jac5 = 0.;
+//CHECK-NEXT:        multiply_grad(_t9, _t10, &_jac4, &_jac5);
+//CHECK-NEXT:        double _r9 = _r8 * _jac4;
+//CHECK-NEXT:        jacobianMatrix[8UL] += _r9;
+//CHECK-NEXT:        double _r10 = _r8 * _jac5;
+//CHECK-NEXT:        jacobianMatrix[6UL] += _r10;
+//CHECK-NEXT:        double _r11 = _t11 * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r4 = 1 * _t4;
+//CHECK-NEXT:        double _jac2 = 0.;
+//CHECK-NEXT:        double _jac3 = 0.;
+//CHECK-NEXT:        multiply_grad(_t5, _t6, &_jac2, &_jac3);
+//CHECK-NEXT:        double _r5 = _r4 * _jac2;
+//CHECK-NEXT:        jacobianMatrix[4UL] += _r5;
+//CHECK-NEXT:        double _r6 = _r4 * _jac3;
+//CHECK-NEXT:        jacobianMatrix[5UL] += _r6;
+//CHECK-NEXT:        double _r7 = _t7 * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r0 = 1 * _t0;
+//CHECK-NEXT:        double _jac0 = 0.;
+//CHECK-NEXT:        double _jac1 = 0.;
+//CHECK-NEXT:        multiply_grad(_t1, _t2, &_jac0, &_jac1);
+//CHECK-NEXT:        double _r1 = _r0 * _jac0;
+//CHECK-NEXT:        jacobianMatrix[0UL] += _r1;
+//CHECK-NEXT:        double _r2 = _r0 * _jac1;
+//CHECK-NEXT:        jacobianMatrix[1UL] += _r2;
+//CHECK-NEXT:        double _r3 = _t3 * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 
 #define TEST(F, x, y, z) { \
   result[0] = 0; result[1] = 0; result[2] = 0;\
@@ -160,4 +251,5 @@ int main() {
   double outputarr[9];
   TEST(f_1, 1, 2, 3); // CHECK-EXEC: Result is = {3.00, 0.00, 0.00, 3.00, 12.00, 0.00, -2.00, 0.00, 60.00}
   TEST(f_3, 1, 2, 3); // CHECK-EXEC: Result is = {22.69, 0.00, 0.00, 0.00, -17.48, 0.00, 0.00, 0.00, -41.58}
+  TEST(f_4, 1, 2, 3); // CHECK-EXEC: Result is = {84.00, 42.00, 0.00, 0.00, 126.00, 84.00, 126.00, 0.00, 42.00}
 }
