@@ -1163,10 +1163,7 @@ namespace clad {
       // as the call expression as it is the type used to declare the _gradX
       // array
       Expr* dArg;
-      if (isVectorValued) {
-        dArg = StoreAndRef(/*E=*/nullptr, CEType, reverse, "_r",
-                           /*forceDeclCreation=*/true);
-      } else if (isArrayOrPointerType(Arg->getType())) {
+      if (isArrayOrPointerType(Arg->getType())) {
         Expr* nullptrLiteral = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
         dArg = StoreAndRef(nullptrLiteral, GetCladArrayRefOfType(CEType),
                            reverse, "_r",
@@ -1220,90 +1217,64 @@ namespace clad {
       DeclarationNameInfo DNInfo(name, noLoc);
 
       unsigned size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
-      if (isVectorValued) {
-        // We also need to create an array to store the result of gradient call.
-        auto ArrayType = clad_compat::
-            getConstantArrayType(m_Context, CEType,
-                                 llvm::APInt(size_type_bits, NArgs),
-                                 /*SizeExpr=*/nullptr,
-                                 ArrayType::ArraySizeModifier::Normal,
-                                 /*IndexTypeQuals=*/0); // No
-                                                        // IndexTypeQualifiers
 
-        // Create {} array initializer to fill it with zeroes.
-        Expr* ZeroInitBraces = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
-        // Declare: Type _gradX[Nargs] = {};
-        ResultDecl =
-            BuildVarDecl(ArrayType, CreateUniqueIdentifier(funcPostfix()),
-                         ZeroInitBraces);
-        Result = BuildDeclRef(ResultDecl);
-        // Pass the array as the last parameter for gradient.
-        DerivedCallArgs.push_back(Result);
+      size_t idx = 0;
 
-        // Try to find it in builtin derivatives
-        OverloadedDerivedFn =
-            m_Builder.findOverloadedDefinition(DNInfo, DerivedCallArgs);
-      } else {
-        size_t idx = 0;
-
-        auto ArrayDiffArgType = GetCladArrayOfType(CEType.getCanonicalType());
-        for (auto arg : CallArgDx) {
-          ResultDecl = nullptr;
-          Result = nullptr;
-          ResultExpr = nullptr;
-          ResultII = CreateUniqueIdentifier(funcPostfix());
-          if (arg && (isCladArrayType(arg->getType()) ||
-                      isArrayOrPointerType(arg->getType()))) {
-            Expr* SizeE;
-            if (auto CAT = dyn_cast<ConstantArrayType>(arg->getType())) {
-              SizeE = ConstantFolder::synthesizeLiteral(m_Context.getSizeType(),
-                                                        m_Context,
-                                                        CAT->getSize()
-                                                            .getZExtValue());
-            } else {
-              assert(isCladArrayType(arg->getType()) &&
-                     "Size couldn't be determined. Please make sure the diff "
-                     "variables are either constant sized arrays or of type "
-                     "clad::array_ref");
-              SizeE = BuildArrayRefSizeExpr(arg);
-            }
-
-            // Declare: clad::array_ref<ArrayDiffArgType> _gradX(arrLen);
-            ResultDecl = BuildVarDecl(ArrayDiffArgType, ResultII, SizeE,
-                                      /*DirectInit=*/false,
-                                      /*TSI=*/nullptr,
-                                      VarDecl::InitializationStyle::CallInit);
-            Result = BuildDeclRef(ResultDecl);
-            ResultExpr = Result;
-            Expr* E = BuildOp(BO_MulAssign, Result, dfdx());
-            // Visit each arg with df/dargi = df/dxi * Result.
-            PerformImplicitConversionAndAssign(ArgResultDecls[idx], E);
+      auto ArrayDiffArgType = GetCladArrayOfType(CEType.getCanonicalType());
+      for (auto arg : CallArgDx) {
+        ResultDecl = nullptr;
+        Result = nullptr;
+        ResultExpr = nullptr;
+        ResultII = CreateUniqueIdentifier(funcPostfix());
+        if (arg && (isCladArrayType(arg->getType()) ||
+                    isArrayOrPointerType(arg->getType()))) {
+          Expr* SizeE;
+          if (auto CAT = dyn_cast<ConstantArrayType>(arg->getType())) {
+            SizeE = ConstantFolder::synthesizeLiteral(
+                m_Context.getSizeType(), m_Context,
+                CAT->getSize().getZExtValue());
           } else {
-            // Declare: diffArgType _grad = 0;
-            ResultDecl =
-                BuildVarDecl(CEType, ResultII,
-                             ConstantFolder::synthesizeLiteral(CEType,
-                                                               m_Context, 0));
-            // Pass the address of the declared variable
-            Result = BuildDeclRef(ResultDecl);
-            ResultExpr = BuildOp(UO_AddrOf, Result, m_Function->getLocation());
-            // Visit each arg with df/dargi = df/dxi * Result.
-            PerformImplicitConversionAndAssign(ArgResultDecls[idx],
-                                               BuildOp(BO_Mul, dfdx(), Result));
+            assert(isCladArrayType(arg->getType()) &&
+                   "Size couldn't be determined. Please make sure the diff "
+                   "variables are either constant sized arrays or of type "
+                   "clad::array_ref");
+            SizeE = BuildArrayRefSizeExpr(arg);
           }
-          DerivedCallOutputArgs.push_back(ResultExpr);
-          ArgDeclStmts.push_back(BuildDeclStmt(ResultDecl));
-          idx++;
+
+          // Declare: clad::array_ref<ArrayDiffArgType> _gradX(arrLen);
+          ResultDecl = BuildVarDecl(ArrayDiffArgType, ResultII, SizeE,
+                                    /*DirectInit=*/false,
+                                    /*TSI=*/nullptr,
+                                    VarDecl::InitializationStyle::CallInit);
+          Result = BuildDeclRef(ResultDecl);
+          ResultExpr = Result;
+          Expr* E = BuildOp(BO_MulAssign, Result, dfdx());
+          // Visit each arg with df/dargi = df/dxi * Result.
+          PerformImplicitConversionAndAssign(ArgResultDecls[idx], E);
+        } else {
+          // Declare: diffArgType _grad = 0;
+          ResultDecl = BuildVarDecl(
+              CEType, ResultII,
+              ConstantFolder::synthesizeLiteral(CEType, m_Context, 0));
+          // Pass the address of the declared variable
+          Result = BuildDeclRef(ResultDecl);
+          ResultExpr = BuildOp(UO_AddrOf, Result, m_Function->getLocation());
+          // Visit each arg with df/dargi = df/dxi * Result.
+          PerformImplicitConversionAndAssign(ArgResultDecls[idx],
+                                             BuildOp(BO_Mul, dfdx(), Result));
         }
-
-        DerivedCallArgs.insert(DerivedCallArgs.end(),
-                               DerivedCallOutputArgs.begin(),
-                               DerivedCallOutputArgs.end());
-
-        // Try to find it in builtin derivatives
-        OverloadedDerivedFn =
-            m_Builder.findOverloadedDefinition(DNInfo, DerivedCallArgs);
+        DerivedCallOutputArgs.push_back(ResultExpr);
+        ArgDeclStmts.push_back(BuildDeclStmt(ResultDecl));
+        idx++;
       }
+
+      DerivedCallArgs.insert(DerivedCallArgs.end(),
+                             DerivedCallOutputArgs.begin(),
+                             DerivedCallOutputArgs.end());
+
+      // Try to find it in builtin derivatives
+      OverloadedDerivedFn =
+          m_Builder.findOverloadedDefinition(DNInfo, DerivedCallArgs);
     }
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
@@ -1403,46 +1374,21 @@ namespace clad {
         // Call the gradient, passing Result as the last Arg.
         auto& block = getCurrentBlock(reverse);
         auto it = std::begin(block) + insertionPoint;
-        // Insert Result array declaration and gradient call to the block at
-        // the saved point.
-        if (isVectorValued) {
-          block.insert(it, {BuildDeclStmt(ResultDecl), OverloadedDerivedFn});
-          // Visit each arg with df/dargi = df/dxi * Result[i].
-          for (unsigned i = 0, e = CE->getNumArgs(); i < e; i++) {
-            auto size_type = m_Context.getSizeType();
-            unsigned size_type_bits = m_Context.getIntWidth(size_type);
-            // Create the idx literal.
-            auto I = IntegerLiteral::Create(m_Context,
-                                            llvm::APInt(size_type_bits, i),
-                                            size_type, noLoc);
-            // Create the Result[I] expression.
-            auto ithResult = m_Sema
-                                 .ActOnArraySubscriptExpr(
-                                     getCurrentScope(), Result, noLoc, I, noLoc)
-                                 .get();
-            // Create df/dxi * Result[I]
-            Expr* di = BuildOp(BO_Mul, dfdx(), ithResult);
 
-            PerformImplicitConversionAndAssign(ArgResultDecls[i], di);
-          }
-        } else {
-          //          block.reserve(32);
-          // Insert the _gradX declaration statements
-          it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
-          it += ArgDeclStmts.size();
-          it = block.insert(it, NumericalDiffMultiArg.begin(),
-                            NumericalDiffMultiArg.end());
-          it += NumericalDiffMultiArg.size();
-          // Insert the CallExpr to the derived function
-          block.insert(it, OverloadedDerivedFn);
-          // If in error estimation, build the statement for the error
-          // in the input prameters (if of reference type) to call and save to
-          // emit them later.
-          if (m_ErrorEstimationEnabled) {
-            errorEstHandler->EmitNestedFunctionParamError(fnDecl, CallArgs,
-                                                          ArgResultDecls,
-                                                          CE->getNumArgs());
-          }
+        // Insert the _gradX declaration statements
+        it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
+        it += ArgDeclStmts.size();
+        it = block.insert(it, NumericalDiffMultiArg.begin(),
+                          NumericalDiffMultiArg.end());
+        it += NumericalDiffMultiArg.size();
+        // Insert the CallExpr to the derived function
+        block.insert(it, OverloadedDerivedFn);
+        // If in error estimation, build the statement for the error
+        // in the input prameters (if of reference type) to call and save to
+        // emit them later.
+        if (m_ErrorEstimationEnabled) {
+          errorEstHandler->EmitNestedFunctionParamError(
+              fnDecl, CallArgs, ArgResultDecls, CE->getNumArgs());
         }
       }
     }
