@@ -7,6 +7,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
 namespace clang {
   class ASTConsumer;
@@ -19,14 +20,15 @@ namespace clad {
     clang::ASTConsumer& m_Consumer;
     clang::ASTContext& m_Context;
     clang::Sema& m_Sema;
-    std::map<std::string, DerivedTypeEssentials> m_DerivedTypesEssentials;
-    void SetDTE(llvm::StringRef name, DerivedTypeEssentials DTE);
+    std::map<std::pair<clang::QualType, clang::QualType>, DerivedTypeEssentials>
+        m_DerivedTypesEssentials;
+    void SetDTE(clang::QualType yType, clang::QualType xType,
+                DerivedTypeEssentials DTE);
 
   public:
     DerivedTypesHandler(clang::ASTConsumer& consumer, clang::Sema& semaRef);
-    void InitialiseDerivedType(clang::QualType yQType, clang::QualType xQType,
-                               clang::CXXRecordDecl* RD);
-    DerivedTypeEssentials GetDTE(llvm::StringRef name);
+    void InitialiseDerivedType(clang::QualType yQType, clang::QualType xQType);
+    DerivedTypeEssentials GetDTE(clang::QualType);
     clang::QualType GetDerivedType(clang::QualType yQType,
                                    clang::QualType xQType);
     clang::QualType GetYType(clang::QualType derivedQType);                                   

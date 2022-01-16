@@ -74,7 +74,7 @@ namespace clad {
     private:
       bool CheckBuiltins();
       void ProcessTopLevelDecl(clang::Decl* D);
-      void ProcessDerivedTypeRequest(clang::CXXRecordDecl* RD);
+      void ProcessDerivedTypeRequest(clang::ClassTemplateSpecializationDecl* RD);
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,

@@ -46,22 +46,13 @@ namespace clad {
   QualType
   ForwardModeVisitor::ComputeDerivedType(QualType yType, QualType xType,
                                          bool computePointerType) {
-    auto yTypeName = yType.getAsString();
-    auto xTypeName = xType.getAsString();
-    if (yType->isRecordType()) {
-      yTypeName = GetWithoutClassPrefixFromTypeName(yTypeName);
-    }
-    if (xType->isRecordType()) {
-      xTypeName = GetWithoutClassPrefixFromTypeName(xTypeName);
-    }
-    auto xQType = m_ASTHelper.GetFundamentalType(xTypeName);
-    // TODO: Add support for differentiating user-defined types with respect to scalar types
-    if (!xQType.isNull()) {
-      return xQType;
-    }
-    auto derivedTypeName = utils::CreateDerivedTypeName(yTypeName,
-                                                        xTypeName);
-    auto derivedType = m_ASTHelper.ComputeQTypeFromTypeName(derivedTypeName);
+    // llvm::errs()<<"Beginning of ComputeDerivedType\n";
+    // llvm::errs()<<"xType\n";
+    // xType.dump();
+    // llvm::errs()<<"yType\n";
+    // yType.dump();
+    auto derivedType = m_Builder.m_DTH.GetDerivedType(yType, xType);
+    derivedType.dump();
     if (computePointerType) {
       return m_Context.getPointerType(derivedType);
     }
@@ -217,6 +208,7 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+    llvm::errs()<<"Just before visiting parameters\n";
     // For each function parameter variable, store its derivative value.
     for (auto param : params) {
       if (!param->getType()->isRealType() && !param->getType()->isRecordType())
@@ -253,8 +245,8 @@ namespace clad {
         dParam = m_Sema.ActOnParenExpr(noLoc, noLoc, dParam).get();
       }
       if (param == m_IndependentVar) {
-        auto initialiseSeedsMethod = m_Builder.m_DTH.GetDTE(
-            utils::GetRecordName(derivedType)).GetInitialiseSeedsFn();
+        auto initialiseSeedsMethod = m_Builder.m_DTH.GetDTE(derivedType)
+                                         .GetInitialiseSeedsFn();
         // NestedNameSpecifierLoc NNS(initMethodDecl->getQualifier(),
         //                            /*Data=*/nullptr);
         // auto DAP = DeclAccessPair::make(initMethodDecl,
@@ -338,7 +330,7 @@ namespace clad {
         m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
       }
     }
-
+    llvm::errs()<<"Just before visiting body\n";
     Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
     if (auto CS = dyn_cast<CompoundStmt>(BodyDiff))
       for (Stmt* S : CS->body())
@@ -621,7 +613,9 @@ namespace clad {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     auto diff = retValDiff.getExpr_dx();
     auto initializer = m_ASTHelper.BuildCXXCopyConstructExpr(diff->getType(), diff);
+    llvm::errs()<<"Just before creating new expression\n";
     auto newExpr = m_ASTHelper.CreateNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
+    llvm::errs()<<"Just after creating new expression\n";
     auto diffResDecl = BuildVarDecl(m_Context.getPointerType(diff->getType()),
                                     "_t", newExpr);
     auto diffResDRE = BuildDeclRef(diffResDecl);
@@ -1104,9 +1098,7 @@ namespace clad {
       Expr* diff = nullptr;
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
         auto dMultiplyFnDecl = m_Builder.m_DTH
-                                   .GetDTE(
-                                       utils::GetRecordName(
-                                           Ldiff.getExpr_dx()->getType()))
+                                   .GetDTE(Ldiff.getExpr_dx()->getType())
                                    .GetDerivedMultiplyFn();
         llvm::errs()<<"dMulitply function found: "<<dMultiplyFnDecl<<"\n";
         // dMultiplyFnDecl->dump();
@@ -1138,8 +1130,7 @@ namespace clad {
       Expr* diff = nullptr;
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
         auto dDivideFnDecl = m_Builder.m_DTH
-                                 .GetDTE(utils::GetRecordName(
-                                     Ldiff.getExpr_dx()->getType()))
+                                 .GetDTE(Ldiff.getExpr_dx()->getType())
                                  .GetDerivedDivideFn();
         llvm::errs() << "dMulitply function found: " << dDivideFnDecl << "\n";
         // dMultiplyFnDecl->dump();
@@ -1184,8 +1175,7 @@ namespace clad {
       opDiff = deriveDiv(Ldiff, Rdiff);
     } else if (opCode == BO_Add) {
       if (Ldiff.getExpr_dx()->getType()->isClassType()) {
-        auto temp = m_Builder.m_DTH.GetDTE(
-            utils::GetRecordName(Ldiff.getExpr_dx()->getType()));
+        auto temp = m_Builder.m_DTH.GetDTE(Ldiff.getExpr_dx()->getType());
         FunctionDecl* dAddFn = temp.GetDerivedAddFn();
         dAddFn = temp.GetDerivedAddFn();
         
@@ -1204,8 +1194,7 @@ namespace clad {
     else if (opCode == BO_Sub) {
         if (Ldiff.getExpr_dx()->getType()->isClassType()) {
           auto dSubFnDecl = m_Builder.m_DTH
-                                .GetDTE(utils::GetRecordName(
-                                    Ldiff.getExpr_dx()->getType()))
+                                .GetDTE(Ldiff.getExpr_dx()->getType())
                                 .GetDerivedSubFn();
           llvm::errs() << "dSub function found: " << dSubFnDecl << "\n";
           // dSubFnDecl->dump();
@@ -1239,9 +1228,7 @@ namespace clad {
         } else {
 
           auto derivedAddFn = m_Builder.m_DTH
-                                  .GetDTE(
-                                      utils::GetRecordName(
-                                          Ldiff.getExpr_dx()->getType()))
+                                  .GetDTE(Ldiff.getExpr_dx()->getType())
                                   .GetDerivedAddFn();
           llvm::SmallVector<Expr*, 4> callArgs;
           callArgs.push_back(Ldiff.getExpr_dx());
@@ -1255,9 +1242,7 @@ namespace clad {
           opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
         } else {
           auto derivedSubFn = m_Builder.m_DTH
-                                  .GetDTE(
-                                      utils::GetRecordName(
-                                          Ldiff.getExpr_dx()->getType()))
+                                  .GetDTE(Ldiff.getExpr_dx()->getType())
                                   .GetDerivedSubFn();
           llvm::SmallVector<Expr*, 4> callArgs;
           callArgs.push_back(Ldiff.getExpr_dx());

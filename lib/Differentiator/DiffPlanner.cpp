@@ -285,7 +285,7 @@ namespace clad {
   DiffCollector::DiffCollector(
       DeclGroupRef DGR, DiffInterval& Interval,
       const DerivativesSet& Derivatives, DiffSchedule& plans,
-      llvm::SmallVector<clang::CXXRecordDecl*, 16>& derivedTypeRequests,
+      llvm::SmallVector<clang::ClassTemplateSpecializationDecl*, 16>& derivedTypeRequests,
       clang::Sema& S)
       : m_Interval(Interval), m_GeneratedDerivatives(Derivatives),
         m_DiffPlans(plans), m_TopMostFD(nullptr),
@@ -351,10 +351,22 @@ namespace clad {
     }
     if (RD->hasDefinition())
       return true;
-    m_DerivedTypeRequests.push_back(RD);
+    // m_DerivedTypeRequests.push_back(RD);
     return true;
   }
 
+  bool DiffCollector::VisitVarDecl(VarDecl* E) {
+    QualType qType = E->getType();
+    if (auto RD = qType->getAsCXXRecordDecl()) {
+      if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+        auto baseTemplateDecl = TS->getSpecializedTemplate();
+        if (baseTemplateDecl->getNameAsString() == "BuildTangentType") {
+          m_DerivedTypeRequests.push_back(TS);
+        }
+      }
+    }
+    return true;
+  }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.

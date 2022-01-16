@@ -36,8 +36,9 @@ namespace clad {
     ASTHelper m_ASTHelper;
     clang::QualType m_YQType;
     clang::QualType m_XQType;
-    clang::CXXRecordDecl* m_DerivedRecord = nullptr;
-    clang::QualType m_DerivedType;
+    clang::ClassTemplateSpecializationDecl* m_TangentRD = nullptr;
+    clang::QualType m_TangentQType;
+
     std::map<std::string, clang::Expr*> m_Variables;
     clang::FunctionDecl* m_DerivedAddFn = nullptr;
     clang::FunctionDecl* m_DerivedSubFn = nullptr;
@@ -53,12 +54,11 @@ namespace clad {
   public:
     DerivedTypeInitialiser(clang::ASTConsumer& consumer, clang::Sema& semaRef,
                            DerivedTypesHandler& DTH, clang::QualType yQType,
-                           clang::QualType xQType,
-                           clang::CXXRecordDecl* derivedRecord);
+                           clang::QualType xQType);
     DerivedTypeEssentials CreateDerivedTypeEssentials();
 
   private:
-    void BuildDerivedRecordDefinition();
+    void BuildTangentDefinition();
     void FillDerivedRecord();
     void InitialiseIndependentFields(clang::Expr* base, llvm::SmallVector<std::string, 4> path);
     clang::CXXMethodDecl* BuildInitialiseSeedsFn();
@@ -90,7 +90,9 @@ namespace clad {
     clang::CompoundStmt* EndBlock();
     void ProcessTopLevelDeclarations(clang::ASTConsumer& consumer);
     clang::Scope* GetCurrentScope();
-    clang::ClassTemplateDecl* LookupDerivedTypeInfoBaseTemplate();
+    clang::ClassTemplateDecl* FindDerivedTypeInfoBaseTemplate();
+    clang::ClassTemplateDecl* FindDerivativeOfBaseTemplate();
+    void BuildTangentTypeInfoSpecialisation();
   };
 } // namespace clad
 

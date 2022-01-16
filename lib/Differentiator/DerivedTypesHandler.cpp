@@ -12,51 +12,54 @@ namespace clad {
       : m_Consumer(consumer), m_Sema(semaRef),
         m_Context(semaRef.getASTContext()) {}
 
-  void DerivedTypesHandler::SetDTE(llvm::StringRef name,
+  void DerivedTypesHandler::SetDTE(clang::QualType yType, clang::QualType xType,
                                    DerivedTypeEssentials DTE) {
-    m_DerivedTypesEssentials[name.str()] = DTE;
+    m_DerivedTypesEssentials[{yType, xType}] = DTE;
   }
 
   void DerivedTypesHandler::InitialiseDerivedType(QualType yQType,
-                                                  QualType xQType,
-                                                  clang::CXXRecordDecl* RD) {
-    auto DTI = DerivedTypeInitialiser(m_Consumer, m_Sema, *this, yQType, xQType,
-                                      RD);
+                                                  QualType xQType) {
+    auto DTI = DerivedTypeInitialiser(m_Consumer, m_Sema, *this, yQType,
+                                      xQType);
     auto DTE = DTI.CreateDerivedTypeEssentials();
-    SetDTE(RD->getName(), DTE);
-  }
-
-  DerivedTypeEssentials DerivedTypesHandler::GetDTE(llvm::StringRef name) {
-    auto it = m_DerivedTypesEssentials.find(name.str());
-    if (it == m_DerivedTypesEssentials.end()) {
-      return DerivedTypeEssentials();
-    }
-    return it->second;
+    SetDTE(yQType, xQType, DTE);
   }
 
   QualType DerivedTypesHandler::GetDerivedType(clang::QualType yQType,
                                                clang::QualType xQType) {
-    auto yTypeName = yQType.getAsString();
-    if (yQType->isClassType())
-      yTypeName = utils::GetRecordName(yQType);
-    auto xTypeName = xQType.getAsString();
-    if (xQType->isClassType())
-      xTypeName = utils::GetRecordName(xQType);
-    auto name = "__clad_" + yTypeName + "_wrt_" + xTypeName;
-    auto it = m_DerivedTypesEssentials.find(name);
-    if (it != m_DerivedTypesEssentials.end()) {
-      return it->second.GetDerivedRD()
-          ->getTypeForDecl()
-          ->getCanonicalTypeInternal();
-    }
+    auto it = m_DerivedTypesEssentials.find({yQType, xQType});
+    if (it != m_DerivedTypesEssentials.end())
+      return it->second.GetTangentQType();
+    // assert("We should never reach here");
     return QualType();
   }
 
+  static std::pair<QualType, QualType>
+  ComputeYandXQTypes(clang::QualType derivedQType) {
+    std::pair<QualType, QualType> types;
+    if (auto TS = dyn_cast<ClassTemplateSpecializationDecl>(
+            derivedQType->getAsCXXRecordDecl())) {
+      auto& templateArgs = TS->getTemplateArgs();
+      types.first = templateArgs.get(0).getAsType();
+      types.second = templateArgs.get(1).getAsType();
+    }
+    return types;
+  }
+
   clang::QualType DerivedTypesHandler::GetYType(clang::QualType derivedQType) {
-    auto it = m_DerivedTypesEssentials.find(utils::GetRecordName(derivedQType));
+    auto it = m_DerivedTypesEssentials.find(ComputeYandXQTypes(derivedQType));
     if (it == m_DerivedTypesEssentials.end()) {
       return QualType();
     }
     return it->second.GetYQType();
+  }
+
+  DerivedTypeEssentials
+  DerivedTypesHandler::GetDTE(clang::QualType derivedQType) {
+    auto it = m_DerivedTypesEssentials.find(ComputeYandXQTypes(derivedQType));
+    if (it == m_DerivedTypesEssentials.end()) {
+      return DerivedTypeEssentials();
+    }
+    return it->second;
   }
 } // namespace clad

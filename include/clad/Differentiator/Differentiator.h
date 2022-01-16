@@ -32,6 +32,15 @@ extern "C" {
 }
 
 namespace clad {
+  template<class YType, class XType>
+  class BuildTangentType {};
+  
+  template<class YType, class XType>
+  class TangentTypeInfo {};
+
+  template<class YType, class XType>
+  class DerivativeOf {};
+
   /// \returns the size of a c-style string
   CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     unsigned int count;

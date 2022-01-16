@@ -87,17 +87,18 @@ namespace clad {
     ///
     const clang::FunctionDecl* m_TopMostFD = nullptr;
 
-    llvm::SmallVector<clang::CXXRecordDecl*, 16>& m_DerivedTypeRequests;
+    llvm::SmallVector<clang::ClassTemplateSpecializationDecl*, 16>& m_DerivedTypeRequests;
     clang::Sema& m_Sema;
 
   public:
     DiffCollector(
         clang::DeclGroupRef DGR, DiffInterval& Interval,
         const DerivativesSet& Derivatives, DiffSchedule& plans,
-        llvm::SmallVector<clang::CXXRecordDecl*, 16>& derivedTypeRequests,
+        llvm::SmallVector<clang::ClassTemplateSpecializationDecl*, 16>& derivedTypeRequests,
         clang::Sema& S);
     bool VisitCallExpr(clang::CallExpr* E);
     bool VisitCXXRecordDecl(clang::CXXRecordDecl* RD);
+    bool VisitVarDecl(clang::VarDecl* VD);
   private:
     bool isInInterval(clang::SourceLocation Loc) const;
   };

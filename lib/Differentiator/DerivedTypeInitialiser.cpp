@@ -24,22 +24,30 @@ using namespace clang;
 namespace clad {
   static SourceLocation noLoc;
 
+  static void PrintDecl(Decl* FD) {
+    LangOptions langOpts;
+    langOpts.CPlusPlus = true;
+    clang::PrintingPolicy policy(langOpts);
+    policy.Bool = true;
+    FD->print(llvm::errs(), policy);
+    llvm::errs() << "\n";
+  }
+
   DerivedTypeInitialiser::DerivedTypeInitialiser(ASTConsumer& consumer,
                                                  Sema& semaRef,
                                                  DerivedTypesHandler& DTH,
-                                                 QualType yType, QualType xType,
-                                                 CXXRecordDecl* derivedRecord)
+                                                 QualType yType, QualType xType)
       : m_Sema(semaRef), m_Context(semaRef.getASTContext()), m_DTH(DTH),
         m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_YQType(yType),
-        m_XQType(xType), m_DerivedRecord(derivedRecord) {
+        m_XQType(xType) {
     assert((m_XQType->isRealType() || m_XQType->isClassType()) &&
            "x should either be of a real type or a class type");
     assert((m_YQType->isRealType() || m_YQType->isClassType()) &&
            "y should either be of a real type or a class type");
-    BuildDerivedRecordDefinition();
-    m_DerivedType = m_DerivedRecord->getTypeForDecl()
-                        ->getCanonicalTypeInternal();
+    BuildTangentDefinition();
+    BuildTangentTypeInfoSpecialisation();
     FillDerivedRecord();
+    PrintDecl(m_TangentRD);
     if (m_YQType == m_XQType) {
       m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
       m_DerivedAddFn = BuildDerivedAddFn();
@@ -52,41 +60,48 @@ namespace clad {
     ProcessTopLevelDeclarations(consumer);
   }
 
-  static void PrintDecl(Decl* FD) {
-    LangOptions langOpts;
-    langOpts.CPlusPlus = true;
-    clang::PrintingPolicy policy(langOpts);
-    policy.Bool = true;
-    FD->print(llvm::errs(), policy);
-    llvm::errs() << "\n";
+  ClassTemplateDecl* DerivedTypeInitialiser::FindDerivedTypeInfoBaseTemplate() {
+    auto cladNS = m_ASTHelper.FindCladNamespace();
+    auto baseTemplate = m_ASTHelper.FindBaseTemplateClass(cladNS,
+                                                          "TangentTypeInfo");
+    return baseTemplate;
   }
 
-  ClassTemplateDecl* DerivedTypeInitialiser::LookupDerivedTypeInfoBaseTemplate() {
-    LookupResult R(m_Sema,
-                   m_ASTHelper.CreateDeclNameInfo("DerivedTypeInfo"),
-                   Sema::LookupNameKind::LookupTagName);
-    CXXScopeSpec CSS;
-    m_Sema.LookupQualifiedName(R, m_Context.getTranslationUnitDecl(), CSS);
-    assert(R.isSingleResult() && "should have been a single tag result for DerivedTypeInfo");
-    return cast<ClassTemplateDecl>(R.getFoundDecl());
+  ClassTemplateDecl* DerivedTypeInitialiser::FindDerivativeOfBaseTemplate() {
+    auto cladNS = m_ASTHelper.FindCladNamespace();
+    auto baseTemplate = m_ASTHelper.FindBaseTemplateClass(cladNS,
+                                                          "DerivativeOf");
+    return baseTemplate;
   }
 
-  void DerivedTypeInitialiser::BuildDerivedRecordDefinition() {
-    // TODO: Properly handle CXXScopeSpec;
-    CXXScopeSpec CSS;
+  void DerivedTypeInitialiser::BuildTangentDefinition() {
+    auto cladNS = m_ASTHelper.FindCladNamespace();
+    auto baseDerivativeOf = FindDerivativeOfBaseTemplate();
+
     beginScope(Scope::DeclScope | Scope::ClassScope);
-    auto temp = CXXRecordDecl::Create(m_Context, TagTypeKind::TTK_Class,
-                                      m_Sema.CurContext, noLoc, noLoc,
-                                      m_DerivedRecord->getIdentifier(),
-                                      m_DerivedRecord);
-    temp->startDefinition();
-    temp->completeDefinition();
-    m_DerivedRecord = cast<CXXRecordDecl>(temp);
-    m_DerivedType = m_DerivedRecord->getTypeForDecl()
-                        ->getCanonicalTypeInternal();
+
+    llvm::SmallVector<TemplateArgument, 2> templateArgs;
+    templateArgs.push_back(m_YQType);
+    templateArgs.push_back(m_XQType);
+
+    auto tangentRecord = ClassTemplateSpecializationDecl::
+        Create(m_Context, TagTypeKind::TTK_Class, m_Sema.CurContext, noLoc,
+               noLoc, baseDerivativeOf, templateArgs, nullptr);
+    tangentRecord->startDefinition();
+    tangentRecord->completeDefinition();
     endScope();
-    auto derivedTypeInfoBase = LookupDerivedTypeInfoBaseTemplate();
-    
+
+    cladNS->addDecl(tangentRecord);
+
+    m_TangentRD = tangentRecord;
+    m_TangentQType = m_TangentRD->getTypeForDecl()->getCanonicalTypeInternal();
+
+    m_ASTHelper.AddSpecialisation(baseDerivativeOf, m_TangentRD);
+  }
+
+  void DerivedTypeInitialiser::BuildTangentTypeInfoSpecialisation() {
+    auto cladNS = m_ASTHelper.FindCladNamespace();
+    auto derivedTypeInfoBase = FindDerivedTypeInfoBaseTemplate();
     beginScope(Scope::DeclScope | Scope::ClassScope);
 
     llvm::SmallVector<TemplateArgument, 2> templateArgs;
@@ -98,24 +113,20 @@ namespace clad {
                noLoc, derivedTypeInfoBase, templateArgs, nullptr);
     derivedTypeInfoSpec->startDefinition();
     derivedTypeInfoSpec->completeDefinition();
+    endScope();
+
+    cladNS->addDecl(derivedTypeInfoSpec);
 
     auto typeId = &m_Context.Idents.get("type");
-    auto TSI = m_Context.getTrivialTypeSourceInfo(m_DerivedType);
+    auto TSI = m_Context.getTrivialTypeSourceInfo(m_TangentQType);
     auto usingTypeDecl = TypeAliasDecl::Create(m_Context, derivedTypeInfoSpec,
                                                noLoc, noLoc, typeId, TSI);
-    usingTypeDecl->setAccess(AccessSpecifier::AS_public);                                               
+    usingTypeDecl->setAccess(AccessSpecifier::AS_public);
     derivedTypeInfoSpec->addDecl(usingTypeDecl);
-    m_Sema.CurContext->addDecl(derivedTypeInfoSpec);
 
     m_DerivedTypeInfoSpec = derivedTypeInfoSpec;
 
-    endScope();
-
-    void* insertPos = nullptr;
-    derivedTypeInfoBase->findSpecialization(templateArgs, insertPos);
-    derivedTypeInfoBase->AddSpecialization(m_DerivedTypeInfoSpec, insertPos);
-
-    PrintDecl(derivedTypeInfoSpec);
+    m_ASTHelper.AddSpecialisation(derivedTypeInfoBase, m_DerivedTypeInfoSpec);
   }
 
   void DerivedTypeInitialiser::beginScope(unsigned ScopeFlags) {
@@ -148,7 +159,7 @@ namespace clad {
         if (derivedFieldType == m_Context.DoubleTy)
           init = ConstantFolder::synthesizeLiteral(derivedFieldType, m_Context,
                                                    0);
-        auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
+        auto FD = m_ASTHelper.BuildFieldDecl(m_TangentRD,
                                              field->getIdentifier(),
                                              derivedFieldType, init,
                                              AccessSpecifier::AS_public, true);
@@ -177,7 +188,7 @@ namespace clad {
         if (derivedFieldType == m_Context.DoubleTy)
           init = ConstantFolder::synthesizeLiteral(derivedFieldType, m_Context,
                                                    0);
-        auto FD = m_ASTHelper.BuildFieldDecl(m_DerivedRecord,
+        auto FD = m_ASTHelper.BuildFieldDecl(m_TangentRD,
                                              field->getIdentifier(),
                                              derivedFieldType, init,
                                              AccessSpecifier::AS_public, true);
@@ -186,7 +197,6 @@ namespace clad {
       assert("Unexpected case!! y Type should either be a real type or a class "
              "type.");
     }
-    PrintDecl(m_DerivedRecord);
   }
 
   NamespaceDecl* DerivedTypeInitialiser::BuildCladNamespace() {
@@ -202,7 +212,7 @@ namespace clad {
 
   clang::QualType DerivedTypeInitialiser::GetDerivedParamType() const {
     auto paramType = m_Context.getLValueReferenceType(
-        m_DerivedType.withConst());
+        m_TangentQType.withConst());
     return paramType;
   }
 
@@ -213,7 +223,7 @@ namespace clad {
   QualType DerivedTypeInitialiser::ComputeDerivedAddSubFnType() const {
     auto paramType = GetDerivedParamType();
     llvm::SmallVector<QualType, 2> paramTypes = {paramType, paramType};
-    auto returnType = m_DerivedType;
+    auto returnType = m_TangentQType;
     auto fnType = m_Context.getFunctionType(returnType, paramTypes,
                                             FunctionProtoType::ExtProtoInfo());
     return fnType;
@@ -222,7 +232,7 @@ namespace clad {
   clang::QualType DerivedTypeInitialiser::ComputeDerivedMultiplyDivideFnType() {
     auto paramTypes = {GetNonDerivedParamType(), GetDerivedParamType(),
                        GetNonDerivedParamType(), GetDerivedParamType()};
-    auto returnType = m_DerivedType;
+    auto returnType = m_TangentQType;
     auto fnType = m_Context.getFunctionType(returnType, paramTypes,
                                             FunctionProtoType::ExtProtoInfo());
   }
@@ -255,7 +265,7 @@ namespace clad {
 
     auto resVD = m_ASTHelper.BuildVarDecl(m_Sema.CurContext,
                                           &m_Context.Idents.get("d_res"),
-                                          m_DerivedType);
+                                          m_TangentQType);
     AddToCurrentBlock(m_ASTHelper.BuildDeclStmt(resVD));
 
     ComputeAndStoreDRE(resVD);
@@ -277,7 +287,7 @@ namespace clad {
   clang::FunctionDecl* DerivedTypeInitialiser::BuildDerivedAddFn() {
 
     auto buildDiffBody = [this]() {
-      for (auto field : m_DerivedRecord->fields()) {
+      for (auto field : m_TangentRD->fields()) {
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
@@ -288,7 +298,7 @@ namespace clad {
                                                 dResMem, addDerivExpr);
           AddToCurrentBlock(assignExpr);
         } else if (field->getType()->isClassType()) {
-          auto DTE = m_DTH.GetDTE(utils::GetRecordName(field->getType()));
+          auto DTE = m_DTH.GetDTE(field->getType());
           assert(DTE.isValid() &&
                  "Required Derived Type Essesentials not found!!");
           auto memberDAddFn = DTE.GetDerivedAddFn();
@@ -311,13 +321,12 @@ namespace clad {
         m_ASTHelper.CreateDeclName("dAdd"),
         &DerivedTypeInitialiser::ComputeDerivedAddSubFnType,
         &DerivedTypeInitialiser::BuildDerivedAddSubFnParams, buildDiffBody);
-    PrintDecl(FD);
     return FD;
   }
 
   clang::FunctionDecl* DerivedTypeInitialiser::BuildDerivedSubFn() {
     auto buildDiffBody = [this]() {
-      for (auto field : m_DerivedRecord->fields()) {
+      for (auto field : m_TangentRD->fields()) {
         if (!(field->getType()->isRealType()))
           continue;
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
@@ -347,7 +356,7 @@ namespace clad {
     auto buildDiffBody = [this]() {
       auto a = m_Variables["a"];
       auto b = m_Variables["b"];
-      for (auto field : m_DerivedRecord->fields()) {
+      for (auto field : m_TangentRD->fields()) {
         if (!(field->getType()->isRealType()))
           continue;
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
@@ -382,7 +391,7 @@ namespace clad {
     auto buildDiffBody = [this]() {
       auto a = m_Variables["a"];
       auto b = m_Variables["b"];
-      for (auto field : m_DerivedRecord->fields()) {
+      for (auto field : m_TangentRD->fields()) {
         if (!(field->getType()->isRealType()))
           continue;
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
@@ -452,15 +461,20 @@ namespace clad {
   }
 
   DerivedTypeEssentials DerivedTypeInitialiser::CreateDerivedTypeEssentials() {
-    return DerivedTypeEssentials(m_YQType, m_XQType, m_DerivedRecord,
-                                 m_DerivedAddFn, m_DerivedSubFn,
+    return DerivedTypeEssentials(m_YQType, m_XQType, m_TangentQType,
+                                 m_TangentRD, m_DerivedAddFn, m_DerivedSubFn,
                                  m_DerivedMultiplyFn, m_DerivedDivideFn,
                                  m_InitialiseSeedsFn);
   }
 
   void DerivedTypeInitialiser::InitialiseIndependentFields(
       Expr* base, llvm::SmallVector<std::string, 4> path) {
-    if (m_DTH.GetYType(base->getType()) == m_Context.DoubleTy) {
+    QualType baseQType = base->getType();
+    if (base->getType()->isPointerType()) {
+      baseQType = base->getType()->getPointeeType();
+    }
+
+    if (m_DTH.GetYType(baseQType) == m_Context.DoubleTy) {
       Expr* E = base;
       for (auto fieldName : path) {
         auto RD = E->getType()->getAsCXXRecordDecl();
@@ -476,11 +490,6 @@ namespace clad {
       return;
     }
 
-    QualType baseQType = base->getType();
-    if (base->getType()->isPointerType()) {
-      baseQType = base->getType()->getPointeeType();
-    }
-
     auto RD = baseQType->getAsCXXRecordDecl();
     for (auto field : RD->fields()) {
       auto ME = m_ASTHelper.BuildMemberExpr(base, field);
@@ -494,7 +503,7 @@ namespace clad {
     m_Variables.clear();
     auto memFnType = ComputeInitialiseSeedsFnType();
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-    auto memFn = m_ASTHelper.BuildMemFnDecl(m_DerivedRecord,
+    auto memFn = m_ASTHelper.BuildMemFnDecl(m_TangentRD,
                                             m_ASTHelper.CreateDeclNameInfo(
                                                 "InitialiseSeeds"),
                                             memFnType);
@@ -511,7 +520,7 @@ namespace clad {
     beginScope(ASTHelper::CustomScope::FunctionBodyScope);
     // auto thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, memFn);
 
-    // for (auto field : m_DerivedRecord->fields()) {
+    // for (auto field : m_TangentRD->fields()) {
     //   auto RD = field->getType()->getAsCXXRecordDecl();
     //   FieldDecl* independentField = nullptr;
     //   LookupResult R(m_Sema, field->getDeclName(), noLoc,
@@ -551,6 +560,7 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_ASTHelper.RegisterFn(memFn->getDeclContext(), memFn);
+    PrintDecl(memFn);
     return memFn;
   }
 

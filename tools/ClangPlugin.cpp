@@ -144,7 +144,7 @@ namespace clad {
         return true;
 
       DiffSchedule requests{};
-      llvm::SmallVector<CXXRecordDecl*, 16> derivedTypeRequests;
+      llvm::SmallVector<ClassTemplateSpecializationDecl*, 16> derivedTypeRequests;
       DiffCollector collector(DGR, CladEnabledRange, m_Derivatives, requests,
                               derivedTypeRequests, m_CI.getSema());
 
@@ -162,8 +162,10 @@ namespace clad {
         ProcessDerivedTypeRequest(RD);
       }
 
-      for (DiffRequest& request : requests)
+      for (DiffRequest& request : requests) {
+        llvm::errs()<<"Processing DiffRequest for :"<<request.BaseFunctionName<<"\n";
         ProcessDiffRequest(request);
+      }
       
       return true; // Happiness
     }
@@ -173,13 +175,11 @@ namespace clad {
       m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(D));
       m_HandleTopLevelDeclInternal = false;
     }
-    void CladPlugin::ProcessDerivedTypeRequest(CXXRecordDecl* RD) {
+    void CladPlugin::ProcessDerivedTypeRequest(ClassTemplateSpecializationDecl* TS) {
       auto& semaRef = m_CI.getSema();
-      auto derivedTypeName = RD->getName();
-      auto YXTypeNames = utils::ComputeYAndXTypeNames(derivedTypeName);
-      auto yQType = ASTHelper::FindCorrespondingType(semaRef, YXTypeNames.first);
-      auto xQType = ASTHelper::FindCorrespondingType(semaRef, YXTypeNames.second);
-      m_DTH->InitialiseDerivedType(yQType, xQType, RD);
+      auto yQType = TS->getTemplateArgs().get(0).getAsType();
+      auto xQType = TS->getTemplateArgs().get(1).getAsType();
+      m_DTH->InitialiseDerivedType(yQType, xQType);
     }
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       const FunctionDecl* FD = request.Function;

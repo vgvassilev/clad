@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#include <initializer_list>
 namespace clang {
   class ASTContext;
   class CXXNewExpr;
@@ -227,6 +228,23 @@ namespace clad {
     clang::ParenExpr* BuildParenExpr(clang::Expr* E);
     static clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef,
                                             clang::Expr* E);
+
+    void BuildNNS(clang::CXXScopeSpec& CSS,
+                  clang::DeclContext* DC);
+
+    static void BuildNNS(clang::Sema& semaRef, clang::CXXScopeSpec& CSS,
+                         clang::DeclContext* DC);
+
+    clang::ClassTemplateDecl* FindBaseTemplateClass(clang::DeclContext* DC,
+                                                    llvm::StringRef name);
+
+    static clang::ClassTemplateDecl*
+    FindBaseTemplateClass(clang::Sema& semaRef, clang::DeclContext* DC,
+                          llvm::StringRef name);
+
+    static void
+    AddSpecialisation(clang::ClassTemplateDecl* baseTemplate,
+                      clang::ClassTemplateSpecializationDecl* specialisation);
   };
 } // namespace clad
 #endif

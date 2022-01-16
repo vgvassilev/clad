@@ -135,11 +135,13 @@ namespace clad {
                                                  clang::QualType qType,
                                                  Expr* initializer,
                                                  SourceLocation B) {
+    llvm::errs()<<"Just beginning of CreateNewExprFor\n";
+    initializer->dumpColor();
     auto& C = semaRef.getASTContext();
     auto newExpr = semaRef
                        .BuildCXXNew(SourceRange(), false, noLoc, MultiExprArg(),
                                     noLoc, SourceRange(), qType,
-                                    C.getTrivialTypeSourceInfo(qType), nullptr,
+                                    C.getTrivialTypeSourceInfo(qType), llvm::Optional<Expr*>(),
                                     SourceRange(B, B), initializer)
                        .getAs<CXXNewExpr>();
     return newExpr;
@@ -519,5 +521,64 @@ namespace clad {
   clang::ParenExpr* ASTHelper::BuildParenExpr(clang::Sema& semaRef,
                                               clang::Expr* E) {
     return semaRef.ActOnParenExpr(noLoc, noLoc, E).getAs<ParenExpr>();
+  }
+
+  void ASTHelper::BuildNNS(CXXScopeSpec& CSS, DeclContext* DC) {
+    ASTHelper::BuildNNS(m_Sema, CSS, DC);
+  }
+  void ASTHelper::BuildNNS(Sema& semaRef, CXXScopeSpec& CSS, DeclContext* DC) {
+    assert(DC && "Must provide a non null DeclContext");
+
+    // parent name specifier should be added first
+    if (DC->getParent())
+      BuildNNS(semaRef, CSS, DC->getParent());
+
+    ASTContext& Context = semaRef.getASTContext();
+
+    if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
+      CSS.Extend(Context, ND,
+                 /*NamespaceLoc=*/noLoc,
+                 /*ColonColonLoc=*/noLoc);
+    } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
+      auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+      auto RDTypeSourceInfo = Context.getTrivialTypeSourceInfo(RDQType);
+      CSS.Extend(Context,
+                 /*TemplateKWLoc=*/noLoc, RDTypeSourceInfo->getTypeLoc(),
+                 /*ColonColonLoc=*/noLoc);
+    } else if (isa<TranslationUnitDecl>(DC)) {
+      CSS.MakeGlobal(Context, /*ColonColonLoc=*/noLoc);
+    }
+  }
+  clang::ClassTemplateDecl*
+  ASTHelper::FindBaseTemplateClass(clang::DeclContext* DC,
+                                   llvm::StringRef name) {
+    return ASTHelper::FindBaseTemplateClass(m_Sema, DC, name);
+  }
+
+  clang::ClassTemplateDecl*
+  ASTHelper::FindBaseTemplateClass(clang::Sema& semaRef, clang::DeclContext* DC,
+                                   llvm::StringRef name) {
+    LookupResult R(semaRef, CreateDeclNameInfo(semaRef, name),
+                   Sema::LookupNameKind::LookupTagName);
+    CXXScopeSpec SS;
+    BuildNNS(semaRef, SS, DC);
+    semaRef.LookupQualifiedName(R, DC, SS);
+    for (auto D : R) {
+      if (isa<ClassTemplateDecl>(D))
+        return cast<ClassTemplateDecl>(D);
+    }
+    return nullptr;
+  }
+
+  void ASTHelper::AddSpecialisation(
+      clang::ClassTemplateDecl* baseTemplate,
+      clang::ClassTemplateSpecializationDecl* specialisation) {
+    void* insertPos = nullptr;
+    baseTemplate
+        ->findSpecialization(specialisation->getTemplateArgs().asArray(),
+                             insertPos);
+    if (insertPos != nullptr) {
+      baseTemplate->AddSpecialization(specialisation, insertPos);
+    }
   }
 } // namespace clad
