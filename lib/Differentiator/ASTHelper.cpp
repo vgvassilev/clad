@@ -135,13 +135,12 @@ namespace clad {
                                                  clang::QualType qType,
                                                  Expr* initializer,
                                                  SourceLocation B) {
-    llvm::errs()<<"Just beginning of CreateNewExprFor\n";
-    initializer->dumpColor();
     auto& C = semaRef.getASTContext();
     auto newExpr = semaRef
                        .BuildCXXNew(SourceRange(), false, noLoc, MultiExprArg(),
                                     noLoc, SourceRange(), qType,
-                                    C.getTrivialTypeSourceInfo(qType), llvm::Optional<Expr*>(),
+                                    C.getTrivialTypeSourceInfo(qType),
+                                    clad_compat::AbsentOptional<Expr*>(),
                                     SourceRange(B, B), initializer)
                        .getAs<CXXNewExpr>();
     return newExpr;

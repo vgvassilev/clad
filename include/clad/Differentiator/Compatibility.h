@@ -16,6 +16,8 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"
 
+#include <type_traits>
+
 namespace clad_compat {
 
 using namespace clang;
@@ -569,6 +571,18 @@ static inline MemberExpr* BuildMemberExpr(
   return semaRef.BuildMemberExpr(base, isArrow, opLoc, SS, templateKWLoc,
                                  member, foundDecl, hadMultipleCandidates,
                                  memberNameInfo, ty, VK, OK, templateArgs);
+}
+#endif
+
+#if CLANG_VERSION_MAJOR < 9
+template <typename T>
+typename std::enable_if<std::is_pointer<T>::value, T>::type AbsentOptional() {
+  return nullptr;
+}
+#elif CLANG_VERSION_MAJOR >= 9
+template<typename T>
+llvm::Optional<T> AbsentOptional() {
+   return llvm::Optional<T>();
 }
 #endif
 } // namespace clad_compat

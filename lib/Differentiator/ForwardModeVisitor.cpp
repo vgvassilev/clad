@@ -46,13 +46,7 @@ namespace clad {
   QualType
   ForwardModeVisitor::ComputeDerivedType(QualType yType, QualType xType,
                                          bool computePointerType) {
-    // llvm::errs()<<"Beginning of ComputeDerivedType\n";
-    // llvm::errs()<<"xType\n";
-    // xType.dump();
-    // llvm::errs()<<"yType\n";
-    // yType.dump();
     auto derivedType = m_Builder.m_DTH.GetDerivedType(yType, xType);
-    derivedType.dump();
     if (computePointerType) {
       return m_Context.getPointerType(derivedType);
     }
@@ -208,7 +202,6 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
-    llvm::errs()<<"Just before visiting parameters\n";
     // For each function parameter variable, store its derivative value.
     for (auto param : params) {
       if (!param->getType()->isRealType() && !param->getType()->isRecordType())
@@ -330,7 +323,6 @@ namespace clad {
         m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
       }
     }
-    llvm::errs()<<"Just before visiting body\n";
     Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
     if (auto CS = dyn_cast<CompoundStmt>(BodyDiff))
       for (Stmt* S : CS->body())
@@ -613,9 +605,7 @@ namespace clad {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     auto diff = retValDiff.getExpr_dx();
     auto initializer = m_ASTHelper.BuildCXXCopyConstructExpr(diff->getType(), diff);
-    llvm::errs()<<"Just before creating new expression\n";
     auto newExpr = m_ASTHelper.CreateNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
-    llvm::errs()<<"Just after creating new expression\n";
     auto diffResDecl = BuildVarDecl(m_Context.getPointerType(diff->getType()),
                                     "_t", newExpr);
     auto diffResDRE = BuildDeclRef(diffResDecl);

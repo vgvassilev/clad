@@ -2,6 +2,7 @@
 #define CLAD_DERIVED_TYPES_HANDLER_H
 
 #include "clang/AST/Type.h"
+#include "clang/Basic/Version.h"
 #include "llvm/ADT/StringRef.h"
 #include "clad/Differentiator/DerivedTypeEssentials.h"
 
@@ -14,7 +15,14 @@ namespace clang {
   class CXXRecordDecl;
   class Sema;
 } // namespace clang
-
+namespace clang {
+#if CLANG_VERSION_MAJOR <= 9
+  static inline bool operator<(const clang::QualType lhs,
+                               const clang::QualType rhs) {
+    return lhs.getTypePtr() < rhs.getTypePtr();
+  }
+#endif
+} // namespace clang
 namespace clad {
   class DerivedTypesHandler {
     clang::ASTConsumer& m_Consumer;
@@ -31,7 +39,7 @@ namespace clad {
     DerivedTypeEssentials GetDTE(clang::QualType);
     clang::QualType GetDerivedType(clang::QualType yQType,
                                    clang::QualType xQType);
-    clang::QualType GetYType(clang::QualType derivedQType);                                   
+    clang::QualType GetYType(clang::QualType derivedQType);
   };
 } // namespace clad
 
