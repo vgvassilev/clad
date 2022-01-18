@@ -239,6 +239,7 @@ namespace clad {
     auto returnType = m_TangentQType;
     auto fnType = m_Context.getFunctionType(returnType, paramTypes,
                                             FunctionProtoType::ExtProtoInfo());
+    return fnType;                                            
   }
 
   template <class ComputeDerivedFnTypeT, class BuildDerivedFnParamsT,
@@ -461,6 +462,7 @@ namespace clad {
         &DerivedTypeInitialiser::ComputeDerivedMultiplyDivideFnType,
         &DerivedTypeInitialiser::BuildDerivedMultiplyDivideFnParams,
         buildDiffBody);
+    return FD;
   }
 
   llvm::SmallVector<clang::ParmVarDecl*, 2>
@@ -640,7 +642,7 @@ namespace clad {
     processTopLevelDecl(m_DerivedSubFn);
     processTopLevelDecl(m_DerivedMultiplyFn);
     processTopLevelDecl(m_DerivedDivideFn);
-    processTopLevelDecl(m_DerivedTypeInfoSpec);
+    // processTopLevelDecl(m_DerivedTypeInfoSpec);
   }
 
   Scope* DerivedTypeInitialiser::GetCurrentScope() { return m_CurScope; }
