@@ -1090,8 +1090,6 @@ namespace clad {
         auto dMultiplyFnDecl = m_Builder.m_DTH
                                    .GetDTE(Ldiff.getExpr_dx()->getType())
                                    .GetDerivedMultiplyFn();
-        llvm::errs()<<"dMulitply function found: "<<dMultiplyFnDecl<<"\n";
-        // dMultiplyFnDecl->dump();
         
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr());
@@ -1122,8 +1120,6 @@ namespace clad {
         auto dDivideFnDecl = m_Builder.m_DTH
                                  .GetDTE(Ldiff.getExpr_dx()->getType())
                                  .GetDerivedDivideFn();
-        llvm::errs() << "dMulitply function found: " << dDivideFnDecl << "\n";
-        // dMultiplyFnDecl->dump();
 
         llvm::SmallVector<Expr*, 4> callArgs;
         callArgs.push_back(Ldiff.getExpr());

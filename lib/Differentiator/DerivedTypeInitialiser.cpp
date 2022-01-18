@@ -25,7 +25,6 @@ namespace clad {
   static SourceLocation noLoc;
 
   static void PrintDecl(Decl* FD) {
-    return;
     LangOptions langOpts;
     langOpts.CPlusPlus = true;
     clang::PrintingPolicy policy(langOpts);
@@ -54,9 +53,9 @@ namespace clad {
       m_DerivedAddFn = BuildDerivedAddFn();
     } else {
       m_DerivedAddFn = BuildDerivedAddFn();
-      // m_DerivedSubFn = BuildDerivedSubFn();
-      // m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
-      // m_DerivedDivideFn = BuildDerivedDivideFn();
+      m_DerivedSubFn = BuildDerivedSubFn();
+      m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
+      m_DerivedDivideFn = BuildDerivedDivideFn();
     }
     ProcessTopLevelDeclarations(consumer);
   }
@@ -153,7 +152,10 @@ namespace clad {
                                                   field->getType());
           assert(!derivedFieldType.isNull() &&
                  "Required derived field type not found!!");
-        } else {
+        } else if (field->getType()->isArrayType()) {
+          derivedFieldType = field->getType();
+        }
+        else {
           continue;
         }
         Expr* init = nullptr;
@@ -328,16 +330,29 @@ namespace clad {
   clang::FunctionDecl* DerivedTypeInitialiser::BuildDerivedSubFn() {
     auto buildDiffBody = [this]() {
       for (auto field : m_TangentRD->fields()) {
-        if (!(field->getType()->isRealType()))
-          continue;
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
-        auto addDerivExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub,
-                                                dAMem, dBMem);
-        auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
-                                              dResMem, addDerivExpr);
-        AddToCurrentBlock(assignExpr);
+        
+        if (field->getType()->isRealType()) {
+          auto addDerivExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub,
+                                                  dAMem, dBMem);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, addDerivExpr);
+          AddToCurrentBlock(assignExpr);
+        } else if (field->getType()->isClassType()) {
+          auto DTE = m_DTH.GetDTE(field->getType());
+          assert(DTE.isValid() && "Required derived type essentials not found!!");
+          auto memberDSubFn = DTE.GetDerivedAddFn();
+          llvm::SmallVector<Expr*, 2> argsRef;
+          argsRef.push_back(dAMem);
+          argsRef.push_back(dBMem);
+          auto dAddFnCall = m_ASTHelper.BuildCallToFn(GetCurrentScope(),
+                                                      memberDSubFn, argsRef);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, dAddFnCall);
+          AddToCurrentBlock(assignExpr);
+        }
       }
 
       auto returnExpr = m_Sema
@@ -358,21 +373,33 @@ namespace clad {
       auto a = m_Variables["a"];
       auto b = m_Variables["b"];
       for (auto field : m_TangentRD->fields()) {
-        if (!(field->getType()->isRealType()))
-          continue;
-        auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
+        auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"],
+                                                    field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
+        if (field->getType()->isRealType()) {
+          auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem,
+                                           b);
 
-        auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem, b);
+          auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a,
+                                           dBMem);
 
-        auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a, dBMem);
-
-        auto addDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Add, diff1,
-                                            diff2);
-        auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
-                                              dResMem, addDiffs);
-        AddToCurrentBlock(assignExpr);
+          auto addDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Add, diff1,
+                                              diff2);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, addDiffs);
+          AddToCurrentBlock(assignExpr);
+        } else if (field->getType()->isClassType()) {
+          auto DTE = m_DTH.GetDTE(field->getType());
+          assert(DTE.isValid() && "Required derived type essentials not found!!");
+          auto dMultiply = DTE.GetDerivedMultiplyFn();
+          llvm::SmallVector<Expr*, 4> argsRef = {a, dAMem, b, dBMem};
+          auto dMultiplyFnCall = m_ASTHelper.BuildCallToFn(GetCurrentScope(),
+                                                      dMultiply, argsRef);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, dMultiplyFnCall);
+          AddToCurrentBlock(assignExpr);
+        }
       }
       auto returnExpr = m_Sema
                             .ActOnReturnStmt(noLoc, m_Variables["d_res"],
@@ -393,24 +420,34 @@ namespace clad {
       auto a = m_Variables["a"];
       auto b = m_Variables["b"];
       for (auto field : m_TangentRD->fields()) {
-        if (!(field->getType()->isRealType()))
-          continue;
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
 
-        auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem, b);
+        if (field->getType()->isRealType()) {
+          auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem, b);
 
-        auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a, dBMem);
+          auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a, dBMem);
 
-        auto subDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub, diff1,
-                                            diff2);
-        auto bSquare = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, b, b);
-        auto divideExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Div,
-                                              subDiffs, bSquare);
-        auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
-                                              dResMem, divideExpr);
-        AddToCurrentBlock(assignExpr);
+          auto subDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub, diff1,
+                                              diff2);
+          auto bSquare = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, b, b);
+          auto divideExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Div,
+                                                subDiffs, bSquare);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, divideExpr);
+          AddToCurrentBlock(assignExpr);
+        } else if (field->getType()->isClassType()) {
+          auto DTE = m_DTH.GetDTE(field->getType());
+          assert(DTE.isValid() && "Required derived type essentials not found!!");
+          auto dDivide = DTE.GetDerivedDivideFn();
+          llvm::SmallVector<Expr*, 4> argsRef = {a, dAMem, b, dBMem};
+          auto dMultiplyFnCall = m_ASTHelper.BuildCallToFn(GetCurrentScope(),
+                                                      dDivide, argsRef);
+          auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
+                                                dResMem, dMultiplyFnCall);
+          AddToCurrentBlock(assignExpr);
+        }
       }
       auto returnExpr = m_Sema
                             .ActOnReturnStmt(noLoc, m_Variables["d_res"],
