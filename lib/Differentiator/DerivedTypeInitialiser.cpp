@@ -25,6 +25,7 @@ namespace clad {
   static SourceLocation noLoc;
 
   static void PrintDecl(Decl* FD) {
+    return;
     LangOptions langOpts;
     langOpts.CPlusPlus = true;
     clang::PrintingPolicy policy(langOpts);
