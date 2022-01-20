@@ -51,7 +51,6 @@ namespace clad {
     PrintDecl(m_TangentRD);
     if (m_YQType == m_XQType) {
       m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
-      m_DerivedAddFn = BuildDerivedAddFn();
     } else {
       m_DerivedAddFn = BuildDerivedAddFn();
       m_DerivedSubFn = BuildDerivedSubFn();
@@ -302,6 +301,8 @@ namespace clad {
           auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
                                                 dResMem, addDerivExpr);
           AddToCurrentBlock(assignExpr);
+        } else if (field->getType()->isArrayType()) {
+          
         } else if (field->getType()->isClassType()) {
           auto DTE = m_DTH.GetDTE(field->getType());
           assert(DTE.isValid() &&
@@ -642,7 +643,6 @@ namespace clad {
     processTopLevelDecl(m_DerivedSubFn);
     processTopLevelDecl(m_DerivedMultiplyFn);
     processTopLevelDecl(m_DerivedDivideFn);
-    // processTopLevelDecl(m_DerivedTypeInfoSpec);
   }
 
   Scope* DerivedTypeInitialiser::GetCurrentScope() { return m_CurScope; }
