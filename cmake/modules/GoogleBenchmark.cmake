@@ -1,6 +1,6 @@
 include(ExternalProject)
 
-set(GBENCHMARK_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/googlebenchmark-prefix")
+set(GBENCHMARK_PREFIX "${CMAKE_BINARY_DIR}/benchmark/googlebenchmark-prefix")
 set(GBENCHMARK_LIBRARY_NAME ${CMAKE_STATIC_LIBRARY_PREFIX}benchmark${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 #---Find and install google benchmark
