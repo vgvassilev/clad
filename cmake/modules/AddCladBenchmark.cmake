@@ -54,6 +54,10 @@ function(CB_ADD_GBENCHMARK benchmark)
   endif()
 
   add_dependencies(${benchmark} clad)
+  # If clad.so changes we don't need to relink but to rebuild the source files.
+  # $<TARGET_FILE:clad> does not work for OBJECT_DEPENDS.
+  set (CLAD_SO_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/clad${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  set_source_files_properties(${source_files} PROPERTY OBJECT_DEPENDS ${CLAD_SO_PATH})
 
   set (TIMEOUT_VALUE 1200)
   set (LABEL "short")
