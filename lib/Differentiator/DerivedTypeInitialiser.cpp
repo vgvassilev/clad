@@ -8,6 +8,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
+#include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -25,7 +26,6 @@ namespace clad {
   static SourceLocation noLoc;
 
   static void PrintDecl(Decl* FD) {
-    return;
     LangOptions langOpts;
     langOpts.CPlusPlus = true;
     clang::PrintingPolicy policy(langOpts);
@@ -41,14 +41,16 @@ namespace clad {
       : m_Sema(semaRef), m_Context(semaRef.getASTContext()), m_DTH(DTH),
         m_CurScope(semaRef.TUScope), m_ASTHelper(semaRef), m_YQType(yType),
         m_XQType(xType) {
+    // TODO: Remove any qualifiers from m_XQType and m_YQType.
     assert((m_XQType->isRealType() || m_XQType->isClassType()) &&
            "x should either be of a real type or a class type");
     assert((m_YQType->isRealType() || m_YQType->isClassType()) &&
            "y should either be of a real type or a class type");
     BuildTangentDefinition();
     BuildTangentTypeInfoSpecialisation();
-    FillDerivedRecord();
     PrintDecl(m_TangentRD);
+    m_TangentRD->dumpColor();
+    llvm::errs() << "\n\n";
     if (m_YQType == m_XQType) {
       m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
     } else {
@@ -78,23 +80,101 @@ namespace clad {
     auto cladNS = m_ASTHelper.FindCladNamespace();
     auto baseDerivativeOf = FindDerivativeOfBaseTemplate();
 
+    llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
+    // TODO: Confirm that correct scopes are being created.
     beginScope(Scope::DeclScope | Scope::ClassScope);
 
     llvm::SmallVector<TemplateArgument, 2> templateArgs;
     templateArgs.push_back(m_YQType);
     templateArgs.push_back(m_XQType);
 
-    auto tangentRecord = ClassTemplateSpecializationDecl::
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, cladNS, noLoc, noLoc);
+
+    ParsedAttributesView PAV;
+
+    llvm::SmallVector<ParsedTemplateArgument, 2> parsedTemplateArgs;
+    // parsedTemplateArgs.push_back(m_Sema.ActOnTemplateTypeArgument(
+    //     TypeResult(ParsedType::make(m_XQType))));
+    // parsedTemplateArgs.push_back(m_Sema.ActOnTemplateTypeArgument(
+    //     TypeResult(ParsedType::make(m_YQType))));
+    CXXScopeSpec emptySS;
+    parsedTemplateArgs.push_back(
+        ParsedTemplateArgument(ParsedTemplateArgument::Type,
+                               m_XQType.getAsOpaquePtr(), noLoc));
+    parsedTemplateArgs.push_back(
+        ParsedTemplateArgument(ParsedTemplateArgument::Type,
+                               m_YQType.getAsOpaquePtr(), noLoc));                               
+
+    llvm::SmallVector<TemplateIdAnnotation*, 2> cleanupList;
+    auto templateId = TemplateIdAnnotation::
+        Create(noLoc, noLoc, baseDerivativeOf->getIdentifier(),
+               OverloadedOperatorKind::OO_None,
+               ParsedTemplateTy::make(TemplateName(baseDerivativeOf)),
+               TemplateNameKind::TNK_Type_template, baseDerivativeOf->getBeginLoc(),
+               baseDerivativeOf->getEndLoc(), parsedTemplateArgs, cleanupList);
+
+    auto TPL = TemplateParameterList::Create(m_Context, noLoc, noLoc, {}, noLoc,
+                                             /*RequiresClause=*/nullptr);
+
+    auto tangentRD = ClassTemplateSpecializationDecl::
         Create(m_Context, TagTypeKind::TTK_Class, m_Sema.CurContext, noLoc,
                noLoc, baseDerivativeOf, templateArgs, nullptr);
-    tangentRecord->startDefinition();
-    tangentRecord->completeDefinition();
+    m_Sema.CurContext = cladNS;
+    // auto newCladNS = NamespaceDecl::Create(m_Context, m_Sema.CurContext, false,
+    //                                        noLoc, noLoc,
+    //                                        cladNS->getIdentifier(), cladNS);
+    // m_Sema.CurContext->addDecl(newCladNS);
+    // m_Sema.CurContext = newCladNS;                                           
+
+    // auto tangentRD = m_Sema.ActOnClassTemplateSpecialization(
+    //     m_CurScope, TypeSpecifierType::TST_class, Sema::TagUseKind::TUK_Definition,
+    //     baseDerivativeOf->getBeginLoc(), noLoc, CSS, *templateId, PAV, {TPL}).getAs<ClassTemplateSpecializationDecl>();
+    
+    // tangentRD->setTemplateSpecializationKind(
+    //     TemplateSpecializationKind::TSK_ExplicitSpecialization);
+    m_TangentRD = tangentRD;
+    tangentRD->startDefinition();
+
+    m_Sema.ActOnTagStartDefinition(m_CurScope, tangentRD);
+    // m_Sema.PushDeclContext(m_CurScope, tangentRD);
+
+    m_Sema.ActOnStartCXXMemberDeclarations(m_CurScope, tangentRD, noLoc, false,
+                                           noLoc);
+    FillDerivedRecord();
+
+    m_Sema.ActOnFinishCXXMemberSpecification(m_CurScope, noLoc, tangentRD, noLoc, noLoc, PAV);
+
+    m_Sema.ActOnFinishCXXMemberDecls();
+
+    m_Sema.ActOnFinishCXXNonNestedClass();
+    // tangentRD->completeDefinition();
+    m_Sema.ActOnTagFinishDefinition(m_CurScope, tangentRD, SourceRange());
+    // m_Sema.PopDeclContext();
     endScope();
 
-    cladNS->addDecl(tangentRecord);
-
-    m_TangentRD = tangentRecord;
+    cladNS->addDecl(tangentRD);
+    
     m_TangentQType = m_TangentRD->getTypeForDecl()->getCanonicalTypeInternal();
+    m_TangentQType = m_Context
+                         .getElaboratedType(ElaboratedTypeKeyword::ETK_None,
+                                            CSS.getScopeRep(), m_TangentQType);
+
+    auto canonType = m_Context.getTypeDeclType(tangentRD);
+    TemplateArgumentListInfo TLI;
+    TLI.addArgument(
+        TemplateArgumentLoc(templateArgs[0], m_Context.getTrivialTypeSourceInfo(
+                                                 templateArgs[0].getAsType())));
+    TLI.addArgument(
+        TemplateArgumentLoc(templateArgs[1], m_Context.getTrivialTypeSourceInfo(
+                                                 templateArgs[1].getAsType())));
+    TypeSourceInfo* WrittenTy = m_Context.getTemplateSpecializationTypeInfo(
+        TemplateName(baseDerivativeOf), noLoc, TLI, canonType);
+    llvm::errs()<<"WrittenTy: "<<WrittenTy<<"\n";        
+    // tangentRD->setTypeAsWritten(m_Context.getTrivialTypeSourceInfo(baseDerivativeOf->getType));
+
+    llvm::errs() << "Dumping WrittenType: " << tangentRD->getTypeAsWritten()
+                 << "\n";
 
     m_ASTHelper.AddSpecialisation(baseDerivativeOf, m_TangentRD);
   }
@@ -140,64 +220,99 @@ namespace clad {
     delete oldScope;
   }
 
+  static bool IsDifferentiableType(QualType ty) {
+    if (ty->isRealType() || ty->isClassType())
+      return true;
+    if (auto AT = dyn_cast<ArrayType>(ty)) {
+      QualType elemType = AT->getElementType();
+      // TODO: Update this after adding support for multi-dimensional arrays.
+      if (elemType->isRealType() || ty->isClassType())
+        return true;
+    }
+    return false;
+  }
+
+  void DerivedTypeInitialiser::AddDerivedField(QualType Y, QualType X,
+                                               IdentifierInfo* II) {
+    if (!IsDifferentiableType(Y) || !IsDifferentiableType(X)) {
+      return;
+    }
+    QualType derivedType;
+    if (!(Y->isArrayType()) && !(X->isArrayType())) {
+      derivedType = m_DTH.GetDerivedType(Y, X);
+    } else if (Y->isArrayType() && !(X->isArrayType())) {
+      if (auto CA = dyn_cast<ConstantArrayType>(Y.getTypePtr())) {
+        QualType elementType = CA->getElementType();
+        // TODO: Handle multiple dimensions array.
+        auto size = CA->getSize();
+        auto sizeExpr = ConstantFolder::synthesizeLiteral(m_Context
+                                                              .UnsignedIntTy,
+                                                          m_Context,
+                                                          size.getZExtValue());
+        auto derivedElementType = m_DTH.GetDerivedType(elementType, X);
+        derivedType = clad_compat::
+            getConstantArrayType(m_Context, derivedElementType, size, sizeExpr,
+                                 ArrayType::ArraySizeModifier::Normal,
+                                 /*IndexTypeQuals=*/0);
+      } else {
+        // TODO: Remove assert and change it to a warning/notice.
+        assert("Only constant array types are supported as of now!!");
+      }
+    } else if (!(Y->isArrayType()) && X->isArrayType()) {
+      if (auto CA = dyn_cast<ConstantArrayType>(X.getTypePtr())) {
+        QualType elementType = CA->getElementType();
+        // TODO: Handle multiple dimensions array.
+        auto size = CA->getSize();
+        auto sizeExpr = ConstantFolder::synthesizeLiteral(m_Context
+                                                              .UnsignedIntTy,
+                                                          m_Context,
+                                                          size.getZExtValue());
+        auto derivedElementType = m_DTH.GetDerivedType(Y, elementType);
+        derivedType = clad_compat::
+            getConstantArrayType(m_Context, derivedElementType, size, sizeExpr,
+                                 ArrayType::ArraySizeModifier::Normal,
+                                 /*IndexTypeQuals=*/0);
+      } else {
+        // TODO: Remove assert and change it to a warning/notice.
+        assert("Only constant array types are supported as of now!!");
+      }
+    } else {
+      assert("Direct differentiation of array wrt array is not supported");
+    }
+    Expr* init = nullptr;
+    if (derivedType->isRealType())
+      init = ConstantFolder::synthesizeLiteral(derivedType, m_Context, 0);
+    if (auto AT = dyn_cast<ArrayType>(derivedType.getTypePtr())) {
+      InitListExpr* ILE = new (m_Context)
+          InitListExpr(m_Context, noLoc, {}, noLoc);
+      ImplicitValueInitExpr* valueInitExpr = new (m_Context)
+          ImplicitValueInitExpr(AT->getElementType());
+      ILE->setArrayFiller(valueInitExpr);
+      ILE->setType(derivedType);
+      init = ILE;
+      llvm::errs() << "Dumping ILE:\n";
+      ILE->dumpColor();
+      llvm::errs() << "\n";
+    }
+    m_ASTHelper.BuildFieldDecl(m_TangentRD, II, derivedType, init,
+                               AccessSpecifier::AS_public, /*addToDecl=*/true);
+  }
+
   void DerivedTypeInitialiser::FillDerivedRecord() {
+    ParsedAttributesView PAV;
+    m_Sema.ActOnAccessSpecifier(AccessSpecifier::AS_public, noLoc, noLoc, PAV);
     if (m_YQType->isRealType()) {
       auto xRD = m_XQType->getAsCXXRecordDecl();
       for (auto field : xRD->fields()) {
-        QualType derivedFieldType;
-        if (field->getType()->isRealType()) {
-          derivedFieldType = m_Context.DoubleTy;
-        } else if (field->getType()->isClassType()) {
-          derivedFieldType = m_DTH.GetDerivedType(m_Context.DoubleTy,
-                                                  field->getType());
-          assert(!derivedFieldType.isNull() &&
-                 "Required derived field type not found!!");
-        } else if (field->getType()->isArrayType()) {
-          derivedFieldType = field->getType();
-        }
-        else {
-          continue;
-        }
-        Expr* init = nullptr;
-        if (derivedFieldType == m_Context.DoubleTy)
-          init = ConstantFolder::synthesizeLiteral(derivedFieldType, m_Context,
-                                                   0);
-        auto FD = m_ASTHelper.BuildFieldDecl(m_TangentRD,
-                                             field->getIdentifier(),
-                                             derivedFieldType, init,
-                                             AccessSpecifier::AS_public, true);
+        AddDerivedField(m_YQType, field->getType(), field->getIdentifier());
       }
     } else if (m_YQType->isClassType()) {
       auto yRD = m_YQType->getAsCXXRecordDecl();
       for (auto field : yRD->fields()) {
-        QualType derivedFieldType;
-        if (field->getType()->isRealType()) {
-          if (m_XQType->isRealType()) {
-            derivedFieldType = m_Context.DoubleTy;
-          } else if (m_XQType->isClassType()) {
-            derivedFieldType = m_DTH.GetDerivedType(m_Context.DoubleTy,
-                                                    m_XQType);
-            assert(!derivedFieldType.isNull() &&
-                   "Required derived field type not found!!");
-          }
-        } else if (field->getType()->isClassType()) {
-          derivedFieldType = m_DTH.GetDerivedType(field->getType(), m_XQType);
-          assert(!derivedFieldType.isNull() &&
-                 "Required derived field type not found!!");
-        } else {
-          continue;
-        }
-        Expr* init = nullptr;
-        if (derivedFieldType == m_Context.DoubleTy)
-          init = ConstantFolder::synthesizeLiteral(derivedFieldType, m_Context,
-                                                   0);
-        auto FD = m_ASTHelper.BuildFieldDecl(m_TangentRD,
-                                             field->getIdentifier(),
-                                             derivedFieldType, init,
-                                             AccessSpecifier::AS_public, true);
+        AddDerivedField(field->getType(), m_XQType, field->getIdentifier());
       }
     } else {
-      assert("Unexpected case!! y Type should either be a real type or a class "
+      assert("Unexpected case!! Y Type should either be a real type or a class "
              "type.");
     }
   }
@@ -238,7 +353,7 @@ namespace clad {
     auto returnType = m_TangentQType;
     auto fnType = m_Context.getFunctionType(returnType, paramTypes,
                                             FunctionProtoType::ExtProtoInfo());
-    return fnType;                                            
+    return fnType;
   }
 
   template <class ComputeDerivedFnTypeT, class BuildDerivedFnParamsT,
@@ -302,7 +417,7 @@ namespace clad {
                                                 dResMem, addDerivExpr);
           AddToCurrentBlock(assignExpr);
         } else if (field->getType()->isArrayType()) {
-          
+
         } else if (field->getType()->isClassType()) {
           auto DTE = m_DTH.GetDTE(field->getType());
           assert(DTE.isValid() &&
@@ -336,7 +451,7 @@ namespace clad {
         auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
-        
+
         if (field->getType()->isRealType()) {
           auto addDerivExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub,
                                                   dAMem, dBMem);
@@ -345,7 +460,8 @@ namespace clad {
           AddToCurrentBlock(assignExpr);
         } else if (field->getType()->isClassType()) {
           auto DTE = m_DTH.GetDTE(field->getType());
-          assert(DTE.isValid() && "Required derived type essentials not found!!");
+          assert(DTE.isValid() &&
+                 "Required derived type essentials not found!!");
           auto memberDSubFn = DTE.GetDerivedAddFn();
           llvm::SmallVector<Expr*, 2> argsRef;
           argsRef.push_back(dAMem);
@@ -376,8 +492,7 @@ namespace clad {
       auto a = m_Variables["a"];
       auto b = m_Variables["b"];
       for (auto field : m_TangentRD->fields()) {
-        auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"],
-                                                    field);
+        auto dResMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_res"], field);
         auto dAMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_a"], field);
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
         if (field->getType()->isRealType()) {
@@ -394,11 +509,12 @@ namespace clad {
           AddToCurrentBlock(assignExpr);
         } else if (field->getType()->isClassType()) {
           auto DTE = m_DTH.GetDTE(field->getType());
-          assert(DTE.isValid() && "Required derived type essentials not found!!");
+          assert(DTE.isValid() &&
+                 "Required derived type essentials not found!!");
           auto dMultiply = DTE.GetDerivedMultiplyFn();
           llvm::SmallVector<Expr*, 4> argsRef = {a, dAMem, b, dBMem};
           auto dMultiplyFnCall = m_ASTHelper.BuildCallToFn(GetCurrentScope(),
-                                                      dMultiply, argsRef);
+                                                           dMultiply, argsRef);
           auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
                                                 dResMem, dMultiplyFnCall);
           AddToCurrentBlock(assignExpr);
@@ -428,9 +544,11 @@ namespace clad {
         auto dBMem = m_ASTHelper.BuildMemberExpr(m_Variables["d_b"], field);
 
         if (field->getType()->isRealType()) {
-          auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem, b);
+          auto diff1 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, dAMem,
+                                           b);
 
-          auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a, dBMem);
+          auto diff2 = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Mul, a,
+                                           dBMem);
 
           auto subDiffs = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Sub, diff1,
                                               diff2);
@@ -442,11 +560,12 @@ namespace clad {
           AddToCurrentBlock(assignExpr);
         } else if (field->getType()->isClassType()) {
           auto DTE = m_DTH.GetDTE(field->getType());
-          assert(DTE.isValid() && "Required derived type essentials not found!!");
+          assert(DTE.isValid() &&
+                 "Required derived type essentials not found!!");
           auto dDivide = DTE.GetDerivedDivideFn();
           llvm::SmallVector<Expr*, 4> argsRef = {a, dAMem, b, dBMem};
           auto dMultiplyFnCall = m_ASTHelper.BuildCallToFn(GetCurrentScope(),
-                                                      dDivide, argsRef);
+                                                           dDivide, argsRef);
           auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign,
                                                 dResMem, dMultiplyFnCall);
           AddToCurrentBlock(assignExpr);
@@ -510,18 +629,26 @@ namespace clad {
   }
 
   void DerivedTypeInitialiser::InitialiseIndependentFields(
-      Expr* base, llvm::SmallVector<std::string, 4> path) {
+      Expr* base, llvm::SmallVector<Expr*, 4> path) {
+    // base->dumpColor();
+    // llvm::errs()<<"\n\n";
     QualType baseQType = base->getType();
     if (base->getType()->isPointerType()) {
       baseQType = base->getType()->getPointeeType();
     }
-
-    if (m_DTH.GetYType(baseQType) == m_Context.DoubleTy) {
+    // llvm::errs()<<"Reaching here\n";
+    if (!(baseQType->isArrayType()) && !m_DTH.GetYType(baseQType).isNull() &&
+        m_DTH.GetYType(baseQType)->isRealType()) {
       Expr* E = base;
-      for (auto fieldName : path) {
-        auto RD = E->getType()->getAsCXXRecordDecl();
-        auto field = m_ASTHelper.FindRecordDeclMember(RD, fieldName);
-        E = m_ASTHelper.BuildMemberExpr(E, field);
+      for (auto elem : path) {
+        if (auto idx = dyn_cast<IntegerLiteral>(elem)) {
+          E = m_ASTHelper.BuildBuiltinArraySubscriptExpr(E, idx);
+        } else if (auto SL = dyn_cast<StringLiteral>(elem)) {
+          auto RD = E->getType()->getAsCXXRecordDecl();
+          auto field = m_ASTHelper.FindRecordDeclMember(RD, SL->getString());
+          // llvm::errs()<<"field: "<<field->getNameAsString()<<"\n";
+          E = m_ASTHelper.BuildMemberExpr(E, field);
+        }
       }
       auto assignExpr = m_ASTHelper.BuildOp(BinaryOperatorKind::BO_Assign, E,
                                             ConstantFolder::
@@ -532,12 +659,26 @@ namespace clad {
       return;
     }
 
-    auto RD = baseQType->getAsCXXRecordDecl();
-    for (auto field : RD->fields()) {
-      auto ME = m_ASTHelper.BuildMemberExpr(base, field);
-      auto updated_path = path;
-      updated_path.push_back(field->getNameAsString());
-      InitialiseIndependentFields(ME, updated_path);
+    if (auto CAT = dyn_cast<ConstantArrayType>(baseQType.getTypePtr())) {
+      auto size = CAT->getSize().getZExtValue();
+      for (unsigned i = 0; i < size; ++i) {
+        auto idx = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                     i);
+        auto AS = m_ASTHelper.BuildBuiltinArraySubscriptExpr(base, idx);
+        auto updated_path = path;
+        updated_path.push_back(idx);
+        InitialiseIndependentFields(AS, updated_path);
+      }
+    } else if (baseQType->isStructureOrClassType()) {
+      auto RD = baseQType->getAsCXXRecordDecl();
+      // llvm::errs()<<"RD: "<<RD<<"\n";
+      for (auto field : RD->fields()) {
+        auto ME = m_ASTHelper.BuildMemberExpr(base, field);
+        auto updated_path = path;
+        updated_path.push_back(
+            m_ASTHelper.BuildStringLiteral(field->getNameAsString()));
+        InitialiseIndependentFields(ME, updated_path);
+      }
     }
   }
 

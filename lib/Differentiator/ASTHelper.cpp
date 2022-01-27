@@ -4,6 +4,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/CXXFieldCollector.h"
 #include "clad/Differentiator/Compatibility.h"
 using namespace clang;
 
@@ -373,6 +374,7 @@ namespace clad {
                             clang::Expr* init, clang::AccessSpecifier AS,
                             bool addToDecl) {
     auto& C = semaRef.getASTContext();
+    semaRef.ActOnStartCXXInClassMemberInitializer();
     auto initStyle = InClassInitStyle::ICIS_NoInit;
     if (init)
       initStyle = InClassInitStyle::ICIS_CopyInit;
@@ -380,14 +382,16 @@ namespace clad {
                                 C.getTrivialTypeSourceInfo(qType), nullptr,
                                 false, initStyle);
 
-    if (init) {
-      FD->setInClassInitializer(init);
-    }
 
     FD->setAccess(AS);
     if (addToDecl)
       DC->addDecl(FD);
 
+    if (init) {
+      semaRef.ActOnFinishCXXInClassMemberInitializer(FD, noLoc, init);
+      // FD->setInClassInitializer(init);
+    }
+    semaRef.FieldCollector->Add(FD);
     return FD;
   }
 
@@ -579,5 +583,36 @@ namespace clad {
     if (insertPos != nullptr) {
       baseTemplate->AddSpecialization(specialisation, insertPos);
     }
+  }
+
+  clang::ArraySubscriptExpr* ASTHelper::BuildBuiltinArraySubscriptExpr(Expr* base, Expr* idx) {
+    return ASTHelper::BuildBuiltinArraySubscriptExpr(m_Sema, base, idx);
+  }
+
+  clang::ArraySubscriptExpr* ASTHelper::BuildBuiltinArraySubscriptExpr(
+      clang::Sema& semaRef, clang::Expr* base, clang::Expr* idx) {
+    return semaRef.CreateBuiltinArraySubscriptExpr(base, noLoc, idx, noLoc)
+        .getAs<ArraySubscriptExpr>();
+  }
+  
+  StringLiteral* ASTHelper::BuildStringLiteral(llvm::StringRef str) {
+    return ASTHelper::BuildStringLiteral(m_Sema, str);
+  }
+
+  clang::StringLiteral* ASTHelper::BuildStringLiteral(clang::Sema& semaRef,
+                                                      llvm::StringRef str) {
+    auto& C = semaRef.getASTContext();
+    QualType CharTyConst = C.CharTy.withConst();
+    QualType
+        StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
+                                                  llvm::APInt(/*numBits=*/32,
+                                                              str.size() + 1),
+                                                  /*SizeExpr=*/nullptr,
+                                                  /*ASM=*/ArrayType::Normal,
+                                                  /*IndexTypeQuals*/ 0);
+    StringLiteral* SL = StringLiteral::Create(C, str,
+                                              /*Kind=*/StringLiteral::Ascii,
+                                              /*Pascal=*/false, StrTy, noLoc);
+    return SL;
   }
 } // namespace clad

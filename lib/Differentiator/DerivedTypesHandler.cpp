@@ -27,10 +27,14 @@ namespace clad {
 
   QualType DerivedTypesHandler::GetDerivedType(clang::QualType yQType,
                                                clang::QualType xQType) {
+    if (yQType->isRealType() && xQType->isRealType()) {
+      return m_Context.DoubleTy;
+    }
     auto it = m_DerivedTypesEssentials.find({yQType, xQType});
     if (it != m_DerivedTypesEssentials.end())
       return it->second.GetTangentQType();
-    // assert("We should never reach here");
+    // Ideally, we should never reach here.
+    assert("Requested Derived Type not found");
     return QualType();
   }
 
@@ -49,6 +53,8 @@ namespace clad {
   clang::QualType DerivedTypesHandler::GetYType(clang::QualType derivedQType) {
     auto it = m_DerivedTypesEssentials.find(ComputeYandXQTypes(derivedQType));
     if (it == m_DerivedTypesEssentials.end()) {
+      // Ideally, we should never reach here.
+      assert("Requested Derived Type not found");
       return QualType();
     }
     return it->second.GetYQType();
@@ -58,6 +64,8 @@ namespace clad {
   DerivedTypesHandler::GetDTE(clang::QualType derivedQType) {
     auto it = m_DerivedTypesEssentials.find(ComputeYandXQTypes(derivedQType));
     if (it == m_DerivedTypesEssentials.end()) {
+      // Ideally, we should never reach here.
+      assert("Requested Derived Type not found");
       return DerivedTypeEssentials();
     }
     return it->second;

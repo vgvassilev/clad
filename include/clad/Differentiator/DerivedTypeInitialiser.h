@@ -47,10 +47,8 @@ namespace clad {
     clang::CXXMethodDecl* m_InitialiseSeedsFn = nullptr;
     clang::ClassTemplateSpecializationDecl* m_DerivedTypeInfoSpec = nullptr;
     clang::Scope* m_CurScope;
-    
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
     std::vector<Stmts> m_Blocks;
-
   public:
     DerivedTypeInitialiser(clang::ASTConsumer& consumer, clang::Sema& semaRef,
                            DerivedTypesHandler& DTH, clang::QualType yQType,
@@ -59,8 +57,9 @@ namespace clad {
 
   private:
     void BuildTangentDefinition();
+    void AddDerivedField(clang::QualType Y, clang::QualType X, clang::IdentifierInfo* II);
     void FillDerivedRecord();
-    void InitialiseIndependentFields(clang::Expr* base, llvm::SmallVector<std::string, 4> path);
+    void InitialiseIndependentFields(clang::Expr* base, llvm::SmallVector<clang::Expr*, 4> path);
     clang::CXXMethodDecl* BuildInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;

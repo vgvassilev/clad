@@ -604,6 +604,8 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     auto diff = retValDiff.getExpr_dx();
+    retValDiff.getExpr()->dumpColor();
+    diff->dumpColor();
     auto initializer = m_ASTHelper.BuildCXXCopyConstructExpr(diff->getType(), diff);
     auto newExpr = m_ASTHelper.CreateNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
     auto diffResDecl = BuildVarDecl(m_Context.getPointerType(diff->getType()),
@@ -709,7 +711,9 @@ namespace clad {
                    std::begin(clonedIndices),
                    [this](const Expr* E) { return Clone(E); });
     auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
-
+    llvm::errs()<<"Clone base dump:\n";
+    clonedBase->dumpColor();
+    llvm::errs()<<"\n";
     auto zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     ValueDecl* VD;        
@@ -728,7 +732,13 @@ namespace clad {
 
         VD = decl;
       }
-    } else {
+    } 
+    else if (isa<MemberExpr>(clonedBase)) {
+      auto diffME = Visit(clonedBase).getExpr_dx();
+      auto diffAS = BuildArraySubscript(diffME, clonedIndices);
+      return {diffME, diffAS};
+    }
+    else {
       if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
         return StmtDiff(cloned, zero);
       auto DRE = cast<DeclRefExpr>(clonedBase->IgnoreParenImpCasts());

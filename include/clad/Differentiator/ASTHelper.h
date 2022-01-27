@@ -245,6 +245,16 @@ namespace clad {
     static void
     AddSpecialisation(clang::ClassTemplateDecl* baseTemplate,
                       clang::ClassTemplateSpecializationDecl* specialisation);
+
+    clang::ArraySubscriptExpr* BuildBuiltinArraySubscriptExpr(clang::Expr* base,
+                                                              clang::Expr* idx);
+
+    static clang::ArraySubscriptExpr*
+    BuildBuiltinArraySubscriptExpr(clang::Sema& semaRef, clang::Expr* base,
+                                   clang::Expr* idx);
+
+    clang::StringLiteral* BuildStringLiteral(llvm::StringRef str);
+    static clang::StringLiteral* BuildStringLiteral(clang::Sema& semaRef, llvm::StringRef str);
   };
 } // namespace clad
 #endif
