@@ -43,21 +43,40 @@ namespace clad {
 
   static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     LookupResult R(semaRef, derivedFD->getNameInfo(), Sema::LookupOrdinaryName);
-    semaRef.LookupQualifiedName(R, derivedFD->getDeclContext(),
-                                /*allowBuiltinCreation*/ false);
-    // Inform the decl's decl context for its existance after the lookup,
-    // otherwise it would end up in the LookupResult.
-    derivedFD->getDeclContext()->addDecl(derivedFD);
+    // FIXME: Attach out-of-line virtual function definitions to the TUScope.
+    Scope* S = semaRef.getScopeForContext(derivedFD->getDeclContext());
+    semaRef.CheckFunctionDeclaration(S, derivedFD, R,
+                                     /*IsMemberSpecialization=*/false);
 
-    for (NamedDecl* I : R) {
-      if (auto* FD = dyn_cast<FunctionDecl>(I)) {
-        if (semaRef.getASTContext()
-                .hasSameFunctionTypeIgnoringExceptionSpec(derivedFD->getType(),
-                                                          FD->getType())) {
-          // Register the function on the redecl chain.
-          derivedFD->setPreviousDecl(FD);
+    // FIXME: Avoid the DeclContext lookup and the manual setPreviousDecl.
+    // Consider out-of-line virtual functions.
+    {
+      DeclContext* LookupCtx = derivedFD->getDeclContext();
+      auto R = LookupCtx->noload_lookup(derivedFD->getDeclName());
+
+      for (NamedDecl* I : R) {
+        if (auto* FD = dyn_cast<FunctionDecl>(I)) {
+          // FIXME: We still do extra work in creating a derivative and throwing
+          // it away.
+          if (FD->getDefinition())
+            return;
+
+          if (derivedFD->getASTContext()
+                  .hasSameFunctionTypeIgnoringExceptionSpec(derivedFD
+                                                                ->getType(),
+                                                            FD->getType())) {
+            // Register the function on the redecl chain.
+            derivedFD->setPreviousDecl(FD);
+            break;
+          }
         }
       }
+      // Inform the decl's decl context for its existance after the lookup,
+      // otherwise it would end up in the LookupResult.
+      derivedFD->getDeclContext()->addDecl(derivedFD);
+
+      // FIXME: Rebuild VTable to remove requirements for "forward" declared
+      // virtual methods
     }
   }
 

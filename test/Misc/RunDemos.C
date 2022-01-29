@@ -2,7 +2,7 @@
 // RUN: %cladclang %S/../../demos/ControlFlow.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/DebuggingClad.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include 2>&1
-// RUN: %cladclang -lstdc++ -lm %S/../../demos/ComputerGraphics/SmallPT.cpp -I%S/../../include 2>&1
+// RUN: %cladclang -lstdc++ -lm %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
 
 
 //-----------------------------------------------------------------------------/
