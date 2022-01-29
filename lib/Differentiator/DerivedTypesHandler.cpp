@@ -19,6 +19,8 @@ namespace clad {
 
   void DerivedTypesHandler::InitialiseDerivedType(QualType yQType,
                                                   QualType xQType) {
+    yQType = yQType->getCanonicalTypeInternal();
+    xQType = xQType->getCanonicalTypeInternal();                                                    
     auto DTI = DerivedTypeInitialiser(m_Consumer, m_Sema, *this, yQType,
                                       xQType);
     auto DTE = DTI.CreateDerivedTypeEssentials();
@@ -27,6 +29,8 @@ namespace clad {
 
   QualType DerivedTypesHandler::GetDerivedType(clang::QualType yQType,
                                                clang::QualType xQType) {
+    yQType = yQType->getCanonicalTypeInternal();
+    xQType = xQType->getCanonicalTypeInternal();                                                 
     if (yQType->isRealType() && xQType->isRealType()) {
       return m_Context.DoubleTy;
     }

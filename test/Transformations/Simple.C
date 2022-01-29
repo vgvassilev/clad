@@ -5,6 +5,7 @@
 #include "clad/Differentiator/Differentiator.h"
 
 class ComplexNumber {
+  public:
   double real, im;
 };
 

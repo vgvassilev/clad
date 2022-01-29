@@ -45,6 +45,7 @@ namespace clad {
 
     BuildTangentDefinition();
     BuildTangentTypeInfoSpecialisation();
+    m_ASTHelper.PrintDecl(m_Tangent, llvm::errs());
     if (m_YQType == m_XQType) {
       m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
     } else {
@@ -169,21 +170,21 @@ namespace clad {
                          .getElaboratedType(ElaboratedTypeKeyword::ETK_None,
                                             CSS.getScopeRep(), m_TangentQType);
 
-    auto canonType = m_Context.getTypeDeclType(tangentRD);
-    TemplateArgumentListInfo TLI;
-    TLI.addArgument(
-        TemplateArgumentLoc(templateArgs[0], m_Context.getTrivialTypeSourceInfo(
-                                                 templateArgs[0].getAsType())));
-    TLI.addArgument(
-        TemplateArgumentLoc(templateArgs[1], m_Context.getTrivialTypeSourceInfo(
-                                                 templateArgs[1].getAsType())));
-    TypeSourceInfo* WrittenTy = m_Context.getTemplateSpecializationTypeInfo(
-        TemplateName(baseDerivativeOf), noLoc, TLI, canonType);
-    llvm::errs() << "WrittenTy: " << WrittenTy << "\n";
-    // tangentRD->setTypeAsWritten(0);
+    // auto canonType = m_Context.getTypeDeclType(tangentRD);
+    // TemplateArgumentListInfo TLI;
+    // TLI.addArgument(
+    //     TemplateArgumentLoc(templateArgs[0], m_Context.getTrivialTypeSourceInfo(
+    //                                              templateArgs[0].getAsType())));
+    // TLI.addArgument(
+    //     TemplateArgumentLoc(templateArgs[1], m_Context.getTrivialTypeSourceInfo(
+    //                                              templateArgs[1].getAsType())));
+    // TypeSourceInfo* WrittenTy = m_Context.getTemplateSpecializationTypeInfo(
+    //     TemplateName(baseDerivativeOf), noLoc, TLI, canonType);
+    // llvm::errs() << "WrittenTy: " << WrittenTy << "\n";
+    // // tangentRD->setTypeAsWritten(0);
 
-    llvm::errs() << "Dumping WrittenType: " << tangentRD->getTypeAsWritten()
-                 << "\n";
+    // llvm::errs() << "Dumping WrittenType: " << tangentRD->getTypeAsWritten()
+    //              << "\n";
 
     m_ASTHelper.AddSpecialisation(baseDerivativeOf, m_Tangent);
   }
@@ -246,6 +247,11 @@ namespace clad {
     if (!IsDifferentiableType(Y) || !IsDifferentiableType(X)) {
       return;
     }
+    llvm::errs()<<"Adding derived field for the following X and Y types:\n";
+    X.dump();
+    llvm::errs()<<"\n";
+    Y.dump();
+    llvm::errs()<<"\n\n";
     QualType derivedType;
     if (!(Y->isArrayType()) && !(X->isArrayType())) {
       derivedType = m_DTH.GetDerivedType(Y, X);
