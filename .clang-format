@@ -1,23 +1,8 @@
-
 BasedOnStyle: LLVM
-IndentWidth: 2
-NamespaceIndentation: All
-ColumnLimit: 80
 
 Language: Cpp
 Standard: Cpp11
-DerivePointerAlignment: false
 PointerAlignment: Left
-
-AlignAfterOpenBracket: Align
-PenaltyBreakBeforeFirstCallParameter: 1000
-PenaltyBreakAssignment: 1000
-AlignOperands: true
-AllowShortCaseLabelsOnASingleLine: true
-IndentCaseLabels: true
-BinPackParameters: true
-BinPackArguments: true
-AllowAllArgumentsOnNextLine: false
 
 IncludeCategories:
   - Regex:           '^"[^/]+\"'
