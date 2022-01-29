@@ -2,10 +2,14 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/Sema/CXXFieldCollector.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
-#include "clang/Sema/CXXFieldCollector.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "clad/Differentiator/Compatibility.h"
+
+#include <cassert>
+
 using namespace clang;
 
 namespace clad {
@@ -127,15 +131,15 @@ namespace clad {
                                         ExprValueKind::VK_LValue,
                                         ExprObjectKind::OK_Ordinary);
   }
-  clang::CXXNewExpr* ASTHelper::CreateNewExprFor(clang::QualType qType,
-                                                 clang::Expr* initializer,
-                                                 SourceLocation B) {
-    return ASTHelper::CreateNewExprFor(m_Sema, qType, initializer, B);
+  clang::CXXNewExpr* ASTHelper::BuildNewExprFor(clang::QualType qType,
+                                                clang::Expr* initializer,
+                                                SourceLocation B) {
+    return ASTHelper::BuildNewExprFor(m_Sema, qType, initializer, B);
   }
-  clang::CXXNewExpr* ASTHelper::CreateNewExprFor(clang::Sema& semaRef,
-                                                 clang::QualType qType,
-                                                 Expr* initializer,
-                                                 SourceLocation B) {
+  clang::CXXNewExpr* ASTHelper::BuildNewExprFor(clang::Sema& semaRef,
+                                                clang::QualType qType,
+                                                Expr* initializer,
+                                                SourceLocation B) {
     auto& C = semaRef.getASTContext();
     auto newExpr = semaRef
                        .BuildCXXNew(SourceRange(), false, noLoc, MultiExprArg(),
@@ -205,23 +209,23 @@ namespace clad {
     return E;
   }
 
-  DeclarationName ASTHelper::CreateDeclName(llvm::StringRef name) {
-    return ASTHelper::CreateDeclName(m_Sema, name);
+  DeclarationName ASTHelper::BuildDeclName(llvm::StringRef name) {
+    return ASTHelper::BuildDeclName(m_Sema, name);
   }
-  DeclarationName ASTHelper::CreateDeclName(Sema& semaRef,
-                                            llvm::StringRef name) {
+  DeclarationName ASTHelper::BuildDeclName(Sema& semaRef,
+                                           llvm::StringRef name) {
     auto& C = semaRef.getASTContext();
     auto& nameId = C.Idents.get(name);
     return DeclarationName(&nameId);
   }
 
-  DeclarationNameInfo ASTHelper::CreateDeclNameInfo(llvm::StringRef name) {
-    return ASTHelper::CreateDeclNameInfo(m_Sema, name);
+  DeclarationNameInfo ASTHelper::BuildDeclNameInfo(llvm::StringRef name) {
+    return ASTHelper::BuildDeclNameInfo(m_Sema, name);
   }
 
-  DeclarationNameInfo ASTHelper::CreateDeclNameInfo(Sema& semaRef,
-                                                    llvm::StringRef name) {
-    return DeclarationNameInfo(CreateDeclName(semaRef, name), noLoc);
+  DeclarationNameInfo ASTHelper::BuildDeclNameInfo(Sema& semaRef,
+                                                   llvm::StringRef name) {
+    return DeclarationNameInfo(BuildDeclName(semaRef, name), noLoc);
   }
 
   Expr* ASTHelper::BuildCXXCopyConstructExpr(QualType qType, Expr* E) {
@@ -256,7 +260,7 @@ namespace clad {
     if (IsFundamentalType(semaRef, name)) {
       return GetFundamentalType(semaRef, name);
     }
-    auto RD = FindCXXRecordDecl(semaRef, CreateDeclName(semaRef, name));
+    auto RD = FindCXXRecordDecl(semaRef, BuildDeclName(semaRef, name));
     if (RD) {
       // TODO: Do canonical type here will handle CVR qualifications?
       return RD->getTypeForDecl()->getCanonicalTypeInternal();
@@ -273,7 +277,7 @@ namespace clad {
     if (ND)
       return ND;
     auto& C = semaRef.getASTContext();
-    DeclarationName cladDName = CreateDeclName(semaRef, "clad");
+    DeclarationName cladDName = BuildDeclName(semaRef, "clad");
     LookupResult R(semaRef, cladDName, noLoc, Sema::LookupNamespaceName,
                    clad_compat::Sema_ForVisibleRedeclaration);
     semaRef.LookupQualifiedName(R, C.getTranslationUnitDecl());
@@ -382,7 +386,6 @@ namespace clad {
                                 C.getTrivialTypeSourceInfo(qType), nullptr,
                                 false, initStyle);
 
-
     FD->setAccess(AS);
     if (addToDecl)
       DC->addDecl(FD);
@@ -429,20 +432,21 @@ namespace clad {
   }
 
   FunctionDecl* ASTHelper::BuildFnDecl(clang::DeclContext* DC,
-                                       clang::DeclarationName fnName,
+                                       clang::DeclarationNameInfo nameInfo,
                                        clang::QualType fnQType) {
-    return ASTHelper::BuildFnDecl(m_Sema, DC, fnName, fnQType);
+    return ASTHelper::BuildFnDecl(m_Sema, DC, nameInfo, fnQType);
   }
 
-  clang::FunctionDecl* ASTHelper::BuildFnDecl(Sema& semaRef,
-                                              clang::DeclContext* DC,
-                                              clang::DeclarationName fnName,
-                                              clang::QualType fnQType) {
+  clang::FunctionDecl*
+  ASTHelper::BuildFnDecl(Sema& semaRef, clang::DeclContext* DC,
+                         clang::DeclarationNameInfo nameInfo,
+                         clang::QualType fnQType) {
     auto& C = semaRef.getASTContext();
     auto TSI = C.getTrivialTypeSourceInfo(fnQType);
     auto fnDecl = FunctionDecl::
-        Create(C, DC, noLoc, noLoc, fnName, fnQType, TSI, StorageClass::SC_None,
-               false, true, CLAD_COMPAT_ConstexprSpecKind_Unspecified);
+        Create(C, DC, noLoc, noLoc, nameInfo.getName(), fnQType, TSI,
+               StorageClass::SC_None, false, true,
+               CLAD_COMPAT_ConstexprSpecKind_Unspecified);
     return fnDecl;
   }
 
@@ -554,15 +558,14 @@ namespace clad {
   }
   clang::ClassTemplateDecl*
   ASTHelper::FindBaseTemplateClass(clang::DeclContext* DC,
-                                   llvm::StringRef name) {
-    return ASTHelper::FindBaseTemplateClass(m_Sema, DC, name);
+                                   clang::DeclarationNameInfo nameInfo) {
+    return ASTHelper::FindBaseTemplateClass(m_Sema, DC, nameInfo);
   }
 
   clang::ClassTemplateDecl*
   ASTHelper::FindBaseTemplateClass(clang::Sema& semaRef, clang::DeclContext* DC,
-                                   llvm::StringRef name) {
-    LookupResult R(semaRef, CreateDeclNameInfo(semaRef, name),
-                   Sema::LookupNameKind::LookupTagName);
+                                   clang::DeclarationNameInfo nameInfo) {
+    LookupResult R(semaRef, nameInfo, Sema::LookupNameKind::LookupTagName);
     CXXScopeSpec SS;
     BuildNNS(semaRef, SS, DC);
     semaRef.LookupQualifiedName(R, DC, SS);
@@ -585,7 +588,8 @@ namespace clad {
     }
   }
 
-  clang::ArraySubscriptExpr* ASTHelper::BuildBuiltinArraySubscriptExpr(Expr* base, Expr* idx) {
+  clang::ArraySubscriptExpr*
+  ASTHelper::BuildBuiltinArraySubscriptExpr(Expr* base, Expr* idx) {
     return ASTHelper::BuildBuiltinArraySubscriptExpr(m_Sema, base, idx);
   }
 
@@ -594,7 +598,7 @@ namespace clad {
     return semaRef.CreateBuiltinArraySubscriptExpr(base, noLoc, idx, noLoc)
         .getAs<ArraySubscriptExpr>();
   }
-  
+
   StringLiteral* ASTHelper::BuildStringLiteral(llvm::StringRef str) {
     return ASTHelper::BuildStringLiteral(m_Sema, str);
   }
@@ -615,4 +619,104 @@ namespace clad {
                                               /*Pascal=*/false, StrTy, noLoc);
     return SL;
   }
+
+  void ASTHelper::PrintDecl(clang::Decl* D, llvm::raw_ostream& os) {
+    LangOptions langOpts;
+    langOpts.CPlusPlus = true;
+    clang::PrintingPolicy policy(langOpts);
+    policy.Bool = true;
+    D->print(os, policy);
+    os << "\n";
+  }
+
+  clang::FunctionDecl* ASTHelper::BuildFunction(
+      clang::DeclContext* DC, clang::DeclarationNameInfo DNI, clang::QualType T,
+      ast_helper::ScopeHandler SH,
+      std::function<llvm::ArrayRef<clang::ParmVarDecl*>(clang::FunctionDecl*)>
+          buildFnParams,
+      std::function<clang::Stmt*(clang::FunctionDecl*)> buildFnBody,
+      clang::StorageClass S, bool isInlineSpecified) {
+    return ASTHelper::BuildFunction(m_Sema, DC, DNI, T, SH, buildFnParams,
+                                    buildFnBody, S, isInlineSpecified);
+  }
+
+  clang::FunctionDecl* ASTHelper::BuildFunction(
+      clang::Sema& semaRef, clang::DeclContext* DC,
+      clang::DeclarationNameInfo DNI, clang::QualType T,
+      ast_helper::ScopeHandler SH,
+      std::function<llvm::ArrayRef<clang::ParmVarDecl*>(clang::FunctionDecl*)>
+          buildFnParams,
+      std::function<clang::Stmt*(clang::FunctionDecl*)> buildFnBody,
+      clang::StorageClass S, bool isInlineSpecified) {
+    auto& C = semaRef.getASTContext();
+    llvm::SaveAndRestore<DeclContext*> saveContext(semaRef.CurContext);
+    llvm::SaveAndRestore<Scope*> saveScope(SH.m_CurScope);
+
+    SH.BeginScope(Scope::FnScope | Scope::DeclScope | Scope::CompoundStmtScope);
+
+    Sema::SkipBodyInfo SBI;
+    FunctionDecl* FD = nullptr;
+
+    if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
+      FD = ASTHelper::BuildMemFnDecl(semaRef, RD, DNI, T);
+    } else {
+      FD = ASTHelper::BuildFnDecl(semaRef, DC, DNI, T);
+    }
+
+    auto fnParams = buildFnParams(FD);
+
+    FD->setParams(fnParams);
+
+    semaRef.ActOnStartOfFunctionDef(SH.GetCurrentScope(), FD, &SBI);
+
+    Stmt* body = buildFnBody(FD);
+
+    SH.EndScope();
+    semaRef.ActOnFinishFunctionBody(FD, body);
+
+    ASTHelper::RegisterFn(semaRef, FD->getDeclContext(), FD);
+    return FD;
+  }
+
+  clang::TemplateArgumentListInfo ASTHelper::GetTemplateArgumentListInfo(
+      clang::ClassTemplateSpecializationDecl* specialization) {
+    return ASTHelper::GetTemplateArgumentListInfo(m_Sema, specialization);
+  }
+
+  clang::TemplateArgumentListInfo ASTHelper::GetTemplateArgumentListInfo(
+      clang::Sema& semaRef,
+      clang::ClassTemplateSpecializationDecl* specialization) {
+    auto& C = semaRef.getASTContext();
+    TemplateArgumentListInfo argListInfo;
+    const TemplateArgumentList& TAL = specialization->getTemplateArgs();
+    for (auto i = 0U; i < TAL.size(); ++i) {
+      switch (TAL[i].getKind()) {
+        case TemplateArgument::ArgKind::Type:
+          argListInfo.addArgument(
+              TemplateArgumentLoc(TAL[i], C.getTrivialTypeSourceInfo(
+                                              TAL[i].getAsType())));
+          break;
+        case TemplateArgument::ArgKind::Integral:
+          argListInfo.addArgument(
+              TemplateArgumentLoc(TAL[i], TAL[i].getAsExpr()));
+          break;
+        default:
+          assert("Other TemplateArgument::ArgKinds are not handled yet!!");
+      }
+    }
+    return argListInfo;
+  }
+
+  namespace ast_helper {
+    void ScopeHandler::BeginScope(unsigned scopeFlags) {
+      m_CurScope = new clang::Scope(m_CurScope, scopeFlags, m_Sema.Diags);
+    }
+
+    void ScopeHandler::EndScope() {
+      m_Sema.ActOnPopScope(noLoc, m_CurScope);
+      auto oldScope = m_CurScope;
+      m_CurScope = oldScope->getParent();
+      delete oldScope;
+    }
+  } // namespace ast_helper
 } // namespace clad

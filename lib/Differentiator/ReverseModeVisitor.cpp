@@ -443,8 +443,9 @@ namespace clad {
     beginBlock();
     for (auto it=m_Variables.begin(); it != m_Variables.end(); ++it) {
       if (it->second->getType()->isClassType()) {
-        QualType derivedQType = ComputeDerivedType(m_Function->getReturnType(),
-                                                   it->first->getType());
+        QualType derivedQType = m_Builder.m_DTH
+                                    .GetDerivedType(m_Function->getReturnType(),
+                                                    it->first->getType());
         auto derivedVarArrayRefType = GetCladArrayRefOfType(derivedQType);
         auto derivedVar = BuildVarDecl(derivedVarArrayRefType,
                                        "_d" + it->first->getNameAsString(),

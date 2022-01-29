@@ -6,39 +6,32 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Type.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/Sema.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#include <functional>
 #include <initializer_list>
-namespace clang {
-  class ASTContext;
-  class CXXNewExpr;
-  class CXXRecordDecl;
-  class CXXConstructorDecl;
-  class CXXMethodDecl;
-  class Decl;
-  class DeclarationName;
-  class DeclarationNameInfo;
-  class DeclRefExpr;
-  class DeclStmt;
-  class Expr;
-  class FieldDecl;
-  class IdentifierInfo;
-  class MemberExpr;
-  class NamespaceDecl;
-  class ParmVarDecl;
-  class ReturnStmt;
-  class ValueDecl;
-  class VarDecl;
-  class Scope;
-  class Sema;
-  class SourceLocation;
-} // namespace clang
 namespace clad {
+  namespace ast_helper {
+    class ScopeHandler {
+      clang::Sema& m_Sema;
+
+    public:
+      clang::Scope*& m_CurScope;
+
+      ScopeHandler(clang::Sema& semaRef, clang::Scope*& curScope)
+          : m_CurScope(curScope), m_Sema(semaRef) {}
+      void BeginScope(unsigned scopeFlags);
+      void EndScope();
+      clang::Scope* GetCurrentScope() { return m_CurScope; }
+    };
+  } // namespace ast_helper
   class ASTHelper {
     clang::Sema& m_Sema;
     clang::ASTContext& m_Context;
@@ -83,14 +76,14 @@ namespace clad {
                                               clang::Expr* base,
                                               clang::ValueDecl* member);
 
-    clang::CXXNewExpr* CreateNewExprFor(clang::QualType qType,
-                                        clang::Expr* initializer,
-                                        clang::SourceLocation B);
+    clang::CXXNewExpr* BuildNewExprFor(clang::QualType qType,
+                                       clang::Expr* initializer,
+                                       clang::SourceLocation B);
 
-    static clang::CXXNewExpr* CreateNewExprFor(clang::Sema& semaRef,
-                                               clang::QualType qType,
-                                               clang::Expr* initializer,
-                                               clang::SourceLocation B);
+    static clang::CXXNewExpr* BuildNewExprFor(clang::Sema& semaRef,
+                                              clang::QualType qType,
+                                              clang::Expr* initializer,
+                                              clang::SourceLocation B);
 
     clang::CXXConstructorDecl* FindCopyConstructor(clang::CXXRecordDecl* RD);
 
@@ -104,13 +97,13 @@ namespace clad {
                                                  clang::DeclContext* DC,
                                                  clang::DeclarationName fnName);
 
-    clang::DeclarationName CreateDeclName(llvm::StringRef name);
-    static clang::DeclarationName CreateDeclName(clang::Sema& semaRef,
-                                                 llvm::StringRef name);
+    clang::DeclarationName BuildDeclName(llvm::StringRef name);
+    static clang::DeclarationName BuildDeclName(clang::Sema& semaRef,
+                                                llvm::StringRef name);
 
-    clang::DeclarationNameInfo CreateDeclNameInfo(llvm::StringRef name);
-    static clang::DeclarationNameInfo CreateDeclNameInfo(clang::Sema& semaRef,
-                                                         llvm::StringRef name);
+    clang::DeclarationNameInfo BuildDeclNameInfo(llvm::StringRef name);
+    static clang::DeclarationNameInfo BuildDeclNameInfo(clang::Sema& semaRef,
+                                                        llvm::StringRef name);
 
     clang::Expr* IgnoreParenImpCastsUnaryOp(clang::Expr* E);
 
@@ -184,11 +177,11 @@ namespace clad {
     BuildCompoundStmt(clang::Sema& semaRef, llvm::ArrayRef<clang::Stmt*> block);
 
     clang::FunctionDecl* BuildFnDecl(clang::DeclContext* DC,
-                                     clang::DeclarationName fnName,
+                                     clang::DeclarationNameInfo nameInfo,
                                      clang::QualType fnQType);
     static clang::FunctionDecl* BuildFnDecl(clang::Sema& semaRef,
                                             clang::DeclContext* DC,
-                                            clang::DeclarationName fnName,
+                                            clang::DeclarationNameInfo nameInfo,
                                             clang::QualType fnQType);
 
     clang::CXXMethodDecl* BuildMemFnDecl(clang::CXXRecordDecl* RD,
@@ -229,18 +222,18 @@ namespace clad {
     static clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef,
                                             clang::Expr* E);
 
-    void BuildNNS(clang::CXXScopeSpec& CSS,
-                  clang::DeclContext* DC);
+    void BuildNNS(clang::CXXScopeSpec& CSS, clang::DeclContext* DC);
 
     static void BuildNNS(clang::Sema& semaRef, clang::CXXScopeSpec& CSS,
                          clang::DeclContext* DC);
 
-    clang::ClassTemplateDecl* FindBaseTemplateClass(clang::DeclContext* DC,
-                                                    llvm::StringRef name);
+    clang::ClassTemplateDecl*
+    FindBaseTemplateClass(clang::DeclContext* DC,
+                          clang::DeclarationNameInfo nameInfo);
 
     static clang::ClassTemplateDecl*
     FindBaseTemplateClass(clang::Sema& semaRef, clang::DeclContext* DC,
-                          llvm::StringRef name);
+                          clang::DeclarationNameInfo nameInfo);
 
     static void
     AddSpecialisation(clang::ClassTemplateDecl* baseTemplate,
@@ -254,7 +247,43 @@ namespace clad {
                                    clang::Expr* idx);
 
     clang::StringLiteral* BuildStringLiteral(llvm::StringRef str);
-    static clang::StringLiteral* BuildStringLiteral(clang::Sema& semaRef, llvm::StringRef str);
+    static clang::StringLiteral* BuildStringLiteral(clang::Sema& semaRef,
+                                                    llvm::StringRef str);
+
+    static void PrintDecl(clang::Decl* D, llvm::raw_ostream& os);
+
+    /// Function to easily create `FunctionDecl`, `CXXMethodDecl` and
+    /// `CXXConstructorDecl` nodes.
+    ///
+    /// This function handles all the boilerplate code such as handling function
+    /// scopes, declaration context, calling relevant sema functions etc. Users
+    /// need to pass a function object that should returns the function body AST
+    /// node on calling.
+    clang::FunctionDecl* BuildFunction(
+        clang::DeclContext* DC, clang::DeclarationNameInfo DNI,
+        clang::QualType T, ast_helper::ScopeHandler SH,
+        std::function<llvm::ArrayRef<clang::ParmVarDecl*>(clang::FunctionDecl*)>
+            buildFnParams,
+        std::function<clang::Stmt*(clang::FunctionDecl*)> buildFnBody,
+        clang::StorageClass S = clang::StorageClass::SC_None,
+        bool isInlineSpecified = false);
+
+    static clang::FunctionDecl* BuildFunction(
+        clang::Sema& semaRef, clang::DeclContext* DC,
+        clang::DeclarationNameInfo DNI, clang::QualType T,
+        ast_helper::ScopeHandler SH,
+        std::function<llvm::ArrayRef<clang::ParmVarDecl*>(clang::FunctionDecl*)>
+            buildFnParams,
+        std::function<clang::Stmt*(clang::FunctionDecl*)> buildFnBody,
+        clang::StorageClass S = clang::StorageClass::SC_None,
+        bool isInlineSpecified = false);
+
+    clang::TemplateArgumentListInfo GetTemplateArgumentListInfo(
+        clang::ClassTemplateSpecializationDecl* specialization);
+
+    static clang::TemplateArgumentListInfo GetTemplateArgumentListInfo(
+        clang::Sema& semaRef,
+        clang::ClassTemplateSpecializationDecl* specialization);
   };
 } // namespace clad
 #endif

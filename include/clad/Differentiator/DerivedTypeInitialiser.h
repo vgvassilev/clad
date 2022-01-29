@@ -36,7 +36,7 @@ namespace clad {
     ASTHelper m_ASTHelper;
     clang::QualType m_YQType;
     clang::QualType m_XQType;
-    clang::ClassTemplateSpecializationDecl* m_TangentRD = nullptr;
+    clang::ClassTemplateSpecializationDecl* m_Tangent = nullptr;
     clang::QualType m_TangentQType;
 
     std::map<std::string, clang::Expr*> m_Variables;
@@ -49,6 +49,7 @@ namespace clad {
     clang::Scope* m_CurScope;
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
     std::vector<Stmts> m_Blocks;
+
   public:
     DerivedTypeInitialiser(clang::ASTConsumer& consumer, clang::Sema& semaRef,
                            DerivedTypesHandler& DTH, clang::QualType yQType,
@@ -57,9 +58,11 @@ namespace clad {
 
   private:
     void BuildTangentDefinition();
-    void AddDerivedField(clang::QualType Y, clang::QualType X, clang::IdentifierInfo* II);
+    void AddDerivedField(clang::QualType Y, clang::QualType X,
+                         clang::IdentifierInfo* II);
     void FillDerivedRecord();
-    void InitialiseIndependentFields(clang::Expr* base, llvm::SmallVector<clang::Expr*, 4> path);
+    void InitialiseIndependentFields(clang::Expr* base,
+                                     llvm::SmallVector<clang::Expr*, 4> path);
     clang::CXXMethodDecl* BuildInitialiseSeedsFn();
     clang::QualType GetDerivedParamType() const;
     clang::QualType GetNonDerivedParamType() const;
@@ -68,20 +71,19 @@ namespace clad {
     clang::FunctionDecl* BuildDerivedSubFn();
     clang::FunctionDecl* BuildDerivedMultiplyFn();
     clang::FunctionDecl* BuildDerivedDivideFn();
-    template <class ComputeDerivedFnTypeT, class BuildDerivedFnParamsT,
-              class BuildFnBodyT>
-    clang::FunctionDecl*
-    GenerateDerivedArithmeticFn(clang::DeclarationName fnDName,
-                                ComputeDerivedFnTypeT ComputeDerivedFnType,
-                                BuildDerivedFnParamsT BuildDerivedFnParams,
-                                BuildFnBodyT buildFnBody);
+    clang::FunctionDecl* BuildDerivedArithmeticFn(
+        clang::DeclarationNameInfo nameInfo, clang::QualType T,
+        std::function<llvm::ArrayRef<clang::ParmVarDecl*>(clang::FunctionDecl*)>
+            buildFnParams,
+        std::function<void(void)> buildDiffBody);
     clang::QualType ComputeDerivedAddSubFnType() const;
     clang::QualType ComputeDerivedMultiplyDivideFnType();
     clang::QualType ComputeInitialiseSeedsFnType() const;
-    llvm::SmallVector<clang::ParmVarDecl*, 2> BuildDerivedAddSubFnParams();
-    llvm::SmallVector<clang::ParmVarDecl*, 4>
-    BuildDerivedMultiplyDivideFnParams();
-    void ComputeAndStoreDRE(llvm::ArrayRef<clang::ValueDecl*> decls);
+    llvm::ArrayRef<clang::ParmVarDecl*>
+    BuildDerivedAddSubFnParams(clang::DeclContext* DC);
+    llvm::ArrayRef<clang::ParmVarDecl*>
+    BuildDerivedMultiplyDivideFnParams(clang::DeclContext* DC);
+    void BuildAndStoreDRE(llvm::ArrayRef<clang::ValueDecl*> decls);
     void beginScope(unsigned);
     void endScope();
     bool AddToCurrentBlock(clang::Stmt* S);
@@ -92,6 +94,7 @@ namespace clad {
     clang::ClassTemplateDecl* FindDerivedTypeInfoBaseTemplate();
     clang::ClassTemplateDecl* FindDerivativeOfBaseTemplate();
     void BuildTangentTypeInfoSpecialisation();
+    void PerformPendingInstantiations();
   };
 } // namespace clad
 

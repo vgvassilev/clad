@@ -528,6 +528,8 @@ namespace clad {
     TemplateArgumentListInfo TLI{};
     for (auto T : TemplateArgs) {
       TemplateArgument TA = T;
+      llvm::errs()<<"Dumping T:\n";
+      T.dump();
       TLI.addArgument(
           TemplateArgumentLoc(TA, m_Context.getTrivialTypeSourceInfo(T)));
     }

@@ -604,10 +604,8 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
     auto diff = retValDiff.getExpr_dx();
-    retValDiff.getExpr()->dumpColor();
-    diff->dumpColor();
     auto initializer = m_ASTHelper.BuildCXXCopyConstructExpr(diff->getType(), diff);
-    auto newExpr = m_ASTHelper.CreateNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
+    auto newExpr = m_ASTHelper.BuildNewExprFor(diff->getType(), initializer, RS->getBeginLoc());
     auto diffResDecl = BuildVarDecl(m_Context.getPointerType(diff->getType()),
                                     "_t", newExpr);
     auto diffResDRE = BuildDeclRef(diffResDecl);
@@ -616,7 +614,7 @@ namespace clad {
     // auto dumpMethod = m_ASTHelper
     //                       .FindUniqueFnDecl(diff->getType()
     //                                                   ->getAsCXXRecordDecl(),
-    //                                               m_ASTHelper.CreateDeclName(
+    //                                               m_ASTHelper.BuildDeclName(
     //                                                   "dump"));
 
     // NestedNameSpecifierLoc NNS(dumpMethod->getQualifier(),
