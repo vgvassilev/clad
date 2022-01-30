@@ -6,6 +6,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/Basic/DiagnosticSema.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -39,9 +40,9 @@ namespace clad {
         (m_YQType->isRealType() || m_YQType == m_XQType) &&
         "We do not yet support differentiating aggregating types with respect "
         "to aggregate types");
-    assert(m_XQType->isClassType() &&
+    assert(m_XQType->isStructureOrClassType() &&
            "DerivedTypeInitialiser shoud not be called for scalar x type!!");
-    // PerformPendingInstantiations();
+    PerformPendingInstantiations();
 
     BuildTangentDefinition();
     BuildTangentTypeInfoSpecialisation();
@@ -741,26 +742,7 @@ namespace clad {
   Scope* DerivedTypeInitialiser::GetCurrentScope() { return m_CurScope; }
 
   void DerivedTypeInitialiser::PerformPendingInstantiations() {
-    if (auto RD = m_XQType->getAsCXXRecordDecl()) {
-      if (auto specialization = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-        // specialization->dumpColor();
-        auto templateDecl = specialization->getSpecializedTemplate();
-        auto argListInfo = m_ASTHelper.GetTemplateArgumentListInfo(
-            specialization);
-        m_XQType = m_Sema.CheckTemplateIdType(TemplateName(templateDecl), noLoc,
-                                              argListInfo);
-      }
-    }
-
-    if (auto RD = m_YQType->getAsCXXRecordDecl()) {
-      if (auto specialization = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-        // specialization->dumpColor();
-        auto templateDecl = specialization->getSpecializedTemplate();
-        auto argListInfo = m_ASTHelper.GetTemplateArgumentListInfo(
-            specialization);
-        m_YQType = m_Sema.CheckTemplateIdType(TemplateName(templateDecl), noLoc,
-                                              argListInfo);
-      }
-    }
+    m_Sema.RequireCompleteType(noLoc, m_YQType, diag::err_typecheck_decl_incomplete_type);
+    m_Sema.RequireCompleteType(noLoc, m_XQType, diag::err_typecheck_decl_incomplete_type);
   }
 } // namespace clad
