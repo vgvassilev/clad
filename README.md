@@ -25,6 +25,29 @@ conda update --all
 # Clad
 Clad enables [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) for C++. It is based on LLVM compiler infrastructure and is a plugin for [Clang compiler](http://clang.llvm.org/). Clad is based on source code transformation. Given C++ source code of a mathematical function, it can automatically generate C++ code for computing derivatives of the function. It supports both forward-mode and reverse-mode AD.
 ## How to use Clad
+
+### Wtih Jupyter Notebooks
+
+[xeus-cling](https://github.com/jupyter-xeus/xeus-cling) provides a Jupyter kernel for C++ with the help of the C++ interpreter Cling and the native implementation of the Jupyter protocol xeus. Within the xeus-cling framework, Clad can enable automatic differentiation (AD) such that users can automatically generate C++ code for their computation of derivatives of their functions.
+
+To set up your environment, use:
+
+```
+mamba create -n xeus-clad -c conda-forge clad xeus-cling jupyterlab
+
+conda activate xeus-clad
+```
+
+Next, running ```jupyter notebook``` will now show 3 new kernels for `C++ 11/14/17` with Clad attached. The image below is a snapshot of a custom function and a call to Clad's forward mode (part of an AD Clad & Jupyter [tutorial](https://compiler-research.org/tutorials/clad_jupyter/)). 
+
+
+<img
+  src="./clad-jupyter-demo-readme.png"
+  alt="Alt text"
+  title="Optional title"
+  style="display: block; margin: 0 auto; max-width: 300px">
+
+### As a plugin for Clang
 Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
 ```
 clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
