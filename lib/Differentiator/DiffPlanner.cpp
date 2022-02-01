@@ -370,6 +370,23 @@ namespace clad {
           candidates.emplace_back(PVD->getName(), PVD);
       }
 
+      // Ensure that diff params are always considered in the same order.
+      std::sort(
+          names.begin(), names.end(),
+          [&candidates](llvm::StringRef a, llvm::StringRef b) {
+            auto a_it = std::find_if(
+                candidates.begin(), candidates.end(),
+                [a](const std::pair<llvm::StringRef, ValueDecl*>& candidate) {
+                  return candidate.first == a;
+                });
+            auto b_it = std::find_if(
+                candidates.begin(), candidates.end(),
+                [b](const std::pair<llvm::StringRef, ValueDecl*>& candidate) {
+                  return candidate.first == b;
+                });
+            return a_it < b_it;
+          });
+
       for (const auto& name : names) {
         size_t loc = name.find('[');
         loc = (loc == llvm::StringRef::npos) ? name.size() : loc;
@@ -484,8 +501,12 @@ namespace clad {
                         "parameters");
         return;
       }
+      IndexIntervalTable indexes{};
+      // insert an empty index for each parameter.
+      for (unsigned i=0; i<params.size(); ++i)
+        indexes.push_back(IndexInterval());
       // Returns the sequence with all the function's parameters.
-      DiffParamsInfo = {params, {}};
+      DiffParamsInfo = {params, indexes};
       return;
     }
     // Fail if the argument is not a string or numeric literal.
