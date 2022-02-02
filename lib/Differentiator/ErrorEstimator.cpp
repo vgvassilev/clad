@@ -8,9 +8,31 @@
 using namespace clang;
 
 namespace clad {
+QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
+  if (baseType->isArrayType()) {
+    return C.getBaseElementType(baseType);
+  } else if (auto PTType = baseType->getAs<PointerType>()) {
+    return PTType->getPointeeType();
+  }
+}
+
   void ErrorEstimationHandler::SetErrorEstimationModel(
       FPErrorEstimationModel* estModel) {
     m_EstModel = estModel;
+  }
+
+  Expr*
+  ErrorEstimationHandler::getArraySubscriptExpr(Expr* arrBase, Expr* idx,
+                                                bool isCladSpType /*=true*/) {
+    if (isCladSpType) {
+      return m_Sema
+          .ActOnArraySubscriptExpr(getCurrentScope(), arrBase,
+                                   arrBase->getExprLoc(), idx, noLoc)
+          .get();
+    } else {
+      return m_Sema.CreateBuiltinArraySubscriptExpr(arrBase, noLoc, idx, noLoc)
+          .get();
+    }
   }
 
   void ErrorEstimationHandler::BuildFinalErrorStmt() {
@@ -64,13 +86,10 @@ namespace clad {
                      .get();
         popVal = StoreAndRef(popVal, reverse);
       }
-      // If the variable declration referes to an array element
+      // If the variable declration refers to an array element
       // create the suitable _delta_arr[i] (because we have not done
       // this before).
-      deltaVar = m_Sema
-                     .CreateBuiltinArraySubscriptExpr(deltaVar, noLoc, popVal,
-                                                      noLoc)
-                     .get();
+      deltaVar = getArraySubscriptExpr(deltaVar, popVal);
       addToCurrentBlock(BuildOp(BO_AddAssign, deltaVar, errorExpr), reverse);
       // immediately emit fin_err += delta_[].
       // This is done to avoid adding all errors at the end
@@ -155,9 +174,38 @@ namespace clad {
   void ErrorEstimationHandler::SaveParamValue(DeclRefExpr* paramRef) {
     assert(paramRef && "Must have a value");
     VarDecl* paramDecl = cast<VarDecl>(paramRef->getDecl());
-    auto savedDecl = GlobalStoreImpl(paramRef->getType(),
-                                     "_EERepl_" + paramDecl->getNameAsString(),
-                                     paramRef);
+    QualType paramType = paramRef->getType();
+    std::string name = "_EERepl_" + paramDecl->getNameAsString();
+    VarDecl* savedDecl;
+    if (isArrayOrPointerType(paramType)) {
+      auto diffVar = m_Variables[paramDecl];
+      auto QType =
+          GetCladArrayOfType(getUnderlyingArrayType(paramType, m_Context));
+      savedDecl =
+          BuildVarDecl(QType, name, BuildArrayRefSizeExpr(diffVar),
+                       /*DirectInit=*/false,
+                       /*TSI=*/nullptr, VarDecl::InitializationStyle::CallInit);
+      AddToGlobalBlock(BuildDeclStmt(savedDecl));
+      Stmts loopBody;
+      // Get iter variable.
+      auto loopIdx =
+          BuildVarDecl(m_Context.IntTy, "i", getZeroInit(m_Context.IntTy));
+      auto currIdx = BuildDeclRef(loopIdx);
+      // Build the assign expression.
+      loopBody.push_back(BuildOp(
+          BO_Assign, getArraySubscriptExpr(BuildDeclRef(savedDecl), currIdx),
+          getArraySubscriptExpr(paramRef, currIdx,
+                                /*isCladSpType=*/false)));
+      Expr* conditionExpr =
+          BuildOp(BO_LT, currIdx, BuildArrayRefSizeExpr(diffVar));
+      Expr* incExpr = BuildOp(UO_PostInc, currIdx);
+      // Make for loop.
+      Stmt* ArrayParamLoop = new (m_Context)
+          ForStmt(m_Context, BuildDeclStmt(loopIdx), conditionExpr, nullptr,
+                  incExpr, MakeCompoundStmt(loopBody), noLoc, noLoc, noLoc);
+      AddToGlobalBlock(ArrayParamLoop);
+    } else
+      savedDecl = GlobalStoreImpl(paramType, name, paramRef);
     m_ParamRepls.emplace(paramDecl, BuildDeclRef(savedDecl));
   }
 
@@ -170,18 +218,35 @@ namespace clad {
     Expr* init = m_EstModel->SetError(VD);
     auto VDType = VD->getType();
     // The type of the _delta_ value should be customisable.
-    auto QType = isArrayOrPointerType(VDType) ? VDType : m_Context.DoubleTy;
-    init = init ? init : getZeroInit(QType);
+    QualType QType;
     Expr* deltaVar = nullptr;
-    // Store the "_delta_*" value.
-    if (!toCurrentScope) {
-      auto EstVD = GlobalStoreImpl(QType, "_delta_" + VD->getNameAsString(),
-                                   init);
+    auto diffVar = m_Variables[VD];
+    if (isArrayRefType(diffVar->getType())) {
+      VarDecl* EstVD;
+      auto sizeExpr = BuildArrayRefSizeExpr(diffVar);
+      QType = GetCladArrayOfType(getUnderlyingArrayType(VDType, m_Context));
+      EstVD =
+          BuildVarDecl(QType, "_delta_" + VD->getNameAsString(), sizeExpr,
+                       /*DirectInit=*/false,
+                       /*TSI=*/nullptr, VarDecl::InitializationStyle::CallInit);
+      if (!toCurrentScope)
+        AddToGlobalBlock(BuildDeclStmt(EstVD));
+      else
+        addToCurrentBlock(BuildDeclStmt(EstVD), forward);
       deltaVar = BuildDeclRef(EstVD);
     } else {
-      deltaVar = StoreAndRef(init, QType, forward,
-                             "_delta_" + VD->getNameAsString(),
-                             /*forceDeclCreation=*/true);
+      QType = isArrayOrPointerType(VDType) ? VDType : m_Context.DoubleTy;
+      init = init ? init : getZeroInit(QType);
+      // Store the "_delta_*" value.
+      if (!toCurrentScope) {
+        auto EstVD =
+            GlobalStoreImpl(QType, "_delta_" + VD->getNameAsString(), init);
+        deltaVar = BuildDeclRef(EstVD);
+      } else {
+        deltaVar =
+            StoreAndRef(init, QType, forward, "_delta_" + VD->getNameAsString(),
+                        /*forceDeclCreation=*/true);
+      }
     }
     // Register the variable for estimate calculation.
     m_EstModel->AddVarToEstimate(VD, deltaVar);
@@ -192,14 +257,9 @@ namespace clad {
 
     // Get the types on the declartion and initalization expression.
     QualType varDeclBase = VD->getType();
-    QualType varDeclType;
-    if (varDeclBase->isArrayType()) {
-      varDeclType = varDeclBase->getAsArrayTypeUnsafe()->getElementType();
-    } else if (auto PTType = varDeclBase->getAs<PointerType>()) {
-      varDeclType = PTType->getPointeeType();
-    } else {
-      varDeclType = varDeclBase;
-    }
+    QualType varDeclType = isArrayOrPointerType(varDeclBase)
+                               ? getUnderlyingArrayType(varDeclBase, m_Context)
+                               : varDeclBase;
     const Expr* init = VD->getInit();
     // If declarationg type in not floating point type, we want to do two
     // things.
@@ -290,35 +350,23 @@ namespace clad {
                                        getZeroInit(m_Context.IntTy));
             m_IdxExpr = BuildDeclRef(idxExprDecl);
           }
-          Expr* Ldiff;
-          // Build the different expressions to be used in errro output.
-          if (isArrayRefType(LdiffExpr->getType())) {
-            Ldiff = m_Sema
-                        .ActOnArraySubscriptExpr(getCurrentScope(), LdiffExpr,
-                                                 decl->getLocation(), m_IdxExpr,
-                                                 noLoc)
-                        .get();
-          } else {
-            Ldiff = m_Sema
-                        .CreateBuiltinArraySubscriptExpr(LdiffExpr, noLoc,
-                                                         m_IdxExpr, noLoc)
-                        .get();
-          }
-          auto Ldelta = m_Sema
-                            .CreateBuiltinArraySubscriptExpr(deltaVar, noLoc,
-                                                             m_IdxExpr, noLoc)
-                            .get();
+          Expr *Ldiff, *Ldelta;
+          Ldiff = getArraySubscriptExpr(LdiffExpr, m_IdxExpr,
+                                        isArrayRefType(LdiffExpr->getType()));
+          Ldelta = getArraySubscriptExpr(deltaVar, m_IdxExpr);
           auto savedVal = GetParamReplacement(params[i]);
           savedVal = savedVal ? savedVal : BuildDeclRef(decl);
-          auto LRepl = m_Sema
-                           .CreateBuiltinArraySubscriptExpr(savedVal, noLoc,
-                                                            m_IdxExpr, noLoc)
-                           .get();
+          auto LRepl = getArraySubscriptExpr(savedVal, m_IdxExpr);
           // Build the loop to put in reverse mode.
-          Expr* deltaAssignExpr = BuildOp(BO_AddAssign, Ldelta,
-                                          GetError(LRepl, Ldiff));
-          Expr* finalAssignExpr = BuildOp(BO_AddAssign, m_FinalError, Ldelta);
+          Expr* errorExpr = GetError(LRepl, Ldiff);
+          auto commonVarDecl =
+              BuildVarDecl(errorExpr->getType(), "_t", errorExpr);
+          Expr* commonVarExpr = BuildDeclRef(commonVarDecl);
+          Expr* deltaAssignExpr = BuildOp(BO_AddAssign, Ldelta, commonVarExpr);
+          Expr* finalAssignExpr =
+              BuildOp(BO_AddAssign, m_FinalError, commonVarExpr);
           Stmts loopBody;
+          loopBody.push_back(BuildDeclStmt(commonVarDecl));
           loopBody.push_back(deltaAssignExpr);
           loopBody.push_back(finalAssignExpr);
           Expr* conditionExpr = BuildOp(BO_LT, m_IdxExpr,
