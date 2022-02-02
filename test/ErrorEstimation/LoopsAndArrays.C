@@ -44,14 +44,16 @@ float func(float* p, int n) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += _d_sum * _EERepl_sum0 * {{.+}};
-//CHECK-NEXT:     float *_delta_p = 0;
+//CHECK-NEXT:     clad::array<float> _delta_p(_d_p.size());
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     for (; i < _d_p.size(); i++) {
-//CHECK-NEXT:         _delta_p[i] += _d_p[i] * p[i] * {{.+}};
-//CHECK-NEXT:         _final_error += _delta_p[i];
+//CHECK-NEXT:         double _t3 = _d_p[i] * p[i] * {{.+}};
+//CHECK-NEXT:         _delta_p[i] += _t3;
+//CHECK-NEXT:         _final_error += _t3;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += _delta_sum;
 //CHECK-NEXT: }
+
 
 float func2(float x) {
   float z;
@@ -190,8 +192,11 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
-//CHECK-NEXT:     float *_delta_x = 0;
-//CHECK-NEXT:     float *_EERepl_x0 = x;
+//CHECK-NEXT:     clad::array<float> _delta_x(_d_x.size());
+//CHECK-NEXT:     clad::array<float> _EERepl_x0(_d_x.size());
+//CHECK-NEXT:     for (int i0 = 0; i0 < _d_x.size(); i0++) {
+//CHECK-NEXT:         _EERepl_x0[i0] = x[i0];
+//CHECK-NEXT:     }
 //CHECK-NEXT:     clad::tape<int> _t3 = {};
 //CHECK-NEXT:     clad::tape<float> _EERepl_x1 = {};
 //CHECK-NEXT:     clad::tape<int> _t5 = {};
@@ -237,17 +242,20 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     _delta_sum += _d_sum * _EERepl_sum0 * {{.+}};
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     for (; i < _d_x.size(); i++) {
-//CHECK-NEXT:         _delta_x[i] += _d_x[i] * _EERepl_x0[i] * {{.+}};
-//CHECK-NEXT:         _final_error += _delta_x[i];
+//CHECK-NEXT:         double _t7 = _d_x[i] * _EERepl_x0[i] * {{.+}};
+//CHECK-NEXT:         _delta_x[i] += _t7;
+//CHECK-NEXT:         _final_error += _t7;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     float *_delta_y = 0;
+//CHECK-NEXT:     clad::array<float> _delta_y(_d_y.size());
 //CHECK-NEXT:     i = 0;
 //CHECK-NEXT:     for (; i < _d_y.size(); i++) {
-//CHECK-NEXT:         _delta_y[i] += _d_y[i] * y[i] * {{.+}};
-//CHECK-NEXT:         _final_error += _delta_y[i];
+//CHECK-NEXT:         double _t8 = _d_y[i] * y[i] * {{.+}};
+//CHECK-NEXT:         _delta_y[i] += _t8;
+//CHECK-NEXT:         _final_error += _t8;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += _delta_sum;
 //CHECK-NEXT: }
+
 
 double func5(double* x, double* y, double* output) {
   output[0] = x[1] * y[2] - x[2] * y[1];
@@ -257,8 +265,11 @@ double func5(double* x, double* y, double* output) {
 }
 
 //CHECK: void func5_grad(double *x, double *y, double *output, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_output, double &_final_error) {
-//CHECK-NEXT:     double *_delta_output = 0;
-//CHECK-NEXT:     double *_EERepl_output0 = output;
+//CHECK-NEXT:     clad::array<double> _delta_output(_d_output.size());
+//CHECK-NEXT:     clad::array<double> _EERepl_output0(_d_output.size());
+//CHECK-NEXT:     for (int i = 0; i < _d_output.size(); i++) {
+//CHECK-NEXT:         _EERepl_output0[i] = output[i];
+//CHECK-NEXT:     }
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     double _t1;
 //CHECK-NEXT:     double _t2;
@@ -347,22 +358,25 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _d_output[0] -= _r_d0;
 //CHECK-NEXT:         _d_output[0];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     double *_delta_x = 0;
+//CHECK-NEXT:     clad::array<double> _delta_x(_d_x.size());
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     for (; i < _d_x.size(); i++) {
-//CHECK-NEXT:         _delta_x[i] += _d_x[i] * x[i] * {{.+}};
-//CHECK-NEXT:         _final_error += _delta_x[i];
+//CHECK-NEXT:         double _t12 = _d_x[i] * x[i] * {{.+}};
+//CHECK-NEXT:         _delta_x[i] += _t12;
+//CHECK-NEXT:         _final_error += _t12;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     double *_delta_y = 0;
+//CHECK-NEXT:     clad::array<double> _delta_y(_d_y.size());
 //CHECK-NEXT:     i = 0;
 //CHECK-NEXT:     for (; i < _d_y.size(); i++) {
-//CHECK-NEXT:         _delta_y[i] += _d_y[i] * y[i] * {{.+}};
-//CHECK-NEXT:         _final_error += _delta_y[i];
+//CHECK-NEXT:         double _t13 = _d_y[i] * y[i] * {{.+}};
+//CHECK-NEXT:         _delta_y[i] += _t13;
+//CHECK-NEXT:         _final_error += _t13;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     i = 0;
 //CHECK-NEXT:     for (; i < _d_output.size(); i++) {
-//CHECK-NEXT:         _delta_output[i] += _d_output[i] * _EERepl_output0[i] * {{.+}};
-//CHECK-NEXT:         _final_error += _delta_output[i];
+//CHECK-NEXT:         double _t14 = _d_output[i] * _EERepl_output0[i] * {{.+}};
+//CHECK-NEXT:         _delta_output[i] += _t14;
+//CHECK-NEXT:         _final_error += _t14;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += 1. * _ret_value0 * {{.+}};
 //CHECK-NEXT: }

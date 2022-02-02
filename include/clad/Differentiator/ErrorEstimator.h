@@ -54,6 +54,17 @@ namespace clad {
       m_FinalError = finErrExpr;
     }
 
+    /// Shorthand to get array subscript expressions.
+    ///
+    /// \param[in] arrBase The base expression of the array.
+    /// \param[in] idx The index expression.
+    /// \param[in] isCladSpType Keeps track of if we have to build a clad
+    /// special type (i.e. clad::Array or clad::ArrayRef).
+    ///
+    /// \returns An expression of the kind arrBase[idx].
+    clang::Expr* getArraySubscriptExpr(clang::Expr* arrBase, clang::Expr* idx,
+                                       bool isCladSpType = true);
+
     /// \returns The final error expression so far.
     clang::Expr* GetFinalErrorExpr() { return m_FinalError; }
 
