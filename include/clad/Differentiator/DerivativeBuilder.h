@@ -136,7 +136,12 @@ namespace clad {
     /// \param[in] estModel The error estimation model, can be either
     /// an in-built one (TaylorApprox) or one provided by the user.
     void
-    AddErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
+    SetErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
+    /// Function to initialize the \c ostream object if error printing was
+    /// requested.
+    ///
+    /// \returns the equivalent QualType of \c ostream objects.
+    clang::QualType GetErrorFileType();
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

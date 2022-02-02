@@ -74,14 +74,30 @@ void ErrorEstimationHandler::BuildFinalErrorStmt() {
   }
 
   // Finally add the final error expression to the derivative body.
+  // Here, since this is the final error, we do not print it when error
+  // printing is requested, users can print this error themselves if they
+  // so feel to.
   m_RMV->addToCurrentBlock(
       m_RMV->BuildOp(BO_AddAssign, m_FinalError, addErrorExpr),
       direction::forward);
+
+  if (m_ErrorFile) {
+    for (auto var : m_EstModel->m_EstimateVar) {
+      auto delta = var.second;
+      auto deltaDecl = var.first;
+      Expr* printDelta = m_RMV->BuildOp(
+          BO_Shl, m_ErrorFile,
+          m_EstModel->getAsExpr("\nFinal error contribution by " +
+                                deltaDecl->getNameAsString() + " = "));
+      m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_Shl, printDelta, delta),
+                               direction::forward);
+    }
+  }
 }
 
-void ErrorEstimationHandler::AddErrorStmtToBlock(Expr* var, Expr* deltaVar,
-                                                 Expr* errorExpr,
-                                                 bool isInsideLoop /*=false*/) {
+void ErrorEstimationHandler::AddErrorStmtToBlock(
+    Expr* var, Expr* deltaVar, Expr* errorExpr, bool isInsideLoop /*=false*/,
+    Expr* errorPrint /*=nullptr*/) {
   if (auto ASE = dyn_cast<ArraySubscriptExpr>(var)) {
     // If inside loop, the index has been pushed twice
     // (once by ArraySubscriptExpr and the second time by us)
@@ -117,10 +133,11 @@ void ErrorEstimationHandler::AddErrorStmtToBlock(Expr* var, Expr* deltaVar,
     m_RMV->addToCurrentBlock(
         m_RMV->BuildOp(BO_AddAssign, m_FinalError, deltaVar),
         direction::reverse);
-
   } else
     m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_AddAssign, deltaVar, errorExpr),
                              direction::reverse);
+  // Add the print error statement if any printing was requested.
+  m_RMV->addToCurrentBlock(errorPrint, direction::reverse);
 }
 
 void ErrorEstimationHandler::EmitErrorEstimationStmts(
@@ -295,7 +312,7 @@ bool ErrorEstimationHandler::CanRegisterVariable(VarDecl* VD) {
           ? getUnderlyingArrayType(varDeclBase, m_RMV->m_Context)
           : varDeclBase;
   const Expr* init = VD->getInit();
-  // If declarationg type in not floating point type, we want to do two
+  // If declaration type in not floating point type, we want to do two
   // things.
   if (!varDeclType->isFloatingType()) {
     // Firstly, we want to check if the declaration is a lossy conversion.
@@ -346,36 +363,52 @@ Expr* ErrorEstimationHandler::GetParamReplacement(const ParmVarDecl* VD) {
   return nullptr;
 }
 
+Expr* ErrorEstimationHandler::GetPrintExpr(std::string var_name, Expr* var,
+                                           Expr* var_dx, Expr* var_err) {
+  if (!m_ErrorFile)
+    return nullptr;
+  llvm::SmallVector<Expr*, 8> toPrnt = {};
+  m_EstModel->Print(var_name, {var, var_dx}, var_err, toPrnt);
+  assert(toPrnt.size() &&
+         "To print expression is empty even when error printing is enabled.");
+  Expr* printExpr = m_ErrorFile;
+  for (size_t i = 0; i < toPrnt.size(); i++) {
+    printExpr = m_RMV->BuildOp(BO_Shl, printExpr, toPrnt[i]);
+  }
+  return printExpr;
+}
+
 void ErrorEstimationHandler::EmitFinalErrorStmts(
     llvm::SmallVectorImpl<ParmVarDecl*>& params, unsigned numParams) {
   // Emit error variables of parameters at the end.
   for (size_t i = 0; i < numParams; i++) {
     // Right now, we just ignore them since we have no way of knowing
     // the size of an array.
-    // if (m_RMV->isArrayOrPointerType(params[i]->getType()))
+    // if (isArrayOrPointerType(params[i]->getType()))
     //   continue;
-
     // Check if the declaration was registered
     auto decl = dyn_cast<VarDecl>(params[i]);
     Expr* deltaVar = IsRegistered(decl);
-
     // If not registered, check if it is eligible for registration and do
     // the needful.
     if (!deltaVar) {
       deltaVar = RegisterVariable(decl, /*toCurrentScope=*/true);
     }
-
     // If till now, we have a delta declaration, emit it into the code.
     if (deltaVar) {
-      if (!m_RMV->isArrayOrPointerType(params[i]->getType())) {
+      if (!clad::utils::isArrayOrPointerType(params[i]->getType())) {
         // Since we need the input value of x, check for a replacement.
         // If no replacement found, use the actual declRefExpr.
         auto savedVal = GetParamReplacement(params[i]);
         savedVal = savedVal ? savedVal : m_RMV->BuildDeclRef(decl);
         // Finally emit the error.
         auto errorExpr = GetError(savedVal, m_RMV->m_Variables[decl]);
+        auto errorPrntExpr =
+            GetPrintExpr(params[i]->getNameAsString(), savedVal,
+                         m_RMV->m_Variables[decl], errorExpr);
         m_RMV->addToCurrentBlock(
             m_RMV->BuildOp(BO_AddAssign, deltaVar, errorExpr));
+        m_RMV->addToCurrentBlock(errorPrntExpr);
       } else {
         auto LdiffExpr = m_RMV->m_Variables[decl];
         VarDecl* idxExprDecl = nullptr;
@@ -402,9 +435,13 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
             m_RMV->BuildOp(BO_AddAssign, Ldelta, commonVarExpr);
         Expr* finalAssignExpr =
             m_RMV->BuildOp(BO_AddAssign, m_FinalError, commonVarExpr);
-        ReverseModeVisitor::Stmts loopBody;
+        Stmts loopBody;
         loopBody.push_back(m_RMV->BuildDeclStmt(commonVarDecl));
         loopBody.push_back(deltaAssignExpr);
+        // Build and add the print error expression.
+        if (m_ErrorFile)
+          loopBody.push_back(GetPrintExpr(params[i]->getNameAsString(), LRepl,
+                                          Ldiff, commonVarExpr));
         loopBody.push_back(finalAssignExpr);
         Expr* conditionExpr = m_RMV->BuildOp(
             BO_LT, m_IdxExpr, m_RMV->BuildArrayRefSizeExpr(LdiffExpr));
@@ -435,7 +472,8 @@ void ErrorEstimationHandler::EmitUnaryOpErrorStmts(StmtDiff var,
   if (DeclRefExpr* DRE = GetUnderlyingDeclRefOrNull(var.getExpr())) {
     // First check if it was registered.
     // If not, we don't care about it.
-    if (auto deltaVar = IsRegistered(cast<VarDecl>(DRE->getDecl()))) {
+    auto decl = cast<VarDecl>(DRE->getDecl());
+    if (auto deltaVar = IsRegistered(decl)) {
       // Create a variable/tape call to store the current value of the
       // the sub-expression so that it can be used later.
       StmtDiff savedVar = m_RMV->GlobalStoreAndRef(
@@ -450,7 +488,11 @@ void ErrorEstimationHandler::EmitUnaryOpErrorStmts(StmtDiff var,
         savedVar = {savedVar.getExpr(), popVal};
       }
       Expr* erroExpr = GetError(savedVar.getExpr_dx(), var.getExpr_dx());
-      AddErrorStmtToBlock(var.getExpr(), deltaVar, erroExpr, isInsideLoop);
+      Expr* prntExpr =
+          GetPrintExpr(decl->getNameAsString(), savedVar.getExpr_dx(),
+                       var.getExpr_dx(), erroExpr);
+      AddErrorStmtToBlock(var.getExpr(), deltaVar, erroExpr, isInsideLoop,
+                          prntExpr);
     }
   }
 }
@@ -492,9 +534,11 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr, Expr* oldValue,
   // previously.
   StmtDiff savedExpr = SaveValue(LExpr, isInsideLoop);
   // Assign the error.
-  Expr* errorExpr = UpdateErrorForFuncCallAssigns(this, savedExpr.getExpr_dx(),
-                                                  oldValue, m_NestedFuncError);
-  AddErrorStmtToBlock(LExpr, deltaVar, errorExpr, isInsideLoop);
+  auto decl = GetUnderlyingDeclRefOrNull(LExpr)->getDecl();
+  Expr* errorExpr = GetError(savedExpr.getExpr_dx(), oldValue);
+  Expr* prntExpr = GetPrintExpr(decl->getNameAsString(), savedExpr.getExpr_dx(),
+                                oldValue, errorExpr);
+  AddErrorStmtToBlock(LExpr, deltaVar, errorExpr, isInsideLoop, prntExpr);
   // If there are assign statements to emit in reverse, do that.
   EmitErrorEstimationStmts(direction::reverse);
 }
@@ -512,10 +556,12 @@ void ErrorEstimationHandler::EmitDeclErrorStmts(VarDeclDiff VDDiff,
     StmtDiff savedDecl = SaveValue(VDRef, isInsideLoop);
     // If the VarDecl has an init, we should assign it with an error.
     if (VD->getInit() && !GetUnderlyingDeclRefOrNull(VD->getInit())) {
-      Expr* errorExpr = UpdateErrorForFuncCallAssigns(
-          this, savedDecl.getExpr_dx(),
-          m_RMV->BuildDeclRef(VDDiff.getDecl_dx()), m_NestedFuncError);
-      AddErrorStmtToBlock(VDRef, EstVD, errorExpr, isInsideLoop);
+      auto varDeclExpr = m_RMV->BuildDeclRef(VDDiff.getDecl_dx());
+      Expr* errorExpr = GetError(savedDecl.getExpr_dx(), varDeclExpr);
+      Expr* prntExpr =
+          GetPrintExpr(VD->getNameAsString(), savedDecl.getExpr_dx(),
+                       varDeclExpr, errorExpr);
+      AddErrorStmtToBlock(VDRef, EstVD, errorExpr, isInsideLoop, prntExpr);
     }
   }
 }
@@ -528,38 +574,54 @@ void ErrorEstimationHandler::ForgetRMV() { m_RMV = nullptr; }
 
 void ErrorEstimationHandler::ActBeforeCreatingDerivedFnParamTypes(
     unsigned& numExtraParam) {
-  numExtraParam += 1;
+  numExtraParam += 1 + m_PrintErrors;
 }
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParamTypes(
     llvm::SmallVectorImpl<QualType>& paramTypes) {
-  m_ParamTypes = &paramTypes;
   // If we are performing error estimation, our gradient function
   // will have an extra argument which will hold the final error value
   paramTypes.push_back(
       m_RMV->m_Context.getLValueReferenceType(m_RMV->m_Context.DoubleTy));
-}
+  // If error printing was enabled, add another param type for it.
+  if (m_PrintErrors) {
+    paramTypes.push_back(
+        m_RMV->m_Context.getLValueReferenceType(m_ErrorFileType));
+  }
+};
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
   m_Params = &params;
   // If in error estimation mode, create the error parameter
   ASTContext& context = m_RMV->m_Context;
+  QualType finErrorType = context.getLValueReferenceType(context.DoubleTy);
   // Repeat the above but for the error ouput var "_final_error"
-  ParmVarDecl* errorVarDecl = ParmVarDecl::Create(
-      context, m_RMV->m_Derivative, noLoc, noLoc,
-      &context.Idents.get("_final_error"), m_ParamTypes->back(),
-      context.getTrivialTypeSourceInfo(m_ParamTypes->back(), noLoc),
-      params.front()->getStorageClass(),
-      /*DefArg=*/nullptr);
+  ParmVarDecl* errorVarDecl =
+      ParmVarDecl::Create(context, m_RMV->m_Derivative, noLoc, noLoc,
+                          &context.Idents.get("_final_error"), finErrorType,
+                          context.getTrivialTypeSourceInfo(finErrorType, noLoc),
+                          params.front()->getStorageClass(),
+                          /*DefArg=*/nullptr);
+  m_FinalError = m_RMV->BuildDeclRef(errorVarDecl);
   params.push_back(errorVarDecl);
-  m_RMV->m_Sema.PushOnScopeChains(params.back(), m_RMV->getCurrentScope(),
+  m_RMV->m_Sema.PushOnScopeChains(errorVarDecl, m_RMV->getCurrentScope(),
                                   /*AddToContext=*/false);
-}
-
-void ErrorEstimationHandler::ActBeforeCreatingDerivedFnBodyScope() {
-  // Reference to the final error statement
-  SetFinalErrorExpr(m_RMV->BuildDeclRef(m_Params->back()));
+  // If printing of error estimates was requested, build another parameter to
+  // store the ofstream object.
+  if (m_PrintErrors) {
+    QualType prntErrorType = context.getLValueReferenceType(m_ErrorFileType);
+    ParmVarDecl* VD = ParmVarDecl::Create(
+        context, m_RMV->m_Derivative, noLoc, noLoc,
+        &context.Idents.get("_error_stream"), prntErrorType,
+        context.getTrivialTypeSourceInfo(prntErrorType, noLoc),
+        params.front()->getStorageClass(),
+        /*DefArg=*/nullptr);
+    m_ErrorFile = m_RMV->BuildDeclRef(VD);
+    params.push_back(VD);
+    m_RMV->m_Sema.PushOnScopeChains(VD, m_RMV->getCurrentScope(),
+                                    /*AddToContext=*/false);
+  }
 }
 
 void ErrorEstimationHandler::ActOnEndOfDerivedFnBody() {

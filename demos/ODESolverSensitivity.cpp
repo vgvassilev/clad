@@ -84,7 +84,7 @@ int main() {
     double x = x0 + h * i;
     double db = bSensitivity(x);
 
-    out << x << "\t" << abs(db) << std::endl;
+    out << x << "\t" << std::abs(db) << std::endl;
   }
   out.close();
 

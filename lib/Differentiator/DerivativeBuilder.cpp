@@ -133,7 +133,26 @@ namespace clad {
     return { returnedFD, enclosingNS };
   }
 
-  void DerivativeBuilder::AddErrorEstimationModel(
+  QualType DerivativeBuilder::GetErrorFileType() {
+    DeclarationName Name = &m_Context.Idents.get("std");
+    LookupResult Rnamespc(m_Sema, Name, SourceLocation(),
+                          Sema::LookupNamespaceName,
+                          clad_compat::Sema_ForVisibleRedeclaration);
+    m_Sema.LookupQualifiedName(Rnamespc, m_Context.getTranslationUnitDecl(),
+                               /*allowBuiltinCreation*/ false);
+    NamespaceDecl* NSD = cast<NamespaceDecl>(Rnamespc.getFoundDecl());
+
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, NSD, noLoc, noLoc);
+    IdentifierInfo* II = &m_Context.Idents.get("ostream");
+    LookupResult R(m_Sema, II, noLoc, Sema::LookupUsingDeclName,
+                   clad_compat::Sema_ForVisibleRedeclaration);
+    m_Sema.LookupQualifiedName(R, NSD, CSS);
+    TypedefDecl* tempDecl = cast<TypedefDecl>(R.getFoundDecl());
+    return m_Context.getTypedefType(tempDecl);
+  }
+
+  void DerivativeBuilder::SetErrorEstimationModel(
       std::unique_ptr<FPErrorEstimationModel> estModel) {
     m_EstModel.push_back(std::move(estModel));
   }
@@ -205,8 +224,19 @@ namespace clad {
       result = J.Derive(FD, request);
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this);
-      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
-      R.AddExternalSource(*m_ErrorEstHandler.back());
+      // Set the handler.
+      m_ErrorEstHandler.reset(new ErrorEstimationHandler());
+      // Set error estimation model. If no custom model provided by user,
+      // use the built in Taylor approximation model.
+      if (!m_EstModel) {
+        m_EstModel.reset(new TaylorApprox(*this));
+      }
+      m_ErrorEstHandler->SetErrorEstimationModel(m_EstModel.get());
+      if (request.PrintFPErrors) {
+        m_ErrorEstHandler->EnableErrorPrinting();
+        m_ErrorEstHandler->SetErrorFileType(GetErrorFileType());
+      }
+      R.AddExternalSource(*m_ErrorEstHandler);
       // Finally begin estimation.
       result = R.Derive(FD, request);
       // Once we are done, we want to clear the model for any further

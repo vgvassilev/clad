@@ -571,6 +571,9 @@ namespace clad {
         request.Mode = DiffMode::reverse;
       } else {
         request.Mode = DiffMode::error_estimation;
+        llvm::APSInt val =
+            FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
+        request.PrintFPErrors = val.getZExtValue();
       }
       request.CallContext = E;
       request.CallUpdateRequired = true;

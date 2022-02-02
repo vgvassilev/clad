@@ -44,14 +44,16 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   clang::Expr* m_IdxExpr;
   /// A set of declRefExprs for parameter value replacements.
   std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ParamRepls;
-  /// An expression to match nested function call errors with their
-  /// assignee (if any exists).
-  clang::Expr* m_NestedFuncError = nullptr;
+  /// A variable to hold the type of the "ofstream" object.
+  clang::QualType m_ErrorFileType;
+  /// A variable to keep track of if error printing is enabled.
+  bool m_PrintErrors = false;
+  /// A variable to store the "ofstream" object.
+  clang::DeclRefExpr* m_ErrorFile = nullptr;
 
   std::stack<bool> m_ShouldEmit;
   ReverseModeVisitor* m_RMV;
   clang::Expr* m_DeltaVar = nullptr;
-  llvm::SmallVectorImpl<clang::QualType>* m_ParamTypes = nullptr;
   llvm::SmallVectorImpl<clang::ParmVarDecl*>* m_Params = nullptr;
 
 public:
@@ -61,14 +63,17 @@ public:
         m_EstModel(nullptr), m_IdxExpr(nullptr) {}
   ~ErrorEstimationHandler() {}
 
+  /// A function to set the \c ofstream file type.
+  void SetErrorFileType(clang::QualType qt) { m_ErrorFileType = qt; }
+
+  /// A function to enable error printing.
+  void EnableErrorPrinting() { m_PrintErrors = true; }
+
   /// Function to set the error estimation model currently in use.
   ///
   /// \param[in] estModel The error estimation model, can be either
   /// an in-built one (TaylorApprox) or one provided by the user.
   void SetErrorEstimationModel(FPErrorEstimationModel* estModel);
-
-  /// \param[in] finErrExpr The final error expression.
-  void SetFinalErrorExpr(clang::Expr* finErrExpr) { m_FinalError = finErrExpr; }
 
   /// Shorthand to get array subscript expressions.
   ///
@@ -84,6 +89,20 @@ public:
   /// \returns The final error expression so far.
   clang::Expr* GetFinalErrorExpr() { return m_FinalError; }
 
+  /// Function to generate an expression of type:
+  /// '<--ostream-object--> << "<--source-info-->" << <--expression-->;'
+  ///
+  /// \param[in] var_name The name of the variable whose error contribution we
+  /// are printing.
+  /// \param[in] var The variable whose error contribution we
+  /// are printing.
+  /// \param[in] var_dx The derivative of 'var'.
+  /// \param[in] var_err The error associated with 'var'.
+  ///
+  /// \returns The print expression to be added to code.
+  clang::Expr* GetPrintExpr(std::string var_name, clang::Expr* var,
+                            clang::Expr* var_dx, clang::Expr* var_err);
+
   /// Function to build the final error statemnt of the function. This is the
   /// last statement of any target function in error estimation and
   /// aggregates the error in all the registered variables.
@@ -95,8 +114,11 @@ public:
   /// \param[in] deltaVar The "_delta_" expression of the variable 'var'.
   /// \param[in] errorExpr The error expression (LHS) of the variable 'var'.
   /// \param[in] isInsideLoop A flag to indicate if 'val' is inside a loop.
+  /// \param[in] errorPrint The print expression to be ouput into the error
+  /// file.
   void AddErrorStmtToBlock(clang::Expr* var, clang::Expr* deltaVar,
-                           clang::Expr* errorExpr, bool isInsideLoop = false);
+                           clang::Expr* errorExpr, bool isInsideLoop = false,
+                           clang::Expr* errorPrint = nullptr);
 
   /// Emit the error estimation related statements that were saved to be
   /// emitted at later points into specific blocks.
@@ -249,7 +271,6 @@ public:
       llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
   void ActAfterCreatingDerivedFnParams(
       llvm::SmallVectorImpl<clang::ParmVarDecl*>& params) override;
-  void ActBeforeCreatingDerivedFnBodyScope() override;
   void ActOnEndOfDerivedFnBody() override;
   void ActBeforeDifferentiatingStmtInVisitCompoundStmt() override;
   void ActAfterProcessingStmtInVisitCompoundStmt() override;

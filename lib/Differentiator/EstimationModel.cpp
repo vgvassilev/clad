@@ -1,5 +1,4 @@
 #include "clad/Differentiator/EstimationModel.h"
-
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 
@@ -14,6 +13,10 @@ using namespace clang;
 namespace clad {
 
   FPErrorEstimationModel::~FPErrorEstimationModel() {}
+
+  Expr* FPErrorEstimationModel::getAsExpr(std::string expr) {
+    return utils::CreateStringLiteral(m_Context, expr);
+  }
 
   Expr* FPErrorEstimationModel::IsVariableRegistered(const VarDecl* VD) {
     auto it = m_EstimateVar.find(VD);
@@ -100,6 +103,17 @@ namespace clad {
     auto absExpr = GetFunctionCall("abs", "std", params);
     // Return the built error expression.
     return absExpr;
+  }
+
+  // Return the error expression of the variable we are visiting.
+  void TaylorApprox::Print(std::string varName, StmtDiff refExpr, Expr* errExpr,
+                           llvm::SmallVectorImpl<Expr*>& out) {
+    // Return the following clang:expr:
+    // Variable-name : variable-error
+    out.push_back(getAsExpr(varName));
+    out.push_back(getAsExpr(" : "));
+    out.push_back(errExpr);
+    out.push_back(getAsExpr("\n"));
   }
 
 } // namespace clad

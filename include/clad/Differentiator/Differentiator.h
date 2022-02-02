@@ -438,8 +438,20 @@ namespace clad {
                                    code, f);
   }
 
-  template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = GradientDerivedEstFnTraits_t<F>>
+  /// Generates a function which computes the floating-point(FP) error estimates
+  /// as dictated either by an in-built Taylor Approximation model or a custom
+  /// user provided one. Can also print error information to a specified
+  /// output stream.
+  ///
+  /// \param[in] f the function to calculate FP errors for.
+  /// \tparam printErrors A value that toggles printing of FP errors to an
+  /// output stream.
+  ///
+  /// \returns `CladFunction` object to access the corresponding derived
+  /// function.
+  template <
+      bool printErrors = false, typename ArgSpec = const char*, typename F,
+      typename DerivedFnType = GradientDerivedEstFnTraits_t<F, printErrors>>
   CladFunction<DerivedFnType> __attribute__((annotate("E")))
   estimate_error(F f, ArgSpec args = "",
                  DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
