@@ -104,6 +104,50 @@ namespace clad {
     /// \returns The error expression for declaration statements.
     virtual clang::Expr* SetError(clang::VarDecl* decl);
 
+    /// A utility function to return an \c std::string as a \c clang::Expr* .
+    ///
+    /// \param[in] expr The \c std::string you want to convert.
+    ///
+    /// \returns A \c clang::Expr* corresponding to the input string that
+    /// can be used for code generation.
+    clang::Expr* getAsExpr(std::string expr);
+
+    /// Prints any error associated information to a user-specified output
+    /// stream as described by the following function. This function is
+    /// beneficial to print any intermediate error values that would
+    /// otherwise be inaccessible to the user. An example usage for this is
+    /// as described below:
+    ///
+    /// \n \code
+    /// void Print(std::string varName, StmtDiff
+    /// refExpr, clang::Expr* errExpr, llvm::SmallVectorImpl<clang::Expr*>& out)
+    /// {
+    ///   out.push_back(varName);
+    ///   out.push_back(getAsExpr(":"));
+    ///   out.push_back(errExpr);
+    /// }
+    /// \endcode
+    /// The above will print all the intermediate error values to an output
+    /// stream as the following:
+    /// variable-name : variable-error
+    /// Other strings/variables can be added to what is printed by simply
+    /// adding them to the output vector in the order they should appear.
+    ///
+    /// Note: It is possible to also return an empty vector here (equivalent
+    /// to leaving the body of the function empty), in which case clad will not
+    /// print anything.
+    ///
+    /// \param[in] varName the name of the variable won which print is called.
+    /// \param[in] refEXpr The actual and derivative value of the variable we
+    /// are currently visiting.
+    /// \param[in] errExpr The created intermediate error expression of the
+    /// variable.
+    /// \param[out] out The vector to add the expressions to be printed, is
+    /// received empty.
+    virtual void Print(std::string varName, StmtDiff refExpr,
+                       clang::Expr* errExpr,
+                       llvm::SmallVectorImpl<clang::Expr*>& out) {}
+
     /// Calculate aggregate error from m_EstimateVar.
     ///
     /// \returns the final error estimation statement.
@@ -149,6 +193,10 @@ namespace clad {
     // Return an expression of the following kind:
     // std::abs(dfdx * delta_x * Em)
     clang::Expr* AssignError(StmtDiff refExpr) override;
+
+    // For now, we return just the error expression value.
+    void Print(std::string varName, StmtDiff refExpr, clang::Expr* errExpr,
+               llvm::SmallVectorImpl<clang::Expr*>& out) override;
   };
 
   /// Register any custom error estimation model a user provides

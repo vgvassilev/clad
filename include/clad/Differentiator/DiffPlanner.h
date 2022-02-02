@@ -53,6 +53,8 @@ namespace clad {
     /// differentiated, for example, when we are computing higher
     /// order derivatives.
     const clang::CXXRecordDecl* Functor = nullptr;
+    /// Controls if floating-point error estimates should be printed.
+    bool PrintFPErrors = false;
 
     /// Stores differentiation parameters information. Stored information
     /// includes info on indices range for array parameters, and nested data

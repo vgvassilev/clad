@@ -451,19 +451,25 @@ namespace clad {
   };
 
   /// This specific specialization is for error estimation calls.
-  template <class T, class = void> struct GradientDerivedEstFnTraits {};
+  template <class T, bool B, class = void> struct GradientDerivedEstFnTraits {};
 
   // GradientDerivedEstFnTraits is used to deduce type of the derived functions
   // derived using reverse modes
-  template <class T>
-  using GradientDerivedEstFnTraits_t = typename GradientDerivedEstFnTraits<
-      T>::type;
+  template <class T, bool B>
+  using GradientDerivedEstFnTraits_t =
+      typename GradientDerivedEstFnTraits<T, B>::type;
 
   // GradientDerivedEstFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
-  struct GradientDerivedEstFnTraits<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputParamType_t<Args, Args>...,
-                          double&);
+  struct GradientDerivedEstFnTraits<ReturnType (*)(Args...), false> {
+    using type = void (*)(Args..., OutputParamType_t<Args, void>..., double&);
+  };
+
+  // GradientDerivedEstFnTraits specializations for pure function pointer types
+  template <class ReturnType, class... Args>
+  struct GradientDerivedEstFnTraits<ReturnType (*)(Args...), true> {
+    using type = void (*)(Args..., OutputParamType_t<Args, void>..., double&,
+                          std::ostream&);
   };
 
   /// These macro expansions are used to cover all possible cases of
@@ -475,56 +481,92 @@ namespace clad {
   /// qualifier and reference respectively. The AddNOEX adds cases for noexcept
   /// qualifier only if it is supported and finally AddSPECS declares the
   /// function with all the cases
-#define GradientDerivedEstFnTraits_AddSPECS(var, cv, vol, ref, noex)           \
+#define GradientDerivedEstFnTraitsTrue_AddSPECS(var, cv, vol, ref, noex)       \
   template <typename R, typename C, typename... Args>                          \
-  struct GradientDerivedEstFnTraits<R (C::*)(Args...) cv vol ref noex> {       \
-    using type = void (C::*)(Args..., OutputParamType_t<Args, Args>...,           \
+  struct GradientDerivedEstFnTraits<R (C::*)(Args...) cv vol ref noex, true> { \
+    using type = void (C::*)(Args..., OutputParamType_t<Args, void>...,        \
+                             double&, std::ostream&) cv vol ref noex;          \
+  };
+
+#if __cpp_noexcept_function_type > 0
+#define GradientDerivedEstFnTraitsTrue_AddNOEX(var, con, vol, ref)             \
+  GradientDerivedEstFnTraitsTrue_AddSPECS(var, con, vol, ref, )                \
+      GradientDerivedEstFnTraitsTrue_AddSPECS(var, con, vol, ref, noexcept)
+#else
+#define GradientDerivedEstFnTraitsTrue_AddNOEX(var, con, vol, ref)             \
+  GradientDerivedEstFnTraitsTrue_AddSPECS(var, con, vol, ref, )
+#endif
+
+#define GradientDerivedEstFnTraitsTrue_AddREF(var, con, vol)                   \
+  GradientDerivedEstFnTraitsTrue_AddNOEX(var, con, vol, )                      \
+      GradientDerivedEstFnTraitsTrue_AddNOEX(var, con, vol, &)                 \
+          GradientDerivedEstFnTraitsTrue_AddNOEX(var, con, vol, &&)
+
+#define GradientDerivedEstFnTraitsTrue_AddVOL(var, con)                        \
+  GradientDerivedEstFnTraitsTrue_AddREF(var, con, )                            \
+      GradientDerivedEstFnTraitsTrue_AddREF(var, con, volatile)
+
+#define GradientDerivedEstFnTraitsTrue_AddCON(var)                             \
+  GradientDerivedEstFnTraitsTrue_AddVOL(var, )                                 \
+      GradientDerivedEstFnTraitsTrue_AddVOL(var, const)
+
+  GradientDerivedEstFnTraitsTrue_AddCON(()); // Declares all the specializations
+
+#define GradientDerivedEstFnTraitsFalse_AddSPECS(var, cv, vol, ref, noex)      \
+  template <typename R, typename C, typename... Args>                          \
+  struct GradientDerivedEstFnTraits<R (C::*)(Args...) cv vol ref noex,         \
+                                    false> {                                   \
+    using type = void (C::*)(Args..., OutputParamType_t<Args, void>...,        \
                              double&) cv vol ref noex;                         \
   };
 
 #if __cpp_noexcept_function_type > 0
-#define GradientDerivedEstFnTraits_AddNOEX(var, con, vol, ref)                 \
-  GradientDerivedEstFnTraits_AddSPECS(var, con, vol, ref, )                    \
-      GradientDerivedEstFnTraits_AddSPECS(var, con, vol, ref, noexcept)
+#define GradientDerivedEstFnTraitsFalse_AddNOEX(var, con, vol, ref)            \
+  GradientDerivedEstFnTraitsFalse_AddSPECS(var, con, vol, ref, )               \
+      GradientDerivedEstFnTraitsFalse_AddSPECS(var, con, vol, ref, noexcept)
 #else
-#define GradientDerivedEstFnTraits_AddNOEX(var, con, vol, ref)                 \
-  GradientDerivedEstFnTraits_AddSPECS(var, con, vol, ref, )
+#define GradientDerivedEstFnTraitsFalse_AddNOEX(var, con, vol, ref)            \
+  GradientDerivedEstFnTraitsFalse_AddSPECS(var, con, vol, ref, )
 #endif
 
-#define GradientDerivedEstFnTraits_AddREF(var, con, vol)                       \
-  GradientDerivedEstFnTraits_AddNOEX(var, con, vol, )                          \
-      GradientDerivedEstFnTraits_AddNOEX(var, con, vol, &)                     \
-          GradientDerivedEstFnTraits_AddNOEX(var, con, vol, &&)
+#define GradientDerivedEstFnTraitsFalse_AddREF(var, con, vol)                  \
+  GradientDerivedEstFnTraitsFalse_AddNOEX(var, con, vol, )                     \
+      GradientDerivedEstFnTraitsFalse_AddNOEX(var, con, vol, &)                \
+          GradientDerivedEstFnTraitsFalse_AddNOEX(var, con, vol, &&)
 
-#define GradientDerivedEstFnTraits_AddVOL(var, con)                            \
-  GradientDerivedEstFnTraits_AddREF(var, con, )                                \
-      GradientDerivedEstFnTraits_AddREF(var, con, volatile)
+#define GradientDerivedEstFnTraitsFalse_AddVOL(var, con)                       \
+  GradientDerivedEstFnTraitsFalse_AddREF(var, con, )                           \
+      GradientDerivedEstFnTraitsFalse_AddREF(var, con, volatile)
 
-#define GradientDerivedEstFnTraits_AddCON(var)                                 \
-  GradientDerivedEstFnTraits_AddVOL(var, )                                     \
-      GradientDerivedEstFnTraits_AddVOL(var, const)
+#define GradientDerivedEstFnTraitsFalse_AddCON(var)                            \
+  GradientDerivedEstFnTraitsFalse_AddVOL(var, )                                \
+      GradientDerivedEstFnTraitsFalse_AddVOL(var, const)
 
-  GradientDerivedEstFnTraits_AddCON(()); // Declares all the specializations
+  GradientDerivedEstFnTraitsFalse_AddCON(
+      ()); // Declares all the specializations
 
   /// Specialization for class types
   /// If class have exactly one user defined call operator, then defines
   /// member typedef `type` same as the type of the derived function of the
   /// call operator, otherwise defines member typedef `type` as the type of
   /// `NoFunction*`.
-  template <class F>
+  template <class F, bool B>
   struct GradientDerivedEstFnTraits<
-      F, typename std::enable_if<
-             std::is_class<remove_reference_and_pointer_t<F>>::value &&
-             has_call_operator<F>::value>::type> {
+      F, B,
+      typename std::enable_if<
+          std::is_class<remove_reference_and_pointer_t<F>>::value &&
+          has_call_operator<F>::value>::type> {
     using ClassType = typename std::decay<
         remove_reference_and_pointer_t<F>>::type;
-    using type = GradientDerivedEstFnTraits_t<decltype(&ClassType::operator())>;
+    using type =
+        GradientDerivedEstFnTraits_t<decltype(&ClassType::operator()), B>;
   };
-  template <class F>
+  template <class F, bool B>
   struct GradientDerivedEstFnTraits<
-      F, typename std::enable_if<
-             std::is_class<remove_reference_and_pointer_t<F>>::value &&
-             !has_call_operator<F>::value>::type> {
+      F, B,
+      typename std::enable_if<
+          std::is_class<remove_reference_and_pointer_t<F>>::value &&
+          !has_call_operator<F>::value>::type> {
     using type = NoFunction*;
   };
 
