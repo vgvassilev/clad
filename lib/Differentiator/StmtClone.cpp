@@ -395,8 +395,9 @@ Stmt* StmtClone::VisitStmt(Stmt*) {
   return 0;
 }
 
-ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C, Scope* S)
-  : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S) {}
+ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C,
+                                     Scope* S, const FunctionDecl* FD)
+    : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S), m_Function(FD) {}
 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // If the declaration's decl context encloses the derivative's decl
@@ -404,6 +405,12 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   //if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
   //  return true;
   //}
+
+  // We should only update references of the declarations that were inside
+  // the original function declaration context.
+  // Original function = function that we are currently differentiating.
+  if (!DRE->getDecl()->getDeclContext()->Encloses(m_Function))
+    return true;
   DeclarationNameInfo DNI = DRE->getNameInfo();
 
   LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);

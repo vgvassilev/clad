@@ -146,8 +146,10 @@ namespace utils {
     clang::Sema& m_Sema; // We don't own.
     StmtClone* m_NodeCloner; // We don't own.
     clang::Scope* m_CurScope; // We don't own.
+    const clang::FunctionDecl* m_Function; // We don't own.
   public:
-    ReferencesUpdater(clang::Sema& SemaRef, StmtClone* C, clang::Scope* S);
+    ReferencesUpdater(clang::Sema& SemaRef, StmtClone* C, clang::Scope* S,
+                      const clang::FunctionDecl* FD);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
   };
 } // namespace utils

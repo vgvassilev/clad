@@ -1026,10 +1026,10 @@ namespace clad {
     return StmtDiff(call, callDiff);
   }
 
+  // TODO: Move this to VisitorBase
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
-    utils::ReferencesUpdater up(m_Sema,
-                                m_Builder.m_NodeCloner.get(),
-                                getCurrentScope());
+    utils::ReferencesUpdater up(m_Sema, m_Builder.m_NodeCloner.get(),
+                                getCurrentScope(), m_Function);
     up.TraverseStmt(InSubtree);
   }
 
