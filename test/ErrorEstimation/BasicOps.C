@@ -204,7 +204,7 @@ float func3(float x, float y) {
 //CHECK-NEXT: }
 
 // Function call custom derivative exists but no assign expr
-float func4(float x, float y) { return pow(x, y); }
+float func4(float x, float y) { return std::pow(x, y); }
 
 //CHECK: void func4_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
 //CHECK-NEXT:     float _t0;
@@ -212,7 +212,7 @@ float func4(float x, float y) { return pow(x, y); }
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     _t1 = y;
-//CHECK-NEXT:     float func4_return = pow(_t0, _t1);
+//CHECK-NEXT:     float func4_return = std::pow(_t0, _t1);
 //CHECK-NEXT:     _ret_value0 = func4_return;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
@@ -234,7 +234,7 @@ float func4(float x, float y) { return pow(x, y); }
 
 // Function call custom derivative exists and is assigned
 float func5(float x, float y) {
-  y = sin(x);
+  y = std::sin(x);
   return y * y;
 }
 
@@ -247,7 +247,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t0 = x;
-//CHECK-NEXT:     y = sin(_t0);
+//CHECK-NEXT:     y = std::sin(_t0);
 //CHECK-NEXT:     _EERepl_y1 = y;
 //CHECK-NEXT:     _t2 = y;
 //CHECK-NEXT:     _t1 = y;
@@ -263,7 +263,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r_d0 = * _d_y;
-//CHECK-NEXT:         float _r0 = _r_d0 * custom_derivatives::sin_darg0(_t0);
+// CHECK-NEXT:         float _r0 = _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t0, 1.F);
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:         _delta_y += _r_d0 * _EERepl_y1 * {{.+}};
 //CHECK-NEXT:         * _d_y -= _r_d0;

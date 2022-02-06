@@ -12,31 +12,21 @@ int custom_fn(int x);
 int custom_fn(float x);
 int custom_fn();
 
+namespace clad {
 namespace custom_derivatives {
-  float overloaded_darg0(float x) {
-    return x;
-  }
+float overloaded_pushforward(float x, float d_x) { return x * d_x; }
 
-  float overloaded_darg0(int x) {
-    return x;
-  }
+float overloaded_pushforward(int x, int d_x) { return x * d_x; }
 
-  float no_body_darg0(float x) {
-    return 1;
-  }
+float no_body_pushforward(float x, float d_x) { return 1 * d_x; }
 
-  float custom_fn_darg0(int x) {
-    return x + x;
-  }
+float custom_fn_pushforward(int x, int d_x) { return (x + x) * d_x; }
 
-  float custom_fn_darg0(float x) {
-    return x * x;
-  }
+float custom_fn_pushforward(float x, float d_x) { return x * x * d_x; }
 
-  int custom_fn_darg0() {
-    return 5;
-  }
-}
+int custom_fn_pushforward() { return 5; }
+} // namespace custom_derivatives
+} // namespace clad
 
 int overloaded(int x) {
   printf("A was called.\n");
@@ -57,7 +47,7 @@ float test_1(float x) {
 
 // CHECK: float test_1_darg0(float x) {
 // CHECK-NEXT: float _d_x = 1;
-// CHECK-NEXT: return custom_derivatives::overloaded_darg0(x) * _d_x + custom_derivatives::custom_fn_darg0(x) * _d_x;
+// CHECK-NEXT: return clad::custom_derivatives::overloaded_pushforward(x, _d_x) + clad::custom_derivatives::custom_fn_pushforward(x, _d_x);
 // CHECK-NEXT: }
 
 float test_2(float x) {
@@ -66,7 +56,7 @@ float test_2(float x) {
 
 // CHECK: float test_2_darg0(float x) {
 // CHECK-NEXT: float _d_x = 1;
-// CHECK-NEXT: return custom_derivatives::overloaded_darg0(x) * _d_x + custom_derivatives::custom_fn_darg0(x) * _d_x;
+// CHECK-NEXT: return clad::custom_derivatives::overloaded_pushforward(x, _d_x) + clad::custom_derivatives::custom_fn_pushforward(x, _d_x);
 // CHECK-NEXT: }
 
 float test_3() {
@@ -94,7 +84,7 @@ float test_5(int x) {
 
 // CHECK: float test_5_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: return custom_derivatives::no_body_darg0(x) * _d_x;
+// CHECK-NEXT: return clad::custom_derivatives::no_body_pushforward(x, _d_x);
 // CHECK-NEXT: }
 
 int main () {

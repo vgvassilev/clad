@@ -90,7 +90,7 @@ auto gaus_g = clad::gradient(gaus, "p");
 //CHECK-NEXT:         _d_sigma += _r15;
 //CHECK-NEXT:         double _r16 = _r14 * _grad3;
 //CHECK-NEXT:         double _r17 = _t22 * 1;
-//CHECK-NEXT:         double _r18 = _r17 * custom_derivatives::exp_darg0(_t23);
+//CHECK-NEXT:         double _r18 = _r17 * clad::custom_derivatives::exp_pushforward(_t23, 1.);
 //CHECK-NEXT:         _d_t += _r18;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {

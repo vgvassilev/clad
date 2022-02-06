@@ -143,6 +143,9 @@ namespace clad {
     }
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
+      // Required due to custom derivatives function templates that might be
+      // used in the function that we need to derive.
+      m_CI.getSema().PerformPendingInstantiations();
       if (request.Function->getDefinition())
         request.Function = request.Function->getDefinition();
       request.UpdateDiffParamsInfo(m_CI.getSema());

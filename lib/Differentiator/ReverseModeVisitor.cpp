@@ -1197,12 +1197,17 @@ namespace clad {
     bool asGrad = true;
     if (NArgs == 1) {
       IdentifierInfo* II =
-          &m_Context.Idents.get(FD->getNameAsString() + "_darg0");
+          &m_Context.Idents.get(FD->getNameAsString() + "_pushforward");
       // Try to find it in builtin derivatives
       DeclarationName name(II);
       DeclarationNameInfo DNInfo(name, noLoc);
+      auto pushforwardCallArgs = DerivedCallArgs;
+      pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
+          DerivedCallArgs.front()->getType(), m_Context, 1));
       OverloadedDerivedFn =
-          m_Builder.findOverloadedDefinition(DNInfo, DerivedCallArgs);
+          m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+              DNInfo, pushforwardCallArgs, getCurrentScope(),
+              const_cast<DeclContext*>(FD->getDeclContext()));
       if (OverloadedDerivedFn)
         asGrad = false;
     }
@@ -1274,7 +1279,9 @@ namespace clad {
 
       // Try to find it in builtin derivatives
       OverloadedDerivedFn =
-          m_Builder.findOverloadedDefinition(DNInfo, DerivedCallArgs);
+          m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+              DNInfo, DerivedCallArgs, getCurrentScope(),
+              /*OriginalFnDC=*/nullptr);
     }
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {

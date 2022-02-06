@@ -15,7 +15,7 @@ double sq(double x) { return x * x; }
 
 double one(double x) { return sq(std::sin(x)) + sq(std::cos(x)); }
 // CHECK: double one_pushforward(double x, double _d_x) {
-// CHECK-NEXT:     return sq_pushforward(std::sin(x), custom_derivatives::sin_darg0(x) * _d_x) + sq_pushforward(std::cos(x), custom_derivatives::cos_darg0(x) * _d_x);
+// CHECK-NEXT:     return sq_pushforward(std::sin(x), clad::custom_derivatives::sin_pushforward(x, _d_x)) + sq_pushforward(std::cos(x), clad::custom_derivatives::cos_pushforward(x, _d_x));
 // CHECK-NEXT: }
 
 double f(double x, double y) {
@@ -62,12 +62,12 @@ double f(double x, double y) {
 //CHECK-NEXT:           double _grad0 = 0.;
 //CHECK-NEXT:           sq_grad(_t1, &_grad0);
 //CHECK-NEXT:           double _r0 = 1 * _grad0;
-//CHECK-NEXT:           double _r1 = _r0 * custom_derivatives::sin_darg0(_t0);
+// CHECK-NEXT:         double _r1 = _r0 * clad::custom_derivatives::sin_pushforward(_t0, 1.);
 //CHECK-NEXT:           * _d_x += _r1;
 //CHECK-NEXT:           double _grad1 = 0.;
 //CHECK-NEXT:           sq_grad(_t3, &_grad1);
 //CHECK-NEXT:           double _r2 = 1 * _grad1;
-//CHECK-NEXT:           double _r3 = _r2 * custom_derivatives::cos_darg0(_t2);
+// CHECK-NEXT:         double _r3 = _r2 * clad::custom_derivatives::cos_pushforward(_t2, 1.);
 //CHECK-NEXT:           * _d_x += _r3;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }

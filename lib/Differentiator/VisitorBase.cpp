@@ -589,9 +589,10 @@ namespace clad {
                                                             printErrorInf));
     NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
     // Return the found overload.
-    return m_Builder.findOverloadedDefinition(DNInfo, NumDiffArgs,
-                                              /*forCustomDerv=*/false,
-                                              /*namespaceShouldExist=*/false);
+    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+        DNInfo, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        /*forCustomDerv=*/false,
+        /*namespaceShouldExist=*/false);
   }
 
   Expr* VisitorBase::GetMultiArgCentralDiffCall(
@@ -634,10 +635,10 @@ namespace clad {
       NumericalDiffMultiArg.push_back(PushExpr);
       NumDiffArgs.push_back(args[i]);
     }
-
-    return m_Builder.findOverloadedDefinition(DNInfo, NumDiffArgs,
-                                              /*forCustomDerv=*/false,
-                                              /*namespaceShouldExist=*/false);
+    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+        DNInfo, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        /*forCustomDerv=*/false,
+        /*namespaceShouldExist=*/false);
   }
 
   void VisitorBase::CallExprDiffDiagnostics(llvm::StringRef funcName,

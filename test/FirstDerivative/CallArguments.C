@@ -5,9 +5,11 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+namespace clad {
 namespace custom_derivatives {
-  float f_darg0(float y) { return 2*y; }
-}
+float f_pushforward(float y, float d_y) { return 2 * y * d_y; }
+} // namespace custom_derivatives
+} // namespace clad
 
 float f(float y) {
   return y * y - 10;
@@ -20,7 +22,7 @@ float g(float x) {
 // CHECK: float g_darg0(float x) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _t0 = x * x;
-// CHECK-NEXT: custom_derivatives::f_darg0(_t0 * x) * ((_d_x * x + x * _d_x) * x + _t0 * _d_x);
+// CHECK-NEXT: return clad::custom_derivatives::f_pushforward(_t0 * x, (_d_x * x + x * _d_x) * x + _t0 * _d_x);
 // CHECK-NEXT: }
 
 float sqrt_func(float x, float y) {
@@ -30,7 +32,7 @@ float sqrt_func(float x, float y) {
 // CHECK: float sqrt_func_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: return custom_derivatives::sqrt_darg0(x * x + y * y) * (_d_x * x + x * _d_x + _d_y * y + y * _d_y) - _d_y;
+// CHECK-NEXT: return clad::custom_derivatives{{(::std)?}}::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y) - _d_y;
 // CHECK-NEXT: }
 
 float f_const_args_func_1(const float x, const float y) {
@@ -98,6 +100,10 @@ float f_const_helper(const float x) {
   return x * x;
 }
 
+// CHECK: float f_const_helper_pushforward(const float x, const float _d_x) {
+// CHECK-NEXT:     return _d_x * x + x * _d_x;
+// CHECK-NEXT: }
+
 float f_const_args_func_7(const float x, const float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
 }
@@ -115,7 +121,7 @@ float f_const_args_func_8(const float x, float y) {
 // CHECKTODO: float f_const_args_func_8_darg0(const float x, float y) {
 // CHECKTODO-NEXT: const float _d_x = 1;
 // CHECKTODO-NEXT: float _d_y = 0;
-// CHECKTODO-NEXT: f_const_helper_darg0(x) * _d_x + f_const_helper_darg0(y) * _d_y - _d_y;
+// CHECKTODO-NEXT: return f_const_helper_pushforward(x, _d_x) + f_const_helper_pushforward(y, _d_y) - _d_y;
 // CHECKTODO-NEXT: }
 
 extern "C" int printf(const char* fmt, ...);

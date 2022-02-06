@@ -105,11 +105,11 @@ namespace clad {
     ///
     /// \returns The call expression if a suitable function overload was found,
     /// null otherwise.
-    clang::Expr*
-    findOverloadedDefinition(clang::DeclarationNameInfo DNI,
-                             llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
-                             bool forCustomDerv = true,
-                             bool namespaceShouldExist = true);
+    clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
+        clang::DeclarationNameInfo DNI,
+        llvm::SmallVectorImpl<clang::Expr*>& CallArgs, clang::Scope* S,
+        clang::DeclContext* originalFnDC, bool forCustomDerv = true,
+        bool namespaceShouldExist = true);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
