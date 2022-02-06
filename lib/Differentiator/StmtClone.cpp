@@ -400,12 +400,6 @@ ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C,
     : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S), m_Function(FD) {}
 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
-  // If the declaration's decl context encloses the derivative's decl
-  // context we must not update anything.
-  //if (DRE->getDecl()->getDeclContext()->Encloses(m_Sema.CurContext)) {
-  //  return true;
-  //}
-
   // We should only update references of the declarations that were inside
   // the original function declaration context.
   // Original function = function that we are currently differentiating.

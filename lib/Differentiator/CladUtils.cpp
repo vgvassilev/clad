@@ -3,6 +3,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Sema/Lookup.h"
 #include "clad/Differentiator/Compatibility.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -42,5 +43,94 @@ namespace clad {
       auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef, noLoc, noLoc);
     }
-  } // namespace utils
+
+    void BuildNNS(clang::Sema& semaRef, DeclContext* DC, CXXScopeSpec& CSS,
+                  bool addGlobalNS) {
+      assert(DC && "Must provide a non null DeclContext");
+
+      // parent name specifier should be added first
+      if (DC->getParent())
+        BuildNNS(semaRef, DC->getParent(), CSS);
+
+      ASTContext& C = semaRef.getASTContext();
+
+      if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
+        CSS.Extend(C, ND,
+                   /*NamespaceLoc=*/noLoc,
+                   /*ColonColonLoc=*/noLoc);
+      } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
+        auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
+        auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
+        CSS.Extend(C,
+                   /*TemplateKWLoc=*/noLoc, RDTypeSourceInfo->getTypeLoc(),
+                   /*ColonColonLoc=*/noLoc);
+      } else if (addGlobalNS && isa<TranslationUnitDecl>(DC)) {
+        CSS.MakeGlobal(C, /*ColonColonLoc=*/noLoc);
+      }
+    }
+
+    DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
+                                 clang::DeclContext* DC2) {
+      // llvm::errs()<<"DC1 name: "<<DC1->getDeclKindName()<<"\n";
+      // llvm::errs()<<"DC2 name: "<<DC2->getDeclKindName()<<"\n";
+      // cast<Decl>(DC1)->dumpColor();
+      llvm::SmallVector<clang::DeclContext*, 4> contexts;
+      assert((isa<NamespaceDecl>(DC1) || isa<TranslationUnitDecl>(DC1)) &&
+             "DC1 can only be extended if it is a "
+             "namespace or translation unit decl.");
+      while (DC2) {
+        // llvm::errs()<<"DC2 name: "<<DC2->getDeclKindName()<<"\n";
+        if (isa<TranslationUnitDecl>(DC2))
+          break;
+        if (isa<LinkageSpecDecl>(DC2)) {
+          DC2 = DC2->getParent();  
+          continue;
+        }
+        assert(isa<NamespaceDecl>(DC2) &&
+               "DC2 should only contain namespace (and "
+               "translation unit) declaration.");
+        contexts.push_back(DC2);
+        DC2 = DC2->getParent();
+      }
+      DeclContext* DC = DC1;
+      for (int i = contexts.size() - 1; i >= 0; --i) {
+        NamespaceDecl* ND = cast<NamespaceDecl>(contexts[i]);
+        DC = LookupNSD(semaRef, ND->getIdentifier()->getName(),
+                       /*shouldExist=*/false, DC1);
+        if (!DC)
+          return nullptr;
+        DC1 = DC;
+      }
+      return DC->getPrimaryContext();
+    }
+
+    NamespaceDecl* LookupNSD(Sema& S, llvm::StringRef namespc, bool shouldExist,
+                             DeclContext* DC) {
+      ASTContext& C = S.getASTContext();
+      if (!DC)
+        DC = C.getTranslationUnitDecl();
+      // Find the builtin derivatives/numerical diff namespace
+      DeclarationName Name = &C.Idents.get(namespc);
+      LookupResult R(S, Name, SourceLocation(), Sema::LookupNamespaceName,
+                     clad_compat::Sema_ForVisibleRedeclaration);
+      S.LookupQualifiedName(R, DC,
+                            /*allowBuiltinCreation*/ false);
+      if (!shouldExist && R.empty())
+        return nullptr;
+      assert(!R.empty() && "Cannot find the specified namespace!");
+      NamespaceDecl* ND = cast<NamespaceDecl>(R.getFoundDecl());
+      return cast<NamespaceDecl>(ND->getPrimaryContext());
+    }
+
+    clang::DeclContext* GetOutermostDC(Sema& semaRef, clang::DeclContext* DC) {
+      ASTContext& C = semaRef.getASTContext();
+      assert(DC && "Invalid DC");
+      while (DC) {
+        if (DC->getParent() == C.getTranslationUnitDecl())
+          break;
+        DC = DC->getParent();
+      }
+      return DC;
+    }
+    } // namespace utils
 } // namespace clad

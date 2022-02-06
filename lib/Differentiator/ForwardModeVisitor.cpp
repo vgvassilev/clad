@@ -97,8 +97,7 @@ namespace clad {
       if (!nonRefParamType->isRealType())
         continue;
       auto derivedPVDName = "_d_" + PVD->getNameAsString();
-      auto derivedPVDII = &m_Context.Idents.get(derivedPVDName);
-      // TODO: Check for name conflicts.
+      IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
       auto derivedPVD = CloneParmVarDecl(PVD, derivedPVDII,
                                          /*pushOnScopeChains=*/true);
       derivedParams.push_back(derivedPVD);
@@ -842,38 +841,34 @@ namespace clad {
     return false;
   }
 
-  static NamespaceDecl* LookupNSD(ASTContext& C, Sema& S,
-                                  llvm::StringRef namespc, bool shouldExist) {
-    // Find the builtin derivatives/numerical diff namespace
-    DeclarationName Name = &C.Idents.get(namespc);
-    LookupResult R(S,
-                   Name,
-                   SourceLocation(),
-                   Sema::LookupNamespaceName,
-                   clad_compat::Sema_ForVisibleRedeclaration);
-    S.LookupQualifiedName(R,
-                          C.getTranslationUnitDecl(),
-                          /*allowBuiltinCreation*/ false);
-    if (!shouldExist && R.empty())
-      return nullptr;
-    assert(!R.empty() && "Cannot find the specified namespace!");
-    return cast<NamespaceDecl>(R.getFoundDecl());
-  }
-
-  Expr* DerivativeBuilder::findOverloadedDefinition(
+  // FIXME: Move this to DerivativeBuilder.cpp
+  Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       DeclarationNameInfo DNI, llvm::SmallVectorImpl<Expr*>& CallArgs,
+      clang::Scope* S, clang::DeclContext* originalFnDC,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
-    NamespaceDecl* NSD;
+    NamespaceDecl* NSD = nullptr;
     std::string namespaceID;
+    bool buildingCallToPushforward = false;
     if (forCustomDerv) {
-      NSD = m_BuiltinDerivativesNSD;
-      namespaceID = "custom_derivatives";
+      // FIXME: Here `if` branch should be removed once we update custom
+      // derivatives to use pullbacks
+      if (llvm::StringRef(DNI.getAsString()).endswith("_pushforward")) {
+        namespaceID = "custom_derivatives";
+        buildingCallToPushforward = true;
+        NamespaceDecl* cladNS =
+            utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
+        NSD =
+            utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist, cladNS);
+      } else {
+        NSD = m_BuiltinDerivativesNSD;
+        namespaceID = "custom_derivatives";
+      }
     } else {
       NSD = m_NumericalDiffNSD;
       namespaceID = "numerical_diff";
     }
     if (!NSD){
-      NSD = LookupNSD(m_Context, m_Sema, namespaceID, namespaceShouldExist);
+      NSD = utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist);
       if (!forCustomDerv && !NSD) {
         diag(DiagnosticsEngine::Warning, noLoc,
              "Numerical differentiation is diabled using the "
@@ -884,22 +879,43 @@ namespace clad {
         return nullptr;
       }
     }
+    CXXScopeSpec SS;
+    DeclContext* DC = NSD;
+
+    // FIXME: Here `if` branch should be removed once we update custom
+    // derivatives to use pullbacks
+    if (buildingCallToPushforward) {
+      DeclContext* outermostDC = utils::GetOutermostDC(m_Sema, originalFnDC);
+      // FIXME: We should ideally construct nested name specifier from the
+      // found custom derivative function. Current way will compute incorrect
+      // nested name specifier in some cases.
+      if (outermostDC &&
+          outermostDC->getPrimaryContext() == NSD->getPrimaryContext()) {
+        utils::BuildNNS(m_Sema, originalFnDC, SS);
+        DC = originalFnDC;
+      } else {
+        utils::BuildNNS(m_Sema, NSD, SS);
+        utils::BuildNNS(m_Sema, originalFnDC, SS);
+        DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
+      }
+    } else {
+      SS.Extend(m_Context, NSD, noLoc, noLoc);
+    }
+
     LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
-    m_Sema.LookupQualifiedName(R,
-                               NSD,
-                               /*allowBuiltinCreation*/ false);
+    if (DC)
+      m_Sema.LookupQualifiedName(R, DC);
     Expr* OverloadedFn = 0;
     if (!R.empty()) {
-      CXXScopeSpec CSS;
-      CSS.Extend(m_Context, NSD, noLoc, noLoc);
+      // FIXME: We should find a way to specify nested name specifier
+      // after finding the custom derivative.
       Expr* UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(CSS, R, /*ADL*/ false).get();
+          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
 
       llvm::MutableArrayRef<Expr*> MARargs =
           llvm::MutableArrayRef<Expr*>(CallArgs);
 
       SourceLocation Loc;
-      Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
 
       if (noOverloadExists(UnresolvedLookup, MARargs)) {
         return 0;
@@ -925,7 +941,7 @@ namespace clad {
       s = "";
 
     IdentifierInfo* II =
-        &m_Context.Idents.get(FD->getNameAsString() + "_d" + s + "arg0");
+        &m_Context.Idents.get(FD->getNameAsString() + "_pushforward");
     DeclarationName name(II);
     SourceLocation DeclLoc;
     DeclarationNameInfo DNInfo(name, DeclLoc);
@@ -958,11 +974,17 @@ namespace clad {
                                     noLoc)
                      .get();
 
-    // Try to find an overloaded derivative in 'custom_derivatives'
-    Expr* callDiff = m_Builder.findOverloadedDefinition(DNInfo, CallArgs);
-    if (callDiff && Multiplier)
-      callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
-      
+    llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
+    pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
+                             CallArgs.end());
+    pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
+                             diffArgs.end());
+
+    // Try to find a user-defined overloaded derivative.
+    Expr* callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+        DNInfo, pushforwardFnArgs, getCurrentScope(),
+        const_cast<DeclContext*>(FD->getDeclContext()));
+
     // Check if it is a recursive call.
     if (!callDiff && (FD == m_Function) && m_Mode == DiffMode::experimental_pushforward) {
       // The differentiated function is called recursively.
@@ -1026,7 +1048,7 @@ namespace clad {
     return StmtDiff(call, callDiff);
   }
 
-  // TODO: Move this to VisitorBase
+  // FIXME: Move this to VisitorBase
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
     utils::ReferencesUpdater up(m_Sema, m_Builder.m_NodeCloner.get(),
                                 getCurrentScope(), m_Function);

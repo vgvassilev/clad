@@ -484,12 +484,12 @@ namespace custom_derivatives {
                           double* _d_y,
                           double* _d_z,
                           double* _d_p) {
-    *_d_x += pow_darg0(x, p);
-    *_d_p += pow_darg1(x, p);
-    *_d_y += pow_darg0(y, p);
-    *_d_p += pow_darg1(y, p);
-    *_d_z += pow_darg0(z, p);
-    *_d_p += pow_darg1(z, p);
+    *_d_x += clad::custom_derivatives::std::pow_pushforward(x, p, 1.0, 0.0);
+    *_d_p += clad::custom_derivatives::std::pow_pushforward(x, p, 0.0, 1.0);
+    *_d_y += clad::custom_derivatives::std::pow_pushforward(y, p, 1.0, 0.0);
+    *_d_p += clad::custom_derivatives::std::pow_pushforward(y, p, 0.0, 1.0);
+    *_d_z += clad::custom_derivatives::std::pow_pushforward(z, p, 1.0, 0.0);
+    *_d_p += clad::custom_derivatives::std::pow_pushforward(z, p, 0.0, 1.0);
   }
 }
 
@@ -567,9 +567,9 @@ void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_re
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
-//CHECK-NEXT:           double _r1 = _r0 * custom_derivatives::sin_darg0(_t1);
+// CHECK-NEXT:         double _r1 = _r0 * clad::custom_derivatives::sin_pushforward(_t1, 1.);
 //CHECK-NEXT:           * _d_x += _r1;
-//CHECK-NEXT:           double _r2 = _r0 * custom_derivatives::sin_darg0(_t2);
+// CHECK-NEXT:         double _r2 = _r0 * clad::custom_derivatives::sin_pushforward(_t2, 1.);
 //CHECK-NEXT:           * _d_y += _r2;
 //CHECK-NEXT:           double _r3 = _t3 * 1;
 //CHECK-NEXT:           * _d_x += _r3;
