@@ -1894,10 +1894,7 @@ namespace clad {
     for (auto D : DS->decls()) {
       if (auto VD = dyn_cast<VarDecl>(D)) {
         VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
-        // For all dependent variables, we register them for estimation
-        // here.
-        if (m_ErrorEstimationEnabled)
-          errorEstHandler->EmitDeclErrorStmts(VDDiff, isInsideLoop);
+
         // Check if decl's name is the same as before. The name may be changed
         // if decl name collides with something in the derivative body.
         // This can happen in rare cases, e.g. when the original function
@@ -1930,6 +1927,16 @@ namespace clad {
     Stmt* DSClone = BuildDeclStmt(decls);
     Stmt* DSDiff = BuildDeclStmt(declsDiff);
     addToBlock(DSDiff, m_Globals);
+
+    // For all dependent variables, we register them for estimation
+    // here.
+    if (m_ErrorEstimationEnabled) {
+      for (size_t i = 0; i < decls.size(); i++) {
+        VarDeclDiff VDDiff(static_cast<VarDecl*>(decls[0]),
+                           static_cast<VarDecl*>(declsDiff[0]));
+        errorEstHandler->EmitDeclErrorStmts(VDDiff, isInsideLoop);
+      }
+    }
     return StmtDiff(DSClone);
   }
 

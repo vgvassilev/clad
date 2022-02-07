@@ -106,9 +106,9 @@
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, clad::array_ref<float> _d_x, clad::array_ref<float> _d_n, double &_final_error) {
+//CHECK_FLOAT_SUM:     float _d_sum = 0;
 //CHECK_FLOAT_SUM:     double _delta_sum = 0;
 //CHECK_FLOAT_SUM:     float _EERepl_sum0;
-//CHECK_FLOAT_SUM:     float _d_sum = 0;
 //CHECK_FLOAT_SUM:     unsigned long _t0;
 //CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
 //CHECK_FLOAT_SUM:     clad::tape<float> _EERepl_sum1 = {};
@@ -153,9 +153,9 @@
 // RUN: ./CustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL_EXEC %s
 // CHECK_CUSTOM_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_CUSTOM_MODEL_EXEC: The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
