@@ -1217,7 +1217,7 @@ namespace clad {
     // If it has more args or f_darg0 was not found, we look for its gradient.
     if (!OverloadedDerivedFn) {
       IdentifierInfo* II =
-          &m_Context.Idents.get(FD->getNameAsString() + funcPostfix());
+          &m_Context.Idents.get(FD->getNameAsString() + "_grad");
       DeclarationName name(II);
       DeclarationNameInfo DNInfo(name, noLoc);
 
