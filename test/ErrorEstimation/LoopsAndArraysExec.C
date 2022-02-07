@@ -14,9 +14,9 @@ double runningSum(float* f, int n) {
 }
 
 //CHECK: void runningSum_grad(float *f, int n, clad::array_ref<double> _d_f, clad::array_ref<double> _d_n, double &_final_error) {
+//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     double _EERepl_sum0;
-//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
@@ -68,9 +68,9 @@ double mulSum(float* a, float* b, int n) {
 }
 
 //CHECK: void mulSum_grad(float *a, float *b, int n, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b, clad::array_ref<double> _d_n, double &_final_error) {
+//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     double _EERepl_sum0;
-//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
@@ -141,9 +141,9 @@ double divSum(float* a, float* b, int n) {
 }
 
 //CHECK: void divSum_grad(float *a, float *b, int n, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b, clad::array_ref<double> _d_n, double &_final_error) {
+//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     double _EERepl_sum0;
-//CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};

@@ -108,9 +108,9 @@ float func4(float x, float y) {
 }
 
 //CHECK: void func4_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+//CHECK-NEXT:     double _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     double _EERepl_z0;
-//CHECK-NEXT:     double _d_z = 0;
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     float _EERepl_x0 = x;
 //CHECK-NEXT:     float _EERepl_x1;
@@ -207,7 +207,6 @@ float func7(float x, float y) { return (x * y); }
 //CHECK-NEXT: }
 
 int main() {
-
   clad::estimate_error(func);
   clad::estimate_error(func2);
   clad::estimate_error(func3);

@@ -23,9 +23,9 @@ float func(float x, float y) {
 //CHECK-NEXT:     float _EERepl_y2;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     x = x + y;
 //CHECK-NEXT:     _EERepl_x1 = x;
 //CHECK-NEXT:     _EERepl_y1 = y;
@@ -85,9 +85,9 @@ float func2(float x, float y) {
 //CHECK-NEXT:     float _EERepl_x1;
 //CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     float _t3;
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     _t0 = y;
 //CHECK-NEXT:     x = x - y - _t1 * _t0;
@@ -140,9 +140,9 @@ float func3(float x, float y) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _EERepl_x1;
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     float _t3;
 //CHECK-NEXT:     float _t4;
@@ -150,9 +150,9 @@ float func3(float x, float y) {
 //CHECK-NEXT:     double _delta_y = 0;
 //CHECK-NEXT:     float _EERepl_y0 = y;
 //CHECK-NEXT:     float _EERepl_y1;
+//CHECK-NEXT:     float _d_t = 0;
 //CHECK-NEXT:     double _delta_t = 0;
 //CHECK-NEXT:     float _EERepl_t0;
-//CHECK-NEXT:     float _d_t = 0;
 //CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     _t0 = y;
 //CHECK-NEXT:     x = x - y - _t1 * _t0;
@@ -302,9 +302,9 @@ float func6(float x, float y) {
 //CHECK: void func6_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     float _t3;
 //CHECK-NEXT:     double _ret_value0 = 0;
@@ -388,9 +388,9 @@ float func8(float x, float y) {
 
 //CHECK: void func8_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
 //CHECK-NEXT:     float _t0;
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     float z = y + helper2(_t0);
 //CHECK-NEXT:     _EERepl_z0 = z;
@@ -415,7 +415,6 @@ float func8(float x, float y) {
 //CHECK-NEXT: }
 
 int main() {
-
   clad::estimate_error(func);
   clad::estimate_error(func2);
   clad::estimate_error(func3);

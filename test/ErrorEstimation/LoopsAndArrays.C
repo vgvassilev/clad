@@ -13,9 +13,9 @@ float func(float* p, int n) {
 }
 
 //CHECK: void func_grad(float *p, int n, clad::array_ref<float> _d_p, clad::array_ref<float> _d_n, double &_final_error) {
+//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     float _EERepl_sum0;
-//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
@@ -65,16 +65,16 @@ float func2(float x) {
 }
 
 //CHECK: void func2_grad(float x, clad::array_ref<float> _d_x, double &_final_error) {
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
+//CHECK-NEXT:     float _d_m = 0;
 //CHECK-NEXT:     double _delta_m = 0;
 //CHECK-NEXT:     clad::tape<float> _EERepl_m0 = {};
-//CHECK-NEXT:     float _d_m = 0;
 //CHECK-NEXT:     clad::tape<float> _EERepl_z1 = {};
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     _EERepl_z0 = z;
@@ -123,8 +123,8 @@ float func3(float x, float y) {
 }
 
 //CHECK: void func3_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
-//CHECK-NEXT:     clad::array<double> _delta_arr(3UL);
 //CHECK-NEXT:     clad::array<double> _d_arr(3UL);
+//CHECK-NEXT:     clad::array<double> _delta_arr(_d_arr.size());
 //CHECK-NEXT:     double _EERepl_arr0;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
@@ -189,9 +189,9 @@ float func4(float x[10], float y[10]) {
 }
 
 //CHECK: void func4_grad(float x[10], float y[10], clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     float _EERepl_sum0;
-//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
@@ -385,7 +385,6 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT: }
 
 int main() {
-
   clad::estimate_error(func);
   clad::estimate_error(func2);
   clad::estimate_error(func3);
