@@ -47,14 +47,14 @@ namespace clad {
     BuildTangentDefinition();
     BuildTangentTypeInfoSpecialisation();
     m_ASTHelper.PrintDecl(m_Tangent, llvm::errs());
-    if (m_YQType == m_XQType) {
-      m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
-    } else {
-      m_DerivedAddFn = BuildDerivedAddFn();
-      m_DerivedSubFn = BuildDerivedSubFn();
-      m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
-      m_DerivedDivideFn = BuildDerivedDivideFn();
-    }
+    // if (m_YQType == m_XQType) {
+    //   m_InitialiseSeedsFn = BuildInitialiseSeedsFn();
+    // } else {
+    //   m_DerivedAddFn = BuildDerivedAddFn();
+    //   m_DerivedSubFn = BuildDerivedSubFn();
+    //   m_DerivedMultiplyFn = BuildDerivedMultiplyFn();
+    //   m_DerivedDivideFn = BuildDerivedDivideFn();
+    // }
     ProcessTopLevelDeclarations(consumer);
   }
 
@@ -232,7 +232,7 @@ namespace clad {
   }
 
   static bool IsDifferentiableType(QualType ty) {
-    if (ty->isRealType() || ty->isClassType())
+    if (ty->isRealType() || ty->isRecordType())
       return true;
     if (auto AT = dyn_cast<ArrayType>(ty)) {
       QualType elemType = AT->getElementType();
@@ -245,14 +245,14 @@ namespace clad {
 
   void DerivedTypeInitialiser::AddDerivedField(QualType Y, QualType X,
                                                IdentifierInfo* II) {
+    llvm::errs()<<"Adding derived field for the following X and Y types:\n";
+    Y.dump();
+    llvm::errs()<<"\n";
+    X.dump();
+    llvm::errs()<<"\n\n";
     if (!IsDifferentiableType(Y) || !IsDifferentiableType(X)) {
       return;
     }
-    llvm::errs()<<"Adding derived field for the following X and Y types:\n";
-    X.dump();
-    llvm::errs()<<"\n";
-    Y.dump();
-    llvm::errs()<<"\n\n";
     QualType derivedType;
     if (!(Y->isArrayType()) && !(X->isArrayType())) {
       derivedType = m_DTH.GetDerivedType(Y, X);
@@ -299,6 +299,8 @@ namespace clad {
     if (derivedType->isRealType())
       init = ConstantFolder::synthesizeLiteral(derivedType, m_Context, 0);
     if (auto AT = dyn_cast<ArrayType>(derivedType.getTypePtr())) {
+      // TODO: Try to find Sema functions to simplify this or refactor this into
+      // ASTHelper.
       InitListExpr* ILE = new (m_Context)
           InitListExpr(m_Context, noLoc, {}, noLoc);
       ImplicitValueInitExpr* valueInitExpr = new (m_Context)
@@ -306,9 +308,9 @@ namespace clad {
       ILE->setArrayFiller(valueInitExpr);
       ILE->setType(derivedType);
       init = ILE;
-      llvm::errs() << "Dumping ILE:\n";
-      ILE->dumpColor();
-      llvm::errs() << "\n";
+      // llvm::errs() << "Dumping ILE:\n";
+      // ILE->dumpColor();
+      // llvm::errs() << "\n";
     }
     m_ASTHelper.BuildFieldDecl(m_Tangent, II, derivedType, init,
                                AccessSpecifier::AS_public, /*addToDecl=*/true);
@@ -318,9 +320,22 @@ namespace clad {
     ParsedAttributesView PAV;
     m_Sema.ActOnAccessSpecifier(AccessSpecifier::AS_public, noLoc, noLoc, PAV);
     if (m_YQType->isRealType()) {
+      assert(m_XQType->isRecordType() && "Expected m_XQType to be a record type!!");
       auto xRD = m_XQType->getAsCXXRecordDecl();
       for (auto field : xRD->fields()) {
         AddDerivedField(m_YQType, field->getType(), field->getIdentifier());
+      }
+      for (auto iter = xRD->vbases_begin(); iter != xRD->vbases_end(); ++iter) {
+        auto baseType = iter->getType();
+        llvm::errs()<<"Found base type:\n";
+        baseType.dump();
+        if (!baseType->isRecordType())
+          continue;
+        auto baseRD = baseType->getAsCXXRecordDecl();
+        llvm::errs()<<"Adding fields from the base type: "<<baseRD->getNameAsString()<<"\n";
+        for (auto field : baseRD->fields()) {
+          AddDerivedField(m_YQType, field->getType(), field->getIdentifier());
+        }
       }
     } else if (m_YQType->isClassType()) {
       auto yRD = m_YQType->getAsCXXRecordDecl();
@@ -328,7 +343,7 @@ namespace clad {
         AddDerivedField(field->getType(), m_XQType, field->getIdentifier());
       }
     } else {
-      assert("Unexpected case!! Y Type should either be a real type or a class "
+      assert("Unexpected!! Y Type should either be a real type or a class "
              "type.");
     }
   }

@@ -35,6 +35,10 @@ namespace clad {
       return m_Context.DoubleTy;
     }
     auto it = m_DerivedTypesEssentials.find({yQType, xQType});
+    if (it == m_DerivedTypesEssentials.end()) {
+      InitialiseDerivedType(yQType, xQType);
+      it = m_DerivedTypesEssentials.find({yQType, xQType});
+    }
     if (it != m_DerivedTypesEssentials.end())
       return it->second.GetTangentQType();
     // Ideally, we should never reach here.
