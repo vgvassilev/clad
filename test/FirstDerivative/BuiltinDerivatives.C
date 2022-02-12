@@ -95,10 +95,10 @@ void f7_grad(float x, clad::array_ref<float> _d_x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         typename {{.*}} _grad0 = 0.;
 // CHECK-NEXT:         typename {{.*}} _grad1 = 0.;
-// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, 2., &_grad0, &_grad1);
-// CHECK-NEXT:         typename {{.*}} _r0 = 1 * _grad0;
+// CHECK-NEXT:         custom_derivatives::pow_pullback(_t0, 2., 1, &_grad0, &_grad1);
+// CHECK-NEXT:         typename {{.*}} _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         typename {{.*}} _r1 = 1 * _grad1;
+// CHECK-NEXT:         typename {{.*}} _r1 = _grad1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -122,10 +122,10 @@ void f8_grad(float x, clad::array_ref<double> _d_x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         typename {{.*}} _grad0 = 0.;
 // CHECK-NEXT:         typename {{.*}} _grad1 = 0.;
-// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, 2, &_grad0, &_grad1);
-// CHECK-NEXT:         typename {{.*}} _r0 = 1 * _grad0;
+// CHECK-NEXT:         custom_derivatives::pow_pullback(_t0, 2, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         typename {{.*}} _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         typename {{.*}} _r1 = 1 * _grad1;
+// CHECK-NEXT:         typename {{.*}} _r1 = _grad1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -152,10 +152,10 @@ void f9_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<floa
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _grad0 = 0.F;
 // CHECK-NEXT:         float _grad1 = 0.F;
-// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, _t1, &_grad0, &_grad1);
-// CHECK-NEXT:         float _r0 = 1 * _grad0;
+// CHECK-NEXT:         custom_derivatives::pow_pullback(_t0, _t1, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         float _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         float _r1 = 1 * _grad1;
+// CHECK-NEXT:         float _r1 = _grad1;
 // CHECK-NEXT:         * _d_y += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -183,10 +183,10 @@ void f10_grad(float x, int y, clad::array_ref<double> _d_x, clad::array_ref<doub
 // CHECK-NEXT:     {
 // CHECK-NEXT:         typename {{.*}} _grad0 = 0.;
 // CHECK-NEXT:         typename {{.*}} _grad1 = 0.;
-// CHECK-NEXT:         custom_derivatives::pow_grad(_t0, _t1, &_grad0, &_grad1);
-// CHECK-NEXT:         typename {{.*}} _r0 = 1 * _grad0;
+// CHECK-NEXT:         custom_derivatives::pow_pullback(_t0, _t1, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         typename {{.*}} _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         typename {{.*}} _r1 = 1 * _grad1;
+// CHECK-NEXT:         typename {{.*}} _r1 = _grad1;
 // CHECK-NEXT:         * _d_y += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

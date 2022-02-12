@@ -13,6 +13,8 @@ namespace clad {
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
+#include "clad/Differentiator/DiffMode.h"
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -90,7 +92,7 @@ namespace clad {
     clang::FunctionDecl* m_Derivative;
     /// The function that is currently differentiated.
     const clang::FunctionDecl* m_Function;
-
+    DiffMode m_Mode;
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
     std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
@@ -386,7 +388,6 @@ namespace clad {
       assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
       VD->setInit(ICAR.get());
-
     }
 
     /// Build a call to member function through Base expr and using the function
@@ -496,6 +497,7 @@ namespace clad {
                                  clang::SourceLocation srcLoc,
                                  bool isDerived);
 
+    clang::QualType DetermineCladArrayValueType(clang::QualType T);
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);

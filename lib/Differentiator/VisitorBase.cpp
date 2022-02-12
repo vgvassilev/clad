@@ -678,4 +678,12 @@ namespace clad {
     }
     return newPVD;
   }
+
+  QualType VisitorBase::DetermineCladArrayValueType(clang::QualType T) {
+    assert(isCladArrayType(T) && "Not a clad::array or clad::array_ref type");
+    auto specialization =
+        cast<ClassTemplateSpecializationDecl>(T->getAsCXXRecordDecl());
+    auto& TAL = specialization->getTemplateArgs();
+    return TAL.get(0).getAsType();
+  }
 } // end namespace clad

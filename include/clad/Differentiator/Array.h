@@ -25,6 +25,12 @@ public:
   CUDA_HOST_DEVICE array(std::size_t size)
       : m_arr(new T[size]{static_cast<T>(0)}), m_size(size) {}
 
+  template <typename U>
+  CUDA_HOST_DEVICE array(clad::array_ref<U> arr)
+      : m_arr(new T[arr.size()]{static_cast<T>(0)}), m_size(arr.size()) {
+    (*this) = arr;
+  }
+
   /// Destructor to delete the array if it was created by array_ref
   CUDA_HOST_DEVICE ~array() { delete[] m_arr; }
 
@@ -100,6 +106,15 @@ public:
       m_arr[i] = arr[i];
     return *this;
   }
+
+  template <typename U>
+  CUDA_HOST_DEVICE array<T>& operator=(array_ref<U>& arr) {
+    assert(arr.size() == m_size);
+    for (std::size_t i = 0; i < m_size; i++)
+      m_arr[i] = arr[i];
+    return *this;
+  }
+
   /// Performs element wise addition
   CUDA_HOST_DEVICE array<T>& operator+=(array_ref<T>& arr) {
     assert(arr.size() == m_size);

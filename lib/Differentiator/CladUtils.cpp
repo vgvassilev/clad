@@ -153,5 +153,29 @@ namespace clad {
     bool isArrayOrPointerType(const clang::QualType QT) {
       return QT->isArrayType() || QT->isPointerType();
     }
+
+    clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
+                                                        llvm::StringRef name) {
+      ASTContext& C = S.getASTContext();
+      IdentifierInfo* II = &C.Idents.get(name);
+      return DeclarationNameInfo(II, noLoc);
+    }
+
+    bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD) {
+      for (auto PVD : FD->parameters()) {
+        if (PVD->getType()->isReferenceType() ||
+            isArrayOrPointerType(PVD->getType()))
+          return true;
+      }
+      return false;
+    }
+
+    bool IsReferenceOrPointerType(QualType T) {
+      return T->isReferenceType() || isArrayOrPointerType(T);
+    }
+
+    bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {
+      return T1.getCanonicalType() == T2.getCanonicalType();
+    }
   } // namespace utils
 } // namespace clad

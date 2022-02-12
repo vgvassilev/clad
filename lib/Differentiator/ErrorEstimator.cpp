@@ -143,14 +143,19 @@ void ErrorEstimationHandler::SaveReturnExpr(Expr* retExpr,
 }
 
 void ErrorEstimationHandler::EmitNestedFunctionParamError(
-    FunctionDecl* fnDecl, llvm::SmallVectorImpl<Expr*>& CallArgs,
+    FunctionDecl* fnDecl, llvm::SmallVectorImpl<Expr*>& derivedCallArgs,
     llvm::SmallVectorImpl<VarDecl*>& ArgResultDecls, size_t numArgs) {
   assert(fnDecl && "Must have a value");
   for (size_t i = 0; i < numArgs; i++) {
     if (!fnDecl->getParamDecl(0)->getType()->isLValueReferenceType())
       continue;
+    // // FIXME: Argument passed by reference do not have any corresponding
+    // // `ArgResultDecl`. Handle arguments passed by reference in error
+    // // estimation.
+    // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
+    //   continue;
     Expr* errorExpr = m_EstModel->AssignError(
-        {CallArgs[i], m_RMV->BuildDeclRef(ArgResultDecls[i])});
+        {derivedCallArgs[i], m_RMV->BuildDeclRef(ArgResultDecls[i])});
     Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
     m_ReverseErrorStmts.push_back(errorStmt);
   }
@@ -596,9 +601,12 @@ void ErrorEstimationHandler::ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) {
   EmitUnaryOpErrorStmts(diff, m_RMV->isInsideLoop);
 }
 
+// FIXME: Issue a warning that error estimation may produce incorrect result if
+// any of the arguments are being passed by reference to the call expression
+// `CE`.
 void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
     const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
-    llvm::SmallVectorImpl<Expr*>& CallArgs,
+    llvm::SmallVectorImpl<Expr*>& derivedCallArgs,
     llvm::SmallVectorImpl<VarDecl*>& ArgResultDecls, bool asGrad) {
   if (OverloadedDerivedFn && asGrad) {
     // Derivative was found.
@@ -609,7 +617,7 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
     // in the input prameters (if of reference type) to call and save to
     // emit them later.
 
-    EmitNestedFunctionParamError(fnDecl, CallArgs, ArgResultDecls,
+    EmitNestedFunctionParamError(fnDecl, derivedCallArgs, ArgResultDecls,
                                  CE->getNumArgs());
   }
 }

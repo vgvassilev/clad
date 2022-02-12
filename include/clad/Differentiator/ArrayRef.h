@@ -32,6 +32,13 @@ namespace clad {
     CUDA_HOST_DEVICE array_ref(array<T>& a)
         : m_arr(a.ptr()), m_size(a.size()) {}
 
+    template <typename U>
+    CUDA_HOST_DEVICE array_ref<T>& operator=(array<U>& a) {
+      assert(m_size == a.size());
+      for (std::size_t i = 0; i < m_size; ++i)
+        m_arr[i] = a[i];
+      return *this;
+    }
     /// Returns the size of the underlying array
     CUDA_HOST_DEVICE std::size_t size() { return m_size; }
     /// Returns an array_ref to a part of the underlying array starting at

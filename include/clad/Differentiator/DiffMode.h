@@ -6,6 +6,7 @@ namespace clad {
     unknown = 0,
     forward,
     experimental_pushforward,
+    experimental_pullback,
     reverse,
     hessian,
     jacobian,

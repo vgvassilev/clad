@@ -48,7 +48,7 @@ public:
                                      clang::Expr*& retDeclRefExpr) override;
   void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
-      llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls,
       bool asGrad) override;
   void ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) override;
