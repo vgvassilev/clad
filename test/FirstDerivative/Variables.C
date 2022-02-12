@@ -73,9 +73,9 @@ double f_sin(double x, double y) {
 // CHECK: double f_sin_darg0(double x, double y) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     double _d_y = 0;
-// CHECK-NEXT:     double _d_xsin = clad::custom_derivatives::sin_pushforward(x, _d_x);
+// CHECK-NEXT:     double _d_xsin = clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, _d_x);
 // CHECK-NEXT:     double xsin = std::sin(x);
-// CHECK-NEXT:     double _d_ysin = clad::custom_derivatives::sin_pushforward(y, _d_y);
+// CHECK-NEXT:     double _d_ysin = clad::custom_derivatives{{(::std)?}}::sin_pushforward(y, _d_y);
 // CHECK-NEXT:     double ysin = std::sin(y);
 // CHECK-NEXT:     double _d_xt = _d_xsin * xsin + xsin * _d_xsin;
 // CHECK-NEXT:     double xt = xsin * xsin;

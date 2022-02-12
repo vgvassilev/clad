@@ -261,7 +261,7 @@ public:
   void ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) override;
   void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& fnDecl,
-      llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls,
       bool asGrad) override;
   void

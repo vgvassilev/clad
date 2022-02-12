@@ -122,26 +122,26 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  _result[2] = sin(z) * constant;
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r6 = 1 * _t6;
-//CHECK-NEXT:    double _r7 = _r6 * clad::custom_derivatives::sin_pushforward(_t7, 1.);
+//CHECK-NEXT:    double _r7 = _r6 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t7, 1.);
 //CHECK-NEXT:    jacobianMatrix[8UL] += _r7;
 //CHECK-NEXT:    double _r8 = _t8 * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r3 = 1 * _t3;
-//CHECK-NEXT:    double _r4 = _r3 * clad::custom_derivatives::sin_pushforward(_t4, 1.);
+//CHECK-NEXT:    double _r4 = _r3 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t4, 1.);
 //CHECK-NEXT:    jacobianMatrix[4UL] += _r4;
 //CHECK-NEXT:    double _r5 = _t5 * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r0 = 1 * _t0;
-//CHECK-NEXT:    double _r1 = _r0 * clad::custom_derivatives::sin_pushforward(_t1, 1.);
+//CHECK-NEXT:    double _r1 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t1, 1.);
 //CHECK-NEXT:    jacobianMatrix[0UL] += _r1;
 //CHECK-NEXT:    double _r2 = _t2 * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:}
 
 double multiply(double x, double y) { return x * y; }
-//CHECK: void multiply_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK: void multiply_pullback(double x, double y, double _d_y0, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
 //CHECK-NEXT:    double _t0;
 //CHECK-NEXT:    double _t1;
 //CHECK-NEXT:    _t1 = x;
@@ -150,9 +150,9 @@ double multiply(double x, double y) { return x * y; }
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = 1 * _t0;
+//CHECK-NEXT:        double _r0 = _d_y0 * _t0;
 //CHECK-NEXT:        * _d_x += _r0;
-//CHECK-NEXT:        double _r1 = _t1 * 1;
+//CHECK-NEXT:        double _r1 = _t1 * _d_y0;
 //CHECK-NEXT:        * _d_y += _r1;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -200,10 +200,10 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:        double _r8 = 1 * _t8;
 //CHECK-NEXT:        double _jac4 = 0.;
 //CHECK-NEXT:        double _jac5 = 0.;
-//CHECK-NEXT:        multiply_grad(_t9, _t10, &_jac4, &_jac5);
-//CHECK-NEXT:        double _r9 = _r8 * _jac4;
+//CHECK-NEXT:        multiply_pullback(_t9, _t10, _r8, &_jac4, &_jac5);
+//CHECK-NEXT:        double _r9 = _jac4;
 //CHECK-NEXT:        jacobianMatrix[8UL] += _r9;
-//CHECK-NEXT:        double _r10 = _r8 * _jac5;
+//CHECK-NEXT:        double _r10 = _jac5;
 //CHECK-NEXT:        jacobianMatrix[6UL] += _r10;
 //CHECK-NEXT:        double _r11 = _t11 * 1;
 //CHECK-NEXT:    }
@@ -211,10 +211,10 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:        double _r4 = 1 * _t4;
 //CHECK-NEXT:        double _jac2 = 0.;
 //CHECK-NEXT:        double _jac3 = 0.;
-//CHECK-NEXT:        multiply_grad(_t5, _t6, &_jac2, &_jac3);
-//CHECK-NEXT:        double _r5 = _r4 * _jac2;
+//CHECK-NEXT:        multiply_pullback(_t5, _t6, _r4, &_jac2, &_jac3);
+//CHECK-NEXT:        double _r5 = _jac2;
 //CHECK-NEXT:        jacobianMatrix[4UL] += _r5;
-//CHECK-NEXT:        double _r6 = _r4 * _jac3;
+//CHECK-NEXT:        double _r6 = _jac3;
 //CHECK-NEXT:        jacobianMatrix[5UL] += _r6;
 //CHECK-NEXT:        double _r7 = _t7 * 1;
 //CHECK-NEXT:    }
@@ -222,10 +222,10 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:        double _r0 = 1 * _t0;
 //CHECK-NEXT:        double _jac0 = 0.;
 //CHECK-NEXT:        double _jac1 = 0.;
-//CHECK-NEXT:        multiply_grad(_t1, _t2, &_jac0, &_jac1);
-//CHECK-NEXT:        double _r1 = _r0 * _jac0;
+//CHECK-NEXT:        multiply_pullback(_t1, _t2, _r0, &_jac0, &_jac1);
+//CHECK-NEXT:        double _r1 = _jac0;
 //CHECK-NEXT:        jacobianMatrix[0UL] += _r1;
-//CHECK-NEXT:        double _r2 = _r0 * _jac1;
+//CHECK-NEXT:        double _r2 = _jac1;
 //CHECK-NEXT:        jacobianMatrix[1UL] += _r2;
 //CHECK-NEXT:        double _r3 = _t3 * 1;
 //CHECK-NEXT:    }

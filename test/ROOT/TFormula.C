@@ -78,6 +78,81 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:       return 0 * _t0 + x[0] * (1 + 0 + 0) + clad::custom_derivatives::TMath::Exp_pushforward(-p[0], -1) + clad::custom_derivatives::TMath::Abs_pushforward(p[1], 0);
 //CHECK-NEXT:   }
 
+// CHECK: void exp_pushforward_pullback(double x, double d_x, double _d_y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_d_x) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     _t1 = x;
+// CHECK-NEXT:     _t2 = ::std::exp(_t1);
+// CHECK-NEXT:     _t0 = d_x;
+// CHECK-NEXT:     double exp_pushforward_return = _t2 * _t0;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = _d_y * _t0;
+// CHECK-NEXT:         double _r1 = _r0 * clad::custom_derivatives::exp_pushforward(_t1, 1.);
+// CHECK-NEXT:         * _d_x += _r1;
+// CHECK-NEXT:         double _r2 = _t2 * _d_y;
+// CHECK-NEXT:         * _d_d_x += _r2;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void Exp_pushforward_pullback(Double_t x, Double_t d_x, Double_t _d_y, clad::array_ref<Double_t> _d_x, clad::array_ref<Double_t> _d_d_x) {
+// CHECK-NEXT:     Double_t _t0;
+// CHECK-NEXT:     Double_t _t1;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     _t1 = d_x;
+// CHECK-NEXT:     double Exp_pushforward_return = std::exp_pushforward(_t0, _t1);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         double _grad1 = 0.;
+// CHECK-NEXT:         exp_pushforward_pullback(_t0, _t1, _d_y, &_grad0, &_grad1);
+// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         * _d_x += _r0;
+// CHECK-NEXT:         double _r1 = _grad1;
+// CHECK-NEXT:         * _d_d_x += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void abs_pushforward_pullback(double x, double d_x, double _d_y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_d_x) {
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     _cond0 = x >= 0;
+// CHECK-NEXT:     if (_cond0) {
+// CHECK-NEXT:         double abs_pushforward_return = d_x;
+// CHECK-NEXT:         goto _label0;
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:         double abs_pushforward_return0 = -d_x;
+// CHECK-NEXT:         goto _label1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     if (_cond0)
+// CHECK-NEXT:       _label0:
+// CHECK-NEXT:         * _d_d_x += _d_y;
+// CHECK-NEXT:     else
+// CHECK-NEXT:       _label1:
+// CHECK-NEXT:         * _d_d_x += -_d_y;
+// CHECK-NEXT: }
+
+// CHECK: void Abs_pushforward_pullback(Double_t x, Double_t d_x, Double_t _d_y, clad::array_ref<Double_t> _d_x, clad::array_ref<Double_t> _d_d_x) {
+// CHECK-NEXT:     Double_t _t0;
+// CHECK-NEXT:     Double_t _t1;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     _t1 = d_x;
+// CHECK-NEXT:     double Abs_pushforward_return = std::abs_pushforward(_t0, _t1);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         double _grad1 = 0.;
+// CHECK-NEXT:         abs_pushforward_pullback(_t0, _t1, _d_y, &_grad0, &_grad1);
+// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         * _d_x += _r0;
+// CHECK-NEXT:         double _r1 = _grad1;
+// CHECK-NEXT:         * _d_d_x += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 //CHECK:   void TFormula_example_darg1_0_grad_1(Double_t *x, Double_t *p, clad::array_ref<Double_t> _d_p) {
 //CHECK-NEXT:       double _d__t0 = 0;
 //CHECK-NEXT:       double _t0;
@@ -102,16 +177,16 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:           double _r3 = _t2 * 1;
 // CHECK-NEXT:          Double_t _grad0 = 0.;
 // CHECK-NEXT:          Double_t _grad1 = 0.;
-// CHECK-NEXT:          Exp_pushforward_grad(_t3, -1, &_grad0, &_grad1);
-// CHECK-NEXT:          Double_t _r4 = 1 * _grad0;
+// CHECK-NEXT:          Exp_pushforward_pullback(_t3, -1, 1, &_grad0, &_grad1);
+// CHECK-NEXT:          Double_t _r4 = _grad0;
 // CHECK-NEXT:          _d_p[0] += -_r4;
-// CHECK-NEXT:          Double_t _r5 = 1 * _grad1;
+// CHECK-NEXT:          Double_t _r5 = _grad1;
 // CHECK-NEXT:          Double_t _grad2 = 0.;
 // CHECK-NEXT:          Double_t _grad3 = 0.;
-// CHECK-NEXT:          Abs_pushforward_grad(_t4, 0, &_grad2, &_grad3);
-// CHECK-NEXT:          Double_t _r6 = 1 * _grad2;
+// CHECK-NEXT:          Abs_pushforward_pullback(_t4, 0, 1, &_grad2, &_grad3);
+// CHECK-NEXT:          Double_t _r6 = _grad2;
 // CHECK-NEXT:          _d_p[1] += _r6;
-// CHECK-NEXT:          Double_t _r7 = 1 * _grad3;
+// CHECK-NEXT:          Double_t _r7 = _grad3;
 // CHECK-NEXT:      }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_p[0] += _d__t0;
@@ -149,16 +224,16 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:           double _r3 = _t2 * 1;
 // CHECK-NEXT:          Double_t _grad0 = 0.;
 // CHECK-NEXT:          Double_t _grad1 = 0.;
-// CHECK-NEXT:          Exp_pushforward_grad(_t3, -0, &_grad0, &_grad1);
-// CHECK-NEXT:          Double_t _r4 = 1 * _grad0;
+// CHECK-NEXT:          Exp_pushforward_pullback(_t3, -0, 1, &_grad0, &_grad1);
+// CHECK-NEXT:          Double_t _r4 = _grad0;
 // CHECK-NEXT:          _d_p[0] += -_r4;
-// CHECK-NEXT:          Double_t _r5 = 1 * _grad1;
+// CHECK-NEXT:          Double_t _r5 = _grad1;
 // CHECK-NEXT:          Double_t _grad2 = 0.;
 // CHECK-NEXT:          Double_t _grad3 = 0.;
-// CHECK-NEXT:          Abs_pushforward_grad(_t4, 1, &_grad2, &_grad3);
-// CHECK-NEXT:          Double_t _r6 = 1 * _grad2;
+// CHECK-NEXT:          Abs_pushforward_pullback(_t4, 1, 1, &_grad2, &_grad3);
+// CHECK-NEXT:          Double_t _r6 = _grad2;
 // CHECK-NEXT:          _d_p[1] += _r6;
-// CHECK-NEXT:          Double_t _r7 = 1 * _grad3;
+// CHECK-NEXT:          Double_t _r7 = _grad3;
 // CHECK-NEXT:      }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_p[0] += _d__t0;
@@ -196,16 +271,16 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:           double _r3 = _t2 * 1;
 // CHECK-NEXT:          Double_t _grad0 = 0.;
 // CHECK-NEXT:          Double_t _grad1 = 0.;
-// CHECK-NEXT:          Exp_pushforward_grad(_t3, -0, &_grad0, &_grad1);
-// CHECK-NEXT:          Double_t _r4 = 1 * _grad0;
+// CHECK-NEXT:          Exp_pushforward_pullback(_t3, -0, 1, &_grad0, &_grad1);
+// CHECK-NEXT:          Double_t _r4 = _grad0;
 // CHECK-NEXT:          _d_p[0] += -_r4;
-// CHECK-NEXT:          Double_t _r5 = 1 * _grad1;
+// CHECK-NEXT:          Double_t _r5 = _grad1;
 // CHECK-NEXT:          Double_t _grad2 = 0.;
 // CHECK-NEXT:          Double_t _grad3 = 0.;
-// CHECK-NEXT:          Abs_pushforward_grad(_t4, 0, &_grad2, &_grad3);
-// CHECK-NEXT:          Double_t _r6 = 1 * _grad2;
+// CHECK-NEXT:          Abs_pushforward_pullback(_t4, 0, 1, &_grad2, &_grad3);
+// CHECK-NEXT:          Double_t _r6 = _grad2;
 // CHECK-NEXT:          _d_p[1] += _r6;
-// CHECK-NEXT:          Double_t _r7 = 1 * _grad3;
+// CHECK-NEXT:          Double_t _r7 = _grad3;
 // CHECK-NEXT:      }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_p[0] += _d__t0;

@@ -65,7 +65,7 @@ namespace clad {
     // Downside of making it an object: We will need to include
     // 'MultiplexExternalRMVSource.h' file
     MultiplexExternalRMVSource* m_ExternalSource = nullptr;
-
+    clang::Expr* m_Pullback = nullptr;
     const char* funcPostfix() const {
       if (isVectorValued)
         return "_jac";
@@ -284,6 +284,8 @@ namespace clad {
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
     OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
                                      const DiffRequest& request);
+    OverloadedDeclWithContext DerivePullback(const clang::FunctionDecl* FD,
+                                             const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);

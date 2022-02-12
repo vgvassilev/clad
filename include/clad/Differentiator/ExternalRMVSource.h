@@ -126,7 +126,7 @@ public:
   /// \param ArgResultDecls
   virtual void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
-      llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls, bool asGrad) {}
 
   /// This is called just before finalising processing of post and pre

@@ -5,6 +5,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "clang/AST/Type.h"
@@ -143,6 +144,21 @@ namespace clad {
 
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(const clang::QualType QT);
+
+    clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
+                                                        llvm::StringRef name);
+
+    bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
+
+    /// Returns true if `T` is a reference, pointer or array type.
+    ///
+    /// \note Please note that this function returns true for array types as
+    /// well.
+    bool IsReferenceOrPointerType(clang::QualType T);
+
+    /// Returns true if `T1` and `T2` have same cononical type; otherwise
+    /// returns false.
+    bool SameCanonicalType(clang::QualType T1, clang::QualType T2);
   } // namespace utils
 }
 

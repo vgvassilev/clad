@@ -144,10 +144,10 @@ void MultiplexExternalRMVSource::ActBeforeFinalisingVisitReturnStmt(
 
 void MultiplexExternalRMVSource::ActBeforeFinalizingVisitCallExpr(
     const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
-    llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+    llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
     llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls, bool asGrad) {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalizingVisitCallExpr(CE, OverloadedDerivedFn, CallArgs,
+    source->ActBeforeFinalizingVisitCallExpr(CE, OverloadedDerivedFn, derivedCallArgs,
                                              ArgResultDecls, asGrad);
   }
 }

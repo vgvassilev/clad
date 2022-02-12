@@ -169,6 +169,9 @@ namespace clad {
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
       result = V.Derive(FD, request);
+    } else if (request.Mode == DiffMode::experimental_pullback) {
+      ReverseModeVisitor V(*this);
+      result = V.DerivePullback(FD, request);
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);

@@ -128,65 +128,18 @@ template <typename R, typename A> R sin(A x) {
     //}
   }// end namespace std
 
-  template<typename T1, typename T2>
-  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg0(T1 x, T2 exponent) {
-    return exponent * pow(x, exponent-((T2)1));
-  }
-
-  template <typename T1, typename T2>
-  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg1(T1 x, T2 exponent) {
-    return pow(x, exponent) * log(x);
-  }
-
-  template<typename T1, typename T2>
-  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg0_darg0(T1 x, T2 exponent) {
-    return exponent * pow(x, exponent-((T2)1));
-  }
-
-  template<typename T1, typename T2>
-  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg0_darg1(T1 x, T2 exponent) {
-    return exponent * pow_darg1(x, exponent-((T2)1)) + pow(x, exponent-((T2)1));
-  }
-
-  template <typename T1, typename T2>
-  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg1_darg0(T1 x, T2 exponent) {
-    return exponent * pow_darg1(x, exponent-((T2)1)) + pow(x, exponent-((T2)1));
-  }
-
-  template <typename T1, typename T2>
-  CUDA_HOST_DEVICE decltype(pow(T1(), T2())) pow_darg1_darg1(T1 x, T2 exponent) {
-    return pow(x, exponent) * log(x) * log(x);
-  }
-
   template <typename T1, typename T2>
   CUDA_HOST_DEVICE void
-  pow_grad(T1 x, T2 exponent,
-           clad::array_ref<decltype(::std::pow(T1(), T2()))> _d_x,
-           clad::array_ref<decltype(::std::pow(T1(), T2()))> _d_y) {
-    *_d_x += clad::custom_derivatives::std::pow_pushforward(x, exponent, static_cast<T1>(1),
-                                               static_cast<T2>(0));
-    *_d_y += clad::custom_derivatives::std::pow_pushforward(x, exponent, static_cast<T1>(0),
-                                               static_cast<T2>(1));
+  pow_pullback(T1 x, T2 exponent, decltype(::std::pow(T1(), T2())) d_y,
+               clad::array_ref<decltype(::std::pow(T1(), T2()))> d_x,
+               clad::array_ref<decltype(::std::pow(T1(), T2()))> d_exponent) {
+    *d_x += clad::custom_derivatives::std::pow_pushforward(
+                x, exponent, static_cast<T1>(1), static_cast<T2>(0)) *
+            d_y;
+    *d_exponent += clad::custom_derivatives::std::pow_pushforward(
+                       x, exponent, static_cast<T1>(0), static_cast<T2>(1)) *
+                   d_y;
   }
-
-  // Do we need to define these functions? Ideally, clad can generate these
-  // functions if they are required. 
-  template <typename T1, typename T2>
-  CUDA_HOST_DEVICE void
-  pow_darg0_grad(T1 x, T2 exponent, clad::array_ref<decltype(pow(T1(), T2()))> _d_x,
-           clad::array_ref<decltype(pow(T1(), T2()))> _d_y) {
-    *_d_x += pow_darg0_darg0(x, exponent);
-    *_d_y += pow_darg0_darg1(x, exponent);
-  }
-
-  template <typename T1, typename T2>
-  CUDA_HOST_DEVICE void
-  pow_darg1_grad(T1 x, T2 exponent, clad::array_ref<decltype(pow(T1(), T2()))> _d_x,
-                 clad::array_ref<decltype(pow(T1(), T2()))> _d_y) {
-    *_d_x += pow_darg1_darg0(x, exponent);
-    *_d_y += pow_darg1_darg1(x, exponent);
-  }
-
   // FIXME: These math functions depend on promote_2 just like pow:
   // atan2
   // fmod
