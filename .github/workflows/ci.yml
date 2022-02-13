@@ -715,7 +715,8 @@ jobs:
     - name: Setup tmate session
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 1 # When debugging increase to a suitable value!
+      # When debugging increase to a suitable value!
+      timeout-minutes: ${{ github.event.pull_request && 1 || 20 }}
     - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
