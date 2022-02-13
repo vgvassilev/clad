@@ -521,9 +521,6 @@ jobs:
           fi
           popd
         fi
-        if [[ '${{ matrix.clang-runtime }}' == '7' || '${{ matrix.clang-runtime }}' == '8' || '${{ matrix.clang-runtime }}' == '9' || '${{ matrix.clang-runtime }}' == '11' ]]; then
-          brew install llvm@${{ matrix.clang-runtime }}
-        fi
         # Package llvm@10 is not supported on brew. FIXME: Remove when official brew package is released.
         if [[ '${{ matrix.clang-runtime }}' == '10' ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@10/
@@ -544,11 +541,8 @@ jobs:
           popd
         fi
 
-        # Package llvm@12 == llvm. FIXME: Remove when official brew package llvm@12 is released.
-        if [[ '${{ matrix.clang-runtime }}' == '12' ]]; then
-          brew install llvm
-          export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@12/
-          sudo ln -s /usr/local/opt/llvm /usr/local/opt/llvm@12
+        if [[ '${{ matrix.clang-runtime }}' != '5.0' && '${{ matrix.clang-runtime }}' != '6.0' && '${{ matrix.clang-runtime }}' != '10' ]]; then
+          brew install llvm@${{ matrix.clang-runtime }}
         fi
 
         pip3 install lit # LLVM lit is not part of the llvm releases...
