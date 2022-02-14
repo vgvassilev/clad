@@ -152,7 +152,9 @@
   date: 2021-10-27
   speaker: V Vassilev
   id: "InteractiveCppCppCon21"
-  artifacts: "[Link to slides](/assets/presentations/V_Vassilev-CppCon21_InteractiveCpp.pdf)"
+  artifacts: |
+    [Video](https://youtu.be/23E0S3miWB0),&nbsp;
+    [Link to slides](/assets/presentations/V_Vassilev-CppCon21_InteractiveCpp.pdf)
   highlight: 1
 
 - title: "Differentiable Programming in C++"
