@@ -398,6 +398,7 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
+        ref: ${{ github.ref }}
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
@@ -664,7 +665,7 @@ jobs:
 
         # Get the performance for previous version. If it were a PR the master
         # or the previous hash
-        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo ${{ github.base_ref }})
+        hash=${{ github.event.pull_request && github.base_ref || '$(git branch old_master github.event.before && "old_master")' }}
         echo "Running git checkout '$hash'"
         git checkout $hash
         cd obj
@@ -673,11 +674,13 @@ jobs:
 
         # Compare:
         cd benchmark
+        ls -la
         pip3 install -r ./googlebenchmark-prefix/src/googlebenchmark/tools/requirements.txt
         COMPARER='./googlebenchmark-prefix/src/googlebenchmark/tools/compare.py'
         for baseline in *-$hash.json
         do
-          common=${baseline:0:-12}
+          # Drop the hash
+          common=${baseline%$hash.json}
           pr_change=$(find . ! -name '*$hash.json'  -name "${common}*.json")
 
           echo "Running 'python3 ${COMPARER} benchmarks '${baseline}' '${pr_change}''"
