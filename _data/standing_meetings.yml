@@ -4,8 +4,11 @@
   connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
   agenda:
     - title: Updates
-      speaker: "Vassil, David, Garima, Ioana"
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "The CaaS Project. Plans Q1, Q2"
+      date: 2022-02-16 14:00:00 +0200
+      speaker: "Vassil Vassilev"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_16_02_2020-V_Vassilev-Q1_Q2_Project_Plans.pdf)"
 
 - name: "CLAD Bi-weekly Meeting"
   date: Tuesdays (every second and fourth week of the month)
