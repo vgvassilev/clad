@@ -84,19 +84,32 @@
   current: 1
 
 - name: Purva Chaudhari
-  info: "Reduce boost dependencies in CMSSW"
+  info: "Enhance the incremental compilation error recovery in clang and clang-repl"
   photo: Purva.jpg
   email: purva.chaudhari02@gmail.com
   education: "Computer Science, Vishwakarma Institute of Technology"
+  current: 1
   description: |
+    The Clang compiler is part of the LLVM compiler infrastructure and supports various languages such as C, 
+    C++, ObjC and ObjC++. Advancements in JIT infstructure and usability of Clang libriries in LLVM has 
+    enabled research into processing C++. It has been challenging to include incremental compilation and 
+    fitting compile time optimizations into a more dynamic environment.
+    Incremental compilation pipelines process code chunk-by-chunk by building an ever-growing translation unit. 
+    Code is then lowered into the LLVM IR and subsequently run by the LLVM JIT. The incremental compilation mode 
+    is used by the interactive C++ interpreter, Cling, initially developed to enable interactive high-energy physics 
+    analysis in a C++ environment. Clang-repl is a new-tool incroporated in LLVM ecosystem by residesigning parts 
+    of CLing in Clang mainline. The project aims at enhancing the error recovery when users type C++ at the prompt of clang-repl.
+  mentors: Vassil Vassilev, David Lange
+  past_projects: 1
+  past_info: 'Reduce boost dependencies in CMSSW'
+  past_description: |
     This project has the objective to reduce CMSSW technical debt by finding 
     and replacing boost dependencies that have an equivalent solution in 
     standard C++. Reducing boost dependencies helps us create more lightweight
     boost clang modules for upcoming c++20. This also reduces the amount of
     headers that we need to work on to be able to use c++20 clang modules.
-  report: <a href="https://docs.google.com/document/d/1Z3SWdgTRZBkmckuPuIdIXeA7ZPIrd67jQg6gKoVnU9U" target="_blank">URL</a>
-  mentors: Vassil Vassilev, David Lange
-  current: 1
+  report: <a href="https://indico.cern.ch/event/1066812/contributions/4495290/attachments/2302817/3917355/Iris%20HeP.pdf" target="_blank">URL</a>
+  past_mentors: Vassil Vassilev, David Lange
 
 - name: "This could be you!"
   photo: rock.jpg
