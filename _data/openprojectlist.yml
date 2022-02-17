@@ -1,3 +1,28 @@
+- name: "Tutorial development with clang-repl"
+  description: |
+    Incremental compilation pipelines process code chunk-by-chunk by building an
+    ever-growing translation unit. Code is then lowered into the LLVM IR and
+    subsequently run by the LLVM JIT. Such a pipeline allows creation of
+    efficient interpreters. The interpreter enables interactive exploration and
+    makes the C++ language more user friendly. The incremental compilation mode
+    is used by the interactive C++ interpreter, Cling, initially developed to
+    enable interactive high-energy physics analysis in a C++ environment.
+
+    Our group puts efforts to incorporate and possibly redesign parts of Cling
+    in Clang mainline through a new tool, clang-repl. The project aims
+    implementing tutorials demonstrating the capabilities of the project and
+    investigating adoption of clang-repl in xeus-cling.
+  tasks: |
+    There are several forseen tasks:
+      * Write several tutorials demostrating the current capabilities of
+        clang-repl.
+      * Investigate the requirements for adding clang-repl as a backend to
+        xeus-cling.
+      * Implement the xeus kernel protocol for clang-repl.
+      * Complete a blog post about clang-repl and possibly Jupyter.
+      * Present the work at the relevant meetings and conferences.
+
+
 - name: "Implement autocompletion in clang-repl"
   description: |
     The Clang compiler is part of the LLVM compiler infrastructure and supports
@@ -28,7 +53,7 @@
     // list of suggestions.
     ```
   tasks: |
-    There are several forseen tasks
+    There are several forseen tasks:
       * Research the current approaches for autocompletion in clang such as
         `clang -code-completion-at=file:col1:col2`.
       * Implement a version of the autocompletion support using the partial
