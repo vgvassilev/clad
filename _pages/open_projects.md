@@ -15,7 +15,7 @@ permalink: /open_projects
 </nav>
 
 {% for project in site.data.openprojectlist %}
-  {% if project.status == 'completed' %}
+  {% if project.status %}
     {% continue %}
   {% endif %}
 
