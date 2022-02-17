@@ -92,6 +92,115 @@
         ```
       * Present the work at the relevant meetings and conferences
 
+- name: "Implement vector mode in forward mode automatic differentiation in Clad"
+  description: |
+    In mathematics and computer algebra, automatic differentiation (AD) is a set
+    of techniques to numerically evaluate the derivative of a function specified
+    by a computer program. Automatic differentiation is an alternative technique
+    to Symbolic differentiation and Numerical differentiation (the method of
+    finite differences). Clad is based on Clang which provides the necessary
+    facilities for code transformation. The AD library is able to differentiate
+    non-trivial functions, to find a partial derivative for trivial cases and
+    has good unit test coverage.
+
+    Vector mode support will facilitate the computation of gradients using the
+    forward mode AD in a single pass and thus without explicitly performing
+    differentiation n times for n function arguments. The major benefit of using
+    vector mode is that computationally expensive operations do not need to be
+    recomputed n times for n function arguments.
+
+    For example, if we want to compute `df/dx` and `df/dy` of a function
+    `f(x, y)` using the forward mode AD in Clad, then currently we need to
+    explicitly differentiate `f` two times. Vector mode will allow the
+    generation of `f_d(x, y)` such that we will be able to get partial
+    derivatives with respect to all the function arguments (gradient) in a
+    single call.
+
+    After successful completion of the project the code snippet should work
+    as expected:
+    ```cpp
+    #include <clad/Differentiator/Differentiator.h>
+    #include <iostream>
+
+    double someComputationalIntensiveFn();
+
+    double fn(double x, double y) {
+      double t = someComputationalIntensiveFn(); // should be computed only once
+                                                 // in the derived function.
+      double res = 2 * t * x + 3 * t * x * y;
+      return t;
+    }
+
+    int main() {
+      auto d_fn = clad::differentiate(fn, "arr");
+      double d_x = 0, d_y = 0;
+      d_fn.execute(3, 5, &d_x, &d_y);
+      std::cout << "Derivative of fn wrt d_x: " << d_x << "\n";
+      std::cout << "Derivative of fn wrt d_y: " << d_y << "\n";
+    }
+    ```
+  tasks: |
+    The project consists of the following tasks:
+      * Extend and generalize our ForwardModeVisitor to produce a single
+        function with the directional derivatives.
+      * Add a new mode to the top-level clad interface `clad::differentiate` for
+        vector mode.
+      * Extend the unit test coverage.
+      * Develop tutorials and documentation.
+      * Present the work at the relevant meetings and conferences.
+
+- name: "Add support for differentiating with respect to multidimensional arrays
+         (or pointers) in Clad."
+  description: |
+    In mathematics and computer algebra, automatic differentiation (AD) is a set
+    of techniques to numerically evaluate the derivative of a function specified
+    by a computer program. Automatic differentiation is an alternative technique
+    to Symbolic differentiation and Numerical differentiation (the method of
+    finite differences). Clad is based on Clang which provides the necessary
+    facilities for code transformation. The AD library is able to differentiate
+    non-trivial functions, to find a partial derivative for trivial cases and
+    has good unit test coverage.
+
+    Clad currently only supports differentiation with respect to
+    single-dimensional arrays. Support for differentiation with respect to
+    pointers is limited as well. This project aims to add support for
+    multi-dimensional arrays (and pointers) in Clad.
+
+    After successful completion of the project the code snippet should work
+    as expected:
+    ```cpp
+    #include <iostream>
+    #include "clad/Differentiator/Differentiator.h"
+
+    double fn(double arr[5][5]) {
+      double res = 1 * arr[0][0] + 2 * arr[1][1] + 4 * arr[2][2];
+      return res * 2;
+    }
+
+    int main() {
+      auto d_fn = clad::gradient(fn);
+      double arr[5][5] = {{1, 2, 3, 4, 5},
+                          {6, 7, 8, 9, 10},
+                          {11, 12, 13, 14, 15},
+                          {16, 17, 18, 19, 20},
+                          {21, 22, 23, 24, 25}};
+      double d_arr[5][5] = {};
+      d_fn.execute(arr, d_arr);
+      std::cout << "Derivative of d_fn wrt arr[0][0]: " << d_arr[0][0] << "\n"; // 2
+      std::cout << "Derivative of d_fn wrt arr[1][1]: " << d_arr[1][1] << "\n"; // 4
+      return 0;
+    }
+    ```
+  tasks: |
+    The project consists of the following tasks:
+      * Add support for differentiation with respect to multidimensional arrays
+        (and pointers) in the reverse mode.
+      * Add support for differentiation with respect to multidimensional arrays
+        (and pointers) in the forward mode.
+      * Extend the unit test coverage.
+      * Develop tutorials and documentation.
+      * Present the work at the relevant meetings and conferences.
+
 - name: "Enhance the incremental compilation error recovery in clang and clang-repl"
   description: |
     The Clang compiler is part of the LLVM compiler infrastructure and supports
@@ -202,7 +311,7 @@
       return pow2;
     }
     ```
-    The goal of this project is to modify Clad to handle such cases.  
+    The goal of this project is to modify Clad to handle such cases.
   tasks: |
     Implement functor object differentiation in both forward and reverse mode.
     The candidate should be ready to investigate performance bottlenecks, add
@@ -441,7 +550,7 @@
   tasks: |
     There are several improvements that can be made to cpt:
     * Fix deb package creation
-    * Rewrite parts of cpt 
+    * Rewrite parts of cpt
       * Use a `if __name__ == "__main__"` block as program execution starting
         point
       * No mutating global variables
