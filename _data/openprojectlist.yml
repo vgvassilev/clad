@@ -201,6 +201,67 @@
       * Develop tutorials and documentation.
       * Present the work at the relevant meetings and conferences.
 
+- name: "Broaden the Scope for the Floating-Point Error Estimation Framework in Clad"
+
+  description: |
+      In mathematics and computer algebra, automatic differentiation (AD) is
+      a set of techniques to numerically evaluate the derivative of a function 
+      specified by a computer program. Automatic differentiation is an alternative 
+      technique to Symbolic differentiation and Numerical differentiation (the 
+      method of finite differences). Clad is based on Clang which provides the 
+      necessary facilities for code transformation. The AD library can differentiate 
+      non-trivial functions, to find a partial derivative for trivial cases and has 
+      good unit test coverage.
+
+      Clad also possesses the capabilities of annotating given source code with 
+      floating-point error estimation code. This allows Clad to compute any 
+      floating-point related errors in the given function on the fly. This allows 
+      Clad to reason about the numerical stability of the given 
+      function and also analyze the sensitivity of the variables involved.
+
+      The idea behind this project is to develop benchmarks and improve the 
+      floating-point error estimation framework as necessary. Moreover, find 
+      compelling real-world use-cases of the tool and investigate the possibility 
+      of performing lossy compression with it.
+
+      On successful completion of the project, the framework should have a 
+      sufficiently large set of benchmarks and example usages. Moreover, 
+      the framework should be able to run the following code as expected:
+      ```cpp
+      #include <iostream>
+      #include "clad/Differentiator/Differentiator.h"
+
+      // Some complicated function made up of doubles.
+      double someFunc(double F1[], double F2[], double V3[], double COUP1, double COUP2)
+      {
+        double cI = 1;
+        double TMP3;
+        double TMP4;
+        TMP3 = (F1[2] * (F2[4] * (V3[2] + V3[5]) + F2[5] * (V3[3] + cI * (V3[4]))) +
+        F1[3] * (F2[4] * (V3[3] - cI * (V3[4])) + F2[5] * (V3[2] - V3[5])));
+        TMP4 = (F1[4] * (F2[2] * (V3[2] - V3[5]) - F2[3] * (V3[3] + cI * (V3[4]))) +
+        F1[5] * (F2[2] * (-V3[3] + cI * (V3[4])) + F2[3] * (V3[2] + V3[5])));
+        return (-1.) * (COUP2 * (+cI * (TMP3) + 2. * cI * (TMP4)) + cI * (TMP3 *
+        COUP1));
+      }
+
+      int main() {
+        auto df = clad::estimate_error(someFunc);
+        // This call should generate a report to decide
+        // which variables can be downcast to a float.
+        df.execute(args...);
+      }
+      ```
+  tasks: |
+    The project consists of the following tasks:
+      * Add at least 5 benchmarks and compare the framework's correctness and 
+        performance against them.
+      * Compile at least 3 real-world examples that are complex enough to demonstrate 
+        the capabilities of the framework.
+      * Solve any general-purpose issues that come up with Clad during the process.
+      * Prepare demos and carry out development needed for lossy compression. 
+      * Present the work at the relevant meetings and conferences.
+
 - name: "Enhance the incremental compilation error recovery in clang and clang-repl"
   description: |
     The Clang compiler is part of the LLVM compiler infrastructure and supports
