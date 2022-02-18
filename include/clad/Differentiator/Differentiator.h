@@ -99,18 +99,36 @@ namespace clad {
   /// and the return statement translates to:
   ///   return f(1.0, 2.0, 0, 0);
   // for executing non-member functions
-  template <class... Rest, class F, class... Args>
+  template <bool EnablePadding, class... Rest, class F, class... Args,
+            typename std::enable_if<EnablePadding, bool>::type = true>
   return_type_t<F> execute_with_default_args(list<Rest...>, F f,
                                              Args&&... args) {
     return f(static_cast<Args>(args)..., static_cast<Rest>(0)...);
   }
 
+  template <bool EnablePadding, class... Rest, class F, class... Args,
+            typename std::enable_if<!EnablePadding, bool>::type = true>
+  return_type_t<F> execute_with_default_args(list<Rest...>, F f,
+                                             Args&&... args) {
+    return f(static_cast<Args>(args)...);
+  }
+
   // for executing member-functions
-  template <class... Rest, class ReturnType, class C, class Obj, class... Args>
+  template <bool EnablePadding, class... Rest, class ReturnType, class C,
+            class Obj, class... Args,
+            typename std::enable_if<EnablePadding, bool>::type = true>
   auto execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
                                  Args&&... args) -> return_type_t<decltype(f)> {
     return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...,
                                       static_cast<Rest>(0)...);
+  }
+
+  template <bool EnablePadding, class... Rest, class ReturnType, class C,
+            class Obj, class... Args,
+            typename std::enable_if<!EnablePadding, bool>::type = true>
+  auto execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
+                                 Args&&... args) -> return_type_t<decltype(f)> {
+    return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
   }
 
   // Using std::function and std::mem_fn introduces a lot of overhead, which we
@@ -120,7 +138,8 @@ namespace clad {
   /// const correctness of functor types.
   /// Default value of `Functor` here is temporary, and should be removed
   /// once all clad differentiation functions support differentiating functors.
-  template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>>
+  template <typename F, typename FunctorT = ExtractFunctorTraits_t<F>,
+            bool EnablePadding = false>
   class CladFunction {
   public:
     using CladFunctionType = F;
@@ -223,8 +242,8 @@ namespace clad {
       template <class Fn, class... Args>
       return_type_t<CladFunctionType> execute_helper(Fn f, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-        return execute_with_default_args(DropArgs_t<sizeof...(Args), F>{}, f,
-                                         static_cast<Args>(args)...);
+        return execute_with_default_args<EnablePadding>(
+            DropArgs_t<sizeof...(Args), F>{}, f, static_cast<Args>(args)...);
       }
 
       /// Helper functions for executing member derived functions.
@@ -240,10 +259,9 @@ namespace clad {
       return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-        return execute_with_default_args(DropArgs_t<sizeof...(Args),
-                                                    decltype(f)>{},
-                                         f, static_cast<Obj>(obj),
-                                         static_cast<Args>(args)...);
+        return execute_with_default_args<EnablePadding>(
+            DropArgs_t<sizeof...(Args), decltype(f)>{}, f,
+            static_cast<Obj>(obj), static_cast<Args>(args)...);
       }
       /// If user have not passed object explicitly, then this specialization
       /// will be used and derived function will be called through the object
@@ -255,10 +273,9 @@ namespace clad {
                "No default object set, explicitly pass an object to "
                "CladFunction::execute");
         // `static_cast` is required here for perfect forwarding.
-        return execute_with_default_args(DropArgs_t<sizeof...(Args),
-                                                    decltype(f)>{},
-                                         f, *m_Functor,
-                                         static_cast<Args>(args)...);
+        return execute_with_default_args<EnablePadding>(
+            DropArgs_t<sizeof...(Args), decltype(f)>{}, f, *m_Functor,
+            static_cast<Args>(args)...);
       }
   };
 
@@ -323,13 +340,13 @@ namespace clad {
             typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
     assert(f && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
         derivedFn /* will be replaced by gradient*/, code);
   }
 
@@ -340,12 +357,12 @@ namespace clad {
             typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F&& f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
         derivedFn /* will be replaced by gradient*/, code, f);
   }
 
