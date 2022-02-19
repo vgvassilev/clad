@@ -260,6 +260,98 @@
         the capabilities of the framework.
       * Solve any general-purpose issues that come up with Clad during the process.
       * Prepare demos and carry out development needed for lossy compression. 
+
+- name: "Improve robustness of dictionary to module lookups in ROOT"
+  description: |
+    The LHC smashes groups of protons together at close to the speed of light:
+    40 million times per second and with seven times the energy of the most
+    powerful accelerators built up to now. Many of these will just be glancing
+    blows but some will be head on collisions and very energetic. When this
+    happens some of the energy of the collision is turned into mass and
+    previously unobserved, short-lived particles – which could give clues
+    about how Nature behaves at a fundamental level - fly out and into the
+    detector. Our work includes the experimental discovery of the Higgs boson,
+    which leads to the award of a Nobel prize for the underlying theory that
+    predicted the Higgs boson as an important piece of the standard model
+    theory of particle physics.
+
+    CMS is a particle detector that is designed to see a wide range of
+    particles and phenomena produced in high-energy collisions in the LHC.
+    Like a cylindrical onion, different layers of detectors measure the
+    different particles, and use this key data to build up a picture of events
+    at the heart of the collision. The
+    [CMSSW](https://github.com/cms-sw/cmssw/) is a collection of software for
+    the CMS experiment. It is responsible for the collection and processing of
+    information about the particle collisions at the detector. CMSSW uses
+    the [ROOT](root.cern/) framework to provide support for data storage and
+    processing. ROOT relies on Cling, Clang, LLVM for building automatically
+    efficient I/O representation of the necessary C++ objects. The I/O
+    properties of each object is described in a compileable C++ file called
+    a /dictionary/. ROOT's I/O dictionary system
+    [relies on C++ modules](https://github.com/root-project/root/blob/master/README/README.CXXMODULES.md)
+    to improve the overall memory footprint when being used.
+
+    The few run time failures in the modules integration builds of CMSSW are
+    due to dictionaries that can not be found in the modules system. These
+    dictionaries are present as the mainstream system is able to find them
+    using a broader search. The modules setup in ROOT needs to be extended to
+    include a dictionary extension to track dictionary<->module mappings for
+    C++ entities that introduce synonyms rather than declarations
+    (`using std::vector<A<B>> = MyVector` where the dictionaries of A, B are
+    elsewhere)
+  tasks: |
+    The project consists of the following tasks:
+      * If an alias declaration of kind `using std::vector<A<B>> = MyVector`, we
+        should store the ODRHash of it in the respective dictionary file as a
+        number attached to a special variable which can be retrieved at symbol
+        scanning time.
+      * Track down the test failures of CMSSW and check if the proposed
+        implementation works.
+      * Develop tutorials and documentation.
+      * Present the work at the relevant meetings and conferences.
+
+- name: "Optimize ROOT use of modules for large codebases (eg, CMSSW)"
+  description: |
+    The LHC smashes groups of protons together at close to the speed of light:
+    40 million times per second and with seven times the energy of the most
+    powerful accelerators built up to now. Many of these will just be glancing
+    blows but some will be head on collisions and very energetic. When this
+    happens some of the energy of the collision is turned into mass and
+    previously unobserved, short-lived particles – which could give clues
+    about how Nature behaves at a fundamental level - fly out and into the
+    detector. Our work includes the experimental discovery of the Higgs boson,
+    which leads to the award of a Nobel prize for the underlying theory that
+    predicted the Higgs boson as an important piece of the standard model
+    theory of particle physics.
+
+    CMS is a particle detector that is designed to see a wide range of
+    particles and phenomena produced in high-energy collisions in the LHC.
+    Like a cylindrical onion, different layers of detectors measure the
+    different particles, and use this key data to build up a picture of events
+    at the heart of the collision. The
+    [CMSSW](https://github.com/cms-sw/cmssw/) is a collection of software for
+    the CMS experiment. It is responsible for the collection and processing of
+    information about the particle collisions at the detector. CMSSW uses
+    the [ROOT](root.cern/) framework to provide support for data storage and
+    processing. ROOT relies on Cling, Clang, LLVM for building automatically
+    efficient I/O representation of the necessary C++ objects. The I/O
+    properties of each object is described in a compileable C++ file called
+    a /dictionary/. ROOT's I/O dictionary system
+    [relies on C++ modules](https://github.com/root-project/root/blob/master/README/README.CXXMODULES.md)
+    to improve the overall memory footprint when being used.
+
+    One source of performance loss is the need for symbol lookups across the
+    very large set of CMSSW modules. ROOT needs to be improved to optimize this
+    lookup so that it does not pull all modules defining namespace `edm` on
+    `edm::X` lookups.
+  tasks: |
+    The project consists of the following tasks:
+      * Develop an extension to the `GlobalModuleIndex` infrastructure in clang
+        which keeps track of the `DeclKind` of the identifiers so that we can
+        later ignore the identifiers that declare a namespace.
+      * Track down the test failures of CMSSW and check if the proposed
+        implementation works.
+      * Develop tutorials and documentation.
       * Present the work at the relevant meetings and conferences.
 
 - name: "Enhance the incremental compilation error recovery in clang and clang-repl"
