@@ -114,8 +114,8 @@ to the host.
 int main(void) {
 
    // x and y point to the host arrays, allocated with malloc in the typical
-   fashion, and the d_x and d_y arrays point to device arrays allocated with
-   the cudaMalloc function from the CUDA runtime API
+   // fashion, and the d_x and d_y arrays point to device arrays allocated with
+   // the cudaMalloc function from the CUDA runtime API
 
    double *x, *d_x;
    double *y, *d_y;
@@ -135,7 +135,7 @@ int main(void) {
    func h_gauss;
 
    // To initialize the device arrays, we simply copy the data from x and y to
-   the corresponding device arrays d_x and d_y using cudaMemcpy
+   // the corresponding device arrays d_x and d_y using cudaMemcpy
 
    cudaMalloc(&d_x, N*sizeof(double));
    cudaMemcpy(d_x, x, N*sizeof(double), cudaMemcpyHostToDevice);
