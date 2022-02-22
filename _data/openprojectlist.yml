@@ -13,7 +13,7 @@
     generalize the `IncrementalCUDADeviceCompiler` of cling and add this
     functionality in clang-repl.
   tasks: |
-    There are several forseen tasks:
+    There are several foreseen tasks:
       * Write a detailed request for comment (RFC) document on the design choices
         and gather feedback from the LLVM community.
       * Implement the necessary functionality to support existing test cases
@@ -72,7 +72,7 @@
     implementing tutorials demonstrating the capabilities of the project and
     investigating adoption of clang-repl in xeus-cling.
   tasks: |
-    There are several forseen tasks:
+    There are several foreseen tasks:
       * Write several tutorials demostrating the current capabilities of
         clang-repl.
       * Investigate the requirements for adding clang-repl as a backend to
@@ -111,7 +111,7 @@
     // list of suggestions.
     ```
   tasks: |
-    There are several forseen tasks:
+    There are several foreseen tasks:
       * Research the current approaches for autocompletion in clang such as
         `clang -code-completion-at=file:col1:col2`.
       * Implement a version of the autocompletion support using the partial
