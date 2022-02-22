@@ -145,7 +145,7 @@ int main(void) {
    cudaMemcpy(d_sigma, &sigma, sizeof(double), cudaMemcpyHostToDevice);
 
    // Similar to the x,y arrays, we employ host and device results array so
-   that we can copy the computed values from the device back to the host
+   // that we can copy the computed values from the device back to the host
    double *result_x, *result_y;
    result_x = (double*)malloc(N*sizeof(double));
    result_y = (double*)malloc(N*sizeof(double));
