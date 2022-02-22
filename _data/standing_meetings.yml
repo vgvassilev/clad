@@ -13,6 +13,10 @@
       date: 2022-02-16 14:00:00 +0200
       speaker: "Garima Singh"
       link: "[Slides](/assets/presentations/CaaS_Weekly_16_02_2022_Garima-Utilizing_Clad_Derivatives_in_RooFit.pdf)"
+    - title: "Add support for differentiating with respect to user-defined types -- Progress Update"
+      date: 2022-01-05 14:00:00 +
+      speaker: "Parth Arora"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_05_01_2022_Parth-Add_Support_For_Differentiating_wrt_User_Defined_Types.pdf)"
 
 - name: "CLAD Bi-weekly Meeting"
   date: Tuesdays (every second and fourth week of the month)
