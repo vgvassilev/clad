@@ -1,6 +1,11 @@
-// The Test checks whether a clad gradient can be successfully be generated on the device having all the dependencies also as device functions 
+// The Test checks whether a clad gradient can be successfully be generated on
+// the device having all the dependencies also as device functions.
 
-// RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only  --cuda-path=%cudapath  -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only \
+// RUN:     --cuda-path=%cudapath  -Xclang -verify 2>&1 | FileCheck %s
+
+// R: %cladclang_cuda -I%S/../../include  -xc++  --cuda-path=%cudapath  \
+// R: -L/usr/local/cuda/lib64 -lcudart_static -ldl -lrt -pthread -lm -lstdc++ %s
 
 // REQUIRES: cuda-runtime
 
@@ -10,7 +15,7 @@
 
 #define N 3
 
-__device__ __host__ double gaus(double* x, double* p, double sigma, int dim) {
+__device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
    double t = 0;
    for (int i = 0; i< dim; i++)
        t += (x[i] - p[i]) * (x[i] - p[i]);
@@ -18,12 +23,9 @@ __device__ __host__ double gaus(double* x, double* p, double sigma, int dim) {
    return std::pow(2*M_PI, -dim/2.0) * std::pow(sigma, -0.5) * std::exp(t);
 }
 
-__device__ __host__ void
-gaus_grad_1(double* x, double* p, double sigma, int dim, clad::array_ref<double> _d_p);
+auto gauss_g = clad::gradient(gauss, "p");
 
-auto gaus_g = clad::gradient(gaus, "p");
-
-// CHECK:    void gaus_grad_1(double *x, double *p, double sigma, int dim, clad::array_ref<double> _d_p) __attribute__((device)) __attribute__((host)) {
+// CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, clad::array_ref<double> _d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     double _d_t = 0;
@@ -68,7 +70,7 @@ auto gaus_g = clad::gradient(gaus, "p");
 //CHECK-NEXT:     _t22 = _t20 * _t17;
 //CHECK-NEXT:     _t23 = t;
 //CHECK-NEXT:     _t16 = std::exp(_t23);
-//CHECK-NEXT:     double gaus_return = _t22 * _t16;
+//CHECK-NEXT:     double gauss_return = _t22 * _t16;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -121,26 +123,33 @@ auto gaus_g = clad::gradient(gaus, "p");
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-__global__ void compute(double* d_x, double* d_p, int n) {
-  gaus_grad_1(d_x, d_x, 2.0, n, d_p);
+__global__ void compute(decltype(gauss_g) grad, double* d_x, double* d_p, int n, double* d_result) {
+  grad.execute(d_x, d_p, 2.0, n, d_result);
 }
 
 int main(void) {
-    double *x, *d_x;
+  double *x, *d_x;
+  double *p, *d_p;
 
-    x = (double*)malloc(N*sizeof(double));
-    for (int i = 0; i < N; i++) {
-        x[i] = 2.0;
-    }
+  x = (double*)malloc(N * sizeof(double));
+  p = (double*)malloc(N * sizeof(double));
+  for (int i = 0; i < N; i++) {
+    x[i] = 2.0;
+    p[i] = 1.0;
+  }
 
-    cudaMalloc(&d_x, N*sizeof(double));
-    cudaMemcpy(d_x, x, N*sizeof(double), cudaMemcpyHostToDevice);
+  cudaMalloc(&d_x, N * sizeof(double));
+  cudaMemcpy(d_x, x, N * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMalloc(&d_p, N * sizeof(double));
+  cudaMemcpy(d_p, p, N * sizeof(double), cudaMemcpyHostToDevice);
+  double *result, *d_result;
 
-    double *result, *d_result;
+  result = (double*)malloc(N * sizeof(double));
+  cudaMalloc(&d_result, N * sizeof(double));
 
-    result = (double*)malloc(N*sizeof(double));
-    cudaMalloc(&d_result, N*sizeof(double));
+  compute<<<1, 1>>>(gauss_g, d_x, d_p, N, d_result);
+  cudaDeviceSynchronize();
 
-    compute<<<1, 1>>>(d_x, d_result, N);
-    cudaMemcpy(result, d_result, N*sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy(result, d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%f,%f,%f\n", result[0], result[1], result[2]);
 }

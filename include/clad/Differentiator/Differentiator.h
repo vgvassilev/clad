@@ -101,8 +101,8 @@ namespace clad {
   // for executing non-member functions
   template <bool EnablePadding, class... Rest, class F, class... Args,
             typename std::enable_if<EnablePadding, bool>::type = true>
-  return_type_t<F> execute_with_default_args(list<Rest...>, F f,
-                                             Args&&... args) {
+  CUDA_HOST_DEVICE return_type_t<F>
+  execute_with_default_args(list<Rest...>, F f, Args&&... args) {
     return f(static_cast<Args>(args)..., static_cast<Rest>(0)...);
   }
 
@@ -117,8 +117,10 @@ namespace clad {
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
             class Obj, class... Args,
             typename std::enable_if<EnablePadding, bool>::type = true>
-  auto execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
-                                 Args&&... args) -> return_type_t<decltype(f)> {
+  CUDA_HOST_DEVICE auto execute_with_default_args(list<Rest...>,
+                                                  ReturnType C::*f, Obj&& obj,
+                                                  Args&&... args)
+      -> return_type_t<decltype(f)> {
     return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...,
                                       static_cast<Rest>(0)...);
   }
@@ -187,7 +189,7 @@ namespace clad {
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type
-    execute(Args&&... args) {
+    execute(Args&&... args) CUDA_HOST_DEVICE {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(0);
@@ -204,7 +206,7 @@ namespace clad {
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type
-    execute(Args&&... args) {
+    execute(Args&&... args) CUDA_HOST_DEVICE {
       return static_cast<return_type_t<F>>(0);
     }
 
@@ -240,7 +242,8 @@ namespace clad {
     private:
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
-      return_type_t<CladFunctionType> execute_helper(Fn f, Args&&... args) {
+      CUDA_HOST_DEVICE return_type_t<CladFunctionType>
+      execute_helper(Fn f, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), F>{}, f, static_cast<Args>(args)...);
