@@ -287,5 +287,10 @@ namespace clad {
         return MD->isStatic();
       return false;
     }
+
+    bool IsCladValueAndPushforwardType(clang::QualType T) {
+      return T.getAsString().find("ValueAndPushforward") !=
+             std::string::npos;
+    }
   } // namespace utils
 } // namespace clad

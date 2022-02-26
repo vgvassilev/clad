@@ -122,19 +122,19 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  _result[2] = sin(z) * constant;
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r6 = 1 * _t6;
-//CHECK-NEXT:    double _r7 = _r6 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t7, 1.);
+// CHECK-NEXT:   double _r7 = _r6 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t7, 1.).pushforward;
 //CHECK-NEXT:    jacobianMatrix[8UL] += _r7;
 //CHECK-NEXT:    double _r8 = _t8 * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r3 = 1 * _t3;
-//CHECK-NEXT:    double _r4 = _r3 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t4, 1.);
+// CHECK-NEXT:   double _r4 = _r3 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t4, 1.).pushforward;
 //CHECK-NEXT:    jacobianMatrix[4UL] += _r4;
 //CHECK-NEXT:    double _r5 = _t5 * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r0 = 1 * _t0;
-//CHECK-NEXT:    double _r1 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t1, 1.);
+// CHECK-NEXT:   double _r1 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t1, 1.).pushforward;
 //CHECK-NEXT:    jacobianMatrix[0UL] += _r1;
 //CHECK-NEXT:    double _r2 = _t2 * 1;
 //CHECK-NEXT:  }

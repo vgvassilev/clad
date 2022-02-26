@@ -147,17 +147,53 @@ double fn6(TensorD5 t, double i) {
   res += sum(t);
   return res;
 }
+// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5> *_d_this) {
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:             _d_res += _d_this->data[i];
+// CHECK-NEXT:             res += this->data[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return {res, _d_res};
+// CHECK-NEXT: }
+
+// CHECK: void updateTo_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:             _d_this->data[i] = _d_val;
+// CHECK-NEXT:             this->data[i] = val;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5U> &t, Tensor<double, 5U> &_d_t) {
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:             _d_res += _d_t.data[i];
+// CHECK-NEXT:             res += t.data[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return {res, _d_res};
+// CHECK-NEXT: }
 
 // CHECK: double fn6_darg1(TensorD5 t, double i) {
 // CHECK-NEXT:     TensorD5 _d_t;
 // CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     double _t0 = t.sum();
-// CHECK-NEXT:     double _d_res = 0 * _t0 + 3 * t.sum_pushforward(&_d_t);
-// CHECK-NEXT:     double res = 3 * _t0;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = t.sum_pushforward(&_d_t);
+// CHECK-NEXT:     double &_t1 = _t0.value;
+// CHECK-NEXT:     double _d_res = 0 * _t1 + 3 * _t0.pushforward;
+// CHECK-NEXT:     double res = 3 * _t1;
 // CHECK-NEXT:     t.updateTo_pushforward(i * i, &_d_t, _d_i * i + i * _d_i);
-// CHECK-NEXT:     t.updateTo(i * i);
-// CHECK-NEXT:     _d_res += sum_pushforward(t, _d_t);
-// CHECK-NEXT:     res += sum(t);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t2 = sum_pushforward(t, _d_t);
+// CHECK-NEXT:     _d_res += _t2.pushforward;
+// CHECK-NEXT:     res += _t2.value;
 // CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
@@ -174,7 +210,6 @@ TensorD5 fn7(double i, double j) {
 // CHECK-NEXT:     TensorD5 t;
 // CHECK-NEXT:     double _t0 = 7 * i;
 // CHECK-NEXT:     t.updateTo_pushforward(_t0 * j, &_d_t, (0 * i + 7 * _d_i) * j + _t0 * _d_j);
-// CHECK-NEXT:     t.updateTo(_t0 * j);
 // CHECK-NEXT:     return _d_t;
 // CHECK-NEXT: }
 
@@ -198,19 +233,19 @@ complexD fn8(double i, TensorD5 t) {
 // CHECK-NEXT:     {{(__imag)?}} this->[[_M_value]] = [[__val]];
 // CHECK-NEXT: }
 
+
 // CHECK: complexD fn8_darg0(double i, TensorD5 t) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     TensorD5 _d_t;
 // CHECK-NEXT:     t.updateTo_pushforward(i * i, &_d_t, _d_i * i + i * _d_i);
-// CHECK-NEXT:     t.updateTo(i * i);
 // CHECK-NEXT:     complexD _d_c(0., 0.);
 // CHECK-NEXT:     complexD c(0., 0.);
-// CHECK-NEXT:     double _t0 = t.sum();
-// CHECK-NEXT:     c.real_pushforward(7 * _t0, &_d_c, 0 * _t0 + 7 * t.sum_pushforward(&_d_t));
-// CHECK-NEXT:     c.real(7 * _t0);
-// CHECK-NEXT:     double _t1 = sum(t);
-// CHECK-NEXT:     c.imag_pushforward(9 * _t1, &_d_c, 0 * _t1 + 9 * sum_pushforward(t, _d_t));
-// CHECK-NEXT:     c.imag(9 * _t1);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = t.sum_pushforward(&_d_t);
+// CHECK-NEXT:     double &_t1 = _t0.value;
+// CHECK-NEXT:     c.real_pushforward(7 * _t1, &_d_c, 0 * _t1 + 7 * _t0.pushforward);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t2 = sum_pushforward(t, _d_t);
+// CHECK-NEXT:     double &_t3 = _t2.value;
+// CHECK-NEXT:     c.imag_pushforward(9 * _t3, &_d_c, 0 * _t3 + 9 * _t2.pushforward);
 // CHECK-NEXT:     return _d_c;
 // CHECK-NEXT: }
 
@@ -223,12 +258,12 @@ complexD fn9(double i, complexD c) {
   return r;
 }
 
-// CHECK: constexpr double real_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
-// CHECK-NEXT:     return{{( __real)?}} _d_this->[[_M_value:.*]];
+// CHECK: constexpr clad::ValueAndPushforward<double, double> real_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
+// CHECK-NEXT:     return {{[{](__real )?}}this->[[_M_value:[a-zA-Z_]+]],{{( __real)?}} _d_this->[[_M_value:[a-zA-Z_]+]]};
 // CHECK-NEXT: }
 
-// CHECK: constexpr double imag_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
-// CHECK-NEXT:     return{{( __imag)?}} _d_this->[[_M_value:.*]];
+// CHECK: constexpr clad::ValueAndPushforward<double, double> imag_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
+// CHECK-NEXT:     return {{[{](__imag )?}}this->[[_M_value:[a-zA-Z_]+]],{{( __imag)?}} _d_this->[[_M_value:[a-zA-Z_]+]]};
 // CHECK-NEXT: }
 
 // CHECK: complexD fn9_darg0(double i, complexD c) {
@@ -237,18 +272,19 @@ complexD fn9(double i, complexD c) {
 // CHECK-NEXT:     complexD _d_r(0., 0.);
 // CHECK-NEXT:     complexD r(0., 0.);
 // CHECK-NEXT:     c.real_pushforward(i * i, &_d_c, _d_i * i + i * _d_i);
-// CHECK-NEXT:     c.real(i * i);
-// CHECK-NEXT:     double _t0 = c.real();
-// CHECK-NEXT:     double _t1 = c.real();
-// CHECK-NEXT:     c.imag_pushforward(_t0 * _t1, &_d_c, c.real_pushforward(&_d_c) * _t1 + _t0 * c.real_pushforward(&_d_c));
-// CHECK-NEXT:     c.imag(_t0 * _t1);
-// CHECK-NEXT:     double _t2 = c.real();
-// CHECK-NEXT:     r.real_pushforward(i * _t2, &_d_r, _d_i * _t2 + i * c.real_pushforward(&_d_c));
-// CHECK-NEXT:     r.real(i * _t2);
-// CHECK-NEXT:     double _t3 = c.real();
-// CHECK-NEXT:     double _t4 = c.imag();
-// CHECK-NEXT:     r.imag_pushforward(_t3 * _t4, &_d_r, c.real_pushforward(&_d_c) * _t4 + _t3 * c.imag_pushforward(&_d_c));
-// CHECK-NEXT:     r.imag(_t3 * _t4);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = c.real_pushforward(&_d_c);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = c.real_pushforward(&_d_c);
+// CHECK-NEXT:     double &_t2 = _t0.value;
+// CHECK-NEXT:     double &_t3 = _t1.value;
+// CHECK-NEXT:     c.imag_pushforward(_t2 * _t3, &_d_c, _t0.pushforward * _t3 + _t2 * _t1.pushforward);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t4 = c.real_pushforward(&_d_c);
+// CHECK-NEXT:     double &_t5 = _t4.value;
+// CHECK-NEXT:     r.real_pushforward(i * _t5, &_d_r, _d_i * _t5 + i * _t4.pushforward);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t6 = c.real_pushforward(&_d_c);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t7 = c.imag_pushforward(&_d_c);
+// CHECK-NEXT:     double &_t8 = _t6.value;
+// CHECK-NEXT:     double &_t9 = _t7.value;
+// CHECK-NEXT:     r.imag_pushforward(_t8 * _t9, &_d_r, _t6.pushforward * _t9 + _t8 * _t7.pushforward);
 // CHECK-NEXT:     return _d_r;
 // CHECK-NEXT: }
 

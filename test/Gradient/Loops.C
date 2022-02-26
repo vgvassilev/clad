@@ -330,14 +330,14 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-// CHECK-NEXT:         double _r17 = 1 * clad::custom_derivatives::log_pushforward(_t19, 1.);
+//CHECK-NEXT:          double _r17 = 1 * clad::custom_derivatives::log_pushforward(_t19, 1.).pushforward;
 //CHECK-NEXT:         _d_gaus += _r17;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r6 = _d_gaus * _t10;
 //CHECK-NEXT:         double _r7 = _r6 / _t11;
 //CHECK-NEXT:         double _r8 = _r6 * -1. / (_t11 * _t11);
-// CHECK-NEXT:         double _r9 = _r8 * clad::custom_derivatives::sqrt_pushforward(_t16, 1.);
+//CHECK-NEXT:         double _r9 = _r8 * clad::custom_derivatives::sqrt_pushforward(_t16, 1.).pushforward;
 //CHECK-NEXT:         double _r10 = _r9 * _t12;
 //CHECK-NEXT:         double _grad2 = 0.;
 //CHECK-NEXT:         double _grad3 = 0.;
@@ -349,7 +349,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:         double _r14 = _t15 * _r9;
 //CHECK-NEXT:         _d_sigma += _r14;
 //CHECK-NEXT:         double _r15 = _t17 * _d_gaus;
-// CHECK-NEXT:         double _r16 = _r15 * clad::custom_derivatives::exp_pushforward(_t18, 1.);
+//CHECK-NEXT:         double _r16 = _r15 * clad::custom_derivatives::exp_pushforward(_t18, 1.).pushforward;
 //CHECK-NEXT:         _d_power += _r16;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {

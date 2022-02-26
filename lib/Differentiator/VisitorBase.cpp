@@ -367,7 +367,7 @@ namespace clad {
 
   QualType
   VisitorBase::GetCladClassOfType(TemplateDecl* CladClassDecl,
-                                  MutableArrayRef<QualType> TemplateArgs) {
+                                  ArrayRef<QualType> TemplateArgs) {
     // Create a list of template arguments.
     TemplateArgumentListInfo TLI{};
     for (auto T : TemplateArgs) {

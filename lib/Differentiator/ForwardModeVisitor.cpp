@@ -38,6 +38,19 @@ namespace clad {
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
+  clang::QualType ForwardModeVisitor::ComputePushforwardFnReturnType() {
+    assert(m_Mode == DiffMode::experimental_pushforward);
+    QualType originalFnRT = m_Function->getReturnType();
+    if (originalFnRT->isVoidType())
+      return m_Context.VoidTy;
+    TemplateDecl* valueAndPushforward = GetCladClassDecl("ValueAndPushforward");
+    assert(valueAndPushforward &&
+           "clad::ValueAndPushforward template not found!!");
+    QualType RT =
+        GetCladClassOfType(valueAndPushforward, {originalFnRT, originalFnRT});
+    return RT;
+  }
+
   OverloadedDeclWithContext
   ForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
                                         const DiffRequest& request) {
@@ -79,8 +92,9 @@ namespace clad {
                       derivedParamTypes.end());
 
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+    QualType returnType = ComputePushforwardFnReturnType();
     QualType derivedFnType =
-        m_Context.getFunctionType(m_Function->getReturnType(), paramTypes,
+        m_Context.getFunctionType(returnType, paramTypes,
                                   originalFnType->getExtProtoInfo());
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> saveScope(m_CurScope);
@@ -690,12 +704,18 @@ namespace clad {
 
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
-    Stmt* returnStmt =
-        m_Sema
-            .ActOnReturnStmt(noLoc,
-                             retValDiff.getExpr_dx(), // return the derivative
-                             m_CurScope)
-            .get();
+    Stmt* returnStmt = nullptr;
+    if (m_Mode == DiffMode::forward) {
+      Expr* derivedRetValE = retValDiff.getExpr_dx();
+      returnStmt =
+          m_Sema.ActOnReturnStmt(noLoc, derivedRetValE, m_CurScope).get();
+    } else {
+      llvm::SmallVector<Expr*, 2> returnValues = {retValDiff.getExpr(),
+                                                  retValDiff.getExpr_dx()};
+      Expr* initList = m_Sema.ActOnInitList(noLoc, returnValues, noLoc).get();
+      returnStmt =
+          m_Sema.ActOnReturnStmt(noLoc, initList, getCurrentScope()).get();
+    }
     return StmtDiff(returnStmt);
   }
 
@@ -1065,14 +1085,6 @@ namespace clad {
         diffArgs.push_back(argDiff.getExpr_dx());
     }
 
-    Expr* call = m_Sema
-                     .ActOnCallExpr(getCurrentScope(),
-                                    Clone(CE->getCallee()),
-                                    noLoc,
-                                    llvm::MutableArrayRef<Expr*>(CallArgs),
-                                    noLoc)
-                     .get();
-
     llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
                              CallArgs.end());
@@ -1093,12 +1105,10 @@ namespace clad {
               .BuildDeclarationNameExpr(
                   CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
               .get();
-      CallArgs.insert(CallArgs.end(), diffArgs.begin(), diffArgs.end());
       callDiff =
           m_Sema
               .ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
-                             derivativeRef, noLoc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+                             derivativeRef, noLoc, pushforwardFnArgs, noLoc)
               .get();
     }
 
@@ -1114,27 +1124,8 @@ namespace clad {
       pushforwardFnRequest.VerboseDiags = false;
       FunctionDecl* pushforwardFD =
           plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
-      // If clad failed to derive it, try finding its derivative using
-      // numerical diff.
-      if (!pushforwardFD) {
-        // FIXME: Extend this for multiarg support
-        // Check if the function is eligible for numerical differentiation.
-        if (CE->getNumArgs() == 1) {
-          Expr* fnCallee = cast<CallExpr>(call)->getCallee();
-          callDiff = GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
-                                                 /*targetPos=*/0, /*numArgs=*/1,
-                                                 CallArgs);
-        }
-        CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
-                                  callDiff);
-        if (!callDiff) {
-          auto zero =
-              ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-          return StmtDiff(call, zero);
-        }
-        if (Multiplier)
-          callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
-      } else {
+
+      if (pushforwardFD) {
         if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
           callDiff =
               BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
@@ -1148,7 +1139,44 @@ namespace clad {
         }
       }
     }
-    return StmtDiff(call, callDiff);
+
+    // If clad failed to derive it, try finding its derivative using
+    // numerical diff.
+    if (!callDiff) {
+      Expr* call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+              .get();
+      // FIXME: Extend this for multiarg support
+      // Check if the function is eligible for numerical differentiation.
+      if (CE->getNumArgs() == 1) {
+        Expr* fnCallee = cast<CallExpr>(call)->getCallee();
+        callDiff = GetSingleArgCentralDiffCall(fnCallee, CallArgs[0],
+                                               /*targetPos=*/0, /*numArgs=*/1,
+                                               CallArgs);
+      }
+      CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
+                              callDiff);
+      if (!callDiff) {
+        auto zero =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+        return StmtDiff(call, zero);
+      }
+      if (Multiplier)
+        callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
+      return {call, callDiff};
+    }
+
+    if (FD->getReturnType()->isVoidType())
+      return StmtDiff(callDiff, nullptr);
+    auto valueAndPushforward =
+        StoreAndRef(callDiff, "_t", /*forceDeclCreation=*/true);
+    Expr* returnValue = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                               valueAndPushforward, "value");
+    Expr* pushforward = utils::BuildMemberExpr(
+        m_Sema, getCurrentScope(), valueAndPushforward, "pushforward");
+    return StmtDiff(returnValue, pushforward);
   }
 
   // FIXME: Move this to VisitorBase
@@ -1297,7 +1325,6 @@ namespace clad {
     // Recover the original operation from the Ldiff and Rdiff instead of
     // cloning the tree.
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
-
     return StmtDiff(op, opDiff);
   }
 
