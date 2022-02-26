@@ -214,6 +214,8 @@ namespace clad {
     /// Returns true if `FD` is a class static method; otherwise returns
     /// false.
     bool IsStaticMethod(const clang::FunctionDecl* FD);
+
+    bool IsCladValueAndPushforwardType(clang::QualType T);
   } // namespace utils
 }
 

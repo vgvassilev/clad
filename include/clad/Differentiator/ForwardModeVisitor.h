@@ -106,6 +106,11 @@ namespace clad {
     /// \return active switch case label after processing `stmt`
     clang::SwitchCase* DeriveSwitchStmtBodyHelper(const clang::Stmt* stmt,
                                                   clang::SwitchCase* activeSC);
+
+    /// Returns the return type for the pushforward function of the function
+    /// `m_Function`.
+    /// \note `m_Function` field should be set before using this function.
+    clang::QualType ComputePushforwardFnReturnType();
   };
 } // end namespace clad
 

@@ -488,12 +488,12 @@ namespace custom_derivatives {
                           double* _d_y,
                           double* _d_z,
                           double* _d_p) {
-    *_d_x += clad::custom_derivatives::std::pow_pushforward(x, p, 1.0, 0.0) * pullback;
-    *_d_p += clad::custom_derivatives::std::pow_pushforward(x, p, 0.0, 1.0) * pullback;
-    *_d_y += clad::custom_derivatives::std::pow_pushforward(y, p, 1.0, 0.0) * pullback;
-    *_d_p += clad::custom_derivatives::std::pow_pushforward(y, p, 0.0, 1.0) * pullback;
-    *_d_z += clad::custom_derivatives::std::pow_pushforward(z, p, 1.0, 0.0) * pullback;
-    *_d_p += clad::custom_derivatives::std::pow_pushforward(z, p, 0.0, 1.0) * pullback;
+    *_d_x += clad::custom_derivatives::std::pow_pushforward(x, p, 1.0, 0.0).pushforward * pullback;
+    *_d_p += clad::custom_derivatives::std::pow_pushforward(x, p, 0.0, 1.0).pushforward * pullback;
+    *_d_y += clad::custom_derivatives::std::pow_pushforward(y, p, 1.0, 0.0).pushforward * pullback;
+    *_d_p += clad::custom_derivatives::std::pow_pushforward(y, p, 0.0, 1.0).pushforward * pullback;
+    *_d_z += clad::custom_derivatives::std::pow_pushforward(z, p, 1.0, 0.0).pushforward * pullback;
+    *_d_p += clad::custom_derivatives::std::pow_pushforward(z, p, 0.0, 1.0).pushforward * pullback;
   }
 }
 }
@@ -572,9 +572,9 @@ void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_re
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
-// CHECK-NEXT:         double _r1 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t1, 1.);
+// CHECK-NEXT:         double _r1 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t1, 1.).pushforward;
 //CHECK-NEXT:           * _d_x += _r1;
-// CHECK-NEXT:         double _r2 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t2, 1.);
+// CHECK-NEXT:         double _r2 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t2, 1.).pushforward;
 //CHECK-NEXT:           * _d_y += _r2;
 //CHECK-NEXT:           double _r3 = _t3 * 1;
 //CHECK-NEXT:           * _d_x += _r3;
@@ -945,6 +945,4 @@ int main() {
   TEST(f_issue138, 1, 2); // CHECK-EXEC: Result is = {4.00, 32.00}
   TEST(f_const, 2, 3); // CHECK-EXEC: Result is = {3.00, 2.00}
   clad::gradient(running_sum);
-
 }
-

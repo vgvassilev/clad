@@ -367,7 +367,7 @@ namespace clad {
     /// arguments \returns The created type clad::class<TemplateArgs>
     clang::QualType
     GetCladClassOfType(clang::TemplateDecl* CladClassDecl,
-                       llvm::MutableArrayRef<clang::QualType> TemplateArgs);
+                       llvm::ArrayRef<clang::QualType> TemplateArgs);
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.

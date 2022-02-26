@@ -1635,6 +1635,9 @@ namespace clad {
       FunctionDecl* fnDecl = dyn_cast<CallExpr>(OverloadedDerivedFn)
                                  ->getDirectCallee();
       if (!asGrad) {
+        if (utils::IsCladValueAndPushforwardType(fnDecl->getReturnType()))
+          OverloadedDerivedFn = utils::BuildMemberExpr(
+              m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
         // If the derivative is called through _darg0 instead of _grad.
         Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
 
@@ -2819,6 +2822,8 @@ namespace clad {
     return {clonedCTE, m_ThisExprDerivative};
   }
 
+  // FIXME: Add support for differentiating calls to constructors.
+  // We currently assume that constructor arguments are non-differentiable.
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     llvm::SmallVector<Expr*, 4> clonedArgs;
@@ -2854,7 +2859,7 @@ namespace clad {
       const clang::MaterializeTemporaryExpr* MTE) {
     // `MaterializeTemporaryExpr` node will be created automatically if it is
     // required by `ActOn`/`Build` Sema functions.
-    StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE));
+    StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE), dfdx());
     return MTEDiff;
   }
 

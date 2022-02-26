@@ -5,15 +5,16 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-namespace clad {
-namespace custom_derivatives {
-float f_pushforward(float y, float d_y) { return 2 * y * d_y; }
-} // namespace custom_derivatives
-} // namespace clad
-
 float f(float y) {
   return y * y - 10;
 }
+
+namespace clad {
+namespace custom_derivatives {
+clad::ValueAndPushforward<float, float> f_pushforward(float y, float d_y) { return {f(y), 2 * y * d_y}; }
+} // namespace custom_derivatives
+} // namespace clad
+
 
 float g(float x) {
   return f(x*x*x);
@@ -22,7 +23,8 @@ float g(float x) {
 // CHECK: float g_darg0(float x) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _t0 = x * x;
-// CHECK-NEXT: return clad::custom_derivatives::f_pushforward(_t0 * x, (_d_x * x + x * _d_x) * x + _t0 * _d_x);
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::f_pushforward(_t0 * x, (_d_x * x + x * _d_x) * x + _t0 * _d_x);
+// CHECK-NEXT: return _t1.pushforward;
 // CHECK-NEXT: }
 
 float sqrt_func(float x, float y) {
@@ -32,7 +34,8 @@ float sqrt_func(float x, float y) {
 // CHECK: float sqrt_func_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: return clad::custom_derivatives{{(::std)?}}::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y) - _d_y;
+// CHECK-NEXT: ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y);
+// CHECK-NEXT: return _t0.pushforward - _d_y;
 // CHECK-NEXT: }
 
 float f_const_args_func_1(const float x, const float y) {
@@ -73,8 +76,8 @@ float f_const_args_func_4(float x, float y, const Vec v) {
 // CHECK: float f_const_args_func_4_darg0(float x, float y, const Vec v) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT:     const Vec _d_v;
-// CHECK-NEXT:     return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
+// CHECK-NEXT: const Vec _d_v;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
 // CHECK-NEXT: }
 
 float f_const_args_func_5(float x, float y, const Vec &v) {
@@ -84,8 +87,8 @@ float f_const_args_func_5(float x, float y, const Vec &v) {
 // CHECK: float f_const_args_func_5_darg0(float x, float y, const Vec &v) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT:     const Vec _d_v;
-// CHECK-NEXT:     return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
+// CHECK-NEXT: const Vec _d_v;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
 // CHECK-NEXT: }
 
 float f_const_args_func_6(const float x, const float y, const Vec &v) {
@@ -95,37 +98,41 @@ float f_const_args_func_6(const float x, const float y, const Vec &v) {
 // CHECK: float f_const_args_func_6_darg0(const float x, const float y, const Vec &v) {
 // CHECK-NEXT: const float _d_x = 1;
 // CHECK-NEXT: const float _d_y = 0;
-// CHECK-NEXT:     const Vec _d_v;
-// CHECK-NEXT:     return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
+// CHECK-NEXT: const Vec _d_v;
+// CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y - _d_v.x;
 // CHECK-NEXT: }
 
 float f_const_helper(const float x) {
   return x * x;
 }
 
-// CHECK: float f_const_helper_pushforward(const float x, const float _d_x) {
-// CHECK-NEXT:     return _d_x * x + x * _d_x;
+// CHECK: clad::ValueAndPushforward<float, float> f_const_helper_pushforward(const float x, const float _d_x) {
+// CHECK-NEXT:     return {x * x, _d_x * x + x * _d_x};
 // CHECK-NEXT: }
 
 float f_const_args_func_7(const float x, const float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
 }
 
-// CHECKTODO: float f_const_args_func_7_darg0(const float x, const float y) {
-// CHECKTODO-NEXT: const float _d_x = 1;
-// CHECKTODO-NEXT: const float _d_y = 0;
-// CHECKTODO-NEXT: f_const_helper_darg0(x) * _d_x + f_const_helper_darg0(y) * _d_y - _d_y;
-// CHECKTODO-NEXT: }
+// CHECK: float f_const_args_func_7_darg0(const float x, const float y) {
+// CHECK-NEXT: const float _d_x = 1;
+// CHECK-NEXT: const float _d_y = 0;
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = f_const_helper_pushforward(x, _d_x);
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t1 = f_const_helper_pushforward(y, _d_y);
+// CHECK-NEXT: return _t0.pushforward + _t1.pushforward - _d_y;
+// CHECK-NEXT: }
 
 float f_const_args_func_8(const float x, float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
 }
 
-// CHECKTODO: float f_const_args_func_8_darg0(const float x, float y) {
-// CHECKTODO-NEXT: const float _d_x = 1;
-// CHECKTODO-NEXT: float _d_y = 0;
-// CHECKTODO-NEXT: return f_const_helper_pushforward(x, _d_x) + f_const_helper_pushforward(y, _d_y) - _d_y;
-// CHECKTODO-NEXT: }
+// CHECK: float f_const_args_func_8_darg0(const float x, float y) {
+// CHECK-NEXT: const float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = f_const_helper_pushforward(x, _d_x);
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t1 = f_const_helper_pushforward(y, _d_y);
+// CHECK-NEXT: return _t0.pushforward + _t1.pushforward - _d_y;
+// CHECK-NEXT: }
 
 extern "C" int printf(const char* fmt, ...);
 int main () { // expected-no-diagnostics

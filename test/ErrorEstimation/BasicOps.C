@@ -263,7 +263,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r_d0 = * _d_y;
-// CHECK-NEXT:         float _r0 = _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t0, 1.F);
+//CHECK-NEXT:         float _r0 = _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t0, 1.F).pushforward;
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:         _delta_y += _r_d0 * _EERepl_y1 * {{.+}};
 //CHECK-NEXT:         * _d_y -= _r_d0;
