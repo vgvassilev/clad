@@ -192,7 +192,7 @@ namespace clad {
     execute(Args&&... args) CUDA_HOST_DEVICE {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
-        return static_cast<return_type_t<F>>(0);
+        return static_cast<return_type_t<F>>(return_type_t<F>());
       }
       // here static_cast is used to achieve perfect forwarding
       return execute_helper(m_Function, static_cast<Args>(args)...);

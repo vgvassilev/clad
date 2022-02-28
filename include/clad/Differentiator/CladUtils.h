@@ -159,6 +159,19 @@ namespace clad {
     /// Returns true if `T1` and `T2` have same cononical type; otherwise
     /// returns false.
     bool SameCanonicalType(clang::QualType T1, clang::QualType T2);
+    
+    /// Builds `base->member` expression or `base.member` expression depending
+    /// on if the `base` is of pointer type or not.
+    ///
+    /// \note This function always build LValue member expression.
+    clang::MemberExpr* BuildMemberExpr(clang::Sema& semaRef, clang::Expr* base,
+                                       clang::ValueDecl* member);
+
+    bool isDifferentiableType(clang::QualType T);
+
+    /// Returns a valid `SourceLocation` to be used in places where clang
+    /// requires a valid `SourceLocation`.
+    clang::SourceLocation GetValidSLoc(clang::Sema& semaRef);
   } // namespace utils
 }
 
