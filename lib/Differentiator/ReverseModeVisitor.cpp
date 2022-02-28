@@ -57,11 +57,11 @@ namespace clad {
         GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
-    Expr* TapeRef = BuildDeclRef(GlobalStoreImpl(TapeType, prefix));
+    Expr* TapeRef =
+        BuildDeclRef(GlobalStoreImpl(TapeType, prefix, getZeroInit(TapeType)));
     auto VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
     // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
     VD->setLocation(m_Function->getLocation());
-    m_Sema.AddInitializerToDecl(VD, getZeroInit(TapeType), false);
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
     auto PopDRE = m_Sema
@@ -2373,7 +2373,8 @@ namespace clad {
       Var = BuildVarDecl(Type, identifier, init, false, nullptr,
                          clang::VarDecl::InitializationStyle::CallInit);
     } else {
-      Var = BuildVarDecl(Type, identifier, init);
+      Var = BuildVarDecl(Type, identifier, init, false, nullptr,
+                         VarDecl::InitializationStyle::CInit);
     }
 
     // Add the declaration to the body of the gradient function.

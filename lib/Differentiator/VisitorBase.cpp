@@ -71,7 +71,10 @@ namespace clad {
     if (Init) {
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
       VD->setInitStyle(IS);
+    } else {
+      m_Sema.ActOnUninitializedDecl(VD);
     }
+    m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
     m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
     return VD;
@@ -609,7 +612,9 @@ namespace clad {
     // build the clad::tape<clad::array_ref>> = {};
     QualType RefType = GetCladArrayRefOfType(retType);
     QualType TapeType = GetCladTapeOfType(RefType);
-    auto VD = BuildVarDecl(TapeType);
+    auto VD = BuildVarDecl(
+        TapeType, "_t", getZeroInit(TapeType), /*DirectInit=*/false,
+        /*TSI=*/nullptr, VarDecl::InitializationStyle::CInit);
     NumericalDiffMultiArg.push_back(BuildDeclStmt(VD));
     Expr* TapeRef = BuildDeclRef(VD);
     NumDiffArgs.push_back(TapeRef);

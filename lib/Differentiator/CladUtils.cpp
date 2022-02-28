@@ -177,5 +177,35 @@ namespace clad {
     bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {
       return T1.getCanonicalType() == T2.getCanonicalType();
     }
+    MemberExpr* BuildMemberExpr(Sema& semaRef, Expr* base, ValueDecl* member) {
+      auto& C = semaRef.getASTContext();
+      auto DAP = DeclAccessPair::make(member, member->getAccess());
+      CXXScopeSpec CSS;
+      DeclarationName DN = member->getDeclName();
+      DeclarationNameInfo DNI(DN, noLoc);
+      bool isArrow = base->getType()->isPointerType();
+      // Expressions should never have a reference type.
+      return clad_compat::BuildMemberExpr(
+          semaRef, base, isArrow, noLoc, &CSS, noLoc, member, DAP, false, DNI,
+          member->getType().getNonReferenceType(), ExprValueKind::VK_LValue,
+          ExprObjectKind::OK_Ordinary);
+    }
+
+    bool isDifferentiableType(QualType T) {
+      // FIXME: Handle arbitrary depth pointer types and arbitrary dimension
+      // array type as well.
+      if (isArrayOrPointerType(T))
+        T = T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
+      T = T.getNonReferenceType();
+      if (T->isRealType() || T->isRecordType())
+        return true;
+      return false;
+    }
+
+    SourceLocation GetValidSLoc(Sema& semaRef) {
+      auto& SM = semaRef.getSourceManager();
+      return SM.getLocForStartOfFile(SM.getMainFileID());
+    }
+
   } // namespace utils
 } // namespace clad
