@@ -131,9 +131,12 @@ namespace clad {
                                      /*OverloadFunctionDecl=*/nullptr};
   }
 
-  OverloadedDeclWithContext
-  ForwardModeVisitor::Derive(const FunctionDecl* FD,
-                             const DiffRequest& request) {
+  bool IsRealNonReferenceType(QualType T) {
+    return T.getNonReferenceType()->isRealType();
+  }
+
+  OverloadedDeclWithContext ForwardModeVisitor::Derive(
+      const FunctionDecl* FD, const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     m_Functor = request.Functor;
@@ -185,11 +188,8 @@ namespace clad {
       }
       m_IndependentVarIndex = indexIntervalTable[0].Start;
       derivativeSuffix = "_" + std::to_string(m_IndependentVarIndex);
-    } else if (!m_IndependentVar->getType()
-                    .getNonReferenceType()
-                    ->isRealType()) {
-      diag(DiagnosticsEngine::Error,
-           m_IndependentVar->getEndLoc(),
+    } else if (!IsRealNonReferenceType(m_IndependentVar->getType())) {
+      diag(DiagnosticsEngine::Error, m_IndependentVar->getEndLoc(),
            "attempted differentiation w.r.t. a parameter ('%0') which is not "
            "of a real type",
            {m_IndependentVar->getNameAsString()});
@@ -286,12 +286,17 @@ namespace clad {
       // relation among them, thus it is safe (correct) to use the corresponding
       // non-reference type for creating the derivatives.
       QualType dParamType = param->getType().getNonReferenceType();
-      if (!dParamType->isRealType())
+      // We do not create derived variable for array/pointer parameters.
+      if (!utils::isDifferentiableType(dParamType) ||
+          utils::isArrayOrPointerType(dParamType))
         continue;
-      // If param is independent variable, its derivative is 1, otherwise 0.
-      int dValue = (param == m_IndependentVar);
-      auto dParam =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
+      Expr* dParam = nullptr;
+      if (dParamType->isRealType()) {
+        // If param is independent variable, its derivative is 1, otherwise 0.
+        int dValue = (param == m_IndependentVar);
+        dParam = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                   dValue);
+      }
       // For each function arg, create a variable _d_arg to store derivatives
       // of potential reassignments, e.g.:
       // double f_darg0(double x, double y) {
@@ -643,26 +648,43 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    auto memberDecl = ME->getMemberDecl();
     auto clonedME = dyn_cast<MemberExpr>(Clone(ME));
-
     // Currently, we only differentiate member variables if we are
     // differentiating a call operator.
     if (m_Functor) {
-      // Try to find the derivative of the member variable wrt independent
-      // variable
-      if (m_Variables.find(memberDecl) != std::end(m_Variables)) {
-        return StmtDiff(clonedME, m_Variables[memberDecl]);
+      if (isa<CXXThisExpr>(ME->getBase()->IgnoreParenImpCasts())) {
+        // Try to find the derivative of the member variable wrt independent
+        // variable
+        auto memberDecl = ME->getMemberDecl();
+        if (m_Variables.find(memberDecl) != std::end(m_Variables)) {
+          return StmtDiff(clonedME, m_Variables[memberDecl]);
+        }
       }
-
       // Is not a real variable. Therefore, derivative is 0.
-      auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
-                                                    0);
+      auto zero =
+          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       return StmtDiff(clonedME, zero);
     } else {
-      QualType Ty = ME->getType();
-      return StmtDiff(clonedME,
-                      ConstantFolder::synthesizeLiteral(Ty, m_Context, 0));
+      auto zero =
+          ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
+      // FIXME: Handle derivative of `this` expression.
+      if (isa<CXXThisExpr>(ME->getBase()->IgnoreParenImpCasts()))
+        return StmtDiff(clonedME, zero);
+
+      auto baseDiff = Visit(ME->getBase());
+      // No derivative found for base. Therefore, derivative is 0.
+      if (isa<IntegerLiteral>(baseDiff.getExpr_dx()) ||
+          isa<FloatingLiteral>(baseDiff.getExpr_dx()))
+        return {clonedME, zero};
+
+      auto field = ME->getMemberDecl();
+      assert(!isa<FunctionDecl>(field) &&
+             "Member functions are not supported yet!");
+      // Here we are implicitly assuming that the derived type and the original
+      // types are same. This may not be necessarily true in the future.
+      auto derivedME =
+          utils::BuildMemberExpr(m_Sema, baseDiff.getExpr_dx(), field);
+      return {clonedME, derivedME};
     }
   }
 
@@ -695,7 +717,7 @@ namespace clad {
 
     auto zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    ValueDecl* VD;        
+    ValueDecl* VD;
     // Derived variables for member variables are also created when we are 
     // differentiating a call operator.
     if (m_Functor) {
@@ -711,6 +733,13 @@ namespace clad {
 
         VD = decl;
       }
+    } else if (isa<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
+      auto derivedME = Visit(clonedBase).getExpr_dx();
+      if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
+        return {cloned, zero};
+      }
+      auto derivedAS = BuildArraySubscript(derivedME, clonedIndices);
+      return {cloned, derivedAS};
     } else {
       if (!isa<DeclRefExpr>(clonedBase->IgnoreParenImpCasts()))
         return StmtDiff(cloned, zero);
@@ -719,7 +748,7 @@ namespace clad {
              "declaration represented by clonedBase Should always be VarDecl "
              "when clonedBase is DeclRefExpr");
       VD = DRE->getDecl();
-    }        
+    }
     if (VD == m_IndependentVar) {
       llvm::APSInt index;
       Expr* diffExpr = nullptr;
@@ -802,9 +831,10 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
-    llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/ 0);
+    QualType T = IL->getType();
+    llvm::APInt zero(m_Context.getIntWidth(T), /*value*/ 0);
     auto constant0 =
-        IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
+        IntegerLiteral::Create(m_Context, zero, T, noLoc);
     return StmtDiff(Clone(IL), constant0);
   }
 
@@ -1203,13 +1233,14 @@ namespace clad {
 
   VarDeclDiff ForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
-    VarDecl* VDClone = BuildVarDecl(VD->getType(),
-                                    VD->getNameAsString(),
-                                    initDiff.getExpr(),
-                                    VD->isDirectInit());
-    VarDecl* VDDerived = BuildVarDecl(VD->getType(),
-                                      "_d_" + VD->getNameAsString(),
-                                      initDiff.getExpr_dx());
+    // Here we are assuming that derived type and the original type are same.
+    // This may not necessarily be true in the future.
+    VarDecl* VDClone =
+        BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
+                     VD->isDirectInit(), nullptr, VD->getInitStyle());
+    VarDecl* VDDerived = BuildVarDecl(
+        VD->getType(), "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(),
+        VD->isDirectInit(), nullptr, VD->getInitStyle());
     m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
     return VarDeclDiff(VDClone, VDDerived);
   }
@@ -1279,6 +1310,8 @@ namespace clad {
 
   StmtDiff
   ForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
+    // FIXME: Shouldn't we simply clone the CXXDefaultArgExpr?
+    // return {Clone(DE), Clone(DE)};
     return Visit(DE->getExpr());
   }
 
@@ -1608,4 +1641,90 @@ namespace clad {
   StmtDiff ForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
     return StmtDiff(Clone(stmt));
   }
+
+  StmtDiff
+  ForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+    llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
+    for (auto arg : CE->arguments()) {
+      auto argDiff = Visit(arg);
+      clonedArgs.push_back(argDiff.getExpr());
+      derivedArgs.push_back(argDiff.getExpr_dx());
+    }
+    Expr* clonedArgsE = nullptr;
+    Expr* derivedArgsE = nullptr;
+    // FIXME: Currently if the original initialisation expression is `{a, 1,
+    // b}`, then we are creating derived initialisation expression as `{_d_a,
+    // 0., _d_b}`. This is essentially incorrect and we should actually create a
+    // forward mode derived constructor that would require same arguments as of
+    // a pushforward function, that is, `{a, 1, b, _d_a, 0., _d_b}`.
+    if (CE->getNumArgs() != 1) {
+      if (CE->isListInitialization()) {
+        clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
+        derivedArgsE = m_Sema.ActOnInitList(noLoc, derivedArgs, noLoc).get();
+      } else {
+        if (CE->getNumArgs() == 0) {
+          // ParenList is empty -- default initialisation.
+          // Passing empty parenList here will silently cause 'most vexing
+          // parse' issue.
+          return StmtDiff();
+        } else {
+          clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+          derivedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, derivedArgs).get();
+        }
+      }
+    } else {
+      clonedArgsE = clonedArgs[0];
+      derivedArgsE = derivedArgs[0];
+    }
+    // `CXXConstructExpr` node will be created automatically by passing these
+    // initialiser to higher level `ActOn`/`Build` Sema functions.
+    return {clonedArgsE, derivedArgsE};
+  }
+
+  StmtDiff ForwardModeVisitor::VisitExprWithCleanups(
+      const clang::ExprWithCleanups* EWC) {
+    // `ExprWithCleanups` node will be created automatically if it is required
+    // by `ActOn`/`Build` Sema functions.
+    return Visit(EWC->getSubExpr());
+  }
+
+  StmtDiff ForwardModeVisitor::VisitMaterializeTemporaryExpr(
+      const clang::MaterializeTemporaryExpr* MTE) {
+    // `MaterializeTemporaryExpr` node will be created automatically if it is
+    // required by `ActOn`/`Build` Sema functions.
+    StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE));
+    return MTEDiff;
+  }
+
+  StmtDiff ForwardModeVisitor::VisitCXXTemporaryObjectExpr(
+      const clang::CXXTemporaryObjectExpr* TOE) {
+    llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
+    // FIXME: Currently if the original initialisation expression is `{a, 1,
+    // b}`, then we are creating derived initialisation expression as `{_d_a,
+    // 0., _d_b}`. This is essentially incorrect and we should actually create a
+    // forward mode derived constructor that would require same arguments as of
+    // a pushforward function, that is, `{a, 1, b, _d_a, 0., _d_b}`.
+    for (auto arg : TOE->arguments()) {
+      auto argDiff = Visit(arg);
+      clonedArgs.push_back(argDiff.getExpr());
+      derivedArgs.push_back(argDiff.getExpr_dx());
+    }
+    Expr* clonedTOE = m_Sema
+                          .ActOnCXXTypeConstructExpr(
+                              OpaquePtr<QualType>::make(TOE->getType()),
+                              utils::GetValidSLoc(m_Sema), clonedArgs,
+                              utils::GetValidSLoc(m_Sema)
+                                  CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(TOE))
+                          .get();
+    Expr* derivedTOE =
+        m_Sema
+            .ActOnCXXTypeConstructExpr(
+                OpaquePtr<QualType>::make(TOE->getType()),
+                utils::GetValidSLoc(m_Sema), derivedArgs,
+                utils::GetValidSLoc(m_Sema)
+                    CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(TOE))
+            .get();
+    return {clonedTOE, derivedTOE};
+  }
+
 } // end namespace clad

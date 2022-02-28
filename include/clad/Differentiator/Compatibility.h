@@ -535,6 +535,47 @@ static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* 
    return Qualifiers::fromFastMask(MD->getTypeQualifiers());
 }
 #endif
-} // namespace clad_compat
 
+#if CLANG_VERSION_MAJOR < 9
+static inline MemberExpr* BuildMemberExpr(
+    Sema& semaRef, Expr* base, bool isArrow, SourceLocation opLoc,
+    const CXXScopeSpec* SS, SourceLocation templateKWLoc, ValueDecl* member,
+    DeclAccessPair foundDecl, bool hadMultipleCandidates,
+    const DeclarationNameInfo& memberNameInfo, QualType ty, ExprValueKind VK,
+    ExprObjectKind OK, const TemplateArgumentListInfo* templateArgs = nullptr) {
+  auto& C = semaRef.getASTContext();
+  auto NNSLoc = SS->getWithLocInContext(C);
+  return MemberExpr::Create(C, base, isArrow, opLoc, NNSLoc, templateKWLoc,
+                            member, foundDecl, memberNameInfo, templateArgs, ty,
+                            VK, OK);
+}
+#else
+static inline MemberExpr* BuildMemberExpr(
+    Sema& semaRef, Expr* base, bool isArrow, SourceLocation opLoc,
+    const CXXScopeSpec* SS, SourceLocation templateKWLoc, ValueDecl* member,
+    DeclAccessPair foundDecl, bool hadMultipleCandidates,
+    const DeclarationNameInfo& memberNameInfo, QualType ty, ExprValueKind VK,
+    ExprObjectKind OK, const TemplateArgumentListInfo* templateArgs = nullptr) {
+  return semaRef.BuildMemberExpr(base, isArrow, opLoc, SS, templateKWLoc,
+                                 member, foundDecl, hadMultipleCandidates,
+                                 memberNameInfo, ty, VK, OK, templateArgs);
+}
+#endif
+
+#if CLANG_VERSION_MAJOR < 10
+static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
+  return MTE->GetTemporaryExpr();
+}
+#else
+static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
+  return MTE->getSubExpr();
+}
+#endif
+
+#if CLANG_VERSION_MAJOR < 7
+#define CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(E)
+#else
+#define CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(E) , E->isListInitialization()
+#endif
+} // namespace clad_compat
 #endif //CLAD_COMPATIBILITY
