@@ -178,6 +178,10 @@ namespace clad {
     clang::CXXNewExpr* BuildCXXNewExpr(clang::Sema& semaRef,
                                        clang::QualType qType,
                                        clang::Expr* initializer);
+
+    clang::Expr* BuildCallToMemFn(clang::Sema& semaRef, clang::Scope* S,
+                                  clang::Expr* base, clang::CXXMethodDecl* MD,
+                                  llvm::MutableArrayRef<clang::Expr*> argExprs);
   } // namespace utils
 }
 

@@ -1047,8 +1047,13 @@ namespace clad {
     llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
                              CallArgs.end());
-    if (isa<CXXMethodDecl>(m_Derivative))
-      pushforwardFnArgs.push_back(m_ThisExprDerivative);                             
+    if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+      StmtDiff baseDiff = Visit(MCE->getImplicitObjectArgument());
+      Expr* baseDerivative = baseDiff.getExpr_dx();
+      if (!baseDerivative->getType()->isPointerType())
+        baseDerivative = BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+      pushforwardFnArgs.push_back(baseDerivative);
+    }
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                              diffArgs.end());
 
@@ -1107,9 +1112,11 @@ namespace clad {
         if (Multiplier)
           callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
       } else {
-        if (isa<CXXMethodDecl>(m_Derivative)) {
-          callDiff = BuildCallExprToMemFn(cast<CXXMethodDecl>(pushforwardFD),
-                                          pushforwardFnArgs);
+        if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+          Expr* base = MCE->getImplicitObjectArgument();
+          callDiff = utils::BuildCallToMemFn(m_Sema, getCurrentScope(), base,
+                                             cast<CXXMethodDecl>(pushforwardFD),
+                                             pushforwardFnArgs);
 
         } else {
           callDiff =

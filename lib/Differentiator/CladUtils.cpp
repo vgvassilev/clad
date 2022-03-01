@@ -229,5 +229,27 @@ namespace clad {
       return newExpr;
     }
 
+    clang::Expr*
+    BuildCallToMemFn(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
+                     clang::CXXMethodDecl* MD,
+                     llvm::MutableArrayRef<clang::Expr*> argExprs) {
+      auto& C = semaRef.getASTContext();
+      NestedNameSpecifierLoc NNS(MD->getQualifier(),
+                                 /*Data=*/nullptr);
+
+      auto DAP = DeclAccessPair::make(MD, MD->getAccess());
+      bool isArrow = base->getType()->isPointerType();
+      // FIXME: What should be expression value kind when the function returns a
+      // L-value?
+      auto memberExpr = MemberExpr::Create(
+          C, base, isArrow, noLoc, NNS, noLoc, MD, DAP, MD->getNameInfo(),
+          /*TemplateArgs=*/nullptr, C.BoundMemberTy,
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+          ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+              NOUR_None));
+      return semaRef
+          .BuildCallToMemberFunction(S, memberExpr, noLoc, argExprs, noLoc)
+          .get();
+    }
   } // namespace utils
 } // namespace clad
