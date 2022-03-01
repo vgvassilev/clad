@@ -87,9 +87,13 @@ namespace clad {
           DC2 = DC2->getParent();  
           continue;
         }
+        // Silently return nullptr if DC2 contains any CXXRecord declaration
+        // context. 
+        if (isa<CXXRecordDecl>(DC2))
+          return nullptr;
         assert(isa<NamespaceDecl>(DC2) &&
-               "DC2 should only contain namespace (and "
-               "translation unit) declaration.");
+               "DC2 should only consists of namespace, CXXRecord and "
+               "translation unit declaration context.");
         contexts.push_back(DC2);
         DC2 = DC2->getParent();
       }
@@ -205,6 +209,24 @@ namespace clad {
     SourceLocation GetValidSLoc(Sema& semaRef) {
       auto& SM = semaRef.getSourceManager();
       return SM.getLocForStartOfFile(SM.getMainFileID());
+    }
+
+    clang::SourceRange GetValidSRange(clang::Sema& semaRef) {
+      SourceLocation validSL = GetValidSLoc(semaRef);
+      return SourceRange(validSL, validSL);
+    }
+
+    CXXNewExpr* BuildCXXNewExpr(Sema& semaRef, QualType qType,
+                                Expr* initializer) {
+      auto& C = semaRef.getASTContext();
+      auto newExpr = semaRef
+                         .BuildCXXNew(SourceRange(), false, noLoc,
+                                      MultiExprArg(), noLoc, SourceRange(),
+                                      qType, C.getTrivialTypeSourceInfo(qType),
+                                      clad_compat::EmptyOptional<Expr*>(),
+                                      GetValidSRange(semaRef), initializer)
+                         .getAs<CXXNewExpr>();
+      return newExpr;
     }
 
   } // namespace utils

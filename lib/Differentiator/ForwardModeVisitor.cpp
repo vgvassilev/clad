@@ -62,6 +62,12 @@ namespace clad {
       if (nonRefParamType->isRealType())
         derivedParamTypes.push_back(PVD->getType());
     }
+
+    if (auto MFD = dyn_cast<CXXMethodDecl>(FD)) {
+      QualType thisType = MFD->getThisType();
+      paramTypes.push_back(thisType);
+    }
+
     paramTypes.insert(paramTypes.end(), derivedParamTypes.begin(),
                       derivedParamTypes.end());
 
@@ -94,7 +100,9 @@ namespace clad {
       params.push_back(newPVD);
 
       QualType nonRefParamType = PVD->getType().getNonReferenceType();
-      if (!nonRefParamType->isRealType())
+      // FIXME: Can we use isDifferentiableType here?
+      if (!nonRefParamType->isRealType() &&
+          !nonRefParamType->isStructureOrClassType())
         continue;
       auto derivedPVDName = "_d_" + PVD->getNameAsString();
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
@@ -102,6 +110,17 @@ namespace clad {
                                          /*pushOnScopeChains=*/true);
       derivedParams.push_back(derivedPVD);
       m_Variables[newPVD] = BuildDeclRef(derivedPVD);
+    }
+
+    if (auto MFD = dyn_cast<CXXMethodDecl>(FD)) {
+      auto thisType = MFD->getThisType();
+      IdentifierInfo* derivedPVDII = CreateUniqueIdentifier("_d_this");
+      auto derivedPVD = ParmVarDecl::Create(
+          m_Context, m_Sema.CurContext, noLoc, noLoc, derivedPVDII, thisType,
+          m_Context.getTrivialTypeSourceInfo(thisType), StorageClass::SC_None,
+          /*DefArg=*/nullptr);
+      params.push_back(derivedPVD);
+      m_ThisExprDerivative = BuildDeclRef(derivedPVD);
     }
 
     params.insert(params.end(), derivedParams.begin(), derivedParams.end());
@@ -305,6 +324,19 @@ namespace clad {
       // in the future, it's derivative dParam is found (unless reassigned with
       // something new).
       m_Variables[param] = dParam;
+    }
+
+
+    // TODO: We should not create `_d_this` for static methods.
+    if (auto MFD = dyn_cast<CXXMethodDecl>(FD)) {
+      QualType thisObjectType = MFD->getThisObjectType();
+      QualType thisType = MFD->getThisType();
+      Expr* thisExprDerivativeNewE =
+          utils::BuildCXXNewExpr(m_Sema, thisObjectType, nullptr);
+      VarDecl* thisExprDerivativeVD =
+          BuildVarDecl(thisType, "_d_this", thisExprDerivativeNewE);
+      addToCurrentBlock(BuildDeclStmt(thisExprDerivativeVD));
+      m_ThisExprDerivative = BuildDeclRef(thisExprDerivativeVD);
     }
 
     // Create derived variable for each member variable if we are
@@ -625,13 +657,25 @@ namespace clad {
 
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
+    Expr* derivedE = retValDiff.getExpr_dx();
+    Expr* thisDerivativeDeleteE = nullptr;
+    if (isa<CXXMethodDecl>(m_Derivative) && m_Mode == DiffMode::forward) {
+      derivedE = StoreAndRef(retValDiff.getExpr_dx());
+      thisDerivativeDeleteE =
+          m_Sema
+              .ActOnCXXDelete(utils::GetValidSLoc(m_Sema), /*UseGlobal=*/false,
+                              /*ArrayForm=*/false, m_ThisExprDerivative)
+              .get();
+    }
     Stmt* returnStmt =
         m_Sema
             .ActOnReturnStmt(noLoc,
-                             retValDiff.getExpr_dx(), // return the derivative
+                             derivedE, // return the derivative
                              m_CurScope)
             .get();
-    return StmtDiff(returnStmt);
+    // FIXME: Make this more intuitive, we should probably create a block in here
+    // rather than changing the meaning of StmtDiff entirely.
+    return StmtDiff(returnStmt, thisDerivativeDeleteE);
   }
 
   StmtDiff ForwardModeVisitor::VisitParenExpr(const ParenExpr* PE) {
@@ -660,10 +704,6 @@ namespace clad {
     } else {
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
-      // FIXME: Handle derivative of `this` expression.
-      if (isa<CXXThisExpr>(ME->getBase()->IgnoreParenImpCasts()))
-        return StmtDiff(clonedME, zero);
-
       auto baseDiff = Visit(ME->getBase());
       // No derivative found for base. Therefore, derivative is 0.
       if (isa<IntegerLiteral>(baseDiff.getExpr_dx()) ||
@@ -1007,6 +1047,8 @@ namespace clad {
     llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
                              CallArgs.end());
+    if (isa<CXXMethodDecl>(m_Derivative))
+      pushforwardFnArgs.push_back(m_ThisExprDerivative);                             
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                              diffArgs.end());
 
@@ -1065,14 +1107,17 @@ namespace clad {
         if (Multiplier)
           callDiff = BuildOp(BO_Mul, callDiff, BuildParens(Multiplier));
       } else {
-        CallArgs.insert(CallArgs.end(), diffArgs.begin(), diffArgs.end());
-        callDiff = m_Sema
-                       .ActOnCallExpr(getCurrentScope(),
-                                      BuildDeclRef(pushforwardFD),
-                                      noLoc,
-                                      llvm::MutableArrayRef<Expr*>(CallArgs),
-                                      noLoc)
-                       .get();
+        if (isa<CXXMethodDecl>(m_Derivative)) {
+          callDiff = BuildCallExprToMemFn(cast<CXXMethodDecl>(pushforwardFD),
+                                          pushforwardFnArgs);
+
+        } else {
+          callDiff =
+              m_Sema
+                  .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),
+                                 noLoc, pushforwardFnArgs, noLoc)
+                  .get();
+        }
       }
     }
     return StmtDiff(call, callDiff);
@@ -1720,4 +1765,7 @@ namespace clad {
     return {clonedTOE, derivedTOE};
   }
 
+  StmtDiff ForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
+    return StmtDiff(const_cast<CXXThisExpr*>(CTE), m_ThisExprDerivative);
+  }
 } // end namespace clad

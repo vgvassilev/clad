@@ -172,6 +172,12 @@ namespace clad {
     /// Returns a valid `SourceLocation` to be used in places where clang
     /// requires a valid `SourceLocation`.
     clang::SourceLocation GetValidSLoc(clang::Sema& semaRef);
+    
+    clang::SourceRange GetValidSRange(clang::Sema& semaRef);
+
+    clang::CXXNewExpr* BuildCXXNewExpr(clang::Sema& semaRef,
+                                       clang::QualType qType,
+                                       clang::Expr* initializer);
   } // namespace utils
 }
 

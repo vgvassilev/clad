@@ -28,6 +28,8 @@ namespace clad {
     unsigned m_IndependentVarIndex = ~0;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
+    clang::Expr* m_ThisExprDerivative = nullptr;
+    
   public:
     ForwardModeVisitor(DerivativeBuilder& builder);
     ~ForwardModeVisitor();
@@ -87,7 +89,8 @@ namespace clad {
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff
     VisitCXXTemporaryObjectExpr(const clang::CXXTemporaryObjectExpr* TOE);
-
+    
+    StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
   private:
     /// Helper function for differentiating the switch statement body.
     ///

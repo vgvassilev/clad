@@ -577,5 +577,17 @@ static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
 #else
 #define CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(E) , E->isListInitialization()
 #endif
+
+#if CLANG_VERSION_MAJOR < 9
+template <typename T>
+typename std::enable_if<std::is_pointer<T>::value, T>::type EmptyOptional() {
+  return nullptr;
+}
+#elif CLANG_VERSION_MAJOR >= 9
+template<typename T>
+llvm::Optional<T> EmptyOptional() {
+   return llvm::Optional<T>();
+}
+#endif
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY
