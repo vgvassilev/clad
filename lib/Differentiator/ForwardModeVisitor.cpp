@@ -63,9 +63,14 @@ namespace clad {
         derivedParamTypes.push_back(PVD->getType());
     }
 
-    if (auto MFD = dyn_cast<CXXMethodDecl>(FD)) {
-      QualType thisType = MFD->getThisType();
-      paramTypes.push_back(thisType);
+    // If we are differentiating an instance member function then
+    // create a parameter type for the parameter that will represent the
+    // derivative of `this` pointer with respect to the independent parameter.
+    if (auto MD = dyn_cast<CXXMethodDecl>(FD)) {
+      if (MD->isInstance()) {
+        QualType thisType = MD->getThisType();
+        paramTypes.push_back(thisType);
+      }
     }
 
     paramTypes.insert(paramTypes.end(), derivedParamTypes.begin(),
@@ -112,15 +117,20 @@ namespace clad {
       m_Variables[newPVD] = BuildDeclRef(derivedPVD);
     }
 
+    // If we are differentiating an instance member function then
+    // create a parameter for representing derivative of
+    // `this` pointer with respect to the independent parameter.
     if (auto MFD = dyn_cast<CXXMethodDecl>(FD)) {
-      auto thisType = MFD->getThisType();
-      IdentifierInfo* derivedPVDII = CreateUniqueIdentifier("_d_this");
-      auto derivedPVD = ParmVarDecl::Create(
-          m_Context, m_Sema.CurContext, noLoc, noLoc, derivedPVDII, thisType,
-          m_Context.getTrivialTypeSourceInfo(thisType), StorageClass::SC_None,
-          /*DefArg=*/nullptr);
-      params.push_back(derivedPVD);
-      m_ThisExprDerivative = BuildDeclRef(derivedPVD);
+      if (MFD->isInstance()) {
+        auto thisType = MFD->getThisType();
+        IdentifierInfo* derivedPVDII = CreateUniqueIdentifier("_d_this");
+        auto derivedPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
+                                                  derivedPVDII, thisType);
+        m_Sema.PushOnScopeChains(derivedPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+        params.push_back(derivedPVD);
+        m_ThisExprDerivative = BuildDeclRef(derivedPVD);
+      }
     }
 
     params.insert(params.end(), derivedParams.begin(), derivedParams.end());
@@ -329,14 +339,14 @@ namespace clad {
 
     // TODO: We should not create `_d_this` for static methods.
     if (auto MFD = dyn_cast<CXXMethodDecl>(FD)) {
-      QualType thisObjectType = MFD->getThisObjectType();
-      QualType thisType = MFD->getThisType();
-      Expr* thisExprDerivativeNewE =
-          utils::BuildCXXNewExpr(m_Sema, thisObjectType, nullptr);
-      VarDecl* thisExprDerivativeVD =
-          BuildVarDecl(thisType, "_d_this", thisExprDerivativeNewE);
-      addToCurrentBlock(BuildDeclStmt(thisExprDerivativeVD));
-      m_ThisExprDerivative = BuildDeclRef(thisExprDerivativeVD);
+      if (MFD->isInstance()) {
+        QualType thisObjectType = MFD->getThisObjectType();
+            utils::BuildCXXNewExpr(m_Sema, thisObjectType, nullptr);
+        VarDecl* thisExprDerivativeVD =
+            BuildVarDecl(thisObjectType, "_d_this");
+        addToCurrentBlock(BuildDeclStmt(thisExprDerivativeVD));
+        m_ThisExprDerivative = BuildDeclRef(thisExprDerivativeVD);
+      }
     }
 
     // Create derived variable for each member variable if we are
@@ -657,25 +667,13 @@ namespace clad {
 
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     StmtDiff retValDiff = Visit(RS->getRetValue());
-    Expr* derivedE = retValDiff.getExpr_dx();
-    Expr* thisDerivativeDeleteE = nullptr;
-    if (isa<CXXMethodDecl>(m_Derivative) && m_Mode == DiffMode::forward) {
-      derivedE = StoreAndRef(retValDiff.getExpr_dx());
-      thisDerivativeDeleteE =
-          m_Sema
-              .ActOnCXXDelete(utils::GetValidSLoc(m_Sema), /*UseGlobal=*/false,
-                              /*ArrayForm=*/false, m_ThisExprDerivative)
-              .get();
-    }
     Stmt* returnStmt =
         m_Sema
             .ActOnReturnStmt(noLoc,
-                             derivedE, // return the derivative
+                             retValDiff.getExpr_dx(), // return the derivative
                              m_CurScope)
             .get();
-    // FIXME: Make this more intuitive, we should probably create a block in here
-    // rather than changing the meaning of StmtDiff entirely.
-    return StmtDiff(returnStmt, thisDerivativeDeleteE);
+    return StmtDiff(returnStmt);
   }
 
   StmtDiff ForwardModeVisitor::VisitParenExpr(const ParenExpr* PE) {
@@ -1047,6 +1045,8 @@ namespace clad {
     llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
                              CallArgs.end());
+    
+    // Add derivative of the implicit `this` pointer.
     if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
       StmtDiff baseDiff = Visit(MCE->getImplicitObjectArgument());
       Expr* baseDerivative = baseDiff.getExpr_dx();
@@ -1063,7 +1063,8 @@ namespace clad {
         const_cast<DeclContext*>(FD->getDeclContext()));
 
     // Check if it is a recursive call.
-    if (!callDiff && (FD == m_Function) && m_Mode == DiffMode::experimental_pushforward) {
+    if (!callDiff && (FD == m_Function) &&
+        m_Mode == DiffMode::experimental_pushforward) {
       // The differentiated function is called recursively.
       Expr* derivativeRef =
           m_Sema
@@ -1117,7 +1118,6 @@ namespace clad {
           callDiff = utils::BuildCallToMemFn(m_Sema, getCurrentScope(), base,
                                              cast<CXXMethodDecl>(pushforwardFD),
                                              pushforwardFnArgs);
-
         } else {
           callDiff =
               m_Sema
@@ -1149,6 +1149,10 @@ namespace clad {
     else if (opKind == UO_PostInc || opKind == UO_PostDec ||
              opKind == UO_PreInc || opKind == UO_PreDec) {
       return StmtDiff(op, diff.getExpr_dx());
+    } /* For supporting complex types */
+    else if (opKind == UnaryOperatorKind::UO_Real ||
+             opKind == UnaryOperatorKind::UO_Imag) {
+      return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     } else {
       unsupportedOpWarn(UnOp->getEndLoc());
       auto zero =
@@ -1343,15 +1347,15 @@ namespace clad {
     return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
   }
 
-  StmtDiff ForwardModeVisitor::VisitCXXOperatorCallExpr(
-      const CXXOperatorCallExpr* OpCall) {
-    // This operator gets emitted when there is a binary operation containing
-    // overloaded operators. Eg. x+y, where operator+ is overloaded.
-    diag(DiagnosticsEngine::Error,
-         OpCall->getEndLoc(),
-         "We don't support overloaded operators yet!");
-    return {};
-  }
+  // StmtDiff ForwardModeVisitor::VisitCXXOperatorCallExpr(
+  //     const CXXOperatorCallExpr* OpCall) {
+  //   // This operator gets emitted when there is a binary operation containing
+  //   // overloaded operators. Eg. x+y, where operator+ is overloaded.
+  //   diag(DiagnosticsEngine::Error,
+  //        OpCall->getEndLoc(),
+  //        "We don't support overloaded operators yet!");
+  //   return {};
+  // }
 
   StmtDiff
   ForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {

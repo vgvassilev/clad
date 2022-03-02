@@ -251,5 +251,15 @@ namespace clad {
           .BuildCallToMemberFunction(S, memberExpr, noLoc, argExprs, noLoc)
           .get();
     }
+
+    clang::ParmVarDecl*
+    BuildParmVarDecl(clang::Sema& semaRef, clang::DeclContext* DC,
+                     clang::IdentifierInfo* II, clang::QualType T,
+                     clang::StorageClass S, clang::Expr* DefArg) {
+      ASTContext& C = semaRef.getASTContext();
+      auto PVD = ParmVarDecl::Create(C, DC, noLoc, noLoc, II, T,
+                                     C.getTrivialTypeSourceInfo(T), S, DefArg);
+      return PVD;
+    }
   } // namespace utils
 } // namespace clad

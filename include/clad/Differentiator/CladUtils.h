@@ -182,6 +182,12 @@ namespace clad {
     clang::Expr* BuildCallToMemFn(clang::Sema& semaRef, clang::Scope* S,
                                   clang::Expr* base, clang::CXXMethodDecl* MD,
                                   llvm::MutableArrayRef<clang::Expr*> argExprs);
+
+    clang::ParmVarDecl*
+    BuildParmVarDecl(clang::Sema& semaRef, clang::DeclContext* DC,
+                     clang::IdentifierInfo* II, clang::QualType T,
+                     clang::StorageClass S = clang::StorageClass::SC_None,
+                     clang::Expr* DefArg = nullptr);
   } // namespace utils
 }
 
