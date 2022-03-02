@@ -185,7 +185,9 @@ namespace clad {
       }
       m_IndependentVarIndex = indexIntervalTable[0].Start;
       derivativeSuffix = "_" + std::to_string(m_IndependentVarIndex);
-    } else if (!m_IndependentVar->getType()->isRealType()) {
+    } else if (!m_IndependentVar->getType()
+                    .getNonReferenceType()
+                    ->isRealType()) {
       diag(DiagnosticsEngine::Error,
            m_IndependentVar->getEndLoc(),
            "attempted differentiation w.r.t. a parameter ('%0') which is not "
@@ -279,7 +281,12 @@ namespace clad {
     beginBlock();
     // For each function parameter variable, store its derivative value.
     for (auto param : params) {
-      if (!param->getType()->isRealType())
+      // We cannot create derivatives of reference type since seed value is
+      // always a constant (r-value). We assume that all the arguments have no
+      // relation among them, thus it is safe (correct) to use the corresponding
+      // non-reference type for creating the derivatives.
+      QualType dParamType = param->getType().getNonReferenceType();
+      if (!dParamType->isRealType())
         continue;
       // If param is independent variable, its derivative is 1, otherwise 0.
       int dValue = (param == m_IndependentVar);
@@ -291,7 +298,7 @@ namespace clad {
       //   double _d_x = 1;
       //   double _d_y = 0;
       //   ...
-      auto dParamDecl = BuildVarDecl(param->getType(),
+      auto dParamDecl = BuildVarDecl(dParamType,
                                      "_d_" + param->getNameAsString(),
                                      dParam);
       addToCurrentBlock(BuildDeclStmt(dParamDecl));
