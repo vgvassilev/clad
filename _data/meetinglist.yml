@@ -26,10 +26,10 @@
         development boards. The smallest is the TeensyLC [3] with an ARMv6-M
         instruction set, 62kb Flash memory and 8kb RAM.
 
-        [0] https://github.com/llvm/llvm-project/commit/bb27e4564355
-        [1] https://echtzeit.dev/ez-clang
-        [2] https://github.com/root-project/cling
-        [3] https://www.pjrc.com/teensy/teensyLC.html
+        [0] [https://github.com/llvm/llvm-project/commit/bb27e4564355](https://github.com/llvm/llvm-project/commit/bb27e4564355)\
+        [1] [https://echtzeit.dev/ez-clang](https://echtzeit.dev/ez-clang)\
+        [2] [https://github.com/root-project/cling](https://github.com/root-project/cling)\
+        [3] [https://www.pjrc.com/teensy/teensyLC.html](https://www.pjrc.com/teensy/teensyLC.html)
     - title: Update
       speaker: Vassil
     - title: Round Table
