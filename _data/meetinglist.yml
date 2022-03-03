@@ -1,4 +1,42 @@
 - name: "CaaS Monthly Meeting"
+  date: 2022-03-10 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92393493356?pwd=SHYxY0MxdFNPZm5wdzRCeDZxK3VYQT09)"
+  label: caas_10Mar2022
+  agenda:
+    - title: "ez-clang: experimental C++ REPL for bare metal"
+      speaker: "Stefan Gränitz, LLVM Orc JIT developer"
+      description: |
+        In 2021 a new remote-JIT layer "RemoteEPC" landed in LLVM's OrcJIT
+        library [0]. It separates serialization from transport, streamlines
+        error behavior and integrates well with ExecutorProcessControl. Combined
+        with the clean design  and extensibility of ORCv2 and JITLink, it lowers
+        the bar for building exotic out-of-process LLVM bitcode JITs.
+
+        The ez-clang project [1] makes use of all these to build a pure
+        out-of-process REPL specifically designed for very low-resource embedded
+        devices. The executor endpoint on the device is very simple and fits
+        into a few Kilobytes of memory. All heavy lifting happens in the JIT
+        process on the host.
+
+        I want to present my proof-of-concept implementation, which is based on
+        a hacked-up version of cling [2] (bringing in Clang-integration, a
+        command line and the concept of transaction-based incremental
+        compilation). Right now, it supports a small selection of Cortex-M
+        development boards. The smallest is the TeensyLC [3] with an ARMv6-M
+        instruction set, 62kb Flash memory and 8kb RAM.
+
+        [0] https://github.com/llvm/llvm-project/commit/bb27e4564355
+        [1] https://echtzeit.dev/ez-clang
+        [2] https://github.com/root-project/cling
+        [3] https://www.pjrc.com/teensy/teensyLC.html
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      link: 7 Apr 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2022-02-03 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92393493356?pwd=SHYxY0MxdFNPZm5wdzRCeDZxK3VYQT09)"
