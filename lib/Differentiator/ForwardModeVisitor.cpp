@@ -682,8 +682,8 @@ namespace clad {
              "Member functions are not supported yet!");
       // Here we are implicitly assuming that the derived type and the original
       // types are same. This may not be necessarily true in the future.
-      auto derivedME =
-          utils::BuildMemberExpr(m_Sema, baseDiff.getExpr_dx(), field);
+      auto derivedME = utils::BuildMemberExpr(
+          m_Sema, getCurrentScope(), baseDiff.getExpr_dx(), field->getName());
       return {clonedME, derivedME};
     }
   }

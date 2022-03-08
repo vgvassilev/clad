@@ -159,19 +159,50 @@ namespace clad {
     /// Returns true if `T1` and `T2` have same cononical type; otherwise
     /// returns false.
     bool SameCanonicalType(clang::QualType T1, clang::QualType T2);
-    
+
     /// Builds `base->member` expression or `base.member` expression depending
     /// on if the `base` is of pointer type or not.
-    ///
-    /// \note This function always build LValue member expression.
-    clang::MemberExpr* BuildMemberExpr(clang::Sema& semaRef, clang::Expr* base,
-                                       clang::ValueDecl* member);
+    clang::MemberExpr* BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S,
+                                       clang::Expr* base,
+                                       llvm::StringRef memberName);
 
     bool isDifferentiableType(clang::QualType T);
 
     /// Returns a valid `SourceLocation` to be used in places where clang
     /// requires a valid `SourceLocation`.
     clang::SourceLocation GetValidSLoc(clang::Sema& semaRef);
+
+    /// Given an expression `E`, this function builds and returns the expression
+    /// `(E)`.
+    clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E);
+
+    /// Returns `IdentifierInfo` that represents the value in the `identifier`
+    /// parameter.
+    clang::IdentifierInfo* GetIdentifierInfo(clang::Sema& semaRef,
+                                             llvm::StringRef identifier);
+
+    /// Builds parameter variable declaration.
+    ///
+    /// This function is just a convenient routine that internally calls
+    /// `clang::ParmVarDecl::Create`.
+    clang::ParmVarDecl*
+    BuildParmVarDecl(clang::Sema& semaRef, clang::DeclContext* DC,
+                     clang::IdentifierInfo* II, clang::QualType T,
+                     clang::StorageClass SC = clang::StorageClass::SC_None,
+                     clang::Expr* defArg = nullptr);
+
+    /// If `T` represents an array or a pointer type then returns the
+    /// corresponding array element or the pointee type. Otherwise, if `T` is
+    /// neither an array nor a pointer type, then simply returns `T`.
+    clang::QualType GetValueType(clang::QualType T);
+
+    /// Builds and returns the init expression to initialise `clad::array` and
+    /// `clad::array_ref` from a constant array.
+    ///
+    /// More concretely, it builds the following init list expression:
+    /// `{arr, arrSize}`
+    clang::Expr* BuildCladArrayInitByConstArray(clang::Sema& semaRef,
+                                                clang::Expr* constArrE);
   } // namespace utils
 }
 

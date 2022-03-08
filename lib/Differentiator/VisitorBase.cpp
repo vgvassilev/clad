@@ -461,15 +461,16 @@ namespace clad {
         .get();
   }
 
-  static QualType getRefQualifiedThisType(ASTContext& C, CXXMethodDecl* MD) {
+  static QualType getRefQualifiedThisType(Sema& semaRef, CXXMethodDecl* MD) {
+    ASTContext& C = semaRef.getASTContext();
     CXXRecordDecl* RD = MD->getParent();
     auto RDType = RD->getTypeForDecl();
     auto thisObjectQType = C.getQualifiedType(
-        RDType, clad_compat::CXXMethodDecl_getMethodQualifiers(MD));        
-    if (MD->getRefQualifier() == RefQualifierKind::RQ_LValue)
-      thisObjectQType = C.getLValueReferenceType(thisObjectQType);
-    else if (MD->getRefQualifier() == RefQualifierKind::RQ_RValue)
+        RDType, clad_compat::CXXMethodDecl_getMethodQualifiers(MD));
+    if (MD->getRefQualifier() == RefQualifierKind::RQ_RValue)
       thisObjectQType = C.getRValueReferenceType(thisObjectQType);
+    else if (MD->getRefQualifier() == RefQualifierKind::RQ_LValue)
+      thisObjectQType = C.getLValueReferenceType(thisObjectQType);
     return thisObjectQType;
   }
 
@@ -479,8 +480,15 @@ namespace clad {
     Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
     bool isArrow = true;
 
-    if (useRefQualifiedThisObj) {
-      auto thisQType = getRefQualifiedThisType(m_Context, FD);
+    // C++ does not support perfect forwarding of `*this` object inside
+    // a member function.
+    // Cast `*this` to an rvalue if the current function has rvalue qualifier so
+    // that correct method overload is resolved. We do not need to cast to
+    // an lvalue because without any cast `*this` will always be considered an
+    // lvalue.
+    if (useRefQualifiedThisObj &&
+        FD->getRefQualifier() != RefQualifierKind::RQ_None) {
+      auto thisQType = getRefQualifiedThisType(m_Sema, FD);
       // Build `static_cast<ReferenceQualifiedThisObjectType>(*this)`
       // expression.
       thisExpr = m_Sema
