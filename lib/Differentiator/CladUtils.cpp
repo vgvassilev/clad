@@ -1,5 +1,7 @@
 #include "clad/Differentiator/CladUtils.h"
 
+#include "ConstantFolder.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
@@ -177,18 +179,21 @@ namespace clad {
     bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {
       return T1.getCanonicalType() == T2.getCanonicalType();
     }
-    MemberExpr* BuildMemberExpr(Sema& semaRef, Expr* base, ValueDecl* member) {
-      auto& C = semaRef.getASTContext();
-      auto DAP = DeclAccessPair::make(member, member->getAccess());
-      CXXScopeSpec CSS;
-      DeclarationName DN = member->getDeclName();
-      DeclarationNameInfo DNI(DN, noLoc);
+
+    MemberExpr* BuildMemberExpr(Sema& semaRef, Scope* S, Expr* base,
+                                llvm::StringRef memberName) {
+      UnqualifiedId id;
+      id.setIdentifier(GetIdentifierInfo(semaRef, memberName), noLoc);
+      CXXScopeSpec SS;
       bool isArrow = base->getType()->isPointerType();
-      // Expressions should never have a reference type.
-      return clad_compat::BuildMemberExpr(
-          semaRef, base, isArrow, noLoc, &CSS, noLoc, member, DAP, false, DNI,
-          member->getType().getNonReferenceType(), ExprValueKind::VK_LValue,
-          ExprObjectKind::OK_Ordinary);
+      auto ME =
+          semaRef
+              .ActOnMemberAccessExpr(S, base, noLoc,
+                                     isArrow ? tok::TokenKind::arrow
+                                             : tok::TokenKind::period,
+                                     SS, noLoc, id, /*ObjCImpDecl=*/nullptr)
+              .getAs<MemberExpr>();
+      return ME;
     }
 
     bool isDifferentiableType(QualType T) {
@@ -207,5 +212,46 @@ namespace clad {
       return SM.getLocForStartOfFile(SM.getMainFileID());
     }
 
+    clang::ParenExpr* BuildParenExpr(clang::Sema& semaRef, clang::Expr* E) {
+      return semaRef.ActOnParenExpr(noLoc, noLoc, E).getAs<ParenExpr>();
+    }
+
+    clang::IdentifierInfo* GetIdentifierInfo(Sema& semaRef,
+                                             llvm::StringRef identifier) {
+      ASTContext& C = semaRef.getASTContext();
+      return &C.Idents.get(identifier);
+    }
+
+    clang::ParmVarDecl*
+    BuildParmVarDecl(clang::Sema& semaRef, clang::DeclContext* DC,
+                     clang::IdentifierInfo* II, clang::QualType T,
+                     clang::StorageClass SC, clang::Expr* defArg) {
+      ASTContext& C = semaRef.getASTContext();
+      TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(T, noLoc);
+      ParmVarDecl* PVD =
+          ParmVarDecl::Create(C, DC, noLoc, noLoc, II, T, TSI, SC, defArg);
+      return PVD;
+    }
+
+    clang::QualType GetValueType(clang::QualType T) {
+      QualType valueType = T;
+      if (isArrayOrPointerType(T)) {
+        valueType =
+            T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
+      }
+      return valueType;
+    }
+
+    clang::Expr* BuildCladArrayInitByConstArray(clang::Sema& semaRef,
+                                                clang::Expr* constArrE) {
+      assert(isa<ConstantArrayType>(constArrE->getType()) &&
+             "Expected a constant array expression!");
+      ASTContext& C = semaRef.getASTContext();
+      auto CAT = cast<ConstantArrayType>(constArrE->getType());
+      Expr* sizeE = ConstantFolder::synthesizeLiteral(
+          C.getSizeType(), C, CAT->getSize().getZExtValue());
+      llvm::SmallVector<Expr*, 2> args = {constArrE, sizeE};
+      return semaRef.ActOnInitList(noLoc, args, noLoc).get();
+    }
   } // namespace utils
 } // namespace clad

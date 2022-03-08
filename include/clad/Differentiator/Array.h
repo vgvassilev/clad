@@ -27,10 +27,16 @@ public:
 
   template <typename U>
   CUDA_HOST_DEVICE array(clad::array_ref<U> arr)
-      : m_arr(new T[arr.size()]{static_cast<T>(0)}), m_size(arr.size()) {
+      : m_arr(new T[arr.size()]{static_cast<T>(T())}), m_size(arr.size()) {
     (*this) = arr;
   }
 
+  template <typename U>
+  CUDA_HOST_DEVICE array(U* a, std::size_t size)
+      : m_arr(new T[size]{static_cast<T>(T())}), m_size(size) {
+    for (std::size_t i = 0; i < size; ++i)
+      m_arr[i] = a[i];
+  }
   /// Destructor to delete the array if it was created by array_ref
   CUDA_HOST_DEVICE ~array() { delete[] m_arr; }
 

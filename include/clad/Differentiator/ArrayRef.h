@@ -40,7 +40,8 @@ namespace clad {
       return *this;
     }
     /// Returns the size of the underlying array
-    CUDA_HOST_DEVICE std::size_t size() { return m_size; }
+    CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
+    CUDA_HOST_DEVICE T* ptr() const { return m_arr; }
     /// Returns an array_ref to a part of the underlying array starting at
     /// offset and having the specified size
     CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset, std::size_t size) {
@@ -88,6 +89,36 @@ namespace clad {
         m_arr[i] -= Ar[i];
       return *this;
     }
+  };
+
+  /// `array_ref<void>` specialisation is created to be used as a placeholder
+  /// type in the overloaded derived function. All `array_ref<T>` types are
+  /// implicitly convertible to `array_ref<void>` type.
+  ///
+  /// `array_ref<void>` variables should be converted to the correct
+  /// `array_ref<T>` type before being used. To make this process easier and
+  /// more convenient, `array_ref<void>` provides implicit converter operators
+  /// that facilitates convertion to `array_ref<T>` type using `static_cast`.
+  template <> class array_ref<void> {
+  private:
+    /// The pointer to the underlying array
+    void* m_arr = nullptr;
+    /// The size of the array
+    std::size_t m_size = 0;
+
+  public:
+    // delete the default constructor
+    array_ref() = delete;
+    CUDA_HOST_DEVICE array_ref(void* arr, std::size_t size = 1)
+        : m_arr(arr), m_size(size) {}
+    template <typename T>
+    CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
+        : m_arr(other.ptr()), m_size(other.size()) {}
+    template <typename T> CUDA_HOST_DEVICE operator array_ref<T>() {
+      return array_ref<T>(static_cast<T*>(m_arr), m_size);
+    }
+    CUDA_HOST_DEVICE void* ptr() const { return m_arr; }
+    CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   };
 } // namespace clad
 

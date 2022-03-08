@@ -384,7 +384,7 @@ namespace clad {
   // GradientDerivedFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
   struct GradientDerivedFnTraits<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputParamType_t<Args, ReturnType>...);
+    using type = void (*)(Args..., OutputParamType_t<Args, void>...);
   };
 
   /// These macro expansions are used to cover all possible cases of
@@ -400,7 +400,7 @@ namespace clad {
   template <typename R, typename C, typename... Args>                          \
   struct GradientDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {          \
     using type = void (C::*)(Args...,                                          \
-                             OutputParamType_t<Args, R>...) cv vol ref noex;   \
+                             OutputParamType_t<Args, void>...) cv vol ref noex;   \
   };
 
 #if __cpp_noexcept_function_type > 0

@@ -101,6 +101,28 @@ namespace clad {
       return result;
     }
 
+    /// This visit method explicitly sets `dfdx` to `nullptr` for this visit.
+    ///
+    /// This method is helpful when we need derivative of some expression but we
+    /// do not want `_d_expression += dfdx` statments to be (automatically)
+    /// added.
+    ///
+    /// FIXME: Think of a better way for handling this situation. Maybe we
+    /// should improve the overall dfdx design and approach. One other way of
+    /// designing `VisitWithExplicitNoDfDx` in a more general way is
+    /// to develop a function that takes an expression E and returns the
+    /// corresponding derivative without any side effects. The difference
+    /// between this function and the current `VisitWithExplicitNoDfDx` will be
+    /// 1) better intent through the function name 2) We will also get
+    /// derivatives of expressions other than `DeclRefExpr` and `MemberExpr`.
+    StmtDiff VisitWithExplicitNoDfDx(const clang::Stmt* stmt) {
+      m_Stack.push(nullptr);
+      auto result =
+          clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
+      m_Stack.pop();
+      return result;
+    }
+
     /// Get the latest block of code (i.e. place for statements output).
     Stmts& getCurrentBlock(direction d = direction::forward) {
       if (d == direction::forward)
@@ -312,6 +334,10 @@ namespace clad {
     StmtDiff VisitDoStmt(const clang::DoStmt* DS);
     StmtDiff VisitContinueStmt(const clang::ContinueStmt* CS);
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
+    StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
+    StmtDiff VisitCXXConstructExpr(const clang::CXXConstructExpr* CE);
+    StmtDiff
+    VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
 
     /// A helper method to differentiate a single Stmt in the reverse mode.
@@ -343,11 +369,18 @@ namespace clad {
     /// Builds an overload for the gradient function that has derived params for
     /// all the arguments of the requested function and it calls the original
     /// gradient function internally
-    clang::FunctionDecl* CreateGradientOverload(
-        llvm::SmallVectorImpl<clang::QualType>& GradientParamTypes,
-        llvm::SmallVectorImpl<clang::ParmVarDecl*>& GradientParams,
-        clang::DeclarationNameInfo& GradientName,
-        clang::FunctionDecl* GradientFD);
+    clang::FunctionDecl* CreateGradientOverload();
+
+    /// Returns the type that should be used to represent the derivative of a
+    /// variable of type `yType` with respect to a parameter variable of type
+    /// `xType`.
+    ///
+    /// FIXME: Parameter derivative type rules are different from the derivative
+    /// type rules for local variables. We should remove this inconsistency.
+    /// See the following issue for more details:
+    /// https://github.com/vgvassilev/clad/issues/385
+    clang::QualType GetParameterDerivativeType(clang::QualType yType,
+                                               clang::QualType xType);
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop. 

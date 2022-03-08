@@ -95,32 +95,39 @@ namespace clad {
     }
   }
 
-  FunctionDecl* ReverseModeVisitor::CreateGradientOverload(
-      SmallVectorImpl<QualType>& GradientParamTypes,
-      SmallVectorImpl<ParmVarDecl*>& GradientParams,
-      DeclarationNameInfo& GradientName, FunctionDecl* GradientFD) {
-    // Calculate the total number of parameters that would be present in the
-    // derived function if all args are requested
-    size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
-    // Calculate the number of arguments that we need to append for the
-    // overload function. These arguments are provided default argument
-    // like functionality during execution.
-    size_t remainingArgs = totalDerivedParamsSize - GradientParamTypes.size();
+  FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
+    auto gradientParams = m_Derivative->parameters();
+    auto gradientNameInfo = m_Derivative->getNameInfo();
+    // Calculate the total number of parameters that would be required for
+    // automatic differentiation in the derived function if all args are
+    // requested.
+    // FIXME: Here we are assuming all function parameters are of differentiable
+    // type. Ideally, we should not make any such assumption.
+    std::size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
 
-    QualType DerivedOutputParamType =
-        GetCladArrayRefOfType(m_Function->getReturnType());
+    // All output parameters will be of type `clad::array_ref<void>`. These
+    // parameters will be casted to correct type before the call to the actual
+    // derived function.
+    // We require each output parameter to be of same type in the overloaded
+    // derived function due to limitations of generating the exact derived
+    // function type at the compile-time (without clad plugin help).
+    QualType outputParamType = GetCladArrayRefOfType(m_Context.VoidTy);
 
-    for (size_t i = 0; i < remainingArgs; i++) {
-      GradientParamTypes.push_back(DerivedOutputParamType);
-    }
+    llvm::SmallVector<QualType, 16> paramTypes;
 
-    llvm::ArrayRef<QualType>
-        gradFuncOverloadParamTyAR(GradientParamTypes.data(),
-                                  GradientParamTypes.size());
+    // Add types for representing original function parameters.
+    for (auto PVD : m_Function->parameters())
+      paramTypes.push_back(PVD->getType());
+    // Add types for representing parameter derivatives.
+    // FIXME: We are assuming all function parameters are differentiable. We
+    // should not make any such assumptions.
+    for (std::size_t i = 0; i < m_Function->getNumParams(); ++i)
+      paramTypes.push_back(outputParamType);
+
     auto gradFuncOverloadEPI =
         dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo();
     QualType gradientFunctionOverloadType =
-        m_Context.getFunctionType(m_Context.VoidTy, gradFuncOverloadParamTyAR,
+        m_Context.getFunctionType(m_Context.VoidTy, paramTypes,
                                   // Cast to function pointer.
                                   gradFuncOverloadEPI);
 
@@ -128,7 +135,7 @@ namespace clad {
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
         m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
-                                GradientName, gradientFunctionOverloadType);
+                                gradientNameInfo, gradientFunctionOverloadType);
     FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -139,55 +146,67 @@ namespace clad {
     llvm::SmallVector<ParmVarDecl*, 4> overloadParams;
     llvm::SmallVector<Expr*, 4> callArgs;
 
-    overloadParams.reserve(m_Function->getNumParams() * 2);
-    callArgs.reserve(GradientParamTypes.size());
+    overloadParams.reserve(totalDerivedParamsSize);
+    callArgs.reserve(gradientParams.size());
 
-    for (auto* GVD : GradientParams) {
+    for (auto PVD : m_Function->parameters()) {
       Expr* GVDDefArg =
-          GVD->hasDefaultArg() ? Clone(GVD->getDefaultArg()) : nullptr;
-      auto* VD =
-          ParmVarDecl::Create(m_Context, gradientOverloadFD, noLoc, noLoc,
-                              GVD->getIdentifier(), GVD->getType(),
-                              GVD->getTypeSourceInfo(), GVD->getStorageClass(),
-                              // Clone default arg if present.
-                              GVDDefArg);
-      if (VD->getIdentifier())
-        m_Sema.PushOnScopeChains(VD, getCurrentScope(),
-                                 /*AddToContext=*/false);
+          PVD->hasDefaultArg() ? Clone(PVD->getDefaultArg()) : nullptr;
+      auto VD = utils::BuildParmVarDecl(m_Sema, gradientOverloadFD,
+                                        PVD->getIdentifier(), PVD->getType(),
+                                        PVD->getStorageClass(), GVDDefArg);
       overloadParams.push_back(VD);
-      callArgs.push_back((Expr*)BuildDeclRef(VD));
+      callArgs.push_back(BuildDeclRef(VD));
     }
 
-    for (size_t i = 0; i < remainingArgs; i++) {
-      IdentifierInfo* DVDII = &m_Context.Idents.get("_d_" + std::to_string(i));
+    for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
+      IdentifierInfo* II = nullptr;
+      StorageClass SC = StorageClass::SC_None;
+      std::size_t effectiveGradientIndex = m_Function->getNumParams() + i;
+      // `effectiveGradientIndex < gradientParams.size()` implies that this
+      // parameter represents an actual derivative of one of the function
+      // original parameters.
+      if (effectiveGradientIndex < gradientParams.size()) {
+        auto GVD = gradientParams[effectiveGradientIndex];
+        II = CreateUniqueIdentifier("_temp_" + GVD->getNameAsString());
+        SC = GVD->getStorageClass();
+      } else {
+        II = CreateUniqueIdentifier("_d_" + std::to_string(i));
+      }
+      auto PVD = utils::BuildParmVarDecl(m_Sema, gradientOverloadFD, II,
+                                         outputParamType, SC);
+      overloadParams.push_back(PVD);
+    }
 
-      auto DVD = ParmVarDecl::
-          Create(m_Context, gradientOverloadFD, noLoc, noLoc, DVDII,
-                 DerivedOutputParamType,
-                 m_Context.getTrivialTypeSourceInfo(DerivedOutputParamType,
-                                                    noLoc),
-                 StorageClass::SC_None,
-                 /*DefArg=*/nullptr);
-      if (DVD->getIdentifier())
-        m_Sema.PushOnScopeChains(DVD, getCurrentScope(),
+    for (auto PVD : overloadParams) {
+      if (PVD->getIdentifier())
+        m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
                                  /*AddToContext=*/false);
-      overloadParams.push_back(DVD);
     }
 
-    llvm::ArrayRef<ParmVarDecl*> overloadParamsRef =
-        llvm::makeArrayRef(overloadParams.data(), overloadParams.size());
-
-    llvm::MutableArrayRef<Expr*> callArgsRef =
-        llvm::makeMutableArrayRef(callArgs.data(), callArgs.size());
-
-    gradientOverloadFD->setParams(overloadParamsRef);
+    gradientOverloadFD->setParams(overloadParams);
     gradientOverloadFD->setBody(/*B=*/nullptr);
 
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
 
-    Expr* callExpr = BuildCallExprToFunction(GradientFD, callArgsRef,
+    // Build derivatives to be used in the call to the actual derived function.
+    // These are initialised by effectively casting the derivative parameters of
+    // overloaded derived function to the correct type.
+    for (std::size_t i = m_Function->getNumParams(); i < gradientParams.size();
+         ++i) {
+      auto overloadParam = overloadParams[i];
+      auto gradientParam = gradientParams[i];
+
+      auto gradientVD =
+          BuildVarDecl(gradientParam->getType(), gradientParam->getName(),
+                       BuildDeclRef(overloadParam));
+      callArgs.push_back(BuildDeclRef(gradientVD));
+      addToCurrentBlock(BuildDeclStmt(gradientVD));
+    }
+
+    Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
                                              /*UseRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);
     Stmt* gradientOverloadBody = endBlock();
@@ -268,12 +287,14 @@ namespace clad {
     paramTypes.reserve(m_Function->getNumParams() * 2);
     outputParamTypes.reserve(args.size());
     for (auto* PVD : m_Function->parameters()) {
+      QualType PVDType = PVD->getType();
       paramTypes.push_back(PVD->getType());
 
       if (!isVectorValued) {
         auto it = std::find(std::begin(args), std::end(args), PVD);
         if (it != std::end(args)) {
-          outputParamTypes.push_back(DerivedOutputParamType);
+          outputParamTypes.push_back(
+              GetParameterDerivativeType(m_Function->getReturnType(), PVDType));
         }
       }
     }
@@ -294,7 +315,9 @@ namespace clad {
     // derived function if all args are requested
     size_t totalDerivedParamsSize = m_Function->getNumParams() * 2 +
                                     numExtraParam;
-    if (paramTypes.size() != totalDerivedParamsSize && !isVectorValued)
+    // FIXME: Gradient overload doesn't know how to handle additional parameters
+    // added by the plugins yet.
+    if (!isVectorValued && numExtraParam == 0)
       shouldCreateOverload = true;
 
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
@@ -360,19 +383,16 @@ namespace clad {
       auto it = std::find(std::begin(args), std::end(args), PVD);
       if (it != std::end(args)) {
         *it = VD;
-
         if (!isVectorValued) {
+          QualType DType = GetParameterDerivativeType(
+              m_Function->getReturnType(), PVD->getType());
           IdentifierInfo* DVDII =
               &m_Context.Idents.get("_d_" + PVD->getNameAsString());
 
-          auto DVD = ParmVarDecl::
-              Create(m_Context, gradientFD, noLoc, noLoc, DVDII,
-                     DerivedOutputParamType,
-                     m_Context.getTrivialTypeSourceInfo(DerivedOutputParamType,
-                                                        noLoc),
-                     PVD->getStorageClass(),
-                     // Clone default arg if present.
-                     /*DefArg=*/nullptr);
+          auto DVD = utils::BuildParmVarDecl(m_Sema, gradientFD, DVDII, DType,
+                                             PVD->getStorageClass(),
+                                             // Clone default arg if present.
+                                             /*DefArg=*/nullptr);
           if (DVD->getIdentifier())
             m_Sema.PushOnScopeChains(DVD, getCurrentScope(),
                                      /*AddToContext=*/false);
@@ -380,8 +400,15 @@ namespace clad {
           if (utils::isArrayOrPointerType(PVD->getType())) {
             m_Variables[*it] = (Expr*)BuildDeclRef(DVD);
           } else {
+            QualType valueType = DetermineCladArrayValueType(DVD->getType());
             m_Variables[*it] =
                 BuildOp(UO_Deref, BuildDeclRef(DVD), m_Function->getLocation());
+            // Add additional paranthesis if derivative is of record type
+            // because `*derivative.someField` will be incorrectly evaluated if
+            // the derived function is compiled standalone.
+            if (valueType->isRecordType())
+              m_Variables[*it] =
+                  utils::BuildParenExpr(m_Sema, m_Variables[*it]);
           }
         }
       }
@@ -511,7 +538,7 @@ namespace clad {
     FunctionDecl* gradientOverloadFD = nullptr;
     if (shouldCreateOverload) {
       gradientOverloadFD =
-          CreateGradientOverload(paramTypes, params, name, gradientFD);
+          CreateGradientOverload();
     }
 
     return OverloadedDeclWithContext{result.first, result.second,
@@ -532,16 +559,19 @@ namespace clad {
     assert(!args.empty() && "Cannot generate pullback function of a function "
                             "with no differentiable arguments");
 
-    QualType arrayRefValueType = m_Function->getReturnType();
-    // Generally, we use the function's return type as the argument's derivative
+
+    QualType effectiveReturnType = m_Function->getReturnType();
+    // FIXME: Generally, we use the function's return type as the argument's derivative
     // type. We cannot follow this strategy for `void` function return type.
     // Thus, temporarily use `double` type as the placeholder type for argument
     // derivatives. We should think of a more uniform and consistent solution to
-    // this problem. Check this related issue for more details:
+    // this problem. One effective strategy that may hold well: If we are
+    // differentiating a variable of type Y with respect to variable of type X,
+    // then the derivative should be of type X.
+    // Check this related issue for more details:
     // https://github.com/vgvassilev/clad/issues/385
-    if (arrayRefValueType->isVoidType())
-      arrayRefValueType = m_Context.DoubleTy;
-    QualType DerivedOutputParamType = GetCladArrayRefOfType(arrayRefValueType);
+    if (effectiveReturnType->isVoidType())
+      effectiveReturnType = m_Context.DoubleTy;
 
     auto derivativeName = request.BaseFunctionName + "_pullback";
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
@@ -549,11 +579,13 @@ namespace clad {
     llvm::SmallVector<QualType, 16> paramTypes, outputParamTypes;
 
     for (auto PVD : m_Function->parameters()) {
-      paramTypes.push_back(PVD->getType());
+      QualType PVDType = PVD->getType();
+      paramTypes.push_back(PVDType);
 
       auto it = std::find(std::begin(args), std::end(args), PVD);
       if (it != std::end(args)) {
-        outputParamTypes.push_back(DerivedOutputParamType);
+        outputParamTypes.push_back(
+            GetParameterDerivativeType(effectiveReturnType, PVDType));
       }
     }
     if (!m_Function->getReturnType()->isVoidType())
@@ -582,7 +614,8 @@ namespace clad {
 
     llvm::SmallVector<ParmVarDecl*, 4> params, outputParams;
 
-    for (auto PVD : m_Function->parameters()) {
+    for (std::size_t i=0; i<m_Function->getNumParams(); ++i) {
+      auto PVD = m_Function->getParamDecl(i);
       auto newPVD = CloneParmVarDecl(PVD, PVD->getIdentifier(),
                                      /*pushOnScopeChains=*/true);
       params.push_back(newPVD);
@@ -590,13 +623,12 @@ namespace clad {
 
       if (it != std::end(args)) {
         *it = newPVD;
+        QualType derivedType = outputParamTypes[i];
         IdentifierInfo* derivedPVDII =
             &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-        auto derivedPVD = ParmVarDecl::Create(
-            m_Context, m_Derivative, noLoc, noLoc, derivedPVDII,
-            DerivedOutputParamType,
-            m_Context.getTrivialTypeSourceInfo(DerivedOutputParamType, noLoc),
-            PVD->getStorageClass(), /*DefArg=*/nullptr);
+        auto derivedPVD =
+            utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
+                                    derivedType, PVD->getStorageClass());
         if (derivedPVD->getIdentifier())
           m_Sema.PushOnScopeChains(derivedPVD, getCurrentScope(),
                                    /*AddToContext=*/false);
@@ -605,20 +637,23 @@ namespace clad {
         if (utils::isArrayOrPointerType(PVD->getType()))
           m_Variables[*it] = BuildDeclRef(derivedPVD);
         else {
-          // TODO: Check if we really need to pass 'fake' location here?
-          m_Variables[*it] =
-              BuildOp(UnaryOperatorKind::UO_Deref, BuildDeclRef(derivedPVD),
-                      m_Function->getLocation());
+          QualType valueType =
+              DetermineCladArrayValueType(derivedPVD->getType());
+          m_Variables[*it] = BuildOp(UO_Deref, BuildDeclRef(derivedPVD),
+                                     m_Function->getLocation());
+          // Add additional paranthesis if derivative is of record type
+          // because `*derivative.someField` will be incorrectly evaluated if
+          // the derived function is compiled standalone.
+          if (valueType->isRecordType()) {
+            m_Variables[*it] = utils::BuildParenExpr(m_Sema, m_Variables[*it]);
+          }
         }
       }
     }
     IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
     if (!m_Function->getReturnType()->isVoidType()) {
-      ParmVarDecl* pullbackPVD = ParmVarDecl::Create(
-          m_Context, m_Derivative, noLoc, noLoc, pullbackParamII,
-          m_Function->getReturnType(),
-          m_Context.getTrivialTypeSourceInfo(m_Function->getReturnType()),
-          StorageClass::SC_None, /*DefArg=*/nullptr);
+      ParmVarDecl* pullbackPVD = utils::BuildParmVarDecl(
+          m_Sema, m_Derivative, pullbackParamII, m_Function->getReturnType());
       m_Sema.PushOnScopeChains(pullbackPVD, getCurrentScope(),
                                /*AddToContext=*/true);
       params.push_back(pullbackPVD);
@@ -1333,6 +1368,11 @@ namespace clad {
       // modified by the derived callee function.
       if (passByRef) {
         argDiff = Visit(arg);
+        QualType argResultValueType =
+            utils::GetValueType(argDiff.getExpr()->getType())
+                .getNonReferenceType();
+        if (argResultValueType->isRealType())
+          argResultValueType = CEType;
         // Create ArgResult variable for each reference argument because it is
         // required by error estimator. For automatic differentiation, we do not need
         // to create ArgResult variable for arguments passed by reference.
@@ -1341,25 +1381,19 @@ namespace clad {
         // ```
         Expr* dArg = nullptr;
         Expr* derivedArgE = nullptr;
-        // if (isInsideLoop) {
-        //   auto tempArgDiff = Visit(arg);
-        //   addToCurrentBlock(tempArgDiff.getExpr());
-        //   derivedArgE = tempArgDiff.getExpr_dx();
-        // } else {
-        //   derivedArgE = argDiff.getExpr_dx();
-        // }
         if (utils::isArrayOrPointerType(argDiff.getExpr()->getType())) {
-          // QualType argValueType =
-          //       DetermineCladArrayValueType(derivedArgE->getType());
-          // // if (!utils::SameCanonicalType(argValueType, CEType)) {
-          // //   VarDecl* gradVarDecl = BuildVarDecl(GetCladArrayOfType(CEType), )
-          // // }
-          dArg = StoreAndRef(argDiff.getExpr_dx(), GetCladArrayOfType(CEType),
+          Expr* init = argDiff.getExpr_dx();
+          if (isa<ConstantArrayType>(argDiff.getExpr_dx()->getType()))
+            init = utils::BuildCladArrayInitByConstArray(m_Sema,
+                                                         argDiff.getExpr_dx());
+
+          dArg = StoreAndRef(init, GetCladArrayOfType(argResultValueType),
                              direction::reverse, "_r",
                              /*forceDeclCreation=*/true,
                              VarDecl::InitializationStyle::CallInit);
         } else {
-          dArg = StoreAndRef(argDiff.getExpr_dx(), CEType, direction::reverse, "_r",
+          dArg = StoreAndRef(argDiff.getExpr_dx(), argResultValueType,
+                             direction::reverse, "_r",
                              /*forceDeclCreation=*/true);
         }
         ArgResultDecls.push_back(
@@ -1530,19 +1564,32 @@ namespace clad {
         auto PVD = FD->getParamDecl(idx);
         bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
         if (passByRef) {
-          // FIXME: Add support for array/pointer derivative types.
-          // Ideally we should store derivatives of pointers and arrays in
-          // `clad::array_ref` variables, this would reduce derivative type
-          // inconsistency and we would not need to handle these cases
-          // separately.
-          assert(
-              !isArrayOrPointerType(argDerivative->getType()) &&
-              "Derivative type should not be an array or pointer type. It "
-              "should instead be `clad::array` or `clad::array_ref` type.!!");
+          // If derivative type is constant array type instead of
+          // `clad::array_ref` or `clad::array` type, then create an
+          // `clad::array_ref` variable that references this constant array. It
+          // is required because the pullback function expects `clad::array_ref`
+          // type for representing array derivatives. Currently, only constant
+          // array data members have derivatives of constant array types.
+          if (auto CAT =
+                  dyn_cast<ConstantArrayType>(argDerivative->getType())) {
+            Expr* init =
+                utils::BuildCladArrayInitByConstArray(m_Sema, argDerivative);
+            auto derivativeArrayRefVD = BuildVarDecl(
+                GetCladArrayRefOfType(argDerivative->getType()
+                                          ->getPointeeOrArrayElementType()
+                                          ->getCanonicalTypeInternal()),
+                "_t", init);
+            ArgDeclStmts.push_back(BuildDeclStmt(derivativeArrayRefVD));
+            argDerivative = BuildDeclRef(derivativeArrayRefVD);
+          }
           if (isCladArrayType(argDerivative->getType())) {
             Expr* compatibleArg = argDerivative;
-            QualType argValueType =
-                DetermineCladArrayValueType(argDerivative->getType());
+            QualType argValueType;
+
+            if (isCladArrayType(argDerivative->getType()))
+              argValueType =
+                  DetermineCladArrayValueType(argDerivative->getType());
+
             // pullback function expects derivative of different type than what
             // we have. We want to "continue" the reverse mode derivation. To
             // handle this, we will create a temporary derivative here for the
@@ -1568,7 +1615,7 @@ namespace clad {
             gradArgExpr = compatibleArg;
           } else {
             Expr* compatibleArg = argDerivative;
-            // Pullback function expects different type of derivative than what
+            // Pullback function may expect different type of derivative than what
             // we actually have. We are using temporary derivative of correct
             // type to handle this situation. We are doing as follows:
             // ```
@@ -1576,7 +1623,8 @@ namespace clad {
             // update(i, _grad0);
             // _d_i = _grad0;
             // ```
-            if (!utils::SameCanonicalType(argDerivative->getType(),
+            if (!argDerivative->getType()->isRecordType() &&
+                !utils::SameCanonicalType(argDerivative->getType(),
                                           requiredValueType)) {
               gradVarDecl =
                   BuildVarDecl(requiredValueType, gradVarII, argDerivative);
@@ -1940,54 +1988,56 @@ namespace clad {
         return BuildOp(opCode, LExpr, RExpr);
       }
 
+      // FIXME: Put this code into a separate subroutine and break out early
+      // using return if the diff mode is not jacobian and we are not dealing
+      // with the `outputArray`.
       if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
-        auto DRE = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit());
-        auto type = QualType(DRE->getType()->getPointeeOrArrayElementType(),
-                             /*Quals=*/0);
-        std::string DRE_str = DRE->getDecl()->getNameAsString();
+        if (auto DRE = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
+          auto type = QualType(DRE->getType()->getPointeeOrArrayElementType(),
+                               /*Quals=*/0);
+          std::string DRE_str = DRE->getDecl()->getNameAsString();
 
-        llvm::APSInt intIdx;
-        auto isIdxValid =
-            clad_compat::Expr_EvaluateAsInt(ASE->getIdx(), intIdx, m_Context);
+          llvm::APSInt intIdx;
+          auto isIdxValid =
+              clad_compat::Expr_EvaluateAsInt(ASE->getIdx(), intIdx, m_Context);
 
-        if (DRE_str == outputArrayStr && isIdxValid) {
-          if (isVectorValued) {
-            outputArrayCursor = intIdx.getExtValue();
+          if (DRE_str == outputArrayStr && isIdxValid) {
+            if (isVectorValued) {
+              outputArrayCursor = intIdx.getExtValue();
 
-            std::unordered_map<const clang::ValueDecl*, clang::Expr*>
-                temp_m_Variables;
-            for (unsigned i = 0; i < numParams; i++) {
-              auto size_type = m_Context.getSizeType();
-              unsigned size_type_bits = m_Context.getIntWidth(size_type);
-              llvm::APInt idxValue(size_type_bits,
-                                   i + (outputArrayCursor * numParams));
-              auto idx =
-                  IntegerLiteral::Create(m_Context, idxValue, size_type, noLoc);
-              // Create the jacobianMatrix[idx] expression.
-              auto result_at_i =
-                  m_Sema
-                      .CreateBuiltinArraySubscriptExpr(m_Result, noLoc, idx,
-                                                       noLoc)
-                      .get();
-              temp_m_Variables[m_IndependentVars[i]] = result_at_i;
+              std::unordered_map<const clang::ValueDecl*, clang::Expr*>
+                  temp_m_Variables;
+              for (unsigned i = 0; i < numParams; i++) {
+                auto size_type = m_Context.getSizeType();
+                unsigned size_type_bits = m_Context.getIntWidth(size_type);
+                llvm::APInt idxValue(size_type_bits,
+                                     i + (outputArrayCursor * numParams));
+                auto idx = IntegerLiteral::Create(m_Context, idxValue,
+                                                  size_type, noLoc);
+                // Create the jacobianMatrix[idx] expression.
+                auto result_at_i = m_Sema
+                                       .CreateBuiltinArraySubscriptExpr(
+                                           m_Result, noLoc, idx, noLoc)
+                                       .get();
+                temp_m_Variables[m_IndependentVars[i]] = result_at_i;
+              }
+              m_VectorOutput.push_back(temp_m_Variables);
             }
-            m_VectorOutput.push_back(temp_m_Variables);
-          }
 
-          auto dfdf =
-              ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
-          ExprResult tmp = dfdf;
-          dfdf = m_Sema
-                     .ImpCastExprToType(tmp.get(),
-                                        type,
-                                        m_Sema.PrepareScalarCast(tmp, type))
-                     .get();
-          auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
-          StmtDiff ReturnDiff = ReturnResult.first;
-          Stmt* Reverse = ReturnDiff.getStmt_dx();
-          addToCurrentBlock(Reverse, direction::reverse);
-          for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
-            addToCurrentBlock(S, direction::forward);
+            auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                          m_Context, 1);
+            ExprResult tmp = dfdf;
+            dfdf = m_Sema
+                       .ImpCastExprToType(tmp.get(), type,
+                                          m_Sema.PrepareScalarCast(tmp, type))
+                       .get();
+            auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
+            StmtDiff ReturnDiff = ReturnResult.first;
+            Stmt* Reverse = ReturnDiff.getStmt_dx();
+            addToCurrentBlock(Reverse, direction::reverse);
+            for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
+              addToCurrentBlock(S, direction::forward);
+          }
         }
       }
 
@@ -2151,27 +2201,11 @@ namespace clad {
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff;
     Expr* VDDerivedInit = nullptr;
-    auto VDDerivedType = getNonConstType(VD->getType(), m_Context, m_Sema);
+    auto VDDerivedType = VD->getType();
     bool isVDRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
-    // If VD is a reference to a local variable, then the initial value is set
-    // to the derived variable of the corresponding local variable.
-    // If VD is a reference to a non-local variable (global variable, struct
-    // member etc), then no derived variable is available, thus `VDDerived` 
-    // does not need to reference any variable, consequentially the 
-    // `VDDerivedType` is the corresponding non-reference type and the initial
-    // value is set to 0. 
-    // Otherwise, for non-reference types, the initial value is set to 0.
-    if (isVDRefType) {
-      initDiff = Visit(VD->getInit());
-      VDDerivedInit = initDiff.getExpr_dx();
-      if (!VDDerivedInit) {
-        VDDerivedType = VDDerivedType.getNonReferenceType();
-        VDDerivedInit = getZeroInit(VDDerivedType);
-      }
-      VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                               VDDerivedInit);
-    } else if (auto VDCAT = dyn_cast<ConstantArrayType>(VD->getType())) {
+    
+    if (auto VDCAT = dyn_cast<ConstantArrayType>(VD->getType())) {
       VDDerivedType =
           GetCladArrayOfType(QualType(VDCAT->getPointeeOrArrayElementType(),
                                       VDCAT->getIndexTypeCVRQualifiers()));
@@ -2181,9 +2215,34 @@ namespace clad {
                                VDDerivedInit, false, nullptr,
                                clang::VarDecl::InitializationStyle::CallInit);
     } else {
+      // If VD is a reference to a local variable, then the initial value is set
+      // to the derived variable of the corresponding local variable.
+      // If VD is a reference to a non-local variable (global variable, struct
+      // member etc), then no derived variable is available, thus `VDDerived`
+      // does not need to reference any variable, consequentially the
+      // `VDDerivedType` is the corresponding non-reference type and the initial
+      // value is set to 0.
+      // Otherwise, for non-reference types, the initial value is set to 0.
       VDDerivedInit = getZeroInit(VD->getType());
-      VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                               VDDerivedInit);
+      if (isVDRefType) {
+        VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
+        initDiff = Visit(VD->getInit());
+        if (initDiff.getExpr_dx())
+          VDDerivedInit = initDiff.getExpr_dx();
+        else
+          VDDerivedType = VDDerivedType.getNonReferenceType();
+      }
+      // Here separate behaviour for record and non-record types is only
+      // necessary to preserve the old tests.
+      if (VDDerivedType->isRecordType())
+        VDDerived =
+            BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                         VDDerivedInit, VD->isDirectInit(),
+                         m_Context.getTrivialTypeSourceInfo(VDDerivedType),
+                         VD->getInitStyle());
+      else
+        VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                                 VDDerivedInit);
     }
 
     // If `VD` is a reference to a local variable, then it is already
@@ -2214,10 +2273,16 @@ namespace clad {
         addToCurrentBlock(assignToZero, direction::reverse);
       }
     }
-    VarDecl* VDClone = BuildVarDecl(VD->getType(),
-                                    VD->getNameAsString(),
-                                    initDiff.getExpr(),
-                                    VD->isDirectInit());
+    VarDecl* VDClone = nullptr;
+    // Here separate behaviour for record and non-record types is only
+    // necessary to preserve the old tests.
+    if (VD->getType()->isRecordType())
+      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+                             initDiff.getExpr(), VD->isDirectInit(),
+                             VD->getTypeSourceInfo(), VD->getInitStyle());
+    else
+      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+                             initDiff.getExpr(), VD->isDirectInit());
     m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
     return VarDeclDiff(VDClone, VDDerived);
   }
@@ -2315,9 +2380,23 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    // We do not treat struct members as independent variables, so they are not
-    // differentiated.
-    return StmtDiff(Clone(ME));
+    Expr* tempClonedME = Clone(ME);
+    auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
+    auto field = ME->getMemberDecl();
+    assert(!isa<CXXMethodDecl>(field) &&
+           "CXXMethodDecl nodes not supported yet!");
+    MemberExpr* clonedME = utils::BuildMemberExpr(
+        m_Sema, getCurrentScope(), baseDiff.getExpr(), field->getName());
+    if (!baseDiff.getExpr_dx())
+      return {clonedME, nullptr};
+    MemberExpr* derivedME = utils::BuildMemberExpr(
+        m_Sema, getCurrentScope(), baseDiff.getExpr_dx(), field->getName());
+    if (dfdx()) {
+      Expr* addAssign =
+          BuildOp(BinaryOperatorKind::BO_AddAssign, derivedME, dfdx());
+      addToCurrentBlock(addAssign, direction::reverse);
+    }
+    return {clonedME, derivedME};
   }
 
   StmtDiff
@@ -2803,5 +2882,65 @@ namespace clad {
       m_ExternalSource = new MultiplexExternalRMVSource();
     source.InitialiseRMV(*this);
     m_ExternalSource->AddSource(source);
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXThisExpr(const CXXThisExpr* CTE) {
+    Expr* clonedCTE = Clone(CTE);
+    return {clonedCTE, nullptr};
+  }
+
+  StmtDiff
+  ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+    llvm::SmallVector<Expr*, 4> clonedArgs;
+    for (auto arg : CE->arguments()) {
+      auto argDiff = Visit(arg);
+      clonedArgs.push_back(argDiff.getExpr());
+    }
+    Expr* clonedArgsE = nullptr;
+
+    if (CE->getNumArgs() != 1) {
+      if (CE->isListInitialization()) {
+        clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
+      } else {
+        if (CE->getNumArgs() == 0) {
+          // ParenList is empty -- default initialisation.
+          // Passing empty parenList here will silently cause 'most vexing
+          // parse' issue.
+          return StmtDiff();
+        } else {
+          clonedArgsE =
+              m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+        }
+      }
+    } else {
+      clonedArgsE = clonedArgs[0];
+    }
+    // `CXXConstructExpr` node will be created automatically by passing these
+    // initialiser to higher level `ActOn`/`Build` Sema functions.
+    return {clonedArgsE};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitMaterializeTemporaryExpr(
+      const clang::MaterializeTemporaryExpr* MTE) {
+    // `MaterializeTemporaryExpr` node will be created automatically if it is
+    // required by `ActOn`/`Build` Sema functions.
+    StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE));
+    return MTEDiff;
+  }
+
+  QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
+                                                          QualType xType) {
+    if (m_Mode == DiffMode::reverse)
+      assert(yType->isRealType() &&
+             "yType should be a non-reference builtin-numerical scalar type!!");
+    else if (m_Mode == DiffMode::experimental_pullback)
+      assert(yType.getNonReferenceType()->isRealType() &&
+             "yType should be a builtin-numerical scalar type!!");
+    QualType xValueType = utils::GetValueType(xType);
+    QualType nonRefXValueType = xValueType.getNonReferenceType();
+    if (nonRefXValueType->isRealType())
+      return GetCladArrayRefOfType(yType);
+    else
+      return GetCladArrayRefOfType(nonRefXValueType);
   }
 } // end namespace clad
