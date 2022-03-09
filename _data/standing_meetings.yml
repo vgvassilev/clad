@@ -17,6 +17,10 @@
       date: 2022-01-05 14:00:00 +
       speaker: "Parth Arora"
       link: "[Slides](/assets/presentations/CaaS_Weekly_05_01_2022_Parth-Add_Support_For_Differentiating_wrt_User_Defined_Types.pdf)"
+    - title: "Improving the reflection layer in cppyy using Cling - Project Roadmap"
+      date: 2022-03-09 14:00:00 +0200
+      speaker: "Baidyanath Kundu"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_09_03_2022_Baidyanath-Improving_the_reflection_layer_in_cppyy_using_Cling.pdf)"
 
 - name: "CLAD Bi-weekly Meeting"
   date: Tuesdays (every second and fourth week of the month)
