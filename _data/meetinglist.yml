@@ -30,6 +30,7 @@
         [1] [https://echtzeit.dev/ez-clang](https://echtzeit.dev/ez-clang)\
         [2] [https://github.com/root-project/cling](https://github.com/root-project/cling)\
         [3] [https://www.pjrc.com/teensy/teensyLC.html](https://www.pjrc.com/teensy/teensyLC.html)
+      slides: "/assets/presentations/S_Graenitz-CaaS_EzClang.pdf"
     - title: Update
       speaker: Vassil
       slides: "/assets/presentations/CaaS_10_03_2022.pdf"
