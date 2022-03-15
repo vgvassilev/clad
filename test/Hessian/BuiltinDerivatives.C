@@ -246,7 +246,7 @@ float f4(float x) {
 // CHECK-NEXT:         float _r2 = _t2 * _r0;
 // CHECK-NEXT:         float _grad0 = 0.F;
 // CHECK-NEXT:         float _grad1 = 0.F;
-// CHECK-NEXT:         custom_derivatives::pow_pullback(_t3, _t4, _r2, &_grad0, &_grad1);
+// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t3, _t4, _r2, &_grad0, &_grad1);
 // CHECK-NEXT:         float _r3 = _grad0;
 // CHECK-NEXT:         * _d_x += _r3;
 // CHECK-NEXT:         float _r4 = _grad1;
@@ -257,7 +257,7 @@ float f4(float x) {
 // CHECK-NEXT:         float _r7 = _r6 * _t7;
 // CHECK-NEXT:         float _grad2 = 0.F;
 // CHECK-NEXT:         float _grad3 = 0.F;
-// CHECK-NEXT:         custom_derivatives::pow_pullback(_t8, _t9, _r7, &_grad2, &_grad3);
+// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t8, _t9, _r7, &_grad2, &_grad3);
 // CHECK-NEXT:         float _r8 = _grad2;
 // CHECK-NEXT:         * _d_x += _r8;
 // CHECK-NEXT:         float _r9 = _grad3;

@@ -885,20 +885,16 @@ namespace clad {
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
     NamespaceDecl* NSD = nullptr;
     std::string namespaceID;
-    bool buildingCallToPushforward = false;
     if (forCustomDerv) {
-      // FIXME: Here `if` branch should be removed once we update custom
-      // derivatives to use pullbacks
-      if (llvm::StringRef(DNI.getAsString()).endswith("_pushforward")) {
-        namespaceID = "custom_derivatives";
-        buildingCallToPushforward = true;
-        NamespaceDecl* cladNS =
-            utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
+      namespaceID = "custom_derivatives";
+      NamespaceDecl* cladNS = nullptr;
+      if (m_BuiltinDerivativesNSD)
+        NSD = m_BuiltinDerivativesNSD;
+      else {
+        cladNS = utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
         NSD =
             utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist, cladNS);
-      } else {
-        NSD = m_BuiltinDerivativesNSD;
-        namespaceID = "custom_derivatives";
+        m_BuiltinDerivativesNSD = NSD;
       }
     } else {
       NSD = m_NumericalDiffNSD;
@@ -919,9 +915,9 @@ namespace clad {
     CXXScopeSpec SS;
     DeclContext* DC = NSD;
 
-    // FIXME: Here `if` branch should be removed once we update custom
-    // derivatives to use pullbacks
-    if (buildingCallToPushforward) {
+    // FIXME: Here `if` branch should be removed once we update
+    // numerical diff to use correct declaration context.
+    if (forCustomDerv) {
       DeclContext* outermostDC = utils::GetOutermostDC(m_Sema, originalFnDC);
       // FIXME: We should ideally construct nested name specifier from the
       // found custom derivative function. Current way will compute incorrect
