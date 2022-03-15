@@ -1678,7 +1678,7 @@ namespace clad {
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               DNInfo, pullbackCallArgs, getCurrentScope(),
-              /*OriginalFnDC=*/nullptr);
+              const_cast<DeclContext*>(FD->getDeclContext()));
     }
 
     // should be true if we are using numerical differentiation to differentiate

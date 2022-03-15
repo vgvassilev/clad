@@ -219,7 +219,7 @@ float func4(float x, float y) { return std::pow(x, y); }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _grad0 = 0.F;
 //CHECK-NEXT:         float _grad1 = 0.F;
-//CHECK-NEXT:         custom_derivatives::pow_pullback(_t0, _t1, 1, &_grad0, &_grad1);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t0, _t1, 1, &_grad0, &_grad1);
 //CHECK-NEXT:         float _r0 = _grad0;
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:         float _r1 = _grad1;

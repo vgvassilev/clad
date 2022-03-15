@@ -475,6 +475,7 @@ double sum_of_powers(double x, double y, double z, double p) {
   return std::pow(x, p) + std::pow(y, p) + std::pow(z, p);
 }
 
+namespace clad {
 namespace custom_derivatives {
   void sum_of_powers_pullback(double x,
                           double y,
@@ -492,6 +493,7 @@ namespace custom_derivatives {
     *_d_z += clad::custom_derivatives::std::pow_pushforward(z, p, 1.0, 0.0) * pullback;
     *_d_p += clad::custom_derivatives::std::pow_pushforward(z, p, 0.0, 1.0) * pullback;
   }
+}
 }
 
 double f_norm(double x, double y, double z, double d) {
@@ -527,13 +529,13 @@ void f_norm_grad(double x,
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _grad4 = 0.;
 //CHECK-NEXT:           double _grad5 = 0.;
-//CHECK-NEXT:           custom_derivatives::pow_pullback(_t4, _t6, 1, &_grad4, &_grad5);
+//CHECK-NEXT:           clad::custom_derivatives{{(::std)?}}::pow_pullback(_t4, _t6, 1, &_grad4, &_grad5);
 //CHECK-NEXT:           double _r0 = _grad4;
 //CHECK-NEXT:           double _grad0 = 0.;
 //CHECK-NEXT:           double _grad1 = 0.;
 //CHECK-NEXT:           double _grad2 = 0.;
 //CHECK-NEXT:           double _grad3 = 0.;
-//CHECK-NEXT:           custom_derivatives::sum_of_powers_pullback(_t0, _t1, _t2, _t3, _r0, &_grad0, &_grad1, &_grad2, &_grad3);
+//CHECK-NEXT:           clad::custom_derivatives::sum_of_powers_pullback(_t0, _t1, _t2, _t3, _r0, &_grad0, &_grad1, &_grad2, &_grad3);
 //CHECK-NEXT:           double _r1 = _grad0;
 //CHECK-NEXT:           * _d_x += _r1;
 //CHECK-NEXT:           double _r2 = _grad1;

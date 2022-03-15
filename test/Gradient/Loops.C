@@ -341,7 +341,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:         double _r10 = _r9 * _t12;
 //CHECK-NEXT:         double _grad2 = 0.;
 //CHECK-NEXT:         double _grad3 = 0.;
-//CHECK-NEXT:         custom_derivatives::pow_pullback(_t13, _t14, _r10, &_grad2, &_grad3);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t13, _t14, _r10, &_grad2, &_grad3);
 //CHECK-NEXT:         double _r11 = _grad2;
 //CHECK-NEXT:         double _r12 = _r11 * 3.1415926535897931;
 //CHECK-NEXT:         double _r13 = _grad3;
