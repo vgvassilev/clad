@@ -358,6 +358,10 @@ double fn5(double* arr, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn6(double i=0, double j=0) {
+  return i*j;
+}
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -402,6 +406,7 @@ int main() {
   INIT(fn3);
   INIT(fn4);
   INIT(fn5);
+  INIT(fn6);
 
   TEST1(fn1, 11);               // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -409,5 +414,6 @@ int main() {
   double arr[5] = {1, 2, 3, 4, 5};
   TEST_ARR5(fn4, arr, 5);       // CHECK-EXEC: {23.00, 3.00, 3.00, 3.00, 3.00}
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
+  TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
 }
 

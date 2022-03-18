@@ -150,11 +150,9 @@ namespace clad {
     callArgs.reserve(gradientParams.size());
 
     for (auto PVD : m_Function->parameters()) {
-      Expr* GVDDefArg =
-          PVD->hasDefaultArg() ? Clone(PVD->getDefaultArg()) : nullptr;
-      auto VD = utils::BuildParmVarDecl(m_Sema, gradientOverloadFD,
-                                        PVD->getIdentifier(), PVD->getType(),
-                                        PVD->getStorageClass(), GVDDefArg);
+      auto VD = utils::BuildParmVarDecl(
+          m_Sema, gradientOverloadFD, PVD->getIdentifier(), PVD->getType(),
+          PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
       overloadParams.push_back(VD);
       callArgs.push_back(BuildDeclRef(VD));
     }
@@ -2833,8 +2831,7 @@ namespace clad {
     for (auto PVD : m_Function->parameters()) {
       auto newPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
-          PVD->getStorageClass(), Clone(PVD->getDefaultArg()),
-          PVD->getTypeSourceInfo());
+          PVD->getStorageClass(), /*DefArg=*/nullptr, PVD->getTypeSourceInfo());
       params.push_back(newPVD);
 
       if (newPVD->getIdentifier())

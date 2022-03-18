@@ -326,6 +326,16 @@ struct Widget {
   // CHECK-NEXT: }
 };
 
+double fn_def_arg(double i=0, double j=0) {
+  return 2*i*j;
+}
+
+void fn_def_arg_darg0_grad(double, double, clad::array_ref<double>,
+                           clad::array_ref<double>);
+void fn_def_arg_darg1_grad(double, double, clad::array_ref<double>,
+                           clad::array_ref<double>);
+void fn_def_arg_hessian(double, double, clad::array_ref<double>);
+
 #define TEST1(F, x) { \
   result[0] = 0;\
   auto h = clad::hessian(F);\
@@ -378,4 +388,5 @@ int main() {
   TEST3(&Experiment::someMethod, E, 3, 5);  // CHECK-EXEC: Result is = {10.00, 16.00, 16.00, 6.00}
   TEST3(&Widget::memFn_1, W, 7, 9); // CHECK-EXEC: Result is = {0.00, 15.00, 15.00, 0.00}
   TEST3(&Widget::memFn_2, W, 7, 9); // CHECK-EXEC: Result is = {5400.00, 4200.00, 4200.00, 0.00}
+  TEST2(fn_def_arg, 3, 5);  // CHECK-EXEC: Result is = {0.00, 2.00, 2.00, 0.00}
 }
