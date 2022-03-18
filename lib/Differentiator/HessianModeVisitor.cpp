@@ -254,10 +254,7 @@ namespace clad {
                                              PVD->getType(),
                                              PVD->getTypeSourceInfo(),
                                              PVD->getStorageClass(),
-                                             // Clone default arg if present.
-                                             (PVD->hasDefaultArg()
-                                                  ? Clone(PVD->getDefaultArg())
-                                                  : nullptr));
+                                             /*DefArg=*/nullptr);
                      if (VD->getIdentifier())
                        m_Sema.PushOnScopeChains(VD,
                                                 getCurrentScope(),
