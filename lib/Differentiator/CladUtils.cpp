@@ -225,9 +225,11 @@ namespace clad {
     clang::ParmVarDecl*
     BuildParmVarDecl(clang::Sema& semaRef, clang::DeclContext* DC,
                      clang::IdentifierInfo* II, clang::QualType T,
-                     clang::StorageClass SC, clang::Expr* defArg) {
+                     clang::StorageClass SC, clang::Expr* defArg,
+                     clang::TypeSourceInfo* TSI) {
       ASTContext& C = semaRef.getASTContext();
-      TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(T, noLoc);
+      if (!TSI)
+        TSI = C.getTrivialTypeSourceInfo(T, noLoc);
       ParmVarDecl* PVD =
           ParmVarDecl::Create(C, DC, noLoc, noLoc, II, T, TSI, SC, defArg);
       return PVD;

@@ -228,7 +228,13 @@ namespace clad {
       m_ExternalSource->ActOnStartOfDerive();                               
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
+
+    // reverse mode plugins may have request mode other than
+    // `DiffMode::reverse`, but they still need the `DiffMode::reverse` mode
+    // specific behaviour, because they are "reverse" mode plugins.
     m_Mode = DiffMode::reverse;
+    if (request.Mode == DiffMode::jacobian)
+      m_Mode = DiffMode::jacobian;
     m_Pullback =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
     assert(m_Function && "Must not be null.");
@@ -246,15 +252,10 @@ namespace clad {
       m_ExternalSource->ActAfterParsingDiffArgs(request, args);
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
-    clang::QualType DerivedOutputParamType;
     if (request.Mode == DiffMode::jacobian) {
       isVectorValued = true;
       unsigned lastArgN = m_Function->getNumParams() - 1;
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
-      DerivedOutputParamType = m_Function->getParamDecl(lastArgN)->getType();
-    } else {
-      DerivedOutputParamType =
-          GetCladArrayRefOfType(m_Function->getReturnType());
     }
 
     auto derivativeBaseName = request.BaseFunctionName;
@@ -276,34 +277,13 @@ namespace clad {
     IdentifierInfo* II = &m_Context.Idents.get(gradientName);
     DeclarationNameInfo name(II, noLoc);
 
-    // A vector of types of the gradient function parameters.
-    llvm::SmallVector<QualType, 16> paramTypes;
-    llvm::SmallVector<QualType, 16> outputParamTypes;
     // If we are in error estimation mode, we have an extra `double&`
     // parameter that stores the final error
     unsigned numExtraParam = 0;
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeCreatingDerivedFnParamTypes(numExtraParam);
-    paramTypes.reserve(m_Function->getNumParams() * 2);
-    outputParamTypes.reserve(args.size());
-    for (auto* PVD : m_Function->parameters()) {
-      QualType PVDType = PVD->getType();
-      paramTypes.push_back(PVD->getType());
 
-      if (!isVectorValued) {
-        auto it = std::find(std::begin(args), std::end(args), PVD);
-        if (it != std::end(args)) {
-          outputParamTypes.push_back(
-              GetParameterDerivativeType(m_Function->getReturnType(), PVDType));
-        }
-      }
-    }
-    if (isVectorValued) {
-      paramTypes.push_back(DerivedOutputParamType);
-    } else {
-      paramTypes.insert(paramTypes.end(), outputParamTypes.begin(),
-                        outputParamTypes.end());
-    }
+    auto paramTypes = ComputeParamTypes(args);
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
@@ -359,80 +339,9 @@ namespace clad {
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnScope();
-
-    // Create parameter declarations.
-    llvm::SmallVector<ParmVarDecl*, 4> params;
-    llvm::SmallVector<ParmVarDecl*, 4> outputParams;
-    params.reserve(m_Function->getNumParams() + args.size() + numExtraParam);
-    for (auto* PVD : m_Function->parameters()) {
-      Expr* PVDDefArg =
-          PVD->hasDefaultArg() ? Clone(PVD->getDefaultArg()) : nullptr;
-      auto VD =
-          ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
-                              PVD->getIdentifier(), PVD->getType(),
-                              PVD->getTypeSourceInfo(), PVD->getStorageClass(),
-                              // Clone default arg if present.
-                              PVDDefArg);
-      if (VD->getIdentifier())
-        m_Sema.PushOnScopeChains(VD, getCurrentScope(),
-                                 /*AddToContext=*/false);
-      params.push_back(VD);
-
-      // Create the diff params in the derived function for independent
-      // variables
-      auto it = std::find(std::begin(args), std::end(args), PVD);
-      if (it != std::end(args)) {
-        *it = VD;
-        if (!isVectorValued) {
-          QualType DType = GetParameterDerivativeType(
-              m_Function->getReturnType(), PVD->getType());
-          IdentifierInfo* DVDII =
-              &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-
-          auto DVD = utils::BuildParmVarDecl(m_Sema, gradientFD, DVDII, DType,
-                                             PVD->getStorageClass(),
-                                             // Clone default arg if present.
-                                             /*DefArg=*/nullptr);
-          if (DVD->getIdentifier())
-            m_Sema.PushOnScopeChains(DVD, getCurrentScope(),
-                                     /*AddToContext=*/false);
-          outputParams.push_back(DVD);
-          if (utils::isArrayOrPointerType(PVD->getType())) {
-            m_Variables[*it] = (Expr*)BuildDeclRef(DVD);
-          } else {
-            QualType valueType = DetermineCladArrayValueType(DVD->getType());
-            m_Variables[*it] =
-                BuildOp(UO_Deref, BuildDeclRef(DVD), m_Function->getLocation());
-            // Add additional paranthesis if derivative is of record type
-            // because `*derivative.someField` will be incorrectly evaluated if
-            // the derived function is compiled standalone.
-            if (valueType->isRecordType())
-              m_Variables[*it] =
-                  utils::BuildParenExpr(m_Sema, m_Variables[*it]);
-          }
-        }
-      }
-    }
-    auto nonDiffParams = params;
-    if (isVectorValued) {
-      TypeSourceInfo* paramTSI =
-          m_Context.getTrivialTypeSourceInfo(DerivedOutputParamType, noLoc);
-      // The output parameter "_jacobianMatrix".
-      params.push_back(
-          ParmVarDecl::Create(m_Context, gradientFD, noLoc, noLoc,
-                              &m_Context.Idents.get("jacobianMatrix"),
-                              DerivedOutputParamType, paramTSI,
-                              params.front()->getStorageClass(),
-                              /*DefArg=*/nullptr));
-      if (params.back()->getIdentifier())
-        m_Sema.PushOnScopeChains(params.back(), getCurrentScope(),
-                                 /*AddToContext=*/false);
-    } else {
-      params.insert(params.end(), outputParams.begin(), outputParams.end());
-      m_IndependentVars.insert(m_IndependentVars.end(), args.begin(),
-                               args.end());
-    }
     
+    auto params = BuildParams(args);
+
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
@@ -485,12 +394,13 @@ namespace clad {
 
     // create derived variables for parameters which are not part of
     // independent variables (args).
-    for (ParmVarDecl* param : nonDiffParams) {
+    for (std::size_t i=0; i<m_Function->getNumParams(); ++i) {
+      ParmVarDecl* param = params[i];
       // derived variables are already created for independent variables.
       if (m_Variables.count(param))
         continue;
       // in vector mode last non diff parameter is output parameter.
-      if (isVectorValued && param == nonDiffParams.back())
+      if (isVectorValued && i == m_Function->getNumParams()-1)
         continue;
       auto VDDerivedType = param->getType();
       // We cannot initialize derived variable for pointer types because
@@ -559,40 +469,10 @@ namespace clad {
     assert(!args.empty() && "Cannot generate pullback function of a function "
                             "with no differentiable arguments");
 
-
-    QualType effectiveReturnType = m_Function->getReturnType();
-    // FIXME: Generally, we use the function's return type as the argument's derivative
-    // type. We cannot follow this strategy for `void` function return type.
-    // Thus, temporarily use `double` type as the placeholder type for argument
-    // derivatives. We should think of a more uniform and consistent solution to
-    // this problem. One effective strategy that may hold well: If we are
-    // differentiating a variable of type Y with respect to variable of type X,
-    // then the derivative should be of type X.
-    // Check this related issue for more details:
-    // https://github.com/vgvassilev/clad/issues/385
-    if (effectiveReturnType->isVoidType())
-      effectiveReturnType = m_Context.DoubleTy;
-
     auto derivativeName = request.BaseFunctionName + "_pullback";
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
-    llvm::SmallVector<QualType, 16> paramTypes, outputParamTypes;
-
-    for (auto PVD : m_Function->parameters()) {
-      QualType PVDType = PVD->getType();
-      paramTypes.push_back(PVDType);
-
-      auto it = std::find(std::begin(args), std::end(args), PVD);
-      if (it != std::end(args)) {
-        outputParamTypes.push_back(
-            GetParameterDerivativeType(effectiveReturnType, PVDType));
-      }
-    }
-    if (!m_Function->getReturnType()->isVoidType())
-      paramTypes.push_back(m_Function->getReturnType());
-    paramTypes.insert(paramTypes.end(), outputParamTypes.begin(),
-                      outputParamTypes.end());
-
+    auto paramTypes = ComputeParamTypes(args);
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
 
     QualType pullbackFnType = m_Context.getFunctionType(
@@ -612,57 +492,7 @@ namespace clad {
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
-    llvm::SmallVector<ParmVarDecl*, 4> params, outputParams;
-
-    for (std::size_t i=0; i<m_Function->getNumParams(); ++i) {
-      auto PVD = m_Function->getParamDecl(i);
-      auto newPVD = CloneParmVarDecl(PVD, PVD->getIdentifier(),
-                                     /*pushOnScopeChains=*/true);
-      params.push_back(newPVD);
-      auto it = std::find(std::begin(args), std::end(args), PVD);
-
-      if (it != std::end(args)) {
-        *it = newPVD;
-        QualType derivedType = outputParamTypes[i];
-        IdentifierInfo* derivedPVDII =
-            &m_Context.Idents.get("_d_" + PVD->getNameAsString());
-        auto derivedPVD =
-            utils::BuildParmVarDecl(m_Sema, m_Derivative, derivedPVDII,
-                                    derivedType, PVD->getStorageClass());
-        if (derivedPVD->getIdentifier())
-          m_Sema.PushOnScopeChains(derivedPVD, getCurrentScope(),
-                                   /*AddToContext=*/false);
-        outputParams.push_back(derivedPVD);
-
-        if (utils::isArrayOrPointerType(PVD->getType()))
-          m_Variables[*it] = BuildDeclRef(derivedPVD);
-        else {
-          QualType valueType =
-              DetermineCladArrayValueType(derivedPVD->getType());
-          m_Variables[*it] = BuildOp(UO_Deref, BuildDeclRef(derivedPVD),
-                                     m_Function->getLocation());
-          // Add additional paranthesis if derivative is of record type
-          // because `*derivative.someField` will be incorrectly evaluated if
-          // the derived function is compiled standalone.
-          if (valueType->isRecordType()) {
-            m_Variables[*it] = utils::BuildParenExpr(m_Sema, m_Variables[*it]);
-          }
-        }
-      }
-    }
-    IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
-    if (!m_Function->getReturnType()->isVoidType()) {
-      ParmVarDecl* pullbackPVD = utils::BuildParmVarDecl(
-          m_Sema, m_Derivative, pullbackParamII, m_Function->getReturnType());
-      m_Sema.PushOnScopeChains(pullbackPVD, getCurrentScope(),
-                               /*AddToContext=*/true);
-      params.push_back(pullbackPVD);
-      m_Pullback = BuildDeclRef(pullbackPVD);
-    }
-    params.insert(params.end(), outputParams.begin(), outputParams.end());
-
-    m_IndependentVars.insert(m_IndependentVars.end(), args.begin(), args.end());
-
+    auto params = BuildParams(args);
     m_Derivative->setParams(params);
     m_Derivative->setBody(nullptr);
 
@@ -2937,10 +2767,152 @@ namespace clad {
       assert(yType.getNonReferenceType()->isRealType() &&
              "yType should be a builtin-numerical scalar type!!");
     QualType xValueType = utils::GetValueType(xType);
+    // derivative variables should always be of non-const type.
+    xValueType.removeLocalConst();
     QualType nonRefXValueType = xValueType.getNonReferenceType();
     if (nonRefXValueType->isRealType())
       return GetCladArrayRefOfType(yType);
     else
       return GetCladArrayRefOfType(nonRefXValueType);
+  }
+
+  llvm::SmallVector<clang::QualType, 8>
+  ReverseModeVisitor::ComputeParamTypes(const DiffParams& diffParams) {
+    llvm::SmallVector<clang::QualType, 8> paramTypes;
+    paramTypes.reserve(m_Function->getNumParams() * 2);
+    for (auto PVD : m_Function->parameters()) {
+      paramTypes.push_back(PVD->getType());
+    }
+    // TODO: Add DiffMode::experimental_pullback support here as well.
+    if (m_Mode == DiffMode::reverse ||
+        m_Mode == DiffMode::experimental_pullback) {
+      QualType effectiveReturnType = m_Function->getReturnType();
+      if (m_Mode == DiffMode::experimental_pullback) {
+        // FIXME: Generally, we use the function's return type as the argument's
+        // derivative type. We cannot follow this strategy for `void` function
+        // return type. Thus, temporarily use `double` type as the placeholder
+        // type for argument derivatives. We should think of a more uniform and
+        // consistent solution to this problem. One effective strategy that may
+        // hold well: If we are differentiating a variable of type Y with
+        // respect to variable of type X, then the derivative should be of type
+        // X. Check this related issue for more details:
+        // https://github.com/vgvassilev/clad/issues/385
+        if (effectiveReturnType->isVoidType())
+          effectiveReturnType = m_Context.DoubleTy;
+        else
+          paramTypes.push_back(m_Function->getReturnType());
+      }
+  
+      for (auto PVD : m_Function->parameters()) {
+        auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
+        if (it != std::end(diffParams))
+          paramTypes.push_back(
+              GetParameterDerivativeType(effectiveReturnType, PVD->getType()));
+      }
+    } else if (m_Mode == DiffMode::jacobian) {
+      std::size_t lastArgIdx = m_Function->getNumParams() - 1;
+      QualType derivativeParamType =
+          m_Function->getParamDecl(lastArgIdx)->getType();
+      paramTypes.push_back(derivativeParamType);
+    }
+    return paramTypes;
+  }
+
+  llvm::SmallVector<clang::ParmVarDecl*, 8>
+  ReverseModeVisitor::BuildParams(DiffParams& diffParams) {
+    llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
+    params.reserve(m_Function->getNumParams() + diffParams.size());
+    auto derivativeFnType = cast<FunctionProtoType>(m_Derivative->getType());
+    std::size_t dParamTypesIdx = m_Function->getNumParams();
+
+    if (m_Mode == DiffMode::experimental_pullback &&
+        !m_Function->getReturnType()->isVoidType()) {
+      ++dParamTypesIdx;
+    }
+
+    for (auto PVD : m_Function->parameters()) {
+      auto newPVD = utils::BuildParmVarDecl(
+          m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
+          PVD->getStorageClass(), Clone(PVD->getDefaultArg()),
+          PVD->getTypeSourceInfo());
+      params.push_back(newPVD);
+
+      if (newPVD->getIdentifier())
+        m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+
+      auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
+      if (it != std::end(diffParams)) {
+        *it = newPVD;
+        if (m_Mode == DiffMode::reverse ||
+            m_Mode == DiffMode::experimental_pullback) {
+          QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
+          IdentifierInfo* dII =
+              CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
+          auto dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, dII, dType,
+                                              PVD->getStorageClass());
+          paramDerivatives.push_back(dPVD);
+          ++dParamTypesIdx;
+
+          if (dPVD->getIdentifier())
+            m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
+                                     /*AddToContext=*/false);
+
+          if (utils::isArrayOrPointerType(PVD->getType())) {
+            m_Variables[*it] = (Expr*)BuildDeclRef(dPVD);
+          } else {
+            QualType valueType = DetermineCladArrayValueType(dPVD->getType());
+            m_Variables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD),
+                                       m_Function->getLocation());
+            // Add additional paranthesis if derivative is of record type
+            // because `*derivative.someField` will be incorrectly evaluated if
+            // the derived function is compiled standalone.
+            if (valueType->isRecordType())
+              m_Variables[*it] =
+                  utils::BuildParenExpr(m_Sema, m_Variables[*it]);
+          }
+        }
+      }
+    }
+
+    if (m_Mode == DiffMode::experimental_pullback &&
+        !m_Function->getReturnType()->isVoidType()) {
+      IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
+      QualType pullbackType =
+          derivativeFnType->getParamType(m_Function->getNumParams());
+      ParmVarDecl* pullbackPVD = utils::BuildParmVarDecl(
+          m_Sema, m_Derivative, pullbackParamII, pullbackType);
+      paramDerivatives.insert(paramDerivatives.begin(), pullbackPVD);
+
+      if (pullbackPVD->getIdentifier())
+        m_Sema.PushOnScopeChains(pullbackPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+
+      m_Pullback = BuildDeclRef(pullbackPVD);
+      ++dParamTypesIdx;
+    }
+
+    if (m_Mode == DiffMode::jacobian) {
+      IdentifierInfo* II = CreateUniqueIdentifier("jacobianMatrix");
+      // FIXME: Why are we taking storageClass of `params.front()`?
+      auto dPVD = utils::BuildParmVarDecl(
+          m_Sema, m_Derivative, II,
+          derivativeFnType->getParamType(dParamTypesIdx),
+          params.front()->getStorageClass());
+      paramDerivatives.push_back(dPVD);
+      if (dPVD->getIdentifier())
+        m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+    }
+    params.insert(params.end(), paramDerivatives.begin(),
+                  paramDerivatives.end());
+    // FIXME: If we do not consider diffParams as an independent argument for
+    // jacobian mode, then we should keep diffParams list empty for jacobian
+    // mode and thus remove the if condition.
+    if (m_Mode == DiffMode::reverse ||
+        m_Mode == DiffMode::experimental_pullback)
+      m_IndependentVars.insert(m_IndependentVars.end(), diffParams.begin(),
+                               diffParams.end());
+    return params;
   }
 } // end namespace clad
