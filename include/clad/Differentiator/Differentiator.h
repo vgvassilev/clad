@@ -103,7 +103,7 @@ namespace clad {
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, Args&&... args) {
-    return f(static_cast<Args>(args)..., static_cast<Rest>(0)...);
+    return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
   }
 
   template <bool EnablePadding, class... Rest, class F, class... Args,
@@ -122,7 +122,7 @@ namespace clad {
                                                   Args&&... args)
       -> return_type_t<decltype(f)> {
     return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...,
-                                      static_cast<Rest>(0)...);
+                                      static_cast<Rest>(nullptr)...);
   }
 
   template <bool EnablePadding, class... Rest, class ReturnType, class C,

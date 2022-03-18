@@ -446,7 +446,7 @@ struct S {
     return c1 * x + c2 * y;
   }
 
-  //CHECK:   void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+  //CHECK:   void f_grad(double x, double y, clad::array_ref<S> _d_this, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
   //CHECK-NEXT:       double _t0;
   //CHECK-NEXT:       double _t1;
   //CHECK-NEXT:       double _t2;
@@ -460,9 +460,11 @@ struct S {
   //CHECK-NEXT:     _label0:
   //CHECK-NEXT:       {
   //CHECK-NEXT:           double _r0 = 1 * _t0;
+  //CHECK-NEXT:           (* _d_this).c1 += _r0;
   //CHECK-NEXT:           double _r1 = _t1 * 1;
   //CHECK-NEXT:           * _d_x += _r1;
   //CHECK-NEXT:           double _r2 = 1 * _t2;
+  //CHECK-NEXT:           (* _d_this).c2 += _r2;
   //CHECK-NEXT:           double _r3 = _t3 * 1;
   //CHECK-NEXT:           * _d_y += _r3;
   //CHECK-NEXT:       }

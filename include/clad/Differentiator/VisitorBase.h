@@ -403,9 +403,9 @@ namespace clad {
     /// \returns Built member function call expression
     ///  Base.MemberFunction(ArgExprs) or Base->MemberFunction(ArgExprs)
     clang::Expr*
-    BuildCallExprToMemFn(clang::Expr* Base, bool isArrow,
-                         llvm::StringRef MemberFunctionName,
-                         llvm::MutableArrayRef<clang::Expr*> ArgExprs);
+    BuildCallExprToMemFn(clang::Expr* Base, llvm::StringRef MemberFunctionName,
+                         llvm::MutableArrayRef<clang::Expr*> ArgExprs,
+                         clang::ValueDecl* memberDecl = nullptr);
 
     /// Build a call to member function through this pointer.
     ///

@@ -109,13 +109,24 @@ namespace clad {
   public:
     // delete the default constructor
     array_ref() = delete;
-    CUDA_HOST_DEVICE array_ref(void* arr, std::size_t size = 1)
-        : m_arr(arr), m_size(size) {}
+    // Here we are using C-style cast instead of `static_cast` because
+    // we may also need to remove qualifiers (`const`, `volatile`, etc) while
+    // converting to `void*` type.
+    // We cannot create specialisation of `array_ref<void>` with qualifiers
+    // (such as `array_ref<const void>`, `array_ref<volatile void>` etc) because
+    // each derivative parameter has to be of the same type in the overloaded
+    // gradient for the overloaded gradient mechanism to work and this class is
+    // used as the placeholder type for the common derivative parameter type.
+    template <typename T, class = typename std::enable_if<
+                              std::is_pointer<T>::value ||
+                              std::is_same<T, std::nullptr_t>::value>::type>
+    CUDA_HOST_DEVICE array_ref(T arr, std::size_t size = 1)
+        : m_arr((void*)arr), m_size(size) {}
     template <typename T>
     CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
         : m_arr(other.ptr()), m_size(other.size()) {}
     template <typename T> CUDA_HOST_DEVICE operator array_ref<T>() {
-      return array_ref<T>(static_cast<T*>(m_arr), m_size);
+      return array_ref<T>((T*)(m_arr), m_size);
     }
     CUDA_HOST_DEVICE void* ptr() const { return m_arr; }
     CUDA_HOST_DEVICE std::size_t size() const { return m_size; }

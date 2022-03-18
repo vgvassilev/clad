@@ -577,5 +577,22 @@ static inline Expr* GetSubExpr(const MaterializeTemporaryExpr* MTE) {
 #else
 #define CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(E) , E->isListInitialization()
 #endif
+
+#if CLANG_VERSION_MAJOR < 9
+static inline QualType
+CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
+  ASTContext& C = semaRef.getASTContext();
+  const CXXRecordDecl* RD = MD->getParent();
+  auto RDType = RD->getTypeForDecl();
+  auto thisObjectQType = C.getQualifiedType(
+      RDType, clad_compat::CXXMethodDecl_getMethodQualifiers(MD));
+  return thisObjectQType;
+}
+#else
+static inline QualType
+CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
+  return MD->getThisObjectType();
+}
+#endif
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

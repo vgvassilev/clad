@@ -310,6 +310,34 @@ namespace clad {
                      });
       DeclRefToParams.pop_back();
 
+      /// If we are differentiating a member function then create a parameter
+      /// that can represent the derivative for the implicit `this` pointer. It
+      /// is required because reverse mode derived function expects an explicit
+      /// parameter for storing derivative with respect to `implicit` this
+      /// object.
+      ///
+      // FIXME: Add support for class type in the hessian matrix. For this, we
+      // need to add a way to represent hessian matrix when class type objects
+      // are involved.
+      if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+        const CXXRecordDecl* RD = MD->getParent();
+        if (MD->isInstance() && !RD->isLambda()) {
+          QualType thisObjectType =
+              clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
+          // Derivatives should never be of `const` types. Even if the original 
+          // variable is of `const` type. This behaviour is consistent with the built-in
+          // scalar numerical types as well.
+          thisObjectType.removeLocalConst();
+          auto dThisVD = BuildVarDecl(thisObjectType, "_d_this",
+                                      /*Init=*/nullptr, false, /*TSI=*/nullptr,
+                                      VarDecl::InitializationStyle::CallInit);
+          CompStmtSave.push_back(BuildDeclStmt(dThisVD));
+          Expr* dThisExpr = BuildDeclRef(dThisVD);
+          DeclRefToParams.push_back(
+              BuildOp(UnaryOperatorKind::UO_AddrOf, dThisExpr));
+        }
+      }
+
       size_t columnIndex = 0;
       // Create Expr parameters for each independent arg in the CallExpr
       for (size_t j = 0, n = IndependentArgsSize.size(); j < n; j++) {

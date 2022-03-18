@@ -399,8 +399,9 @@ namespace clad {
 #define GradientDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)              \
   template <typename R, typename C, typename... Args>                          \
   struct GradientDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {          \
-    using type = void (C::*)(Args...,                                          \
-                             OutputParamType_t<Args, void>...) cv vol ref noex;   \
+    using type =                                                               \
+        void (C::*)(Args..., OutputParamType_t<C, void>,                       \
+                    OutputParamType_t<Args, void>...) cv vol ref noex;         \
   };
 
 #if __cpp_noexcept_function_type > 0

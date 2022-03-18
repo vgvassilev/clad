@@ -148,6 +148,8 @@ namespace clad {
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name);
 
+    /// Returns true if the function has any reference or pointer parameter;
+    /// otherwise returns false.
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
 
     /// Returns true if `T` is a reference, pointer or array type.
@@ -196,8 +198,9 @@ namespace clad {
                      clang::TypeSourceInfo* TSI = nullptr);
 
     /// If `T` represents an array or a pointer type then returns the
-    /// corresponding array element or the pointee type. Otherwise, if `T` is
-    /// neither an array nor a pointer type, then simply returns `T`.
+    /// corresponding array element or the pointee type. If `T` is a reference
+    /// type then return the corresponding non-reference type. Otherwise, if `T`
+    /// is neither an array nor a pointer type, then simply returns `T`.
     clang::QualType GetValueType(clang::QualType T);
 
     /// Builds and returns the init expression to initialise `clad::array` and
@@ -207,6 +210,10 @@ namespace clad {
     /// `{arr, arrSize}`
     clang::Expr* BuildCladArrayInitByConstArray(clang::Sema& semaRef,
                                                 clang::Expr* constArrE);
+
+    /// Returns true if `FD` is a class static method; otherwise returns
+    /// false.
+    bool IsStaticMethod(const clang::FunctionDecl* FD);
   } // namespace utils
 }
 
