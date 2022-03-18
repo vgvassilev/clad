@@ -6,7 +6,7 @@
 
 struct Experiment {
   mutable double x, y;
-  Experiment(double p_x, double p_y) : x(p_x), y(p_y) {}
+  Experiment(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
   double operator()(double i, double j) {
     return x*i*i*j + y*i*j*j;
   }
@@ -15,14 +15,16 @@ struct Experiment {
   }
 
   // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) {
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     Experiment _d_this;
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     Experiment _d_this0;
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
   // CHECK-NEXT: }
 };
 
 struct ExperimentConst {
   mutable double x, y;
-  ExperimentConst(double p_x, double p_y) : x(p_x), y(p_y) {}
+  ExperimentConst(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
   double operator()(double i, double j) const {
     return x*i*i*j + y*i*j*j;
   }
@@ -31,14 +33,16 @@ struct ExperimentConst {
   }
 
   // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) const {
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     ExperimentConst _d_this;
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     ExperimentConst _d_this0;
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
   // CHECK-NEXT: }
 };
 
 struct ExperimentVolatile {
   mutable double x, y;
-  ExperimentVolatile(double p_x, double p_y) : x(p_x), y(p_y) {}
+  ExperimentVolatile(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
   double operator()(double i, double j) volatile {
     return x*i*i*j + y*i*j*j;
   }
@@ -47,14 +51,16 @@ struct ExperimentVolatile {
   }
 
   // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) volatile {
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     volatile ExperimentVolatile _d_this;
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     volatile ExperimentVolatile _d_this0;
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
   // CHECK-NEXT: }
 };
 
 struct ExperimentConstVolatile {
   mutable double x, y;
-  ExperimentConstVolatile(double p_x, double p_y) : x(p_x), y(p_y) {}
+  ExperimentConstVolatile(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
   double operator()(double i, double j) const volatile {
     return x*i*i*j + y*i*j*j;
   }
@@ -63,8 +69,10 @@ struct ExperimentConstVolatile {
   }
 
   // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) const volatile {
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     volatile ExperimentConstVolatile _d_this;
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     volatile ExperimentConstVolatile _d_this0;
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
   // CHECK-NEXT: }
 };
 
@@ -72,7 +80,7 @@ namespace outer {
   namespace inner {
     struct ExperimentNNS {
       mutable double x, y;
-      ExperimentNNS(double p_x, double p_y) : x(p_x), y(p_y) {}
+      ExperimentNNS(double p_x = 0, double p_y = 0) : x(p_x), y(p_y) {}
       double operator()(double i, double j) {
         return x*i*i*j + y*i*j*j;
       }
@@ -81,8 +89,10 @@ namespace outer {
       }
 
       // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) {
-      // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-      // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+      // CHECK-NEXT:     outer::inner::ExperimentNNS _d_this;
+      // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+      // CHECK-NEXT:     outer::inner::ExperimentNNS _d_this0;
+      // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
       // CHECK-NEXT: }
     };
 

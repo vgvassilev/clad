@@ -6,19 +6,21 @@
 
 template <typename T> struct Experiment {
   mutable T x, y;
-  Experiment(T p_x, T p_y) : x(p_x), y(p_y) {}
+  Experiment(T p_x=0, T p_y=0) : x(p_x), y(p_y) {}
   T operator()(T i, T j) { return x * i * i * j + y * j * j * i; }
   void setX(T val) { x = val; }
 };
 
 // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) {
-// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+// CHECK-NEXT:     Experiment<double> _d_this;
+// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+// CHECK-NEXT:     Experiment<double> _d_this0;
+// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
 // CHECK-NEXT: }
 
 template <> struct Experiment<long double> {
   mutable long double x, y;
-  Experiment(long double p_x, long double p_y) : x(p_x), y(p_y) {}
+  Experiment(long double p_x=0, long double p_y=0) : x(p_x), y(p_y) {}
   long double operator()(long double i, long double j) {
     return i * i * j + j * j * i;
   }
@@ -26,8 +28,10 @@ template <> struct Experiment<long double> {
 };
 
 // CHECK: void operator_call_hessian(long double i, long double j, clad::array_ref<long double> hessianMatrix) {
-// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+// CHECK-NEXT:     Experiment<long double> _d_this;
+// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+// CHECK-NEXT:     Experiment<long double> _d_this0;
+// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
 // CHECK-NEXT: }
 
 #define INIT(E)                   \

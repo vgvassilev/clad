@@ -89,9 +89,31 @@ namespace clad {
           DC2 = DC2->getParent();  
           continue;
         }
+        // We don't want to 'extend' the DC1 context with class declarations.
+        // There are 2 main reasons for this:
+        // - Class declaration context cannot be extended the way namespace
+        // declaration contexts can.
+        //
+        // - Primary usage of `FindDeclarationContext` is to create the correct
+        // declaration context for searching some particular custom derivative.
+        // But for class functions, we would 'need' to create custom derivative
+        // in the original declaration context only (We don't support custom
+        // derivatives for class functions yet). We cannot use the default
+        // context that starts from `clad::custom_derivatives::`. This is
+        // because custom derivatives of class functions need to have same
+        // access permissions as the original member function.
+        //
+        // We may need to change this behaviour if in the future
+        // `FindDeclarationContext` function is being used for some place other
+        // than finding custom derivative declaration context as well.
+        //
+        // Silently return nullptr if DC2 contains any CXXRecord declaration
+        // context.
+        if (isa<CXXRecordDecl>(DC2))
+          return nullptr;
         assert(isa<NamespaceDecl>(DC2) &&
-               "DC2 should only contain namespace (and "
-               "translation unit) declaration.");
+               "DC2 should only consists of namespace, CXXRecord and "
+               "translation unit declaration context.");
         contexts.push_back(DC2);
         DC2 = DC2->getParent();
       }
@@ -237,10 +259,14 @@ namespace clad {
 
     clang::QualType GetValueType(clang::QualType T) {
       QualType valueType = T;
-      if (isArrayOrPointerType(T)) {
+      if (T->isPointerType())
+        valueType = T->getPointeeType();
+      else if (T->isReferenceType()) 
+        valueType = T.getNonReferenceType();
+      // FIXME: `QualType::getPointeeOrArrayElementType` loses type qualifiers.
+      else if (T->isArrayType()) 
         valueType =
             T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
-      }
       return valueType;
     }
 
@@ -254,6 +280,12 @@ namespace clad {
           C.getSizeType(), C, CAT->getSize().getZExtValue());
       llvm::SmallVector<Expr*, 2> args = {constArrE, sizeE};
       return semaRef.ActOnInitList(noLoc, args, noLoc).get();
+    }
+
+    bool IsStaticMethod(const clang::FunctionDecl* FD) {
+      if (auto MD = dyn_cast<CXXMethodDecl>(FD))
+        return MD->isStatic();
+      return false;
     }
   } // namespace utils
 } // namespace clad

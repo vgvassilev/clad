@@ -14,7 +14,7 @@ public:
   double x, y;
   double mem_fn(double i, double j) { return (x + y) * i + i * j; }
 
-  // CHECK: void mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK: void mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -28,6 +28,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -39,7 +41,7 @@ public:
 
   double const_mem_fn(double i, double j) const { return (x + y) * i + i * j; }
 
-  // CHECK: void const_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
+  // CHECK: void const_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -53,6 +55,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -66,7 +70,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void volatile_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
+  // CHECK: void volatile_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -80,6 +84,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -93,7 +99,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_volatile_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
+  // CHECK: void const_volatile_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -107,6 +113,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -118,7 +126,7 @@ public:
 
   double lval_ref_mem_fn(double i, double j) & { return (x + y) * i + i * j; }
 
-  // CHECK: void lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) & {
+  // CHECK: void lval_ref_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -132,6 +140,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -145,7 +155,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const & {
+  // CHECK: void const_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -159,6 +169,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -172,7 +184,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void volatile_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile & {
+  // CHECK: void volatile_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -186,6 +198,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -199,7 +213,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_volatile_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile & {
+  // CHECK: void const_volatile_lval_ref_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile & {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -211,8 +225,10 @@ public:
   // CHECK-NEXT:     double const_volatile_lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
-  // CHECK-NEXT:      {
+  // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -224,7 +240,7 @@ public:
 
   double rval_ref_mem_fn(double i, double j) && { return (x + y) * i + i * j; }
 
-  // CHECK: void rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) && {
+  // CHECK: void rval_ref_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -238,6 +254,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -251,7 +269,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const && {
+  // CHECK: void const_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -265,6 +283,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -278,7 +298,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void volatile_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile && {
+  // CHECK: void volatile_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -292,6 +312,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -305,7 +327,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_volatile_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile && {
+  // CHECK: void const_volatile_rval_ref_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile && {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -319,6 +341,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -326,13 +350,13 @@ public:
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:  }
+  // CHECK-NEXT: }
 
   double noexcept_mem_fn(double i, double j) noexcept { 
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) noexcept {
+  // CHECK: void noexcept_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -346,6 +370,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -359,7 +385,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const noexcept {
+  // CHECK: void const_noexcept_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -373,6 +399,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -386,7 +414,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void volatile_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile noexcept {
+  // CHECK: void volatile_noexcept_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -400,6 +428,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -413,7 +443,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_volatile_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile noexcept {
+  // CHECK: void const_volatile_noexcept_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -425,8 +455,10 @@ public:
   // CHECK-NEXT:     double const_volatile_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
-  // CHECK-NEXT:      {
+  // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -440,7 +472,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) & noexcept {
+  // CHECK: void lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -454,6 +486,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -467,7 +501,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const & noexcept {
+  // CHECK: void const_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -481,6 +515,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -494,7 +530,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile & noexcept {
+  // CHECK: void volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -508,6 +544,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -521,7 +559,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile & noexcept {
+  // CHECK: void const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile & noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -535,6 +573,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -548,7 +588,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) && noexcept {
+  // CHECK: void rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -557,12 +597,13 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double
-  // rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
+  // CHECK-NEXT:     double rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -576,7 +617,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const && noexcept {
+  // CHECK: void const_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -588,8 +629,10 @@ public:
   // CHECK-NEXT:     double const_rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
-  // CHECK-NEXT:      {
+  // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -597,13 +640,13 @@ public:
   // CHECK-NEXT:         double _r3 = _t3 * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:  }
+  // CHECK-NEXT: }
 
   double volatile_rval_ref_noexcept_mem_fn(double i, double j) volatile && noexcept { 
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile && noexcept {
+  // CHECK: void volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -617,6 +660,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -630,7 +675,7 @@ public:
     return (x+y)*i + i*j;
   }
 
-  // CHECK: void const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile && noexcept {
+  // CHECK: void const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile && noexcept {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     double _t2;
@@ -644,6 +689,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -655,7 +702,7 @@ public:
 
   double partial_mem_fn(double i, double j) { return (x + y) * i + i * j; }
 
-  // CHECK: void partial_mem_fn_grad_0(double i, double j, clad::array_ref<double> _d_i) {
+  // CHECK: void partial_mem_fn_grad_0(double i, double j, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i) {
   // CHECK-NEXT:     double _d_j = 0;
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
@@ -670,6 +717,8 @@ public:
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
+  // CHECK-NEXT:         (* _d_this).x += _r0;
+  // CHECK-NEXT:         (* _d_this).y += _r0;
   // CHECK-NEXT:         double _r1 = _t1 * 1;
   // CHECK-NEXT:         * _d_i += _r1;
   // CHECK-NEXT:         double _r2 = 1 * _t2;
@@ -769,7 +818,7 @@ int main() {
   
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
-  // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, clad::array_ref<double> _d_i) const volatile & {
+  // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i) const volatile & {
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       double _t0;
   // CHECK-NEXT:       double _t1;
@@ -784,6 +833,8 @@ int main() {
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:       {
   // CHECK-NEXT:           double _r0 = 1 * _t0;
+  // CHECK-NEXT:           (* _d_this).x += _r0;
+  // CHECK-NEXT:           (* _d_this).y += _r0;
   // CHECK-NEXT:           double _r1 = _t1 * 1;
   // CHECK-NEXT:           * _d_i += _r1;
   // CHECK-NEXT:           double _r2 = 1 * _t2;
@@ -795,7 +846,7 @@ int main() {
 
   auto d_const_volatile_rval_ref_mem_fn_j = clad::gradient(&SimpleFunctions::const_volatile_rval_ref_mem_fn, "j");
 
-  // CHECK:   void const_volatile_rval_ref_mem_fn_grad_1(double i, double j, clad::array_ref<double> _d_j) const volatile && {
+  // CHECK:   void const_volatile_rval_ref_mem_fn_grad_1(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_j) const volatile && {
   // CHECK-NEXT:       double _d_i = 0;
   // CHECK-NEXT:       double _t0;
   // CHECK-NEXT:       double _t1;
@@ -810,6 +861,8 @@ int main() {
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:       {
   // CHECK-NEXT:           double _r0 = 1 * _t0;
+  // CHECK-NEXT:           (* _d_this).x += _r0;
+  // CHECK-NEXT:           (* _d_this).y += _r0;
   // CHECK-NEXT:           double _r1 = _t1 * 1;
   // CHECK-NEXT:           _d_i += _r1;
   // CHECK-NEXT:           double _r2 = 1 * _t2;

@@ -110,7 +110,7 @@ namespace clad {
       // allocation properly.
       for (; first != last; ++first, (void)++current) {
         ::new (const_cast<void*>(
-            static_cast<const volatile void*>(addressof(*current))))
+            static_cast<const volatile void*>(clad_addressof(*current))))
           T(std::move(*first));
       }
     }

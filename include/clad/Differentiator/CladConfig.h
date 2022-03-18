@@ -31,16 +31,16 @@ void trap(int code) {
 
 #ifdef  __CUDACC__
 template<typename T>
-__device__ T* addressof(T& r) {
+__device__ T* clad_addressof(T& r) {
   return __builtin_addressof(r);
 }
 template<typename T>
-__host__ T* addressof(T& r) {
+__host__ T* clad_addressof(T& r) {
   return std::addressof(r);
 }
 #else
 template<typename T>
-T* addressof(T& r) {
+T* clad_addressof(T& r) {
   return std::addressof(r);
 }
 #endif

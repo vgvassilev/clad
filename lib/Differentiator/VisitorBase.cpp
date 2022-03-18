@@ -444,19 +444,33 @@ namespace clad {
     return GetCladClassOfType(GetCladTapeDecl(), {T});
   }
 
-  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base, bool isArrow,
+  Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
                                           StringRef MemberFunctionName,
-                                          MutableArrayRef<Expr*> ArgExprs) {
+                                          MutableArrayRef<Expr*> ArgExprs, ValueDecl* memberDecl) {
     UnqualifiedId Member;
     Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), noLoc);
     CXXScopeSpec SS;
+    bool isArrow = Base->getType()->isPointerType();
     auto ME = m_Sema
                   .ActOnMemberAccessExpr(getCurrentScope(), Base, noLoc,
                                          isArrow ? tok::TokenKind::arrow
                                                  : tok::TokenKind::period,
                                          SS, noLoc, Member,
                                          /*ObjCImpDecl=*/nullptr)
-                  .get();
+                  .getAs<MemberExpr>();
+    // FIXME: This is a workaround and it's dependency should be removed soon.
+    // Currently, member function derivatives are not being registered properly.
+    // If there are member function derivatives overloads then only one of the
+    // overload is being found by Sema lookup.
+    // Ideally, if `MemberFunctionName` corresponds to an overloaded member
+    // function name, then `Sema::ActOnMemberAccessExpr` should return an
+    // unresolved expression and `Sema::ActOnCallExpr` should automatically
+    // resolve this unresolved expression on the basis of the call arguments
+    // provided. But currently, since only one of the member function overload
+    // is found by the lookup, unresolved expression is not created and thus, we
+    // explicitly should assign the correct member function whenever we can.
+    if (memberDecl)
+      ME->setMemberDecl(memberDecl);
     return m_Sema.ActOnCallExpr(getCurrentScope(), ME, noLoc, ArgExprs, noLoc)
         .get();
   }
@@ -561,14 +575,12 @@ namespace clad {
   }
 
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {
-    return BuildCallExprToMemFn(Base, /*isArrow=*/false,
-                                /*MemberFunctionName=*/"size", {});
+    return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"size", {});
   }
 
   Expr* VisitorBase::BuildArrayRefSliceExpr(Expr* Base,
                                             MutableArrayRef<Expr*> Args) {
-    return BuildCallExprToMemFn(Base, /*isArrow=*/false,
-                                /*MemberFunctionName=*/"slice", Args);
+    return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"slice", Args);
   }
 
   bool VisitorBase::isCladArrayType(QualType QT) {
