@@ -48,7 +48,7 @@ Clad example use::
 Features
 -----------
 
-- Requires no code modification for computing derivatives of existing codebase.
+- Requires little to no code modification for computing derivatives of existing codebase.
 - Features both reverse mode AD (backpropagation) and forward mode AD.
 - Computes derivatives of functions, member functions, functors and lambda expressions.
 - Supports large subset of C++ including if statements, for, while loops and so
@@ -57,14 +57,15 @@ Features
 - Provides direct functions for computation of Hessian matrix and Jacobian matrix.
 - Supports array differentiation, that is, it can differentiate either with 
   respect to whole arrays or particular indices of the array.
-- Features numerical differentiation support, to be used where automatic
-  differentiation is not feasible.
+- Features numerical differentiation support, to be used as a fallback where 
+  automatic differentiation is not feasible.
+
 
 .. comment::
 
    .. todo::
 
-      Add more features such as error estimation, custom derivatives etc.
+      Add more features such as error estimation, custom derivatives, class type support etc.
 
 The User Guide
 ---------------
@@ -72,10 +73,18 @@ The User Guide
 .. toctree::
    :maxdepth: 2
 
-   user/installation
-   user/gettingStarted
-   user/details
+   user/InstallationAndUsage
+   user/UsingClad
+   user/CoreConcepts
    user/reference
    user/tutorials
+   user/FAQ
    
+Citing Clad
+-------------
 
+Founders
+---------
+
+License
+--------

@@ -31,7 +31,7 @@ release = "2014"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.todo"]
+extensions = ["sphinx.ext.todo", "sphinx.ext.mathjax"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -72,7 +72,19 @@ CLAD_ROOT = current_file_dir + "/../../.."
 with open(CLAD_ROOT + "/VERSION", "r") as f:
     version = f.read()
 
-
+# latex_elements = {
+#     "preamble": r"""
+#     \usepackage{physics}
+#     """,
+#     "extrapackages": r"""
+#     \usepackage{physics}
+#     """
+# }
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+mathjax3_config = {
+    "loader": {"load": ["[tex]/physics"]},
+    "tex": {"packages": {"[+]": ["physics"]}},
+}
 if os.environ.get("CLAD_BUILD_INTERNAL_DOCS"):
     html_extra_path = [CLAD_ROOT + "/build/docs/"]
 
