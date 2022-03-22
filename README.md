@@ -3,9 +3,9 @@
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/clad/badges/platforms.svg)](https://anaconda.org/conda-forge/clad)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/clad/badges/downloads.svg)](https://anaconda.org/conda-forge/clad)
 
-| Linux & OSX: | Coverity | Codecov |
-|:---:|:---:|:---:|
-[![Linux & Osx Status](https://github.com/vgvassilev/clad/workflows/Clad-CI/badge.svg)](https://github.com/vgvassilev/clad/actions?query=workflow%3AClad-CI) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a>| [![codecov]( https://codecov.io/gh/vgvassilev/clad/branch/master/graph/badge.svg)](https://codecov.io/gh/vgvassilev/clad)
+| Linux & OSX: | Coverity | Codecov | Binder 
+|:---:|:---:|:---:| :---:|
+[![Linux & Osx Status](https://github.com/vgvassilev/clad/workflows/Clad-CI/badge.svg)](https://github.com/vgvassilev/clad/actions?query=workflow%3AClad-CI) | <a href="https://scan.coverity.com/projects/vgvassilev-clad"> <img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/16418/badge.svg"/> </a> | [![codecov]( https://codecov.io/gh/vgvassilev/clad/branch/master/graph/badge.svg)](https://codecov.io/gh/vgvassilev/clad) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb)
 
 # Conda Installation
 
@@ -38,14 +38,11 @@ mamba create -n xeus-clad -c conda-forge clad xeus-cling jupyterlab
 conda activate xeus-clad
 ```
 
-Next, running ```jupyter notebook``` will now show 3 new kernels for `C++ 11/14/17` with Clad attached. The image below is a snapshot of a custom function and a call to Clad's forward mode (part of an AD Clad & Jupyter [tutorial](https://compiler-research.org/tutorials/clad_jupyter/)). 
+Next, running ```jupyter notebook``` will show 3 new kernels for `C++ 11/14/17` with Clad attached. 
 
+Try out a Clad [tutorial](https://compiler-research.org/tutorials/clad_jupyter/) interactively in your browser through binder: 
 
-<img
-  src="./clad-jupyter-demo-readme.png"
-  alt="Alt text"
-  title="Optional title"
-  style="display: block; margin: 0 auto; max-width: 300px">
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb)
 
 ### As a plugin for Clang
 Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
