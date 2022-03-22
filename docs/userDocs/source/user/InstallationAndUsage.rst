@@ -1,12 +1,12 @@
 Clad Installation
-==================
+******************
 
 This page covers how to properly install Clad.
 
 At the moment, LLVM/Clang 5.0.x - 13.0.0 are supported.
 
 Conda Installation
---------------------
+====================
 
 Clad is available using conda <https://anaconda.org/conda-forge/clad>:
 
@@ -22,6 +22,10 @@ If you have already added ``conda-forge`` as a channel, the ``-c conda-forge`` i
     conda config --add channels conda-forge
     conda update --all
 
+
+
+Building from source
+======================
 
 Building from source (example was tested on Ubuntu 18.04 LTS and Ubuntu 20.04 LTS)
 -----------------------------------------------------------------------------------
@@ -70,4 +74,13 @@ Building from source LLVM, Clang and clad (development environment)
     cd obj
     cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="``which lit``" ../src/
     make && make install
-  
+
+How to use Clad
+=================
+
+With Jupyter Notebooks
+------------------------
+
+
+As a plugin for Clang
+-----------------------
