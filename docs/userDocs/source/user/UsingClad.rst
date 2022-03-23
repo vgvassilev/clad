@@ -451,8 +451,181 @@ An example that demonstrates differentiation of lambda expressions::
 Differentiable Class Types
 ----------------------------
 
-Custom Derivatives
----------------------
+.. note:: 
+
+   This feature is currently work in progress. Expect some adventures while
+   using it. If you do decide to go on this adventure, please consider giving 
+   your review as well on how we can improve this functionality.
+
+One of the main goal of Clad is to be able to differentiate existing codebases
+with minimal boilerplate code. All existing codebases invariably uses several
+data structures for representing different information at various stages of computations.
+Thus, we are adding support for differentiating class type objects for convenient and effective
+differentiation of existing codebases. 
+
+As per the principles of calculus, only functions are differentiable. So, what
+does it mean for a type to be differentiable? It simply means that we can perform
+calculus on the values (variables) of this type. In our particular case, we are only 
+interested in differentiation. Therefore differentiable types can be used as a parameter
+of a differentiable function, as a return type of a differentiable function etc.
+Differentiable function is any function that can represent a mathematical function.
+
+.. math::
+
+   F : X \longrightarrow Y
+
+where
+
+.. math::
+
+   X = (x_0, x_1, x_2, ...) \\
+   Y = (y_0, y_1, y_2, ...)
+
+
+For a class type to be differentiable, it should satisfy the following rules:
+
+- Class should represent a real vector space.
+- Class should have a default constructor that zero initialises the object of
+  the class.
+  Class objects initialised by the default constructor should represent
+  0 tangent vector -- that is, all real data members should be equal to 0.
+- Copy initialisation should perform deep copy initialisation. For example, 
+  after performing the initialisation `a(b)`:, 1) there should be no shared 
+  resource between `a` and `b`, and 2) values of all the associated data
+  members of `a` and `b` should be equal.
+- Class should define assignment operator that performs deep copy. 
+  For example, after performing the assignment `a = b;`: 1) there should be no 
+  shared resource between `a` and `b`, and 2) values of all the associated data
+  members of `a` and `b` should be equal.
+  
+
+In general, type of derivative of a variable of type 'YType' with respect to
+a variable of type 'XType' is a function of both 'YType' and 'XType'. Therefore,
+:math:`DerivativeType = f(YType, XType)`. Intuitively, derivative type should be
+able to represent all the derivatives that are obtained on differentiating a variable
+`y` with respect to a variable `x`. We will obtain more than one derivative if either
+or both of `x` and `y` are aggregate types.
+
+In case when both `y` and `x` are built-in scalar numerical type, as your 
+intuition probably suggests, the derivative type is also a built-in scalar 
+numerical type. Things get more complicated when one or both the types
+are aggregate types. When used in a computation, aggregate types -- or more generally, 
+class types -- represent a mathematical space. In the specific case when either of `y` 
+or `x` is a built-in numerical scalar type, the derivative type can be considered
+to be the other type. For example, consider the following aggregate type::
+
+  struct Vector {
+    double data[5];
+  };
+
+If we are differentiating a variable `v` of type `Vector` with respect to a variable `x` of type `double`.
+Then, the derivative (tangent vector) type is taken as the `Vector` type. Mathematically, let `Vector` represents
+a vector space :math:`V`, then the following relations holds true:
+
+.. math::
+  x \in \mathbb{R} \\
+  v \in V \\
+  \pdv{v}{x} \in V
+
+If :math:`\pdv{v}{x}` is stored in a variable `d_v`. Then we can access the individual 
+derivatives as follows::
+
+  d_v.data[0];  // derivative of v.data[0] w.r.t x
+  d_v.data[1];  // derivative of v.data[1] w.r.t x
+  .. and so on ..
+
+Similarly, if we are differentiating a variable `y` of type `double` with respect to a variable `v` of type `Vector`.
+Then, in this case as well, the derivative (cotangent) type can be taken as the `Vector` type. 
+If :math:`\pdv{x}{v}` is stored in a variable `d_v`. Then we can access the individual derivatives as follows::
+
+  d_v.data[0];  // derivative of x w.r.t v.data[0]
+  d_v.data[1];  // derivative of x w.r.t v.data[1]
+  .. and so on ..
+
+Currently, class type support have the following limitations:
+
+- Calls to member functions are not supported
+- Calls to overloaded operators are not supported
+- Initialising class type variables using non-default constructors that take 
+  non-literal arguments (non-zero derivatives) are not supported.
+- Class cannot have pointer or reference data members.
+
+Class type support is under active development and thus, most of these 
+limitations will be removed soon.
+
+Specifying Custom Derivatives
+-------------------------------
+
+At times Clad may be unable to differentiate your function (e.g. if its definition is 
+in a library and the source code is not available) or an efficient/more numerically 
+stable expression for derivatives may be known that couldn't be computed just by applying 
+the rules of automatic differentiation. In such cases, it is useful 
+to be able to specify custom derivatives for the function.
+
+Clad supports this functionality by allowing the user to specify their own custom derivatives
+pushforward and pullback functions in the namespace ``clad::custom_derivatives::``. 
+For a function ``FNAME`` one can specify:
+
+- a custom derivative pushforward function by defining a function
+  ``FNAME_pushforward`` inside the namespace ``clad::custom_derivatives::``.
+- a custom derivative pullback function by defining a function
+  ``FNAME_pullback`` inside the namespace ``clad::custom_derivatives::``.
+
+When Clad will encounter a function ``FNAME``, it will first search for a 
+suitable custom derivative function definition within the custom_derivatives namespace. 
+Provided no definition was found, Clad will proceed to automatically derive the function.
+
+Please read :ref:`Pushforward and Pullback Functions` section to get better understanding 
+of them.
+
+.. note::
+
+   Currently, there is no way of specifying custom derivative function for 
+   member functions. This limitation will be removed soon.
+
+Example:
+
+- Suppose that you have a function ``my_pow(x, y)`` which computes ``x`` to 
+  the power of ``y``. In this example, Clad is not able to differentiate ``my_pow``'s 
+  body 
+  (e.g. it calls an external library or uses some non-differentiable approximation)::
+
+    double my_pow(double x, double exponent) { // something non-differentiable here... }
+
+However, the analytical formulas of its derivatives are known, thus one can easily 
+specify custom derivatives::
+
+  namespace clad {
+    namespace custom_derivatives {
+      double my_pow_pullback(double x, double exponent, double d_x,
+                             double d_exponent) {
+        return exponent * my_pow(x, exponent - 1) * d_x +
+               (my_pow(x, exponent) * ::std::log(x)) * d_exponent;
+      }
+    } 
+  } 
+
+Moreover, a custom gradient can be specified::
+
+  namespace clad {
+    namespace custom_derivatives {
+      void my_pow_pullback(double x, double exponent, double d_y,
+                           clad::array_ref<double> d_x,
+                           clad::array_ref<double> exponent) {
+        double t = my_pow(x, exponent-1);
+        *d_x += t * d_y;
+        *d_exponent += t * x * ::std::log(x) * d_y;
+      }
+    }
+  }
+
+Whenever Clad will encounter ``my_pow`` inside a differentiated function, it 
+will first try to find and use the provided custom derivative funtion before
+attempting to automatically differentiate it.
+
+.. note::
+   Clad provides custom derivatives for some mathematical functions from `<cmath>` by default.
+
 
 Numerical Differentiation Fallback
 ====================================
