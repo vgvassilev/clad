@@ -353,8 +353,100 @@ function and the size of the `clad::array_ref` should be at least the square of 
 
 Error estimation: This interface is the same as with reverse mode.
 
-Functor Support
------------------
+Differentiating Functors and Lambdas
+-------------------------------------
+
+Despite significant differences, differentiating functors and lambda
+expressions is remarkably similar to differentiating ordinary functions.
+
+Similarly, computing hessian matrix and jacobian matrix of functors and
+lambda expressions is also similar to computing hessian matrix and 
+jacobian matrix of ordinary functions.
+
+Differentiating functors and lambdas means differentiating the call operator 
+(operator()) member function defined by the functor and lambda type and 
+executing the differentiated function using a reference to the functor object.
+
+A self-explanatory example that demonstrates the differentiation of functors::
+
+  #include "clad/Differentiator/Differentiator.h"
+  
+  // A class type with user-defined call operator
+  class Equation {
+    double m_x, m_y;
+  
+    public:
+    Equation(double x, double y) : m_x(x), m_y(y) {}
+    double operator()(double i, double j) {
+      return m_x*i*j + m_y*i*j;
+    }
+    void setX(double x) {
+      m_x = x;
+    }
+  };
+  
+  int main() {
+    Equation E(3, 5);
+  
+    // Functor is an object of any type which have user defined call operator.
+    //
+    // Clad differentiation functions can directly differentiate functors.
+    // Functors can be passed to clad differentiation functions in two distinct
+    // ways:
+  
+    // 1) Pass by reference
+    // differentiates `E` wrt parameter `i`
+    // object `E` is saved in the `CladFunction` object `d_E`
+    auto d_E = clad::differentiate(E, "i");
+  
+    // 2) Pass as pointers
+    // differentiates `E` wrt parameter `i`
+    // object `E` is saved in the `CladFunction` object `d_E_pointer`
+    auto d_E_pointer = clad::differentiate(&E, "i");
+  
+    // calculate differentiation of `E` when (i, j) = (7, 9)
+    double res1 = d_E.execute(7, 9);  // prints 66
+    double res2 = d_E_pointer.execute(7, 9);  // prints 66
+  }
+
+Functors and lambda expressions can be passed both by reference and by pointers.
+Therefore, the two differentiation calls shown below are equivalent::
+
+  Experiment E;  // a functor
+  // passing function by reference
+  auto d_E = clad::differentiate(E, "i");
+
+and::
+
+  Experiment E;  // a functor
+  // passing function by pointer
+  auto d_E = clad::differentiate(&E, "i");
+
+An example that demonstrates differentiation of lambda expressions::
+
+  int main() {
+    auto lambda = [](double i, double j) {
+      return i*j;
+    };
+    // Pass by reference
+    auto lambda_grad = clad::gradient(lambda);
+    // Can be passed by pointer as well!!
+    auto lambda_grad_pointer = clad::gradient(&lambda);
+
+    double d_i_1, d_j_1, d_i_2, d_j_2;
+    d_i_1 = d_j_1 = d_i_2 = d_j_2 = 0;
+
+    lambda_grad.execute(3, 5, &d_i_1, &d_j_1);
+    lambda_grad_pointer.execute(3, 5, &d_i_2, &d_j_2);
+
+    std::cout<<d_i_1<<" "<<d_j_1<<"\n"; // prints 5 3
+    std::cout<<d_i_2<<" "<<d_j_2<<"\n"; // prints 5 3
+  }
+
+.. note::
+
+   Functor class should not contain multiple overloaded call operators. 
+   This restriction will be removed in the future.  
 
 Differentiable Class Types
 ----------------------------
