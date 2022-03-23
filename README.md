@@ -122,7 +122,7 @@ int main() {
     
     // Execute the hessian function
     f_hess.execute(/*x=*/3, /*y=*/4, mat_f_ref);
-    std::cout << "[" << mat_f_ref[0] << ", " << mat_f_ref[1] << ", " 
+    std::cout << "[" << mat_f_ref[0] << ", " << mat_f_ref[1] << "\n  " 
                      << mat_f_ref[2] << ", " << mat_f_ref[3] << "]";
     
     // When arrays are involved the array indexes that are to be differentiated needs to be specified
@@ -134,19 +134,18 @@ int main() {
 
 ### Jacobian mode - `clad::jacobian`
 
-Clad can produce the jacobian of a function using its reverse mode. 
+Clad can produce the jacobian of a function using its reverse mode. It returns the jacobian matrix as a flattened
+vector in row major format.
 
 `clad::jacobian(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
 1. `f` is a pointer to a function or a method to be differentiated
 2. `ARGS` is either:
-    * not provided, then `f` is differentiated w.r.t. its every argument except in the case of arrays where it needs to
-      be provided
-    * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`
-      or in case of arrays `"x[0:2]"`)
+    * not provided, then `f` is differentiated w.r.t. its every argument
+    * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`)
 
 The generated function has `void` return type and same input arguments. The function has an additional argument of
-type `clad::array_ref<T>`, where `T` is the return type of `f`. This `clad::array_ref` variable stores the hessian
-matrix. *The caller is responsible for allocating and zeroing-out the hessian storage*. Example:
+type `T *`, where `T` is the pointee type of the output (the last variable) of `f`. This variable stores the jacobian 
+matrix. *The caller is responsible for allocating and zeroing-out the jacobian storage*. Example:
 
 ```cpp
 #include "clad/Differentiator/Differentiator.h"
@@ -155,10 +154,23 @@ matrix. *The caller is responsible for allocating and zeroing-out the hessian st
 void h(double a, double b double output[]) {
     output[0] = a * a * a;
     output[1] = a * a * a + b * b * b;
+    output[2] = 2 * (a + b);
 }
 
 int main() {
-    clad::jacobian(h)
+    // This sets all the input variables (i.e a and b) as independent variables 
+    auto h_jac = clad::jacobian(h);
+    
+    // The jacobian matrix size should be the number of 
+    // independent variables * the number of outputs of the original function
+    // In this case it is 2 * 3 = 6
+    double jac[6] = {0};
+    double output[3] = {0};
+    h_jac.execute(/*a=*/3, /*b=*/4, output, jac);
+    
+    std::cout << jac[0] << " " << jac[1] << std::endl
+              << jac[2] << " " << jac[3] << std::endl
+              << jac[4] << " " << jac[5] << std::endl;
 }
 ```
 
