@@ -89,7 +89,78 @@ std::cout << "dy: " << result2[0] << ' ' << "dx: " << result2[1] << std::endl;
 ```
 ### Hessian mode - `clad::hessian`
 
+Clad can produce the hessian matrix of a function using its forward and reverse mode capabilities. 
+Its interface is similar to reverse mode but differs when arrays are involved. It returns the matrix as a flattened 
+vector in row major format.
+
+`clad::hessian(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
+1. `f` is a pointer to a function or a method to be differentiated
+2. `ARGS` is either:
+    * not provided, then `f` is differentiated w.r.t. its every argument except in the case of arrays where it needs to
+      be provided
+    * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`
+      or in case of arrays `"x[0:2]"`) 
+
+The generated function has `void` return type and same input arguments. The function has an additional argument of 
+type `clad::array_ref<T>`, where `T` is the return type of `f`. This `clad::array_ref` variable stores the hessian
+matrix. *The caller is responsible for allocating and zeroing-out the hessian storage*. Example:
+```cpp
+#include "clad/Differentiator/Differentiator.h"
+#include <iostream>
+
+double f(double x, double y) { return x * y; }
+double g(double x, double y[2]) { return x * y[0] * y[1]; }
+
+int main() {
+    // Since we are differentiating variables that are not arrays the interface
+    // is same as in reverse mode
+    auto f_hess = clad::hessian(f);
+    // The size of the resultant matrix should be the square of the 
+    // number of independent variables
+    double mat_f[4] = {0};
+    clad::array_ref<double> mat_f_ref(mat_f, 4);
+    
+    // Execute the hessian function
+    f_hess.execute(/*x=*/3, /*y=*/4, mat_f_ref);
+    std::cout << "[" << mat_f_ref[0] << ", " << mat_f_ref[1] << ", " 
+                     << mat_f_ref[2] << ", " << mat_f_ref[3] << "]";
+    
+    // When arrays are involved the array indexes that are to be differentiated needs to be specified
+    // even if the whole array is being differentiated
+    auto g_hess = clad::hessian(g, "x, y[0:1]");
+    // The rest of the steps are the same.
+}
+```
+
 ### Jacobian mode - `clad::jacobian`
+
+Clad can produce the jacobian of a function using its reverse mode. 
+
+`clad::jacobian(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
+1. `f` is a pointer to a function or a method to be differentiated
+2. `ARGS` is either:
+    * not provided, then `f` is differentiated w.r.t. its every argument except in the case of arrays where it needs to
+      be provided
+    * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`
+      or in case of arrays `"x[0:2]"`)
+
+The generated function has `void` return type and same input arguments. The function has an additional argument of
+type `clad::array_ref<T>`, where `T` is the return type of `f`. This `clad::array_ref` variable stores the hessian
+matrix. *The caller is responsible for allocating and zeroing-out the hessian storage*. Example:
+
+```cpp
+#include "clad/Differentiator/Differentiator.h"
+#include <iostream>
+
+void h(double a, double b double output[]) {
+    output[0] = a * a * a;
+    output[1] = a * a * a + b * b * b;
+}
+
+int main() {
+    clad::jacobian(h)
+}
+```
 
 ### Floating-point error estimation - `clad::estimate_error`
 
