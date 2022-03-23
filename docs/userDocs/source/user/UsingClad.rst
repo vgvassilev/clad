@@ -126,6 +126,82 @@ Reverse Mode Automatic Differentiation
 Hessian Computation
 ----------------------
 
+We can directly compute the 
+`hessian matrix <https://en.wikipedia.org/wiki/Hessian_matrix>`_ of a
+function in Clad using the ``clad::hessian`` function.
+
+.. figure:: ../_static/hessian-matrix.png
+  :width: 400
+  :align: center
+  :alt: Hessian matrix image taken from wikipedia
+  
+  Hessian matrix when specified parameters are 
+  (x\ :sub:`1`\ , x\ :sub:`2`\ , ..., x\ :sub:`n`\ ).
+
+`clad::hessian` provides the hessian computation functionality. 
+`clad::hessian` function takes as input a source function, whose hessian have
+to be computed, and optionally, information about independent variables.
+
+Internally, ``clad::hessian`` uses both the forward mode AD and the 
+reverse mode AD to efficiently compute hessian matrix.  
+
+A self-explanatory example that demonstrates the usage of ``clad::hessian``::
+
+  #include "clad/Differentiator/Differentiator.h"
+
+  double kinetic_energy(double mass, double velocity) {
+    return mass * velocity * velocity * 0.5;
+  }
+
+  int main() {
+    // Generates all the second partial derivative columns of a Hessian matrix
+    // and stores CallExprs to them inside a single function 
+    auto hessian_one = clad::hessian(kinetic_energy);
+
+    // Can manually specify independent arguments
+    auto hessian_two = clad::hessian(kinetic_energy, "mass, velocity");
+
+    // Creates an empty matrix to store the Hessian in
+    // Must have enough space, 2 independent variables requires 4 elements (2^2=4)
+    double matrix[4];
+
+    // Prints the generated Hessian function
+    hessian_one.dump();
+    hessian_two.dump();
+
+    // Substitutes these values into the Hessian function and pipes the result
+    // into the matrix variable.
+    hessian_one.execute(10, 2, matrix);
+    hessian_two.execute(5, 1, matrix);
+  }
+
+Few important things to note about `clad::hessian`:
+
+- If no independent variable information is provided, then hessian matrix is 
+  computed by taking all differentiable function parameters as independent
+  variables.
+
+- Independent argument information is provided as a string literal with comma
+  separated names of function parameters. For example::
+
+    double product(double i, double j, double k) {
+      return i*j*k;
+    }
+    // computes hessian matrix by taking parameter 'i' and 'j' as independent 
+    // variables.
+    auto d_fn = clad::hessian(product, "i, j");
+
+- ``clad::hessian`` also supports differentiating w.r.t multiple paramters.
+
+- Array that will store the computed hessian matrix should be passed as the 
+  last argument to the call to the ``CladFunction::execute``. Array size 
+  should atleast be as much as the size required to store the hessian matrix. 
+  Passing array size less than the required size will result in undefined behaviour.
+
+.. todo::
+
+   Add details for computing hessian of array ranges.
+
 Jacobian Computation
 ----------------------
 
