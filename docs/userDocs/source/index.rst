@@ -17,12 +17,16 @@ for C++. It is based on LLVM compiler infrastructure and is a plugin for
 `Clang compiler <http://clang.llvm.org/>`_. Clad is based on source code 
 transformation. Given C++ source code of a mathematical function, it can
 automatically generate C++ code for computing derivatives of the function.
-It supports both forward-mode and reverse-mode AD. 
 
-Automatic differentiation solves all the usual problems of numerical differentiation (precision loss) 
-and symbolic differentiation (inefficient code produced). If you are just getting
-started with clad, then please checkout
-:doc:`Getting started with clad <user/gettingStarted>` and
+Clad supports large set of C++ features including `if` statements, loops, 
+`switch` statements and function calls. It supports reverse-mode AD 
+(a.k.a backpropagation) as well as forward-mode AD. It also facilitates 
+computation of hessian matrix and jacobian matrix of any arbitrary function.
+
+Automatic differentiation solves all the usual problems of numerical 
+differentiation (precision loss) and symbolic differentiation 
+(inefficient code produced). If you are just getting started with clad, then please 
+checkout :doc:`Using Clad <user/UsingClad>` and
 :doc:`Tutorials <user/tutorials>`.
 
 ----------------------
