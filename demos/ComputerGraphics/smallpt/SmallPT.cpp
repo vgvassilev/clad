@@ -53,7 +53,7 @@ struct Vec {
 
 struct Ray {
   Vec o, d; // Origin and direction
-
+  Ray() : o(), d() {}
   Ray(Vec o_, Vec d_): o(o_), d(d_) {}
 };
 
@@ -69,6 +69,7 @@ public:
   Vec e, c; // emission, color
   Refl_t refl; // reflection type (DIFFuse, SPECular, REFRactive)
 
+  Solid() : e(), c(), refl() {}
   Solid(Vec e_, Vec c_, Refl_t refl_): e(e_), c(c_), refl(refl_) {}
 
   // returns distance, 0 if nohit
@@ -83,6 +84,7 @@ public:
 class ImplicitSolid : public Solid {
 public:
 
+  ImplicitSolid() {}
   ImplicitSolid(Vec e_, Vec c_, Refl_t refl_): Solid(e_, c_, refl_) {}
 
   // Return signed distance to nearest point on solid surface
@@ -164,6 +166,7 @@ public:
   double r; // radius
   Vec p; // position
 
+  Sphere() : r(), p() {}
   Sphere(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
     r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
     // Move to Normal when execute can call polymorphic diffs
@@ -252,9 +255,9 @@ class HyperbolicSolid : public ImplicitSolid {
 public:
   double r; // radius
   Vec p; // position
-
-  HyperbolicSolid(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_):
-    r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
+  HyperbolicSolid() : r(), p() {}
+  HyperbolicSolid(double r_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
+      : r(r_), p(p_), ImplicitSolid(e_, c_, refl_) {
     // FIXME: Move to Normal when execute can call polymorphic diffs.
     auto hyperbolic_func_dx = clad::differentiate(&HyperbolicSolid::distance_func, 0);
     auto hyperbolic_func_dy = clad::differentiate(&HyperbolicSolid::distance_func, 1);

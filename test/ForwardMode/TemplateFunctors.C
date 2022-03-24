@@ -6,6 +6,7 @@
 
 template <typename T> struct Experiment {
   mutable T x, y;
+  Experiment() : x(), y() {}
   Experiment(T p_x, T p_y) : x(p_x), y(p_y) {}
   T operator()(T i, T j) { return x * i * i + y * j; }
   void setX(T val) { x = val; }
@@ -14,6 +15,8 @@ template <typename T> struct Experiment {
 // CHECK: double operator_call_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     Experiment<double> _d_this_obj;
+// CHECK-NEXT:     Experiment<double> *_d_this = &_d_this_obj;
 // CHECK-NEXT:     double _d_x = 0;
 // CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     double &_t0 = this->x;
@@ -24,6 +27,7 @@ template <typename T> struct Experiment {
 
 template <> struct Experiment<long double> {
   mutable long double x, y;
+  Experiment() : x(), y() {}
   Experiment(long double p_x, long double p_y) : x(p_x), y(p_y) {}
   long double operator()(long double i, long double j) { return x * i * i * j + y * j; }
   void setX(long double val) { x = val; }
@@ -32,6 +36,8 @@ template <> struct Experiment<long double> {
 // CHECK: long double operator_call_darg0(long double i, long double j) {
 // CHECK-NEXT:     long double _d_i = 1;
 // CHECK-NEXT:     long double _d_j = 0;
+// CHECK-NEXT:     Experiment<long double> _d_this_obj;
+// CHECK-NEXT:     Experiment<long double> *_d_this = &_d_this_obj;
 // CHECK-NEXT:     long double _d_x = 0;
 // CHECK-NEXT:     long double _d_y = 0;
 // CHECK-NEXT:     long double &_t0 = this->x;
@@ -43,6 +49,7 @@ template <> struct Experiment<long double> {
 
 template <typename T> struct ExperimentConstVolatile {
   mutable T x, y;
+  ExperimentConstVolatile() : x(), y() {}
   ExperimentConstVolatile(T p_x, T p_y) : x(p_x), y(p_y) {}
   T operator()(T i, T j) const volatile { return x * i * i + y * j; }
   void setX(T val) const volatile { x = val; }
@@ -51,6 +58,8 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK: double operator_call_darg0(double i, double j) const volatile {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     const volatile ExperimentConstVolatile<double> _d_this_obj;
+// CHECK-NEXT:     const volatile ExperimentConstVolatile<double> *_d_this = &_d_this_obj;
 // CHECK-NEXT:     double _d_x = 0;
 // CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     volatile double &_t0 = this->x;
@@ -61,6 +70,7 @@ template <typename T> struct ExperimentConstVolatile {
 
 template <> struct ExperimentConstVolatile<long double> {
   mutable long double x, y;
+  ExperimentConstVolatile() : x(), y() {}
   ExperimentConstVolatile(long double p_x, long double p_y) : x(p_x), y(p_y) {}
   long double operator()(long double i, long double j) const volatile {
     return x * i * i * j + y * j;
@@ -71,6 +81,8 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK: long double operator_call_darg0(long double i, long double j) const volatile {
 // CHECK-NEXT:     long double _d_i = 1;
 // CHECK-NEXT:     long double _d_j = 0;
+// CHECK-NEXT:     const volatile ExperimentConstVolatile<long double> _d_this_obj;
+// CHECK-NEXT:     const volatile ExperimentConstVolatile<long double> *_d_this = &_d_this_obj;
 // CHECK-NEXT:     long double _d_x = 0;
 // CHECK-NEXT:     long double _d_y = 0;
 // CHECK-NEXT:     volatile long double &_t0 = this->x;

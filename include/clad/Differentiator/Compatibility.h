@@ -594,5 +594,25 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
   return MD->getThisObjectType();
 }
 #endif
+
+#if CLANG_VERSION_MAJOR < 9
+template <typename T>
+typename std::enable_if<std::is_pointer<T>::value, T>::type EmptyOptional() {
+  return nullptr;
+}
+#elif CLANG_VERSION_MAJOR >= 9
+template <typename T> llvm::Optional<T> EmptyOptional() {
+  return llvm::Optional<T>();
+}
+#endif
+
+#if CLANG_VERSION_MAJOR < 12
+#define CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam( \
+    Node) /**/
+#else
+#define CLAD_COMPAT_SubstNonTypeTemplateParmExpr_isReferenceParameter_ExtraParam( \
+    Node)                                                                         \
+  Node->isReferenceParameter(),
+#endif
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

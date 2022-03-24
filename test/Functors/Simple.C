@@ -21,13 +21,14 @@ public:
 class Matcher {
   int target;
 public:
-  Matcher(int m) : target(m) {}
+  Matcher(int m=0) : target(m) {}
   int operator()(int x) { return x == target;}
 };
 
 class SimpleExpression {
   float x, y;
 public:
+  SimpleExpression() : x(), y() {}
   SimpleExpression(float x, float y) : x(x), y(y) {}
   float operator()(float x, float y) { return x * x + y * y;}
   float operator_call_darg0(float x, float y);
@@ -36,6 +37,8 @@ public:
 // CHECK: float operator_call_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: SimpleExpression _d_this_obj;
+// CHECK-NEXT: SimpleExpression *_d_this = &_d_this_obj;
 // CHECK-NEXT: float _d_x0 = 0;
 // CHECK-NEXT: float _d_y0 = 0;
 // CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
@@ -44,6 +47,8 @@ public:
 // CHECK: float operator_call_darg1(float x, float y) {
 // CHECK-NEXT: float _d_x = 0;
 // CHECK-NEXT: float _d_y = 1;
+// CHECK-NEXT: SimpleExpression _d_this_obj;
+// CHECK-NEXT: SimpleExpression *_d_this = &_d_this_obj;
 // CHECK-NEXT: float _d_x0 = 0;
 // CHECK-NEXT: float _d_y0 = 0;
 // CHECK-NEXT: return _d_x * x + x * _d_x + _d_y * y + y * _d_y;

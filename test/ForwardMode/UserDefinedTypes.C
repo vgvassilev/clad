@@ -5,6 +5,11 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <complex>
+
+#include "../TestUtils.h"
+#include "../PrintOverloads.h"
+
 std::pair<double, double> fn1(double i, double j) {
   std::pair<double, double> c(3, 5), d({7.00, 9.00});
   std::pair<double, double> e = d;
@@ -90,7 +95,25 @@ std::pair<double, double> fn4(double i, double j) {
 template<typename T, unsigned N>
 struct Tensor {
   T data[N] = {};
+  void updateTo(T val) {
+    for (int i=0; i<N; ++i)
+      data[i] = val;
+  }
+  T sum() {
+    T res = 0;
+    for (int i=0; i<N; ++i)
+      res += data[i];
+    return res;
+  }
 };
+
+template<typename T, unsigned N>
+T sum(Tensor<T, N>& t) {
+  T res = 0;
+  for (int i=0; i<N; ++i)
+    res += t.data[i];
+  return res;
+}
 
 Tensor<double, 5> fn5(double i, double j) {
   Tensor<double, 5> T;
@@ -116,31 +139,71 @@ Tensor<double, 5> fn5(double i, double j) {
 // CHECK-NEXT:     return _d_T;
 // CHECK-NEXT: }
 
-#define INIT(fn, ...) auto d_##fn = clad::differentiate(fn, __VA_ARGS__);
+using TensorD5 = Tensor<double, 5>;
 
-#define TEST_PAIR_OF_DOUBLES(fn, ...)                                          \
-  {                                                                            \
-    auto res = d_##fn.execute(__VA_ARGS__);                                    \
-    printf("{%.2f, %.2f}\n", res.first, res.second);                           \
-  }
+double fn6(TensorD5 t, double i) {
+  double res = 3*t.sum();
+  t.updateTo(i*i);
+  res += sum(t);
+  return res;
+}
 
-#define TEST_TENSOR_DOUBLE_5(fn, ...)                                          \
-  {                                                                            \
-    auto res = d_##fn.execute(__VA_ARGS__);                                    \
-    printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", res.data[0], res.data[1],       \
-           res.data[2], res.data[3], res.data[4]);                             \
+// CHECK: double fn6_darg1(TensorD5 t, double i) {
+// CHECK-NEXT:     TensorD5 _d_t;
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _t0 = t.sum();
+// CHECK-NEXT:     double _d_res = 0 * _t0 + 3 * t.sum_pushforward(&_d_t);
+// CHECK-NEXT:     double res = 3 * _t0;
+// CHECK-NEXT:     t.updateTo_pushforward(i * i, &_d_t, _d_i * i + i * _d_i);
+// CHECK-NEXT:     t.updateTo(i * i);
+// CHECK-NEXT:     _d_res += sum_pushforward(t, _d_t);
+// CHECK-NEXT:     res += sum(t);
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+TensorD5 fn7(double i, double j) {
+  TensorD5 t;
+  t.updateTo(7*i*j);
+  return t;
+}
+
+// CHECK: TensorD5 fn7_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     TensorD5 _d_t;
+// CHECK-NEXT:     TensorD5 t;
+// CHECK-NEXT:     double _t0 = 7 * i;
+// CHECK-NEXT:     t.updateTo_pushforward(_t0 * j, &_d_t, (0 * i + 7 * _d_i) * j + _t0 * _d_j);
+// CHECK-NEXT:     t.updateTo(_t0 * j);
+// CHECK-NEXT:     return _d_t;
+// CHECK-NEXT: }
+
+template<unsigned N>
+void print(const Tensor<double, N>& t) {
+  for (int i=0; i<N; ++i) {
+    test_utils::print(t.data[i]);
+    if (i != N-1)
+      printf(", ");
   }
+}
 
 int main() {
-  INIT(fn1, "i");
-  INIT(fn2, "i");
-  INIT(fn3, "i");
-  INIT(fn4, "i");
-  INIT(fn5, "i");
+  INIT_DIFFERENTIATE(fn1, "i");
+  INIT_DIFFERENTIATE(fn2, "i");
+  INIT_DIFFERENTIATE(fn3, "i");
+  INIT_DIFFERENTIATE(fn4, "i");
+  INIT_DIFFERENTIATE(fn5, "i");
+  INIT_DIFFERENTIATE(fn6, "i");
+  INIT_DIFFERENTIATE(fn7, "i");
 
-  TEST_PAIR_OF_DOUBLES(fn1, 3, 5);  // CHECK-EXEC: {3.00, 3.00}
-  TEST_PAIR_OF_DOUBLES(fn2, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
-  TEST_PAIR_OF_DOUBLES(fn3, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
-  TEST_PAIR_OF_DOUBLES(fn4, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
-  TEST_TENSOR_DOUBLE_5(fn5, 3, 5);  // CHECK-EXEC: {1.00, 2.00, 3.00, 4.00, 5.00}
+  TensorD5 t;
+  t.updateTo(5);
+
+  TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: {3.00, 3.00}
+  TEST_DIFFERENTIATE(fn2, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
+  TEST_DIFFERENTIATE(fn3, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
+  TEST_DIFFERENTIATE(fn4, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
+  TEST_DIFFERENTIATE(fn5, 3, 5);  // CHECK-EXEC: {1.00, 2.00, 3.00, 4.00, 5.00}
+  TEST_DIFFERENTIATE(fn6, t, 3);  // CHECK-EXEC: {30.00}
+  TEST_DIFFERENTIATE(fn7, 3, 5);  // CHECK-EXEC: {35.00, 35.00, 35.00, 35.00, 35.00}
 }
