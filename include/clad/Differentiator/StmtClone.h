@@ -113,6 +113,7 @@ namespace utils {
     DECLARE_CLONE_FN(CXXConstructExpr)
     DECLARE_CLONE_FN(CXXTemporaryObjectExpr)
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
+    DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
     // `ConstantExpr` node is only available after clang 7.
     #if CLANG_VERSION_MAJOR > 7
     DECLARE_CLONE_FN(ConstantExpr)
