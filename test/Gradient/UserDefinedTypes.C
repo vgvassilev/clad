@@ -3,9 +3,12 @@
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
-#include "../TestUtils.h"
+
 #include <utility>
 #include <complex>
+
+#include "../TestUtils.h"
+#include "../PrintOverloads.h"
 
 using pairdd = std::pair<double, double>;
 
@@ -569,11 +572,6 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
-
-namespace std {
-void print(const pairdd& p) { printf("%.2f, %.2f", p.first, p.second); }
-void print(const dcomplex& c) {printf("%.2f, %.2f", c.real(), c.imag());}
-} // namespace std
 
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {

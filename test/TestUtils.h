@@ -4,9 +4,13 @@
 
 #include <cstdio>
 #include <type_traits>
-#include <utility>
 
 namespace test_utils {
+
+template<typename T>
+void print(T t) {
+  fprintf(stderr, "Print method not defined for type: %s", typeid(t).name());
+}
 
 void print(const char* s) { printf("%s", s); }
 
@@ -96,7 +100,15 @@ void run_gradient(CF cf, Args&&... args) {
   run_gradient_impl(cf, DerivativeArgsRange(), std::forward<Args>(args)...);
 }
 
+template <class CF, class... Args>
+void run_differentiate(CF cf, Args&&... args) {
+  display(cf.execute(std::forward<Args>(args)...));
+}
+
 #define INIT_GRADIENT_ALL(fn) auto fn##_grad = clad::gradient(fn);
+
+#define INIT_DIFFERENTIATE(fn, ...)                                            \
+  auto fn##_diff = clad::differentiate(fn, __VA_ARGS__);
 
 #define INIT_GRADIENT_SPECIFIC(fn, args)                                       \
   auto fn##_grad = clad::gradient(fn, args);
@@ -109,6 +121,9 @@ void run_gradient(CF cf, Args&&... args) {
 
 #define TEST_GRADIENT(fn, numOfDerivativeArgs, ...)                            \
   test_utils::run_gradient<numOfDerivativeArgs>(fn##_grad, __VA_ARGS__);
+
+#define TEST_DIFFERENTIATE(fn, ...)                                            \
+  test_utils::run_differentiate(fn##_diff, __VA_ARGS__);
 
 #endif
 }
