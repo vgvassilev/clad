@@ -178,6 +178,80 @@ TensorD5 fn7(double i, double j) {
 // CHECK-NEXT:     return _d_t;
 // CHECK-NEXT: }
 
+using complexD = std::complex<double>;
+
+complexD fn8(double i, TensorD5 t) {
+  t.updateTo(i*i);
+  complexD c;
+  c.real(7*t.sum());
+  c.imag(9*sum(t));
+  return c;
+}
+
+// CHECK: void real_pushforward({{.*}} [[__val:.*]], std{{(::__1)?}}::complex<double> *_d_this, {{.*}} [[_d___val:[a-zA-Z_]*]]){{.*}} {
+// CHECK-NEXT:     {{(__real)?}} _d_this->[[_M_value:.*]] = [[_d___val]];
+// CHECK-NEXT:     {{(__real)?}} this->[[_M_value]] = [[__val]];
+// CHECK-NEXT: }
+
+// CHECK: void imag_pushforward({{.*}} [[__val:.*]], std{{(::__1)?}}::complex<double> *_d_this, {{.*}} [[_d___val:[a-zA-Z_]*]]){{.*}} {
+// CHECK-NEXT:     {{(__imag)?}} _d_this->[[_M_value:.*]] = [[_d___val]];
+// CHECK-NEXT:     {{(__imag)?}} this->[[_M_value]] = [[__val]];
+// CHECK-NEXT: }
+
+// CHECK: complexD fn8_darg0(double i, TensorD5 t) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     TensorD5 _d_t;
+// CHECK-NEXT:     t.updateTo_pushforward(i * i, &_d_t, _d_i * i + i * _d_i);
+// CHECK-NEXT:     t.updateTo(i * i);
+// CHECK-NEXT:     complexD _d_c(0., 0.);
+// CHECK-NEXT:     complexD c(0., 0.);
+// CHECK-NEXT:     double _t0 = t.sum();
+// CHECK-NEXT:     c.real_pushforward(7 * _t0, &_d_c, 0 * _t0 + 7 * t.sum_pushforward(&_d_t));
+// CHECK-NEXT:     c.real(7 * _t0);
+// CHECK-NEXT:     double _t1 = sum(t);
+// CHECK-NEXT:     c.imag_pushforward(9 * _t1, &_d_c, 0 * _t1 + 9 * sum_pushforward(t, _d_t));
+// CHECK-NEXT:     c.imag(9 * _t1);
+// CHECK-NEXT:     return _d_c;
+// CHECK-NEXT: }
+
+complexD fn9(double i, complexD c) {
+  complexD r;
+  c.real(i*i);
+  c.imag(c.real()*c.real());
+  r.real(i*c.real());
+  r.imag(c.real()*c.imag());
+  return r;
+}
+
+// CHECK: constexpr double real_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
+// CHECK-NEXT:     return{{( __real)?}} _d_this->[[_M_value:.*]];
+// CHECK-NEXT: }
+
+// CHECK: constexpr double imag_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
+// CHECK-NEXT:     return{{( __imag)?}} _d_this->[[_M_value:.*]];
+// CHECK-NEXT: }
+
+// CHECK: complexD fn9_darg0(double i, complexD c) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     complexD _d_c;
+// CHECK-NEXT:     complexD _d_r(0., 0.);
+// CHECK-NEXT:     complexD r(0., 0.);
+// CHECK-NEXT:     c.real_pushforward(i * i, &_d_c, _d_i * i + i * _d_i);
+// CHECK-NEXT:     c.real(i * i);
+// CHECK-NEXT:     double _t0 = c.real();
+// CHECK-NEXT:     double _t1 = c.real();
+// CHECK-NEXT:     c.imag_pushforward(_t0 * _t1, &_d_c, c.real_pushforward(&_d_c) * _t1 + _t0 * c.real_pushforward(&_d_c));
+// CHECK-NEXT:     c.imag(_t0 * _t1);
+// CHECK-NEXT:     double _t2 = c.real();
+// CHECK-NEXT:     r.real_pushforward(i * _t2, &_d_r, _d_i * _t2 + i * c.real_pushforward(&_d_c));
+// CHECK-NEXT:     r.real(i * _t2);
+// CHECK-NEXT:     double _t3 = c.real();
+// CHECK-NEXT:     double _t4 = c.imag();
+// CHECK-NEXT:     r.imag_pushforward(_t3 * _t4, &_d_r, c.real_pushforward(&_d_c) * _t4 + _t3 * c.imag_pushforward(&_d_c));
+// CHECK-NEXT:     r.imag(_t3 * _t4);
+// CHECK-NEXT:     return _d_r;
+// CHECK-NEXT: }
+
 template<unsigned N>
 void print(const Tensor<double, N>& t) {
   for (int i=0; i<N; ++i) {
@@ -195,9 +269,12 @@ int main() {
   INIT_DIFFERENTIATE(fn5, "i");
   INIT_DIFFERENTIATE(fn6, "i");
   INIT_DIFFERENTIATE(fn7, "i");
+  INIT_DIFFERENTIATE(fn8, "i");
+  INIT_DIFFERENTIATE(fn9, "i");
 
   TensorD5 t;
   t.updateTo(5);
+  complexD c(3, 5);
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: {3.00, 3.00}
   TEST_DIFFERENTIATE(fn2, 3, 5);  // CHECK-EXEC: {0.00, 0.00}
@@ -206,4 +283,6 @@ int main() {
   TEST_DIFFERENTIATE(fn5, 3, 5);  // CHECK-EXEC: {1.00, 2.00, 3.00, 4.00, 5.00}
   TEST_DIFFERENTIATE(fn6, t, 3);  // CHECK-EXEC: {30.00}
   TEST_DIFFERENTIATE(fn7, 3, 5);  // CHECK-EXEC: {35.00, 35.00, 35.00, 35.00, 35.00}
+  TEST_DIFFERENTIATE(fn8, 3, t);  // CHECK-EXEC: {210.00, 270.00}
+  TEST_DIFFERENTIATE(fn9, 3, c);  // CHECK-EXEC: {27.00, 1458.00}
 }
