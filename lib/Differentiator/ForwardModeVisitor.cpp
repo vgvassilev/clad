@@ -1170,6 +1170,10 @@ namespace clad {
     else if (opKind == UO_PostInc || opKind == UO_PostDec ||
              opKind == UO_PreInc || opKind == UO_PreDec) {
       return StmtDiff(op, diff.getExpr_dx());
+    } /* For supporting complex types */
+    else if (opKind == UnaryOperatorKind::UO_Real ||
+             opKind == UnaryOperatorKind::UO_Imag) {
+      return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     } else {
       unsupportedOpWarn(UnOp->getEndLoc());
       auto zero =
