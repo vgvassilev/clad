@@ -62,11 +62,6 @@ namespace clad {
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     bool isVectorValued = false;
-    /// Stores derivative expression of the implicit `this` pointer.
-    ///
-    /// \note `this` pointer derivative expression is always of the class object
-    /// type rather than the pointer type.
-    clang::Expr* m_ThisExprDerivative = nullptr;
     // FIXME: Should we make this an object instead of a pointer?
     // Downside of making it an object: We will need to include
     // 'MultiplexExternalRMVSource.h' file

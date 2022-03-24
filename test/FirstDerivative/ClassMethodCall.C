@@ -17,6 +17,8 @@ public:
 
   //CHECK:   int f_darg0(int x) __attribute__((always_inline)) {
   //CHECK-NEXT:       int _d_x = 1;
+  //CHECK-NEXT:       A _d_this_obj;
+  //CHECK-NEXT:       A *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x;
   //CHECK-NEXT:   }
 
@@ -28,6 +30,8 @@ public:
   //CHECK:   int g_1_darg0(int x, int y) {
   //CHECK-NEXT:       int _d_x = 1;
   //CHECK-NEXT:       int _d_y = 0;
+  //CHECK-NEXT:       A _d_this_obj;
+  //CHECK-NEXT:       A *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y;
   //CHECK-NEXT:   }
 
@@ -35,6 +39,8 @@ public:
   //CHECK:   int g_1_darg1(int x, int y) {
   //CHECK-NEXT:       int _d_x = 0;
   //CHECK-NEXT:       int _d_y = 1;
+  //CHECK-NEXT:       A _d_this_obj;
+  //CHECK-NEXT:       A *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y;
   //CHECK-NEXT:   }
 
@@ -45,12 +51,16 @@ public:
   //CHECK:   int g_2_darg0(int x, int y) {
   //CHECK-NEXT:       int _d_x = 1;
   //CHECK-NEXT:       int _d_y = 0;
+  //CHECK-NEXT:       A _d_this_obj;
+  //CHECK-NEXT:       A *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x + _d_y * y + y * _d_y;
   //CHECK-NEXT:   }
 
   //CHECK:   int g_2_darg1(int x, int y) {
   //CHECK-NEXT:       int _d_x = 0;
   //CHECK-NEXT:       int _d_y = 1;
+  //CHECK-NEXT:       A _d_this_obj;
+  //CHECK-NEXT:       A *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x + _d_y * y + y * _d_y;
   //CHECK-NEXT:   }
 
@@ -66,6 +76,8 @@ public:
   //CHECK:   float vm_darg0(float x, float y) {
   //CHECK-NEXT:       float _d_x = 1;
   //CHECK-NEXT:       float _d_y = 0;
+  //CHECK-NEXT:       A _d_this_obj;
+  //CHECK-NEXT:       A *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x + _d_y;
   //CHECK-NEXT:   }
 
@@ -83,6 +95,8 @@ public:
   //CHECK:   float vm_darg0(float x, float y) override {
   //CHECK-NEXT:       float _d_x = 1;
   //CHECK-NEXT:       float _d_y = 0;
+  //CHECK-NEXT:       B _d_this_obj;
+  //CHECK-NEXT:       B *_d_this = &_d_this_obj;
   //CHECK-NEXT:       return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
   //CHECK-NEXT:   }
 
@@ -107,6 +121,8 @@ int main () {
   //CHECK-EXEC:   float vm_darg0(float x, float y) override {
   //CHECK-EXEC-NEXT:       float _d_x = 1;
   //CHECK-EXEC-NEXT:       float _d_y = 0;
+  //CHECK-EXEC-NEXT:       B _d_this_obj;
+  //CHECK-EXEC-NEXT:       B *_d_this = &_d_this_obj;
   //CHECK-EXEC-NEXT:       return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
   //CHECK-EXEC-NEXT:   }
 

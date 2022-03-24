@@ -35,6 +35,7 @@ struct Widget {
   double i, j;
   const char* char_arr[10];
   char** p2p_char;
+  Widget() : i(0), j(0) {}
   Widget(double p_i, double p_j) : i(p_i), j(p_j) {}
   double operator()() {
     char **p;

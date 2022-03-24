@@ -73,21 +73,29 @@ int main () {
   auto f1_darg0_float_A = clad::differentiate((float(A::*)(float))&A::f1, 0);
 //CHECK: float f1_darg0(float x) {
 //CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     A _d_this_obj;
+// CHECK-NEXT:     A *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x + _d_x + _d_x;
 //CHECK-NEXT: }
   auto f1_darg0_double_A = clad::differentiate((double(A::*)(double))&A::f1, 0);
 //CHECK: double f1_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     A _d_this_obj;
+// CHECK-NEXT:     A *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x + _d_x + _d_x + _d_x;
 //CHECK-NEXT: }
   auto f1_darg0_float_B = clad::differentiate((float(B::*)(float))&B::f1, 0);
 //CHECK: float f1_darg0(float x) {
 //CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x + _d_x + _d_x + _d_x + _d_x;
 //CHECK-NEXT: }
   auto f1_darg0_int_B = clad::differentiate((int(B::*)(int))&B::f1, 0);
 //CHECK: int f1_darg0(int x) {
 //CHECK-NEXT:     int _d_x = 1;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x;
 //CHECK-NEXT: }
   // resolve to float(B::*)(float)
@@ -98,6 +106,8 @@ int main () {
   auto f1_darg0_double_B1 = clad::differentiate((double(B1::*)(double))&B1::f1, 0);
 //CHECK: double f1_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     B1 _d_this_obj;
+//CHECK-NEXT:     B1 *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x + _d_x + _d_x + _d_x + _d_x + _d_x;
 //CHECK-NEXT: }
   printf("Result is = %f\n", f1_darg0_float_A.execute(a, 2.0)); // CHECK-EXEC: Result is = 3.0000

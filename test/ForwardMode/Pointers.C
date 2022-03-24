@@ -13,6 +13,8 @@ public:
 
   // CHECK: double memFn_darg0(double i) {
   // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     Expression _d_this_obj;
+  // CHECK-NEXT:     Expression *_d_this = &_d_this_obj;
   // CHECK-NEXT:     return _d_i * i + i * _d_i;
   // CHECK-NEXT: }
 
@@ -157,7 +159,4 @@ int main() {
   NON_MEM_FN_TEST(d_nonMemFnReinterpretCast); // CHECK-EXEC: 5.00
 
   NON_MEM_FN_TEST(d_nonMemFnCStyleCast); // CHECK-EXEC: 5.00
-
-
-
 }

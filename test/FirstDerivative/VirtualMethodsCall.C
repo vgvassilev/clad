@@ -44,12 +44,16 @@ public:
 //CHECK: float vm_darg0(float x, float y) {
 //CHECK-NEXT:       float _d_x = 1;
 //CHECK-NEXT:       float _d_y = 0;
+//CHECK-NEXT:      A _d_this_obj;
+//CHECK-NEXT:      A *_d_this = &_d_this_obj;
 //CHECK-NEXT:       return _d_x + _d_y;
 //CHECK-NEXT: }
     auto vm_darg1_cf = clad::differentiate(&A::vm, 1);
 //CHECK:   float vm_darg1(float x, float y) {
 //CHECK-NEXT:       float _d_x = 0;
 //CHECK-NEXT:       float _d_y = 1;
+//CHECK-NEXT:       A _d_this_obj;
+//CHECK-NEXT:       A *_d_this = &_d_this_obj;
 //CHECK-NEXT:       return _d_x + _d_y;
 //CHECK-NEXT: }
     return vm_darg0(x, y) + vm_darg1(x, y);
@@ -150,16 +154,22 @@ int main () {
   auto f_darg0_A = clad::differentiate(&A::f, 0);
 //CHECK: float f_darg0(float x) {
 //CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     A _d_this_obj;
+// CHECK-NEXT:     A *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x;
 //CHECK-NEXT: }
   auto f_darg0_B = clad::differentiate(&B::f, 0);
 //CHECK: float f_darg0(float x) {
 //CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * x + x * _d_x;
 //CHECK-NEXT: }
   auto f_darg0_B1 = clad::differentiate(&B1::f, 0);
 //CHECK: float f_darg0(float x) {
 //CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     B1 _d_this_obj;
+// CHECK-NEXT:     B1 *_d_this = &_d_this_obj;
 //CHECK-NEXT:     float _t0 = x * x;
 //CHECK-NEXT:     return (_d_x * x + x * _d_x) * x + _t0 * _d_x;
 //CHECK-NEXT: }
@@ -173,12 +183,16 @@ int main () {
 //CHECK: float vm_darg0(float x, float y) override {
 //CHECK-NEXT:     float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 //CHECK-NEXT: }
   auto vm_darg0_B = clad::differentiate((float(B::*)(float,float))&B::vm, 0);
 //CHECK: float vm_darg1(float x, float y) override {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 //CHECK-NEXT: }
   auto vm_darg1_A = clad::differentiate((float(A::*)(float,float))&A::vm, 1);
@@ -189,24 +203,32 @@ int main () {
 //CHECK: float vm1_darg0(float x, float y) {
 //CHECK-NEXT:     float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
+// CHECK-NEXT:     A _d_this_obj;
+// CHECK-NEXT:     A *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x - _d_y;
 //CHECK-NEXT: }
   auto vm1_darg0_B = clad::differentiate((float(B::*)(float,float))&B::vm1, 0);
 //CHECK: float vm1_darg0(float x, float y) override {
 //CHECK-NEXT:    float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * x + x * _d_x - (_d_y * y + y * _d_y);
 //CHECK-NEXT: }
   auto vm1_darg1_A = clad::differentiate((float(A::*)(float,float))&A::vm1, 1);
 //CHECK: float vm1_darg1(float x, float y) {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
+// CHECK-NEXT:     A _d_this_obj;
+// CHECK-NEXT:     A *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x - _d_y;
 //CHECK-NEXT: }
   auto vm1_darg1_B = clad::differentiate((float(B::*)(float,float))&B::vm1, 1);
 //CHECK: float vm1_darg1(float x, float y) override {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
+// CHECK-NEXT:     B _d_this_obj;
+// CHECK-NEXT:     B *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * x + x * _d_x - (_d_y * y + y * _d_y);
 //CHECK-NEXT: }
   printf("Result is = %f\n", vm_darg0_A.execute(a, 2.0f, 3.0f)); // CHECK-EXEC: Result is = 1.0000
@@ -236,12 +258,16 @@ int main () {
 //CHECK: float vm_darg0(float x, float y) override {
 //CHECK-NEXT:     float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
+// CHECK-NEXT:     B1 _d_this_obj;
+// CHECK-NEXT:     B1 *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * y + x * _d_y + _d_x * y + x * _d_y;
 //CHECK-NEXT: }
   auto vm_darg1_B1 = clad::differentiate(&B1::vm, 1);
 //CHECK: float vm_darg1(float x, float y) override {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
+// CHECK-NEXT:     B1 _d_this_obj;
+// CHECK-NEXT:     B1 *_d_this = &_d_this_obj;
 //CHECK-NEXT:     return _d_x * y + x * _d_y + _d_x * y + x * _d_y;
 //CHECK-NEXT: }
   printf("Result is = %f\n", b1.m(3, 4)); // CHECK-EXEC: Result is = 14.0000

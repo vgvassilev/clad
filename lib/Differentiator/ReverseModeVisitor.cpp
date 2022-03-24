@@ -1736,7 +1736,32 @@ namespace clad {
         // Add it to the body statements.
         addToCurrentBlock(add_assign, direction::reverse);
       }
-    } else {
+    }  
+    else {
+      // FIXME: This is not adding 'address-of' operator support.
+      // This is just making this special case differentiable that is required
+      // for computing hessian:
+      // ```
+      // Class _d_this_obj;
+      // Class* _d_this = &_d_this_obj;
+      // ```
+      // This code snippet should be removed once reverse mode officially
+      // supports pointers.
+      if (opCode == UnaryOperatorKind::UO_AddrOf) {
+        if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+          if (MD->isInstance()) {
+            auto thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+            if (utils::SameCanonicalType(thisType, UnOp->getType())) {
+              diff = Visit(UnOp->getSubExpr());
+              Expr* cloneE =
+                  BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr());
+              Expr* derivedE =
+                  BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr_dx());
+              return {cloneE, derivedE};
+            }
+          }
+        }
+      }
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
       // completely
@@ -2104,7 +2129,32 @@ namespace clad {
       // value is set to 0.
       // Otherwise, for non-reference types, the initial value is set to 0.
       VDDerivedInit = getZeroInit(VD->getType());
-      if (isVDRefType) {
+
+      // `specialThisDiffCase` is only required for correctly differentiating
+      // the following code: 
+      // ```
+      // Class _d_this_obj;
+      // Class* _d_this = &_d_this_obj;
+      // ```
+      // Computation of hessian requires this code to be correctly
+      // differentiated. 
+      bool specialThisDiffCase = false;
+      if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+        if (VDDerivedType->isPointerType() && MD->isInstance()) {
+          specialThisDiffCase = true;
+        }
+      }
+
+      // FIXME: Remove the special cases introduced by `specialThisDiffCase`
+      // once reverse mode supports pointers. `specialThisDiffCase` is only
+      // required for correctly differentiating the following code:
+      // ```
+      // Class _d_this_obj;
+      // Class* _d_this = &_d_this_obj;
+      // ```
+      // Computation of hessian requires this code to be correctly
+      // differentiated.
+      if (isVDRefType || specialThisDiffCase) {
         VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
         initDiff = Visit(VD->getInit());
         if (initDiff.getExpr_dx())
@@ -2897,6 +2947,11 @@ namespace clad {
             m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"),
             derivativeFnType->getParamType(dParamTypesIdx));
         paramDerivatives.push_back(thisDerivativePVD);
+
+        if (thisDerivativePVD->getIdentifier())
+          m_Sema.PushOnScopeChains(thisDerivativePVD, getCurrentScope(),
+                                   /*AddToContext=*/false);
+
         Expr* deref = BuildOp(UnaryOperatorKind::UO_Deref,
                               BuildDeclRef(thisDerivativePVD));
         m_ThisExprDerivative = utils::BuildParenExpr(m_Sema, deref);

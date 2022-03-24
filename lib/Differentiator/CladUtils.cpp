@@ -224,7 +224,7 @@ namespace clad {
       if (isArrayOrPointerType(T))
         T = T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
       T = T.getNonReferenceType();
-      if (T->isRealType() || T->isRecordType())
+      if (T->isRealType() || T->isStructureOrClassType())
         return true;
       return false;
     }
