@@ -194,9 +194,55 @@ Custom Derivatives
 Numerical Differentiation Fallback
 ====================================
 
+In the cases that Clad is unable to differentiate a function by itself or cannot see the function's definition, it will 
+numerically differentiate the function. Clad uses the `Five-Point Stencil Method <https://en.wikipedia.org/wiki/Five-point_stencil>`_ 
+with support for differentiating most scalar or array (pointer) types. For a comprehensive demo on numerically 
+differentiating custom/user-defined types, you can checkout the following `demo <https://github.com/vgvassilev/clad/blob/master/demos/CustomTypeNumDiff.cpp>`_.   
+
+This default behavior can be disabled by passing the `-DCLAD_NO_NUM_DIFF` flag during the compilation of 
+your programs. This will cause Clad to fail and error out if it encounters something non-differentiable. 
+Another interesting bit of information that can be solicited from numerical differentiation calls is error information. 
+Since numerical differentiation is only a way to estimate the derivative, it is essential to keep track of any associated 
+errors. Error estimates from numerical differentiation calls can be printed to stdout using the `-fprint-num-diff-errors` 
+compilation flag. This flag is overridden by the `-DCLAD_NO_NUM_DIFF` flag.
 
 Error Estimation
 ======================
+
+Clad is capable of annotating a given function with floating point error estimation code using reverse mode AD. 
+An interface similar to `clad::gradient(f)` is provided as follows:
+
+`clad::estimate_error(f)`, where `f` is a pointer to the function or method to be annotated with floating point 
+error estimation code.
+
+The function signature of the generated code is the same as from `clad::gradient(f)` with an extra argument at 
+the end of type `double&`, which returns the total floating point error in the function by reference. For a user 
+function `double f(double, double)` example usage is described below::
+
+  double f(double x, double y) {
+    double z;
+    z = x + y;
+    return z
+  }
+  
+  int main() {
+    // Generate the floating point error estimation code for 'f'.
+    auto df = clad::estimate_error(f);
+    // Print the generated code to standard output.
+    df.dump();
+    // Declare the necessary variables.
+    double x, y, d_x, d_y, final_error = 0;
+    // Finally call execute on the generated code.
+    df.execute(x, y, &d_x, &d_y, final_error);
+    // After this, 'final_error' contains the floating-point error in function 'f'.
+  }
+
+The above example generates the floating point error estimation code using an in-built taylor approximation model. 
+However, Clad is capable of using any user defined custom model, for information on how to use you own custom model, 
+please visit this `demo <https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel>`_. 
+This `tutorial <https://compiler-research.org/tutorials/fp_error_estimation_clad_tutorial/>`_
+provides a comprehensive guide on building your own custom models and understanding the working behind the error 
+estimation framework.
 
 Debug functionalities
 ======================

@@ -116,10 +116,108 @@ Differentiable Class Types
 
 .. todo:: todo
 
-Numerical Differentiation Core Concepts
-==========================================
+Numerical Differentiation
+============================
 
-.. todo:: todo
+Clad currently provides two interfaces packaged in a single template header file 
+that allows users to easily use numerical differentiation standalone. The two 
+interfaces and their usages are mentioned as follows:
+
+* `forward_central_difference`
+
+The numerical differentiation function that differentiates a multi-argument 
+function with respect to a single argument only. The position of the argument 
+is specified by the user or Clad. This interface is mainly used in Clad's 
+forward mode for call expressions with single arguments. However, it can also 
+easily be extended for jacobian-vector products. The signature of this 
+method is as follows::
+
+  template < typename F, typename T, typename... Args>
+    precision forward_central_difference(F f, T arg, std::size_t n, bool printErrors, Args&&... args){
+  	// Clad has enough type generality that it can accept 
+  	// functions with a variety of input types.
+  	// Here:
+  	// f(args...) - is the target function.
+  	// n - is the position of the parameter with respect to which the derivative is calculated.
+  	// printErrors - a flag to enable printing of error estimates.
+  }
+
+* `central_difference`
+
+The numerical differentiation function that differentiates a multi-argument 
+function with respect to all the input arguments. This function returns the 
+partial derivative of the function with respect to every input, and as such 
+is used in Clad's reverse mode. The signature of the method is as follows::
+
+  template <typename F, std::size_t... Ints,
+              typename RetType = typename clad::return_type<F>::type,
+              typename... Args>
+    void central_difference(F f, clad::tape_impl<clad::array_ref<RetType>>& _grad, bool printErrors, Args&&... args) {
+  	// Similar to the above method, here:
+  	// f(args...) - is the target function.
+  	// grad - is a 2D data structure to store all our derivatives as grad[paramPosition][indexPosition]
+  	// printErrors - a flag to enable printing of error estimates.
+  }
+
+The above uses functions from the standard math library and so is required 
+to link against the same. To avoid this (and disable numerical differentiation) 
+use `-DCLAD_NO_NUM_DIFF` at the target program's compile time.
+
+
+Implementation Details 
+-------------------------
+
+Clad uses the five-point stencil method to calculate numerical derivatives. Here,
+the target function is executed at least 4 times for each input parameter. Since the 
+number of parameters can be different across multiple candidate functions, we use an 
+add-on function to correctly select the parameter whose derivative is to be calculated.
+The function is described as follows:: 
+
+  // This function enables 'selecting' the correct parameter to update. 
+  // Without this function, Clad will not be able to figure out which x should be updated to x ± h. 
+  template <typename T>
+  T updateIndexParamValue(T arg, std::size_t idx, std::size_t currIdx, int multiplier, precision& h_val,...) {
+      if (idx == currIdx) {
+  	    // selects the correct ith term.
+  	    // assigns it an h_val (h)
+  	    // and returns arg + multiplier * h_val.
+      }
+      return arg;
+    }
+
+Here, Idx is the current parameter and currIdx is the parameter to differentiate with 
+respect to in that pass. If the indices do not match, the argument is returned unchanged.
+
+This function is then applied to all the arguments and is forwarded to the target function `f`::
+
+  fxh = f(updateIndexParamValue(args, indexSeq/*integer index sequence for the parameter pack, 
+  				Args allows giving an index to each parameter in the pack.*/,
+  				i /*index to be differentiated wrt*/,
+  				/*±1*/,
+  				h/*this is returned*/,
+  				/*other params omitted for brevity*/)...);
+
+The above line results in the calculation of `f(..., xi ± h, ...)`. Finally the whole algorithm 
+for calculating the gradient of a function (numerically) is as follows::
+
+  for each i in args, do:
+
+    fx1 := f(updateIndexParamValue(args, idexSeq, i, 1, h, /*other params*/)...)
+
+    fx2 := f(updateIndexParamValue(args, idexSeq, i, -1, h, /*other params*/)...)
+
+    grad[i][0] := (fx1 - fx2)/(2 * h)
+
+  end for
+
+
+Currently Supported Use Cases
+--------------------------------
+
+* Differentiating multi-arg function calls.
+* Differentiating calls with pointer/array input.
+* Differentiating user-defined types.
+* Printing of error estimates.
 
 Error Estimation Core Concepts
 ================================
