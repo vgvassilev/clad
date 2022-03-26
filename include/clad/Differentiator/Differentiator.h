@@ -20,12 +20,12 @@
 
 extern "C" {
   int printf(const char* fmt, ...);
-  char* strcpy (char* destination, const char* source);
-  size_t strlen(const char*);
 #if defined(__APPLE__) || defined(_MSC_VER)
+  extern size_t strlen(const char*);
   void* malloc(size_t);
   void free(void *ptr);
 #else
+  extern size_t strlen(const char*) __THROW __attribute_pure__ __nonnull ((1));
   void* malloc(size_t) __THROW __attribute_malloc__ __wur;
   void free(void *ptr) __THROW;
 #endif
