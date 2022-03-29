@@ -14,7 +14,7 @@
 
 Clad is a source-transformation [automatic differentiation (AD)](https://en.wikipedia.org/wiki/Automatic_differentiation) library for C++,<br/>implemented as a plugin for the [Clang compiler](http://clang.llvm.org/). 
 
-#### [Usage](#how-to-use-clad) | [Installation](#how-to-install) | [Further Reading](#further-reading) | [Documentation](https://trying-read-the-docs.readthedocs.io/en/latest/index.html) | [Contributing](#how-to-contribute)
+#### [Usage](#how-to-use-clad) | [Installation](#how-to-install) | [Further Reading](#further-reading) | [Documentation](https://clad.readthedocs.io/en/latest/index.html) | [Contributing](#how-to-contribute)
 </div>
 
 ## About Clad
@@ -196,7 +196,7 @@ df.execute(x, y, &d_x, &d_y, final_error);
 ```
 The above example generates the the error code using an in-built taylor approximation model. However, clad is capable of using any user defined custom model, for information on how to use you own custom model, please visit [this demo](https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel).
 
-More detail on the APIs can be found under clad's [user documentation](https://trying-read-the-docs.readthedocs.io/en/latest/index.html).
+More detail on the APIs can be found under clad's [user documentation](https://clad.readthedocs.io/en/latest/index.html).
 ### Compiling and executing your code with clad
 
 #### Using Jupyter Notebooks
@@ -343,7 +343,7 @@ Whenever Clad will encounter `my_pow` inside differentiated function, it will fi
 
 Note: Clad provides custom derivatives for some mathematical functions from `<cmath>` inside `clad/Differentiator/BuiltinDerivatives.h`.
 
-Details on custom derivatives, other supported C++ syntax (already supported or in-progress) and further resources can be found over at clad's [user documentation](https://trying-read-the-docs.readthedocs.io/en/latest/index.html).
+Details on custom derivatives, other supported C++ syntax (already supported or in-progress) and further resources can be found over at clad's [user documentation](https://clad.readthedocs.io/en/latest/index.html).
 
   ## Citing Clad
 ```latex
