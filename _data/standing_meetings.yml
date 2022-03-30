@@ -5,6 +5,14 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Heterogenous AD with Clad - CUDA kernels diff support - Project Roadmap"
+      date: 2022-03-23 14:00:00 +0200
+      speaker: "Ioana Ifrim"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_23_03_2022_Ioana-Heterogenous_AD_with_Clad_CUDA_kernels_differentiation_support.pdf)"
+    - title: "Improving the reflection layer in cppyy using Cling - Project Roadmap"
+      date: 2022-03-09 14:00:00 +0200
+      speaker: "Baidyanath Kundu"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_09_03_2022_Baidyanath-Improving_the_reflection_layer_in_cppyy_using_Cling.pdf)"
     - title: "The CaaS Project. Plans Q1, Q2"
       date: 2022-02-16 14:00:00 +0200
       speaker: "Vassil Vassilev"
@@ -17,11 +25,7 @@
       date: 2022-01-05 14:00:00 +
       speaker: "Parth Arora"
       link: "[Slides](/assets/presentations/CaaS_Weekly_05_01_2022_Parth-Add_Support_For_Differentiating_wrt_User_Defined_Types.pdf)"
-    - title: "Improving the reflection layer in cppyy using Cling - Project Roadmap"
-      date: 2022-03-09 14:00:00 +0200
-      speaker: "Baidyanath Kundu"
-      link: "[Slides](/assets/presentations/CaaS_Weekly_09_03_2022_Baidyanath-Improving_the_reflection_layer_in_cppyy_using_Cling.pdf)"
-
+    
 - name: "CLAD Bi-weekly Meeting"
   date: Tuesdays (every second and fourth week of the month)
   time_cest: "15:00"
