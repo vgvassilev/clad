@@ -89,6 +89,9 @@ namespace clad {
     StmtDiff
     VisitCXXTemporaryObjectExpr(const clang::CXXTemporaryObjectExpr* TOE);
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
+    StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
+    StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
+
   private:
     /// Helper function for differentiating the switch statement body.
     ///

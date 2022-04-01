@@ -292,5 +292,27 @@ namespace clad {
       return T.getAsString().find("ValueAndPushforward") !=
              std::string::npos;
     }
+
+    clang::SourceRange GetValidSRange(clang::Sema& semaRef) {
+      SourceLocation validSL = GetValidSLoc(semaRef);
+      return SourceRange(validSL, validSL);
+    }
+
+    CXXNewExpr* BuildCXXNewExpr(Sema& semaRef, QualType qType,
+                                clang::Expr* arraySize, Expr* initializer,
+                                clang::TypeSourceInfo* TSI) {
+      auto& C = semaRef.getASTContext();
+      if (!TSI)
+        TSI = C.getTrivialTypeSourceInfo(qType);
+      auto newExpr =
+          semaRef
+              .BuildCXXNew(
+                  SourceRange(), false, noLoc, MultiExprArg(), noLoc,
+                  SourceRange(), qType, TSI,
+                  (arraySize ? arraySize : clad_compat::EmptyOptional<Expr*>()),
+                  GetValidSRange(semaRef), initializer)
+              .getAs<CXXNewExpr>();
+      return newExpr;
+    }
   } // namespace utils
 } // namespace clad
