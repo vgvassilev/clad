@@ -262,17 +262,25 @@ namespace clad {
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
-    if (!(args.size() == FD->getNumParams() &&
-          std::equal(FD->param_begin(), FD->param_end(), std::begin(args)))) {
-      for (auto arg : args) {
-        auto it = std::find(FD->param_begin(), FD->param_end(), arg);
-        auto idx = std::distance(FD->param_begin(), it);
-        gradientName += ('_' + std::to_string(idx));
+    if(isVectorValued){
+      // If Jacobian is asked, the last parameter is the result parameter
+      // and should be ignored
+      if (args.size() != FD->getNumParams()-1){
+        for (auto arg : args) {
+          auto it = std::find(FD->param_begin(), FD->param_end()-1, arg);
+          auto idx = std::distance(FD->param_begin(), it);
+          gradientName += ('_' + std::to_string(idx));
+        }
+      }
+    }else{
+      if (args.size() != FD->getNumParams()){
+        for (auto arg : args) {
+          auto it = std::find(FD->param_begin(), FD->param_end(), arg);
+          auto idx = std::distance(FD->param_begin(), it);
+          gradientName += ('_' + std::to_string(idx));
+        }
       }
     }
-
-    if (isVectorValued)
-      args.pop_back();
 
     IdentifierInfo* II = &m_Context.Idents.get(gradientName);
     DeclarationNameInfo name(II, noLoc);
