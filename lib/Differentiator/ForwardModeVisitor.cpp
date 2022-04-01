@@ -1202,6 +1202,10 @@ namespace clad {
     else if (opKind == UnaryOperatorKind::UO_Real ||
              opKind == UnaryOperatorKind::UO_Imag) {
       return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    } else if (opKind == UnaryOperatorKind::UO_Deref) {
+      return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
+      return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     } else {
       unsupportedOpWarn(UnOp->getEndLoc());
       auto zero =
@@ -1335,6 +1339,7 @@ namespace clad {
     VarDecl* VDClone =
         BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
                      VD->isDirectInit(), nullptr, VD->getInitStyle());
+    // FIXME: Create unique identifier for derivative. 
     VarDecl* VDDerived = BuildVarDecl(
         VD->getType(), "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(),
         VD->isDirectInit(), nullptr, VD->getInitStyle());
@@ -1826,5 +1831,47 @@ namespace clad {
 
   StmtDiff ForwardModeVisitor::VisitCXXThisExpr(const clang::CXXThisExpr* CTE) {
     return StmtDiff(const_cast<CXXThisExpr*>(CTE), m_ThisExprDerivative);
+  }
+
+  StmtDiff ForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
+    StmtDiff initializerDiff;
+    if (CNE->hasInitializer())
+      initializerDiff = Visit(CNE->getInitializer());
+
+    Expr* clonedArraySizeE = nullptr;
+    Expr* derivedArraySizeE = nullptr;
+    if (CNE->getArraySize()) {
+      // FIXME: Only compute clone of original expression.
+      // We can use `clone(..)`, but `clone` does not perform declaration
+      // replacements and thus can cause issues.
+      clonedArraySizeE =
+          Visit(clad_compat::Optional_GetValue(CNE->getArraySize())).getExpr();
+      // Array size is a non-differentiable expression, thus the original value
+      // should be used in both the cloned and the derived statements.
+      derivedArraySizeE = Clone(clonedArraySizeE);
+    }
+    Expr* clonedNewE = utils::BuildCXXNewExpr(
+        m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
+        initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+    Expr* derivedNewE = utils::BuildCXXNewExpr(
+        m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
+        initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+    return {clonedNewE, derivedNewE};
+  }
+
+  StmtDiff
+  ForwardModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
+    StmtDiff argDiff = Visit(CDE->getArgument());
+    Expr* clonedDeleteE =
+        m_Sema
+            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
+                            argDiff.getExpr())
+            .get();
+    Expr* derivedDeleteE =
+        m_Sema
+            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
+                            argDiff.getExpr_dx())
+            .get();
+    return {clonedDeleteE, derivedDeleteE};
   }
 } // end namespace clad

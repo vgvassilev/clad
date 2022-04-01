@@ -216,6 +216,21 @@ namespace clad {
     bool IsStaticMethod(const clang::FunctionDecl* FD);
 
     bool IsCladValueAndPushforwardType(clang::QualType T);
+
+    /// Returns a valid `SourceRange` to be used in places where clang 
+    /// requires a valid `SourceRange`.
+    clang::SourceRange GetValidSRange(clang::Sema& semaRef);
+
+    /// Builds and returns `new` expression.
+    ///
+    /// This function is just a convenient routine that internally calls
+    /// `clang::Sema::BuildCXXNew`.
+    clang::CXXNewExpr* BuildCXXNewExpr(clang::Sema& semaRef,
+                                       clang::QualType qType,
+                                       clang::Expr* arraySize,
+                                       clang::Expr* initializer,
+                                       clang::TypeSourceInfo* TSI = nullptr);
+
   } // namespace utils
 }
 

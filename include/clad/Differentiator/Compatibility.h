@@ -614,5 +614,13 @@ template <typename T> llvm::Optional<T> EmptyOptional() {
     Node)                                                                         \
   Node->isReferenceParameter(),
 #endif
+
+#if CLANG_VERSION_MAJOR < 9
+template <typename T> const T& Optional_GetValue(const T& val) { return val; }
+#else
+template <typename T> const T& Optional_GetValue(const llvm::Optional<T>& opt) {
+  return opt.getValue();
+}
+#endif
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY
