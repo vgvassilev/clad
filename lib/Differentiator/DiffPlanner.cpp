@@ -432,14 +432,24 @@ namespace clad {
     // function's arguments were requested.
     if (isa<CXXDefaultArgExpr>(E)) {
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(params));
+      
       // If the function has no parameters, then we cannot differentiate it."
-      if (params.empty()) {
+      // and if the DiffMode is Jacobian, we must have atleast 2 parameters.
+      if (params.empty() || (params.size()==1 && this->Mode == DiffMode::jacobian)) {
         utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
                         CallContext->getEndLoc(),
                         "Attempted to differentiate a function without "
                         "parameters");
         return;
       }
+
+      // If it is a Vector valued function, the last parameter is to store the output vector
+      // and hence is not a differentiable parameter, so we must pop it out
+      if (this->Mode == DiffMode::jacobian){
+        params.pop_back();
+      }
+
+
       IndexIntervalTable indexes{};
       // insert an empty index for each parameter.
       for (unsigned i=0; i<params.size(); ++i)
