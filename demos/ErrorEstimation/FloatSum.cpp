@@ -104,9 +104,9 @@ int main() {
 
     // Clear the final error
     finalError = 0;
-
+    unsigned int dn = 0;
     // First execute the derived function.
-    df.execute(x, n, &ret[0], &ret[1], finalError);
+    df.execute(x, n, &ret[0], &dn, finalError);
 
     double kahanResult = kahanSum(x, n);
     double vanillaResult = vanillaSum(x, n);

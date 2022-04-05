@@ -352,8 +352,7 @@ double fn6(dcomplex c, double i) {
     res += 4*c.real();
     return res;
 }
-
-// CHECK: void real_pullback({{.*}} [[__val:.*]], clad::array_ref<complex<double> > _d_this, clad::array_ref<double> [[_d___val:[a-zA-Z_]*]]){{.*}} {
+// CHECK: void real_pullback({{.*}} [[__val:.*]], clad::array_ref<complex<double> > _d_this, clad::array_ref<{{.*}}> [[_d___val:[a-zA-Z_]*]]){{.*}} {
 // CHECK-NEXT:     {{(__real)?}} this->[[_M_value:.*]] = [[__val]];
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r_d0 ={{( __real)?}} (* _d_this).[[_M_value]];
@@ -421,7 +420,7 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:         * _d_i += _r6;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         {{.*}} _grad0 = 0.;
 // CHECK-NEXT:         _t2.real_pullback(_t1, &(* _d_c), &_grad0);
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         double _r1 = _r0 * _t0;
@@ -463,7 +462,7 @@ double fn7(dcomplex c1, dcomplex c2) {
 // CHECK-NEXT:         _t7.imag_pullback(_r4, &(* _d_c1));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         {{.*}} _grad0 = 0.;
 // CHECK-NEXT:         _t4.real_pullback(_t3, &(* _d_c1), &_grad0);
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         _t0.imag_pullback(_r0, &(* _d_c2));

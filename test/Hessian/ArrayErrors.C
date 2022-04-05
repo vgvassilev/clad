@@ -3,7 +3,7 @@
 #include "clad/Differentiator/Differentiator.h"
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-
+//XFAIL:*
 double f(int a, double *b) {
   return b[0] * a + b[1] * a + b[2] * a;
 }

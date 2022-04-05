@@ -13,7 +13,7 @@ double addArr(double *arr, int n) {
   return ret;
 }
 
-//CHECK: void addArr_pullback(double *arr, int n, double _d_y, clad::array_ref<double> _d_arr, clad::array_ref<double> _d_n) {
+//CHECK: void addArr_pullback(double *arr, int n, double _d_y, clad::array_ref<double> _d_arr, clad::array_ref<int> _d_n) {
 //CHECK-NEXT:     double _d_ret = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
@@ -49,12 +49,12 @@ double f(double *arr) {
 //CHECK-NEXT:       double f_return = addArr(arr, 3);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
-//CHECK-NEXT:       {
-//CHECK-NEXT:         double _grad1 = 0.;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         int _grad1 = 0;
 //CHECK-NEXT:         addArr_pullback(_t0, 3, 1, _d_arr, &_grad1);
 //CHECK-NEXT:         clad::array<double> _r0(_d_arr);
-//CHECK-NEXT:         double _r1 = _grad1;
-//CHECK-NEXT:       }
+//CHECK-NEXT:         int _r1 = _grad1;
+//CHECK-NEXT:     }
 //CHECK-NEXT:   }
 
 float func(float* a, float* b) {

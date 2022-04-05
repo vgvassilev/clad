@@ -568,6 +568,8 @@ namespace clad {
     /// function.
     llvm::SmallVector<clang::ParmVarDecl*, 8>
     BuildParams(DiffParams& diffParams);
+
+    clang::QualType ComputeAdjointType(clang::QualType T);
   };
 } // end namespace clad
 
