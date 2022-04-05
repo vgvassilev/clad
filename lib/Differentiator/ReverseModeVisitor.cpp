@@ -1190,15 +1190,7 @@ namespace clad {
     // Save current index in the current block, to potentially put some
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
-    // Store the type to reduce call overhead that would occur if used in the
-    // loop
-    auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
-    // Use `double` as the placeholder type for the derivatives when the funtion
-    // return type is void. We need to do this because we are using function
-    // return type to compute the derivative type of the arguments. See
-    // https://github.com/vgvassilev/clad/issues/385 for more details.
-    if (CEType->isVoidType())
-      CEType = m_Context.DoubleTy;
+
     // FIXME: We should add instructions for handling non-differentiable
     // arguments. Currently we are implicitly assuming function call only
     // contains differentiable arguments.
@@ -1215,8 +1207,6 @@ namespace clad {
         QualType argResultValueType =
             utils::GetValueType(argDiff.getExpr()->getType())
                 .getNonReferenceType();
-        if (argResultValueType->isRealType())
-          argResultValueType = CEType;
         // Create ArgResult variable for each reference argument because it is
         // required by error estimator. For automatic differentiation, we do not need
         // to create ArgResult variable for arguments passed by reference.
@@ -1253,7 +1243,7 @@ namespace clad {
         // same as the call expression as it is the type used to declare the
         // _gradX array
         Expr* dArg;
-        dArg = StoreAndRef(/*E=*/nullptr, CEType, direction::reverse, "_r",
+        dArg = StoreAndRef(/*E=*/nullptr, arg->getType(), direction::reverse, "_r",
                            /*forceDeclCreation=*/true);
         ArgResultDecls.push_back(
             cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
@@ -1396,12 +1386,6 @@ namespace clad {
 
       size_t idx = 0;
 
-      auto ArrayDiffArgType = GetCladArrayOfType(CEType.getCanonicalType());
-      QualType requiredValueType = CEType;
-      if (CEType->isVoidType()) {
-        requiredValueType = m_Context.DoubleTy;
-        ArrayDiffArgType = GetCladArrayOfType(requiredValueType);
-      }
       /// Add base derivative expression in the derived call output args list if
       /// `CE` is a call to an instance member function.
       if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
@@ -1454,64 +1438,15 @@ namespace clad {
             argDerivative = BuildDeclRef(derivativeArrayRefVD);
           }
           if (isCladArrayType(argDerivative->getType())) {
-            Expr* compatibleArg = argDerivative;
-            QualType argValueType;
-
-            if (isCladArrayType(argDerivative->getType()))
-              argValueType =
-                  DetermineCladArrayValueType(argDerivative->getType());
-
-            // pullback function expects derivative of different type than what
-            // we have. We want to "continue" the reverse mode derivation. To
-            // handle this, we will create a temporary derivative here for the
-            // pullback function, and then we will update the current derivative
-            // with the temporary derivative. To be more specific, we will do as
-            // follows: "float" is only taken here for example!!
-            // ```
-            // clad::array<float> _grad0 = _d_arr;
-            // update(arr, _grad0);
-            // _d_arr = _grad0;
-            // ```
-            if (!utils::SameCanonicalType(argValueType, requiredValueType)) {
-              gradVarDecl = BuildVarDecl(
-                  ArrayDiffArgType, gradVarII, argDerivative,
-                  /*DirectInit=*/false,
-                  /*TSI=*/nullptr, VarDecl::InitializationStyle::CallInit);
-              gradVarExpr = BuildDeclRef(gradVarDecl);
-              compatibleArg = gradVarExpr;
-              addToCurrentBlock(BuildOp(BinaryOperatorKind::BO_Assign,
-                                        argDerivative, gradVarExpr),
-                                direction::reverse);
-            }
-            gradArgExpr = compatibleArg;
+            gradArgExpr = argDerivative;
           } else {
-            Expr* compatibleArg = argDerivative;
-            // Pullback function may expect different type of derivative than what
-            // we actually have. We are using temporary derivative of correct
-            // type to handle this situation. We are doing as follows:
-            // ```
-            // T _grad0 = _d_i;
-            // update(i, _grad0);
-            // _d_i = _grad0;
-            // ```
-            if (!argDerivative->getType()->isRecordType() &&
-                !utils::SameCanonicalType(argDerivative->getType(),
-                                          requiredValueType)) {
-              gradVarDecl =
-                  BuildVarDecl(requiredValueType, gradVarII, argDerivative);
-              gradVarExpr = BuildDeclRef(gradVarDecl);
-              compatibleArg = gradVarExpr;
-              addToCurrentBlock(BuildOp(BinaryOperatorKind::BO_Assign,
-                                        argDerivative, gradVarExpr),
-                                direction::reverse);
-            }
-            gradArgExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, compatibleArg);
+            gradArgExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, argDerivative);
           }
         } else {
           // Declare: diffArgType _grad = 0;
           gradVarDecl = BuildVarDecl(
-              CEType, gradVarII,
-              ConstantFolder::synthesizeLiteral(CEType, m_Context, 0));
+              PVD->getType(), gradVarII,
+              ConstantFolder::synthesizeLiteral(PVD->getType(), m_Context, 0));
           // Pass the address of the declared variable
           gradVarExpr = BuildDeclRef(gradVarDecl);
           gradArgExpr =
@@ -1608,6 +1543,7 @@ namespace clad {
                                                               DerivedCallArgs);
             asGrad = !OverloadedDerivedFn;
           } else {
+            auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
             OverloadedDerivedFn = GetMultiArgCentralDiffCall(
                 fnCallee, CEType.getCanonicalType(), CE->getNumArgs(),
                 NumericalDiffMultiArg, DerivedCallArgs, DerivedCallOutputArgs);
@@ -2873,6 +2809,7 @@ namespace clad {
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
                                                           QualType xType) {
+                                               
     if (m_Mode == DiffMode::reverse)
       assert(yType->isRealType() &&
              "yType should be a non-reference builtin-numerical scalar type!!");
@@ -2883,10 +2820,13 @@ namespace clad {
     // derivative variables should always be of non-const type.
     xValueType.removeLocalConst();
     QualType nonRefXValueType = xValueType.getNonReferenceType();
-    if (nonRefXValueType->isRealType())
-      return GetCladArrayRefOfType(yType);
-    else
-      return GetCladArrayRefOfType(nonRefXValueType);
+    return GetCladArrayRefOfType(nonRefXValueType);
+  }
+
+  clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {
+    QualType TValueType = utils::GetValueType(T);
+    TValueType.removeLocalConst();
+    return GetCladArrayRefOfType(TValueType);
   }
 
   llvm::SmallVector<clang::QualType, 8>
@@ -2929,8 +2869,7 @@ namespace clad {
       for (auto PVD : m_Function->parameters()) {
         auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
         if (it != std::end(diffParams))
-          paramTypes.push_back(
-              GetParameterDerivativeType(effectiveReturnType, PVD->getType()));
+          paramTypes.push_back(ComputeAdjointType(PVD->getType()));
       }
     } else if (m_Mode == DiffMode::jacobian) {
       std::size_t lastArgIdx = m_Function->getNumParams() - 1;

@@ -368,7 +368,7 @@ namespace clad {
       DropArgs_AddCON((, ...)); // Declares all the specializations
 
   template <class T, class R> struct OutputParamType {
-    using type = array_ref<R>;
+    using type = array_ref<typename std::remove_pointer<R>::type>;
   };
 
   template <class T, class R>
@@ -462,7 +462,7 @@ namespace clad {
   // GradientDerivedEstFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
   struct GradientDerivedEstFnTraits<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputParamType_t<Args, ReturnType>...,
+    using type = void (*)(Args..., OutputParamType_t<Args, Args>...,
                           double&);
   };
 
@@ -478,7 +478,7 @@ namespace clad {
 #define GradientDerivedEstFnTraits_AddSPECS(var, cv, vol, ref, noex)           \
   template <typename R, typename C, typename... Args>                          \
   struct GradientDerivedEstFnTraits<R (C::*)(Args...) cv vol ref noex> {       \
-    using type = void (C::*)(Args..., OutputParamType_t<Args, R>...,           \
+    using type = void (C::*)(Args..., OutputParamType_t<Args, Args>...,           \
                              double&) cv vol ref noex;                         \
   };
 

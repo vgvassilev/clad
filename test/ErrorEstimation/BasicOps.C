@@ -365,7 +365,7 @@ float func7(float x) {
 
 double helper2(float& x) { return x * x; }
 
-// CHECK: void helper2_pullback(float &x, double _d_y, clad::array_ref<double> _d_x) {
+// CHECK: void helper2_pullback(float &x, double _d_y, clad::array_ref<float> _d_x) {
 // CHECK-NEXT:     float _t0;
 // CHECK-NEXT:     float _t1;
 // CHECK-NEXT:     _t1 = x;
@@ -400,10 +400,8 @@ float func8(float x, float y) {
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         * _d_y += _d_z;
-//CHECK-NEXT:         double _grad0 = * _d_x;
-//CHECK-NEXT:         helper2_pullback(_t0, _d_z, &_grad0);
-//CHECK-NEXT:         double _r0 = * _d_x;
-//CHECK-NEXT:         * _d_x = _grad0;
+//CHECK-NEXT:         helper2_pullback(_t0, _d_z, &* _d_x);
+//CHECK-NEXT:         float _r0 = * _d_x;
 //CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:         _final_error += std::abs(_r0 * _t0 * {{.+}});
 //CHECK-NEXT:     }

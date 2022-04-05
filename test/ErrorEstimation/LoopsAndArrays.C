@@ -14,7 +14,7 @@ float func(float* p, int n) {
   return sum;
 }
 
-//CHECK: void func_grad(float *p, int n, clad::array_ref<float> _d_p, clad::array_ref<float> _d_n, double &_final_error) {
+//CHECK: void func_grad(float *p, int n, clad::array_ref<float> _d_p, clad::array_ref<int> _d_n, double &_final_error) {
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     float _EERepl_sum0;

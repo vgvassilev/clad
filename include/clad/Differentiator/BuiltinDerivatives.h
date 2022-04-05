@@ -71,11 +71,10 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> log_pushforward(T x, T d_x) {
   return {::std::log(x), static_cast<T>((1.0 / x) * d_x)};
 }
 
-template <typename T1, typename T2>
-CUDA_HOST_DEVICE void
-pow_pullback(T1 x, T2 exponent, decltype(::std::pow(T1(), T2())) d_y,
-             clad::array_ref<decltype(::std::pow(T1(), T2()))> d_x,
-             clad::array_ref<decltype(::std::pow(T1(), T2()))> d_exponent) {
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y,
+                                   clad::array_ref<decltype(T1())> d_x,
+                                   clad::array_ref<decltype(T2())> d_exponent) {
   auto t = pow_pushforward(x, exponent, static_cast<T1>(1), static_cast<T2>(0));
   *d_x += t.pushforward * d_y;
   t = pow_pushforward(x, exponent, static_cast<T1>(0), static_cast<T2>(1));

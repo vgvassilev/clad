@@ -48,7 +48,7 @@ float func2(float x, int y) {
   return x;
 }
 
-//CHECK: void func2_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+//CHECK: void func2_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<int> _d_y, double &_final_error) {
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     float _EERepl_x0 = x;
 //CHECK-NEXT:     float _t0;
@@ -89,14 +89,14 @@ float func3(int x, int y) {
   return y;
 }
 
-//CHECK: void func3_grad(int x, int y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+//CHECK: void func3_grad(int x, int y, clad::array_ref<int> _d_x, clad::array_ref<int> _d_y, double &_final_error) {
 //CHECK-NEXT:     x = y;
 //CHECK-NEXT:     int func3_return = y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_y += 1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r_d0 = * _d_x;
+//CHECK-NEXT:         int _r_d0 = * _d_x;
 //CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
