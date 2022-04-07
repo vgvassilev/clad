@@ -5,6 +5,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Enhance the incremental compilation error recovery in clang and clang-repl - Project Roadmap and Updates"
+      date: 2022-03-30 14:00:00 +0200
+      speaker: "Purva Chaudhari"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_30_03_2022_Purva-Enhance_incremental_compilation_error_recovery_in_clang_and_clang-repl.pdf)"
     - title: "Heterogenous AD with Clad - CUDA kernels diff support - Project Roadmap"
       date: 2022-03-23 14:00:00 +0200
       speaker: "Ioana Ifrim"
