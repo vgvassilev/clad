@@ -5,6 +5,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Differentiation of Eigen and Softsusy libraries by Clad - Project Progress"
+      date: 2022-04-06 14:00:00 +0200
+      speaker: "Parth Arora"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_06_04_22_Parth-Differentiation_of_Eigen_and_Softsusy_libraries_by_Clad_Progress.pdf)"
     - title: "Enhance the incremental compilation error recovery in clang and clang-repl - Project Roadmap and Updates"
       date: 2022-03-30 14:00:00 +0200
       speaker: "Purva Chaudhari"
