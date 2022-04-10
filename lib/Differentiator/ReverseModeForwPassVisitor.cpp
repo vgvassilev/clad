@@ -29,7 +29,7 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   DiffParams args{};
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
-  auto fnName = m_Function->getNameAsString() + "_forw";
+  auto fnName = clad::utils::ComputeEffectiveFnName(m_Function) + "_forw";
   auto fnDNI = utils::BuildDeclarationNameInfo(m_Sema, fnName);
 
   auto paramTypes = ComputeParamTypes(args);
@@ -86,8 +86,6 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
 QualType
 ReverseModeForwPassVisitor::GetParameterDerivativeType(QualType yType,
                                                        QualType xType) {
-  assert(yType.getNonReferenceType()->isRealType() &&
-         "yType should be a builtin-numerical scalar type!!");
   QualType xValueType = utils::GetValueType(xType);
   // derivative variables should always be of non-const type.
   xValueType.removeLocalConst();
@@ -239,5 +237,31 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   Expr* returnInitList = m_Sema.ActOnInitList(noLoc, returnArgs, noLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(noLoc, returnInitList).get();
   return {newRS};
+}
+
+StmtDiff
+ReverseModeForwPassVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
+  auto opCode = UnOp->getOpcode();
+  StmtDiff diff{};
+  // If it is a post-increment/decrement operator, its result is a reference
+  // and we should return it.
+  Expr* ResultRef = nullptr;
+  if (opCode == UnaryOperatorKind::UO_Deref) {
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (MD->isInstance()) {
+        diff = Visit(UnOp->getSubExpr());
+        Expr* cloneE = BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr());
+        Expr* derivedE = diff.getExpr_dx();
+        return {cloneE, derivedE};
+      }
+    }
+  } else if (opCode == UO_Plus)
+    diff = Visit(UnOp->getSubExpr(), dfdx());
+  else if (opCode == UO_Minus) {
+    auto d = BuildOp(UO_Minus, dfdx());
+    diff = Visit(UnOp->getSubExpr(), d);
+  }
+  Expr* op = BuildOp(opCode, diff.getExpr());
+  return StmtDiff(op, ResultRef);
 }
 } // namespace clad
