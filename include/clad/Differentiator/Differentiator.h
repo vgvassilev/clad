@@ -21,6 +21,11 @@
 #include <cstring>
 
 namespace clad {
+template <typename T, typename U> struct ValueAndAdjoint {
+  T value;
+  U adjoint;
+};
+
   /// \returns the size of a c-style string
   CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     unsigned int count;

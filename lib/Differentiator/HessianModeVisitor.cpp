@@ -231,14 +231,8 @@ namespace clad {
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     m_Sema.CurContext = DC;
 
-    DeclWithContext result = m_Builder.cloneFunction(m_Function,
-                                                     *this,
-                                                     DC,
-                                                     m_Sema,
-                                                     m_Context,
-                                                     noLoc,
-                                                     name,
-                                                     hessianFunctionType);
+    DeclWithContext result = m_Builder.cloneFunction(
+        m_Function, *this, DC, noLoc, name, hessianFunctionType);
     FunctionDecl* hessianFD = result.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |

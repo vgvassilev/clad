@@ -703,6 +703,8 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
+  double& ref_mem_fn(double i) {return x;} 
+
   void mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j);
   void const_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j);
   void volatile_mem_fn_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j);
@@ -756,6 +758,35 @@ double fn(double i,double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn2(SimpleFunctions& sf, double i) {
+  return sf.ref_mem_fn(i);
+}
+
+// CHECK: void ref_mem_fn_pullback(double i, double _d_y, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     (* _d_this).x += _d_y;
+// CHECK-NEXT: }
+// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, clad::array_ref<SimpleFunctions> _d_this, clad::array_ref<double> _d_i) {
+// CHECK-NEXT:     return {this->x, (* _d_this).x};
+// CHECK-NEXT: }
+// CHECK: void fn2_grad(SimpleFunctions &sf, double i, clad::array_ref<SimpleFunctions> _d_sf, clad::array_ref<double> _d_i) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     SimpleFunctions _t1;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     _t1 = sf;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t2 = _t1.ref_mem_fn_forw(_t0, &(* _d_sf), nullptr);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         _t1.ref_mem_fn_pullback(_t0, 1, &(* _d_sf), &_grad0);
+// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         * _d_i += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -789,6 +820,12 @@ int main() {
   for(unsigned i=0;i<2;++i) {
     printf("%.2f ",result[i]);  //CHECK-EXEC: 40.00 16.00
   }
+
+  SimpleFunctions sf(2, 3);
+  SimpleFunctions d_sf;
+  auto d_fn2 = clad::gradient(fn2);
+  d_fn2.execute(sf, 2, &d_sf, &result[0]);
+  printf("%.2f", result[0]); //CHECK-EXEC: 40.00
 
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 

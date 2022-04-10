@@ -427,7 +427,8 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
 #if CLANG_VERSION_MAJOR < 10
    #define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x) /**/
 #elif CLANG_VERSION_MAJOR >= 10
-   #define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x) ,((x)?VD.Clone((x)):nullptr)
+#define CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(x)                 \
+  , ((x) ? VB.Clone((x)) : nullptr)
 #endif
 
 // Clang 10 remove GetTemporaryExpr(). Use getSubExpr() instead

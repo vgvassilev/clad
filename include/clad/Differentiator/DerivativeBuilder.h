@@ -77,7 +77,7 @@ namespace clad {
     friend class ReverseModeVisitor;
     friend class HessianModeVisitor;
     friend class JacobianModeVisitor;
-
+    friend class ReverseModeForwPassVisitor;
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
@@ -93,9 +93,7 @@ namespace clad {
     llvm::SmallVector<std::unique_ptr<ErrorEstimationHandler>, 4>
         m_ErrorEstHandler;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
-                                  clad::VisitorBase VB, clang::DeclContext* DC,
-                                  clang::Sema& m_Sema,
-                                  clang::ASTContext& m_Context,
+                                  clad::VisitorBase& VB, clang::DeclContext* DC,
                                   clang::SourceLocation& noLoc,
                                   clang::DeclarationNameInfo name,
                                   clang::QualType functionType);

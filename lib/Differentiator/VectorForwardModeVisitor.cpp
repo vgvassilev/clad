@@ -73,9 +73,8 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   // Create the function declaration for the derivative.
   DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
-  DeclWithContext result =
-      m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, loc,
-                              name, vectorDiffFunctionType);
+  DeclWithContext result = m_Builder.cloneFunction(
+      m_Function, *this, DC, loc, name, vectorDiffFunctionType);
   FunctionDecl* vectorDiffFD = result.first;
   m_Derivative = vectorDiffFD;
 
@@ -251,8 +250,8 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
-      m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
-                              vectorModeNameInfo, vectorModeFuncOverloadType);
+      m_Builder.cloneFunction(m_Function, *this, DC, noLoc, vectorModeNameInfo,
+                              vectorModeFuncOverloadType);
   FunctionDecl* vectorModeOverloadFD = result.first;
 
   // Function declaration scope

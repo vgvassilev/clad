@@ -168,8 +168,8 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
   DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
-  DeclWithContext result = m_Builder.cloneFunction(
-      FD, *this, DC, m_Sema, m_Context, loc, name, FD->getType());
+  DeclWithContext result =
+      m_Builder.cloneFunction(FD, *this, DC, loc, name, FD->getType());
   FunctionDecl* derivedFD = result.first;
   m_Derivative = derivedFD;
 
