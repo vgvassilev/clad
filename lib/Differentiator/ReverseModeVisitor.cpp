@@ -1131,6 +1131,25 @@ namespace clad {
       return StmtDiff(Clone(CE));
     }
 
+    if (FD->getReturnType()->isReferenceType()) {
+      DiffRequest transformReq;
+      transformReq.Function = FD;
+      transformReq.Mode = DiffMode::reverse_source_fn;
+      transformReq.BaseFunctionName = FD->getNameAsString();
+      transformReq.VerboseDiags = true;
+      FunctionDecl* transformedSourcefn = plugin::ProcessDiffRequest(m_CladPlugin, transformReq);
+      if (!transformedSourcefn) {
+        llvm::errs()<<"Unable to transform source function!!\n";
+      } else {
+        llvm::errs()<<"Successfully transformed source function, and here it is.\n";
+        clang::LangOptions langOpts;
+        langOpts.CPlusPlus = true;
+        clang::PrintingPolicy policy(langOpts);
+        policy.Bool = true;
+        transformedSourcefn->print(llvm::outs(), policy);
+      }
+    }
+
     auto NArgs = FD->getNumParams();
     // If the function has no args and is not a member function call then we
     // assume that it is not related to independent variables and does not
@@ -2891,7 +2910,7 @@ namespace clad {
     // TODO: Add DiffMode::experimental_pullback support here as well.
     if (m_Mode == DiffMode::reverse ||
         m_Mode == DiffMode::experimental_pullback) {
-      QualType effectiveReturnType = m_Function->getReturnType();
+      QualType effectiveReturnType = m_Function->getReturnType().getNonReferenceType();
       if (m_Mode == DiffMode::experimental_pullback) {
         // FIXME: Generally, we use the function's return type as the argument's
         // derivative type. We cannot follow this strategy for `void` function

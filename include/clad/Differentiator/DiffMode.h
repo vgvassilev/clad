@@ -8,6 +8,7 @@ namespace clad {
     experimental_pushforward,
     experimental_pullback,
     reverse,
+    reverse_source_fn,
     hessian,
     jacobian,
     error_estimation

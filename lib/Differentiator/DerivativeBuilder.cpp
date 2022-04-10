@@ -11,6 +11,7 @@
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/JacobianModeVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
+#include "clad/Differentiator/TransformSourceFnVisitor.h"
 
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
@@ -172,7 +173,11 @@ namespace clad {
     } else if (request.Mode == DiffMode::experimental_pullback) {
       ReverseModeVisitor V(*this);
       result = V.DerivePullback(FD, request);
-    } else if (request.Mode == DiffMode::hessian) {
+    } else if (request.Mode == DiffMode::reverse_source_fn) {
+      TransformSourceFnVisitor V(*this);
+      result = V.Derive(FD, request);
+    }
+    else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);
     } else if (request.Mode == DiffMode::jacobian) {
