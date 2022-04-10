@@ -161,8 +161,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
-        m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
-                                gradientNameInfo, gradientFunctionOverloadType);
+        m_Builder.cloneFunction(m_Function, *this, DC, noLoc, gradientNameInfo,
+                                gradientFunctionOverloadType);
     FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -353,14 +353,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
-    DeclWithContext result = m_Builder.cloneFunction(m_Function,
-                                                     *this,
-                                                     DC,
-                                                     m_Sema,
-                                                     m_Context,
-                                                     noLoc,
-                                                     name,
-                                                     gradientFunctionType);
+    DeclWithContext result = m_Builder.cloneFunction(
+        m_Function, *this, DC, noLoc, name, gradientFunctionType);
     FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
@@ -492,9 +486,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<Scope*> saveScope(m_CurScope);
     m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
 
-    DeclWithContext fnBuildRes =
-        m_Builder.cloneFunction(m_Function, *this, m_Sema.CurContext, m_Sema,
-                                m_Context, noLoc, DNI, pullbackFnType);
+    DeclWithContext fnBuildRes = m_Builder.cloneFunction(
+        m_Function, *this, m_Sema.CurContext, noLoc, DNI, pullbackFnType);
     m_Derivative = fnBuildRes.first;
 
     if (m_ExternalSource)
@@ -1673,15 +1666,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           ArgDeclStmts.push_back(BuildDeclStmt(gradVarDecl));
         idx++;
       }
+      Expr* pullback = dfdx();
+      if ((pullback == nullptr) && FD->getReturnType()->isLValueReferenceType())
+        pullback = getZeroInit(FD->getReturnType().getNonReferenceType());
+
       // FIXME: Remove this restriction.
       if (!FD->getReturnType()->isVoidType()) {
-        assert((dfdx() && !FD->getReturnType()->isVoidType()) &&
+        assert((pullback && !FD->getReturnType()->isVoidType()) &&
                "Call to function returning non-void type with no dfdx() is not "
                "supported!");
       }
 
       if (FD->getReturnType()->isVoidType()) {
-        assert(dfdx() == nullptr && FD->getReturnType()->isVoidType() &&
+        assert(pullback == nullptr && FD->getReturnType()->isVoidType() &&
                "Call to function returning void type should not have any "
                "corresponding dfdx().");
       }
@@ -1691,9 +1688,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                              DerivedCallOutputArgs.end());
       pullbackCallArgs = DerivedCallArgs;
 
-      if (dfdx())
+      if (pullback)
         pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs(),
-                                dfdx());
+                                pullback);
 
       // Try to find it in builtin derivatives
       std::string customPullback = FD->getNameAsString() + "_pullback";
@@ -1857,15 +1854,83 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                    std::end(CallArgs),
                    std::begin(CallArgs),
                    [this](Expr* E) { return Clone(E); });
-    // Recreate the original call expression.
-    Expr* call = m_Sema
-                     .ActOnCallExpr(getCurrentScope(),
-                                    Clone(CE->getCallee()),
-                                    noLoc,
-                                    CallArgs,
-                                    noLoc)
-                     .get();
+
+    Expr* call = nullptr;
+
+    if (FD->getReturnType()->isReferenceType()) {
+      DiffRequest calleeFnForwPassReq;
+      calleeFnForwPassReq.Function = FD;
+      calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
+      calleeFnForwPassReq.BaseFunctionName = FD->getNameAsString();
+      calleeFnForwPassReq.VerboseDiags = true;
+      FunctionDecl* calleeFnForwPassFD =
+          plugin::ProcessDiffRequest(m_CladPlugin, calleeFnForwPassReq);
+
+      assert(calleeFnForwPassFD &&
+             "Clad failed to generate callee function forward pass function");
+
+      // FIXME: We are using the derivatives in forward pass here
+      // If `expr_dx()` is only meant to be used in reverse pass,
+      // (for example, `clad::pop(...)` expression and a corresponding
+      // `clad::push(...)` in the forward pass), then this can result in
+      // incorrect derivative or crash at runtime. Ideally, we should have
+      // a separate routine to use derivative in the forward pass.
+
+      // We cannot reuse the derivatives previously computed because
+      // they might contain 'clad::pop(..)` expression.
+      if (isa<CXXMemberCallExpr>(CE)) {
+        Expr* derivedBase = baseDiff.getExpr_dx();
+        // FIXME: We may need this if-block once we support pointers, and
+        // passing pointers-by-reference if
+        // (isCladArrayType(derivedBase->getType()))
+        //   CallArgs.push_back(derivedBase);
+        // else
+        CallArgs.push_back(
+            BuildOp(UnaryOperatorKind::UO_AddrOf, derivedBase, noLoc));
+      }
+
+      for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+        const Expr* arg = CE->getArg(i);
+        const ParmVarDecl* PVD = FD->getParamDecl(i);
+        StmtDiff argDiff = Visit(arg);
+        if ((argDiff.getExpr_dx() != nullptr) &&
+            PVD->getType()->isReferenceType()) {
+          Expr* derivedArg = argDiff.getExpr_dx();
+          // FIXME: We may need this if-block once we support pointers, and
+          // passing pointers-by-reference if
+          // (isCladArrayType(derivedArg->getType()))
+          //   CallArgs.push_back(derivedArg);
+          // else
+          CallArgs.push_back(
+              BuildOp(UnaryOperatorKind::UO_AddrOf, derivedArg, noLoc));
+        } else
+          CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
+      }
+      if (isa<CXXMemberCallExpr>(CE)) {
+        Expr* baseE = baseDiff.getExpr();
+        call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
+                                    CallArgs, calleeFnForwPassFD);
+      } else {
+        call = m_Sema
+                   .ActOnCallExpr(getCurrentScope(),
+                                  BuildDeclRef(calleeFnForwPassFD), noLoc,
+                                  CallArgs, noLoc)
+                   .get();
+      }
+      auto* callRes = StoreAndRef(call);
+      auto* resValue =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+      auto* resAdjoint =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      return StmtDiff(resValue, nullptr, resAdjoint);
+    } // Recreate the original call expression.
+    call = m_Sema
+               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                              CallArgs, noLoc)
+               .get();
     return StmtDiff(call);
+
+    return {};
   }
 
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
@@ -2312,7 +2377,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       if (isDerivativeOfRefType) {
         initDiff = Visit(VD->getInit());
-        if (!initDiff.getExpr_dx()) {
+        if (!initDiff.getForwSweepExpr_dx()) {
           VDDerivedType =
               ComputeAdjointType(VD->getType().getNonReferenceType());
           isDerivativeOfRefType = false;
@@ -3136,7 +3201,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // TODO: Add DiffMode::experimental_pullback support here as well.
     if (m_Mode == DiffMode::reverse ||
         m_Mode == DiffMode::experimental_pullback) {
-      QualType effectiveReturnType = m_Function->getReturnType();
+      QualType effectiveReturnType =
+          m_Function->getReturnType().getNonReferenceType();
       if (m_Mode == DiffMode::experimental_pullback) {
         // FIXME: Generally, we use the function's return type as the argument's
         // derivative type. We cannot follow this strategy for `void` function
@@ -3150,7 +3216,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (effectiveReturnType->isVoidType())
           effectiveReturnType = m_Context.DoubleTy;
         else
-          paramTypes.push_back(m_Function->getReturnType());
+          paramTypes.push_back(effectiveReturnType);
       }
 
       if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {

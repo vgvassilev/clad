@@ -44,3 +44,7 @@ CheckOptions:
     value:           1
   - key:             readability-implicit-bool-conversion.AllowPointerConditions
     value:           1
+  - key:             readability-magic-numbers.IgnorePowersOf2IntegerValues
+    value:           1
+  - key:             readability-magic-numbers.IgnoredIntegerValues
+    value:           4;8;16;

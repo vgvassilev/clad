@@ -21,6 +21,7 @@
 #include "clad/Differentiator/ForwardModeVisitor.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/JacobianModeVisitor.h"
+#include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
@@ -88,15 +89,10 @@ namespace clad {
     return false;
   }
 
-  DeclWithContext 
-  DerivativeBuilder::cloneFunction(const clang::FunctionDecl* FD,
-                                   clad::VisitorBase VD, 
-                                   clang::DeclContext* DC,
-                                   clang::Sema& m_Sema,
-                                   clang::ASTContext& m_Context,
-                                   clang::SourceLocation& noLoc,
-                                   clang::DeclarationNameInfo name,
-                                   clang::QualType functionType) {
+  DeclWithContext DerivativeBuilder::cloneFunction(
+      const clang::FunctionDecl* FD, clad::VisitorBase& VB,
+      clang::DeclContext* DC, clang::SourceLocation& noLoc,
+      clang::DeclarationNameInfo name, clang::QualType functionType) {
     FunctionDecl* returnedFD = nullptr;
     NamespaceDecl* enclosingNS = nullptr;
     if (isa<CXXMethodDecl>(FD)) {
@@ -115,7 +111,7 @@ namespace clad {
       returnedFD->setAccess(FD->getAccess());
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
-      enclosingNS = VD.RebuildEnclosingNamespaces(DC);
+      enclosingNS = VB.RebuildEnclosingNamespaces(DC);
       returnedFD = FunctionDecl::Create(m_Context, 
                                         m_Sema.CurContext, 
                                         noLoc,
@@ -230,6 +226,9 @@ namespace clad {
       result = V.DerivePullback(FD, request);
       if (!m_ErrorEstHandler.empty())
         CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
+    } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
+      ReverseModeForwPassVisitor V(*this);
+      result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);

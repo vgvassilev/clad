@@ -351,6 +351,116 @@ double fn6(double i=0, double j=0) {
   return i*j;
 }
 
+struct MyStruct {
+    static void myFunction() {}
+};
+
+double& identity(double& i) {
+  MyStruct::myFunction();
+  double _d_i = i;
+  _d_i += 1;
+  return i;
+}
+
+double fn7(double i, double j) {
+  double& k = identity(i);
+  double& l = identity(j);
+  k += 7*j;
+  l += 9*i;
+  return i + j;
+}
+
+// CHECK: void fn6_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     _t1 = i;
+// CHECK-NEXT:     _t0 = j;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 1 * _t0;
+// CHECK-NEXT:         * _d_i += _r0;
+// CHECK-NEXT:         double _r1 = _t1 * 1;
+// CHECK-NEXT:         * _d_j += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void identity_pullback(double &i, double _d_y, clad::array_ref<double> _d_i) {
+// CHECK-NEXT:     double _d__d_i = 0;
+// CHECK-NEXT:     MyStruct::myFunction();
+// CHECK-NEXT:     double _d_i0 = i;
+// CHECK-NEXT:     _d_i0 += 1;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     * _d_i += _d_y;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = _d__d_i;
+// CHECK-NEXT:         _d__d_i += _r_d0;
+// CHECK-NEXT:         _d__d_i -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     * _d_i += _d__d_i;
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndAdjoint<double &, double &> identity_forw(double &i, clad::array_ref<double> _d_i) {
+// CHECK-NEXT:     double _d__d_i = 0;
+// CHECK-NEXT:     MyStruct::myFunction();
+// CHECK-NEXT:     double _d_i0 = i;
+// CHECK-NEXT:     _d_i0 += 1;
+// CHECK-NEXT:     return {i, * _d_i};
+// CHECK-NEXT: }
+
+// CHECK: void fn7_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double *_d_k = 0;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double *_d_l = 0;
+// CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _t5;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = identity_forw(i, &* _d_i);
+// CHECK-NEXT:     _d_k = &_t1.adjoint;
+// CHECK-NEXT:     double &k = _t1.value;
+// CHECK-NEXT:     _t2 = j;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t3 = identity_forw(j, &* _d_j);
+// CHECK-NEXT:     _d_l = &_t3.adjoint;
+// CHECK-NEXT:     double &l = _t3.value;
+// CHECK-NEXT:     _t4 = j;
+// CHECK-NEXT:     k += 7 * _t4;
+// CHECK-NEXT:     _t5 = i;
+// CHECK-NEXT:     l += 9 * _t5;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         * _d_i += 1;
+// CHECK-NEXT:         * _d_j += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d1 = *_d_l;
+// CHECK-NEXT:         *_d_l += _r_d1;
+// CHECK-NEXT:         double _r4 = _r_d1 * _t5;
+// CHECK-NEXT:         double _r5 = 9 * _r_d1;
+// CHECK-NEXT:         * _d_i += _r5;
+// CHECK-NEXT:         *_d_l -= _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r_d0 = *_d_k;
+// CHECK-NEXT:         *_d_k += _r_d0;
+// CHECK-NEXT:         double _r2 = _r_d0 * _t4;
+// CHECK-NEXT:         double _r3 = 7 * _r_d0;
+// CHECK-NEXT:         * _d_j += _r3;
+// CHECK-NEXT:         *_d_k -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         identity_pullback(_t2, 0, &* _d_j);
+// CHECK-NEXT:         double _r1 = * _d_j;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         identity_pullback(_t0, 0, &* _d_i);
+// CHECK-NEXT:         double _r0 = * _d_i;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -402,6 +512,7 @@ int main() {
   INIT(fn4);
   INIT(fn5);
   INIT(fn6);
+  INIT(fn7);
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -410,4 +521,5 @@ int main() {
   TEST_ARR5(fn4, arr, 5);       // CHECK-EXEC: {23.00, 3.00, 3.00, 3.00, 3.00}
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
+  TEST2(fn7, 3, 5);             // CHECK-EXEC: {10.00, 71.00}
 }

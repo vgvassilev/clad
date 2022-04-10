@@ -81,9 +81,8 @@ clang::QualType ForwardModeVisitor::ComputePushforwardFnReturnType() {
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
 
-    DeclWithContext cloneFunctionResult =
-        m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
-                                derivedFnName, derivedFnType);
+    DeclWithContext cloneFunctionResult = m_Builder.cloneFunction(
+        m_Function, *this, DC, noLoc, derivedFnName, derivedFnType);
     m_Derivative = cloneFunctionResult.first;
 
     llvm::SmallVector<ParmVarDecl*, 16> params;

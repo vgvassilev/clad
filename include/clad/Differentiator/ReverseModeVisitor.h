@@ -30,8 +30,7 @@ namespace clad {
   class ReverseModeVisitor
       : public clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>,
         public VisitorBase {
-  
-  private:
+  protected:
     // FIXME: We should remove friend-dependency of the plugin classes here.
     // For this we will need to separate out AST related functions in
     // a separate namespace, as well as add getters/setters function of
@@ -292,7 +291,7 @@ namespace clad {
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder);
-    ~ReverseModeVisitor();
+    virtual ~ReverseModeVisitor();
 
     ///\brief Produces the gradient of a given function.
     ///
@@ -321,11 +320,11 @@ namespace clad {
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
-    StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
+    virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
     StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
-    StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
+    virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
@@ -335,7 +334,7 @@ namespace clad {
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
-    StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
+    virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);

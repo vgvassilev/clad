@@ -11,6 +11,7 @@ enum class DiffMode {
   reverse,
   hessian,
   jacobian,
+  reverse_mode_forward_pass,
   error_estimation
 };
 }
