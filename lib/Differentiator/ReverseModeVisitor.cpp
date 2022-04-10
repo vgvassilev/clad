@@ -374,7 +374,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnScope();
-    
+
     auto params = BuildParams(args);
 
     if (m_ExternalSource)
@@ -416,7 +416,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_IndependentVars.push_back(arg);
       }
     }
-    
+
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
 
@@ -748,7 +748,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), direction::forward);
       addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
-      
+
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
     }
@@ -866,7 +866,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           m_ExternalSource->ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt();
         StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr);
         addToCurrentBlock(BranchDiff.getStmt(), direction::forward);
-        
+
         if (m_ExternalSource)
           m_ExternalSource->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
 
@@ -1377,7 +1377,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If the function has no args and is not a member function call then we
     // assume that it is not related to independent variables and does not
     // contribute to gradient.
-    if (!NArgs && !isa<CXXMemberCallExpr>(CE))
+    if ((NArgs == 0U) && !isa<CXXMemberCallExpr>(CE) &&
+        !isa<CXXOperatorCallExpr>(CE))
       return StmtDiff(Clone(CE));
 
     // Stores the call arguments for the function to be derived
@@ -1397,7 +1398,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
     if (!dfdx() && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-        !isa<CXXMemberCallExpr>(CE)) {
+        !isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
@@ -1429,9 +1430,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // FIXME: We should add instructions for handling non-differentiable
     // arguments. Currently we are implicitly assuming function call only
     // contains differentiable arguments.
-    for (std::size_t i = skipFirstArg, e = CE->getNumArgs(); i != e; ++i) {
+    bool isCXXOperatorCall = isa<CXXOperatorCallExpr>(CE);
+
+    for (std::size_t i = static_cast<std::size_t>(isCXXOperatorCall),
+                     e = CE->getNumArgs();
+         i != e; ++i) {
       const Expr* arg = CE->getArg(i);
-      const auto* PVD = FD->getParamDecl(i - skipFirstArg);
+      const auto* PVD =
+          FD->getParamDecl(i - static_cast<unsigned long>(isCXXOperatorCall));
       StmtDiff argDiff{};
       bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
       // We do not need to create result arg for arguments passed by reference
@@ -1719,11 +1725,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                 pullback);
 
       // Try to find it in builtin derivatives
-      std::string customPullback = FD->getNameAsString() + "_pullback";
+      if (baseDiff.getExpr())
+        pullbackCallArgs.insert(
+            pullbackCallArgs.begin(),
+            BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr()));
+      std::string customPullback =
+          clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(),
               const_cast<DeclContext*>(FD->getDeclContext()));
+      if (baseDiff.getExpr())
+        pullbackCallArgs.erase(pullbackCallArgs.begin());
     }
 
     // should be true if we are using numerical differentiation to differentiate
@@ -1754,7 +1767,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // derive the called function.
         DiffRequest pullbackRequest{};
         pullbackRequest.Function = FD;
-        pullbackRequest.BaseFunctionName = FD->getNameAsString();
+        pullbackRequest.BaseFunctionName =
+            clad::utils::ComputeEffectiveFnName(FD);
         pullbackRequest.Mode = DiffMode::experimental_pullback;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
@@ -1887,7 +1901,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
-      calleeFnForwPassReq.BaseFunctionName = FD->getNameAsString();
+      calleeFnForwPassReq.BaseFunctionName =
+          clad::utils::ComputeEffectiveFnName(FD);
       calleeFnForwPassReq.VerboseDiags = true;
       FunctionDecl* calleeFnForwPassFD =
           plugin::ProcessDiffRequest(m_CladPlugin, calleeFnForwPassReq);
@@ -1911,13 +1926,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // (isCladArrayType(derivedBase->getType()))
         //   CallArgs.push_back(derivedBase);
         // else
+        // Currently derivedBase `*d_this` can never be CladArrayType
         CallArgs.push_back(
             BuildOp(UnaryOperatorKind::UO_AddrOf, derivedBase, noLoc));
       }
 
-      for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+      for (std::size_t i = static_cast<std::size_t>(isCXXOperatorCall),
+                       e = CE->getNumArgs();
+           i != e; ++i) {
         const Expr* arg = CE->getArg(i);
-        const ParmVarDecl* PVD = FD->getParamDecl(i);
+        const ParmVarDecl* PVD =
+            FD->getParamDecl(i - static_cast<unsigned long>(isCXXOperatorCall));
         StmtDiff argDiff = Visit(arg);
         if ((argDiff.getExpr_dx() != nullptr) &&
             PVD->getType()->isReferenceType()) {
@@ -1993,8 +2012,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Add it to the body statements.
         addToCurrentBlock(add_assign, direction::reverse);
       }
-    }  
-    else {
+    } else {
       // FIXME: This is not adding 'address-of' operator support.
       // This is just making this special case differentiable that is required
       // for computing hessian:
@@ -2387,13 +2405,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       VDDerivedInit = getZeroInit(VD->getType());
 
       // `specialThisDiffCase` is only required for correctly differentiating
-      // the following code: 
+      // the following code:
       // ```
       // Class _d_this_obj;
       // Class* _d_this = &_d_this_obj;
       // ```
       // Computation of hessian requires this code to be correctly
-      // differentiated. 
+      // differentiated.
       bool specialThisDiffCase = false;
       if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
         if (VDDerivedType->isPointerType() && MD->isInstance()) {
@@ -2512,10 +2530,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     return VarDeclDiff(VDClone, VDDerived);
   }
-  
+
   // TODO: 'shouldEmit' parameter should be removed after converting
   // Error estimation framework to callback style. Some more research
-  // need to be done to 
+  // need to be done to
   StmtDiff
   ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS) {
     if (m_ExternalSource)
@@ -3126,7 +3144,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     bodyDiff = {bodyDiff.getStmt(), CFSS};
   }
-  
+
   void ReverseModeVisitor::AddExternalSource(ExternalRMVSource& source) {
     if (!m_ExternalSource)
       m_ExternalSource = new MultiplexExternalRMVSource();
@@ -3182,13 +3200,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
                                                           QualType xType) {
-                                               
+
     if (m_Mode == DiffMode::reverse)
       assert(yType->isRealType() &&
              "yType should be a non-reference builtin-numerical scalar type!!");
-    else if (m_Mode == DiffMode::experimental_pullback)
-      assert(yType.getNonReferenceType()->isRealType() &&
-             "yType should be a builtin-numerical scalar type!!");
     QualType xValueType = utils::GetValueType(xType);
     // derivative variables should always be of non-const type.
     xValueType.removeLocalConst();
