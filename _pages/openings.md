@@ -11,7 +11,7 @@ permalink: /vacancies
 We are always looking for new group members with passion, talent, and grit!
 
 <span id="opening_tw_2022">&nbsp;</span>
-# Technical Writer
+# Technical Writer Opportunities
 
 <i>Open Until:</i> May 16, 2022
 
