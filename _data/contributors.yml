@@ -73,15 +73,33 @@
   info: 'Utilize second order derivatives from Clad in ROOT'
   email: kundubaidya99@gmail.com
   education: "B. Tech in Computer Science and Engg., Manipal Institute of Technology, Manipal, India"
+  current: 1
+  info: "Improving Cling Reflection for Scripting Languages"
   description: |
+    Cling has basic facilities to make queries about the C++ code that it has seen/collected so far.
+    These lookups assume, however, that the caller knows what it is looking for and the information 
+    returned, although exact, usually only makes sense within C++ and is thus often too specific to
+    be used as-is. A scripting language, such as Python, that wants to make use of such lookups by
+    name, is forced to loop over all possible entities (classes, functions, templates, enums, …)
+    to find a match. This is inefficient. Furthermore, many lookups will be multi-stage: a function,
+    but which overload? A template, but which instantiation? A typedef, of what? The current
+    mechanism forces the scripting language to provide a type-based match, even where C++ makes
+    distinctions (e.g. pointer v.s. reference) that do not exist in the scripting language. This,
+    too, makes lookups very inefficient. The returned information, once a match is found, is exact,
+    but because of its specificity, requires the caller to figure out C++ concepts that have no
+    meaning in the scripting language. E.g., there is no reason for Python to consider an implicitly
+    instantiated function template different from an explicitly instantiated one.
+  mentors: Wim Lavrijsen, Vassil Vassilev
+  past_projects: 1
+  past_info: "Utilize second order derivatives from Clad in ROOT"
+  past_description: |
     ROOT is a framework for data processing, born at CERN, at the heart of the research on high-energy physics.
     ROOT has a clang-based C++ interpreter Cling and integrates with the automatic differentiation plugin Clad
     to enable flexible automatic differentiation facility. TFormula is a ROOT class which bridges compiled and
     interpreted code. This project aims to add second order derivative support in TFormula using clad::hessian.
     The PR that added support for gradients in ROOT is taken as a reference and can be accessed here.
-  proposal: /assets/docs/Baidyanath_Kundu_Proposal_2021.pdf
-  mentors: Vassil Vassilev, Ioana Ifrim
-  current: 1
+  past_proposal: /assets/docs/Baidyanath_Kundu_Proposal_2021.pdf
+  past_mentors: Vassil Vassilev, Ioana Ifrim
 
 - name: Purva Chaudhari
   info: "Enhance the incremental compilation error recovery in clang and clang-repl"
