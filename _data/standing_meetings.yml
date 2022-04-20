@@ -5,6 +5,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "The CaaS Project. Progress & Plans Q1, Q2"
+      date: 2022-04-20 14:00:00 +0200
+      speaker: "Vassil Vassilev"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_20_04_2022_Vassil-Q1_Project_Progress_and_Plans.pdf)"
     - title: "Differentiation of Eigen and Softsusy libraries by Clad - Project Progress"
       date: 2022-04-06 14:00:00 +0200
       speaker: "Parth Arora"
