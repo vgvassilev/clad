@@ -29,11 +29,11 @@ public:
                                    const DiffRequest& request);
   
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
-  // StmtDiff ProcessSingleExpr(const clang::Expr* E);
 
   StmtDiff VisitStmt(const clang::Stmt* S);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
+  // StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
 };
 } // namespace clad
