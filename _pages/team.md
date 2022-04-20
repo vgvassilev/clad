@@ -8,7 +8,7 @@ permalink: /team/
 
 # Group Members
 
-Jump to [staff](#staff), [students](#students) 
+Jump to [staff](#staff), [contributor](#contributors) 
 
 ## Staff
 {% assign number_printed = 0 %}
@@ -72,9 +72,9 @@ Jump to [staff](#staff), [students](#students)
 </div>
 {% endif %}
 
-## Students
+## Contributors
 {% assign number_printed = 0 %}
-{% for member in site.data.students %}
+{% for member in site.data.contributors %}
 {% if member.current %}
 {% assign even_odd = number_printed | modulo: 2 %}
 
@@ -126,9 +126,9 @@ Jump to [staff](#staff), [students](#students)
 </div>
 {% endif %}
 
-### Former students
+### Alumni
 {% assign number_printed = 0 %}
-{% for member in site.data.students %}
+{% for member in site.data.contributors %}
 {% unless member.current %}
 
 {% assign even_odd = number_printed | modulo: 2 %}
