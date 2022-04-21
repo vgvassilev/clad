@@ -1131,25 +1131,6 @@ namespace clad {
       return StmtDiff(Clone(CE));
     }
 
-    if (FD->getReturnType()->isReferenceType()) {
-      DiffRequest transformReq;
-      transformReq.Function = FD;
-      transformReq.Mode = DiffMode::reverse_source_fn;
-      transformReq.BaseFunctionName = FD->getNameAsString();
-      transformReq.VerboseDiags = true;
-      FunctionDecl* transformedSourcefn = plugin::ProcessDiffRequest(m_CladPlugin, transformReq);
-      if (!transformedSourcefn) {
-        llvm::errs()<<"Unable to transform source function!!\n";
-      } else {
-        llvm::errs()<<"Successfully transformed source function, and here it is.\n";
-        clang::LangOptions langOpts;
-        langOpts.CPlusPlus = true;
-        clang::PrintingPolicy policy(langOpts);
-        policy.Bool = true;
-        transformedSourcefn->print(llvm::outs(), policy);
-      }
-    }
-
     auto NArgs = FD->getNumParams();
     // If the function has no args and is not a member function call then we
     // assume that it is not related to independent variables and does not
@@ -1703,6 +1684,25 @@ namespace clad {
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
         CE, OverloadedDerivedFn, DerivedCallArgs, ArgResultDecls, asGrad);
 
+
+    if (FD->getReturnType()->isReferenceType()) {
+      DiffRequest transformReq;
+      transformReq.Function = FD;
+      transformReq.Mode = DiffMode::reverse_source_fn;
+      transformReq.BaseFunctionName = FD->getNameAsString();
+      transformReq.VerboseDiags = true;
+      FunctionDecl* transformedSourcefn = plugin::ProcessDiffRequest(m_CladPlugin, transformReq);
+      if (!transformedSourcefn) {
+        llvm::errs()<<"Unable to transform source function!!\n";
+      } else {
+        llvm::errs()<<"Successfully transformed source function, and here it is.\n";
+        clang::LangOptions langOpts;
+        langOpts.CPlusPlus = true;
+        clang::PrintingPolicy policy(langOpts);
+        policy.Bool = true;
+        transformedSourcefn->print(llvm::outs(), policy);
+      }
+    }
     // FIXME: Why are we cloning args here? We already created different
     // expressions for call to original function and call to gradient.
     // Re-clone function arguments again, since they are required at 2 places:
@@ -2128,6 +2128,7 @@ namespace clad {
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff;
     Expr* VDDerivedInit = nullptr;
+    // FIXME: Shouldn't we take non-const type here?
     auto VDDerivedType = VD->getType();
     bool isVDRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
@@ -2167,6 +2168,12 @@ namespace clad {
         }
       }
 
+      if (isVDRefType) {
+        VDDerivedType =
+            m_Context.getPointerType(VDDerivedType.getNonReferenceType());
+        VDDerivedInit = getZeroInit(VDDerivedType);
+      }
+
       // FIXME: Remove the special cases introduced by `specialThisDiffCase`
       // once reverse mode supports pointers. `specialThisDiffCase` is only
       // required for correctly differentiating the following code:
@@ -2176,14 +2183,14 @@ namespace clad {
       // ```
       // Computation of hessian requires this code to be correctly
       // differentiated.
-      if (isVDRefType || specialThisDiffCase) {
-        VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
-        initDiff = Visit(VD->getInit());
-        if (initDiff.getExpr_dx())
-          VDDerivedInit = initDiff.getExpr_dx();
-        else
-          VDDerivedType = VDDerivedType.getNonReferenceType();
-      }
+      // if (isVDRefType || specialThisDiffCase) {
+      //   VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
+      //   initDiff = Visit(VD->getInit());
+      //   if (initDiff.getExpr_dx())
+      //     VDDerivedInit = initDiff.getExpr_dx();
+      //   else
+      //     VDDerivedType = VDDerivedType.getNonReferenceType();
+      // }
       // Here separate behaviour for record and non-record types is only
       // necessary to preserve the old tests.
       if (VDDerivedType->isRecordType())
@@ -2201,9 +2208,11 @@ namespace clad {
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
     // need to call `Visit` since non-local variables are not differentiated.
-    if (!isVDRefType) {
-      initDiff = VD->getInit() ? Visit(VD->getInit(), BuildDeclRef(VDDerived))
-                               : StmtDiff{};
+    if (!isVDRefType || isa<CallExpr>(VD->getInit()->IgnoreParenImpCasts())) {
+      Expr* derivedE = BuildDeclRef(VDDerived);
+      if (isVDRefType)
+        derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
+      initDiff = VD->getInit() ? Visit(VD->getInit(), derivedE) : StmtDiff{};
 
       // If we are differentiating `VarDecl` corresponding to a local variable
       // inside a loop, then we need to reset it to 0 at each iteration.
@@ -2224,6 +2233,8 @@ namespace clad {
                                      getZeroInit(VDDerivedType));
         addToCurrentBlock(assignToZero, direction::reverse);
       }
+    } else {
+      initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
     }
     VarDecl* VDClone = nullptr;
     // Here separate behaviour for record and non-record types is only
@@ -2235,7 +2246,17 @@ namespace clad {
     else
       VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit());
-    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    Expr* derivedVDE = BuildDeclRef(VDDerived);
+    // FIXME: Add extra parantheses if derived variable pointer is pointing to a
+    // class type object.
+    if (isVDRefType) {
+      Expr* assignDerivativeE =
+          BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
+                  BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr_dx()));
+      addToCurrentBlock(assignDerivativeE);
+      derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
+    }
+    m_Variables.emplace(VDClone, derivedVDE);
     return VarDeclDiff(VDClone, VDDerived);
   }
   

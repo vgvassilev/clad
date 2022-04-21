@@ -1,7 +1,7 @@
 #ifndef CLAD_TRANSFORM_SOURCE_FN_VISITOR_H
 #define CLAD_TRANSFORM_SOURCE_FN_VISITOR_H
 
-#include "clad/Differentiator/VisitorBase.h"
+#include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 #include "clang/AST/StmtVisitor.h"
@@ -11,8 +11,7 @@
 
 namespace clad {
 class TransformSourceFnVisitor
-    : public clang::ConstStmtVisitor<TransformSourceFnVisitor, StmtDiff>,
-      public VisitorBase {
+    : public ReverseModeVisitor {
 private:
   Stmts m_Globals;
 
@@ -30,11 +29,11 @@ public:
   
   StmtDiff ProcessSingleStmt(const clang::Stmt* S);
 
-  StmtDiff VisitStmt(const clang::Stmt* S);
-  StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
-  StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
+  StmtDiff VisitStmt(const clang::Stmt* S) override;
+  StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS) override;
+  StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE) override;
   // StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
-  StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
+  StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
 };
 } // namespace clad
 

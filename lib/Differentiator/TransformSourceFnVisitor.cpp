@@ -13,7 +13,7 @@ using namespace clang;
 namespace clad {
 
 TransformSourceFnVisitor::TransformSourceFnVisitor(DerivativeBuilder& builder)
-    : VisitorBase(builder) {}
+    : ReverseModeVisitor(builder) {}
 
 OverloadedDeclWithContext
 TransformSourceFnVisitor::Derive(const FunctionDecl* FD,
@@ -64,7 +64,7 @@ TransformSourceFnVisitor::Derive(const FunctionDecl* FD,
   StmtDiff bodyDiff = Visit(m_Function->getBody());
   Stmt* forward = bodyDiff.getStmt();
 
-  for (Stmt* S : m_Globals)
+  for (Stmt* S : ReverseModeVisitor::m_Globals)
     addToCurrentBlock(S);
 
   if (auto CS = dyn_cast<CompoundStmt>(forward))
