@@ -1,229 +1,260 @@
-- name: Tapasweni Pathak
+- name: "Tapasweni Pathak"
   info: "Principal Product Manager at Microsoft Azure Core Engineering"
   photo: tapaswenipathak.png
   email: tapaswenipathak@gmail.com
   education: B.Tech in Computer Science, Indira Gandhi Delhi Technical University for Women, 2014
-  current: 1
-  past_info: "Improving performance of C++ modules in Clang"
-  description: |
-    The C++ modules technology aims to provide a scalable compilation model for the
-    C++ language. The C++ Modules technology in Clang provides an io-efficient,
-    on-disk representation capable to reduce build times and peak memory usage. The
-    internal compiler state such as the abstract syntax tree (AST) is stored on disk
-    and lazily loaded on demand. C++ Modules improve the memory footprint for
-    interpreted C++ through the Cling C++ interpreter developed by CERN and the
-    compiler research group at Princeton. The current implementation is pretty good
-    at making most operations on demand. However in a few cases, we eagerly load
-    pieces of the AST, for example at module import time and upon selecting a
-    suitable template specialization. When selecting the template specialization
-    we load all template specializations from the module files just to find out they
-    are not suitable. There is a patch that partially solves this issue by
-    introducing a template argument hash and use it to look up the candidates
-    without deserializing them. However, the data structure it uses to store the
-    hashes leads to quadratic search which is inefficient when the number of modules
-    becomes sufficiently large.
-  proposal: /assets/docs/Tapasweni_Pathak_Proposal_2022.pdf
-  mentors: Vassil Vassilev
+  active: 1
+  projects: 
+    - title: "Improving performance of C++ modules in Clang"
+      status: Ongoing
+      description: |
+        The C++ modules technology aims to provide a scalable compilation model for the
+        C++ language. The C++ Modules technology in Clang provides an io-efficient,
+        on-disk representation capable to reduce build times and peak memory usage. The
+        internal compiler state such as the abstract syntax tree (AST) is stored on disk
+        and lazily loaded on demand. C++ Modules improve the memory footprint for
+        interpreted C++ through the Cling C++ interpreter developed by CERN and the
+        compiler research group at Princeton. The current implementation is pretty good
+        at making most operations on demand. However in a few cases, we eagerly load
+        pieces of the AST, for example at module import time and upon selecting a
+        suitable template specialization. When selecting the template specialization
+        we load all template specializations from the module files just to find out they
+        are not suitable. There is a patch that partially solves this issue by
+        introducing a template argument hash and use it to look up the candidates
+        without deserializing them. However, the data structure it uses to store the
+        hashes leads to quadratic search which is inefficient when the number of modules
+        becomes sufficiently large.
+      proposal: /assets/docs/Tapasweni_Pathak_Proposal_2022.pdf
+      mentors: Vassil Vassilev
 
 - name: "Garima Singh"
   photo: Garima_Singh.jpg
-  info: "Add Numerical Differentiation Support in Clad"
+  info: "Research Intern at CERN"
   email: garimasingh0028@gmail.com
   education: "B. Tech in Information Technology, Manipal Institute of Technology, Manipal, India"
-  description: |
-    In mathematics and computer algebra, automatic differentiation (AD) is a set
-    of techniques to numerically evaluate the derivative of a function specified
-    by a computer program. Automatic differentiation is an alternative technique
-    to Symbolic differentiation and Numerical differentiation (the method of finite
-    differences). Clad is based on Clang which provides the necessary facilities
-    for code transformation. The AD library can differentiate non-trivial functions,
-    find a partial derivative for trivial cases, and has good unit test coverage.
-    In several cases, due to different limitations, it is either inefficient or
-    impossible to differentiate a function. For example, clad cannot differentiate
-    declared-but-not-defined functions. In that case, it issues an error. Instead,
-    clad should fall back to its future numerical differentiation facilities.
-  proposal: /assets/docs/Garima_Singh_Proposal_2021.pdf
-  mentors:  Vassil Vassilev, Alexander Penev
-  current: 1
-  past_projects: 1
-  past_info: "Floating point error evaluation with Clad"
-  past_description: |
-    Floating-point estimation errors have been a testament to the finite nature
-    of computing. Moreover, the predominance of Floating-point numbers in
-    real-valued computation does not help that fact. Float computations are
-    highly dependent on precision, and in most cases, very high precision
-    calculation is not only not possible but very inefficient. Here, one has no
-    choice but to resort to lower precision computing, which in turn is quite
-    prone to errors. These errors result in inaccurate and sometimes
-    catastrophic results; hence, it is imperative to estimate these errors
-    accurately. This project aims to use Clad, a source transformation AD tool
-    for C++ implemented as a plugin for the C++ compiler Clang, to develop a
-    generic error estimation framework that is not bound to a particular error
-    approximation model. It will allow users to select their preferable
-    estimation logic and automatically generate functions augmented with code
-    for the specified error estimator.
-  past_proposal: /assets/docs/Garima_Singh_Proposal_2020.pdf
-  past_mentors: Vassil Vassilev, David Lange
+  active: 1
+  projects:
+    - title: "Add Numerical Differentiation Support in Clad"
+      status: Ongoing
+      description: |
+        In mathematics and computer algebra, automatic differentiation (AD) is a set
+        of techniques to numerically evaluate the derivative of a function specified
+        by a computer program. Automatic differentiation is an alternative technique
+        to Symbolic differentiation and Numerical differentiation (the method of finite
+        differences). Clad is based on Clang which provides the necessary facilities
+        for code transformation. The AD library can differentiate non-trivial functions,
+        find a partial derivative for trivial cases, and has good unit test coverage.
+        In several cases, due to different limitations, it is either inefficient or
+        impossible to differentiate a function. For example, clad cannot differentiate
+        declared-but-not-defined functions. In that case, it issues an error. Instead,
+        clad should fall back to its future numerical differentiation facilities.
+      proposal: /assets/docs/Garima_Singh_Proposal_2021.pdf
+      mentors:  Vassil Vassilev, Alexander Penev
+
+    - title: "Floating point error evaluation with Clad"
+      status: Completed
+      description: |
+        Floating-point estimation errors have been a testament to the finite nature
+        of computing. Moreover, the predominance of Floating-point numbers in
+        real-valued computation does not help that fact. Float computations are
+        highly dependent on precision, and in most cases, very high precision
+        calculation is not only not possible but very inefficient. Here, one has no
+        choice but to resort to lower precision computing, which in turn is quite
+        prone to errors. These errors result in inaccurate and sometimes
+        catastrophic results; hence, it is imperative to estimate these errors
+        accurately. This project aims to use Clad, a source transformation AD tool
+        for C++ implemented as a plugin for the C++ compiler Clang, to develop a
+        generic error estimation framework that is not bound to a particular error
+        approximation model. It will allow users to select their preferable
+        estimation logic and automatically generate functions augmented with code
+        for the specified error estimator.
+      proposal: /assets/docs/Garima_Singh_Proposal_2020.pdf
+      mentors: Vassil Vassilev, David Lange
 
 - name: "Parth Arora"
   photo: Parth.jpg
   email: partharora99160808@gmail.com
   education: "B.Tech in Computer Science, USICT, Guru Gobind Singh Indraprastha University, New Delhi, India"
-  current: 1
-  info: "Add support for custom types in Clad with a focus on the Softsusy library."
-  description: |
-    User-defined types in C++ helps to make code more readable and maintainable.
-    Many user-defined programs and almost every major library uses user-defined 
-    types. Thus it is very crucial for clad to support differentiating user-defined
-    types. The first goal of the project is to add support for differentiating 
-    user-defined types in clad. Clad currently also does not support many C++ 
-    syntaxes. Many of these are essential and are very well used in day-to-day 
-    programming such as break and continue statements. The second goal of the 
-    project is to battle test clad on Eigen and softsusy library codebases to 
-    find and add support for most of the missing syntax as well as to improve
-    support for differentiating function calls.
-  proposal: /assets/docs/Parth_Arora_Proposal_2022.pdf
-  mentors: Vassil Vassilev, David Lange
-  past_projects: 1
-  past_info: 'Add support for differentiating functor objects in clad'
-  past_description: |
-    Differentiation support for functions is available in clad. But support for direct
-    differentiation of functors and lambda expressions is missing. Many computations are
-    modelled using functors and functors and lambda expressions are becoming more and
-    more relevant in modern C++. This project aims to add support for directly differentiating 
-    functors and lambda expressions in clad.
-  past_proposal: /assets/docs/Parth_Arora_Proposal_2021.pdf
-  past_mentors: Vassil Vassilev, David Lange
+  active: 1
+  info: "IRIS-HEP Fellow"
+  projects:
+    - title: "Add support for custom types in Clad with a focus on the Softsusy library"
+      status: Ongoing
+      description: |
+        User-defined types in C++ helps to make code more readable and maintainable.
+        Many user-defined programs and almost every major library uses user-defined 
+        types. Thus it is very crucial for clad to support differentiating user-defined
+        types. The first goal of the project is to add support for differentiating 
+        user-defined types in clad. Clad currently also does not support many C++ 
+        syntaxes. Many of these are essential and are very well used in day-to-day 
+        programming such as break and continue statements. The second goal of the 
+        project is to battle test clad on Eigen and softsusy library codebases to 
+        find and add support for most of the missing syntax as well as to improve
+        support for differentiating function calls.
+      proposal: /assets/docs/Parth_Arora_Proposal_2022.pdf
+      mentors: Vassil Vassilev, David Lange
+
+    - title : 'Add support for differentiating functor objects in clad'
+      status: Completed
+      description: |
+        Differentiation support for functions is available in clad. But support for direct
+        differentiation of functors and lambda expressions is missing. Many computations are
+        modelled using functors and functors and lambda expressions are becoming more and
+        more relevant in modern C++. This project aims to add support for directly differentiating 
+        functors and lambda expressions in clad.
+      proposal: /assets/docs/Parth_Arora_Proposal_2021.pdf
+      mentors: Vassil Vassilev, David Lange
 
 - name: "Baidyanath Kundu"
   photo: Baidyanath.png
   info: 'Utilize second order derivatives from Clad in ROOT'
   email: kundubaidya99@gmail.com
   education: "B. Tech in Computer Science and Engg., Manipal Institute of Technology, Manipal, India"
-  current: 1
-  info: "Improving Cling Reflection for Scripting Languages"
-  description: |
-    Cling has basic facilities to make queries about the C++ code that it has seen/collected so far.
-    These lookups assume, however, that the caller knows what it is looking for and the information 
-    returned, although exact, usually only makes sense within C++ and is thus often too specific to
-    be used as-is. A scripting language, such as Python, that wants to make use of such lookups by
-    name, is forced to loop over all possible entities (classes, functions, templates, enums, …)
-    to find a match. This is inefficient. Furthermore, many lookups will be multi-stage: a function,
-    but which overload? A template, but which instantiation? A typedef, of what? The current
-    mechanism forces the scripting language to provide a type-based match, even where C++ makes
-    distinctions (e.g. pointer v.s. reference) that do not exist in the scripting language. This,
-    too, makes lookups very inefficient. The returned information, once a match is found, is exact,
-    but because of its specificity, requires the caller to figure out C++ concepts that have no
-    meaning in the scripting language. E.g., there is no reason for Python to consider an implicitly
-    instantiated function template different from an explicitly instantiated one.
-  mentors: Wim Lavrijsen, Vassil Vassilev
-  past_projects: 1
-  past_info: "Utilize second order derivatives from Clad in ROOT"
-  past_description: |
-    ROOT is a framework for data processing, born at CERN, at the heart of the research on high-energy physics.
-    ROOT has a clang-based C++ interpreter Cling and integrates with the automatic differentiation plugin Clad
-    to enable flexible automatic differentiation facility. TFormula is a ROOT class which bridges compiled and
-    interpreted code. This project aims to add second order derivative support in TFormula using clad::hessian.
-    The PR that added support for gradients in ROOT is taken as a reference and can be accessed here.
-  past_proposal: /assets/docs/Baidyanath_Kundu_Proposal_2021.pdf
-  past_mentors: Vassil Vassilev, Ioana Ifrim
+  active: 1
+  info: "Research Intern at CERN"
+  projects:
+    - title: "Improving Cling Reflection for Scripting Languages"
+      status: Ongoing
+      description: |
+        Cling has basic facilities to make queries about the C++ code that it has seen/collected so far.
+        These lookups assume, however, that the caller knows what it is looking for and the information 
+        returned, although exact, usually only makes sense within C++ and is thus often too specific to
+        be used as-is. A scripting language, such as Python, that wants to make use of such lookups by
+        name, is forced to loop over all possible entities (classes, functions, templates, enums, …)
+        to find a match. This is inefficient. Furthermore, many lookups will be multi-stage: a function,
+        but which overload? A template, but which instantiation? A typedef, of what? The current
+        mechanism forces the scripting language to provide a type-based match, even where C++ makes
+        distinctions (e.g. pointer v.s. reference) that do not exist in the scripting language. This,
+        too, makes lookups very inefficient. The returned information, once a match is found, is exact,
+        but because of its specificity, requires the caller to figure out C++ concepts that have no
+        meaning in the scripting language. E.g., there is no reason for Python to consider an implicitly
+        instantiated function template different from an explicitly instantiated one.
+      mentors: Wim Lavrijsen, Vassil Vassilev
+
+    - title: "Utilize second order derivatives from Clad in ROOT"
+      status: Completed
+      description: |
+        ROOT is a framework for data processing, born at CERN, at the heart of the research on high-energy physics.
+        ROOT has a clang-based C++ interpreter Cling and integrates with the automatic differentiation plugin Clad
+        to enable flexible automatic differentiation facility. TFormula is a ROOT class which bridges compiled and
+        interpreted code. This project aims to add second order derivative support in TFormula using clad::hessian.
+        The PR that added support for gradients in ROOT is taken as a reference and can be accessed here.
+      proposal: /assets/docs/Baidyanath_Kundu_Proposal_2021.pdf
+      mentors: Vassil Vassilev, Ioana Ifrim
 
 - name: Purva Chaudhari
-  info: "Enhance the incremental compilation error recovery in clang and clang-repl"
+  info: "Research Intern"
   photo: Purva.jpg
   email: purva.chaudhari02@gmail.com
   education: "Computer Science, Vishwakarma Institute of Technology"
-  current: 1
-  description: |
-    The Clang compiler is part of the LLVM compiler infrastructure and supports various languages such as C, 
-    C++, ObjC and ObjC++. Advancements in JIT infstructure and usability of Clang libriries in LLVM has 
-    enabled research into processing C++. It has been challenging to include incremental compilation and 
-    fitting compile time optimizations into a more dynamic environment.
-    Incremental compilation pipelines process code chunk-by-chunk by building an ever-growing translation unit. 
-    Code is then lowered into the LLVM IR and subsequently run by the LLVM JIT. The incremental compilation mode 
-    is used by the interactive C++ interpreter, Cling, initially developed to enable interactive high-energy physics 
-    analysis in a C++ environment. Clang-repl is a new-tool incroporated in LLVM ecosystem by residesigning parts 
-    of CLing in Clang mainline. The project aims at enhancing the error recovery when users type C++ at the prompt of clang-repl.
-  mentors: Vassil Vassilev, David Lange
-  past_projects: 1
-  past_info: 'Reduce boost dependencies in CMSSW'
-  past_description: |
-    This project has the objective to reduce CMSSW technical debt by finding 
-    and replacing boost dependencies that have an equivalent solution in 
-    standard C++. Reducing boost dependencies helps us create more lightweight
-    boost clang modules for upcoming c++20. This also reduces the amount of
-    headers that we need to work on to be able to use c++20 clang modules.
-  report: <a href="https://indico.cern.ch/event/1066812/contributions/4495290/attachments/2302817/3917355/Iris%20HeP.pdf" target="_blank">URL</a>
-  past_mentors: Vassil Vassilev, David Lange
+  active: 1
+  projects:
+    - title: "Enhance the incremental compilation error recovery in clang and clang-repl"
+      status: Ongoing
+      description: |
+        The Clang compiler is part of the LLVM compiler infrastructure and supports various languages such as C, 
+        C++, ObjC and ObjC++. Advancements in JIT infstructure and usability of Clang libriries in LLVM has 
+        enabled research into processing C++. It has been challenging to include incremental compilation and 
+        fitting compile time optimizations into a more dynamic environment.
+        Incremental compilation pipelines process code chunk-by-chunk by building an ever-growing translation unit. 
+        Code is then lowered into the LLVM IR and subsequently run by the LLVM JIT. The incremental compilation mode 
+        is used by the interactive C++ interpreter, Cling, initially developed to enable interactive high-energy physics 
+        analysis in a C++ environment. Clang-repl is a new-tool incroporated in LLVM ecosystem by residesigning parts 
+        of Cling in Clang mainline. The project aims at enhancing the error recovery when users type C++ at the prompt of clang-repl.
+      mentors: Vassil Vassilev, David Lange
+    - title: 'Reduce boost dependencies in CMSSW'
+      status: Completed
+      description: |
+        This project has the objective to reduce CMSSW technical debt by finding 
+        and replacing boost dependencies that have an equivalent solution in 
+        standard C++. Reducing boost dependencies helps us create more lightweight
+        boost clang modules for upcoming c++20. This also reduces the amount of
+        headers that we need to work on to be able to use c++20 clang modules.
+      mentors: Vassil Vassilev, David Lange
+      report: |
+        [URL](https://indico.cern.ch/event/1066812/contributions/4495290/attachments/2302817/3917355/Iris%20HeP.pdf"){:target="_blank"}
 
 - name: "This could be you!"
   photo: rock.jpg
   info: See <a href="/vacancies">openings</a> for more info
   email: vvasilev@cern.ch
-  current: 1
+  active: 1
 
 - name: "Ajay Uppili Arasanipalai"
   photo: Ajay.png
-  info: 'Modernize the LLVM "Building A JIT" Tutorial Series'
+  info: Google Summer of Code Student 2021
   email: aua2@illinois.edu
   education: "University of Illinois at Urbana-Champaign, Grainger College of Engineering"
-  description: |
-    The LLVM JIT API has changed many times over the years.
-    However, the official tutorials have failed to keep up.
-    This project aims to update the official “Building a JIT” tutorials to use
-    the latest version of the OrcJIT API and add new content that might be relevant
-    to new LLVM users interested in writing their own JIT compilers.
-  proposal: https://summerofcode.withgoogle.com/serve/6211919142191104/
-  mentors: Lang Hames, Vassil Vassilev
+  projects:
+    - title: 'Modernize the LLVM "Building A JIT" Tutorial Series'
+      description: |
+        The LLVM JIT API has changed many times over the years.
+        However, the official tutorials have failed to keep up.
+        This project aims to update the official “Building a JIT” tutorials to use
+        the latest version of the OrcJIT API and add new content that might be relevant
+        to new LLVM users interested in writing their own JIT compilers.
+      proposal: https://summerofcode.withgoogle.com/serve/6211919142191104/
+      mentors: Lang Hames, Vassil Vassilev
 
 - name: Vaibhav Garg
-  info: "Enable Modules on Windows, GSoC 2020"
+  info: "Google Summer of Code Student 2020"
   email: gargvaibhav64@gmail.com
   education: "Computer Science, Birla Institute of Technology and Science, Pilani, India"
-  description: |
-    ROOT has several features that interact with libraries and require implicit
-    header inclusion. This can be triggered by reading or writing data on disk,
-    or user actions at the prompt. Exposing the full shared library descriptors
-    to the interpreter at runtime translates into an increased memory footprint.
-    ROOT’s exploratory programming concepts allow implicit and explicit runtime
-    shared library loading. It requires the interpreter to load the library
-    descriptor. Re-parsing of descriptors’ content has a noticeable effect on
-    runtime performance. C++ Modules are designed to minimize the reparsing of
-    the same header content by providing an efficient on-disk representation of
-    the C++ Code. C++ Modules have been implemented for Unix and OS X systems
-    already and it is expected that with next release of ROOT, C++ modules will
-    be default on OS X. This project aims to extend the C++ Modules support for
-    Windows, by implementing compatible solutions to the UNIX baseline and also
-    display corresponding performance results.
-  report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/6406031539699712/" target="_blank">GSoC 2020 Archive</a>
-  mentors: Vassil Vassilev, Bertrand Bellenot
+  projects:
+    - title: "Enable Modules on Windows"
+      status: Completed
+      description: |
+        ROOT has several features that interact with libraries and require implicit
+        header inclusion. This can be triggered by reading or writing data on disk,
+        or user actions at the prompt. Exposing the full shared library descriptors
+        to the interpreter at runtime translates into an increased memory footprint.
+        ROOT’s exploratory programming concepts allow implicit and explicit runtime
+        shared library loading. It requires the interpreter to load the library
+        descriptor. Re-parsing of descriptors’ content has a noticeable effect on
+        runtime performance. C++ Modules are designed to minimize the reparsing of
+        the same header content by providing an efficient on-disk representation of
+        the C++ Code. C++ Modules have been implemented for Unix and OS X systems
+        already and it is expected that with next release of ROOT, C++ modules will
+        be default on OS X. This project aims to extend the C++ Modules support for
+        Windows, by implementing compatible solutions to the UNIX baseline and also
+        display corresponding performance results.
+      report: |
+        [GSoC 2020 Archive](https://summerofcode.withgoogle.com/archive/2020/projects/6406031539699712/){:target="_blank"}
+      mentors: Vassil Vassilev, Bertrand Bellenot
 
 - name: Lucas Camolezi
-  info: "Reduce boost dependence in CMSSW, GSoC 2020"
+  info: "Google Summer of Code Student 2020"
   email: camolezi@usp.br
   education: "Computer Engineering, University of São Paulo, Brazil"
-  description: |
-    This project has the goal to find and decrease boost dependencies in CMSSW.
-    Modern C++ introduced a lot of new features that were only available through
-    boost packages. Thus, some boost code can be replaced with similar C++
-    standard library features. Using standard features is a good practice, this
-    project will move the CMSSW codebase in that direction.
-  report: <a href="https://summerofcode.withgoogle.com/archive/2020/projects/5397144158076928/" target="_blank">GSoC 2020 Archive</a>
-  mentors: Vassil Vassilev, David Lange
+  projects:
+    - title: "Reduce boost dependence in CMSSW"
+      status: Completed
+      description: |
+        This project has the goal to find and decrease boost dependencies in CMSSW.
+        Modern C++ introduced a lot of new features that were only available through
+        boost packages. Thus, some boost code can be replaced with similar C++
+        standard library features. Using standard features is a good practice, this
+        project will move the CMSSW codebase in that direction.
+      report: |
+        [GSoC 2020 Archive](https://summerofcode.withgoogle.com/archive/2020/projects/5397144158076928/){:target="_blank"}
+      mentors: Vassil Vassilev, David Lange
 
 - name: Roman Shakhov
-  info: "Extend clad to compute Jacobians, GSoC 2020"
+  info: "Google Summer of Code Student 2020"
   email: r.intval@gmail.com
   education: "Mathematics and Computer Science, Voronezh State University, Russia"
-  description: |
-    In mathematics and computer algebra, automatic differentiation (AD) is a
-    set of techniques to numerically evaluate the derivative of a function
-    specified by a computer program. Automatic differentiation is an alternative
-    technique to Symbolic differentiation and Numerical differentiation (the
-    method of finite differences). CLAD is based on Clang which will provide the
-    necessary facilities for code transformation. The AD library is able to
-    differentiate non-trivial functions, to find a partial derivative for trivial
-    cases and has good unit test coverage.
-    Currently, clad does not provide an easy way to compute Jacobians.
-  report: <a href="/assets/presentations/LLVM2020_Clad.pdf" target="_blank">Poster</a>
-  mentors: Vassil Vassilev, Alexander Penev
+  projects:
+    - title: "Extend clad to compute Jacobians"
+      description: |
+        In mathematics and computer algebra, automatic differentiation (AD) is a
+        set of techniques to numerically evaluate the derivative of a function
+        specified by a computer program. Automatic differentiation is an alternative
+        technique to Symbolic differentiation and Numerical differentiation (the
+        method of finite differences). CLAD is based on Clang which will provide the
+        necessary facilities for code transformation. The AD library is able to
+        differentiate non-trivial functions, to find a partial derivative for trivial
+        cases and has good unit test coverage.
+        Currently, clad does not provide an easy way to compute Jacobians.
+      report: |
+        [Poster](/assets/presentations/LLVM2020_Clad.pdf){:target="_blank"}
+      mentors: Vassil Vassilev, Alexander Penev

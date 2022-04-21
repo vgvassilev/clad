@@ -74,9 +74,12 @@ Jump to [staff](#staff), [contributor](#contributors)
 ## Contributors
 <div class="clearfix">
 
+{% assign active_contrib = site.data.contributors | where: "active", "1" %}
+{% assign past_contrib = site.data.contributors | where: "active", nil %}
+
+
 {% assign number_printed = 0 %}
-{% for member in site.data.contributors %}
-{% if member.current %}
+{% for member in active_contrib %}
 {% assign even_odd = number_printed | modulo: 2 %}
 
 {% if even_odd == 0 %}
@@ -87,29 +90,26 @@ Jump to [staff](#staff), [contributor](#contributors)
   <img src="{{ site.url }}{{ site.baseurl }}/images/team/{{ member.photo }}" class="img-responsive" width="25%" style="float: left" />
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
-  {% unless member.photo == "rock.jpg" %}
-  <p> <strong>Education:</strong> {{ member.education }} </p>
-  <p class="text-justify">
-    <strong>Project description:</strong> {{ member.description }}
-  </p>
-  <p>
-    <strong>Project Proposal:</strong>
-    <a href="{{ member.proposal }}" target=_blank >URL</a>
-  </p>
-  <p> <strong>Mentors:</strong> {{ member.mentors }} </p>
-  {% if member.past_projects %}
-  <h5>Past Projects</h5>
-  <i>{{ member.past_info }}</i>
-  <p class="text-justify">
-    <strong>Project description:</strong> {{ member.past_description }}
-  </p>
-  <p>
-    <strong>Project Proposal:</strong>
-    <a href="{{ member.past_proposal }}" target=_blank >URL</a>
-  </p>
-  <p> <strong>Mentors:</strong> {{ member.past_mentors }} </p>
+  {% if member.photo == "rock.jpg" %}
+  </div>
+     {% continue %}
   {% endif %}
-  {% endunless %}
+  <p> <strong>Education:</strong> {{ member.education }} </p>
+  {% for project in member.projects %}
+  <p class="text-justify">
+    <strong> {{ project.status }} project:</strong>
+    <i>{{ project.title }}</i><br/>{{ project.description }}
+  </p>
+  <p>
+    <strong>Project Proposal:</strong>
+    <a href="{{ project.proposal }}" target=_blank >URL</a>
+  </p>
+  <p>
+    <strong>Project Reports:</strong>
+    {{ project.report | markdownify | remove: '<p>' | remove: '</p>' | strip_newlines}}
+  </p>
+  <p> <strong>Mentors:</strong> {{ project.mentors }} </p> 
+  {% endfor %}
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}
@@ -117,19 +117,19 @@ Jump to [staff](#staff), [contributor](#contributors)
 {% if even_odd == 1 %}
 </div>
 {% endif %}
-{% endif %}
 
 {% endfor %}
 </div>
 
+<hr />
 
 ### Alumni
+
 <div class="clearfix">
 
-{% assign number_printed = 0 %}
-{% for member in site.data.contributors %}
-{% unless member.current %}
 
+{% assign number_printed = 0 %}
+{% for member in past_contrib %}
 {% assign even_odd = number_printed | modulo: 2 %}
 
 {% if even_odd == 0 %}
@@ -137,35 +137,35 @@ Jump to [staff](#staff), [contributor](#contributors)
 {% endif %}
 
 <div class="col-sm-6 clearfix">
+  {% if member.photo %}
+  <img src="{{ site.url }}{{ site.baseurl }}/images/team/{{ member.photo }}" class="img-responsive" width="25%" style="float: left" />
+  {% endif %}
   <h4>{{ member.name }}</h4>
   <i>{{ member.info }}<br>email: <{{ member.email }}></i>
   <p> <strong>Education:</strong> {{ member.education }} </p>
+  {% for project in member.projects %}
   <p class="text-justify">
-    <strong>Project description:</strong> {{ member.description }}
-  </p>
-  <p> <strong>Final Report:</strong> {{ member.report }} </p>
-  <p> <strong>Mentors:</strong> {{ member.mentors }} </p>
-  {% if member.past_projects %}
-  <h5>Past Projects</h5>
-  <i>{{ member.past_info }}</i>
-  <p class="text-justify">
-    <strong>Project description:</strong> {{ member.past_description }}
+    <strong> {{ project.status }} project:</strong>
+    <i>{{ project.title }}</i><br/>{{ project.description }}
   </p>
   <p>
-    <strong>Final Report:</strong>
-    <a href="{{ member.final_report }}" target=_blank >URL</a>
+    <strong>Project Proposal:</strong>
+    <a href="{{ project.proposal }}" target=_blank >URL</a>
   </p>
-  <p> <strong>Mentors:</strong> {{ member.past_mentors }} </p>
-  {% assign number_printed = number_printed | plus: 1 %}
-  {% endif %}
+  <p>
+    <strong>Project Reports:</strong>
+    {{ project.report | markdownify | remove: '<p>' | remove: '</p>' | strip_newlines}}
+  </p>
+  <p> <strong>Mentors:</strong> {{ project.mentors }} </p> 
+  {% endfor %}
 </div>
 
 {% assign number_printed = number_printed | plus: 1 %}
 
 {% if even_odd == 1 %}
 </div>
+
 {% endif %}
-{% endunless %}
 
 {% endfor %}
 </div>
