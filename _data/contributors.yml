@@ -1,3 +1,24 @@
+- name: David J Lange
+  info: Research Staff
+  photo: Lange.png
+  email: David.Lange@princeton.edu
+  education: PhD Phyiscs, University of California, Santa Barbara (1999).
+  active: 1
+
+- name: <a href="https://vassil.vassilev.info" target="_blank" >Vassil Vassilev</a>
+  info: Research Staff
+  photo: Vassilev.jpg
+  email: vvasilev@cern.ch
+  education: PhD Computer Science, University of Plovdiv "Paisii Hilendarski", Plovdiv, Bulgaria (2015).
+  active: 1
+
+- name: Ioana Ifrim
+  info: Research Staff
+  photo: Ifrim.jpg
+  email: ioana.ifrim@cern.ch
+  education: MPhil Advanced Computer Science, University of Cambridge (2018)
+  active: 1
+
 - name: "Tapasweni Pathak"
   info: "Principal Product Manager at Microsoft Azure Core Engineering"
   photo: tapaswenipathak.png
