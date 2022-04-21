@@ -11,8 +11,7 @@ permalink: /team/
 <div class="clearfix">
 
 {% assign active_contrib = site.data.contributors | where: "active", "1" %}
-{% assign past_contrib = site.data.contributors | where: "active", nil %}
-
+{% assign past_contrib = site.data.contributors | where_exp: "item", "item.active == nil" %}
 
 {% assign number_printed = 0 %}
 {% for member in active_contrib %}
