@@ -1,3 +1,30 @@
+- name: Tapasweni Pathak
+  info: "Principal Product Manager at Microsoft Azure Core Engineering"
+  photo: tapaswenipathak.png
+  email: tapaswenipathak@gmail.com
+  education: B.Tech in Computer Science, Indira Gandhi Delhi Technical University for Women, 2014
+  current: 1
+  past_info: "Improving performance of C++ modules in Clang"
+  description: |
+    The C++ modules technology aims to provide a scalable compilation model for the
+    C++ language. The C++ Modules technology in Clang provides an io-efficient,
+    on-disk representation capable to reduce build times and peak memory usage. The
+    internal compiler state such as the abstract syntax tree (AST) is stored on disk
+    and lazily loaded on demand. C++ Modules improve the memory footprint for
+    interpreted C++ through the Cling C++ interpreter developed by CERN and the
+    compiler research group at Princeton. The current implementation is pretty good
+    at making most operations on demand. However in a few cases, we eagerly load
+    pieces of the AST, for example at module import time and upon selecting a
+    suitable template specialization. When selecting the template specialization
+    we load all template specializations from the module files just to find out they
+    are not suitable. There is a patch that partially solves this issue by
+    introducing a template argument hash and use it to look up the candidates
+    without deserializing them. However, the data structure it uses to store the
+    hashes leads to quadratic search which is inefficient when the number of modules
+    becomes sufficiently large.
+  proposal: /assets/docs/Tapasweni_Pathak_Proposal_2022.pdf
+  mentors: Vassil Vassilev
+
 - name: "Garima Singh"
   photo: Garima_Singh.jpg
   info: "Add Numerical Differentiation Support in Clad"
@@ -128,33 +155,6 @@
     headers that we need to work on to be able to use c++20 clang modules.
   report: <a href="https://indico.cern.ch/event/1066812/contributions/4495290/attachments/2302817/3917355/Iris%20HeP.pdf" target="_blank">URL</a>
   past_mentors: Vassil Vassilev, David Lange
-
-- name: Tapasweni Pathak
-  info: "Principal Product Manager at Microsoft Azure Core Engineering"
-  photo: tapaswenipathak.png
-  email: tapaswenipathak@gmail.com
-  education: B.Tech in Computer Science, Indira Gandhi Delhi Technical University for Women, 2014
-  current: 1
-  past_info: "Improving performance of C++ modules in Clang"
-  description: |
-    The C++ modules technology aims to provide a scalable compilation model for the
-    C++ language. The C++ Modules technology in Clang provides an io-efficient,
-    on-disk representation capable to reduce build times and peak memory usage. The
-    internal compiler state such as the abstract syntax tree (AST) is stored on disk
-    and lazily loaded on demand. C++ Modules improve the memory footprint for
-    interpreted C++ through the Cling C++ interpreter developed by CERN and the
-    compiler research group at Princeton. The current implementation is pretty good
-    at making most operations on demand. However in a few cases, we eagerly load
-    pieces of the AST, for example at module import time and upon selecting a
-    suitable template specialization. When selecting the template specialization
-    we load all template specializations from the module files just to find out they
-    are not suitable. There is a patch that partially solves this issue by
-    introducing a template argument hash and use it to look up the candidates
-    without deserializing them. However, the data structure it uses to store the
-    hashes leads to quadratic search which is inefficient when the number of modules
-    becomes sufficiently large.
-    https://paper.dropbox.com/doc/Improving-performance-of-C-modules-in-Clang--Bf9QpDzTieQaOgqg5TQM9XM0AQ-vQsi6iNm9I61rIAKkdmMA  
-  mentors: Vassil Vassilev
 
 - name: "This could be you!"
   photo: rock.jpg

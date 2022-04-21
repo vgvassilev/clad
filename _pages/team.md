@@ -11,6 +11,8 @@ permalink: /team/
 Jump to [staff](#staff), [contributor](#contributors) 
 
 ## Staff
+<div class="clearfix">
+
 {% assign number_printed = 0 %}
 {% for member in site.data.team_members %}
 
@@ -67,12 +69,11 @@ Jump to [staff](#staff), [contributor](#contributors)
 
 {% endfor %}
 
-{% assign even_odd = number_printed | modulo: 2 %}
-{% if even_odd == 1 %}
 </div>
-{% endif %}
 
 ## Contributors
+<div class="clearfix">
+
 {% assign number_printed = 0 %}
 {% for member in site.data.contributors %}
 {% if member.current %}
@@ -107,7 +108,6 @@ Jump to [staff](#staff), [contributor](#contributors)
     <a href="{{ member.past_proposal }}" target=_blank >URL</a>
   </p>
   <p> <strong>Mentors:</strong> {{ member.past_mentors }} </p>
-  {% assign number_printed = number_printed | plus: 1 %}
   {% endif %}
   {% endunless %}
 </div>
@@ -120,13 +120,12 @@ Jump to [staff](#staff), [contributor](#contributors)
 {% endif %}
 
 {% endfor %}
-
-{% assign even_odd = number_printed | modulo: 2 %}
-{% if even_odd == 1 %}
 </div>
-{% endif %}
+
 
 ### Alumni
+<div class="clearfix">
+
 {% assign number_printed = 0 %}
 {% for member in site.data.contributors %}
 {% unless member.current %}
@@ -169,8 +168,4 @@ Jump to [staff](#staff), [contributor](#contributors)
 {% endunless %}
 
 {% endfor %}
-
-{% assign even_odd = number_printed | modulo: 2 %}
-{% if even_odd == 1 %}
 </div>
-{% endif %}
