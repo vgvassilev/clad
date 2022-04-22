@@ -235,16 +235,16 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
 }
 
 Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
-  CXXOperatorCallExpr* result
-    = clad_compat::CXXOperatorCallExpr_Create(Ctx, Node->getOperator(),
-                                    Clone(Node->getCallee()), 0,
-                                    Node->getType(),
-                                    Node->getValueKind(),
-                                    Node->getRParenLoc(),
-                                    Node->getFPFeatures()
-                                    CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams
-                                    );
-//###  result->setNumArgs(Ctx, Node->getNumArgs());
+  llvm::SmallVector<Expr*, 4> clonedArgs;
+  for (Expr* arg : Node->arguments()) {
+    clonedArgs.push_back(Clone(arg));
+  }
+  CXXOperatorCallExpr* result = clad_compat::CXXOperatorCallExpr_Create(
+      Ctx, Node->getOperator(), Clone(Node->getCallee()), clonedArgs,
+      Node->getType(), Node->getValueKind(), Node->getRParenLoc(),
+      Node->getFPFeatures()
+          CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams);
+  //###  result->setNumArgs(Ctx, Node->getNumArgs());
   result->setNumArgsUnsafe(Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
     result->setArg(i, Clone(Node->getArg(i)));
