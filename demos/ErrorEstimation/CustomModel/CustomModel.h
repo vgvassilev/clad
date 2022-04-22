@@ -20,7 +20,4 @@ public:
   // Return an expression of the following kind:
   //  dfdx * delta_x
   clang::Expr* AssignError(clad::StmtDiff refExpr);
-
-  // Return a nullptr here, clad will interpret that as a 0 literal.
-  clang::Expr* SetError(clang::VarDecl* decl);
 };

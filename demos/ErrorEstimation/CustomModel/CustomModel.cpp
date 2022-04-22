@@ -8,8 +8,6 @@ clang::Expr* CustomModel::AssignError(clad::StmtDiff refExpr) {
   return BuildOp(clang::BO_Mul, refExpr.getExpr_dx(), refExpr.getExpr());
 }
 
-clang::Expr* CustomModel::SetError(clang::VarDecl* decl) { return nullptr; }
-
 // We need this statement to register our model with clad. Without this, clad
 // will NOT be able to resolve to our overidden functions properly.
 static clad::ErrorEstimationModelRegistry::Add<
