@@ -45,6 +45,11 @@ namespace clad {
     return addExpr;
   }
 
+  // Return nullptr here, this is interpreted as 0 internally.
+  Expr* FPErrorEstimationModel::SetError(VarDecl* declStmt) { 
+    return nullptr; 
+  }
+
   Expr* TaylorApprox::AssignError(StmtDiff refExpr) {
     // Get the machine epsilon value.
     double val = std::numeric_limits<float>::epsilon();
@@ -59,9 +64,6 @@ namespace clad {
     return BuildOp(BO_Mul, refExpr.getExpr_dx(),
                    BuildOp(BO_Mul, refExpr.getExpr(), epsExpr));
   }
-
-  // return nullptr here, this is interpreted as 0 internally.
-  Expr* TaylorApprox::SetError(VarDecl* declStmt) { return nullptr; }
 
 } // namespace clad
 

@@ -76,7 +76,7 @@ namespace clad {
     /// variables. This function is separate from AssignError to keep
     /// implementation of different estimation models more flexible.
     ///
-    /// Following the example above, a possible override is:
+    /// The default definition is as follows:
     /// \n \code
     /// clang::Expr* SetError(clang::VarDecl* declStmt) {
     ///      return nullptr;
@@ -88,7 +88,7 @@ namespace clad {
     /// \param[in] decl The declaration to which the error has to be assigned.
     ///
     /// \returns The error expression for declaration statements.
-    virtual clang::Expr* SetError(clang::VarDecl* decl) = 0;
+    virtual clang::Expr* SetError(clang::VarDecl* decl);
 
     /// Calculate aggregate error from m_EstimateVar.
     ///
@@ -135,9 +135,6 @@ namespace clad {
     // Return an expression of the following kind:
     //  dfdx * delta_x * Em
     clang::Expr* AssignError(StmtDiff refExpr) override;
-
-    // For now, we can just return null.
-    clang::Expr* SetError(clang::VarDecl* decl) override;
   };
 
   /// Register any custom error estimation model a user provides
