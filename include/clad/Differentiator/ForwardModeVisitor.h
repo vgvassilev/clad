@@ -51,7 +51,6 @@ namespace clad {
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
     StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
-    StmtDiff VisitCXXOperatorCallExpr(const clang::CXXOperatorCallExpr* OpCall);
     StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
@@ -91,7 +90,7 @@ namespace clad {
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
     StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
     StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
-
+    StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* CSE);
   private:
     /// Helper function for differentiating the switch statement body.
     ///

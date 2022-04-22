@@ -239,6 +239,26 @@ double fn6(double i, double j, double k) {
 // CHECK-NEXT:     return _d_i + _d_j + _d_k + _t0.pushforward;
 // CHECK-NEXT: }
 
+double helperFn(double&& i, double&& j) {
+  return i+j;
+}
+
+// CHECK: clad::ValueAndPushforward<double, double> helperFn_pushforward(double &&i, double &&j, double &&_d_i, double &&_d_j) {
+// CHECK-NEXT:     return {i + j, _d_i + _d_j};
+// CHECK-NEXT: }
+
+double fn7(double i, double j) {
+  return helperFn(helperFn(7*i, 9*j), i+j);
+}
+
+// CHECK: double fn7_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = helperFn_pushforward(7 * i, 9 * j, 0 * i + 7 * _d_i, 0 * j + 9 * _d_j);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = helperFn_pushforward(static_cast<double &&>(_t0.value), i + j, static_cast<double &&>(_t0.pushforward), _d_i + _d_j);
+// CHECK-NEXT:     return _t1.pushforward;
+// CHECK-NEXT: }
+
 float test_1_darg0(float x);
 float test_2_darg0(float x);
 float test_4_darg0(float x);
@@ -247,7 +267,7 @@ float test_4_darg0(float x);
   auto d_##fn = clad::differentiate(fn, __VA_ARGS__);
 
 #define TEST(fn, ...)\
-  printf("{%.2f}", d_##fn.execute(__VA_ARGS__));
+  printf("{%.2f}\n", d_##fn.execute(__VA_ARGS__));
 
 int main () {
   clad::differentiate(test_1, 0);
@@ -265,6 +285,7 @@ int main () {
   INIT(fn4, "i");
   INIT(fn5, "i");
   INIT(fn6, "i");
+  INIT(fn7, "i");
 
   TEST(fn1, 3, 5);    // CHECK-EXEC: {12.00}
   TEST(fn2, 3, 5);    // CHECK-EXEC: {181.00}
@@ -272,5 +293,6 @@ int main () {
   TEST(fn4, 3, 5);    // CHECK-EXEC: {1.00}
   TEST(fn5, 3, 5);    // CHECK-EXEC: {1.00}
   TEST(fn6, 3, 5, 7); // CHECK-EXEC: {3.00}
+  TEST(fn7, 3, 5);    // CHECK-EXEC: {8.00}
   return 0;
 }

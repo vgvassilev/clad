@@ -62,8 +62,10 @@ namespace clad {
            "Doesn't support recursive diff. Use DiffPlan.");
     m_DerivativeInFlight = true;
 
+    auto originalFnEffectiveName = utils::ComputeEffectiveFnName(m_Function);
+
     IdentifierInfo* derivedFnII =
-        &m_Context.Idents.get(m_Function->getNameAsString() + "_pushforward");
+        &m_Context.Idents.get(originalFnEffectiveName + "_pushforward");
     DeclarationNameInfo derivedFnName(derivedFnII, noLoc);
     llvm::SmallVector<QualType, 16> paramTypes, derivedParamTypes;
 
@@ -132,9 +134,20 @@ namespace clad {
     std::size_t numParamsOriginalFn = m_Function->getNumParams();
     for (std::size_t i = 0; i < numParamsOriginalFn; ++i) {
       auto PVD = m_Function->getParamDecl(i);
-      auto newPVD = CloneParmVarDecl(PVD, PVD->getIdentifier(),
+      // Some of the special member functions created implicitly by compilers
+      // have missing parameter identifier.
+      bool identifierMissing = false;
+      IdentifierInfo* PVDII = PVD->getIdentifier();
+      if (!PVDII || PVDII->getLength() == 0) {
+        PVDII = CreateUniqueIdentifier("param");
+        identifierMissing = true;
+      }
+      auto newPVD = CloneParmVarDecl(PVD, PVDII,
                                      /*pushOnScopeChains=*/true);
       params.push_back(newPVD);
+
+      if (identifierMissing)
+        m_DeclReplacements[PVD] = newPVD;
 
       QualType nonRefParamType = PVD->getType().getNonReferenceType();
       // FIXME: Add support for pointer and array parameters in the
@@ -142,7 +155,7 @@ namespace clad {
       if (!utils::isDifferentiableType(PVD->getType()) ||
           utils::isArrayOrPointerType(PVD->getType()))
         continue;
-      auto derivedPVDName = "_d_" + PVD->getNameAsString();
+      auto derivedPVDName = "_d_" + std::string(PVDII->getName());
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
       auto derivedPVD = CloneParmVarDecl(PVD, derivedPVDII,
                                          /*pushOnScopeChains=*/true);
@@ -754,6 +767,8 @@ namespace clad {
       auto field = ME->getMemberDecl();
       assert(!isa<FunctionDecl>(field) &&
              "Member functions are not supported yet!");
+      auto clonedME = utils::BuildMemberExpr(
+          m_Sema, getCurrentScope(), baseDiff.getExpr(), field->getName());
       // Here we are implicitly assuming that the derived type and the original
       // types are same. This may not be necessarily true in the future.
       auto derivedME = utils::BuildMemberExpr(
@@ -1057,25 +1072,67 @@ namespace clad {
     llvm::SmallVector<Expr*, 4> CallArgs{};
     llvm::SmallVector<Expr*, 4> diffArgs;
 
+    // Represents `StmtDiff` result of the 'base' object if are differentiating
+    // a direct or indirect (operator overload) call to member function.
     StmtDiff baseDiff;
-    // Add derivative of the implicit `this` pointer.
-    if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
-      baseDiff = Visit(MCE->getImplicitObjectArgument());
-      Expr* baseDerivative = baseDiff.getExpr_dx();
-      if (!baseDerivative->getType()->isPointerType())
-        baseDerivative = BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-      diffArgs.push_back(baseDerivative);
+    // Add derivative of the implicit `this` pointer to the `diffArgs`.
+    if (auto MD = dyn_cast<CXXMethodDecl>(FD)) {
+      if (MD->isInstance()) {
+        const Expr* baseOriginalE = nullptr;
+        if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE))
+          baseOriginalE = MCE->getImplicitObjectArgument();
+        else if (auto OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+          baseOriginalE = OCE->getArg(0);
+        baseDiff = Visit(baseOriginalE);
+        Expr* baseDerivative = baseDiff.getExpr_dx();
+        if (!baseDerivative->getType()->isPointerType())
+          baseDerivative =
+              BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+        diffArgs.push_back(baseDerivative);
+      }
     }
+
+    // `CXXOperatorCallExpr` have the `base` expression as the first argument.
+    // This representation conflict with calls to member functions.  Thus, to
+    // maintain consistency, we are following this:
+    //
+    // `baseDiff` contains differentiation result of the corresponding `base`
+    // object of the call, if any.
+    // `CallArgs` contains clones of all the original call arguments.
+    // `DiffArgs` contains derivatives of all the call arguments.
+    bool skipFirstArg = false;
+
+    // Here we do not need to check if FD is an instance method or a static
+    // method because C++ forbids creating operator overloads as static methods.
+    if (isa<CXXOperatorCallExpr>(CE) && isa<CXXMethodDecl>(FD))
+      skipFirstArg = true;
 
     // For f(g(x)) = f'(x) * g'(x)
     Expr* Multiplier = nullptr;
-    for (size_t i = 0, e = CE->getNumArgs(); i < e; ++i) {
+    for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
       const Expr* arg = CE->getArg(i);
       StmtDiff argDiff = Visit(arg);
       if (!Multiplier)
         Multiplier = argDiff.getExpr_dx();
       else {
         Multiplier = BuildOp(BO_Add, Multiplier, argDiff.getExpr_dx());
+      }
+
+      // If original argument is an RValue and function expects an RValue
+      // parameter, then convert the cloned argument and the corresponding
+      // derivative to RValue if they are not RValue.
+      QualType paramType = FD->getParamDecl(i - skipFirstArg)->getType();
+      if (utils::IsRValue(arg) && paramType->isRValueReferenceType()) {
+        if (!utils::IsRValue(argDiff.getExpr())) {
+          Expr* castE =
+              utils::BuildStaticCastToRValue(m_Sema, argDiff.getExpr());
+          argDiff.updateStmt(castE);
+        }
+        if (!utils::IsRValue(argDiff.getExpr_dx())) {
+          Expr* castE =
+              utils::BuildStaticCastToRValue(m_Sema, argDiff.getExpr_dx());
+          argDiff.updateStmtDx(castE);
+        }
       }
       CallArgs.push_back(argDiff.getExpr());
       // FIXME: Add support for pointer and array arguments in the
@@ -1126,7 +1183,7 @@ namespace clad {
           plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
 
       if (pushforwardFD) {
-        if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+        if (baseDiff.getExpr()) {
           callDiff =
               BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
                                    pushforwardFnArgs, pushforwardFD);
@@ -1207,6 +1264,16 @@ namespace clad {
     } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
       return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     } else {
+      // This only adds support for differentiating the following expression:
+      // ```
+      // *this;
+      // ```
+      if (opKind == UnaryOperatorKind::UO_Deref) {
+        if (isa<CXXThisExpr>(UnOp->getSubExpr()->IgnoreParenImpCasts())) {
+          Expr* derivedE = BuildOp(opKind, diff.getExpr_dx());
+          return {op, derivedE};
+        }
+      }
       unsupportedOpWarn(UnOp->getEndLoc());
       auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
@@ -1398,16 +1465,6 @@ namespace clad {
     // Casts should be handled automatically when the result is used by
     // Sema::ActOn.../Build...
     return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
-  }
-
-  StmtDiff ForwardModeVisitor::VisitCXXOperatorCallExpr(
-      const CXXOperatorCallExpr* OpCall) {
-    // This operator gets emitted when there is a binary operation containing
-    // overloaded operators. Eg. x+y, where operator+ is overloaded.
-    diag(DiagnosticsEngine::Error,
-         OpCall->getEndLoc(),
-         "We don't support overloaded operators yet!");
-    return {};
   }
 
   StmtDiff
@@ -1873,5 +1930,23 @@ namespace clad {
                             argDiff.getExpr_dx())
             .get();
     return {clonedDeleteE, derivedDeleteE};
+  }
+  
+  StmtDiff ForwardModeVisitor::VisitCXXStaticCastExpr(
+      const clang::CXXStaticCastExpr* CSE) {    
+    auto diff = Visit(CSE->getSubExpr());
+    Expr* clonedE =
+        m_Sema
+            .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
+                               CSE->getTypeInfoAsWritten(), diff.getExpr(),
+                               SourceRange(), SourceRange())
+            .get();
+    Expr* derivedE =
+        m_Sema
+            .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast,
+                               CSE->getTypeInfoAsWritten(), diff.getExpr_dx(),
+                               SourceRange(), SourceRange())
+            .get();
+    return {clonedE, derivedE};
   }
 } // end namespace clad

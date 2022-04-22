@@ -14,12 +14,91 @@ using namespace clang;
 namespace clad {
   namespace utils {
     static SourceLocation noLoc{};
-    
+
     std::string ComputeEffectiveFnName(const FunctionDecl* FD) {
-      // TODO: Add cases for more operators
       switch (FD->getOverloadedOperator()) {
-        case OverloadedOperatorKind::OO_Call: return "operator_call";
-        default: return FD->getNameAsString();
+      case OverloadedOperatorKind::OO_Plus:
+        return "operator_plus";
+      case OverloadedOperatorKind::OO_Minus:
+        return "operator_minus";
+      case OverloadedOperatorKind::OO_Star:
+        return "operator_star";
+      case OverloadedOperatorKind::OO_Slash:
+        return "operator_slash";
+      case OverloadedOperatorKind::OO_Percent:
+        return "operator_percent";
+      case OverloadedOperatorKind::OO_Caret:
+        return "operator_caret";
+      case OverloadedOperatorKind::OO_Amp:
+        return "operator_amp";
+      case OverloadedOperatorKind::OO_Pipe:
+        return "operator_pipe";
+      case OverloadedOperatorKind::OO_Tilde:
+        return "operator_tilde";
+      case OverloadedOperatorKind::OO_Exclaim:
+        return "operator_exclaim";
+      case OverloadedOperatorKind::OO_Equal:
+        return "operator_equal";
+      case OverloadedOperatorKind::OO_Less:
+        return "operator_less";
+      case OverloadedOperatorKind::OO_Greater:
+        return "operator_greater";
+      case OverloadedOperatorKind::OO_PlusEqual:
+        return "operator_plus_equal";
+      case OverloadedOperatorKind::OO_MinusEqual:
+        return "operator_minus_equal";
+      case OverloadedOperatorKind::OO_StarEqual:
+        return "operator_star_equal";
+      case OverloadedOperatorKind::OO_SlashEqual:
+        return "operator_slash_equal";
+      case OverloadedOperatorKind::OO_PercentEqual:
+        return "operator_percent_equal";
+      case OverloadedOperatorKind::OO_CaretEqual:
+        return "operator_caret_equal";
+      case OverloadedOperatorKind::OO_AmpEqual:
+        return "operator_amp_equal";
+      case OverloadedOperatorKind::OO_PipeEqual:
+        return "operator_pipe_equal";
+      case OverloadedOperatorKind::OO_LessLess:
+        return "operator_less_less";
+      case OverloadedOperatorKind::OO_GreaterGreater:
+        return "operator_greater_greater";
+      case OverloadedOperatorKind::OO_GreaterGreaterEqual:
+        return "operator_greater_greater_equal";
+      case OverloadedOperatorKind::OO_LessLessEqual:
+        return "operator_less_less_equal";
+      case OverloadedOperatorKind::OO_EqualEqual:
+        return "operator_equal_equal";
+      case OverloadedOperatorKind::OO_ExclaimEqual:
+        return "operator_exclaim_equal";
+      case OverloadedOperatorKind::OO_LessEqual:
+        return "operator_less_equal";
+      case OverloadedOperatorKind::OO_GreaterEqual:
+        return "operator_greater_equal";
+#if CLANG_VERSION_MAJOR > 5
+      case OverloadedOperatorKind::OO_Spaceship:
+        return "operator_spaceship";
+#endif
+      case OverloadedOperatorKind::OO_AmpAmp:
+        return "operator_AmpAmp";
+      case OverloadedOperatorKind::OO_PipePipe:
+        return "operator_pipe_pipe";
+      case OverloadedOperatorKind::OO_PlusPlus:
+        return "operator_plus_plus";
+      case OverloadedOperatorKind::OO_MinusMinus:
+        return "operator_minus_minus";
+      case OverloadedOperatorKind::OO_Comma:
+        return "operator_comma";
+      case OverloadedOperatorKind::OO_ArrowStar:
+        return "operator_arrow_star";
+      case OverloadedOperatorKind::OO_Arrow:
+        return "operator_arrow";
+      case OverloadedOperatorKind::OO_Call:
+        return "operator_call";
+      case OverloadedOperatorKind::OO_Subscript:
+        return "operator_subscript";
+      default:
+        return FD->getNameAsString();
       }
     }
 
@@ -313,6 +392,24 @@ namespace clad {
                   GetValidSRange(semaRef), initializer)
               .getAs<CXXNewExpr>();
       return newExpr;
+    }
+
+    clang::Expr* BuildStaticCastToRValue(clang::Sema& semaRef, clang::Expr* E) {
+      ASTContext& C = semaRef.getASTContext();
+      QualType T = E->getType();
+      T = T.getNonReferenceType();
+      T = C.getRValueReferenceType(T);
+      TypeSourceInfo* TSI = C.getTrivialTypeSourceInfo(T);
+      Expr* rvalueCastE =
+          semaRef
+              .BuildCXXNamedCast(noLoc, tok::TokenKind::kw_static_cast, TSI, E,
+                                 noLoc, noLoc)
+              .get();
+      return rvalueCastE;
+    }
+
+    bool IsRValue(const clang::Expr* E) {
+      return E->isRValue() || E->isXValue();
     }
   } // namespace utils
 } // namespace clad

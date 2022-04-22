@@ -7,8 +7,7 @@
 
 namespace test_utils {
 
-template<typename T>
-void print(T t) {
+template <typename T> void print(T t) {
   fprintf(stderr, "Print method not defined for type: %s", typeid(t).name());
 }
 
@@ -17,6 +16,8 @@ void print(const char* s) { printf("%s", s); }
 void print(double d) { printf("%.2f", d); }
 
 void print(int i) { printf("%d", i); }
+
+void print(long double ld) { printf("%.2Lf", ld); }
 
 void print() {}
 
