@@ -46,6 +46,9 @@ namespace clad {
     clang::Expr* getExpr_dx() {
       return llvm::cast_or_null<clang::Expr>(getStmt_dx());
     }
+    
+    void updateStmt(clang::Stmt* S) { data[1] = S; }
+    void updateStmtDx(clang::Stmt* S) { data[0] = S; }
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
   };
