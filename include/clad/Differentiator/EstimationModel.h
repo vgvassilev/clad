@@ -48,6 +48,39 @@ namespace clad {
     /// \param[in] VD The declaration to track.
     void AddVarToEstimate(clang::VarDecl* VD, clang::Expr* VDRef);
 
+    /// Build a function lookup expression that can be later resolved to build
+    /// an actual function call expression with arguments. Implemented as a
+    /// separate function to save multiple calls to function/namespace lookup.
+    ///
+    /// \param[in] funcName The name of the function to build the expression
+    /// for.
+    /// \param[in] nmspace The name of the namespace for the function,
+    /// currently does not support nested namespaces.
+    ///
+    /// \return The unresolved lookup expression that can be used to build
+    /// actual function call. This cannot be used directly to emit code, use
+    /// \c BuildFucntionCallExpr instead.
+    clang::Expr* GetFunctionCall(std::string funcName,
+                                 std::string nmspace = "");
+
+    /// Helper to build a function call expression.
+    /// \note This function does not check if the parameters result in correct
+    /// overload resolution, this is done to avoid the overhead of checking
+    /// if the correct overload exists given this function will be called
+    /// multiple times for the same parameters types. The user has to ensure
+    /// the parameters correspond to a valid overload of the function.
+    ///
+    /// \param[in] lookupRes The result from \c GetFunctionCall , this param
+    /// is used to build the final function call expression.
+    /// \param[in] callArgs A vector of \c clang::Expr of all the parameters
+    /// to the function call.
+    ///
+    /// \return The function call expression that can be used to emit into
+    /// code.
+    clang::Expr*
+    BuildFunctionCallExpr(clang::Expr* lookupRes,
+                          llvm::SmallVectorImpl<clang::Expr*>& callArgs);
+
     /// User overridden function to return the error expression of a
     /// specific estimation model. The error expression is returned in the form
     /// of a clang::Expr, the user may use BuildOp() to build the final
@@ -129,11 +162,15 @@ namespace clad {
 
   /// Example class for taylor series approximation based error estimation.
   class TaylorApprox : public FPErrorEstimationModel {
+    /// A variable to keep track of the function lookup expression for the
+    /// \c std::abs call
+    clang::Expr* absCallExpr = nullptr;
+
   public:
     TaylorApprox(DerivativeBuilder& builder)
         : FPErrorEstimationModel(builder) {}
     // Return an expression of the following kind:
-    //  dfdx * delta_x * Em
+    // std::abs(dfdx * delta_x * Em)
     clang::Expr* AssignError(StmtDiff refExpr) override;
   };
 

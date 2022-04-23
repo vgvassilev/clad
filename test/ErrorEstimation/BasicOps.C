@@ -44,15 +44,15 @@ float func(float x, float y) {
 //CHECK-NEXT:         * _d_y += _r0;
 //CHECK-NEXT:         float _r1 = _t1 * _d_z;
 //CHECK-NEXT:         * _d_x += _r1;
-//CHECK-NEXT:         _delta_z += _d_z * _EERepl_z0 * {{.+}};
+//CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r_d1 = * _d_y;
 //CHECK-NEXT:         * _d_y += _r_d1;
 //CHECK-NEXT:         * _d_y += _r_d1;
-//CHECK-NEXT:         _delta_y += * _d_y * _EERepl_y1 * {{.+}};
+//CHECK-NEXT:         _delta_y += std::abs(* _d_y * _EERepl_y1 * {{.+}});
 //CHECK-NEXT:         * _d_y += _r_d1;
-//CHECK-NEXT:         _delta_y += _r_d1 * _EERepl_y2 * {{.+}};
+//CHECK-NEXT:         _delta_y += std::abs(_r_d1 * _EERepl_y2 * {{.+}});
 //CHECK-NEXT:         * _d_y -= _r_d1;
 //CHECK-NEXT:         * _d_y;
 //CHECK-NEXT:     }
@@ -60,12 +60,12 @@ float func(float x, float y) {
 //CHECK-NEXT:         float _r_d0 = * _d_x;
 //CHECK-NEXT:         * _d_x += _r_d0;
 //CHECK-NEXT:         * _d_y += _r_d0;
-//CHECK-NEXT:         _delta_x += _r_d0 * _EERepl_x1 * {{.+}};
+//CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _delta_x += * _d_x * _EERepl_x0 * {{.+}};
-//CHECK-NEXT:     _delta_y += * _d_y * _EERepl_y0 * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * _EERepl_y0 * {{.+}});
 //CHECK-NEXT:     _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
 //CHECK-NEXT: }
 
@@ -105,7 +105,7 @@ float func2(float x, float y) {
 //CHECK-NEXT:         * _d_y += _r2;
 //CHECK-NEXT:         float _r3 = _d_z * -_t3 / (_t2 * _t2);
 //CHECK-NEXT:         * _d_x += _r3;
-//CHECK-NEXT:         _delta_z += _d_z * _EERepl_z0 * {{.+}};
+//CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r_d0 = * _d_x;
@@ -115,13 +115,13 @@ float func2(float x, float y) {
 //CHECK-NEXT:         * _d_y += _r0;
 //CHECK-NEXT:         float _r1 = _t1 * -_r_d0;
 //CHECK-NEXT:         * _d_y += _r1;
-//CHECK-NEXT:         _delta_x += _r_d0 * _EERepl_x1 * {{.+}};
+//CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _delta_x += * _d_x * _EERepl_x0 * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
-//CHECK-NEXT:     _delta_y += * _d_y * y * {{.+}};
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * y * {{.+}});
 //CHECK-NEXT:     _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
 //CHECK-NEXT: }
 
@@ -181,9 +181,9 @@ float func3(float x, float y) {
 //CHECK-NEXT:         float _r_d1 = * _d_y;
 //CHECK-NEXT:         * _d_x += _r_d1;
 //CHECK-NEXT:         * _d_x += _r_d1;
-//CHECK-NEXT:         _delta_y += _r_d1 * _EERepl_y1 * {{.+}};
+//CHECK-NEXT:         _delta_y += std::abs(_r_d1 * _EERepl_y1 * {{.+}});
 //CHECK-NEXT:         * _d_y -= _r_d1;
-//CHECK-NEXT:         _delta_t += _d_t * _EERepl_t0 * {{.+}};
+//CHECK-NEXT:         _delta_t += std::abs(_d_t * _EERepl_t0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     * _d_y += _d_z;
 //CHECK-NEXT:     {
@@ -194,12 +194,12 @@ float func3(float x, float y) {
 //CHECK-NEXT:         * _d_y += _r0;
 //CHECK-NEXT:         float _r1 = _t1 * -_r_d0;
 //CHECK-NEXT:         * _d_y += _r1;
-//CHECK-NEXT:         _delta_x += _r_d0 * _EERepl_x1 * {{.+}};
+//CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _delta_x += * _d_x * _EERepl_x0 * {{.+}};
-//CHECK-NEXT:     _delta_y += * _d_y * _EERepl_y0 * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * _EERepl_y0 * {{.+}});
 //CHECK-NEXT:     _final_error += _delta_{{t|x|y|z}} + _delta_{{t|x|y|z}} + _delta_{{t|x|y|z}} + _delta_{{t|x|y|z}};
 //CHECK-NEXT: }
 
@@ -226,10 +226,10 @@ float func4(float x, float y) { return std::pow(x, y); }
 //CHECK-NEXT:         * _d_y += _r1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
-//CHECK-NEXT:     _delta_x += * _d_x * x * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
-//CHECK-NEXT:     _delta_y += * _d_y * y * {{.+}};
-//CHECK-NEXT:     _final_error += _delta_{{x|y}} + _delta_{{x|y}} + 1. * _ret_value0 * {{.+}};
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * y * {{.+}});
+//CHECK-NEXT:     _final_error += _delta_{{x|y}} + _delta_{{x|y}} + std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
 
 // Function call custom derivative exists and is assigned
@@ -265,14 +265,14 @@ float func5(float x, float y) {
 //CHECK-NEXT:         float _r_d0 = * _d_y;
 //CHECK-NEXT:         float _r0 = _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t0, 1.F).pushforward;
 //CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         _delta_y += _r_d0 * _EERepl_y1 * {{.+}};
+//CHECK-NEXT:         _delta_y += std::abs(_r_d0 * _EERepl_y1 * {{.+}});
 //CHECK-NEXT:         * _d_y -= _r_d0;
 //CHECK-NEXT:         * _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
-//CHECK-NEXT:     _delta_x += * _d_x * x * {{.+}};
-//CHECK-NEXT:     _delta_y += * _d_y * _EERepl_y0 * {{.+}};
-//CHECK-NEXT:     _final_error += _delta_{{x|y}} + _delta_{{x|y}} + 1. * _ret_value0 * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * _EERepl_y0 * {{.+}});
+//CHECK-NEXT:     _final_error += _delta_{{x|y}} + _delta_{{x|y}} + std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
 
 // Function call non custom derivative
@@ -332,13 +332,13 @@ float func6(float x, float y) {
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:         double _r1 = _grad1;
 //CHECK-NEXT:         * _d_y += _r1;
-//CHECK-NEXT:         _delta_z += _d_z * _EERepl_z0 * {{.+}};
+//CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
-//CHECK-NEXT:     _delta_x += * _d_x * x * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
-//CHECK-NEXT:     _delta_y += * _d_y * y * {{.+}};
-//CHECK-NEXT:     _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}} + 1. * _ret_value0 * {{.+}};
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * y * {{.+}});
+//CHECK-NEXT:     _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}} + std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
 
 float func7(float x) {
@@ -358,7 +358,7 @@ float func7(float x) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     * _d_x += _d_z;
 //CHECK-NEXT:     double _delta_x = 0;
-//CHECK-NEXT:     _delta_x += * _d_x * x * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += _delta_x;
 //CHECK-NEXT: }
 
@@ -404,13 +404,13 @@ float func8(float x, float y) {
 //CHECK-NEXT:         helper2_pullback(_t0, _d_z, &_grad0);
 //CHECK-NEXT:         double _r0 = * _d_x;
 //CHECK-NEXT:         * _d_x = _grad0;
-//CHECK-NEXT:         _delta_z += _d_z * _EERepl_z0 * {{.+}};
-//CHECK-NEXT:         _final_error += _r0 * _t0 * {{.+}};
+//CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(_r0 * _t0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
-//CHECK-NEXT:     _delta_x += * _d_x * x * {{.+}};
+//CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
-//CHECK-NEXT:     _delta_y += * _d_y * y * {{.+}};
+//CHECK-NEXT:     _delta_y += std::abs(* _d_y * y * {{.+}});
 //CHECK-NEXT:     _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
 //CHECK-NEXT: }
 
