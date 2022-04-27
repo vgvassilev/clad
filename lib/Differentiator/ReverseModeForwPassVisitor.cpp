@@ -1,4 +1,4 @@
-#include "clad/Differentiator/TransformSourceFnVisitor.h"
+#include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -12,23 +12,24 @@ using namespace clang;
 
 namespace clad {
 
-TransformSourceFnVisitor::TransformSourceFnVisitor(DerivativeBuilder& builder)
+ReverseModeForwPassVisitor::ReverseModeForwPassVisitor(
+    DerivativeBuilder& builder)
     : ReverseModeVisitor(builder) {}
 
 OverloadedDeclWithContext
-TransformSourceFnVisitor::Derive(const FunctionDecl* FD,
-                                 const DiffRequest& request) {
+ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
+                                   const DiffRequest& request) {
   silenceDiags = !request.VerboseDiags;
   m_Function = FD;
 
-  m_Mode = DiffMode::reverse_source_fn;
+  m_Mode = DiffMode::reverse_mode_forward_pass;
 
   assert(m_Function && "Must not be null.");
 
   DiffParams args{};
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
-  auto fnName = m_Function->getNameAsString() + "_with_adjoint";
+  auto fnName = m_Function->getNameAsString() + "_forw";
   auto fnDNI = utils::BuildDeclarationNameInfo(m_Sema, fnName);
 
   auto paramTypes = ComputeParamTypes(args);
@@ -86,8 +87,9 @@ TransformSourceFnVisitor::Derive(const FunctionDecl* FD,
 
 // FIXME: This function is copied from ReverseModeVisitor. Find a suitable place
 // for it.
-QualType TransformSourceFnVisitor::GetParameterDerivativeType(QualType yType,
-                                                              QualType xType) {
+QualType
+ReverseModeForwPassVisitor::GetParameterDerivativeType(QualType yType,
+                                                       QualType xType) {
   assert(yType.getNonReferenceType()->isRealType() &&
          "yType should be a builtin-numerical scalar type!!");
   QualType xValueType = utils::GetValueType(xType);
@@ -101,7 +103,7 @@ QualType TransformSourceFnVisitor::GetParameterDerivativeType(QualType yType,
 }
 
 llvm::SmallVector<clang::QualType, 8>
-TransformSourceFnVisitor::ComputeParamTypes(const DiffParams& diffParams) {
+ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
   llvm::SmallVector<clang::QualType, 8> paramTypes;
   paramTypes.reserve(m_Function->getNumParams() * 2);
   for (auto PVD : m_Function->parameters())
@@ -129,7 +131,7 @@ TransformSourceFnVisitor::ComputeParamTypes(const DiffParams& diffParams) {
   return paramTypes;
 }
 
-clang::QualType TransformSourceFnVisitor::ComputeReturnType() {
+clang::QualType ReverseModeForwPassVisitor::ComputeReturnType() {
   auto valAndAdjointTempDecl = GetCladClassDecl("ValueAndAdjoint");
   auto RT = m_Function->getReturnType();
   auto T = GetCladClassOfType(valAndAdjointTempDecl, {RT, RT});
@@ -137,7 +139,7 @@ clang::QualType TransformSourceFnVisitor::ComputeReturnType() {
 }
 
 llvm::SmallVector<clang::ParmVarDecl*, 8>
-TransformSourceFnVisitor::BuildParams(DiffParams& diffParams) {
+ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
   params.reserve(m_Function->getNumParams() + diffParams.size());
   auto derivativeFnType = cast<FunctionProtoType>(m_Derivative->getType());
@@ -207,17 +209,17 @@ TransformSourceFnVisitor::BuildParams(DiffParams& diffParams) {
   return params;
 }
 
-StmtDiff TransformSourceFnVisitor::ProcessSingleStmt(const clang::Stmt* S) {
+StmtDiff ReverseModeForwPassVisitor::ProcessSingleStmt(const clang::Stmt* S) {
   StmtDiff SDiff = Visit(S);
   return {SDiff.getStmt()};
 }
 
-StmtDiff TransformSourceFnVisitor::VisitStmt(const clang::Stmt* S) {
+StmtDiff ReverseModeForwPassVisitor::VisitStmt(const clang::Stmt* S) {
   return {Clone(S)};
 }
 
 StmtDiff
-TransformSourceFnVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
+ReverseModeForwPassVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
   beginScope(Scope::DeclScope);
   beginBlock();
   for (Stmt* S : CS->body()) {
@@ -229,7 +231,7 @@ TransformSourceFnVisitor::VisitCompoundStmt(const clang::CompoundStmt* CS) {
   return {forward};
 }
 
-StmtDiff TransformSourceFnVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+StmtDiff ReverseModeForwPassVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   DeclRefExpr* clonedDRE = nullptr;
   // Check if referenced Decl was "replaced" with another identifier inside
   // the derivative
@@ -265,17 +267,17 @@ StmtDiff TransformSourceFnVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
 }
 
 StmtDiff
-TransformSourceFnVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
+ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   const Expr* value = RS->getRetValue();
   auto returnDiff = Visit(value);
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};
-  Expr* returnInitList = m_Sema.BuildInitList(noLoc, returnArgs, noLoc).get();
+  Expr* returnInitList = m_Sema.ActOnInitList(noLoc, returnArgs, noLoc).get();
   Stmt* newRS = m_Sema.BuildReturnStmt(noLoc, returnInitList).get();
   return {newRS};
 }
 
-// StmtDiff TransformSourceFnVisitor::VisitDeclStmt(const DeclStmt* DS) {
+// StmtDiff ReverseModeForwPassVisitor::VisitDeclStmt(const DeclStmt* DS) {
 //   llvm::SmallVector<Decl*, 4> decls, derivedDecls;
 //   for (auto D : DS->decls()) {
 //     if (auto VD = dyn_cast<VarDecl>(D)) {
@@ -292,42 +294,48 @@ TransformSourceFnVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 //   }
 // }
 
-// VarDeclDiff TransformSourceFnVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+// VarDeclDiff ReverseModeForwPassVisitor::DifferentiateVarDecl(const VarDecl*
+// VD) {
 //     StmtDiff initDiff;
 //     Expr* VDDerivedInit = nullptr;
 //     auto VDDerivedType = VD->getType();
 //     bool isVDRefType = VD->getType()->isReferenceType();
 //     VarDecl* VDDerived = nullptr;
-    
+
 //     if (auto VDCAT = dyn_cast<ConstantArrayType>(VD->getType())) {
 //       assert("Should not reach here!!!");
 //       // VDDerivedType =
-//       //     GetCladArrayOfType(QualType(VDCAT->getPointeeOrArrayElementType(),
-//       //                                 VDCAT->getIndexTypeCVRQualifiers()));
+//       // GetCladArrayOfType(QualType(VDCAT->getPointeeOrArrayElementType(),
+//       // VDCAT->getIndexTypeCVRQualifiers()));
 //       // VDDerivedInit = ConstantFolder::synthesizeLiteral(
-//       //     m_Context.getSizeType(), m_Context, VDCAT->getSize().getZExtValue());
-//       // VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+//       //     m_Context.getSizeType(), m_Context,
+//       VDCAT->getSize().getZExtValue());
+//       // VDDerived = BuildVarDecl(VDDerivedType, "_d_" +
+//       VD->getNameAsString(),
 //       //                          VDDerivedInit, false, nullptr,
-//       //                          clang::VarDecl::InitializationStyle::CallInit);
+//       // clang::VarDecl::InitializationStyle::CallInit);
 //     } else {
-//       // If VD is a reference to a local variable, then the initial value is set
+//       // If VD is a reference to a local variable, then the initial value is
+//       set
 //       // to the derived variable of the corresponding local variable.
-//       // If VD is a reference to a non-local variable (global variable, struct
+//       // If VD is a reference to a non-local variable (global variable,
+//       struct
 //       // member etc), then no derived variable is available, thus `VDDerived`
 //       // does not need to reference any variable, consequentially the
-//       // `VDDerivedType` is the corresponding non-reference type and the initial
+//       // `VDDerivedType` is the corresponding non-reference type and the
+//       initial
 //       // value is set to 0.
 //       // Otherwise, for non-reference types, the initial value is set to 0.
 //       VDDerivedInit = getZeroInit(VD->getType());
 
 //       // `specialThisDiffCase` is only required for correctly differentiating
-//       // the following code: 
+//       // the following code:
 //       // ```
 //       // Class _d_this_obj;
 //       // Class* _d_this = &_d_this_obj;
 //       // ```
 //       // Computation of hessian requires this code to be correctly
-//       // differentiated. 
+//       // differentiated.
 //       bool specialThisDiffCase = false;
 //       if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
 //         if (VDDerivedType->isPointerType() && MD->isInstance()) {
@@ -361,7 +369,8 @@ TransformSourceFnVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 //                          m_Context.getTrivialTypeSourceInfo(VDDerivedType),
 //                          VD->getInitStyle());
 //       else
-//         VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+//         VDDerived = BuildVarDecl(VDDerivedType, "_d_" +
+//         VD->getNameAsString(),
 //                                  VDDerivedInit);
 //     }
 
@@ -370,12 +379,14 @@ TransformSourceFnVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 //     // If `VD` is a reference to a non-local variable then also there's no
 //     // need to call `Visit` since non-local variables are not differentiated.
 //     if (!isVDRefType) {
-//       initDiff = VD->getInit() ? Visit(VD->getInit(), BuildDeclRef(VDDerived))
+//       initDiff = VD->getInit() ? Visit(VD->getInit(),
+//       BuildDeclRef(VDDerived))
 //                                : StmtDiff{};
 
-//       // If we are differentiating `VarDecl` corresponding to a local variable
+//       // If we are differentiating `VarDecl` corresponding to a local
+//       variable
 //       // inside a loop, then we need to reset it to 0 at each iteration.
-//       // 
+//       //
 //       // for example, if defined inside a loop,
 //       // ```
 //       // double localVar = i;
@@ -385,7 +396,7 @@ TransformSourceFnVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
 //       // {
 //       //   *_d_i += _d_localVar;
 //       //   _d_localVar = 0;
-//       // }                        
+//       // }
 //       if (isInsideLoop) {
 //         Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign,
 //                                      BuildDeclRef(VDDerived),

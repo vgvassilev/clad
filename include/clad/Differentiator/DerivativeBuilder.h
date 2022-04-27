@@ -70,7 +70,7 @@ namespace clad {
     friend class ReverseModeVisitor;
     friend class HessianModeVisitor;
     friend class JacobianModeVisitor;
-    friend class TransformSourceFnVisitor;
+    friend class ReverseModeForwPassVisitor;
     
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;

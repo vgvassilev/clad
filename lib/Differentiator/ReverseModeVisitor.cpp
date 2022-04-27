@@ -1704,7 +1704,7 @@ namespace clad {
     if (FD->getReturnType()->isReferenceType()) {
       DiffRequest transformReq;
       transformReq.Function = FD;
-      transformReq.Mode = DiffMode::reverse_source_fn;
+      transformReq.Mode = DiffMode::reverse_mode_forward_pass;
       transformReq.BaseFunctionName = FD->getNameAsString();
       transformReq.VerboseDiags = true;
       FunctionDecl* transformedSourcefn = plugin::ProcessDiffRequest(m_CladPlugin, transformReq);
@@ -2207,8 +2207,13 @@ namespace clad {
       }
 
       if (isVDRefType) {
+        QualType T = utils::GetValueType(VD->getType());
+        T.removeLocalConst();
         VDDerivedType =
-            m_Context.getPointerType(VDDerivedType.getNonReferenceType());
+            m_Context.getPointerType(T);
+        initDiff = Visit(VD->getInit());
+        if (!initDiff.getExpr_dx())
+          VDDerivedType = VDDerivedType.getNonReferenceType();
         VDDerivedInit = getZeroInit(VDDerivedType);
       }
 
@@ -2221,15 +2226,11 @@ namespace clad {
       // ```
       // Computation of hessian requires this code to be correctly
       // differentiated.
-      if (isVDRefType || specialThisDiffCase) {
+      if (specialThisDiffCase) {
         VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
         initDiff = Visit(VD->getInit());
-        // if (initDiff.getExpr_dx())
-        //   VDDerivedInit = initDiff.getExpr_dx();
-        // else
-        //   VDDerivedType = VDDerivedType.getNonReferenceType();
-        if (!initDiff.getExpr_dx())
-          VDDerivedType = VDDerivedType.getNonReferenceType();
+        if (initDiff.getExpr_dx())
+          VDDerivedInit = initDiff.getExpr_dx();
       }
       // Here separate behaviour for record and non-record types is only
       // necessary to preserve the old tests.
