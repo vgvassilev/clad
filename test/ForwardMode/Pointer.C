@@ -76,14 +76,50 @@ double fn4(double i, double j) {
 // CHECK-NEXT:     return _d_q;
 // CHECK-NEXT: }
 
+double fn5(double i, double j) {
+  double arr[2] = {7*i, 9*i};
+  *(arr + 1) += 11*i;
+  int idx1 = 0, idx2 = 1;
+  double *p = arr;
+  p += 1;
+  p = 0 + p;
+  *p += 13*i;
+  *(p-1) += 17*i;
+  return *(arr+idx1) + *(arr+idx2);
+}
+
+// CHECK: double fn5_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_arr[2] = {0 * i + 7 * _d_i, 0 * i + 9 * _d_i};
+// CHECK-NEXT:     double arr[2] = {7 * i, 9 * i};
+// CHECK-NEXT:     *(_d_arr + 1) += 0 * i + 11 * _d_i;
+// CHECK-NEXT:     *(arr + 1) += 11 * i;
+// CHECK-NEXT:     int _d_idx1 = 0, _d_idx2 = 0;
+// CHECK-NEXT:     int idx1 = 0, idx2 = 1;
+// CHECK-NEXT:     double *_d_p = _d_arr;
+// CHECK-NEXT:     double *p = arr;
+// CHECK-NEXT:     _d_p += 1;
+// CHECK-NEXT:     p += 1;
+// CHECK-NEXT:     _d_p = 0 + _d_p;
+// CHECK-NEXT:     p = 0 + p;
+// CHECK-NEXT:     *_d_p += 0 * i + 13 * _d_i;
+// CHECK-NEXT:     *p += 13 * i;
+// CHECK-NEXT:     *(_d_p - 1) += 0 * i + 17 * _d_i;
+// CHECK-NEXT:     *(p - 1) += 17 * i;
+// CHECK-NEXT:     return *(_d_arr + idx1) + *(_d_arr + idx2);
+// CHECK-NEXT: }
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
   INIT_DIFFERENTIATE(fn3, "i");
   INIT_DIFFERENTIATE(fn4, "i");
+  INIT_DIFFERENTIATE(fn5, "i");
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: {5.00}
   TEST_DIFFERENTIATE(fn2, 3, 5);  // CHECK-EXEC: {5.00}
   TEST_DIFFERENTIATE(fn3, 3, 5);  // CHECK-EXEC: {6.00}
   TEST_DIFFERENTIATE(fn4, 3, 5);  // CHECK-EXEC: {16.00}
+  TEST_DIFFERENTIATE(fn5, 3, 5);  // CHECK-EXEC: {57.00}
 }

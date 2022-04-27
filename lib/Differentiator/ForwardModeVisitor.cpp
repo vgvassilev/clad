@@ -1281,6 +1281,52 @@ namespace clad {
     }
   }
 
+  /// Computes effective derivative operands. It should be used when operands
+  /// might be of pointer types.
+  ///
+  /// In the trivial case, both operands are of non-pointer types, and the
+  /// effective derivative operands are `LDiff.getExpr_dx()` and
+  /// `RDiff.getExpr_dx()` respectively.
+  ///
+  /// Integers used in pointer arithmetic should be considered
+  /// non-differentiable entities. For example:
+  ///
+  /// ```
+  /// p + i;
+  /// ```
+  ///
+  /// Derived statement should be:
+  ///
+  /// ```
+  /// _d_p + i;
+  /// ```
+  ///
+  /// instead of:
+  ///
+  /// ```
+  /// _d_p + _d_i;
+  /// ```
+  ///
+  /// Therefore, effective derived expression of `i` is `i` instead of `_d_i`.
+  ///
+  /// This functions sets `derivedL` and `derivedR` arguments to effective
+  /// derived expressions.
+  static void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
+                                        clang::Expr*& derivedL,
+                                        clang::Expr*& derivedR) {
+    derivedL = LDiff.getExpr_dx();
+    derivedR = RDiff.getExpr_dx();
+    if (utils::isArrayOrPointerType(LDiff.getExpr_dx()->getType()) &&
+        !utils::isArrayOrPointerType(RDiff.getExpr_dx()->getType())) {
+      derivedL = LDiff.getExpr_dx();
+      derivedR = RDiff.getExpr();
+    } else if (utils::isArrayOrPointerType(RDiff.getExpr_dx()->getType()) &&
+               !utils::isArrayOrPointerType(LDiff.getExpr_dx()->getType())) {
+      derivedL = LDiff.getExpr();
+      derivedR = RDiff.getExpr_dx();
+    }
+  }
+
   StmtDiff
   ForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     StmtDiff Ldiff = Visit(BinOp->getLHS());
@@ -1331,11 +1377,14 @@ namespace clad {
       Rdiff = {StoreAndRef(Rdiff.getExpr()), Rdiff.getExpr_dx()};
 
       opDiff = deriveDiv(Ldiff, Rdiff);
-    } else if (opCode == BO_Add)
-      opDiff = BuildOp(BO_Add, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
-    else if (opCode == BO_Sub)
-      opDiff =
-          BuildOp(BO_Sub, Ldiff.getExpr_dx(), BuildParens(Rdiff.getExpr_dx()));
+    } else if (opCode == BO_Add || opCode == BO_Sub) {
+      Expr* derivedL = nullptr;
+      Expr* derivedR = nullptr;
+      ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
+      if (opCode == BO_Sub)
+        derivedR = BuildParens(derivedR);
+      opDiff = BuildOp(opCode, derivedL, derivedR);
+    }
     else if (BinOp->isAssignmentOp()) {
       if (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
           Expr::MLV_Valid) {
@@ -1346,9 +1395,12 @@ namespace clad {
         opDiff =
             ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       } else if (opCode == BO_Assign || opCode == BO_AddAssign ||
-                 opCode == BO_SubAssign)
-        opDiff = BuildOp(opCode, Ldiff.getExpr_dx(), Rdiff.getExpr_dx());
-      else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
+                 opCode == BO_SubAssign) {
+        Expr* derivedL = nullptr;
+        Expr* derivedR = nullptr;
+        ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
+        opDiff = BuildOp(opCode, derivedL, derivedR);
+      } else if (opCode == BO_MulAssign || opCode == BO_DivAssign) {
         // if both original expression and derived expression and evaluatable,
         // then derived expression reference needs to be stored before
         // the original expression reference to correctly evaluate
