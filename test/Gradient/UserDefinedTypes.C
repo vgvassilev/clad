@@ -324,19 +324,19 @@ double fn5(const Tangent& t, double i) {
 // CHECK-NEXT: }
 
 // CHECK: void fn5_grad(const Tangent &t, double i, clad::array_ref<Tangent> _d_t, clad::array_ref<double> _d_i) {
-// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     Tangent _t0;
 // CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     Tangent _t2;
-// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     _t0 = t;
 // CHECK-NEXT:     _t1 = i;
-// CHECK-NEXT:     _t2 = t;
-// CHECK-NEXT:     double fn5_return = t.someMemFn2(_t0, _t1);
+// CHECK-NEXT:     _t2 = i;
+// CHECK-NEXT:     double fn5_return = t.someMemFn2(_t1, _t2);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _grad0 = 0.;
 // CHECK-NEXT:         double _grad1 = 0.;
-// CHECK-NEXT:         _t2.someMemFn2_pullback(_t0, _t1, 1, &(* _d_t), &_grad0, &_grad1);
+// CHECK-NEXT:         _t0.someMemFn2_pullback(_t1, _t2, 1, &(* _d_t), &_grad0, &_grad1);
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         * _d_i += _r0;
 // CHECK-NEXT:         double _r1 = _grad1;
@@ -377,9 +377,9 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT: }
 
 // CHECK: void fn6_grad(dcomplex c, double i, clad::array_ref<dcomplex> _d_c, clad::array_ref<double> _d_i) {
-// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     dcomplex _t0;
 // CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     dcomplex _t2;
+// CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     dcomplex _t3;
 // CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     dcomplex _t5;
@@ -387,10 +387,10 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t7;
 // CHECK-NEXT:     dcomplex _t8;
-// CHECK-NEXT:     _t0 = i;
-// CHECK-NEXT:     _t1 = 5 * _t0;
-// CHECK-NEXT:     _t2 = c;
-// CHECK-NEXT:     c.real(_t1);
+// CHECK-NEXT:     _t0 = c;
+// CHECK-NEXT:     _t1 = i;
+// CHECK-NEXT:     _t2 = 5 * _t1;
+// CHECK-NEXT:     c.real(_t2);
 // CHECK-NEXT:     _t3 = c;
 // CHECK-NEXT:     _t5 = c;
 // CHECK-NEXT:     _t4 = c.imag();
@@ -422,9 +422,9 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         _t2.real_pullback(_t1, &(* _d_c), &_grad0);
+// CHECK-NEXT:         _t0.real_pullback(_t2, &(* _d_c), &_grad0);
 // CHECK-NEXT:         double _r0 = _grad0;
-// CHECK-NEXT:         double _r1 = _r0 * _t0;
+// CHECK-NEXT:         double _r1 = _r0 * _t1;
 // CHECK-NEXT:         double _r2 = 5 * _r0;
 // CHECK-NEXT:         * _d_i += _r2;
 // CHECK-NEXT:     }
@@ -437,19 +437,19 @@ double fn7(dcomplex c1, dcomplex c2) {
 
 // CHECK: void fn7_grad(dcomplex c1, dcomplex c2, clad::array_ref<dcomplex> _d_c1, clad::array_ref<dcomplex> _d_c2) {
 // CHECK-NEXT:     dcomplex _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     dcomplex _t2;
-// CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     dcomplex _t4;
+// CHECK-NEXT:     dcomplex _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     dcomplex _t3;
+// CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     dcomplex _t5;
 // CHECK-NEXT:     double _t6;
 // CHECK-NEXT:     dcomplex _t7;
-// CHECK-NEXT:     _t0 = c2;
-// CHECK-NEXT:     _t2 = c2;
-// CHECK-NEXT:     _t1 = c2.real();
-// CHECK-NEXT:     _t3 = c2.imag() + 5 * _t1;
-// CHECK-NEXT:     _t4 = c1;
-// CHECK-NEXT:     c1.real(_t3);
+// CHECK-NEXT:     _t0 = c1;
+// CHECK-NEXT:     _t1 = c2;
+// CHECK-NEXT:     _t3 = c2;
+// CHECK-NEXT:     _t2 = c2.real();
+// CHECK-NEXT:     _t4 = c2.imag() + 5 * _t2;
+// CHECK-NEXT:     c1.real(_t4);
 // CHECK-NEXT:     _t5 = c1;
 // CHECK-NEXT:     _t7 = c1;
 // CHECK-NEXT:     _t6 = c1.imag();
@@ -464,12 +464,12 @@ double fn7(dcomplex c1, dcomplex c2) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         _t4.real_pullback(_t3, &(* _d_c1), &_grad0);
+// CHECK-NEXT:         _t0.real_pullback(_t4, &(* _d_c1), &_grad0);
 // CHECK-NEXT:         double _r0 = _grad0;
-// CHECK-NEXT:         _t0.imag_pullback(_r0, &(* _d_c2));
-// CHECK-NEXT:         double _r1 = _r0 * _t1;
+// CHECK-NEXT:         _t1.imag_pullback(_r0, &(* _d_c2));
+// CHECK-NEXT:         double _r1 = _r0 * _t2;
 // CHECK-NEXT:         double _r2 = 5 * _r0;
-// CHECK-NEXT:         _t2.real_pullback(_r2, &(* _d_c2));
+// CHECK-NEXT:         _t3.real_pullback(_r2, &(* _d_c2));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -496,14 +496,14 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT: }
 
 // CHECK: void fn8_grad(Tangent t, dcomplex c, clad::array_ref<Tangent> _d_t, clad::array_ref<dcomplex> _d_c) {
-// CHECK-NEXT:     dcomplex _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     Tangent _t2;
+// CHECK-NEXT:     Tangent _t0;
+// CHECK-NEXT:     dcomplex _t1;
+// CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     Tangent _t3;
-// CHECK-NEXT:     _t0 = c;
-// CHECK-NEXT:     _t1 = c.real();
-// CHECK-NEXT:     _t2 = t;
-// CHECK-NEXT:     t.updateTo(_t1);
+// CHECK-NEXT:     _t0 = t;
+// CHECK-NEXT:     _t1 = c;
+// CHECK-NEXT:     _t2 = c.real();
+// CHECK-NEXT:     t.updateTo(_t2);
 // CHECK-NEXT:     _t3 = t;
 // CHECK-NEXT:     double fn8_return = sum(t);
 // CHECK-NEXT:     goto _label0;
@@ -514,9 +514,9 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         _t2.updateTo_pullback(_t1, &(* _d_t), &_grad0);
+// CHECK-NEXT:         _t0.updateTo_pullback(_t2, &(* _d_t), &_grad0);
 // CHECK-NEXT:         double _r0 = _grad0;
-// CHECK-NEXT:         _t0.real_pullback(_r0, &(* _d_c));
+// CHECK-NEXT:         _t1.real_pullback(_r0, &(* _d_c));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -562,11 +562,11 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r_d0 = _d_res;
 // CHECK-NEXT:             _d_res += _r_d0;
-// CHECK-NEXT:             std{{(::__1)?}}::complex<double> _r0 = clad::pop(_t1);
+// CHECK-NEXT:             std::complex<double> _r0 = clad::pop(_t1);
 // CHECK-NEXT:             _r0.real_pullback(_r_d0, &(* _d_c));
 // CHECK-NEXT:             double _r1 = _r_d0 * clad::pop(_t2);
 // CHECK-NEXT:             double _r2 = 2 * _r_d0;
-// CHECK-NEXT:             std{{(::__1)?}}::complex<double> _r3 = clad::pop(_t3);
+// CHECK-NEXT:             std::complex<double> _r3 = clad::pop(_t3);
 // CHECK-NEXT:             _r3.imag_pullback(_r2, &(* _d_c));
 // CHECK-NEXT:             _d_res -= _r_d0;
 // CHECK-NEXT:         }

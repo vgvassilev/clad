@@ -1182,6 +1182,34 @@ namespace clad {
     // Save current index in the current block, to potentially put some
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
+
+    // Stores differentiation result of implicit `this` object, if any.
+    StmtDiff baseDiff;
+    const Expr* originalBaseE = nullptr;
+    // baseGlobalStore
+    StmtDiff baseGS = {};
+    if (!utils::IsStaticMethod(FD)) {
+      if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+        originalBaseE = MCE->getImplicitObjectArgument()->IgnoreParenCasts();
+        baseDiff = Visit(originalBaseE);
+        baseGS = GlobalStoreAndRef(baseDiff.getExpr());
+        if (isInsideLoop) {
+          addToCurrentBlock(baseGS.getExpr());
+          VarDecl* baseLocalVD = BuildVarDecl(
+              baseGS.getExpr_dx()->getType(),
+              CreateUniqueIdentifier("_r"), baseGS.getExpr_dx(),
+              /*DirectInit=*/false, /*TSI=*/nullptr,
+              VarDecl::InitializationStyle::CInit);
+          auto& block = getCurrentBlock(direction::reverse);
+          block.insert(block.begin() + insertionPoint,
+                       BuildDeclStmt(baseLocalVD));
+          insertionPoint += 1;
+          Expr* baseLocalE = BuildDeclRef(baseLocalVD);
+          baseGS = {baseGS.getExpr(), baseLocalE};
+        }
+      }
+    }
+
     // Store the type to reduce call overhead that would occur if used in the
     // loop
     auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
@@ -1374,8 +1402,6 @@ namespace clad {
     // corresponding grad variable expression (_grad0).
     llvm::SmallVector<std::pair<VarDecl*, Expr*>, 4> argResultsAndGrads;
 
-    // Stores differentiation result of implicit `this` object, if any.
-    StmtDiff baseDiff;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     if (!OverloadedDerivedFn) {
@@ -1394,29 +1420,36 @@ namespace clad {
         requiredValueType = m_Context.DoubleTy;
         ArrayDiffArgType = GetCladArrayOfType(requiredValueType);
       }
-      /// Add base derivative expression in the derived call output args list if
-      /// `CE` is a call to an instance member function.
-      if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
-        baseDiff = Visit(MCE->getImplicitObjectArgument());
-        StmtDiff baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
-        if (isInsideLoop) {
-          addToCurrentBlock(baseDiffStore.getExpr());
-          VarDecl* baseLocalVD = BuildVarDecl(
-              baseDiffStore.getExpr_dx()->getType(),
-              CreateUniqueIdentifier("_r"), baseDiffStore.getExpr_dx(),
-              /*DirectInit=*/false, /*TSI=*/nullptr,
-              VarDecl::InitializationStyle::CInit);
-          auto& block = getCurrentBlock(direction::reverse);
-          block.insert(block.begin() + insertionPoint,
-                       BuildDeclStmt(baseLocalVD));
-          insertionPoint += 1;
-          Expr* baseLocalE = BuildDeclRef(baseLocalVD);
-          baseDiffStore = {baseDiffStore.getExpr(), baseLocalE};
-        }
-        baseDiff = {baseDiffStore.getExpr_dx(), baseDiff.getExpr_dx()};
+
+      if (originalBaseE) {
+        assert(baseDiff.getExpr() && "Base derivative not found!!");
         DerivedCallOutputArgs.push_back(
             BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr_dx()));
       }
+
+      /// Add base derivative expression in the derived call output args list if
+      /// `CE` is a call to an instance member function.
+      // if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+      //   baseDiff = Visit(MCE->getImplicitObjectArgument());
+      //   StmtDiff baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
+      //   if (isInsideLoop) {
+      //     addToCurrentBlock(baseDiffStore.getExpr());
+      //     VarDecl* baseLocalVD = BuildVarDecl(
+      //         baseDiffStore.getExpr_dx()->getType(),
+      //         CreateUniqueIdentifier("_r"), baseDiffStore.getExpr_dx(),
+      //         /*DirectInit=*/false, /*TSI=*/nullptr,
+      //         VarDecl::InitializationStyle::CInit);
+      //     auto& block = getCurrentBlock(direction::reverse);
+      //     block.insert(block.begin() + insertionPoint,
+      //                  BuildDeclStmt(baseLocalVD));
+      //     insertionPoint += 1;
+      //     Expr* baseLocalE = BuildDeclRef(baseLocalVD);
+      //     baseDiffStore = {baseDiffStore.getExpr(), baseLocalE};
+      //   }
+      //   baseDiff = {baseDiffStore.getExpr_dx(), baseDiff.getExpr_dx()};
+      //   DerivedCallOutputArgs.push_back(
+      //       BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr_dx()));
+      // }
 
       for (auto argDerivative : CallArgDx) {
         gradVarDecl = nullptr;
@@ -1619,10 +1652,10 @@ namespace clad {
             usingNumericalDiff = true;
           }
         } else if (pullbackFD) {
-          if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
-            Expr* baseE = baseDiff.getExpr();
-            OverloadedDerivedFn = BuildCallExprToMemFn(
-                baseE, pullbackFD->getName(), pullbackCallArgs, pullbackFD);
+          if (originalBaseE) {
+            OverloadedDerivedFn =
+                BuildCallExprToMemFn(baseGS.getExpr_dx(), pullbackFD->getName(),
+                                     pullbackCallArgs, pullbackFD);
           } else {
             OverloadedDerivedFn =
                 m_Sema
@@ -1718,19 +1751,22 @@ namespace clad {
         policy.Bool = true;
         transformedSourcefn->print(llvm::outs(), policy);
       }
-      // FIXME: Add derivative of `this`.
+      
+      if (originalBaseE)
+        CallArgs.push_back(baseDiff.getExpr_dx());
+
       for (std::size_t i=0, e = CE->getNumArgs(); i != e; ++i) {
         const Expr* arg = CE->getArg(i);
+        const ParmVarDecl* PVD = FD->getParamDecl(i);
         StmtDiff argDiff = Visit(arg);
-        if (argDiff.getExpr_dx()) {
+        if (argDiff.getExpr_dx() && PVD->getType()->isReferenceType()) {
           Expr* derivedArg = argDiff.getExpr_dx();
           if (isCladArrayType(derivedArg->getType()))
             CallArgs.push_back(derivedArg);
           else
             CallArgs.push_back(
                 BuildOp(UnaryOperatorKind::UO_AddrOf, derivedArg, noLoc));
-        }
-        else
+        } else
           CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
       }
       llvm::errs()<<"Dumping fwd call args:\n";
