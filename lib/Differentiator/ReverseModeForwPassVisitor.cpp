@@ -53,7 +53,6 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
   auto params = BuildParams(args);
-  llvm::errs() << "Derive: params.size(): " << params.size() << "\n";
   m_Derivative->setParams(params);
   m_Derivative->setBody(nullptr);
 

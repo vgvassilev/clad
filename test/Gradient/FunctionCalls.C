@@ -362,6 +362,27 @@ double fn6(double i=0, double j=0) {
   return i*j;
 }
 
+double& identity(double& i) {
+  return i;
+}
+
+double fn7(double i, double j) {
+  double& k = identity(i);
+  double& l = identity(j);
+  k += 7*j;
+  l += 9*i;
+  return i + j;
+}
+
+double fn8(double i, double j) {
+  for (int idx = 0; idx < 5; ++idx) {
+    double& elem = identity(i);
+    elem = j;
+    return i;
+  }
+  return 0;
+}
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -407,6 +428,8 @@ int main() {
   INIT(fn4);
   INIT(fn5);
   INIT(fn6);
+  INIT(fn7);
+  INIT(fn8);
 
   TEST1(fn1, 11);               // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -415,5 +438,6 @@ int main() {
   TEST_ARR5(fn4, arr, 5);       // CHECK-EXEC: {23.00, 3.00, 3.00, 3.00, 3.00}
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
+  TEST2(fn7, 3, 5);             // CHECK-EXEC: {10.00, 71.00}
+  TEST2(fn8, 3, 5);             // CHECK-EXEC: {0.00, 1.00}
 }
-

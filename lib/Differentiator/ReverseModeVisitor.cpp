@@ -1735,27 +1735,32 @@ namespace clad {
     Expr* call = nullptr;
 
     if (FD->getReturnType()->isReferenceType()) {
-      DiffRequest transformReq;
-      transformReq.Function = FD;
-      transformReq.Mode = DiffMode::reverse_mode_forward_pass;
-      transformReq.BaseFunctionName = FD->getNameAsString();
-      transformReq.VerboseDiags = true;
-      FunctionDecl* transformedSourcefn = plugin::ProcessDiffRequest(m_CladPlugin, transformReq);
-      if (!transformedSourcefn) {
-        llvm::errs()<<"Unable to transform source function!!\n";
-      } else {
-        llvm::errs()<<"Successfully transformed source function, and here it is.\n";
-        clang::LangOptions langOpts;
-        langOpts.CPlusPlus = true;
-        clang::PrintingPolicy policy(langOpts);
-        policy.Bool = true;
-        transformedSourcefn->print(llvm::outs(), policy);
-      }
-      
-      if (originalBaseE)
-        CallArgs.push_back(baseDiff.getExpr_dx());
+      DiffRequest calleeFnForwPassReq;
+      calleeFnForwPassReq.Function = FD;
+      calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
+      calleeFnForwPassReq.BaseFunctionName = FD->getNameAsString();
+      calleeFnForwPassReq.VerboseDiags = true;
+      FunctionDecl* calleeFnForwPassFD =
+          plugin::ProcessDiffRequest(m_CladPlugin, calleeFnForwPassReq);
 
-      for (std::size_t i=0, e = CE->getNumArgs(); i != e; ++i) {
+      assert(calleeFnForwPassFD &&
+             "Clad failed to generate callee function forward pass function");
+
+      // FIXME: We are using the derivatives in forward pass here
+      // If `expr_dx()` is only meant to be used in reverse pass, 
+      // (for example, `clad::pop(...)` expression and a corresponding
+      // `clad::push(...)` in the forward pass), then this can result in
+      // incorrect derivative or crash at runtime. Ideally, we should have
+      // a separate routine to use derivative in the forward pass. 
+
+      // We cannot reuse the derivatives previously computed because
+      // they might contain 'clad::pop(..)` expression.
+      if (originalBaseE) {
+        Expr* derivedBase = Visit(originalBaseE).getExpr_dx();
+        CallArgs.push_back(derivedBase);
+      }
+
+      for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
         const Expr* arg = CE->getArg(i);
         const ParmVarDecl* PVD = FD->getParamDecl(i);
         StmtDiff argDiff = Visit(arg);
@@ -1769,20 +1774,16 @@ namespace clad {
         } else
           CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
       }
-      llvm::errs()<<"Dumping fwd call args:\n";
-      for (auto arg : CallArgs) {
-        arg->dumpColor();
-        llvm::errs()<<"\n";
-      }
       call = m_Sema
                  .ActOnCallExpr(getCurrentScope(),
-                                BuildDeclRef(transformedSourcefn), noLoc,
+                                BuildDeclRef(calleeFnForwPassFD), noLoc,
                                 CallArgs, noLoc)
                  .get();
       auto callRes = StoreAndRef(call);
       auto resValue =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
-      auto resAdjoint = utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      auto resAdjoint =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
       return {resValue, resAdjoint};
     } else {
       // Recreate the original call expression.
