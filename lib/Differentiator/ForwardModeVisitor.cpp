@@ -2011,4 +2011,20 @@ namespace clad {
             .get();
     return {clonedE, derivedE};
   }
+
+  StmtDiff ForwardModeVisitor::VisitCXXFunctionalCastExpr(
+      const clang::CXXFunctionalCastExpr* FCE) {
+    StmtDiff castExprDiff = Visit(FCE->getSubExpr());
+    Expr* clonedFCE = m_Sema
+                          .BuildCXXFunctionalCastExpr(
+                              FCE->getTypeInfoAsWritten(), FCE->getType(),
+                              noLoc, castExprDiff.getExpr(), noLoc)
+                          .get();
+    Expr* derivedFCE = m_Sema
+                           .BuildCXXFunctionalCastExpr(
+                               FCE->getTypeInfoAsWritten(), FCE->getType(),
+                               noLoc, castExprDiff.getExpr_dx(), noLoc)
+                           .get();
+    return {clonedFCE, derivedFCE};
+  }
 } // end namespace clad
