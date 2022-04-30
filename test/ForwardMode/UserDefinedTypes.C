@@ -1,4 +1,4 @@
-// RUN: %cladclang -lm -lstdc++ %s -I%S/../../include -oUserDefinedTypes.out 2>&1 | FileCheck %s
+// RUN: %cladclang -lm -lstdc++ %s -I%S/../../include -oUserDefinedTypes.out | FileCheck %s
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
@@ -7,6 +7,8 @@
 #include "clad/Differentiator/STLBuiltinDerivatives.h"
 
 #include <complex>
+#include <numeric>
+#include <vector>
 
 #include "../TestUtils.h"
 #include "../PrintOverloads.h"
@@ -1104,6 +1106,19 @@ TensorD5 fn13(double i, double j) {
 // CHECK-NEXT:     return _t29.pushforward;
 // CHECK-NEXT: }
 
+using vectorD = std::vector<double>;
+
+double fn14(double i, double j) {
+  vectorD v;
+  v.resize(5, 0);
+  v[0] = 9 * i;
+  v[1] = 11 * i;
+  auto b = std::begin(v);
+  auto e = std::end(v);
+  auto res = std::accumulate(b, e, 0.00);
+  return res;
+}
+
 template<unsigned N>
 void print(const Tensor<double, N>& t) {
   for (int i=0; i<N; ++i) {
@@ -1127,6 +1142,7 @@ int main() {
   INIT_DIFFERENTIATE(fn11, "i");
   INIT_DIFFERENTIATE(fn12, "i");
   INIT_DIFFERENTIATE(fn13, "i");
+  INIT_DIFFERENTIATE(fn14, "i");
   
   TensorD5 t;
   t.updateTo(5);
@@ -1145,4 +1161,5 @@ int main() {
   TEST_DIFFERENTIATE(fn11, 3, 5); // CHECK-EXEC: {40.00, 16.00, 16.00, 16.00, 16.00}
   TEST_DIFFERENTIATE(fn12, 3, 5); // CHECK-EXEC: {18.00, 24.00, 7.00, 7.00, 7.00}
   TEST_DIFFERENTIATE(fn13, 3, 5); // CHECK-EXEC: {11.00, 12.00, 0.00, 0.00, 0.00}
+  TEST_DIFFERENTIATE(fn14, 3, 5); // CHECK-EXEC: {20.00}
 }

@@ -463,7 +463,8 @@ namespace clad {
                            llvm::MutableArrayRef<clang::Expr*> Args);
     clang::ParmVarDecl* CloneParmVarDecl(const clang::ParmVarDecl* PVD,
                                          clang::IdentifierInfo* II,
-                                         bool pushOnScopeChains = false);
+                                         bool pushOnScopeChains = false,
+                                         bool cloneDefaultArg = true);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///

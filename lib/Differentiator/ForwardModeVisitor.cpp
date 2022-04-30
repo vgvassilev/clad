@@ -83,10 +83,7 @@ namespace clad {
     for (auto* PVD : m_Function->parameters()) {
       paramTypes.push_back(PVD->getType());
 
-      // FIXME: Add support for pointer and array parameters in the
-      // forward mode.
-      if (utils::isDifferentiableType(PVD->getType()) &&
-          !utils::isArrayOrPointerType(PVD->getType()))
+      if (utils::isDifferentiableType(PVD->getType()))
         derivedParamTypes.push_back(PVD->getType());
     }
 
@@ -143,22 +140,22 @@ namespace clad {
         identifierMissing = true;
       }
       auto newPVD = CloneParmVarDecl(PVD, PVDII,
-                                     /*pushOnScopeChains=*/true);
+                                     /*pushOnScopeChains=*/true,
+                                     /*cloneDefaultArg=*/false);
       params.push_back(newPVD);
 
       if (identifierMissing)
         m_DeclReplacements[PVD] = newPVD;
 
       QualType nonRefParamType = PVD->getType().getNonReferenceType();
-      // FIXME: Add support for pointer and array parameters in the
-      // forward mode.
-      if (!utils::isDifferentiableType(PVD->getType()) ||
-          utils::isArrayOrPointerType(PVD->getType()))
+
+      if (!utils::isDifferentiableType(PVD->getType()))
         continue;
       auto derivedPVDName = "_d_" + std::string(PVDII->getName());
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
       auto derivedPVD = CloneParmVarDecl(PVD, derivedPVDII,
-                                         /*pushOnScopeChains=*/true);
+                                         /*pushOnScopeChains=*/true,
+                                         /*cloneDefaultArg=*/false);
       derivedParams.push_back(derivedPVD);
       m_Variables[newPVD] = BuildDeclRef(derivedPVD);
     }
@@ -1135,10 +1132,7 @@ namespace clad {
         }
       }
       CallArgs.push_back(argDiff.getExpr());
-      // FIXME: Add support for pointer and array arguments in the
-      // pushforward mode.
-      if (utils::isDifferentiableType(arg->getType()) &&
-          !utils::isArrayOrPointerType(arg->getType()))
+      if (utils::isDifferentiableType(arg->getType()))
         diffArgs.push_back(argDiff.getExpr_dx());
     }
 

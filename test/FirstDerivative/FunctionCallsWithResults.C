@@ -170,7 +170,7 @@ double nonRealParamFn(const char* a, const char* b = nullptr) {
   return 1;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> nonRealParamFn_pushforward(const char *a, const char *b = nullptr) {
+// CHECK: clad::ValueAndPushforward<double, double> nonRealParamFn_pushforward(const char *a, const char *b, const char *_d_a, const char *_d_b) {
 // CHECK-NEXT:     return {1, 0};
 // CHECK-NEXT: }
 
@@ -183,7 +183,7 @@ double fn4(double i, double j) {
 // CHECK: double fn4_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = nonRealParamFn_pushforward(0, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = nonRealParamFn_pushforward(0, 0, 0, 0);
 // CHECK-NEXT:     double _d_res = _t0.pushforward;
 // CHECK-NEXT:     double res = _t0.value;
 // CHECK-NEXT:     _d_res += _d_i;
@@ -259,6 +259,57 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     return _t1.pushforward;
 // CHECK-NEXT: }
 
+void modifyArr(double* arr, int n, double val) {
+  for (int i=0; i<n; ++i)
+    arr[i] = val;
+}
+
+// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, int _d_n, double _d_val) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:             _d_arr[i] = _d_val;
+// CHECK-NEXT:             arr[i] = val;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double sum(double* arr, int n) {
+  double val = 0;
+  for (int i=0; i<n; ++i)
+    val += arr[i];
+  return val;
+}
+
+// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n) {
+// CHECK-NEXT:     double _d_val = 0;
+// CHECK-NEXT:     double val = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:             _d_val += _d_arr[i];
+// CHECK-NEXT:             val += arr[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return {val, _d_val};
+// CHECK-NEXT: }
+
+double fn8(double i, double j) {
+  double arr[5] = {};
+  modifyArr(arr, 5, i*j);
+  return sum(arr, 5);
+}
+
+// CHECK: double fn8_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     double _d_arr[5] = {};
+// CHECK-NEXT:     double arr[5] = {};
+// CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 float test_1_darg0(float x);
 float test_2_darg0(float x);
 float test_4_darg0(float x);
@@ -286,6 +337,7 @@ int main () {
   INIT(fn5, "i");
   INIT(fn6, "i");
   INIT(fn7, "i");
+  INIT(fn8, "i");
 
   TEST(fn1, 3, 5);    // CHECK-EXEC: {12.00}
   TEST(fn2, 3, 5);    // CHECK-EXEC: {181.00}
@@ -294,5 +346,6 @@ int main () {
   TEST(fn5, 3, 5);    // CHECK-EXEC: {1.00}
   TEST(fn6, 3, 5, 7); // CHECK-EXEC: {3.00}
   TEST(fn7, 3, 5);    // CHECK-EXEC: {8.00}
+  TEST(fn8, 3, 5);    // CHECK-EXEC: {25.00}
   return 0;
 }
