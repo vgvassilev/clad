@@ -4,6 +4,7 @@
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/STLBuiltinDerivatives.h"
 
 #include <complex>
 

@@ -1016,9 +1016,14 @@ namespace clad {
         utils::BuildNNS(m_Sema, originalFnDC, SS);
         DC = originalFnDC;
       } else {
-        utils::BuildNNS(m_Sema, NSD, SS);
-        utils::BuildNNS(m_Sema, originalFnDC, SS);
-        DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
+        if (isa<RecordDecl>(originalFnDC)) {
+          DC = utils::LookupNSD(m_Sema, "class_functions",
+                                /*shouldExist=*/false, NSD);
+        } else {
+          DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
+        }
+        if (DC)
+          utils::BuildNNS(m_Sema, DC, SS);
       }
     } else {
       SS.Extend(m_Context, NSD, noLoc, noLoc);
@@ -1112,11 +1117,6 @@ namespace clad {
     for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
       const Expr* arg = CE->getArg(i);
       StmtDiff argDiff = Visit(arg);
-      if (!Multiplier)
-        Multiplier = argDiff.getExpr_dx();
-      else {
-        Multiplier = BuildOp(BO_Add, Multiplier, argDiff.getExpr_dx());
-      }
 
       // If original argument is an RValue and function expects an RValue
       // parameter, then convert the cloned argument and the corresponding
@@ -1148,9 +1148,18 @@ namespace clad {
     pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
                              diffArgs.end());
 
+    auto customDerivativeArgs = pushforwardFnArgs;
+
+    if (baseDiff.getExpr()) {
+      Expr* baseE = baseDiff.getExpr();
+      if (!baseE->getType()->isPointerType())
+        baseE = BuildOp(UnaryOperatorKind::UO_AddrOf, baseE);
+      customDerivativeArgs.insert(customDerivativeArgs.begin(), baseE);
+    }
+
     // Try to find a user-defined overloaded derivative.
     Expr* callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        DNInfo, pushforwardFnArgs, getCurrentScope(),
+        DNInfo, customDerivativeArgs, getCurrentScope(),
         const_cast<DeclContext*>(FD->getDeclContext()));
 
     // Check if it is a recursive call.
@@ -1200,6 +1209,7 @@ namespace clad {
     // If clad failed to derive it, try finding its derivative using
     // numerical diff.
     if (!callDiff) {
+      Multiplier = diffArgs[0];
       Expr* call =
           m_Sema
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
