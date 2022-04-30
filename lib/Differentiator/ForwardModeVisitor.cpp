@@ -1264,7 +1264,10 @@ namespace clad {
       return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
     else if (opKind == UO_PostInc || opKind == UO_PostDec ||
              opKind == UO_PreInc || opKind == UO_PreDec) {
-      return StmtDiff(op, diff.getExpr_dx());
+      Expr* derivedOp = diff.getExpr_dx();
+      if (diff.getExpr_dx()->getType()->isPointerType())
+        derivedOp = BuildOp(opKind, diff.getExpr_dx());
+      return StmtDiff(op, derivedOp);
     } /* For supporting complex types */
     else if (opKind == UnaryOperatorKind::UO_Real ||
              opKind == UnaryOperatorKind::UO_Imag) {
