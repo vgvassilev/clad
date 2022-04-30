@@ -689,9 +689,10 @@ namespace clad {
 
   ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,
                                              IdentifierInfo* II,
-                                             bool pushOnScopeChains) {
+                                             bool pushOnScopeChains,
+                                             bool cloneDefaultArg) {
     Expr* newPVDDefaultArg = nullptr;
-    if (PVD->hasDefaultArg()) {
+    if (PVD->hasDefaultArg() && cloneDefaultArg) {
       newPVDDefaultArg = Clone(PVD->getDefaultArg());
     }
     auto newPVD = ParmVarDecl::Create(
