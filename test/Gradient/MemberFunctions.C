@@ -810,7 +810,7 @@ int main() {
   auto d_partial_mem_fn = clad::gradient(&SimpleFunctions::partial_mem_fn, "i");
 
   auto d_fn = clad::gradient(fn);
-  double result[2];
+  double result[2] = {};
   d_fn.execute(4, 5, &result[0], &result[1]);
   for(unsigned i=0;i<2;++i) {
     printf("%.2f ",result[i]);  //CHECK-EXEC: 40.00 16.00

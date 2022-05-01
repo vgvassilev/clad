@@ -143,9 +143,10 @@ namespace clad {
     }
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
+      Sema& S = m_CI.getSema();
       // Required due to custom derivatives function templates that might be
       // used in the function that we need to derive.
-      m_CI.getSema().PerformPendingInstantiations();
+      S.PerformPendingInstantiations();
       if (request.Function->getDefinition())
         request.Function = request.Function->getDefinition();
       request.UpdateDiffParamsInfo(m_CI.getSema());
@@ -241,14 +242,28 @@ namespace clad {
             f.flush();
           }
 
-          // Call CodeGen only if the produced decl is a top-most decl.
-          Decl* DerivativeDeclOrEnclosingContext = DerivativeDeclContext
-                                                       ? DerivativeDeclContext
-                                                       : DerivativeDecl;
-          bool isTU = DerivativeDeclOrEnclosingContext->getDeclContext()
-                          ->isTranslationUnit();
-          if (isTU) {
-            ProcessTopLevelDecl(DerivativeDeclOrEnclosingContext);
+          S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
+          if (OverloadedDerivativeDecl)
+            S.MarkFunctionReferenced(SourceLocation(),
+                                     OverloadedDerivativeDecl);
+
+          // We ideally should not call `HandleTopLevelDecl` for declarations
+          // inside a namespace. After parsing a namespace that is defined
+          // directly in translation unit context , clang calls
+          // `BackendConsumer::HandleTopLevelDecl`.
+          // `BackendConsumer::HandleTopLevelDecl` emits LLVM IR of each
+          // declaration inside the namespace using CodeGen. We need to manually
+          // call `HandleTopLevelDecl` for each new declaration added to a
+          // namespace because `HandleTopLevelDecl` has already been called for
+          // a namespace by Clang when the namespace is parsed.
+
+          // Call CodeGen only if the produced Decl is a top-most
+          // decl or is contained in a namespace decl.
+          DeclContext* derivativeDC = DerivativeDecl->getDeclContext();
+          bool isTUorND =
+              derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
+          if (isTUorND) {
+            ProcessTopLevelDecl(DerivativeDecl);
             if (OverloadedDerivativeDecl)
               ProcessTopLevelDecl(OverloadedDerivativeDecl);
           }
