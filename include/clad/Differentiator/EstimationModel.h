@@ -64,11 +64,6 @@ namespace clad {
                                  std::string nmspace = "");
 
     /// Helper to build a function call expression.
-    /// \note This function does not check if the parameters result in correct
-    /// overload resolution, this is done to avoid the overhead of checking
-    /// if the correct overload exists given this function will be called
-    /// multiple times for the same parameters types. The user has to ensure
-    /// the parameters correspond to a valid overload of the function.
     ///
     /// \param[in] lookupRes The result from \c GetFunctionCall , this param
     /// is used to build the final function call expression.
