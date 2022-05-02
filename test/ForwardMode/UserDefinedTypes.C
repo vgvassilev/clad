@@ -4,7 +4,7 @@
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
-#include "clad/Differentiator/STLBuiltinDerivatives.h"
+#include "clad/Differentiator/STLBuiltins.h"
 
 #include <complex>
 #include <numeric>
@@ -1118,6 +1118,30 @@ double fn14(double i, double j) {
   auto res = std::accumulate(b, e, 0.00);
   return res;
 }
+
+// CHECK: double fn14_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     vectorD _d_v;
+// CHECK-NEXT:     vectorD v;
+// CHECK-NEXT:     clad::custom_derivatives::class_functions::resize_pushforward(&v, 5, 0, &_d_v, 0, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t0 = v.operator_subscript_pushforward(0, &_d_v, 0);
+// CHECK-NEXT:     _t0.pushforward = 0 * i + 9 * _d_i;
+// CHECK-NEXT:     _t0.value = 9 * i;
+// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t1 = v.operator_subscript_pushforward(1, &_d_v, 0);
+// CHECK-NEXT:     _t1.pushforward = 0 * i + 11 * _d_i;
+// CHECK-NEXT:     _t1.value = 11 * i;
+// CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.begin()), decltype({{.*}}.begin())> _t2 = begin_pushforward(v, _d_v);
+// CHECK-NEXT:     {{.*}} _d_b = _t2.pushforward;
+// CHECK-NEXT:     {{.*}} b = _t2.value;
+// CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.end()), decltype({{.*}}.end())> _t3 = end_pushforward(v, _d_v);
+// CHECK-NEXT:     {{.*}} _d_e = _t3.pushforward;
+// CHECK-NEXT:     {{.*}} e = _t3.value;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t4 = accumulate_pushforward(b, e, 0., _d_b, _d_e, 0.);
+// CHECK-NEXT:     double _d_res = _t4.pushforward;
+// CHECK-NEXT:     double res = _t4.value;
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
 
 template<unsigned N>
 void print(const Tensor<double, N>& t) {

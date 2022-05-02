@@ -1,5 +1,7 @@
-#ifndef CLAD_STL_BUILTIN_DERIVATIVES_H
-#define CLAD_STL_BUILTIN_DERIVATIVES_H
+#ifndef CLAD_STL_BUILTINS_H
+#define CLAD_STL_BUILTINS_H
+
+#include <vector>
 
 namespace clad {
 namespace custom_derivatives {
@@ -28,4 +30,4 @@ void resize_pushforward(::std::vector<T>* v, unsigned sz, U val,
 } // namespace custom_derivatives
 } // namespace clad
 
-#endif
+#endif // CLAD_STL_BUILTINS_H
