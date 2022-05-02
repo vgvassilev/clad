@@ -791,9 +791,10 @@ namespace clad {
   StmtDiff
   ForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     auto ASI = SplitArraySubscript(ASE);
-    const Expr* Base = ASI.first;
+    const Expr* base = ASI.first;
     const auto& Indices = ASI.second;
-    Expr* clonedBase = Clone(Base);
+    StmtDiff cloneDiff = Visit(base);
+    Expr* clonedBase = cloneDiff.getExpr();
     llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
     std::transform(std::begin(Indices),
                    std::end(Indices),
@@ -820,7 +821,7 @@ namespace clad {
         VD = decl;
       }
     } else if (isa<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
-      auto derivedME = Visit(clonedBase).getExpr_dx();
+      auto derivedME = cloneDiff.getExpr_dx();
       if (!isa<MemberExpr>(derivedME->IgnoreParenImpCasts())) {
         return {cloned, zero};
       }
@@ -1013,12 +1014,11 @@ namespace clad {
         utils::BuildNNS(m_Sema, originalFnDC, SS);
         DC = originalFnDC;
       } else {
-        if (isa<RecordDecl>(originalFnDC)) {
+        if (isa<RecordDecl>(originalFnDC))
           DC = utils::LookupNSD(m_Sema, "class_functions",
                                 /*shouldExist=*/false, NSD);
-        } else {
+        else
           DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
-        }
         if (DC)
           utils::BuildNNS(m_Sema, DC, SS);
       }

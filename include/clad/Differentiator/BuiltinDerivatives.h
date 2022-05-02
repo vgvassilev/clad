@@ -14,7 +14,6 @@ namespace custom_derivatives{}
 #include "clad/Differentiator/CladConfig.h"
 
 #include <cmath>
-#include <vector>
 
 namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
