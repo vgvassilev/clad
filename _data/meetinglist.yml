@@ -1,4 +1,17 @@
 - name: "CaaS Monthly Meeting"
+  date: 2022-05-05 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92393493356?pwd=SHYxY0MxdFNPZm5wdzRCeDZxK3VYQT09)"
+  label: caas_05May2022
+  agenda:
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 9 Jun 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2022-04-07 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92393493356?pwd=SHYxY0MxdFNPZm5wdzRCeDZxK3VYQT09)"
