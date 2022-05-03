@@ -52,9 +52,10 @@ namespace clad {
   Expr* FPErrorEstimationModel::SetError(VarDecl* declStmt) { 
     return nullptr; 
   }
-  
-  Expr* FPErrorEstimationModel::GetFunctionCall(std::string funcName,
-                                                std::string nmspace /*=""*/) {
+
+  Expr* FPErrorEstimationModel::GetFunctionCall(
+      std::string funcName, std::string nmspace,
+      llvm::SmallVectorImpl<Expr*>& callArgs) {
     NamespaceDecl* NSD =
         utils::LookupNSD(m_Sema, nmspace, /*shouldExist=*/true);
     DeclContext* DC = NSD;
@@ -72,17 +73,11 @@ namespace clad {
     if (!R.empty())
       UnresolvedLookup =
           m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
-    return UnresolvedLookup;
-  }
-
-  Expr* FPErrorEstimationModel::BuildFunctionCallExpr(
-      Expr* lookupRes, llvm::SmallVectorImpl<Expr*>& callArgs) {
-    if (!lookupRes)
-      return nullptr;
     llvm::MutableArrayRef<Expr*> MARargs =
         llvm::MutableArrayRef<Expr*>(callArgs);
     SourceLocation Loc;
-    return m_Sema.ActOnCallExpr(getCurrentScope(), lookupRes, Loc, MARargs, Loc)
+    return m_Sema
+        .ActOnCallExpr(getCurrentScope(), UnresolvedLookup, Loc, MARargs, Loc)
         .get();
   }
 
@@ -98,16 +93,11 @@ namespace clad {
     // value.
     auto errExpr = BuildOp(BO_Mul, refExpr.getExpr_dx(),
                            BuildOp(BO_Mul, refExpr.getExpr(), epsExpr));
-    // Finally, build the final std::abs call over the error expression.
-    // We get the function expression first, we can actually save this
-    // in a member variable to avoid re-computations.
-    if (!absCallExpr)
-      absCallExpr = GetFunctionCall("abs", "std");
     // Next, build a llvm vector-like container to store the parameters
     // of the function call.
     llvm::SmallVector<Expr*, 1> params{errExpr};
     // Finally, build a call to std::abs
-    auto absExpr = BuildFunctionCallExpr(absCallExpr, params);
+    auto absExpr = GetFunctionCall("abs", "std", params);
     // Return the built error expression.
     return absExpr;
   }
