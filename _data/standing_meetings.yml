@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Utilizing Clad Derivatives in RooFit - Progress Update"
+      date: 2022-04-27 14:00:00 +0200
+      speaker: "Garima Singh"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_27_04_2022_Garima-Progress_Report_april_2022.pdf)"
     - title: "The CaaS Project. Progress & Plans Q1, Q2"
       date: 2022-04-20 14:00:00 +0200
       speaker: "Vassil Vassilev"
