@@ -130,13 +130,13 @@
 //CHECK_FLOAT_SUM:             _d_sum += _r_d0;
 //CHECK_FLOAT_SUM:             * _d_x += _r_d0;
 //CHECK_FLOAT_SUM:             float _r0 = clad::pop(_EERepl_sum1);
-//CHECK_FLOAT_SUM:             _delta_sum += _r_d0 * _r0 * {{.+}};
+//CHECK_FLOAT_SUM:             _delta_sum += std::abs(_r_d0 * _r0 * {{.+}});
 //CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
 //CHECK_FLOAT_SUM:         }
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     _delta_sum += _d_sum * _EERepl_sum0 * {{.+}};
+//CHECK_FLOAT_SUM:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
 //CHECK_FLOAT_SUM:     double _delta_x = 0;
-//CHECK_FLOAT_SUM:     _delta_x += * _d_x * x * {{.+}};
+//CHECK_FLOAT_SUM:     _delta_x += std::abs(* _d_x * x * {{.+}});
 //CHECK_FLOAT_SUM:     _final_error += _delta_{{x|sum}} + _delta_{{x|sum}};
 //CHECK_FLOAT_SUM: }
 
