@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "cppyy Progress Update"
+      date: 2022-05-11 14:00:00 +0200
+      speaker: "Baidyanath Kundu"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_11_05_2022_Baidyanath-Progress_Report_may_2022.pdf)"
     - title: "Utilizing Clad Derivatives in RooFit - Progress Update"
       date: 2022-04-27 14:00:00 +0200
       speaker: "Garima Singh"
