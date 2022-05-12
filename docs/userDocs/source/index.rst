@@ -79,6 +79,7 @@ The User Guide
    user/reference
    user/tutorials
    user/FAQ
+   user/DevelopersDocumentation
    
 Citing Clad
 -------------
