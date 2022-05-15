@@ -34,8 +34,6 @@ namespace clang {
 } // namespace clang
 
 namespace clad {
-  struct DiffRequest;
-
   /// This class is designed to store collection of `DerivedFnInfo` objects.
   /// It's purpose is to avoid repeated generation of same derivatives by
   /// making it possible to reuse previously computed derivatives.

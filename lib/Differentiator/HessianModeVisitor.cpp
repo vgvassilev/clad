@@ -75,7 +75,7 @@ namespace clad {
     return secondDerivative;
   }
 
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
                              const DiffRequest& request) {
     DiffParams args{};
@@ -190,7 +190,7 @@ namespace clad {
   // Combines all generated second derivative functions into a
   // single hessian function by creating CallExprs to each individual
   // secon derivative function in FunctionBody.
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   HessianModeVisitor::Merge(std::vector<FunctionDecl*> secDerivFuncs,
                             SmallVector<size_t, 16> IndependentArgsSize,
                             size_t TotalIndependentArgsSize,
@@ -371,7 +371,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return OverloadedDeclWithContext{result.first, result.second,
-                                     /*OverloadFunctionDecl=*/nullptr};
+    return DerivativeAndOverload{result.first,
+                                 /*OverloadFunctionDecl=*/nullptr};
   }
 } // end namespace clad

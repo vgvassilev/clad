@@ -51,10 +51,15 @@ namespace clad {
   // instead would lead to unnecessarily returning a nullptr in the overloaded
   // FD
   using DeclWithContext = std::pair<clang::FunctionDecl*, clang::Decl*>;
-  /// A tuple which consists of a FunctionDecl, it's potential enclosing context
-  /// and optionally it's overload FunctionDecl
-  using OverloadedDeclWithContext =
-      std::tuple<clang::FunctionDecl*, clang::Decl*, clang::FunctionDecl*>;
+  /// Stores derivative and the corresponding overload. If no overload exist
+  /// then `second` data member should be `nullptr`.
+  struct DerivativeAndOverload {
+    clang::FunctionDecl* derivative = nullptr;
+    clang::FunctionDecl* overload = nullptr;
+    DerivativeAndOverload(clang::FunctionDecl* p_derivative = nullptr,
+                          clang::FunctionDecl* p_overload = nullptr)
+        : derivative(p_derivative), overload(p_overload) {}
+  };
 
   using VectorOutputs =
       std::vector<std::unordered_map<const clang::ValueDecl*, clang::Expr*>>;
@@ -153,7 +158,7 @@ namespace clad {
     ///\returns The differentiated function and potentially created enclosing
     /// context.
     ///
-    OverloadedDeclWithContext Derive(const DiffRequest& request);
+    DerivativeAndOverload Derive(const DiffRequest& request);
   };
 
 } // end namespace clad

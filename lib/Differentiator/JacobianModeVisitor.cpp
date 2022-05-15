@@ -32,11 +32,11 @@ namespace clad {
 
   JacobianModeVisitor::~JacobianModeVisitor() {}
 
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   JacobianModeVisitor::Derive(const clang::FunctionDecl* FD,
                               const DiffRequest& request) {
     FD = FD->getDefinition();
-    OverloadedDeclWithContext result{};
+    DerivativeAndOverload result{};
 
     ReverseModeVisitor V(this->builder);
     result = V.Derive(FD, request);
