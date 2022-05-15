@@ -221,7 +221,7 @@ namespace clad {
     return gradientOverloadFD;
   }
 
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   ReverseModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
     if (m_ExternalSource)
@@ -459,11 +459,10 @@ namespace clad {
           CreateGradientOverload();
     }
 
-    return OverloadedDeclWithContext{result.first, result.second,
-                                     gradientOverloadFD};
+    return DerivativeAndOverload{result.first, gradientOverloadFD};
   }
 
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
@@ -537,8 +536,7 @@ namespace clad {
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return OverloadedDeclWithContext(fnBuildRes.first, fnBuildRes.second,
-                                     nullptr);
+    return DerivativeAndOverload{fnBuildRes.first, nullptr};
   }
 
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {

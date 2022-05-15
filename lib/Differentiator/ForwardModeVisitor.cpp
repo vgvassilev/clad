@@ -51,7 +51,7 @@ namespace clad {
     return RT;
   }
 
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   ForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
                                         const DiffRequest& request) {
     m_Function = FD;
@@ -182,16 +182,14 @@ namespace clad {
     endScope(); // Function decl scope
 
     m_DerivativeInFlight = false;
-    return OverloadedDeclWithContext{cloneFunctionResult.first,
-                                     cloneFunctionResult.second,
-                                     /*OverloadFunctionDecl=*/nullptr};
+    return DerivativeAndOverload{cloneFunctionResult.first};
   }
 
   bool IsRealNonReferenceType(QualType T) {
     return T.getNonReferenceType()->isRealType();
   }
 
-  OverloadedDeclWithContext ForwardModeVisitor::Derive(
+  DerivativeAndOverload ForwardModeVisitor::Derive(
       const FunctionDecl* FD, const DiffRequest& request) {
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
@@ -469,8 +467,8 @@ namespace clad {
 
     m_DerivativeInFlight = false;
 
-    return OverloadedDeclWithContext{result.first, result.second,
-                                     /*OverloadFunctionDecl=*/nullptr};
+    return DerivativeAndOverload{result.first,
+                                 /*OverloadFunctionDecl=*/nullptr};
   }
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {

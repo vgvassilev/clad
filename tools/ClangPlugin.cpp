@@ -125,6 +125,7 @@ namespace clad {
       // somehow make the relevant functions referenced.
       // Instantiate all pending for instantiations templates, because we will
       // need the full bodies to produce derivatives.
+      // FIXME: Confirm if we really need `m_PendingInstantiationsInFlight`?
       if (!m_PendingInstantiationsInFlight) {
         m_PendingInstantiationsInFlight = true;
         S.PerformPendingInstantiations();
@@ -193,7 +194,6 @@ namespace clad {
       }
 
       FunctionDecl* DerivativeDecl = nullptr;
-      Decl* DerivativeDeclContext = nullptr;
       bool alreadyDerived = false;
       FunctionDecl* OverloadedDerivativeDecl = nullptr;
       {
@@ -210,11 +210,9 @@ namespace clad {
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
           alreadyDerived = true;
         } else {
-          // TODO: Maybe find a better way to declare and use
-          //  OverloadedDeclWithContext
-          std::tie(DerivativeDecl, DerivativeDeclContext,
-                   OverloadedDerivativeDecl) = m_DerivativeBuilder
-                                                   ->Derive(request);
+          auto deriveResult = m_DerivativeBuilder->Derive(request);
+          DerivativeDecl = deriveResult.derivative;
+          OverloadedDerivativeDecl = deriveResult.overload;
         }
       }
 
@@ -300,6 +298,7 @@ namespace clad {
       // This assert tries to catch such situations heuristically.
       assert(&C.Idents == &m_CI.getPreprocessor().getIdentifierTable()
              && "Miscompiled?");
+      // FIXME: Use `utils::LookupNSD` instead.
       DeclarationName Name = &C.Idents.get("clad");
       Sema &SemaR = m_CI.getSema();
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,

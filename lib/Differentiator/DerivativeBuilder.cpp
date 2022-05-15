@@ -131,20 +131,12 @@ namespace clad {
     return { returnedFD, enclosingNS };
   }
 
-  static FunctionDecl* getOriginalFD(OverloadedDeclWithContext& ODWC) {
-    return std::get<0>(ODWC);
-  }
-
-  static FunctionDecl* getOverloadFD(OverloadedDeclWithContext& ODWC) {
-    return std::get<2>(ODWC);
-  }
-
   void DerivativeBuilder::SetErrorEstimationModel(
       std::unique_ptr<FPErrorEstimationModel> estModel) {
     m_EstModel = std::move(estModel);
   }
 
-  OverloadedDeclWithContext
+  DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
     const FunctionDecl* FD = request.Function;
     //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
@@ -159,7 +151,7 @@ namespace clad {
       return {};
     }
     FD = FD->getDefinition();
-    OverloadedDeclWithContext result{};
+    DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
       ForwardModeVisitor V(*this);
       result = V.Derive(FD, request);
@@ -198,9 +190,9 @@ namespace clad {
 
     // FIXME: if the derivatives aren't registered in this order and the
     //   derivative is a member function it goes into an infinite loop
-    if (auto FD = getOriginalFD(result))
+    if (auto FD = result.derivative)
       registerDerivative(FD, m_Sema);
-    if (auto OFD = getOverloadFD(result))
+    if (auto OFD = result.overload)
       registerDerivative(OFD, m_Sema);
 
     return result;

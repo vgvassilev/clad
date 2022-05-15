@@ -305,10 +305,10 @@ namespace clad {
     /// Improved naming scheme is required. Hence, we append the indices to of
     /// the requested parameters to 'f_grad', i.e. in the previous example "x,
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
-    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
-                                     const DiffRequest& request);
-    OverloadedDeclWithContext DerivePullback(const clang::FunctionDecl* FD,
-                                             const DiffRequest& request);
+    DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
+                                 const DiffRequest& request);
+    DerivativeAndOverload DerivePullback(const clang::FunctionDecl* FD,
+                                         const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);

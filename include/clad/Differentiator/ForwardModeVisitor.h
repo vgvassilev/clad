@@ -40,10 +40,10 @@ namespace clad {
     ///\returns The differentiated and potentially created enclosing
     /// context.
     ///
-    OverloadedDeclWithContext Derive(const clang::FunctionDecl* FD,
-                                     const DiffRequest& request);
-    OverloadedDeclWithContext DerivePushforward(const clang::FunctionDecl* FD,
-                                                const DiffRequest& request);
+    DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
+                                 const DiffRequest& request);
+    DerivativeAndOverload DerivePushforward(const clang::FunctionDecl* FD,
+                                            const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
