@@ -8,6 +8,8 @@
 #define CLAD_DERIVATIVE_BUILDER_H
 
 #include "Compatibility.h"
+#include "DerivedFnCollector.h"
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -35,8 +37,6 @@ namespace clad {
   struct DiffRequest;
   namespace plugin {
     class CladPlugin;
-    clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
-                                            DiffRequest& request);
   } // namespace plugin
 
 } // namespace clad
@@ -89,6 +89,7 @@ namespace clad {
     bool m_PrintNumericalDiffErrorDiag = false;
     // A pointer to a the handler to be used for estimation requests.
     std::unique_ptr<ErrorEstimationHandler> m_ErrorEstHandler;
+    DerivedFnCollector m_DFC;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB, clang::DeclContext* DC,
                                   clang::Sema& m_Sema,
@@ -128,6 +129,8 @@ namespace clad {
       for (auto arg : args)
         stream << arg;
     }
+    void CallHandleTopLevelDeclIfRequired(clang::Decl* D);
+    void RegisterFunction(clang::FunctionDecl* FD);
 
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P);
@@ -159,6 +162,8 @@ namespace clad {
     /// context.
     ///
     DerivativeAndOverload Derive(const DiffRequest& request);
+
+    clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
   };
 
 } // end namespace clad

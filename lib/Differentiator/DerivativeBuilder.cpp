@@ -31,6 +31,12 @@ using namespace clang;
 
 namespace clad {
 
+namespace plugin {
+void DumpRequestedInfo(CladPlugin& P, const FunctionDecl* sourceFn,
+                       const FunctionDecl* derivedFn);
+void ProcessTopLevelDecl(CladPlugin& P, Decl* D);
+}
+
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
@@ -38,40 +44,39 @@ namespace clad {
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
-  static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
-    LookupResult R(semaRef, derivedFD->getNameInfo(), Sema::LookupOrdinaryName);
+  void DerivativeBuilder::RegisterFunction(FunctionDecl* FD) {
+    LookupResult R(m_Sema, FD->getNameInfo(), Sema::LookupOrdinaryName);
     // FIXME: Attach out-of-line virtual function definitions to the TUScope.
-    Scope* S = semaRef.getScopeForContext(derivedFD->getDeclContext());
-    semaRef.CheckFunctionDeclaration(S, derivedFD, R,
-                                     /*IsMemberSpecialization=*/false);
+    Scope* S = m_Sema.getScopeForContext(FD->getDeclContext());
+    m_Sema.CheckFunctionDeclaration(S, FD, R,
+                                    /*IsMemberSpecialization=*/false);
 
     // FIXME: Avoid the DeclContext lookup and the manual setPreviousDecl.
     // Consider out-of-line virtual functions.
     {
-      DeclContext* LookupCtx = derivedFD->getDeclContext();
-      auto R = LookupCtx->noload_lookup(derivedFD->getDeclName());
+      DeclContext* LookupCtx = FD->getDeclContext();
+      auto R = LookupCtx->noload_lookup(FD->getDeclName());
 
       for (NamedDecl* I : R) {
-        if (auto* FD = dyn_cast<FunctionDecl>(I)) {
+        if (auto* prevFD = dyn_cast<FunctionDecl>(I)) {
           // FIXME: We still do extra work in creating a derivative and throwing
           // it away.
-          if (FD->getDefinition())
+          if (prevFD->getDefinition())
             return;
 
-          if (derivedFD->getASTContext()
-                  .hasSameFunctionTypeIgnoringExceptionSpec(derivedFD
-                                                                ->getType(),
-                                                            FD->getType())) {
+          if (FD->getASTContext().hasSameFunctionTypeIgnoringExceptionSpec(
+                  FD->getType(), prevFD->getType())) {
             // Register the function on the redecl chain.
-            derivedFD->setPreviousDecl(FD);
+            FD->setPreviousDecl(prevFD);
             break;
           }
         }
       }
       // Inform the decl's decl context for its existance after the lookup,
       // otherwise it would end up in the LookupResult.
-      derivedFD->getDeclContext()->addDecl(derivedFD);
-
+      FD->getDeclContext()->addDecl(FD);
+      m_Sema.MarkFunctionReferenced(noLoc, FD);
+      // CallHandleTopLevelDeclIfRequired(FD);
       // FIXME: Rebuild VTable to remove requirements for "forward" declared
       // virtual methods
     }
@@ -191,10 +196,85 @@ namespace clad {
     // FIXME: if the derivatives aren't registered in this order and the
     //   derivative is a member function it goes into an infinite loop
     if (auto FD = result.derivative)
-      registerDerivative(FD, m_Sema);
+      RegisterFunction(FD);
     if (auto OFD = result.overload)
-      registerDerivative(OFD, m_Sema);
+      RegisterFunction(OFD);
 
     return result;
+  }
+
+  void DerivativeBuilder::CallHandleTopLevelDeclIfRequired(Decl* D) {
+    if (!D)
+      return;
+    // We ideally should not call `HandleTopLevelDecl` for declarations
+    // inside a namespace. After parsing a namespace that is defined
+    // directly in translation unit context , clang calls
+    // `BackendConsumer::HandleTopLevelDecl`.
+    // `BackendConsumer::HandleTopLevelDecl` emits LLVM IR of each
+    // declaration inside the namespace using CodeGen. We need to manually
+    // call `HandleTopLevelDecl` for each new declaration added to a
+    // namespace because `HandleTopLevelDecl` has already been called for
+    // a namespace by Clang when the namespace is parsed.
+
+    // Call CodeGen only if the produced Decl is a top-most
+    // decl or is contained in a namespace decl.
+    DeclContext* derivativeDC = D->getDeclContext();
+    bool isTUorND =
+        derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
+    if (isTUorND) {
+      plugin::ProcessTopLevelDecl(m_CladPlugin, D);
+    }
+  }
+
+  FunctionDecl* DerivativeBuilder::ProcessDiffRequest(DiffRequest& request) {
+    m_Sema.PerformPendingInstantiations();
+    if (request.Function->getDefinition())
+      request.Function = request.Function->getDefinition();
+    request.UpdateDiffParamsInfo(m_Sema);
+    const FunctionDecl* FD = request.Function;
+
+    FunctionDecl* derivativeDecl = nullptr;
+    FunctionDecl* overloadedDecl = nullptr;
+    auto DFI = m_DFC.Find(request);
+
+    if (DFI.IsValid()) {
+      derivativeDecl = DFI.DerivedFn();
+      overloadedDecl = DFI.OverloadedDerivedFn();
+    } else {
+      auto deriveRes = Derive(request);
+      derivativeDecl = deriveRes.derivative;
+      overloadedDecl = deriveRes.overload;
+      // Differentiation successful, save differentiation information and dump
+      // requested information.
+      if (derivativeDecl) {
+        m_DFC.Add(DerivedFnInfo(request, derivativeDecl, overloadedDecl));
+        plugin::DumpRequestedInfo(m_CladPlugin, FD, derivativeDecl);
+      }
+      CallHandleTopLevelDeclIfRequired(derivativeDecl);
+      CallHandleTopLevelDeclIfRequired(overloadedDecl);
+    }
+
+    // `*Visitor` classes in-charge of differentiation are responsible for
+    // giving error messages if differentiation fails.
+    if (!derivativeDecl)
+      return nullptr;
+
+    bool isLastDerivativeOrder =
+        (request.CurrentDerivativeOrder == request.RequestedDerivativeOrder);
+
+    // If this is the last required derivative order, replace the function
+    // inside a call to clad::differentiate/gradient with its derivative.
+    if (request.CallUpdateRequired && isLastDerivativeOrder)
+      request.updateCall(derivativeDecl, overloadedDecl, m_Sema);
+
+    // Last requested order was computed, return the result.
+    if (isLastDerivativeOrder)
+      return derivativeDecl;
+
+    // If higher order derivatives are required, proceed to compute them
+    // recursively.
+    request.Function = derivativeDecl;
+    request.CurrentDerivativeOrder += 1;
+    return ProcessDiffRequest(request);
   }
 }// end namespace clad

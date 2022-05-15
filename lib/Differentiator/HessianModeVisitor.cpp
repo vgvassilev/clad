@@ -49,28 +49,26 @@ namespace clad {
     return SL;
   }
 
-  /// Derives the function w.r.t both forward and reverse mode and returns the
-  /// FunctionDecl obtained from reverse mode differentiation
-  static FunctionDecl* DeriveUsingForwardAndReverseMode(Sema& SemaRef,
-      clad::plugin::CladPlugin& CP, DiffRequest IndependentArgRequest,
-      const Expr* ForwardModeArgs, const Expr* ReverseModeArgs) {
+  FunctionDecl* HessianModeVisitor::DeriveUsingForwardAndReverseMode(
+      DiffRequest IndependentArgRequest, const Expr* ForwardModeArgs,
+      const Expr* ReverseModeArgs) {
     // Derives function once in forward mode w.r.t to ForwardModeArgs
     IndependentArgRequest.Args = ForwardModeArgs;
     IndependentArgRequest.Mode = DiffMode::forward;
     IndependentArgRequest.CallUpdateRequired = false;
-    IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
+    IndependentArgRequest.UpdateDiffParamsInfo(m_Sema);
     // FIXME: Find a way to do this without accessing plugin namespace functions
     FunctionDecl* firstDerivative =
-        plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+        m_Builder.ProcessDiffRequest(IndependentArgRequest);
 
     // Further derives function w.r.t to ReverseModeArgs
     IndependentArgRequest.Mode = DiffMode::reverse;
     IndependentArgRequest.Function = firstDerivative;
     IndependentArgRequest.Args = ReverseModeArgs;
     IndependentArgRequest.BaseFunctionName = firstDerivative->getNameAsString();
-    IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
+    IndependentArgRequest.UpdateDiffParamsInfo(m_Sema);
     FunctionDecl* secondDerivative =
-        plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+        m_Builder.ProcessDiffRequest(IndependentArgRequest);
 
     return secondDerivative;
   }
@@ -169,9 +167,8 @@ namespace clad {
                 PVD->getNameAsString() + "[" + std::to_string(i) + "]";
             auto ForwardModeIASL =
                 CreateStringLiteral(m_Context, independentArgString);
-            auto DFD =
-                DeriveUsingForwardAndReverseMode(m_Sema, m_CladPlugin, request,
-                                                 ForwardModeIASL, request.Args);
+            auto DFD = DeriveUsingForwardAndReverseMode(
+                request, ForwardModeIASL, request.Args);
             secondDerivativeColumns.push_back(DFD);
           }
 
@@ -182,8 +179,7 @@ namespace clad {
           // then in reverse mode w.r.t to all requested args
           auto ForwardModeIASL =
               CreateStringLiteral(m_Context, PVD->getNameAsString());
-          auto DFD = DeriveUsingForwardAndReverseMode(m_Sema, m_CladPlugin,
-                                                      request, ForwardModeIASL,
+          auto DFD = DeriveUsingForwardAndReverseMode(request, ForwardModeIASL,
                                                       request.Args);
           secondDerivativeColumns.push_back(DFD);
         }

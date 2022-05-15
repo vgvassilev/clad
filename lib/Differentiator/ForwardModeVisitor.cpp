@@ -1217,7 +1217,7 @@ namespace clad {
       // Silence diag outputs in nested derivation process.
       pushforwardFnRequest.VerboseDiags = false;
       FunctionDecl* pushforwardFD =
-          plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
+          m_Builder.ProcessDiffRequest(pushforwardFnRequest);
 
       if (pushforwardFD) {
         if (baseDiff.getExpr()) {

@@ -1529,7 +1529,7 @@ namespace clad {
         pullbackRequest.Mode = DiffMode::experimental_pullback;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
-        FunctionDecl* pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+        FunctionDecl* pullbackFD = m_Builder.ProcessDiffRequest(pullbackRequest);
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
