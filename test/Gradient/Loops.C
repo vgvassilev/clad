@@ -5,6 +5,8 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
 
+#include "../TestUtils.h"
+
 double f1(double x) {
   double t = 1;
   for (int i = 0; i < 3; i++)
@@ -1508,6 +1510,48 @@ double fn18(double i, double j) {
 // CHECK-NEXT:         }
 // CHECK-NEXT: }
 
+double fn19(double* arr, int n) {
+  double res = 0;
+  for (int i=0; i<n; ++i) {
+    double& ref = arr[i];
+    res += ref;
+  }
+  return res;
+}
+
+// CHECK: void fn19_grad_0(double *arr, int n, clad::array_ref<double> _d_arr) {
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     clad::tape<int> _t1 = {};
+// CHECK-NEXT:     clad::tape<double *> _t3 = {};
+// CHECK-NEXT:     double *_d_ref = 0;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         _d_ref = &_d_arr[i];
+// CHECK-NEXT:         clad::push(_t3, _d_ref);
+// CHECK-NEXT:         double &ref = arr[clad::push(_t1, i)];
+// CHECK-NEXT:         res += ref;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     double fn19_return = res;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         double *_t4 = clad::pop(_t3);
+// CHECK-NEXT:         {
+// CHECK-NEXT:             int _t2 = clad::pop(_t1);
+// CHECK-NEXT:             double _r_d0 = _d_res;
+// CHECK-NEXT:             _d_res += _r_d0;
+// CHECK-NEXT:             *_t4 += _r_d0;
+// CHECK-NEXT:             _d_res -= _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -1564,4 +1608,12 @@ int main() {
   TEST_2(fn16, 3, 5);     // CHECK-EXEC: {10.00, 6.00}
   TEST_2(fn17, 3, 5);     // CHECK-EXEC: {15.00, 9.00}
   TEST_2(fn18, 3, 5);     // CHECK-EXEC: {4.00, 4.00}
+
+  INIT_GRADIENT(fn19, "arr");
+
+  double arr[5] = {};
+  double d_arr[5] = {};
+  clad::array_ref<double> ref(d_arr, 5);
+
+  TEST_GRADIENT(fn19, 1, arr, 5, d_arr);
 } 

@@ -241,6 +241,15 @@ namespace clad {
 
     /// Returns true if expression `E` is PRValue or XValue.
     bool IsRValue(const clang::Expr* E);
+
+    /// Append statements from `S` to `block`.
+    ///
+    /// If `S` is a compound statement, then each individual statement is
+    /// is appended to `block`.
+    /// If `S` is any other statement, then it is appended to `block`.
+    /// If `S` is `null`, then nothing happens.
+    void AppendIndividualStmts(llvm::SmallVectorImpl<clang::Stmt*>& block,
+                               clang::Stmt* S);
   } // namespace utils
 }
 

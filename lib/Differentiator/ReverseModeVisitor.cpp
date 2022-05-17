@@ -1017,6 +1017,7 @@ namespace clad {
     StmtDiff BaseDiff = Visit(Base);
     llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
     llvm::SmallVector<Expr*, 4> reverseIndices(Indices.size());
+    llvm::SmallVector<Expr*, 4> forwSweepDerivativeIndices(Indices.size());
     for (std::size_t i = 0; i < Indices.size(); i++) {
       StmtDiff IdxDiff = Visit(Indices[i]);
       StmtDiff IdxStored = GlobalStoreAndRef(IdxDiff.getExpr());
@@ -1035,6 +1036,7 @@ namespace clad {
       }
       clonedIndices[i] = IdxStored.getExpr();
       reverseIndices[i] = IdxStored.getExpr_dx();
+      forwSweepDerivativeIndices[i] = IdxDiff.getExpr();
     }
     auto cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
 
@@ -1042,15 +1044,25 @@ namespace clad {
     if (!target)
       return cloned;
     Expr* result = nullptr;
-    if (utils::isArrayOrPointerType(target->getType()))
+    Expr* forwSweepDerivative = nullptr;
+    if (utils::isArrayOrPointerType(target->getType())) {
       // Create the target[idx] expression.
       result = BuildArraySubscript(target, reverseIndices);
+      forwSweepDerivative =
+          BuildArraySubscript(target, forwSweepDerivativeIndices);
+    }
     else if (isCladArrayType(target->getType())) {
       result = m_Sema
                    .ActOnArraySubscriptExpr(getCurrentScope(), target,
                                             ASE->getExprLoc(),
                                             reverseIndices.back(), noLoc)
                    .get();
+      forwSweepDerivative =
+          m_Sema
+              .ActOnArraySubscriptExpr(getCurrentScope(), target,
+                                       ASE->getExprLoc(),
+                                       forwSweepDerivativeIndices.back(), noLoc)
+              .get();
     } else
       result = target;
     // Create the (target += dfdx) statement.
@@ -1059,7 +1071,7 @@ namespace clad {
       // Add it to the body statements.
       addToCurrentBlock(add_assign, direction::reverse);
     }
-    return StmtDiff(cloned, result);
+    return StmtDiff(cloned, result, forwSweepDerivative);
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
@@ -1113,7 +1125,7 @@ namespace clad {
           // Add it to the body statements.
           addToCurrentBlock(add_assign, direction::reverse);
         }
-        return StmtDiff(clonedDRE, it->second);
+        return StmtDiff(clonedDRE, it->second, it->second);
       }
     }
 
@@ -2051,14 +2063,11 @@ namespace clad {
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff;
     Expr* VDDerivedInit = nullptr;
-    auto VDDerivedType = VD->getType();
-    bool isVDRefType = VD->getType()->isReferenceType();
+    auto VDDerivedType = ComputeAdjointType(VD->getType());
+    bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
     
     if (auto VDCAT = dyn_cast<ConstantArrayType>(VD->getType())) {
-      VDDerivedType =
-          GetCladArrayOfType(QualType(VDCAT->getPointeeOrArrayElementType(),
-                                      VDCAT->getIndexTypeCVRQualifiers()));
       VDDerivedInit = ConstantFolder::synthesizeLiteral(
           m_Context.getSizeType(), m_Context, VDCAT->getSize().getZExtValue());
       VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
@@ -2090,6 +2099,16 @@ namespace clad {
         }
       }
 
+      if (isDerivativeOfRefType) {
+        initDiff = Visit(VD->getInit());
+        if (!initDiff.getExpr_dx()) {
+          VDDerivedType =
+              ComputeAdjointType(VD->getType().getNonReferenceType());
+          isDerivativeOfRefType = false;
+        }
+        VDDerivedInit = getZeroInit(VDDerivedType);
+      }
+
       // FIXME: Remove the special cases introduced by `specialThisDiffCase`
       // once reverse mode supports pointers. `specialThisDiffCase` is only
       // required for correctly differentiating the following code:
@@ -2099,13 +2118,11 @@ namespace clad {
       // ```
       // Computation of hessian requires this code to be correctly
       // differentiated.
-      if (isVDRefType || specialThisDiffCase) {
+      if (specialThisDiffCase && VD->getNameAsString() == "_d_this") {
         VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
         initDiff = Visit(VD->getInit());
         if (initDiff.getExpr_dx())
           VDDerivedInit = initDiff.getExpr_dx();
-        else
-          VDDerivedType = VDDerivedType.getNonReferenceType();
       }
       // Here separate behaviour for record and non-record types is only
       // necessary to preserve the old tests.
@@ -2124,9 +2141,9 @@ namespace clad {
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
     // need to call `Visit` since non-local variables are not differentiated.
-    if (!isVDRefType) {
-      initDiff = VD->getInit() ? Visit(VD->getInit(), BuildDeclRef(VDDerived))
-                               : StmtDiff{};
+    if (!isDerivativeOfRefType) {
+      Expr* derivedE = BuildDeclRef(VDDerived);
+      initDiff = VD->getInit() ? Visit(VD->getInit(), derivedE) : StmtDiff{};
 
       // If we are differentiating `VarDecl` corresponding to a local variable
       // inside a loop, then we need to reset it to 0 at each iteration.
@@ -2158,7 +2175,33 @@ namespace clad {
     else
       VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit());
-    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+    Expr* derivedVDE = BuildDeclRef(VDDerived);
+
+    // FIXME: Add extra parantheses if derived variable pointer is pointing to a
+    // class type object.
+    if (isDerivativeOfRefType) {
+      Expr* assignDerivativeE =
+          BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
+                  BuildOp(UnaryOperatorKind::UO_AddrOf,
+                          initDiff.getForwSweepExpr_dx()));
+      addToCurrentBlock(assignDerivativeE);
+      if (isInsideLoop) {
+        auto tape = MakeCladTapeFor(derivedVDE);
+        addToCurrentBlock(tape.Push);
+        auto reverseSweepDerivativePointerE =
+            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
+        m_LoopBlock.back().push_back(
+            BuildDeclStmt(reverseSweepDerivativePointerE));
+        auto revSweepDerPointerRef =
+            BuildDeclRef(reverseSweepDerivativePointerE);
+        derivedVDE =
+            BuildOp(UnaryOperatorKind::UO_Deref, revSweepDerPointerRef);
+      } else {
+        derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
+      }
+    }
+    m_Variables.emplace(VDClone, derivedVDE);
+
     return VarDeclDiff(VDClone, VDDerived);
   }
   
@@ -2271,7 +2314,7 @@ namespace clad {
           BuildOp(BinaryOperatorKind::BO_AddAssign, derivedME, dfdx());
       addToCurrentBlock(addAssign, direction::reverse);
     }
-    return {clonedME, derivedME};
+    return {clonedME, derivedME, derivedME};
   }
 
   StmtDiff
@@ -2562,6 +2605,7 @@ namespace clad {
     Expr* counterIncrement = loopCounter.getCounterIncrement();
     auto activeBreakContHandler = PushBreakContStmtHandler();
     activeBreakContHandler->BeginCFSwitchStmtScope();
+    m_LoopBlock.push_back({});
     // differentiate loop body and add loop increment expression
     // in the forward block.
     StmtDiff bodyDiff = nullptr;
@@ -2589,6 +2633,11 @@ namespace clad {
       // for forward-pass loop statement body
       endScope();
     }
+    Stmts revLoopBlock = m_LoopBlock.back();
+    utils::AppendIndividualStmts(revLoopBlock, bodyDiff.getStmt_dx());
+    if (!revLoopBlock.empty())
+      bodyDiff.updateStmtDx(MakeCompoundStmt(revLoopBlock));
+    m_LoopBlock.pop_back();
 
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
@@ -2822,9 +2871,25 @@ namespace clad {
   }
 
   clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {
-    QualType TValueType = utils::GetValueType(T);
-    TValueType.removeLocalConst();
-    return GetCladArrayRefOfType(TValueType);
+    if (T->isReferenceType()) {
+      QualType TValueType = utils::GetValueType(T);
+      TValueType.removeLocalConst();
+      return m_Context.getPointerType(TValueType);
+    }
+    if (auto CAT = dyn_cast<ConstantArrayType>(T)) {
+      QualType adjointType =
+          GetCladArrayOfType(QualType(CAT->getPointeeOrArrayElementType(),
+                                      CAT->getIndexTypeCVRQualifiers()));
+      return adjointType;
+    }
+    T.removeLocalConst();
+    return T;
+  }
+
+  clang::QualType ReverseModeVisitor::ComputeParamType(clang::QualType T) {
+      QualType TValueType = utils::GetValueType(T);
+      TValueType.removeLocalConst();
+      return GetCladArrayRefOfType(TValueType);
   }
 
   llvm::SmallVector<clang::QualType, 8>
@@ -2867,7 +2932,7 @@ namespace clad {
       for (auto PVD : m_Function->parameters()) {
         auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
         if (it != std::end(diffParams))
-          paramTypes.push_back(ComputeAdjointType(PVD->getType()));
+          paramTypes.push_back(ComputeParamType(PVD->getType()));
       }
     } else if (m_Mode == DiffMode::jacobian) {
       std::size_t lastArgIdx = m_Function->getNumParams() - 1;

@@ -6,6 +6,8 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
 
+#include "../TestUtils.h"
+
 __attribute__((always_inline)) double f_add1(double x, double y);
 
 __attribute__((always_inline)) double f_add1(double x, double y) {
@@ -904,6 +906,31 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double global = 7;
+
+double fn_global_var_use(double i, double j) {
+  double& ref = global;
+  return ref * i;
+}
+
+// CHECK: void fn_global_var_use_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double _d_ref = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double &ref = global;
+// CHECK-NEXT:     _t1 = ref;
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     double fn_global_var_use_return = _t1 * _t0;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 1 * _t0;
+// CHECK-NEXT:         _d_ref += _r0;
+// CHECK-NEXT:         double _r1 = _t1 * 1;
+// CHECK-NEXT:         * _d_i += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -945,4 +972,8 @@ int main() {
   TEST(f_issue138, 1, 2); // CHECK-EXEC: Result is = {4.00, 32.00}
   TEST(f_const, 2, 3); // CHECK-EXEC: Result is = {3.00, 2.00}
   clad::gradient(running_sum);
+
+  INIT_GRADIENT(fn_global_var_use);
+  double d_i, d_j;
+  TEST_GRADIENT(fn_global_var_use, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {7.00, 0.00}
 }

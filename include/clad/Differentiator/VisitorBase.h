@@ -31,9 +31,11 @@ namespace clad {
   class StmtDiff {
   private:
     std::array<clang::Stmt*, 2> data;
-
+    clang::Stmt* m_DerivativeForForwSweep;
   public:
-    StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr) {
+    StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
+             clang::Stmt* forwSweepDiff = nullptr)
+        : m_DerivativeForForwSweep(forwSweepDiff) {
       data[1] = orig;
       data[0] = diff;
     }
@@ -51,6 +53,14 @@ namespace clad {
     void updateStmtDx(clang::Stmt* S) { data[0] = S; }
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
+
+    clang::Stmt* getForwSweepStmt_dx() { return m_DerivativeForForwSweep; }
+
+    clang::Expr* getForwSweepExpr_dx() {
+      return llvm::cast_or_null<clang::Expr>(m_DerivativeForForwSweep);
+    }
+
+    void setForwSweepStmt_dx(clang::Stmt* S) { m_DerivativeForForwSweep = S; }
   };
 
   class VarDeclDiff {
