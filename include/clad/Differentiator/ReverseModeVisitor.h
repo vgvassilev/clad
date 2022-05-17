@@ -59,6 +59,7 @@ namespace clad {
     /// to maintain the correct statement order when the current block has
     /// delayed emission i.e. assignment LHS.
     Stmts m_PopIdxValues;
+    std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     bool isVectorValued = false;
@@ -570,6 +571,7 @@ namespace clad {
     BuildParams(DiffParams& diffParams);
 
     clang::QualType ComputeAdjointType(clang::QualType T);
+    clang::QualType ComputeParamType(clang::QualType T);
   };
 } // end namespace clad
 

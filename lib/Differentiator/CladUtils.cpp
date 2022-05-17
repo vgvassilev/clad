@@ -411,5 +411,14 @@ namespace clad {
     bool IsRValue(const clang::Expr* E) {
       return E->isRValue() || E->isXValue();
     }
+
+    void AppendIndividualStmts(llvm::SmallVectorImpl<clang::Stmt*>& block,
+                               clang::Stmt* S) {
+      if (auto CS = dyn_cast_or_null<CompoundStmt>(S))
+        for (auto stmt : CS->body())
+          block.push_back(stmt);
+      else if (S)
+        block.push_back(S);
+    }
   } // namespace utils
 } // namespace clad
