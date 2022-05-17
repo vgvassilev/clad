@@ -97,6 +97,36 @@
   volume: '214'
   year: '2019'
 
+- title: GPU Accelerated Automatic Differentiation With Clad
+  author: Ioana Ifrim, Vassil Vassilev, David J Lange 
+  abstract: |
+    Automatic Differentiation (AD) is instrumental for science and industry. 
+    It is a tool to evaluate the derivative of a function specified through a 
+    computer program. The range of AD application domain spans from Machine 
+    Learning to Robotics to High Energy Physics. Computing gradients with 
+    the help of AD is guaranteed to be more precise than the numerical 
+    alternative and have a low, constant factor more arithmetical operations 
+    compared to the original function. Moreover, AD applications to domain 
+    problems typically are computationally bound. They are often limited by 
+    the computational requirements of high-dimensional parameters and thus can
+    benefit from parallel implementations on graphics processing units (GPUs). 
+    Clad aims to enable differential analysis for C/C++ and CUDA and is a 
+    compiler-assisted AD tool available both as a compiler extension and in ROOT. 
+    Moreover, Clad works as a plugin extending the Clang compiler; as a plugin 
+    extending the interactive interpreter Cling; and as a Jupyter kernel 
+    extension based on xeus-cling. We demonstrate the advantages of parallel 
+    gradient computations on GPUs with Clad. We explain how to bring forth a new 
+    layer of optimization and a proportional speed up by extending Clad to 
+    support CUDA. The gradients of well-behaved C++ functions can be 
+    automatically executed on a GPU. The library can be easily integrated into 
+    existing frameworks or used interactively. Furthermore, we demonstrate the 
+    achieved application performance improvements, including (~10x) in ROOT 
+    histogram fitting and corresponding performance gains from offloading to GPUs.
+  cites: '0'
+  eprint: https://arxiv.org/abs/2203.06139
+  journal: arXiv preprint arXiv:2203.06139
+  year: '2022'
+
 - title: Automatic Differentiation in ROOT
   author: Vassil Vassilev, Aleksandr Efremov, Oksana Shadura
   abstract: |
