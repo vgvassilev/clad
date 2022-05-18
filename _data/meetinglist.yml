@@ -1,4 +1,40 @@
 - name: "CaaS Monthly Meeting"
+  date: 2022-06-09 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/92393493356?pwd=SHYxY0MxdFNPZm5wdzRCeDZxK3VYQT09)"
+  label: caas_09Jul2022
+  agenda:
+    - title: "Cling for live coding music and musical instruments"
+      speaker: "Jack Armitage, Intelligent Instruments Lab"
+      description: |
+        The artistic live coding community has been growing steadily since
+        around the year 2000. The Temporary Organisation for the Permanence of
+        Live Art Programming (TOPLAP) has been around since 2004, Algorave
+        (algorithmic rave parties) recently celebrated its tenth birthday, and
+        six editions of the International Conference on Live Coding (ICLC) have
+        been held. A great many live coding systems have been developed during
+        this time, many of them exhibiting exotic and culturally specific
+        features that professional software developers are mostly unaware of.
+        This talk will introduce the artistic live coding context and
+        community, and then describe attempts by this community to appropriate
+        the Cling C++ interpreter for artistic practice. In one such example,
+        Cling has been used as the basis for a C++ based live coding
+        synthesiser [1]. In another example, Cling has been installed on a
+        BeagleBoard to bring live coding to the Bela interactive audio
+        platform [2]. Following these examples, I will offer some reflections
+        on the potential mutual benefits for increased engagement between the
+        Cling community and the artistic live coding community.
+
+        [1] [tiny spectral synthesizer with livecoding support](https://github.com/nwoeanhinnogaehr/tinyspec-cling)\
+        [2] [Using the Cling C++ Interpreter on the Bela Platform](https://gist.github.com/jarmitage/6e411ae8746c04d6ecbee1cbc1ebdcd4)
+    - title: Update
+      speaker: Vassil
+    - title: Round Table
+    - title: Next meeting
+      speaker: Vassil
+      link: 7 Jul 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2022-05-05 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/92393493356?pwd=SHYxY0MxdFNPZm5wdzRCeDZxK3VYQT09)"
