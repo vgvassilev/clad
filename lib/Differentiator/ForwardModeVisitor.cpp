@@ -2024,4 +2024,12 @@ namespace clad {
                            .get();
     return {clonedFCE, derivedFCE};
   }
+
+  StmtDiff ForwardModeVisitor::VisitCXXBindTemporaryExpr(
+      const clang::CXXBindTemporaryExpr* BTE) {
+    // `CXXBindTemporaryExpr` node will be created automatically, if it is
+    // required, by `ActOn`/`Build` Sema functions.
+    StmtDiff BTEDiff = Visit(BTE->getSubExpr());
+    return BTEDiff;
+  }
 } // end namespace clad
