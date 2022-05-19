@@ -100,6 +100,8 @@ struct Tensor {
   T data[N] = {};
 
   Tensor() : data() {}
+  
+  ~Tensor() {}
 
   void updateTo(T val) {
     for (int i=0; i<N; ++i)
