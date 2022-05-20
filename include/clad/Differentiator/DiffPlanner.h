@@ -53,9 +53,13 @@ namespace clad {
     /// differentiated, for example, when we are computing higher
     /// order derivatives.
     const clang::CXXRecordDecl* Functor = nullptr;
-    DiffParamsWithIndices DiffParamsInfo;
 
-    /// Recomputes `DiffParamsInfo` using the current values of data members.
+    /// Stores differentiation parameters information. Stored information
+    /// includes info on indices range for array parameters, and nested data
+    /// member information for record (class) type parameters.
+    DiffInputVarsInfo DVI;
+
+    /// Recomputes `DiffInputVarsInfo` using the current values of data members.
     ///
     /// Differentiation parameters info is computed by parsing the argument
     /// expression for the clad differentiation function calls. The argument is

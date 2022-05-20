@@ -199,22 +199,20 @@ namespace clad {
            "Doesn't support recursive diff. Use DiffPlan.");
     m_DerivativeInFlight = true;
 
-    DiffParams args{};
-    IndexIntervalTable indexIntervalTable{};
-    if (request.Args)
-      std::tie(args, indexIntervalTable) = request.DiffParamsInfo;
-    else {
-      // FIXME: implement gradient-vector products to fix the issue.
-      assert((FD->getNumParams() <= 1) &&
-             "nested forward mode differentiation for several args is broken");
-      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
-    }
-    if (args.empty())
+    DiffInputVarsInfo DVI = request.DVI;
+
+    DVI = request.DVI;
+    
+    // FIXME: Shouldn't we give error here that no arg is specified?
+    if (DVI.empty())
       return {};
+
+    DiffInputVarInfo diffVarInfo = DVI.back(); 
+
     // Check that only one arg is requested and if the arg requested is of array
     // or pointer type, only one of the indices have been requested
-    if (args.size() > 1 || (isArrayOrPointerType(args[0]->getType()) &&
-                            (indexIntervalTable.size() != 1 || indexIntervalTable[0].size() != 1))) {
+    if (DVI.size() > 1 || (isArrayOrPointerType(diffVarInfo.param->getType()) &&
+                           (diffVarInfo.paramIndexInterval.size() != 1))) {
       diag(DiagnosticsEngine::Error,
            request.Args ? request.Args->getEndLoc() : noLoc,
            "Forward mode differentiation w.r.t. several parameters at once is "
@@ -224,7 +222,17 @@ namespace clad {
       return {};
     }
 
-    m_IndependentVar = args.back();
+    // FIXME: implement gradient-vector products to fix the issue.
+    assert((DVI.size() == 1) &&
+           "nested forward mode differentiation for several args is broken");
+           
+    // FIXME: Differentiation variable cannot always be represented just by
+    // `ValueDecl*` variable. For example -- `u.mem1.mem2,`, `arr[7]` etc.
+    // FIXME: independent variable is misleading terminology, what we actually
+    // mean here is 'variable' with respect to which differentiation is being
+    // performed. Mathematically, independent variables are all the function
+    // parameters, thus, does not convey the intendend meaning.
+    m_IndependentVar = DVI.back().param;
     std::string derivativeSuffix("");
     // If param is not real (i.e. floating point or integral), a pointer to a
     // real type, or an array of a real type we cannot differentiate it.
@@ -240,14 +248,26 @@ namespace clad {
              {m_IndependentVar->getNameAsString()});
         return {};
       }
-      m_IndependentVarIndex = indexIntervalTable[0].Start;
+      m_IndependentVarIndex = diffVarInfo.paramIndexInterval.Start;
       derivativeSuffix = "_" + std::to_string(m_IndependentVarIndex);
-    } else if (!IsRealNonReferenceType(m_IndependentVar->getType())) {
-      diag(DiagnosticsEngine::Error, m_IndependentVar->getEndLoc(),
-           "attempted differentiation w.r.t. a parameter ('%0') which is not "
-           "of a real type",
-           {m_IndependentVar->getNameAsString()});
-      return {};
+    } 
+    else {
+      QualType T = m_IndependentVar->getType();
+      bool isField = false;
+      if (auto RD = diffVarInfo.param->getType()->getAsCXXRecordDecl()) {
+        llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
+                                                  diffVarInfo.fields.end());
+        T = utils::ComputeMemExprPathType(m_Sema, RD, ref);
+        isField = true;
+      }
+      if (!IsRealNonReferenceType(T)) {
+        diag(DiagnosticsEngine::Error, request.Args->getEndLoc(),
+             "Attempted differentiation w.r.t. %0 '%1' which is not "
+             "of real type.",
+             {(isField ? "member" : "parameter"),
+              diffVarInfo.source});
+        return {};
+      }
     }
     m_DerivativeOrder = request.CurrentDerivativeOrder;
     std::string s = std::to_string(m_DerivativeOrder);
@@ -269,9 +289,13 @@ namespace clad {
                                            m_IndependentVar));
     }
 
+    std::string argInfo = std::to_string(m_ArgIndex);
+    for (auto field : diffVarInfo.fields)
+      argInfo += "_" + field;
+
     IdentifierInfo* II =
         &m_Context.Idents.get(request.BaseFunctionName + "_d" + s + "arg" +
-                              std::to_string(m_ArgIndex) + derivativeSuffix);
+                              argInfo + derivativeSuffix);
     SourceLocation loc{m_Function->getLocation()};
     DeclarationNameInfo name(II, loc);
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
@@ -362,6 +386,18 @@ namespace clad {
                                      dParam);
       addToCurrentBlock(BuildDeclStmt(dParamDecl));
       dParam = BuildDeclRef(dParamDecl);
+      if (dParamType->isRecordType() && param == m_IndependentVar) {
+        llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
+                                                  diffVarInfo.fields.end());
+        Expr* memRef =
+            utils::BuildMemberExpr(m_Sema, getCurrentScope(), dParam, ref);
+        assert(memRef->getType()->isRealType() &&
+               "Forward mode can only differentiate w.r.t builtin scalar "
+               "numerical types.");
+        addToCurrentBlock(BuildOp(
+            BinaryOperatorKind::BO_Assign, memRef,
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1)));
+      }
       // Memorize the derivative of param, i.e. whenever the param is visited
       // in the future, it's derivative dParam is found (unless reassigned with
       // something new).

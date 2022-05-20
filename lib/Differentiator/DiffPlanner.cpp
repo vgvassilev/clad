@@ -263,12 +263,12 @@ namespace clad {
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
+    DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
     const FunctionDecl* FD = Function;
     FD = FD->getDefinition();
     if (!diffArgs || !FD) {
-      DiffParamsInfo = {{}, {}};
       return;
     }
     DiffParams params{};
@@ -283,11 +283,11 @@ namespace clad {
         return;
       }
       // Split the string by ',' characters, trim whitespaces.
-      llvm::SmallVector<llvm::StringRef, 16> names{};
-      llvm::StringRef name{};
+      llvm::SmallVector<llvm::StringRef, 16> diffParamsSpec{};
       do {
-        std::tie(name, string) = string.split(',');
-        names.push_back(name.trim());
+        llvm::StringRef pInfo{};
+        std::tie(pInfo, string) = string.split(',');
+        diffParamsSpec.push_back(pInfo.trim());
       } while (!string.empty());
       // Stores parameters and field declarations to be used as candidates for
       // independent arguments.
@@ -303,38 +303,46 @@ namespace clad {
       if (FD->param_empty() && Functor) {
         for (FieldDecl* fieldDecl : Functor->fields())
           candidates.emplace_back(fieldDecl->getName(), fieldDecl);
-
       } else {
         for (auto PVD : FD->parameters())
           candidates.emplace_back(PVD->getName(), PVD);
       }
 
+      auto computeParamName = [](llvm::StringRef diffSpec) {
+        std::size_t idx = diffSpec.find_first_of(".[");
+        return diffSpec.substr(0, idx);
+      };
+
       // Ensure that diff params are always considered in the same order.
+      // This is required to uniquely identify differentiation requests.
       std::sort(
-          names.begin(), names.end(),
-          [&candidates](llvm::StringRef a, llvm::StringRef b) {
+          diffParamsSpec.begin(), diffParamsSpec.end(),
+          [&candidates, &computeParamName](llvm::StringRef a,
+                                           llvm::StringRef b) {
             auto a_it = std::find_if(
                 candidates.begin(), candidates.end(),
-                [a](const std::pair<llvm::StringRef, ValueDecl*>& candidate) {
-                  return candidate.first == a;
+                [a, &computeParamName](
+                    const std::pair<llvm::StringRef, ValueDecl*>& candidate) {
+                  return candidate.first == computeParamName(a);
                 });
             auto b_it = std::find_if(
                 candidates.begin(), candidates.end(),
-                [b](const std::pair<llvm::StringRef, ValueDecl*>& candidate) {
-                  return candidate.first == b;
+                [b, &computeParamName](
+                    const std::pair<llvm::StringRef, ValueDecl*>& candidate) {
+                  return candidate.first == computeParamName(b);
                 });
             return a_it < b_it;
           });
 
-      for (const auto& name : names) {
-        size_t loc = name.find('[');
-        loc = (loc == llvm::StringRef::npos) ? name.size() : loc;
-        llvm::StringRef base = name.substr(0, loc);
+      for (const auto& diffSpec : diffParamsSpec) {
+        DiffInputVarInfo dVarInfo;
 
+        dVarInfo.source = diffSpec.str();
+        llvm::StringRef pName = computeParamName(diffSpec);
         auto it = std::find_if(std::begin(candidates), std::end(candidates),
-                               [&base](
+                               [&pName](
                                    const std::pair<llvm::StringRef, ValueDecl*>&
-                                       p) { return p.first == base; });
+                                       p) { return p.first == pName; });
 
         if (it == std::end(candidates)) {
           // Fail if the function has no parameter with specified name.
@@ -343,13 +351,16 @@ namespace clad {
                           "Requested parameter name '%0' was not found among "
                           "function "
                           "parameters",
-                          {base});
+                          {pName});
           return;
         }
 
-        auto f_it = std::find(std::begin(params), std::end(params), it->second);
+        auto f_it = std::find_if(std::begin(DVI), std::end(DVI),
+                                 [&it](const DiffInputVarInfo& dVarInfo) {
+                                   return dVarInfo.param == it->second;
+                                 });
 
-        if (f_it != params.end()) {
+        if (f_it != DVI.end()) {
           utils::
               EmitDiag(semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
                        "Requested parameter '%0' was specified multiple times",
@@ -357,10 +368,11 @@ namespace clad {
           return;
         }
 
-        params.push_back(it->second);
-
-        if (loc != name.size()) {
-          llvm::StringRef interval(name.slice(loc + 1, name.find(']')));
+        dVarInfo.param = it->second;
+        
+        std::size_t lSqBracketIdx = diffSpec.find("[");
+        if (lSqBracketIdx != llvm::StringRef::npos) {
+          llvm::StringRef interval(diffSpec.slice(lSqBracketIdx + 1, diffSpec.find(']')));
           llvm::StringRef firstStr, lastStr;
           std::tie(firstStr, lastStr) = interval.split(':');
 
@@ -368,7 +380,7 @@ namespace clad {
             // The string is not a range just a single index
             size_t index;
             firstStr.getAsInteger(10, index);
-            indexes.push_back(IndexInterval(index));
+            dVarInfo.paramIndexInterval = IndexInterval(index);
           } else {
             size_t first, last;
             firstStr.getAsInteger(10, first);
@@ -377,23 +389,57 @@ namespace clad {
               utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
                               diffArgs->getEndLoc(),
                               "Range specified in '%0' is in incorrect format",
-                              {name});
+                              {diffSpec});
               return;
             }
-            indexes.push_back(IndexInterval(first, last));
+            dVarInfo.paramIndexInterval = IndexInterval(first, last);
           }
         } else {
-          indexes.push_back(IndexInterval());
+          dVarInfo.paramIndexInterval = IndexInterval();
         }
+
+        std::size_t dotIdx = diffSpec.find(".");
+        dotIdx += (dotIdx != StringRef::npos);
+        StringRef fieldsSpec = diffSpec.substr(dotIdx);
+        while (!fieldsSpec.empty()) {
+          StringRef fieldName;
+          std::tie(fieldName, fieldsSpec) = fieldsSpec.split('.');
+          dVarInfo.fields.push_back(fieldName.str());
+        }
+
+        if (!dVarInfo.param->getType()->isRecordType() &&
+            !dVarInfo.fields.empty()) {
+          utils::EmitDiag(
+              semaRef, DiagnosticsEngine::Level::Error, diffArgs->getEndLoc(),
+              "Fields can only be provided for class type parameters. "
+              "Field information is incorrectly specified in '%0' "
+              "for non-class type parameter '%1'",
+              {diffSpec, pName});
+          return;
+        }
+
+        if (!dVarInfo.fields.empty()) {
+          RecordDecl* RD = dVarInfo.param->getType()->getAsCXXRecordDecl();
+          llvm::SmallVector<llvm::StringRef, 4> ref(dVarInfo.fields.begin(),
+                                                    dVarInfo.fields.end());
+          bool isValid = utils::IsValidMemExprPath(semaRef, RD, ref);
+          if (!isValid) {
+            utils::EmitDiag(
+                semaRef, DiagnosticsEngine::Level::Error, diffArgs->getEndLoc(),
+                "Path specified by fields in '%0' is invalid.", {diffSpec});
+            return;
+          }
+        }
+
+        DVI.push_back(dVarInfo);
       }
-      // Return a sequence of function's parameters.
-      DiffParamsInfo = {params, indexes};
       return;
     }
     // Case 2)
     // Check if the provided literal can be evaluated as an integral value.
     llvm::APSInt intValue;
     if (clad_compat::Expr_EvaluateAsInt(E, intValue, C)) {
+      DiffInputVarInfo dVarInfo;
       auto idx = intValue.getExtValue();
       // If we are differentiating a call operator that have no parameters, then
       // we need to search for independent parameters in fields of the
@@ -410,7 +456,7 @@ namespace clad {
                           {std::to_string(idx), std::to_string(totalFields)});
           return;
         }
-        params.push_back(*std::next(Functor->field_begin(), idx));
+        dVarInfo.param = *std::next(Functor->field_begin(), idx);
       } else {
         // Fail if the specified index is invalid.
         if ((idx < 0) || (idx >= FD->getNumParams())) {
@@ -421,10 +467,10 @@ namespace clad {
                            std::to_string(FD->getNumParams())});
           return;
         }
-        params.push_back(FD->getParamDecl(idx));
+        dVarInfo.param = FD->getParamDecl(idx);
       }
       // Returns a single parameter.
-      DiffParamsInfo = {params, {}};
+      DVI.push_back(dVarInfo);
       return;
     }
     // Case 3)
@@ -443,26 +489,24 @@ namespace clad {
         return;
       }
 
-      // If it is a Vector valued function, the last parameter is to store the output vector
-      // and hence is not a differentiable parameter, so we must pop it out
+      // If it is a Vector valued function, the last parameter is to store the
+      // output vector and hence is not a differentiable parameter, so we must
+      // pop it out
       if (this->Mode == DiffMode::jacobian){
         params.pop_back();
       }
 
-
-      IndexIntervalTable indexes{};
       // insert an empty index for each parameter.
-      for (unsigned i=0; i<params.size(); ++i)
-        indexes.push_back(IndexInterval());
-      // Returns the sequence with all the function's parameters.
-      DiffParamsInfo = {params, indexes};
+      for (unsigned i=0; i<params.size(); ++i) {
+        DiffInputVarInfo dVarInfo(params[i], IndexInterval());
+        DVI.push_back(dVarInfo);
+      }
       return;
     }
     // Fail if the argument is not a string or numeric literal.
     utils::EmitDiag(semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
                     "Failed to parse the parameters, must be a string or "
                     "numeric literal");
-    DiffParamsInfo = {{}, {}};
     return;
   }
 

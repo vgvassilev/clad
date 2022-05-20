@@ -250,6 +250,48 @@ namespace clad {
     /// If `S` is `null`, then nothing happens.
     void AppendIndividualStmts(llvm::SmallVectorImpl<clang::Stmt*>& block,
                                clang::Stmt* S);
+    /// Builds a nested member expression that consist of base expression
+    /// specified by `base` argument and data members specified in `fields`
+    /// argument in the original sequence.
+    ///
+    /// For example, if `base` represents `b` -- an expression of a record type,
+    /// and `fields` is the sequence {'mem1', 'mem2', 'mem3'}, then the function
+    /// builds and returns the following expression:
+    /// ```
+    /// b.mem1.mem2.mem3
+    /// ```
+    clang::MemberExpr*
+    BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
+                    llvm::ArrayRef<llvm::StringRef> fields);
+
+    /// Returns true if member expression path specified by `fields` is correct;
+    /// otherwise returns false.
+    ///
+    /// For example, if `base` represents `b` -- an expression of a record type,
+    /// and `fields` is the sequence {'mem1', 'mem2', 'mem3'}, then the function
+    /// returns true if `b.mem1.mem2.mem3` is a valid data member reference
+    /// expression, otherwise returns false.
+    ///
+    /// \note This function returns true if `fields` is an empty sequence.
+    bool IsValidMemExprPath(clang::Sema& semaRef, clang::RecordDecl* RD,
+                     llvm::ArrayRef<llvm::StringRef> fields);
+
+    /// Perform lookup for data member with name `name`. If lookup finds a
+    /// declaration, then return the field declaration; otherwise returns
+    /// `nullptr`.
+    clang::FieldDecl* LookupDataMember(clang::Sema& semaRef,
+                                       clang::RecordDecl* RD,
+                                       llvm::StringRef name);
+
+    /// Computes the type of a data member of the record specified by `RD`
+    /// and nested fields specified in `fields` argument.
+    /// For example, if `RD` represents `std::pair<std::pair<std::complex,
+    /// double>, std::pair<double, double>`, and `fields` is the sequence
+    /// {'first', 'first'}, then the corresponding data member is
+    // of type `std::complex`.
+    clang::QualType
+    ComputeMemExprPathType(clang::Sema& semaRef, clang::RecordDecl* RD,
+                           llvm::ArrayRef<llvm::StringRef> fields);
   } // namespace utils
 }
 

@@ -80,8 +80,14 @@ namespace clad {
                              const DiffRequest& request) {
     DiffParams args{};
     IndexIntervalTable indexIntervalTable{};
-    if (request.Args)
-      std::tie(args, indexIntervalTable) = request.DiffParamsInfo;
+    DiffInputVarsInfo DVI;
+    if (request.Args) {
+      DVI = request.DVI;
+      for (auto dParam : DVI) {
+        args.push_back(dParam.param);
+        indexIntervalTable.push_back(dParam.paramIndexInterval);
+      }
+    }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
