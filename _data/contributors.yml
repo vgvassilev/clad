@@ -279,3 +279,27 @@
       report: |
         [Poster](/assets/presentations/LLVM2020_Clad.pdf){:target="_blank"}
       mentors: Vassil Vassilev, Alexander Penev
+
+- name: Rohit Singh Rathaur
+  photo: Rohit_Singh.png
+  info: "Google Season of Docs 2022"
+  email: rohitrathore.imh55@gmail.com
+  education: "Mathematics & Computing, Birla Institute of Technology, Mesra, India"
+  projects:
+    - title: "Improving Interactive Tool Analysis Documentation for the HSF"
+      description: |
+        HEP researchers have developed several unique software technologies in the area of 
+        data analysis. Over the last decade we developed an interactive, interpretative C++ 
+        interpreter (aka REPL) as part of the ROOT data analysis project. We invested a 
+        significant effort to replace CINT, the C++ interpreter used until ROOT5, with a 
+        newly implemented REPL based on LLVM Cling. Cling is a core component of ROOT and 
+        has been in production since 2014. Cling is also a standalone tool, which has a 
+        growing community outside of our field. It is recognized for enabling interactivity, 
+        dynamic interoperability and rapid prototyping capabilities for C++ developers. For 
+        example, if you are typing C++ in a Jupyter notebook you are using the xeus-cling 
+        Jupyter kernel. So we are in the midst of an important project to address one of the major 
+        challenges to ensure Clings sustainability and to foster that growing community: moving 
+        most parts of Cling into LLVM. Since LLVM version 13 we have a version of Cling called 
+        Clang-Repl. As we advance the implementation and generalize its usage here we aim for 
+        improving the overall documentation experience in the area of interactive C++.
+      mentors: Vassil Vassilev, David Lange
