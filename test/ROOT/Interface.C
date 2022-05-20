@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oTFormula.out 2>&1 | FileCheck %s
-// RUN: ./TFormula.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -lm -I%S/../../include -oInterface.out 2>&1 | FileCheck %s
+// RUN: ./Interface.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
