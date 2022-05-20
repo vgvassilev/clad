@@ -16,7 +16,7 @@ namespace clad {
     clang::FunctionDecl* m_OverloadedDerivedFn = nullptr;
     DiffMode m_Mode = DiffMode::unknown;
     unsigned m_DerivativeOrder = 0;
-    DiffParamsWithIndices m_DiffParamsInfo;
+    DiffInputVarsInfo m_DiffVarsInfo;
 
     DerivedFnInfo() {}
     DerivedFnInfo(const DiffRequest& request, clang::FunctionDecl* derivedFn,

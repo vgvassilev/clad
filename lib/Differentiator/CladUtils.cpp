@@ -420,5 +420,65 @@ namespace clad {
       else if (S)
         block.push_back(S);
     }
+    
+    MemberExpr*
+    BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
+                    llvm::ArrayRef<clang::StringRef> fields) {
+      MemberExpr* ME = nullptr;
+      for (auto field : fields) {
+        ME = BuildMemberExpr(semaRef, S, base, field);
+        base = ME;
+      }
+      return ME;
+    }
+
+    clang::FieldDecl* LookupDataMember(clang::Sema& semaRef, clang::RecordDecl* RD,
+                          llvm::StringRef name) {
+      LookupResult R(semaRef, BuildDeclarationNameInfo(semaRef, name),
+                     Sema::LookupNameKind::LookupMemberName);
+      CXXScopeSpec CSS;
+      semaRef.LookupQualifiedName(R, RD, CSS);
+      if (R.empty())
+        return nullptr;
+      assert(R.isSingleResult() && "Lookup in valid classes should always "
+                                   "return a single data member result.");
+      auto D = R.getFoundDecl();
+      // We are looking data members only!
+      if (auto FD = dyn_cast<FieldDecl>(D))
+        return FD;
+      return nullptr;
+    }
+
+    bool IsValidMemExprPath(clang::Sema& semaRef, clang::RecordDecl* RD,
+                     llvm::ArrayRef<llvm::StringRef> fields) {
+      for (std::size_t i = 0; i < fields.size(); ++i) {
+        FieldDecl* FD = LookupDataMember(semaRef, RD, fields[i]);
+        if (!FD)
+          return false;
+        if (FD->getType()->isRecordType())
+          RD = FD->getType()->getAsCXXRecordDecl();
+        // Current Field declaration is not of record type, therefore
+        // it cannot have any field within it. And any member access
+        // ('.') expression would be an invalid path.
+        else if (i != fields.size() - 1)
+          return false;
+      }
+      return true;
+    }
+
+    clang::QualType
+    ComputeMemExprPathType(clang::Sema& semaRef, clang::RecordDecl* RD,
+                           llvm::ArrayRef<llvm::StringRef> fields) {
+      assert(IsValidMemExprPath(semaRef, RD, fields) &&
+             "Invalid field path specified!");
+      QualType T = RD->getTypeForDecl()->getCanonicalTypeInternal();
+      for (auto field : fields) {
+        auto FD = LookupDataMember(semaRef, RD, field);
+        if (FD->getType()->isRecordType())
+          RD = FD->getType()->getAsCXXRecordDecl();
+        T = FD->getType();
+      }
+      return T;
+    }
   } // namespace utils
 } // namespace clad

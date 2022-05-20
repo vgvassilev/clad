@@ -240,8 +240,11 @@ namespace clad {
     assert(m_Function && "Must not be null.");
 
     DiffParams args{};
+    DiffInputVarsInfo DVI;
     if (request.Args) {
-      std::tie(args, std::ignore) = request.DiffParamsInfo;
+      DVI = request.DVI;
+      for (auto dParam : DVI)
+        args.push_back(dParam.param);
     }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));

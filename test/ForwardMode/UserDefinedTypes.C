@@ -1145,6 +1145,57 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
+using pairdd = std::pair<double, double>;
+using pair_of_pairdd = std::pair<pairdd, pairdd>;
+
+double fn15(pairdd u, pairdd v) {
+  return u.first + 2*v.first;
+}
+
+// CHECK: double fn15_darg0_first(pairdd u, pairdd v) {
+// CHECK-NEXT:     pairdd _d_u;
+// CHECK-NEXT:     _d_u.first = 1;
+// CHECK-NEXT:     pairdd _d_v;
+// CHECK-NEXT:     double &_t0 = v.first;
+// CHECK-NEXT:     return _d_u.first + 0 * _t0 + 2 * _d_v.first;
+// CHECK-NEXT: }
+
+double fn16(pair_of_pairdd u, pair_of_pairdd v) {
+  return u.first.first + 2*v.second.second;
+}
+
+// CHECK: double fn16_darg1_second_second(pair_of_pairdd u, pair_of_pairdd v) {
+// CHECK-NEXT:     pair_of_pairdd _d_u;
+// CHECK-NEXT:     pair_of_pairdd _d_v;
+// CHECK-NEXT:     _d_v.second.second = 1;
+// CHECK-NEXT:     double &_t0 = v.second.second;
+// CHECK-NEXT:     return _d_u.first.first + 0 * _t0 + 2 * _d_v.second.second;
+// CHECK-NEXT: }
+
+
+struct A {
+  double mem;
+  A(double p_mem = 0) : mem(p_mem) {}
+};
+
+struct B : public A {
+  double mem;
+  B(double p_mem = 0) : A(0), mem(p_mem) {}
+};
+
+double fn17(A a, B b) {
+  return a.mem * b.mem;
+}
+
+// CHECK: double fn17_darg1_mem(A a, B b) {
+// CHECK-NEXT:     A _d_a;
+// CHECK-NEXT:     B _d_b;
+// CHECK-NEXT:     _d_b.mem = 1;
+// CHECK-NEXT:     double &_t0 = a.mem;
+// CHECK-NEXT:     double &_t1 = b.mem;
+// CHECK-NEXT:     return _d_a.mem * _t1 + _t0 * _d_b.mem;
+// CHECK-NEXT: }
+
 template<unsigned N>
 void print(const Tensor<double, N>& t) {
   for (int i=0; i<N; ++i) {
@@ -1169,7 +1220,10 @@ int main() {
   INIT_DIFFERENTIATE(fn12, "i");
   INIT_DIFFERENTIATE(fn13, "i");
   INIT_DIFFERENTIATE(fn14, "i");
-  
+  INIT_DIFFERENTIATE(fn15, "u.first");
+  INIT_DIFFERENTIATE(fn16, "v.second.second");
+  INIT_DIFFERENTIATE(fn17, "b.mem");
+
   TensorD5 t;
   t.updateTo(5);
   complexD c(3, 5);
@@ -1188,4 +1242,7 @@ int main() {
   TEST_DIFFERENTIATE(fn12, 3, 5); // CHECK-EXEC: {18.00, 24.00, 7.00, 7.00, 7.00}
   TEST_DIFFERENTIATE(fn13, 3, 5); // CHECK-EXEC: {11.00, 12.00, 0.00, 0.00, 0.00}
   TEST_DIFFERENTIATE(fn14, 3, 5); // CHECK-EXEC: {20.00}
+  TEST_DIFFERENTIATE(fn15, pairdd(), pairdd());                   // CHECK-EXEC: {1.00}
+  TEST_DIFFERENTIATE(fn16, pair_of_pairdd(), pair_of_pairdd());   // CHECK-EXEC: {2.00}
+  TEST_DIFFERENTIATE(fn17, A(3.00), B(5.00));   // CHECK-EXEC: {3.00}
 }
