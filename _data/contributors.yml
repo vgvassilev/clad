@@ -39,6 +39,21 @@
       mentors: Vassil Vassilev, Stefan Gränitz, Lang Hames
       proposal: /assets/docs/Sunho_Kim_Proposal_2022.pdf
 
+- name: Jun Zhang
+  photo: Jun_Zhang.png
+  info: "Google Summer of Code 2022"
+  email: jun@junz.org
+  education: "Software Engineering, Anhui Normal University, WuHu, China"
+  projects:
+    - title: "Optimize ROOT use of modules for large codebases"
+      description: |
+        ROOT is a data analysis framework designed to handle large amounts of
+        data with high performance. This proposal aims at optimizing the
+        performance of ROOT by reducing unnecessary symbol lookup across the
+        very large set of C++ modules.
+      mentors: Vassil Vassilev, David Lange, Alexander Penev
+      proposal: /assets/docs/Jun_Zhang_Proposal_2022.pdf
+
 - name: Rohit Singh Rathaur
   photo: Rohit_Singh.png
   info: "Google Season of Docs 2022"
