@@ -44,8 +44,10 @@
   info: "Google Summer of Code 2022"
   email: jun@junz.org
   education: "Software Engineering, Anhui Normal University, WuHu, China"
+  active: 1
   projects:
     - title: "Optimize ROOT use of modules for large codebases"
+      status: Ongoing
       description: |
         ROOT is a data analysis framework designed to handle large amounts of
         data with high performance. This proposal aims at optimizing the
