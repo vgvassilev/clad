@@ -19,6 +19,26 @@
   education: MPhil Advanced Computer Science, University of Cambridge (2018)
   active: 1
 
+- name: Sunho Kim
+  photo: Sunho_Kim.jpeg
+  info: "Google Summer of Code 2022"
+  email: ksunhokim123@gmail.com
+  education: "Computer Science, De Anza College, Cupertino, California"
+  active: 1
+  projects:
+    - title: "Write JITLink support for a new format/architecture (ELF/AARCH64)"
+      status: Ongoing
+      description: |
+        JITLink is LLVM’s new JIT linker API -- the low-level API that transforms compiler output 
+        (relocatable object files) into ready-to-execute bytes in memory. With its new architecture, 
+        it is able to support a variety of new features, which includes static initializer, thread 
+        local storage, and small code model, that were not possible in RuntimeDyld, the old JIT API. 
+        JITLink’s generic linker algorithm needs to be specialized to support the target object format 
+        (COFF, ELF, MachO), and architecture (arm, arm64, i386, x86-64). This project aims to implement 
+        the JITLink specialization for ELF/aarch64 which is required to use JITLink in arm64 linux.
+      mentors: Vassil Vassilev, Stefan Gränitz, Lang Hames
+      proposal: /assets/docs/Sunho_Kim_Proposal_2022.pdf
+
 - name: Rohit Singh Rathaur
   photo: Rohit_Singh.png
   info: "Google Season of Docs 2022"
