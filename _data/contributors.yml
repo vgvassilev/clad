@@ -56,7 +56,7 @@
       mentors: Vassil Vassilev, David Lange, Alexander Penev
       proposal: /assets/docs/Jun_Zhang_Proposal_2022.pdf
 
-- name: Rohit Singh Rathaur
+- name: <a href="https://www.linkedin.com/in/rohit-singh-rathaur/" target="_blank" >Rohit Singh Rathaur<a>
   photo: Rohit_Singh.png
   info: "Google Season of Docs 2022"
   email: rohitrathore.imh55@gmail.com
@@ -64,6 +64,7 @@
   active: 1
   projects:
     - title: "Improving Interactive Tool Analysis Documentation for the HSF"
+      status: Ongoing
       description: |
         HEP researchers have developed several unique software technologies in the area of
         data analysis. Over the last decade we developed an interactive, interpretative C++
@@ -79,6 +80,7 @@
         most parts of Cling into LLVM. Since LLVM version 13 we have a version of Cling called
         Clang-Repl. As we advance the implementation and generalize its usage here we aim for
         improving the overall documentation experience in the area of interactive C++.
+      proposal: /assets/docs/Rohit_Singh_Rathaur_Proposal_2022.pdf
       mentors: Vassil Vassilev, David Lange
 
 - name: "Tapasweni Pathak"
