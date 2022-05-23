@@ -56,6 +56,27 @@
       mentors: Vassil Vassilev, David Lange, Alexander Penev
       proposal: /assets/docs/Jun_Zhang_Proposal_2022.pdf
 
+- name: Anubhab Ghosh
+  photo: Anubhab_Ghosh.jpg
+  info: "Google Summer of Code 2022"
+  email: anubhabghosh.me@gmail.com
+  education: "Computer Science and Engineering, Indian Institute of Information Technology, Kalyani, India"
+  active: 1
+  projects:
+    - title: "Shared Memory Based JITLink Memory Manager"
+      status: Ongoing
+      description: |
+         When a separate executor process is used with LLVM JIT, the generated code needs to be
+         transferred to the executor process which is done by the JITLinkMemoryManager. The current
+         implementation uses ExecutorProcessControl API (an RPC scheme) to send the generated code
+         which goes through pipes or network sockets. The goal of the project is to transfer it
+         through an operating system provided shared memory regions for better performance, when
+         both the JIT process and the executor process are sharing the same underlying physical
+         memory. It should be done by allocating large chunks of memory and distributing it to
+         reduce memory allocation and inter process communication overheads. 
+      mentors:  Vassil Vassilev, Stefan Gränitz, Lang Hames
+      proposal: /assets/docs/Anubhab_Ghosh_Proposal_2022.pdf
+
 - name: <a href="https://www.linkedin.com/in/rohit-singh-rathaur/" target="_blank" >Rohit Singh Rathaur<a>
   photo: Rohit_Singh.png
   info: "Google Season of Docs 2022"
