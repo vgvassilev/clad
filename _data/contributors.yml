@@ -18,6 +18,24 @@
   email: ioana.ifrim@cern.ch
   education: MPhil Advanced Computer Science, University of Cambridge (2018)
   active: 1
+  
+- name: Surya Somayyajula
+  info: "IRIS-HEP Fellow"
+  photo: Surya-Somayyajula.jpg
+  email: somayyajula@wisc.edu
+  education: "Computer Sciences B.S., University of Wisconsin-Madison"
+  active: 1
+  projects:
+    - title: "Improve Cling's packaging system: Cling Packaging Tool"
+      status: Ongoing
+      description: |
+                                                                               Cling is an interactive C++ interpreter/compiler that utilizes the REPL (read-evaluate-print-loop) paradigm for fast development 
+                                                                               and testing as well as immediate feedback and runtime-generated code. One of the many useful tools included in the Cling interpreter 
+                                                                               is the Cling Packaging Tool (CPT), which is a command line utility that can easily build Cling from source and generate installer bundles 
+                                                                               for a variety of platforms, including Ubuntu and Debian-based platforms, Windows, distributions based on Red Hat Linux, Mac OS X, and any Unix-like platform.
+                                                                               While the CPT is an incredibly useful and flexible tool, there are several improvements that can be made to make the user’s experience with the CPT even more seamless. 
+      proposal: /assets/docs/Surya_Somayyajula_Proposal.pdf
+      mentors: Vassil Vassilev, David Lange
 
 - name: Sunho Kim
   photo: Sunho_Kim.jpeg
@@ -304,7 +322,7 @@
       mentors: Vassil Vassilev, David Lange
       report: |
         [URL](https://indico.cern.ch/event/1066812/contributions/4495290/attachments/2302817/3917355/Iris%20HeP.pdf"){:target="_blank"}
-
+        
 - name: "This could be you!"
   photo: rock.jpg
   info: See <a href="/vacancies">openings</a> for more info
