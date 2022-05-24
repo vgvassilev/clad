@@ -2,10 +2,11 @@
 // the device having all the dependencies also as device functions.
 
 // RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only \
-// RUN:     --cuda-path=%cudapath  -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cudasmlevel --cuda-path=%cudapath  -Xclang -verify 2>&1 | FileCheck %s
 
-// R: %cladclang_cuda -I%S/../../include  -xc++  --cuda-path=%cudapath  \
-// R: -L/usr/local/cuda/lib64 -lcudart_static -ldl -lrt -pthread -lm -lstdc++ %s
+// RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
+// RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
+// RUN: -ldl -lrt -pthread -lm -lstdc++
 
 // REQUIRES: cuda-runtime
 

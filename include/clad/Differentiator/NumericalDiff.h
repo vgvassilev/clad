@@ -11,16 +11,6 @@
 #include <memory>
 #include <utility>
 
-extern "C" {
-#if defined(__APPLE__) || defined(_MSC_VER)
-void* malloc(size_t);
-void free(void* ptr);
-#else
-void* malloc(size_t) __THROW __attribute_malloc__ __wur;
-void free(void* ptr) __THROW;
-#endif
-}
-
 namespace numerical_diff {
 
   /// A class to keep track of the memory we allocate to make sure it is
