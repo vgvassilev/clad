@@ -104,6 +104,31 @@
       proposal: /assets/docs/Rohit_Singh_Rathaur_Proposal_2022.pdf
       mentors: Vassil Vassilev, David Lange
 
+- name: Manish Kausik H
+  photo: Manish_Kausik_H.jpg
+  info: "Google Summer of Code 2022"
+  email: hmanishkausik@gmail.com
+  education: "B.Tech and M.Tech in Computer Science and Engineering(Dual Degree), Indian Institute of Technology Bhubaneswar"
+  active: 1
+  projects:
+    - title: "Add Initial Integration of Clad with Enzyme"
+      status: Ongoing
+      description: |
+        Clad is an open source plugin to the Clang compiler that detects from the parsed Abstract
+        syntax tree, calls to differentiate a defined function, generates code that differentiates the
+        function using the concept of Automatic Differentiation(AD) and modifies the Abstract Syntax
+        Tree(AST) to insert the generated code. While clad works in the frontend of the compilation
+        process, Enzyme, another LLVM based AD plugin works in the backend, where it takes in code
+        in LLVM IR form and then differentiates the code. This proposal aims to integrate Clad with Enzyme,
+        and give the user the option of selecting Enzyme for Automatic Differentiation, based on his/her needs. This will give the user
+        the same User Interface as clad for writing his/her code, but the option of using Enzyme as the
+        backend with all its optimisations to calculate the Derivative/Gradient of the requested function.
+        My proposal also briefly gives insights into how this can be achieved by tapping into the
+        existing code base of Clad.
+
+      mentors: Vassil Vassilev, David Lange
+      proposal: /assets/docs/Manish_Kausik_H_Proposal_2022.pdf
+
 - name: "Tapasweni Pathak"
   info: "Principal Product Manager at Microsoft Azure Core Engineering"
   photo: tapaswenipathak.png
