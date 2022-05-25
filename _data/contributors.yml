@@ -322,7 +322,37 @@
       mentors: Vassil Vassilev, David Lange
       report: |
         [URL](https://indico.cern.ch/event/1066812/contributions/4495290/attachments/2302817/3917355/Iris%20HeP.pdf"){:target="_blank"}
-        
+
+- name: "Matheus Izvekov"
+  info: Google Summer of Code Contributor 2022
+  photo: mizvekov.jpg
+  email: mizvekov@gmail.com
+  education: Computer Science
+  active: 1
+  projects:
+    - title: Preserve type sugar for member access on template specializations
+      status: Ongoing
+      description: |
+        In C++, it's often useful to write wrappers that abstract or extend some
+        underlying type passed as a template argument. But templates are only
+        instantated taking into account the 'fundamental' types of the
+        arguments, discarding 'type sugar', such as any aliases, attributes or
+        other cosmetic metadata such as how the name of the type was qualified
+        and such. While this ends up in practice being brittle to rely on,
+        attributes on the type itself or a typedef thereof can have many
+        interesting non-cosmetic effects, like changing data alignment,
+        calling conventions, and other custom / domain specific functionality.
+        We refer to such 'fundamental' types as 'canonical' types here.
+        Without any further engineering to work around this limitation,
+        member accesses on template specializations will only reflect these
+        canonical types, with the simplest example being the loss of any sugar
+        on the argument when acessing a member alias to the argument itself.
+        For this project, we will improve Clang's type system so that any
+        type sugar on the arguments of a template specialization are pushed into
+        those member accesses.
+      proposal: /assets/docs/Matheus_Izvekov_Proposal_2022.pdf
+      mentors: Vassil Vassilev, Richard Smith
+
 - name: "This could be you!"
   photo: rock.jpg
   info: See <a href="/vacancies">openings</a> for more info
