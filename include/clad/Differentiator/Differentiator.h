@@ -219,7 +219,7 @@ namespace clad {
     }
  
     void dump() const {
-      printf("The code is: %s\n", getCode());
+      printf("The code is: \n%s\n", getCode());
     }
 
     /// Set object pointed by the functor as the default object for
