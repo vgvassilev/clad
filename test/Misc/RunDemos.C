@@ -152,7 +152,8 @@
 
 // RUN: ./CustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL_EXEC %s
 // CHECK_CUSTOM_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
-// CHECK_CUSTOM_MODEL_EXEC: The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+// CHECK_CUSTOM_MODEL_EXEC: The code is:
+// CHECK_CUSTOM_MODEL_EXEC-NEXT: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z0;
