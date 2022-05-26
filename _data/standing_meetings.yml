@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Improving performance of C++ modules in Clang-Project - Roadmap"
+      date: 2022-05-25 14:00:00 +0200
+      speaker: "Tapasweni Pathak"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_25_05_2022_Tapasweni-Improving-performance-of-c++-modules-in-clang-project.pdf"
     - title: "cppyy Progress Update"
       date: 2022-05-11 14:00:00 +0200
       speaker: "Baidyanath Kundu"
