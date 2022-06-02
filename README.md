@@ -239,7 +239,7 @@ To print the Clad generated derivative add:
 ```
 
 ## How to install
-At the moment, LLVM/Clang 5.0.x - 12.0.1 are supported.
+At the moment, LLVM/Clang 5.0.x - 14.0.4 are supported.
 
 
 ### Conda Installation
