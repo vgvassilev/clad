@@ -800,7 +800,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // skip corresponding push.
       cond = StoreAndRef(condExpr.getExpr(), direction::forward, "_t",
                          /*forceDeclCreation=*/true);
-      StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
+      StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond",
+                                               /*force=*/true);
       PushCond = condPushPop.getExpr();
       PopCond = condPushPop.getExpr_dx();
     } else
@@ -1245,22 +1246,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> forwSweepDerivativeIndices(Indices.size());
     for (std::size_t i = 0; i < Indices.size(); i++) {
       StmtDiff IdxDiff = Visit(Indices[i]);
-      StmtDiff IdxStored = GlobalStoreAndRef(IdxDiff.getExpr());
-      if (isInsideLoop) {
-        // Here we make sure that we are popping each time we push.
-        // Since the max no of pushes = no. of array index expressions in the
-        // loop.
-        Expr* popExpr = IdxStored.getExpr_dx();
-        VarDecl* popVal = BuildVarDecl(popExpr->getType(), "_t", popExpr,
-                                       /*DirectInit=*/true);
-        if (dfdx())
-          addToCurrentBlock(BuildDeclStmt(popVal), direction::reverse);
-        else
-          m_PopIdxValues.push_back(BuildDeclStmt(popVal));
-        IdxStored = StmtDiff(IdxStored.getExpr(), BuildDeclRef(popVal));
-      }
-      clonedIndices[i] = IdxStored.getExpr();
-      reverseIndices[i] = IdxStored.getExpr_dx();
+      clonedIndices[i] = IdxDiff.getExpr();
+      reverseIndices[i] = IdxDiff.getExpr_dx() ? IdxDiff.getExpr_dx() : Clone(IdxDiff.getExpr());
       forwSweepDerivativeIndices[i] = IdxDiff.getExpr();
     }
     auto cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
@@ -2116,6 +2103,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // in Lblock
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
+      Expr* PushL = nullptr;
+      Stmt* PopL = nullptr;
+      if (isInsideLoop) {
+        // x[i] = y[j] + ... -> push(x[i]); x[i] = y[j] + ...
+        StmtDiff PushPopL = GlobalStoreAndRef(Ldiff.getExpr(), "_arr",
+                                              /*force=*/true);
+        PushL = PushPopL.getExpr();
+        VarDecl* popLVar = BuildVarDecl(PushPopL.getExpr_dx()->getType(), "_t",
+                                        PushPopL.getExpr_dx(),
+                                        /*DirectInit=*/true);
+
+        PopL = BuildDeclStmt(popLVar);
+      }
       auto Lblock = endBlock(direction::reverse);
       Expr* LCloned = Ldiff.getExpr();
       // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
@@ -2139,12 +2139,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // If assigned expr is dependent, first update its derivative;
       auto Lblock_begin = Lblock->body_rbegin();
       auto Lblock_end = Lblock->body_rend();
+      if (isInsideLoop) {
+        addToCurrentBlock(PushL, direction::forward);
+        addToCurrentBlock(PopL, direction::reverse);
+      }
       if (dfdx() && Lblock->size()) {
         addToCurrentBlock(*Lblock_begin, direction::reverse);
         Lblock_begin = std::next(Lblock_begin);
       }
-      while(!m_PopIdxValues.empty())
-        addToCurrentBlock(m_PopIdxValues.pop_back_val(), direction::reverse);
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
@@ -2553,16 +2555,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
-    if (isInsideLoop)
-      return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
     if (!E)
       return false;
     // Use stricter policy when inside loops: IsEvaluatable is also true for
     // arithmetical expressions consisting of constants, e.g. (1 + 2)*3. This
     // chech is more expensive, but it doesn't make sense to push such constants
     // into stack.
-    if (isInsideLoop)
-      return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
+    if (isInsideLoop && E->isEvaluatable(m_Context, Expr::SE_NoSideEffects))
+      return false;
     Expr* B = E->IgnoreParenImpCasts();
     // FIXME: find a more general way to determine that or add more options.
     if (isa<FloatingLiteral>(B) || isa<IntegerLiteral>(B))
@@ -2574,6 +2574,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         return UsefulToStoreGlobal(UO->getSubExpr());
       return true;
     }
+    if (isa<ArraySubscriptExpr>(B)) {
+      auto ASE = cast<ArraySubscriptExpr>(B);
+      return UsefulToStoreGlobal(ASE->getBase()) || UsefulToStoreGlobal(ASE->getIdx());
+    }
+    // We lack context to decide if this is useful to store or not. In the
+    // current system that should have been decided by the parent expression.
+    // FIXME: Here will be the entry point of the advanced activity analysis.
+    if (isa<DeclRefExpr>(B))
+      return false;
+
+    // FIXME: Attach checkpointing.
+    if (isa<CallExpr>(B))
+      return false;
+
     return true;
   }
 
