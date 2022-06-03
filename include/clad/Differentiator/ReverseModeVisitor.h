@@ -54,10 +54,6 @@ namespace clad {
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
-    /// Stores the pop index values for arrays in reverse mode.This is required
-    /// to maintain the correct statement order when the current block has
-    /// delayed emission i.e. assignment LHS.
-    Stmts m_PopIdxValues;
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
