@@ -16,6 +16,9 @@ Linux (Ubuntu)
   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
   make && make install
 
+Linux (Ubuntu) with debug build of LLVM
+-----------------------------------------
+
 Clad is a plugin for LLVM Clang compiler infrastructure. Clad uses
 Clang and LLVM APIs. Therefore, to properly debug Clad, you will also
 need a debug build of LLVM.
@@ -24,8 +27,47 @@ Please visit `LLVM CMake documentation <https://llvm.org/docs/CMake.html>`_
 to learn how to build LLVM from source. Make sure to pass ``-DCMAKE_BUILD_TYPE=Debug``
 and ``-DLLVM_ENABLE_PROJECTS="clang"`` options to LLVM CMake configure command. 
 
+In brief, debug build of LLVM with Clang enabled can be built using the following 
+instructions:
+
+.. code-block:: bash
+  
+  sudo -H pip install lit
+  git clone https://github.com/llvm/llvm-project.git
+  cd llvm-project
+  git checkout release/12.x
+  mkdir obj inst
+  cd obj
+  cmake ../llvm-project/llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
+  make install
+
+Please note that it is recommended to have at least 16 GB of total memory (RAM + swap) to build LLVM in debug mode.
+
+
 To build Clad with Debug build of LLVM, adjust the ``-DClang_DIR`` and 
 ``-DLLVM_DIR`` options to point to installation home of debug build of LLVM.
+
+If you are low on computational resources, the following tweaks may help to 
+reduce build times, and use less storage and memory consumption while building LLVM.
+
+1. Use Ninja build system instead of make. For large codebases, ninja performs 
+   significantly better than GNU make.
+2. Use 'gold' linker instead of the default BFD 'ld' linker. The gold linker 
+   was written to make the link process considerably faster. It also consumes 
+   less memory. 
+3. Build LLVM as a shared library. By default, each component is built as a 
+   static library. Linking against a static library usually takes more time. 
+   And also if multiple executables link against the same set of static libraries 
+   then the total size of these executables will be significantly larger.
+4. Split the debug info. This option reduces link-time memory usage by 
+   reducing the amount of debug information that the linker needs to resolve.
+5. Build an optimised version of llvm-tblgen.
+
+After incorporating all of these tweaks, the CMake command should look like this: 
+
+.. code-block:: bash
+
+  cmake -G Ninja /path/to/llvm-project/llvm -DLLVM_USE_LINKER=gold -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DBUILD_SHARED_LIBS=On -DLLVM_USE_SPLIT_DWARF=On -DLLVM_OPTIMIZED_TABLEGEN=On -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
 
 Clad Internal Documentation
 =================================
@@ -60,9 +102,6 @@ Debugging Clang during compilation
 
 To study how Clang processes a C++ code, we can debug the Clang compiler while it is
 compiling a source code.
-
-.. todo::
-  Add a hyperlink here that describes how to build Clang in Debug mode.
 
 Before proceeding, make sure you have compiled clang in debug mode so that 
 proper debug symbols are available.
