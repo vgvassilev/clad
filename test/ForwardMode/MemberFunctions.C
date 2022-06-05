@@ -28,6 +28,27 @@ public:
   // CHECK-NEXT:     return (_d_this->x + _d_this->y) * i + _t0 * _d_i + (_d_i * j + i * _d_j) * j + _t1 * _d_j;
   // CHECK-NEXT: }
 
+  void mem_fn_with_void_return() {
+	  return;
+  }
+
+  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this) {
+  // CHECK-NEXT:}
+
+  double mem_fn_with_void_function_call(double i, double j) {
+    mem_fn_with_void_return();
+    return i*j;
+  } 
+
+  // CHECK:  double mem_fn_with_void_function_call_darg0(double i, double j) {
+  // CHECK-NEXT:     double _d_i = 1;  
+  // CHECK-NEXT:     double _d_j = 0; 
+  // CHECK-NEXT:     SimpleFunctions _d_this_obj;
+  // CHECK-NEXT:     SimpleFunctions *_d_this = &_d_this_obj; 
+  // CHECK-NEXT:     this->mem_fn_with_void_return_pushforward(_d_this);  
+  // CHECK-NEXT:     return _d_i * j + i * _d_j;  
+  // CHECK-NEXT:}
+
   double mem_fn_with_var_arg_list(double i, double j, ...)  { 
     return (x+y)*i + i*j*j; 
   } 
@@ -726,6 +747,8 @@ int main() {
 
   TEST(mem_fn, 3, 5)  // CHECK-EXEC: 30.00 
                       // CHECK-EXEC: 33.00 
+
+  TEST(mem_fn_with_void_function_call, 3, 5) //CHECK-EXEC: 5.00
 
   TEST(mem_fn_with_var_arg_list, 3, 5)  // CHECK-EXEC: 30.00 
                                         // CHECK-EXEC: 33.00 
