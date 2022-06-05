@@ -747,6 +747,10 @@ namespace clad {
   }
 
   StmtDiff ForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
+    //If there is no return value, we must not attempt to differentiate
+    if (!RS->getRetValue())
+      return nullptr;
+    
     StmtDiff retValDiff = Visit(RS->getRetValue());
     Stmt* returnStmt = nullptr;
     if (m_Mode == DiffMode::forward) {
