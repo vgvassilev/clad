@@ -247,6 +247,12 @@ namespace clad {
       StmtDiff Result;
       bool isConstant;
       bool isInsideLoop;
+      bool needsUpdate;
+      DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
+                         bool pIsConstant, bool pIsInsideLoop,
+                         bool pNeedsUpdate = false)
+          : V(pV), Result(pResult), isConstant(pIsConstant),
+            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
       void Finalize(clang::Expr* New);
     };
 

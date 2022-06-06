@@ -1936,6 +1936,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto opCode = BinOp->getOpcode();
     StmtDiff Ldiff{};
     StmtDiff Rdiff{};
+    StmtDiff Lstored{};
     auto L = BinOp->getLHS();
     auto R = BinOp->getRHS();
     // If it is an assignment operator, its result is a reference to LHS and
@@ -2103,20 +2104,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // in Lblock
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
-      Expr* PushL = nullptr;
-      Stmt* PopL = nullptr;
-      if (isInsideLoop) {
-        // x[i] = y[j] + ... -> push(x[i]); x[i] = y[j] + ...
-        StmtDiff PushPopL = GlobalStoreAndRef(Ldiff.getExpr(), "_arr",
-                                              /*force=*/true);
-        PushL = PushPopL.getExpr();
-        VarDecl* popLVar = BuildVarDecl(PushPopL.getExpr_dx()->getType(), "_t",
-                                        PushPopL.getExpr_dx(),
-                                        /*DirectInit=*/true);
-
-        PopL = BuildDeclStmt(popLVar);
-      }
       auto Lblock = endBlock(direction::reverse);
+      Lstored = GlobalStoreAndRef(Ldiff.getExpr(), "_t", /*force*/true);
+      auto assign = BuildOp(BO_Assign, Ldiff.getExpr(), Lstored.getExpr());
+      addToCurrentBlock(assign, direction::reverse);
       Expr* LCloned = Ldiff.getExpr();
       // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
       // like (x = y) it propagates recursively, so _d_x is also returned.
@@ -2140,8 +2131,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto Lblock_begin = Lblock->body_rbegin();
       auto Lblock_end = Lblock->body_rend();
       if (isInsideLoop) {
+        // x[i] = y[j] + ... -> push(x[i]); x[i] = y[j] + ...
+        Expr* PushL = Ldiff.getExpr();
+        Expr* PopL = Ldiff.getExpr_dx();
+        VarDecl* popLVar = BuildVarDecl(PopL->getType(), "_t", PopL,
+                                        /*DirectInit=*/true);
+
         addToCurrentBlock(PushL, direction::forward);
-        addToCurrentBlock(PopL, direction::reverse);
+        addToCurrentBlock(BuildDeclStmt(popLVar), direction::reverse);
       }
       if (dfdx() && Lblock->size()) {
         addToCurrentBlock(*Lblock_begin, direction::reverse);
@@ -2155,6 +2152,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // like x = x.
       auto oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
                                   /*forceDeclCreation=*/true);
+
       if (opCode == BO_Assign) {
         Rdiff = Visit(R, oldValue);
       } else if (opCode == BO_AddAssign) {
@@ -2654,7 +2652,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
-    if (isConstant)
+    if (isConstant || !needsUpdate)
       return;
     if (isInsideLoop) {
       auto Push = cast<CallExpr>(Result.getExpr());
@@ -2672,10 +2670,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(E && "must be provided");
     if (!UsefulToStoreGlobal(E)) {
       Expr* Cloned = Clone(E);
-      return DelayedStoreResult{*this,
-                                StmtDiff{Cloned, Cloned},
-                                /*isConstant*/ true,
-                                /*isInsideLoop*/ false};
+      Expr::EvalResult evalRes;
+      bool isConst = E->EvaluateAsConstantExpr(evalRes, m_Context);
+      return DelayedStoreResult{*this, StmtDiff{Cloned, Cloned},
+                                /*isConstant*/ isConst,
+                                /*isInsideLoop*/ false,
+                                /*needsUpdate=*/ false};
     }
     if (isInsideLoop) {
       Expr* dummy = E;
