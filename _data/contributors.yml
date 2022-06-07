@@ -18,6 +18,27 @@
   email: ioana.ifrim@cern.ch
   education: MPhil Advanced Computer Science, University of Cambridge (2018)
   active: 1
+
+- name: Sara Bellei
+  info: "Google Season of Docs 2022"
+  photo: Sara-Bellei.jpg
+  email: sara.bellei.87@gmail.com
+  education: "PhD in Physics, Politecnico University of Milan, Italy (2017)"
+  active: 1
+  projects:
+    - title: "Improving the Clang-REPL documentation"
+      status: Ongoing
+      description: |
+        Clang-REPL is the evolution of Cling, an interactive c++ interpreter based on LLVM and
+        Clang. It first developed as part of the high-energy physics (HEP) data analysis project -
+        ROOT, and subsequently grew as a standalone tool outisde the HEP community. The main goal
+        behind the Clang-REPL project is to move most parts of Cling into LLVM. By doing so, the
+        benefits of using the LLVM community standards for code reviews, release cycles and
+        integration will ensure the software's sustainability, and will enable it to reach a wider
+        audience. My goal is to establish a protocol for the Clang-REPL's documentation that will
+        be easy to read from user's perspective, and easy to update as the codes continue to evolve.
+      proposal: /assets/docs/Sara_Bellei_proposal_2022.pdf
+      mentors: Vassil Vassilev, David Lange
   
 - name: Surya Somayyajula
   info: "IRIS-HEP Fellow"
@@ -29,11 +50,17 @@
     - title: "Improve Cling's packaging system: Cling Packaging Tool"
       status: Ongoing
       description: |
-                                                                               Cling is an interactive C++ interpreter/compiler that utilizes the REPL (read-evaluate-print-loop) paradigm for fast development 
-                                                                               and testing as well as immediate feedback and runtime-generated code. One of the many useful tools included in the Cling interpreter 
-                                                                               is the Cling Packaging Tool (CPT), which is a command line utility that can easily build Cling from source and generate installer bundles 
-                                                                               for a variety of platforms, including Ubuntu and Debian-based platforms, Windows, distributions based on Red Hat Linux, Mac OS X, and any Unix-like platform.
-                                                                               While the CPT is an incredibly useful and flexible tool, there are several improvements that can be made to make the user’s experience with the CPT even more seamless. 
+        Cling is an interactive C++ interpreter/compiler that utilizes the REPL
+        (read-evaluate-print-loop) paradigm for fast development and testing as
+        well as immediate feedback and runtime-generated code. One of the many
+        useful tools included in the Cling interpreter is the Cling Packaging
+        Tool (CPT), which is a command line utility that can easily build Cling
+        from source and generate installer bundles for a variety of platforms,
+        including Ubuntu and Debian-based platforms, Windows, distributions
+        based on Red Hat Linux, Mac OS X, and any Unix-like platform. While the
+        CPT is an incredibly useful and flexible tool, there are several
+        improvements that can be made to make the user’s experience with the CPT
+        even more seamless. 
       proposal: /assets/docs/Surya_Somayyajula_Proposal.pdf
       mentors: Vassil Vassilev, David Lange
 
@@ -437,24 +464,4 @@
       report: |
         [Poster](/assets/presentations/LLVM2020_Clad.pdf){:target="_blank"}
       mentors: Vassil Vassilev, Alexander Penev
-      
-- name: Sara Bellei
-  info: "Google Season of Docs 2022"
-  email: sara.bellei.87@gmail.com
-  education: "PhD in Physics, Politecnico University of Milan, Italy (2017)"
-  projects:
-    - title: "Improving the Clang-REPL documentation"
-      description: |
-        Clang-REPL is the evolution of Cling, an interactive c++ interpreter based on LLVM and
-        Clang. It first developed as part of the high-energy physics (HEP) data analysis project -
-        ROOT, and subsequently grew as a standalone tool outisde the HEP community. The main goal
-        behind the Clang-REPL project is to move most parts of Cling into LLVM. By doing so, the
-        benefits of using the LLVM community standards for code reviews, release cycles and
-        integration will ensure the software's sustainability, and will enable it to reach a wider
-        audience. My goal is to establish a protocol for the Clang-REPL's documentation that will
-        be easy to read from user's perspective, and easy to update as the codes continue to evolve.
-      report: |
-        [HSF SoD 2022 link](https://hepsoftwarefoundation.org/activities/gsdocs.html){:target="_blank"}
-      mentors: Vassil Vassilev, David Lange
-
 
