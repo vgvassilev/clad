@@ -535,7 +535,8 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr, Expr* oldValue,
   StmtDiff savedExpr = SaveValue(LExpr, isInsideLoop);
   // Assign the error.
   auto decl = GetUnderlyingDeclRefOrNull(LExpr)->getDecl();
-  Expr* errorExpr = GetError(savedExpr.getExpr_dx(), oldValue);
+  Expr* errorExpr = UpdateErrorForFuncCallAssigns(this, savedExpr.getExpr_dx(),
+                                                  oldValue, m_NestedFuncError);
   Expr* prntExpr = GetPrintExpr(decl->getNameAsString(), savedExpr.getExpr_dx(),
                                 oldValue, errorExpr);
   AddErrorStmtToBlock(LExpr, deltaVar, errorExpr, isInsideLoop, prntExpr);
@@ -557,7 +558,9 @@ void ErrorEstimationHandler::EmitDeclErrorStmts(VarDeclDiff VDDiff,
     // If the VarDecl has an init, we should assign it with an error.
     if (VD->getInit() && !GetUnderlyingDeclRefOrNull(VD->getInit())) {
       auto varDeclExpr = m_RMV->BuildDeclRef(VDDiff.getDecl_dx());
-      Expr* errorExpr = GetError(savedDecl.getExpr_dx(), varDeclExpr);
+      Expr* errorExpr = UpdateErrorForFuncCallAssigns(
+          this, savedDecl.getExpr_dx(),
+          m_RMV->BuildDeclRef(VDDiff.getDecl_dx()), m_NestedFuncError);
       Expr* prntExpr =
           GetPrintExpr(VD->getNameAsString(), savedDecl.getExpr_dx(),
                        varDeclExpr, errorExpr);

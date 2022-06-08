@@ -151,8 +151,8 @@ namespace clad {
     TypedefDecl* tempDecl = cast<TypedefDecl>(R.getFoundDecl());
     return m_Context.getTypedefType(tempDecl);
   }
-
-  void DerivativeBuilder::SetErrorEstimationModel(
+  
+  void DerivativeBuilder::AddErrorEstimationModel(
       std::unique_ptr<FPErrorEstimationModel> estModel) {
     m_EstModel.push_back(std::move(estModel));
   }
@@ -224,19 +224,8 @@ namespace clad {
       result = J.Derive(FD, request);
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this);
-      // Set the handler.
-      m_ErrorEstHandler.reset(new ErrorEstimationHandler());
-      // Set error estimation model. If no custom model provided by user,
-      // use the built in Taylor approximation model.
-      if (!m_EstModel) {
-        m_EstModel.reset(new TaylorApprox(*this));
-      }
-      m_ErrorEstHandler->SetErrorEstimationModel(m_EstModel.get());
-      if (request.PrintFPErrors) {
-        m_ErrorEstHandler->EnableErrorPrinting();
-        m_ErrorEstHandler->SetErrorFileType(GetErrorFileType());
-      }
-      R.AddExternalSource(*m_ErrorEstHandler);
+      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
+      R.AddExternalSource(*m_ErrorEstHandler.back());
       // Finally begin estimation.
       result = R.Derive(FD, request);
       // Once we are done, we want to clear the model for any further

@@ -132,16 +132,12 @@ namespace clad {
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P);
     ~DerivativeBuilder();
-    /// Reset the model use for error estimation (if any).
-    /// \param[in] estModel The error estimation model, can be either
-    /// an in-built one (TaylorApprox) or one provided by the user.
-    void
-    SetErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
     /// Function to initialize the \c ostream object if error printing was
     /// requested.
     ///
     /// \returns the equivalent QualType of \c ostream objects.
     clang::QualType GetErrorFileType();
+    AddErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

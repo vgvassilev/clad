@@ -50,6 +50,9 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   bool m_PrintErrors = false;
   /// A variable to store the "ofstream" object.
   clang::DeclRefExpr* m_ErrorFile = nullptr;
+  /// An expression to match nested function call errors with their
+  /// assignee (if any exists).
+  clang::Expr* m_NestedFuncError = nullptr;
 
   std::stack<bool> m_ShouldEmit;
   ReverseModeVisitor* m_RMV;
