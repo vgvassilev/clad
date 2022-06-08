@@ -21,6 +21,10 @@
       date: 2022-06-01 14:00:00 +0200
       speaker: "Manish Kausik H"
       link: "[Slides](/assets/presentations/CaaS_Weekly_01_05_2022_Manish_Add_Initial_Integration_of_Clad_with_Enzyme.pdf)"
+    - title: "Clang Template Specialization Resugaring - Roadmap"
+      date: 2022-06-01 14:00:00 +0200
+      speaker: "Matheus Izvekov"
+      link: "[Slides](/assets/presentations/M_Izvekov-GSoC_Roadmap_1.html)"
     - title: "Improving performance of C++ modules in Clang-Project - Roadmap"
       date: 2022-05-25 14:00:00 +0200
       speaker: "Tapasweni Pathak"
