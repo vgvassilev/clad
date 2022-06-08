@@ -192,6 +192,14 @@ void MultiplexExternalRMVSource::ActBeforeFinalizingDifferentiateSingleExpr(
   }
 }
 
+void MultiplexExternalRMVSource::ActBeforeDifferentiatingCallExpr(
+    llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
+    llvm::SmallVectorImpl<clang::DeclStmt*>& ArgDecls, bool hasAssignee) {
+  for (auto source : m_Sources)
+    source->ActBeforeDifferentiatingCallExpr(pullbackArgs, ArgDecls,
+                                             hasAssignee);
+}
+
 void MultiplexExternalRMVSource::ActBeforeFinalizingVisitDeclStmt(
     llvm::SmallVectorImpl<clang::Decl*>& decls,
     llvm::SmallVectorImpl<clang::Decl*>& declsDiff) {

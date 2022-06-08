@@ -183,7 +183,7 @@ namespace clad {
                   ie = ErrorEstimationModelRegistry::end();
              it != ie; ++it) {
           auto estimationPlugin = it->instantiate();
-          m_DerivativeBuilder->SetErrorEstimationModel(
+          m_DerivativeBuilder->AddErrorEstimationModel(
               estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder));
         }
       }

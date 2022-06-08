@@ -44,6 +44,9 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   clang::Expr* m_IdxExpr;
   /// A set of declRefExprs for parameter value replacements.
   std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ParamRepls;
+  /// An expression to match nested function call errors with their
+  /// assignee (if any exists).
+  clang::Expr* m_NestedFuncError = nullptr;
 
   std::stack<bool> m_ShouldEmit;
   ReverseModeVisitor* m_RMV;
@@ -270,6 +273,10 @@ public:
   void ActBeforeFinalisingAssignOp(clang::Expr*&, clang::Expr*&) override;
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
   void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) override;
+  void ActBeforeDifferentiatingCallExpr(
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
+      llvm::SmallVectorImpl<clang::DeclStmt*>& ArgDecls,
+      bool hasAssignee) override;
   void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
       llvm::SmallVectorImpl<clang::Decl*>& declsDiff);

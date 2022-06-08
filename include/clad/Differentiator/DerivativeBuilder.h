@@ -82,13 +82,14 @@ namespace clad {
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     /// A reference to the model to use for error estimation (if any).
-    std::unique_ptr<FPErrorEstimationModel> m_EstModel = nullptr;
+    llvm::SmallVector<std::unique_ptr<FPErrorEstimationModel>, 4> m_EstModel;
     clang::NamespaceDecl* m_NumericalDiffNSD;
     /// A flag to keep track of whether error diagnostics are requested by user
     /// for numerical differentiation.
     bool m_PrintNumericalDiffErrorDiag = false;
     // A pointer to a the handler to be used for estimation requests.
-    std::unique_ptr<ErrorEstimationHandler> m_ErrorEstHandler;
+    llvm::SmallVector<std::unique_ptr<ErrorEstimationHandler>, 4>
+        m_ErrorEstHandler;
     DeclWithContext cloneFunction(const clang::FunctionDecl* FD,
                                   clad::VisitorBase VB, clang::DeclContext* DC,
                                   clang::Sema& m_Sema,
@@ -136,7 +137,7 @@ namespace clad {
     /// \param[in] estModel The error estimation model, can be either
     /// an in-built one (TaylorApprox) or one provided by the user.
     void
-    SetErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
+    AddErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

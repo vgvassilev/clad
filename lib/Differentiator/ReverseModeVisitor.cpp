@@ -89,7 +89,8 @@ namespace clad {
     if (m_ExternalSource) {
       // Inform external sources that `ReverseModeVisitor` object no longer
       // exists.
-      m_ExternalSource->ForgetRMV();
+      // FIXME: Make this so the lifetime scope of the source matches.
+      // m_ExternalSource->ForgetRMV();
       // Free the external sources multiplexer since we own this resource.
       delete m_ExternalSource;
     }
@@ -468,6 +469,10 @@ namespace clad {
   DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
+    // FIXME: Duplication of external source here is a workaround
+    // for the two 'Derive's being different functions.
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnStartOfDerive();
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
     m_Mode = DiffMode::experimental_pullback;
@@ -482,11 +487,17 @@ namespace clad {
            "Cannot generate pullback function of a function "
            "with no differentiable arguments");
 
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterParsingDiffArgs(request, args);
+
     auto derivativeName = request.BaseFunctionName + "_pullback";
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);
     auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
 
     QualType pullbackFnType = m_Context.getFunctionType(
         m_Context.VoidTy, paramTypes, originalFnType->getExtProtoInfo());
@@ -500,19 +511,33 @@ namespace clad {
                                 m_Context, noLoc, DNI, pullbackFnType);
     m_Derivative = fnBuildRes.first;
 
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeCreatingDerivedFnScope();
+
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
     m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnScope();
+
     auto params = BuildParams(args);
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
+
     m_Derivative->setParams(params);
     m_Derivative->setBody(nullptr);
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
 
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
 
     beginBlock();
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnStartOfDerivedFnBody(request);
 
     StmtDiff bodyDiff = Visit(m_Function->getBody());
     Stmt* forward = bodyDiff.getStmt();
@@ -531,6 +556,9 @@ namespace clad {
     if (auto RCS = dyn_cast<CompoundStmt>(reverse))
       for (Stmt* S : RCS->body())
         addToCurrentBlock(S, direction::forward);
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnEndOfDerivedFnBody();
 
     Stmt* fnBody = endBlock();
     m_Derivative->setBody(fnBody);
@@ -1180,13 +1208,6 @@ namespace clad {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
-        // If in error estimation, we want to store the errors in each input
-        // variable to a call expression given it is reference type, hence
-        // we should build an error expression here and store it to emit later.
-        // FIXME: We need a derivative wrt each pass-by-reference input here.
-        // if (m_ErrorEstimationEnabled) {
-        //   errorEstHandler->EmitNestedFunctionParamError(...);
-        // }
       }
       Expr* call = m_Sema
                        .ActOnCallExpr(getCurrentScope(),
@@ -1521,6 +1542,9 @@ namespace clad {
                                noLoc)
                 .get();
       } else {
+        if (m_ExternalSource)
+          m_ExternalSource->ActBeforeDifferentiatingCallExpr(
+              pullbackCallArgs, ArgDeclStmts, dfdx());
         // Overloaded derivative was not found, request the CladPlugin to
         // derive the called function.
         DiffRequest pullbackRequest{};
