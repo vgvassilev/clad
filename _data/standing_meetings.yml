@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Write JITLink support for a new format/architecture - Roadmap"
+      date: 2022-06-08 14:00:00 +0200
+      speaker: "Sunho Kim"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_08_06_2022_Sunho_Write_JITLink_support_for_a_new format_architecture.pdf)"
     - title: "Add Initial Integration of Clad with Enzyme - Roadmap"
       date: 2022-06-01 14:00:00 +0200
       speaker: "Manish Kausik H"
