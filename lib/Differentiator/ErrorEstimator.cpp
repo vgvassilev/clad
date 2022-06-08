@@ -19,6 +19,19 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
   }
 }
 
+Expr* UpdateErrorForFuncCallAssigns(ErrorEstimationHandler* handler,
+                                    Expr* savedExpr, Expr* origExpr,
+                                    Expr*& callError) {
+  Expr* errorExpr = nullptr;
+  if (!callError)
+    errorExpr = handler->GetError(savedExpr, origExpr);
+  else {
+    errorExpr = callError;
+    callError = nullptr;
+  }
+  return errorExpr;
+}
+
 void ErrorEstimationHandler::SetErrorEstimationModel(
     FPErrorEstimationModel* estModel) {
   m_EstModel = estModel;
@@ -477,7 +490,8 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr, Expr* oldValue,
   // previously.
   StmtDiff savedExpr = SaveValue(LExpr, isInsideLoop);
   // Assign the error.
-  Expr* errorExpr = GetError(savedExpr.getExpr_dx(), oldValue);
+  Expr* errorExpr = UpdateErrorForFuncCallAssigns(this, savedExpr.getExpr_dx(),
+                                                  oldValue, m_NestedFuncError);
   AddErrorStmtToBlock(LExpr, deltaVar, errorExpr, isInsideLoop);
   // If there are assign statements to emit in reverse, do that.
   EmitErrorEstimationStmts(direction::reverse);
@@ -496,8 +510,9 @@ void ErrorEstimationHandler::EmitDeclErrorStmts(VarDeclDiff VDDiff,
     StmtDiff savedDecl = SaveValue(VDRef, isInsideLoop);
     // If the VarDecl has an init, we should assign it with an error.
     if (VD->getInit() && !GetUnderlyingDeclRefOrNull(VD->getInit())) {
-      Expr* errorExpr = GetError(savedDecl.getExpr_dx(),
-                                 m_RMV->BuildDeclRef(VDDiff.getDecl_dx()));
+      Expr* errorExpr = UpdateErrorForFuncCallAssigns(
+          this, savedDecl.getExpr_dx(),
+          m_RMV->BuildDeclRef(VDDiff.getDecl_dx()), m_NestedFuncError);
       AddErrorStmtToBlock(VDRef, EstVD, errorExpr, isInsideLoop);
     }
   }
@@ -648,6 +663,23 @@ void ErrorEstimationHandler::ActBeforeFinalizingDifferentiateSingleExpr(
     const direction& d) {
   // We might have some expressions to emit, so do that here.
   EmitErrorEstimationStmts(d);
+}
+
+void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
+    llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
+    llvm::SmallVectorImpl<DeclStmt*>& ArgDecls, bool hasAssignee) {
+  auto errorRef =
+      m_RMV->BuildVarDecl(m_RMV->m_Context.DoubleTy, "_t",
+                          m_RMV->getZeroInit(m_RMV->m_Context.DoubleTy));
+  ArgDecls.push_back(m_RMV->BuildDeclStmt(errorRef));
+  auto finErr = m_RMV->BuildDeclRef(errorRef);
+  pullbackArgs.push_back(finErr);
+  if (hasAssignee) {
+    if (m_NestedFuncError)
+      m_NestedFuncError = m_RMV->BuildOp(BO_Add, m_NestedFuncError, finErr);
+    else
+      m_NestedFuncError = finErr;
+  }
 }
 
 void ErrorEstimationHandler::ActBeforeFinalizingVisitDeclStmt(

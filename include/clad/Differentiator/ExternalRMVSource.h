@@ -153,6 +153,10 @@ public:
   /// `ReverseModeVisitor::DifferentiateSingleExpr`.
   virtual void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) {}
 
+  virtual void ActBeforeDifferentiatingCallExpr(
+      llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
+      llvm::SmallVectorImpl<clang::DeclStmt*>& ArgDecls, bool hasAssignee) {}
+
   virtual void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
       llvm::SmallVectorImpl<clang::Decl*>& declsDiff) {}

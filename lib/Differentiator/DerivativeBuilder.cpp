@@ -34,7 +34,7 @@ namespace clad {
   DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
-      m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr), m_ErrorEstHandler(nullptr) {}
+      m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
   DerivativeBuilder::~DerivativeBuilder() {}
 
@@ -133,9 +133,34 @@ namespace clad {
     return { returnedFD, enclosingNS };
   }
 
-  void DerivativeBuilder::SetErrorEstimationModel(
+  void DerivativeBuilder::AddErrorEstimationModel(
       std::unique_ptr<FPErrorEstimationModel> estModel) {
-    m_EstModel = std::move(estModel);
+    m_EstModel.push_back(std::move(estModel));
+  }
+
+  void InitErrorEstimation(
+      llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
+      llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model,
+      DerivativeBuilder& builder) {
+    // Set the handler.
+    std::unique_ptr<ErrorEstimationHandler> pHandler(
+        new ErrorEstimationHandler());
+    handler.push_back(std::move(pHandler));
+    // Set error estimation model. If no custom model provided by user,
+    // use the built in Taylor approximation model.
+    if (model.size() != handler.size()) {
+      std::unique_ptr<FPErrorEstimationModel> pModel(new TaylorApprox(builder));
+      model.push_back(std::move(pModel));
+    }
+    handler.back()->SetErrorEstimationModel(model.back().get());
+  }
+
+  void CleanupErrorEstimation(
+      llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
+      llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model) {
+    model.back()->clearEstimationVariables();
+    model.pop_back();
+    handler.pop_back();
   }
 
   DerivativeAndOverload
@@ -165,7 +190,13 @@ namespace clad {
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::experimental_pullback) {
       ReverseModeVisitor V(*this);
+      if (!m_ErrorEstHandler.empty()) {
+        InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
+        V.AddExternalSource(*m_ErrorEstHandler.back());
+      }
       result = V.DerivePullback(FD, request);
+      if (!m_ErrorEstHandler.empty())
+        CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::hessian) {
       HessianModeVisitor H(*this);
       result = H.Derive(FD, request);
@@ -174,20 +205,13 @@ namespace clad {
       result = J.Derive(FD, request);
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this);
-      // Set the handler.
-      m_ErrorEstHandler.reset(new ErrorEstimationHandler());
-      // Set error estimation model. If no custom model provided by user,
-      // use the built in Taylor approximation model.
-      if (!m_EstModel) {
-        m_EstModel.reset(new TaylorApprox(*this));
-      }
-      m_ErrorEstHandler->SetErrorEstimationModel(m_EstModel.get());
-      R.AddExternalSource(*m_ErrorEstHandler);
+      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
+      R.AddExternalSource(*m_ErrorEstHandler.back());
       // Finally begin estimation.
       result = R.Derive(FD, request);
       // Once we are done, we want to clear the model for any further
       // calls to estimate_error.
-      m_EstModel->clearEstimationVariables();
+      CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     }
 
     // FIXME: if the derivatives aren't registered in this order and the
