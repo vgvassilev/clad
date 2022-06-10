@@ -536,13 +536,25 @@ namespace clad {
         return true;
       DiffRequest request{};
 
+      // Check if enzyme is requested in case of Forward Mode or reverse Mode
+      if (A->getAnnotation().equals("D") || A->getAnnotation().equals("G")) {
+        signed enzyme_request = FD->getTemplateSpecializationArgs()
+                                    ->get(0)
+                                    .getAsIntegral()
+                                    .getZExtValue();
+
+        if (enzyme_request == -1)
+          request.use_enzyme = true;
+      }
+
       if (A->getAnnotation().equals("D")) {
         request.Mode = DiffMode::forward;
         llvm::APSInt derivativeOrderAPSInt
           = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
-        // We know the first template spec argument is of unsigned type
-        assert(derivativeOrderAPSInt.isUnsigned() && "Must be unsigned");
-        unsigned derivativeOrder = derivativeOrderAPSInt.getZExtValue();
+
+        unsigned derivativeOrder = 1;
+        if (!request.use_enzyme)
+          derivativeOrder = derivativeOrderAPSInt.getZExtValue();
         request.RequestedDerivativeOrder = derivativeOrder;
       } else if (A->getAnnotation().equals("H")) {
         request.Mode = DiffMode::hessian;

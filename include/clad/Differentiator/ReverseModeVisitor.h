@@ -63,6 +63,7 @@ namespace clad {
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     bool isVectorValued = false;
+    bool use_enzyme = false;
     // FIXME: Should we make this an object instead of a pointer?
     // Downside of making it an object: We will need to include
     // 'MultiplexExternalRMVSource.h' file
@@ -71,6 +72,8 @@ namespace clad {
     const char* funcPostfix() const {
       if (isVectorValued)
         return "_jac";
+      else if (use_enzyme)
+        return "_grad_enzyme";
       else
         return "_grad";
     }
