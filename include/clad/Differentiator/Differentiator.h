@@ -35,7 +35,9 @@ namespace clad {
     #endif
     return count;
   }
-  
+
+  enum opts { use_enzyme = -1 }; // enum opts
+
   /// Tape type used for storing values in reverse-mode AD inside loops.
   template <typename T>
   using tape = tape_impl<T>;
@@ -286,16 +288,13 @@ namespace clad {
   /// \param[in] fn function to differentiate 
   /// \param[in] args independent parameter information 
   /// \returns `CladFunction` object to access the corresponding derived function.
-  template <unsigned N = 1,
-            typename ArgSpec = const char*,
-            typename F,
+  template <signed N = 1, typename ArgSpec = const char*, typename F,
             typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
       annotate("D")))
-  differentiate(F fn,
-                ArgSpec args = "",
+  differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
     assert(fn && "Must pass in a non-0 argument");
@@ -306,15 +305,13 @@ namespace clad {
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <unsigned N = 1,
-            typename ArgSpec = const char*,
-            typename F,
+  template <signed N = 1, typename ArgSpec = const char*, typename F,
             typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("D")))
-  differentiate(F&& f,
-                ArgSpec args = "",
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
+      annotate("D")))
+  differentiate(F&& f, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn, code, f);
@@ -327,7 +324,8 @@ namespace clad {
   /// \param[in] args independent parameters information
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <typename ArgSpec = const char*, typename F,
+  template <signed E = 1 /*To check for enzyme*/,
+            typename ArgSpec = const char*, typename F,
             typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
@@ -344,7 +342,8 @@ namespace clad {
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <typename ArgSpec = const char*, typename F,
+  template <signed E = 1 /*To check for enzyme*/,
+            typename ArgSpec = const char*, typename F,
             typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>

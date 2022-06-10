@@ -59,6 +59,9 @@ namespace clad {
     /// member information for record (class) type parameters.
     DiffInputVarsInfo DVI;
 
+    // A flag to enable the use of enzyme for backend instead of clad
+    bool use_enzyme = false;
+
     /// Recomputes `DiffInputVarsInfo` using the current values of data members.
     ///
     /// Differentiation parameters info is computed by parsing the argument

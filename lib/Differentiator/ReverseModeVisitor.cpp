@@ -262,6 +262,10 @@ namespace clad {
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
     }
 
+    // Check if DiffRequest asks for use of enzyme as backend
+    if (request.use_enzyme)
+      use_enzyme = true;
+
     auto derivativeBaseName = request.BaseFunctionName;
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
@@ -404,53 +408,71 @@ namespace clad {
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerivedFnBody(request);
 
+    Stmt* gradientBody = nullptr;
+
     // create derived variables for parameters which are not part of
     // independent variables (args).
-    for (std::size_t i=0; i<m_Function->getNumParams(); ++i) {
-      ParmVarDecl* param = params[i];
-      // derived variables are already created for independent variables.
-      if (m_Variables.count(param))
-        continue;
-      // in vector mode last non diff parameter is output parameter.
-      if (isVectorValued && i == m_Function->getNumParams()-1)
-        continue;
-      auto VDDerivedType = param->getType();
-      // We cannot initialize derived variable for pointer types because
-      // we do not know the correct size.
-      if (utils::isArrayOrPointerType(VDDerivedType))
-        continue;
-      auto VDDerived =
-          BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                       getZeroInit(VDDerivedType));
-      m_Variables[param] = BuildDeclRef(VDDerived);
-      addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+    if (!use_enzyme) {
+      for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
+        ParmVarDecl* param = params[i];
+        // derived variables are already created for independent variables.
+        if (m_Variables.count(param))
+          continue;
+        // in vector mode last non diff parameter is output parameter.
+        if (isVectorValued && i == m_Function->getNumParams() - 1)
+          continue;
+        auto VDDerivedType = param->getType();
+        // We cannot initialize derived variable for pointer types because
+        // we do not know the correct size.
+        if (utils::isArrayOrPointerType(VDDerivedType))
+          continue;
+        auto VDDerived =
+            BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
+                         getZeroInit(VDDerivedType));
+        m_Variables[param] = BuildDeclRef(VDDerived);
+        addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+      }
+      // Start the visitation process which outputs the statements in the
+      // current block.
+      StmtDiff BodyDiff = Visit(FD->getBody());
+      Stmt* Forward = BodyDiff.getStmt();
+      Stmt* Reverse = BodyDiff.getStmt_dx();
+      // Create the body of the function.
+      // Firstly, all "global" Stmts are put into fn's body.
+      for (Stmt* S : m_Globals)
+        addToCurrentBlock(S, direction::forward);
+      // Forward pass.
+      if (auto CS = dyn_cast<CompoundStmt>(Forward))
+        for (Stmt* S : CS->body())
+          addToCurrentBlock(S, direction::forward);
+      else
+        addToCurrentBlock(Forward, direction::forward);
+      // Reverse pass.
+      if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
+        for (Stmt* S : RCS->body())
+          addToCurrentBlock(S, direction::forward);
+      else
+        addToCurrentBlock(Reverse, direction::forward);
+
+      if (m_ExternalSource)
+        m_ExternalSource->ActOnEndOfDerivedFnBody();
+
+      gradientBody = endBlock();
+    } else {
+      // TODO: Write code to generate code that enzyme can work on
+      /*
+        Two if cases ought to come here
+        a. How to deal with functions of form - double function(double z, double
+        y, double z...); This is not straight forward as of now because Enzyme
+        does not have support for this yet, we will need to setup data
+        structures that can deal with this easily
+
+        b. How to deal with functions of the form - double function(double*
+        arrayOfParams); This is straightforward to deal in enzyme
+      */
+      gradientBody = endBlock();
     }
-    // Start the visitation process which outputs the statements in the current
-    // block.
-    StmtDiff BodyDiff = Visit(FD->getBody());
-    Stmt* Forward = BodyDiff.getStmt();
-    Stmt* Reverse = BodyDiff.getStmt_dx();
-    // Create the body of the function.
-    // Firstly, all "global" Stmts are put into fn's body.
-    for (Stmt* S : m_Globals)
-      addToCurrentBlock(S, direction::forward);
-    // Forward pass.
-    if (auto CS = dyn_cast<CompoundStmt>(Forward))
-      for (Stmt* S : CS->body())
-        addToCurrentBlock(S, direction::forward);
-    else
-      addToCurrentBlock(Forward, direction::forward);
-    // Reverse pass.
-    if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
-      for (Stmt* S : RCS->body())
-        addToCurrentBlock(S, direction::forward);
-    else
-      addToCurrentBlock(Reverse, direction::forward);
 
-    if (m_ExternalSource)
-      m_ExternalSource->ActOnEndOfDerivedFnBody();
-
-    Stmt* gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
     endScope(); // Function body scope
     m_Sema.PopFunctionScopeInfo();
