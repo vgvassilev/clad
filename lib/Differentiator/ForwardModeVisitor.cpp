@@ -2066,4 +2066,20 @@ namespace clad {
     StmtDiff BTEDiff = Visit(BTE->getSubExpr());
     return BTEDiff;
   }
+
+  StmtDiff ForwardModeVisitor::VisitCXXNullPtrLiteralExpr(
+      const clang::CXXNullPtrLiteralExpr* NPL) {
+    return {Clone(NPL), Clone(NPL)};
+  }
+
+  StmtDiff ForwardModeVisitor::VisitUnaryExprOrTypeTraitExpr(
+      const clang::UnaryExprOrTypeTraitExpr* UE) {
+    return {Clone(UE), Clone(UE)};
+  }
+
+  StmtDiff ForwardModeVisitor::VisitPseudoObjectExpr(
+      const clang::PseudoObjectExpr* POE) {
+    return {Clone(POE),
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0)};
+  }
 } // end namespace clad
