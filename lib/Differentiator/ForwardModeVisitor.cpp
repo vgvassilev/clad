@@ -38,6 +38,21 @@ namespace clad {
 
   ForwardModeVisitor::~ForwardModeVisitor() {}
 
+  static bool isDifferentiableType(QualType T) {
+    QualType origType = T;
+    // FIXME: arbitrary dimension array type as well.
+    while (utils::isArrayOrPointerType(T))
+      T = utils::GetValueType(T);
+    T = T.getNonReferenceType();
+    if (T->isEnumeralType())
+      return false;
+    if (T->isRealType() || T->isStructureOrClassType())
+      return true;
+    if (origType->isPointerType() && T->isVoidType())
+      return true;
+    return false;
+  }
+
   clang::QualType ForwardModeVisitor::ComputePushforwardFnReturnType() {
     assert(m_Mode == DiffMode::experimental_pushforward);
     QualType originalFnRT = m_Function->getReturnType();
@@ -83,7 +98,7 @@ namespace clad {
     for (auto* PVD : m_Function->parameters()) {
       paramTypes.push_back(PVD->getType());
 
-      if (utils::isDifferentiableType(PVD->getType()))
+      if (isDifferentiableType(PVD->getType()))
         derivedParamTypes.push_back(PVD->getType());
     }
 
@@ -149,7 +164,7 @@ namespace clad {
 
       QualType nonRefParamType = PVD->getType().getNonReferenceType();
 
-      if (!utils::isDifferentiableType(PVD->getType()))
+      if (!isDifferentiableType(PVD->getType()))
         continue;
       auto derivedPVDName = "_d_" + std::string(PVDII->getName());
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
@@ -365,7 +380,7 @@ namespace clad {
       // non-reference type for creating the derivatives.
       QualType dParamType = param->getType().getNonReferenceType();
       // We do not create derived variable for array/pointer parameters.
-      if (!utils::isDifferentiableType(dParamType) ||
+      if (!isDifferentiableType(dParamType) ||
           utils::isArrayOrPointerType(dParamType))
         continue;
       Expr* dParam = nullptr;
@@ -1059,7 +1074,6 @@ namespace clad {
     } else {
       SS.Extend(m_Context, NSD, noLoc, noLoc);
     }
-
     LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
@@ -1166,7 +1180,7 @@ namespace clad {
         }
       }
       CallArgs.push_back(argDiff.getExpr());
-      if (utils::isDifferentiableType(arg->getType()))
+      if (isDifferentiableType(arg->getType()))
         diffArgs.push_back(argDiff.getExpr_dx());
     }
 
