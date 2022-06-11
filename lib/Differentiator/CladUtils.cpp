@@ -297,17 +297,6 @@ namespace clad {
       return ME;
     }
 
-    bool isDifferentiableType(QualType T) {
-      // FIXME: Handle arbitrary depth pointer types and arbitrary dimension
-      // array type as well.
-      if (isArrayOrPointerType(T))
-        T = T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
-      T = T.getNonReferenceType();
-      if (T->isRealType() || T->isStructureOrClassType())
-        return true;
-      return false;
-    }
-
     SourceLocation GetValidSLoc(Sema& semaRef) {
       auto& SM = semaRef.getSourceManager();
       return SM.getLocForStartOfFile(SM.getMainFileID());

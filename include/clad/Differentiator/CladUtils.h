@@ -168,8 +168,6 @@ namespace clad {
                                        clang::Expr* base,
                                        llvm::StringRef memberName);
 
-    bool isDifferentiableType(clang::QualType T);
-
     /// Returns a valid `SourceLocation` to be used in places where clang
     /// requires a valid `SourceLocation`.
     clang::SourceLocation GetValidSLoc(clang::Sema& semaRef);
