@@ -1239,10 +1239,13 @@ namespace clad {
               BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
                                    pushforwardFnArgs, pushforwardFD);
         } else {
+          Expr* execConfig = nullptr;
+          if (auto KCE = dyn_cast<CUDAKernelCallExpr>(CE))
+            execConfig = Clone(KCE->getConfig());
           callDiff =
               m_Sema
                   .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),
-                                 noLoc, pushforwardFnArgs, noLoc)
+                                 noLoc, pushforwardFnArgs, noLoc, execConfig)
                   .get();
         }
       }
