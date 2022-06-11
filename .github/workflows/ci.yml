@@ -78,6 +78,7 @@ jobs:
             compiler: gcc-6
             clang-runtime: '11'
             coverage: true
+            cuda: true
             #clang-format: true
 
           - name: ubu18-gcc6-runtime11-benchmarks
