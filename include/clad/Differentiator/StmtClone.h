@@ -105,6 +105,7 @@ namespace utils {
     DECLARE_CLONE_FN(CXXDynamicCastExpr)
     DECLARE_CLONE_FN(CXXReinterpretCastExpr)
     DECLARE_CLONE_FN(CXXConstCastExpr)
+    DECLARE_CLONE_FN(CXXDefaultArgExpr)
     DECLARE_CLONE_FN(CXXFunctionalCastExpr)
     DECLARE_CLONE_FN(CXXBoolLiteralExpr)
     DECLARE_CLONE_FN(CXXNullPtrLiteralExpr)

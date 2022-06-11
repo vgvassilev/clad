@@ -645,5 +645,13 @@ static inline bool IsPRValue(const Expr* E) { return E->isRValue(); }
 #else
 static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
 #endif
+
+#if CLANG_VERSION_MAJOR >= 9
+#define CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node)               \
+  , Node->getUsedContext()
+#else
+#define CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node) /**/
+#endif
+
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY
