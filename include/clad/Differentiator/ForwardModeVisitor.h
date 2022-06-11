@@ -93,6 +93,9 @@ namespace clad {
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* CSE);
     StmtDiff VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
+    StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
+    StmtDiff VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
+    StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
   private:
     /// Helper function for differentiating the switch statement body.
     ///
