@@ -102,6 +102,7 @@ namespace clad {
       : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
     CladPlugin::~CladPlugin() {}
 
+
     // We cannot use HandleTranslationUnit because codegen already emits code on
     // HandleTopLevelDecl calls and makes updateCall with no effect.
     bool CladPlugin::HandleTopLevelDecl(DeclGroupRef DGR) {
@@ -111,7 +112,7 @@ namespace clad {
       Sema& S = m_CI.getSema();
 
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
+        InitializeDerivativeBuilder();
 
       // if HandleTopLevelDecl was called through clad we don't need to process
       // it for diff requests
@@ -137,21 +138,23 @@ namespace clad {
       return true; // Happiness
     }
 
+    void ProcessTopLevelDecl(CladPlugin& P, Decl* D) {
+      P.ProcessTopLevelDecl(D);
+    }
+
     void CladPlugin::ProcessTopLevelDecl(Decl* D) {
       m_HandleTopLevelDeclInternal = true;
       m_CI.getASTConsumer().HandleTopLevelDecl(DeclGroupRef(D));
       m_HandleTopLevelDeclInternal = false;
     }
 
-    FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
-      Sema& S = m_CI.getSema();
-      // Required due to custom derivatives function templates that might be
-      // used in the function that we need to derive.
-      S.PerformPendingInstantiations();
-      if (request.Function->getDefinition())
-        request.Function = request.Function->getDefinition();
-      request.UpdateDiffParamsInfo(m_CI.getSema());
-      const FunctionDecl* FD = request.Function;
+    void DumpRequestedInfo(CladPlugin& P, const FunctionDecl* sourceFn,
+                           const FunctionDecl* derivedFn) {
+      P.DumpRequestedInfo(sourceFn, derivedFn);
+    }
+
+    void CladPlugin::DumpRequestedInfo(const FunctionDecl* sourceFn,
+                                       const FunctionDecl* derivedFn) {
       // set up printing policy
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
@@ -159,25 +162,49 @@ namespace clad {
       Policy.Bool = true;
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
-        FD->print(llvm::outs(), Policy);
+        sourceFn->print(llvm::outs(), Policy);
       }
       // if enabled, print ASTs of the original functions
       if (m_DO.DumpSourceFnAST) {
-        FD->dumpColor();
+        sourceFn->dumpColor();
       }
+
+      // if enabled, print source code of the derived functions
+      if (m_DO.DumpDerivedFn) {
+        derivedFn->print(llvm::outs(), Policy);
+      }
+
+      // if enabled, print ASTs of the derived functions
+      if (m_DO.DumpDerivedAST) {
+        derivedFn->dumpColor();
+      }
+
+      // if enabled, print the derivatives in a file.
+      if (m_DO.GenerateSourceFile) {
+        std::error_code err;
+        llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                               CLAD_COMPAT_llvm_sys_fs_Append);
+        derivedFn->print(f, Policy);
+        f.flush();
+      }
+    }
+
+    void CladPlugin::InitializeDerivativeBuilder() {
+      m_DerivativeBuilder.reset(new DerivativeBuilder(m_CI.getSema(), *this));
+
       // if enabled, load the dynamic library input from user to use
       // as a custom estimation model.
       if (m_DO.CustomEstimationModel) {
         std::string Err;
-        if (llvm::sys::DynamicLibrary::
-                LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
+        if (llvm::sys::DynamicLibrary::LoadLibraryPermanently(
+                m_DO.CustomModelName.c_str(), &Err)) {
           auto& SemaInst = m_CI.getSema();
           unsigned diagID = SemaInst.Diags.getCustomDiagID(
               DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
-          clang::Sema::SemaDiagnosticBuilder stream = SemaInst.Diag(noLoc,
-                                                                    diagID);
+          clang::Sema::SemaDiagnosticBuilder stream =
+              SemaInst.Diag(noLoc, diagID);
           stream << m_DO.CustomModelName << Err;
-          return nullptr;
+          return;
         }
         for (auto it = ErrorEstimationModelRegistry::begin(),
                   ie = ErrorEstimationModelRegistry::end();
@@ -192,98 +219,10 @@ namespace clad {
       if (m_DO.PrintNumDiffErrorInfo) {
         m_DerivativeBuilder->setNumDiffErrDiag(true);
       }
+    }
 
-      FunctionDecl* DerivativeDecl = nullptr;
-      bool alreadyDerived = false;
-      FunctionDecl* OverloadedDerivativeDecl = nullptr;
-      {
-        // FIXME: Move the timing inside the DerivativeBuilder. This would
-        // require to pass in the DifferentiationOptions in the DiffPlan.
-        // derive the collected functions
-        bool WantTiming = getenv("LIBCLAD_TIMING");
-        SimpleTimer Timer(WantTiming);
-        Timer.setOutput("Generation time for " + FD->getNameAsString());
-
-        auto DFI = m_DFC.Find(request);
-        if (DFI.IsValid()) {
-          DerivativeDecl = DFI.DerivedFn();
-          OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
-          alreadyDerived = true;
-        } else {
-          auto deriveResult = m_DerivativeBuilder->Derive(request);
-          DerivativeDecl = deriveResult.derivative;
-          OverloadedDerivativeDecl = deriveResult.overload;
-        }
-      }
-
-      if (DerivativeDecl) {
-        if (!alreadyDerived) {
-          m_DFC.Add(
-              DerivedFnInfo(request, DerivativeDecl, OverloadedDerivativeDecl));
-
-          // if enabled, print source code of the derived functions
-          if (m_DO.DumpDerivedFn) {
-            DerivativeDecl->print(llvm::outs(), Policy);
-          }
-
-          // if enabled, print ASTs of the derived functions
-          if (m_DO.DumpDerivedAST) {
-            DerivativeDecl->dumpColor();
-          }
-
-          // if enabled, print the derivatives in a file.
-          if (m_DO.GenerateSourceFile) {
-            std::error_code err;
-            llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                   CLAD_COMPAT_llvm_sys_fs_Append);
-            DerivativeDecl->print(f, Policy);
-            f.flush();
-          }
-
-          S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
-          if (OverloadedDerivativeDecl)
-            S.MarkFunctionReferenced(SourceLocation(),
-                                     OverloadedDerivativeDecl);
-
-          // We ideally should not call `HandleTopLevelDecl` for declarations
-          // inside a namespace. After parsing a namespace that is defined
-          // directly in translation unit context , clang calls
-          // `BackendConsumer::HandleTopLevelDecl`.
-          // `BackendConsumer::HandleTopLevelDecl` emits LLVM IR of each
-          // declaration inside the namespace using CodeGen. We need to manually
-          // call `HandleTopLevelDecl` for each new declaration added to a
-          // namespace because `HandleTopLevelDecl` has already been called for
-          // a namespace by Clang when the namespace is parsed.
-
-          // Call CodeGen only if the produced Decl is a top-most
-          // decl or is contained in a namespace decl.
-          DeclContext* derivativeDC = DerivativeDecl->getDeclContext();
-          bool isTUorND =
-              derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
-          if (isTUorND) {
-            ProcessTopLevelDecl(DerivativeDecl);
-            if (OverloadedDerivativeDecl)
-              ProcessTopLevelDecl(OverloadedDerivativeDecl);
-          }
-        }
-        bool lastDerivativeOrder = (request.CurrentDerivativeOrder ==
-                                    request.RequestedDerivativeOrder);
-        // If this is the last required derivative order, replace the function
-        // inside a call to clad::differentiate/gradient with its derivative.
-        if (request.CallUpdateRequired && lastDerivativeOrder)
-          request.updateCall(DerivativeDecl, OverloadedDerivativeDecl,
-                             m_CI.getSema());
-
-        // Last requested order was computed, return the result.
-        if (lastDerivativeOrder)
-          return DerivativeDecl;
-        // If higher order derivatives are required, proceed to compute them
-        // recursively.
-        request.Function = DerivativeDecl;
-        request.CurrentDerivativeOrder += 1;
-        return ProcessDiffRequest(request);
-      }
-      return nullptr;
+    FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
+      return m_DerivativeBuilder->ProcessDiffRequest(request);
     }
 
     bool CladPlugin::CheckBuiltins() {
@@ -309,41 +248,6 @@ namespace clad {
       return m_HasRuntime;
     }
   } // end namespace plugin
-
-  void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
-    assert(!AlreadyExists(DFI) &&
-           "We are generating same derivative more than once, or calling "
-           "`DerivedFnCollector::Add` more than once for the same derivative "
-           ". Ideally, we shouldn't do either.");
-    m_DerivedFnInfoCollection[DFI.OriginalFn()].push_back(DFI);
-  }
-
-  bool DerivedFnCollector::AlreadyExists(const DerivedFnInfo& DFI) const {
-    auto subCollectionIt = m_DerivedFnInfoCollection.find(DFI.OriginalFn());
-    if (subCollectionIt == m_DerivedFnInfoCollection.end())
-      return false;
-    auto& subCollection = subCollectionIt->second;
-    auto it = std::find_if(subCollection.begin(), subCollection.end(),
-                           [&DFI](const DerivedFnInfo& info) {
-                             return DerivedFnInfo::
-                                 RepresentsSameDerivative(DFI, info);
-                           });
-    return it != subCollection.end();
-  }
-
-  DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
-    auto subCollectionIt = m_DerivedFnInfoCollection.find(request.Function);
-    if (subCollectionIt == m_DerivedFnInfoCollection.end())
-      return DerivedFnInfo();
-    auto& subCollection = subCollectionIt->second;
-    auto it = std::find_if(subCollection.begin(), subCollection.end(),
-                           [&request](DerivedFnInfo DFI) {
-                             return DFI.SatisfiesRequest(request);
-                           });
-    if (it == subCollection.end())
-      return DerivedFnInfo();
-    return *it;
-  }
 } // end namespace clad
 
 using namespace clad::plugin;

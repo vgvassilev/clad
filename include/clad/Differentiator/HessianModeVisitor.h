@@ -32,6 +32,13 @@ namespace clad {
           llvm::SmallVector<size_t, 16> IndependentArgsSize,
           size_t TotalIndependentArgsSize, std::string hessianFuncName);
 
+    /// Derives the function w.r.t both forward and reverse mode and returns the
+    /// FunctionDecl obtained from reverse mode differentiation
+    clang::FunctionDecl*
+    DeriveUsingForwardAndReverseMode(DiffRequest IndependentArgRequest,
+                                     const clang::Expr* ForwardModeArgs,
+                                     const clang::Expr* ReverseModeArgs);
+
   public:
     HessianModeVisitor(DerivativeBuilder& builder);
     ~HessianModeVisitor();

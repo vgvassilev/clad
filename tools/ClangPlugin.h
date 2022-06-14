@@ -7,7 +7,6 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
-#include "DerivedFnInfo.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
@@ -34,32 +33,6 @@ namespace clang {
 } // namespace clang
 
 namespace clad {
-  /// This class is designed to store collection of `DerivedFnInfo` objects.
-  /// It's purpose is to avoid repeated generation of same derivatives by
-  /// making it possible to reuse previously computed derivatives.
-  class DerivedFnCollector {
-    using DerivedFns = llvm::SmallVector<DerivedFnInfo, 16>;
-    /// Mapping to efficiently find out information about all the derivatives of
-    /// a function.
-    llvm::DenseMap<const clang::FunctionDecl*, DerivedFns> m_DerivedFnInfoCollection;
-
-  public:
-    /// Adds a derived function to the collection.
-    void Add(const DerivedFnInfo& DFI);
-
-    /// Finds a `DerivedFnInfo` object in the collection that satisfies the
-    /// given differentiation request.
-    DerivedFnInfo Find(const DiffRequest& request) const;
-
-    bool IsDerivative(const clang::FunctionDecl* FD) const;
-
-  private:
-    /// Returns true if the collection already contains a `DerivedFnInfo`
-    /// object that represents the same derivative object as the provided
-    /// argument `DFI`.
-    bool AlreadyExists(const DerivedFnInfo& DFI) const;
-  };
-
   namespace plugin {
     struct DifferentiationOptions {
       DifferentiationOptions()
@@ -86,16 +59,17 @@ namespace clad {
       bool m_HasRuntime = false;
       bool m_PendingInstantiationsInFlight = false;
       bool m_HandleTopLevelDeclInternal = false;
-      DerivedFnCollector m_DFC;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
       ~CladPlugin();
       bool HandleTopLevelDecl(clang::DeclGroupRef DGR) override;
       clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
-
+      void DumpRequestedInfo(const clang::FunctionDecl* sourceFn,
+                             const clang::FunctionDecl* derivedFn);
+      void ProcessTopLevelDecl(clang::Decl* D);
     private:
       bool CheckBuiltins();
-      void ProcessTopLevelDecl(clang::Decl* D);
+      void InitializeDerivativeBuilder();
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,

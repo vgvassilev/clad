@@ -32,6 +32,8 @@ add_llvm_library(cladDifferentiator
   CladUtils.cpp
   ConstantFolder.cpp
   DerivativeBuilder.cpp
+  DerivedFnCollector.cpp
+  DerivedFnInfo.cpp
   DiffPlanner.cpp
   ForwardModeVisitor.cpp
   HessianModeVisitor.cpp
