@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Python and C++ clang-repl Integration - Progress Update"
+      date: 2022-06-15 14:00:00 +0200
+      speaker: "Ioana Ifrim"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_15_06_2022_Ioana-Python_and_C++_clang-repl_integration.pdf)"
     - title: "Write JITLink support for a new format/architecture - Roadmap"
       date: 2022-06-08 14:00:00 +0200
       speaker: "Sunho Kim"
