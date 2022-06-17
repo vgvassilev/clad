@@ -160,11 +160,15 @@ namespace clad {
   void InitErrorEstimation(
       llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
       llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model,
-      DerivativeBuilder& builder) {
+      DerivativeBuilder& builder, bool shouldPrintErrors = false) {
     // Set the handler.
     std::unique_ptr<ErrorEstimationHandler> pHandler(
         new ErrorEstimationHandler());
     handler.push_back(std::move(pHandler));
+    if (shouldPrintErrors || handler[0]->IsErrorPrintingEnabled()) {
+     handler.back()->EnableErrorPrinting();
+     handler.back()->SetErrorFileType(builder.GetErrorFileType());
+    }
     // Set error estimation model. If no custom model provided by user,
     // use the built in Taylor approximation model.
     if (model.size() != handler.size()) {
@@ -224,7 +228,7 @@ namespace clad {
       result = J.Derive(FD, request);
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this);
-      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
+      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request.PrintFPErrors);
       R.AddExternalSource(*m_ErrorEstHandler.back());
       // Finally begin estimation.
       result = R.Derive(FD, request);

@@ -71,9 +71,9 @@ float func1(float x, float y) {
 //CHECK-NEXT:     _delta_y += std::abs(* _d_y * y * {{.+}});
 //CHECK-NEXT:     _error_stream << "y" << " : " << std::abs(* _d_y * y * {{.+}}) << "\n";
 //CHECK-NEXT:     _final_error += _delta_{{x|y|t}} + _delta_{{x|y|t}} + _delta_{{x|y|t}};
-//CHECK-NEXT:     _error_stream << "\nFinal error contribution by {{x|y|t}} = " << _delta_{{x|y|t}};
-//CHECK-NEXT:     _error_stream << "\nFinal error contribution by {{x|y|t}} = " << _delta_{{x|y|t}};
-//CHECK-NEXT:     _error_stream << "\nFinal error contribution by {{x|y|t}} = " << _delta_{{x|y|t}};
+//CHECK-NEXT:     _error_stream << "\nFinal error contribution by {{x|y|t}} = " << _delta_{{x|y|t}} << "\n";
+//CHECK-NEXT:     _error_stream << "\nFinal error contribution by {{x|y|t}} = " << _delta_{{x|y|t}} << "\n";
+//CHECK-NEXT:     _error_stream << "\nFinal error contribution by {{x|y|t}} = " << _delta_{{x|y|t}} << "\n";
 //CHECK-NEXT: }
 
 int main(){

@@ -137,7 +137,7 @@ namespace clad {
     ///
     /// \returns the equivalent QualType of \c ostream objects.
     clang::QualType GetErrorFileType();
-    AddErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
+    void AddErrorEstimationModel(std::unique_ptr<FPErrorEstimationModel> estModel);
     /// Fuction to set the error diagnostic printing value for numerical
     /// differentiation.
     ///

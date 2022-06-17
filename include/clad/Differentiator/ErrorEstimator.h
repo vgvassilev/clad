@@ -72,6 +72,8 @@ public:
   /// A function to enable error printing.
   void EnableErrorPrinting() { m_PrintErrors = true; }
 
+  bool IsErrorPrintingEnabled() { return m_PrintErrors; }
+  
   /// Function to set the error estimation model currently in use.
   ///
   /// \param[in] estModel The error estimation model, can be either

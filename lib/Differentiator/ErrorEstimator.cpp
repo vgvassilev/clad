@@ -89,7 +89,8 @@ void ErrorEstimationHandler::BuildFinalErrorStmt() {
           BO_Shl, m_ErrorFile,
           m_EstModel->getAsExpr("\nFinal error contribution by " +
                                 deltaDecl->getNameAsString() + " = "));
-      m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_Shl, printDelta, delta),
+      printDelta = m_RMV->BuildOp(BO_Shl, printDelta, delta);
+      m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_Shl, printDelta, m_EstModel->getAsExpr("\n")),
                                direction::forward);
     }
   }
@@ -741,6 +742,9 @@ void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
   ArgDecls.push_back(m_RMV->BuildDeclStmt(errorRef));
   auto finErr = m_RMV->BuildDeclRef(errorRef);
   pullbackArgs.push_back(finErr);
+  // If Error printing was enabled, pass the same file object onto the next function.
+  if (m_PrintErrors)
+    pullbackArgs.push_back(m_ErrorFile);
   if (hasAssignee) {
     if (m_NestedFuncError)
       m_NestedFuncError = m_RMV->BuildOp(BO_Add, m_NestedFuncError, finErr);
