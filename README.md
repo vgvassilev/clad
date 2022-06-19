@@ -269,14 +269,14 @@ conda update --all
   ```
 ###  Building from source (example was tested on macOS Catalina 10.15.7)
   ```
-    brew install llvm@12
-    brew install python
-    python -m pip install lit
-    git clone https://github.com/vgvassilev/clad.git clad
-    mkdir build_dir inst; cd build_dir
-    cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`"
-    make && make install
-    make check-clad
+  brew install llvm@12
+  brew install python
+  python -m pip install lit
+  git clone https://github.com/vgvassilev/clad.git clad
+  mkdir build_dir inst; cd build_dir
+  cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`"
+  make && make install
+  make check-clad
   ```
 ###  Building from source LLVM, Clang and Clad (development environment)
   ```
