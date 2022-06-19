@@ -274,7 +274,7 @@ conda update --all
     python -m pip install lit
     git clone https://github.com/vgvassilev/clad.git clad
     mkdir build_dir inst; cd build_dir
-cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`"
+    cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="`which lit`"
     make && make install
     make check-clad
   ```
@@ -282,7 +282,7 @@ cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_
   ```
   sudo -H pip install lit
   git clone https://github.com/llvm/llvm-project.git src
-  cd src; git chekout llvmorg-13.0.0
+  cd src; git checkout llvmorg-13.0.0
   cd /tools
   git clone https://github.com/vgvassilev/clad.git clad
   cd ../../../
