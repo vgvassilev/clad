@@ -86,6 +86,11 @@ namespace clad {
         quals.removeConst();
         return S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
     }
+    // Function to Differentiate with Clad as Backend
+    void DifferentiateWithClad();
+
+    // Function to Differentiate with Enzyme as Backend
+    void DifferentiateWithEnzyme();
 
   public:
     using direction = rmv::direction;

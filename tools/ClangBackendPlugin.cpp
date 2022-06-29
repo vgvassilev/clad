@@ -7,10 +7,15 @@
 #include "clang/Basic/Version.h" // for CLANG_VERSION_MAJOR
 
 #if CLANG_VERSION_MAJOR > 8
-
 #include "ClangBackendPlugin.h"
 
 #include "llvm/Passes/PassBuilder.h"
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 namespace clad {
 using namespace llvm;
@@ -28,3 +33,41 @@ void ClangBackendPluginPass::registerCallbacks(PassBuilder& PB) {
 } // namespace clad
 
 #endif // CLANG_VERSION_MAJOR > 8
+
+#if LLVM_VERSION_MAJOR >= 10
+
+static void loadEnzymePass(const llvm::PassManagerBuilder& Builder,
+                           llvm::legacy::PassManagerBase& PM) {
+  llvm::PassRegistry* PR = llvm::PassRegistry::getPassRegistry();
+  const llvm::PassInfo* enzymePassInfo =
+      PR->getPassInfo(llvm::StringRef("enzyme"));
+  // if enzyme pass is not found, then return
+  if (!enzymePassInfo)
+    return;
+  llvm::Pass* enzymePassInstance = enzymePassInfo->createPass();
+  PM.add(enzymePassInstance);
+}
+static void loadNVVMPass(const llvm::PassManagerBuilder& Builder,
+                         llvm::legacy::PassManagerBase& PM) {
+  llvm::PassRegistry* PR = llvm::PassRegistry::getPassRegistry();
+  const llvm::PassInfo* nvvmPassInfo =
+      PR->getPassInfo(llvm::StringRef("preserve-nvvm"));
+  // if nvvm pass is not found, then return
+  if (!nvvmPassInfo)
+    return;
+  llvm::Pass* nvvmPassInstance = nvvmPassInfo->createPass();
+  PM.add(nvvmPassInstance);
+}
+
+// These constructors add our pass to a list of global extensions.
+static llvm::RegisterStandardPasses
+    enzymePassLoader_Ox(llvm::PassManagerBuilder::EP_VectorizerStart,
+                        loadEnzymePass);
+static llvm::RegisterStandardPasses
+    enzymePassLoader_O0(llvm::PassManagerBuilder::EP_EnabledOnOptLevel0,
+                        loadEnzymePass);
+static llvm::RegisterStandardPasses
+    nvvmPassLoader_OEarly(llvm::PassManagerBuilder::EP_EarlyAsPossible,
+                          loadNVVMPass);
+
+#endif // LLVM_VERSION_MAJOR >=10

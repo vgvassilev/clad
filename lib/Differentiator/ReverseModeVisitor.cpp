@@ -406,69 +406,12 @@ namespace clad {
 
     Stmt* gradientBody = nullptr;
 
-    // create derived variables for parameters which are not part of
-    // independent variables (args).
-    if (!use_enzyme) {
-      for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
-        ParmVarDecl* param = params[i];
-        // derived variables are already created for independent variables.
-        if (m_Variables.count(param))
-          continue;
-        // in vector mode last non diff parameter is output parameter.
-        if (isVectorValued && i == m_Function->getNumParams() - 1)
-          continue;
-        auto VDDerivedType = param->getType();
-        // We cannot initialize derived variable for pointer types because
-        // we do not know the correct size.
-        if (utils::isArrayOrPointerType(VDDerivedType))
-          continue;
-        auto VDDerived =
-            BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                         getZeroInit(VDDerivedType));
-        m_Variables[param] = BuildDeclRef(VDDerived);
-        addToBlock(BuildDeclStmt(VDDerived), m_Globals);
-      }
-      // Start the visitation process which outputs the statements in the
-      // current block.
-      StmtDiff BodyDiff = Visit(FD->getBody());
-      Stmt* Forward = BodyDiff.getStmt();
-      Stmt* Reverse = BodyDiff.getStmt_dx();
-      // Create the body of the function.
-      // Firstly, all "global" Stmts are put into fn's body.
-      for (Stmt* S : m_Globals)
-        addToCurrentBlock(S, direction::forward);
-      // Forward pass.
-      if (auto CS = dyn_cast<CompoundStmt>(Forward))
-        for (Stmt* S : CS->body())
-          addToCurrentBlock(S, direction::forward);
-      else
-        addToCurrentBlock(Forward, direction::forward);
-      // Reverse pass.
-      if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
-        for (Stmt* S : RCS->body())
-          addToCurrentBlock(S, direction::forward);
-      else
-        addToCurrentBlock(Reverse, direction::forward);
+    if (!use_enzyme)
+      DifferentiateWithClad();
+    else
+      DifferentiateWithEnzyme();
 
-      if (m_ExternalSource)
-        m_ExternalSource->ActOnEndOfDerivedFnBody();
-
-      gradientBody = endBlock();
-    } else {
-      // TODO: Write code to generate code that enzyme can work on
-      /*
-        Two if cases ought to come here
-        a. How to deal with functions of form - double function(double z, double
-        y, double z...); This is not straight forward as of now because Enzyme
-        does not have support for this yet, we will need to setup data
-        structures that can deal with this easily
-
-        b. How to deal with functions of the form - double function(double*
-        arrayOfParams); This is straightforward to deal in enzyme
-      */
-      gradientBody = endBlock();
-    }
-
+    gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
     endScope(); // Function body scope
     m_Sema.PopFunctionScopeInfo();
@@ -588,6 +531,121 @@ namespace clad {
     return DerivativeAndOverload{fnBuildRes.first, nullptr};
   }
 
+  void ReverseModeVisitor::DifferentiateWithClad() {
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
+
+    // create derived variables for parameters which are not part of
+    // independent variables (args).
+    for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
+      ParmVarDecl* param = paramsRef[i];
+      // derived variables are already created for independent variables.
+      if (m_Variables.count(param))
+        continue;
+      // in vector mode last non diff parameter is output parameter.
+      if (isVectorValued && i == m_Function->getNumParams() - 1)
+        continue;
+      auto VDDerivedType = param->getType();
+      // We cannot initialize derived variable for pointer types because
+      // we do not know the correct size.
+      if (utils::isArrayOrPointerType(VDDerivedType))
+        continue;
+      auto VDDerived =
+          BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
+                       getZeroInit(VDDerivedType));
+      m_Variables[param] = BuildDeclRef(VDDerived);
+      addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+    }
+    // Start the visitation process which outputs the statements in the
+    // current block.
+    StmtDiff BodyDiff = Visit(m_Function->getBody());
+    Stmt* Forward = BodyDiff.getStmt();
+    Stmt* Reverse = BodyDiff.getStmt_dx();
+    // Create the body of the function.
+    // Firstly, all "global" Stmts are put into fn's body.
+    for (Stmt* S : m_Globals)
+      addToCurrentBlock(S, direction::forward);
+    // Forward pass.
+    if (auto CS = dyn_cast<CompoundStmt>(Forward))
+      for (Stmt* S : CS->body())
+        addToCurrentBlock(S, direction::forward);
+    else
+      addToCurrentBlock(Forward, direction::forward);
+    // Reverse pass.
+    if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
+      for (Stmt* S : RCS->body())
+        addToCurrentBlock(S, direction::forward);
+    else
+      addToCurrentBlock(Reverse, direction::forward);
+
+    if (m_ExternalSource)
+      m_ExternalSource->ActOnEndOfDerivedFnBody();
+  }
+
+  void ReverseModeVisitor::DifferentiateWithEnzyme() {
+    // FIXME: Generalize this function to differentiate other kinds
+    // of function prototypes
+    unsigned numParams = m_Function->getNumParams();
+    auto origParams = m_Function->parameters();
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
+    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+
+    // Case 1: The function to be differentiated is of type double
+    // func(double* arr){...};
+    //        or double func(double arr[n]){...};
+    if (numParams == 1) {
+      QualType origTy = origParams[0]->getOriginalType();
+      if (origTy->isConstantArrayType() || origTy->isPointerType()) {
+        // Extract Pointer from Clad Array Ref
+        auto arrayRefNameExpr = BuildDeclRef(paramsRef[1]);
+        auto getPointerExpr = BuildCallExprToMemFn(arrayRefNameExpr, "ptr", {});
+        auto arrayRefToArrayStmt = BuildVarDecl(
+            origTy, "d_" + paramsRef[0]->getNameAsString(), getPointerExpr);
+        addToCurrentBlock(BuildDeclStmt(arrayRefToArrayStmt),
+                          direction::forward);
+
+        // Prepare Arguments to enzyme_autodiff
+        llvm::SmallVector<Expr*, 16> enzymeArgs;
+        enzymeArgs.push_back(
+            BuildDeclRef(const_cast<FunctionDecl*>(m_Function)));
+        enzymeArgs.push_back(BuildDeclRef(paramsRef[0]));
+        enzymeArgs.push_back(BuildDeclRef(arrayRefToArrayStmt));
+
+        // Prepare Parameters for Function Signature
+        llvm::SmallVector<ParmVarDecl*, 16> enzymeParams;
+        DeclContext* fdDeclContext =
+            const_cast<DeclContext*>(m_Function->getDeclContext());
+        enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+            fdDeclContext, noLoc, m_Function->getType()));
+        enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+            fdDeclContext, noLoc, paramsRef[0]->getType()));
+        enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+            fdDeclContext, noLoc, arrayRefToArrayStmt->getType()));
+
+        // Get the Parameter Types in Function Signature
+        llvm::SmallVector<QualType, 8> enzymeParamsType;
+        for (auto i : enzymeParams)
+          enzymeParamsType.push_back(i->getType());
+
+        // Prepare Function call
+        std::string enzymeCallName =
+            "__enzyme_autodiff_" + m_Function->getNameAsString();
+        IdentifierInfo* IIEnzyme = &m_Context.Idents.get(enzymeCallName);
+        DeclarationName nameEnzyme(IIEnzyme);
+        QualType enzymeFunctionType = m_Sema.BuildFunctionType(
+            m_Context.VoidTy, enzymeParamsType, noLoc, nameEnzyme,
+            originalFnType->getExtProtoInfo());
+        FunctionDecl* enzymeCallFD = FunctionDecl::Create(
+            m_Context, const_cast<DeclContext*>(m_Function->getDeclContext()),
+            noLoc, noLoc, nameEnzyme, enzymeFunctionType,
+            m_Function->getTypeSourceInfo(), SC_Extern);
+        enzymeCallFD->setParams(enzymeParams);
+
+        // Add Function call to block
+        Expr* enzymeCall = BuildCallExprToFunction(enzymeCallFD, enzymeArgs);
+        addToCurrentBlock(enzymeCall);
+      }
+    }
+  }
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diag(
         DiagnosticsEngine::Warning,

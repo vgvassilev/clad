@@ -389,4 +389,5 @@ llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, BACKEND_PLUGIN_NAME, BACKEND_PLUGIN_VERSION,
           clad::ClangBackendPluginPass::registerCallbacks};
 }
+
 #endif // CLANG_VERSION_MAJOR
