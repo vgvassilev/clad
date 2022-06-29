@@ -62,13 +62,13 @@ jobs:
             compiler: gcc-5
             clang-runtime: '8'
 
-          - name: ubu18-gcc6-runtime11-analyzers
+          - name: ubu18-gcc7-runtime11-analyzers
             os: ubuntu-18.04
-            compiler: gcc-6
+            compiler: gcc-7
             clang-runtime: '11'
             coverage: true
             cuda: true
-            extra_cmake_options: '-DLLVM_ENABLE_WERROR=On'
+            extra_cmake_options: '-DLLVM_ENABLE_WERROR=On -DENABLE_ENZYME_BACKEND=On'
             #clang-format: true
 
           - name: ubu18-gcc6-runtime11-benchmarks
