@@ -1,4 +1,17 @@
 - name: "CaaS Monthly Meeting"
+  date: 2022-07-07 17:00:00 +0200
+  time_cest: "17:00"
+  connect: "[Link to zoom](https://princeton.zoom.us/j/97839750473?pwd=V3dVRTl6ekN5UEdURTRvTHZPQ25Wdz09)"
+  label: caas_07Jul2022
+  agenda:
+    - title: Update
+      speaker: Ioana
+    - title: Round Table
+    - title: Next meeting
+      speaker: Ioana
+      link: 4 Aug 1700
+
+- name: "CaaS Monthly Meeting"
   date: 2022-06-09 17:00:00 +0200
   time_cest: "17:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/97839750473?pwd=V3dVRTl6ekN5UEdURTRvTHZPQ25Wdz09)"
