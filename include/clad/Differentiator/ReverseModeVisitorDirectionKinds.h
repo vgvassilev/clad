@@ -4,7 +4,7 @@
 namespace clad {
   namespace rmv {
     /// An enum to operate between forward and reverse passes.
-    enum direction : int { forward, reverse };
+    enum direction : int { forward, reverse, essential_reverse };
   } // namespace rmv
 } // namespace clad
 

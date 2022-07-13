@@ -1245,12 +1245,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> forwSweepDerivativeIndices(Indices.size());
     for (std::size_t i = 0; i < Indices.size(); i++) {
       StmtDiff IdxDiff = Visit(Indices[i]);
-      clonedIndices[i] = IdxDiff.getExpr();
-      reverseIndices[i] = IdxDiff.getExpr_dx() ? IdxDiff.getExpr_dx() : Clone(IdxDiff.getExpr());
+      auto idxStored = GlobalStoreAndRef(IdxDiff.getExpr(), "_t", /*force=*/true);
+      clonedIndices[i] = idxStored.getExpr();
+      reverseIndices[i] = idxStored.getExpr_dx();
+      if (isInsideLoop) {
+        auto forwIndex = StoreAndRef(idxStored.getExpr(), direction::forward);
+        auto revIndex = StoreAndRef(idxStored.getExpr_dx(), direction::essential_reverse, "_r");
+        clonedIndices[i] = forwIndex;
+        reverseIndices[i] = revIndex;
+      }
+      // reverseIndices[i] = Clone(IdxDiff.getExpr());
       forwSweepDerivativeIndices[i] = IdxDiff.getExpr();
     }
     auto cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
-
+    auto valueForRevSweep = BuildArraySubscript(BaseDiff.getExpr(), reverseIndices);
     Expr* target = BaseDiff.getExpr_dx();
     if (!target)
       return cloned;
@@ -1282,7 +1290,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Add it to the body statements.
       addToCurrentBlock(add_assign, direction::reverse);
     }
-    return StmtDiff(cloned, result, forwSweepDerivative);
+    return StmtDiff(cloned, result, forwSweepDerivative, valueForRevSweep);
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
@@ -1519,7 +1527,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       CallArgDx.push_back(argDiff.getExpr_dx());
       // Save cloned arg in a "global" variable, so that it is accessible from
       // the reverse pass.
-      StmtDiff argDiffStore = GlobalStoreAndRef(argDiff.getExpr());
+      StmtDiff argDiffStore = GlobalStoreAndRef(argDiff.getExpr(), "_t");
       // We need to pass the actual argument in the cloned call expression,
       // instead of a temporary, for arguments passed by reference. This is
       // because, callee function may modify the argument passed as reference
@@ -2079,6 +2087,45 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(op, ResultRef);
   }
 
+std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
+  struct Finder : public ConstStmtVisitor<Finder> {
+    std::vector<Expr*> m_return_exprs;
+    Sema& m_Sema;
+    ASTContext& m_Context;
+
+    public:
+
+    Finder(Sema& S) : m_Sema(S), m_Context(S.getASTContext()) {}
+
+    std::vector<Expr*> Find(const Expr* E) {
+      Visit(E);
+      return m_return_exprs;
+    }
+
+    void VisitBinaryOperator(const BinaryOperator* BO) {
+      if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
+        Visit(BO->getLHS());
+      } else if (BO->isCommaOp()) {
+        /**/
+      } else {
+        assert("Unexpected binary operator!!");
+      }
+    }
+
+    void VisitDeclRefExpr(const DeclRefExpr* DRE) {
+      m_return_exprs.push_back(const_cast<DeclRefExpr*>(DRE));
+    }
+
+    void VisitExpr(const Expr* E) {
+      if (auto PE = dyn_cast<ParenExpr>(E)) {
+        Visit(PE->getSubExpr());
+      }
+    }
+  };
+  Finder finder(m_Sema);
+  return finder.Find(E);
+};
+
   StmtDiff
   ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     auto opCode = BinOp->getOpcode();
@@ -2251,11 +2298,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Visit LHS, but delay emission of its derivative statements, save them
       // in Lblock
       beginBlock(direction::reverse);
+      beginBlock(direction::essential_reverse);
       Ldiff = Visit(L, dfdx());
+      Stmts essentialRevBlock = EndBlockWithoutCreatingCS(direction::essential_reverse);
       auto Lblock = endBlock(direction::reverse);
-      Lstored = GlobalStoreAndRef(Ldiff.getExpr(), "_t", /*force*/true);
-      auto assign = BuildOp(BO_Assign, Ldiff.getExpr(), Lstored.getExpr());
-      addToCurrentBlock(assign, direction::reverse);
+      auto return_exprs = GetInnermostReturnExpr(Ldiff.getExpr());
+      if (L->HasSideEffects(m_Context)) {
+        Expr* E = Ldiff.getExpr();
+        auto storeE = StoreAndRef(E, m_Context.getLValueReferenceType(E->getType()));
+        Ldiff.updateStmt(storeE);
+      }
+      
+      // if (/*!L->HasSideEffects(m_Context)*/true) {
+      //   Lstored = GlobalStoreAndRef(Ldiff.getExpr(), "_t", /*force*/true);
+      //   auto assign = BuildOp(BO_Assign, Ldiff.getExpr(), Lstored.getExpr_dx());
+      //   if (isInsideLoop) {
+      //     addToCurrentBlock(Lstored.getExpr(), direction::forward);
+      //   }
+      //   addToCurrentBlock(assign, direction::reverse);
+      // }
+
       Expr* LCloned = Ldiff.getExpr();
       // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
       // like (x = y) it propagates recursively, so _d_x is also returned.
@@ -2278,19 +2340,29 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // If assigned expr is dependent, first update its derivative;
       auto Lblock_begin = Lblock->body_rbegin();
       auto Lblock_end = Lblock->body_rend();
-      if (isInsideLoop) {
-        // x[i] = y[j] + ... -> push(x[i]); x[i] = y[j] + ...
-        Expr* PushL = Ldiff.getExpr();
-        Expr* PopL = Ldiff.getExpr_dx();
-        VarDecl* popLVar = BuildVarDecl(PopL->getType(), "_t", PopL,
-                                        /*DirectInit=*/true);
+      // if (Lblock->size()) {
+      //   addToCurrentBlock(*Lblock_begin, direction::reverse);
+      //   Lblock_begin = std::next(Lblock_begin);
+      // }
 
-        addToCurrentBlock(PushL, direction::forward);
-        addToCurrentBlock(BuildDeclStmt(popLVar), direction::reverse);
-      }
-      if (dfdx() && Lblock->size()) {
+      for (auto S : essentialRevBlock)
+        addToCurrentBlock(S, direction::reverse);
+
+      if (dfdx() && Lblock_begin != Lblock_end) {
         addToCurrentBlock(*Lblock_begin, direction::reverse);
         Lblock_begin = std::next(Lblock_begin);
+      }
+
+      // llvm::errs()<<"Dumping return_exprs:\n";
+      for (auto E : return_exprs) {
+        // E->dumpColor();
+        // llvm::errs()<<"\n";
+        Lstored = GlobalStoreAndRef(E, "_t", /*force=*/true);
+        auto assign = BuildOp(BinaryOperatorKind::BO_Assign, E, Lstored.getExpr_dx());
+        if (isInsideLoop) {
+          addToCurrentBlock(Lstored.getExpr(), direction::forward);
+        }
+        addToCurrentBlock(assign, direction::reverse);
       }
 
       if (m_ExternalSource)
@@ -2336,6 +2408,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           //   double r = _ref0 *= z;
           if (LCloned->HasSideEffects(m_Context)) {
             auto RefType = getNonConstType(L->getType(), m_Context, m_Sema);
+            // RefType = m_Context.getLValueReferenceType(RefType);
             LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
                                /*forceDeclCreation=*/true);
           }
@@ -2839,7 +2912,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this,
                                 StmtDiff{Push, Pop},
                                 /*isConstant*/ false,
-                                /*isInsideLoop*/ true};
+                                /*isInsideLoop*/ true, /*needsUpdate=*/ true};
     } else {
       Expr* Ref = BuildDeclRef(GlobalStoreImpl(
           getNonConstType(E->getType(), m_Context, m_Sema), prefix));
@@ -2847,7 +2920,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this,
                                 StmtDiff{Ref, Ref},
                                 /*isConstant*/ false,
-                                /*isInsideLoop*/ false};
+                                /*isInsideLoop*/ false, /*needsUpdate=*/ true};
     }
   }
 
