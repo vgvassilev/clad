@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oCallArguments.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oCallArguments.out
 // RUN: ./CallArguments.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

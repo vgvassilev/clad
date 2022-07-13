@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oSimple.out -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oSimple.out -Xclang -verify 
 // RUN: ./Simple.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

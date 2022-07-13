@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oPointer.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oPointer.out
 // RUN: ./Pointer.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

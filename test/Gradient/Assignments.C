@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseAssignments.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oReverseAssignments.out
 // RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

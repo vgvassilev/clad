@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -fsyntax-only -Xclang -verify 
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

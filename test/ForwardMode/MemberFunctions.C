@@ -1,8 +1,8 @@
-// RUN: %cladclang %s -I%S/../../include -oMemberFunctions.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oMemberFunctions.out 
 // RUN: ./MemberFunctions.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | FileCheck %s
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oMemberFunctions-cpp14.out 
 // RUN: ./MemberFunctions-cpp14.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -std=c++17 %s -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | FileCheck %s
+// RUN: %cladclang -std=c++17 %s -I%S/../../include -oMemberFunctions-cpp17.out 
 // RUN: ./MemberFunctions-cpp17.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

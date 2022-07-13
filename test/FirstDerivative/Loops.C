@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -std=c++17 -I%S/../../include -oLoops.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -std=c++17 -I%S/../../include -oLoops.out
 // RUN: ./Loops.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

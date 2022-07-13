@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oSwitch.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oSwitch.out
 // RUN: ./Switch.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctionsInNamespaces.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oFunctionsInNamespaces.out 
 // RUN: ./FunctionsInNamespaces.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}

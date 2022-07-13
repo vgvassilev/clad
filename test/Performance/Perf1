@@ -1,4 +1,4 @@
-// RUN: time LIBCLAD_TIMING=1 %cladclang %s -O3 -I%S/../../include -std=c++11 -oPerf1.out 2>&1 | FileCheck %s
+// RUN: time LIBCLAD_TIMING=1 %cladclang %s -O3 -I%S/../../include -std=c++11 -oPerf1.out 
 // RUN: ./Perf1.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //#define COMPILER_TEST_ONLY

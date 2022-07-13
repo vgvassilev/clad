@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oGradientDiffInterface.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oGradientDiffInterface.out
 // RUN: ./GradientDiffInterface.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "clad/Differentiator/Differentiator.h"

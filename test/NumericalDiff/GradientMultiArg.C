@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang %s -I%S/../../include -oGradientMultiArg.out 2>&1 | FileCheck -check-prefix=CHECK %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -oGradientMultiArg.out
 // RUN: ./GradientMultiArg.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oJacobian.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oJacobian.out
 // RUN: ./Jacobian.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

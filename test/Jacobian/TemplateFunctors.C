@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | FileCheck %s 
+// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out  
 // RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
