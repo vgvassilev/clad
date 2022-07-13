@@ -42,6 +42,7 @@ namespace clad {
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
+    std::vector<Stmts> m_EssentialReverse;
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
@@ -133,15 +134,19 @@ namespace clad {
     Stmts& getCurrentBlock(direction d = direction::forward) {
       if (d == direction::forward)
         return m_Blocks.back();
-      else
+      else if (d == direction::reverse)
         return m_Reverse.back();
+      else 
+        return m_EssentialReverse.back();
     }
     /// Create new block.
     Stmts& beginBlock(direction d = direction::forward) {
       if (d == direction::forward)
         m_Blocks.push_back({});
-      else
+      else if (d == direction::reverse)
         m_Reverse.push_back({});
+      else 
+        m_EssentialReverse.push_back({});
       return getCurrentBlock(d);
     }
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
@@ -150,12 +155,27 @@ namespace clad {
         auto CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
         m_Blocks.pop_back();
         return CS;
-      } else {
+      } else if (d == direction::reverse) {
         auto CS = MakeCompoundStmt(getCurrentBlock(direction::reverse));
         std::reverse(CS->body_begin(), CS->body_end());
         m_Reverse.pop_back();
         return CS;
+      } else {
+        auto CS = MakeCompoundStmt(getCurrentBlock(d));
+        m_EssentialReverse.pop_back();
+        return CS;
       }
+    }
+
+    Stmts EndBlockWithoutCreatingCS(direction d = direction::forward) {
+      auto blk = getCurrentBlock(d);
+      if (d == direction::forward)
+        m_Blocks.pop_back();
+      else if (d == direction::reverse)
+        m_Reverse.pop_back();
+      else
+        m_EssentialReverse.pop_back();
+      return blk;
     }
     /// Output a statement to the current block. If Stmt is null or is an unused
     /// expression, it is not output and false is returned.
@@ -196,7 +216,15 @@ namespace clad {
       // Name reverse temporaries as "_r" instead of "_t".
       if ((d == direction::reverse) && (prefix == "_t"))
         prefix = "_r";
-      return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix,
+      Stmts* blk = nullptr;
+      if (d == direction::essential_reverse) {
+        if (!m_EssentialReverse.empty())
+          blk = &getCurrentBlock(direction::essential_reverse);
+        else
+          blk = &getCurrentBlock(direction::reverse);
+      } else
+        blk = &getCurrentBlock(d);
+      return VisitorBase::StoreAndRef(E, Type, *blk, prefix,
                                       forceDeclCreation, IS);
     }
 
@@ -583,6 +611,8 @@ namespace clad {
 
     clang::QualType ComputeAdjointType(clang::QualType T);
     clang::QualType ComputeParamType(clang::QualType T);
+
+    std::vector<clang::Expr*> GetInnermostReturnExpr(clang::Expr* E);
   };
 } // end namespace clad
 
