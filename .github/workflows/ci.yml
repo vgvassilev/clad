@@ -489,6 +489,7 @@ jobs:
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
+        brew install llvm
         # Update openssl on osx because the current one is deprecated by python.
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
