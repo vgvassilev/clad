@@ -25,6 +25,10 @@
       date: 2022-06-08 14:00:00 +0200
       speaker: "Sunho Kim"
       link: "[Slides](/assets/presentations/CaaS_Weekly_08_06_2022_Sunho_Write_JITLink_support_for_a_new format_architecture.pdf)"
+    - title: "Optimize ROOT use of modules for large codebases - Roadmap"
+      date: 2022-06-08 14:00:00 +0200
+      speaker: "Jun Zhang"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_08_06_2022_Jun_Zhang_Optimize_ROOT_Use_Of_Modules_For_Large_Codebases.pdf)"
     - title: "Add Initial Integration of Clad with Enzyme - Roadmap"
       date: 2022-06-01 14:00:00 +0200
       speaker: "Manish Kausik H"
