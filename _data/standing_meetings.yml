@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Clang-REPL Interactive Analysis - Roadmap"
+      date: 2022-06-29 14:00:00 +0200
+      speaker: "Rohit Singh Rathaur"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_29_06_22_Rohit-Clang_REPL_Interactive_Analysis.pdf)"
     - title: "Python and C++ clang-repl Integration - Progress Update"
       date: 2022-06-15 14:00:00 +0200
       speaker: "Ioana Ifrim"
@@ -49,7 +53,7 @@
       date: 2022-04-27 14:00:00 +0200
       speaker: "Garima Singh"
       link: "[Slides](/assets/presentations/CaaS_Weekly_27_04_2022_Garima-Progress_Report_april_2022.pdf)"
-    - title: "The CaaS Project. Progress & Plans Q1, Q2"
+    - title: "The CaaS Project.Progress & Plans Q1, Q2"
       date: 2022-04-20 14:00:00 +0200
       speaker: "Vassil Vassilev"
       link: "[Slides](/assets/presentations/CaaS_Weekly_20_04_2022_Vassil-Q1_Project_Progress_and_Plans.pdf)"
