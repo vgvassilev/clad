@@ -17,6 +17,8 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
   } else if (auto PTType = baseType->getAs<PointerType>()) {
     return PTType->getPointeeType();
   }
+  assert(0 && "Unreachable");
+  return {};
 }
 
 Expr* UpdateErrorForFuncCallAssigns(ErrorEstimationHandler* handler,
