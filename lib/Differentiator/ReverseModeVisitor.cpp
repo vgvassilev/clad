@@ -1403,17 +1403,13 @@ namespace clad {
 
     if (NArgs == 1 && !utils::HasAnyReferenceOrPointerArgument(FD) &&
         !isa<CXXMethodDecl>(FD)) {
-      IdentifierInfo* II =
-          &m_Context.Idents.get(FD->getNameAsString() + "_pushforward");
-      // Try to find it in builtin derivatives
-      DeclarationName name(II);
-      DeclarationNameInfo DNInfo(name, noLoc);
+      std::string customPushforward = FD->getNameAsString() + "_pushforward";
       auto pushforwardCallArgs = DerivedCallArgs;
       pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
           DerivedCallArgs.front()->getType(), m_Context, 1));
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              DNInfo, pushforwardCallArgs, getCurrentScope(),
+              customPushforward, pushforwardCallArgs, getCurrentScope(),
               const_cast<DeclContext*>(FD->getDeclContext()));
       if (OverloadedDerivedFn)
         asGrad = false;
@@ -1433,11 +1429,6 @@ namespace clad {
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     if (!OverloadedDerivedFn) {
-      IdentifierInfo* II =
-          &m_Context.Idents.get(FD->getNameAsString() + "_pullback");
-      DeclarationName name(II);
-      DeclarationNameInfo DNInfo(name, noLoc);
-
       unsigned size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
 
       size_t idx = 0;
@@ -1537,9 +1528,10 @@ namespace clad {
                                 dfdx());
 
       // Try to find it in builtin derivatives
+      std::string customPullback = FD->getNameAsString() + "_pullback";
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              DNInfo, pullbackCallArgs, getCurrentScope(),
+              customPullback, pullbackCallArgs, getCurrentScope(),
               const_cast<DeclContext*>(FD->getDeclContext()));
     }
 

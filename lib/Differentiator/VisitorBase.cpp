@@ -597,9 +597,6 @@ namespace clad {
     bool isSupported = argType->isArithmeticType();
     if (!isSupported)
       return nullptr;
-    IdentifierInfo* II = &m_Context.Idents.get("forward_central_difference");
-    DeclarationName name(II);
-    DeclarationNameInfo DNInfo(name, noLoc);
     // Build function args.
     llvm::SmallVector<Expr*, 16U> NumDiffArgs;
     NumDiffArgs.push_back(targetFuncCall);
@@ -612,8 +609,9 @@ namespace clad {
                                                             printErrorInf));
     NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
     // Return the found overload.
+    std::string Name = "forward_central_difference";
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        DNInfo, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }
@@ -624,9 +622,6 @@ namespace clad {
       llvm::SmallVectorImpl<Expr*>& args,
       llvm::SmallVectorImpl<Expr*>& outputArgs) {
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
-    IdentifierInfo* II = &m_Context.Idents.get("central_difference");
-    DeclarationName name(II);
-    DeclarationNameInfo DNInfo(name, noLoc);
     llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
     NumDiffArgs.push_back(targetFuncCall);
     // build the clad::tape<clad::array_ref>> = {};
@@ -660,8 +655,9 @@ namespace clad {
       NumericalDiffMultiArg.push_back(PushExpr);
       NumDiffArgs.push_back(args[i]);
     }
+    std::string Name = "central_difference";
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        DNInfo, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }
