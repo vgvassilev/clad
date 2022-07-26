@@ -1020,7 +1020,7 @@ namespace clad {
 
   // FIXME: Move this to DerivativeBuilder.cpp
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
-      DeclarationNameInfo DNI, llvm::SmallVectorImpl<Expr*>& CallArgs,
+      const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, clang::DeclContext* originalFnDC,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
     NamespaceDecl* NSD = nullptr;
@@ -1078,7 +1078,11 @@ namespace clad {
     } else {
       SS.Extend(m_Context, NSD, noLoc, noLoc);
     }
-    LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
+    IdentifierInfo* II = &m_Context.Idents.get(Name);
+    DeclarationName name(II);
+    DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
+
+    LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
     Expr* OverloadedFn = 0;
@@ -1115,12 +1119,6 @@ namespace clad {
     std::string s = std::to_string(m_DerivativeOrder);
     if (m_DerivativeOrder == 1)
       s = "";
-
-    IdentifierInfo* II =
-        &m_Context.Idents.get(FD->getNameAsString() + "_pushforward");
-    DeclarationName name(II);
-    SourceLocation DeclLoc;
-    DeclarationNameInfo DNInfo(name, DeclLoc);
 
     SourceLocation noLoc;
     llvm::SmallVector<Expr*, 4> CallArgs{};
@@ -1204,8 +1202,9 @@ namespace clad {
     }
 
     // Try to find a user-defined overloaded derivative.
+    std::string customPushforward = FD->getNameAsString() + "_pushforward";
     Expr* callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        DNInfo, customDerivativeArgs, getCurrentScope(),
+        customPushforward, customDerivativeArgs, getCurrentScope(),
         const_cast<DeclContext*>(FD->getDeclContext()));
 
     // Check if it is a recursive call.
