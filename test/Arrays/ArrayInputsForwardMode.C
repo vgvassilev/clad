@@ -18,8 +18,8 @@ double divide(double *arr) {
 }
 
 //CHECK:   double divide_darg0_1(double *arr) {
-//CHECK_NEXT:       return (0 * arr[1] - arr[0] * 1) / (arr[1] * arr[1]);
-//CHECK_NEXT:   }
+//CHECK-NEXT:       return (0 * arr[1] - arr[0] * 1) / (arr[1] * arr[1]);
+//CHECK-NEXT:   }
 
 double addArr(double *arr, int n) {
   double ret = 0;
