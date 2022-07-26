@@ -138,8 +138,8 @@ namespace clad {
 
       if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
         CSS.Extend(C, ND,
-                   /*NamespaceLoc=*/noLoc,
-                   /*ColonColonLoc=*/noLoc);
+                   /*NamespaceLoc=*/utils::GetValidSLoc(semaRef),
+                   /*ColonColonLoc=*/utils::GetValidSLoc(semaRef));
       } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
         auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
