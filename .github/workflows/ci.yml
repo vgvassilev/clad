@@ -19,32 +19,32 @@ jobs:
 
         include:
           - name: osx-clang-runtime5
-            os: macos-10.15
+            os: macos-11
             compiler: clang
             clang-runtime: '5.0'
 
           - name: osx-clang-runtime6
-            os: macos-10.15
+            os: macos-11
             compiler: clang
             clang-runtime: '6.0'
 
           - name: osx-clang-runtime7
-            os: macos-10.15
+            os: macos-11
             compiler: clang
             clang-runtime: '7'
 
           - name: osx-clang-runtime8
-            os: macos-10.15
+            os: macos-11
             compiler: clang
             clang-runtime: '8'
 
           - name: osx-clang-runtime9
-            os: macos-10.15
+            os: macos-11
             compiler: clang
             clang-runtime: '9'
 
           - name: osx-clang-runtime10
-            os: macos-10.15
+            os: macos-11
             compiler: clang
             clang-runtime: '10'
 
@@ -553,8 +553,12 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '5.0' && '${{ matrix.clang-runtime }}' != '6.0' && '${{ matrix.clang-runtime }}' != '10' && '${{ matrix.clang-runtime }}' != '10' && '${{ matrix.clang-runtime }}' != '13' && '${{ matrix.clang-runtime }}' != '14' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' != '5.0' && '${{ matrix.clang-runtime }}' != '6.0' && '${{ matrix.clang-runtime }}' != '10' && '${{ matrix.clang-runtime }}' != '13' && '${{ matrix.clang-runtime }}' != '14' ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
+        else
+          # Remove the c++ headers that come with the llvm package from homebrew
+          # allowing clang to work with system's SDK.
+          sudo rm -fr /usr/local/opt/llvm*/include/c++
         fi
 
         pip3 install lit # LLVM lit is not part of the llvm releases...
@@ -722,7 +726,7 @@ jobs:
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
       # When debugging increase to a suitable value!
-      timeout-minutes: ${{ github.event.pull_request && 1 || 20 }}
+      timeout-minutes: ${{ github.event.pull_request && 20 || 20 }}
     - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
