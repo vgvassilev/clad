@@ -17,6 +17,10 @@
   agenda:
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
+    - title: "Adding AD Support to RooFit"
+      date: 2022-07-20 14:00:00 +0200
+      speaker: "Garima Singh"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_20_07_22_Garima-Adding_AD_to_RooFit.pdf)"
     - title: "Clang-REPL Interactive Analysis - Roadmap"
       date: 2022-06-29 14:00:00 +0200
       speaker: "Rohit Singh Rathaur"
