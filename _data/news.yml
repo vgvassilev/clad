@@ -1,3 +1,15 @@
+- date: 19 May 2022
+  headline: "Recording from March discussion on ez-clang: experimental C++ REPL for bare metal"
+  link: "https://youtu.be/gKNxTeDBczk"
+
+- date: 25 March 2022
+  headline: "Clang-Repl released in LLVM 14"
+  link: "https://github.com/llvm/llvm-project/releases/tag/llvmorg-14.0.0"
+
+- date: 14 December 2021
+  headline: "Technical Specification for libInterOp released"
+  link: "https://compiler-research.org/libinterop/"
+
 - date: 4 October 2021
   headline: "Clang-Repl released in LLVM 13"
   link: "https://github.com/llvm/llvm-project/releases/tag/llvmorg-13.0.0"
