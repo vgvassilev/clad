@@ -18,21 +18,6 @@ jobs:
       matrix:
 
         include:
-          - name: osx-clang-runtime5
-            os: macos-11
-            compiler: clang
-            clang-runtime: '5.0'
-
-          - name: osx-clang-runtime6
-            os: macos-11
-            compiler: clang
-            clang-runtime: '6.0'
-
-          - name: osx-clang-runtime7
-            os: macos-11
-            compiler: clang
-            clang-runtime: '7'
-
           - name: osx-clang-runtime8
             os: macos-11
             compiler: clang
@@ -494,44 +479,7 @@ jobs:
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
         PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
-        # Package llvm@5 is not supported on brew. We must install it from binary build.
-        if [[ '${{ matrix.clang-runtime }}' == '5.0' ]]; then
-          PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@5/
-          pushd /usr/local/opt
-          sudo curl -L https://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
-          sudo rm -fr /usr/local/clang*
-          sudo mv clang+llvm-5.0.2-x86_64-apple-darwin/ llvm@5/
-          # Use llvm/llvm@10/llvm@6 Filecheck
-          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            if [[ -f /usr/local/opt/llvm/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@10/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@6/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            fi
-          fi
-          popd
-        fi
-        # Package llvm@6
-        if [[ '${{ matrix.clang-runtime }}' == '6.0' ]]; then
-          PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@6/
-          pushd /usr/local/opt
-          sudo curl -L https://releases.llvm.org/6.0.0/clang+llvm-6.0.0-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
-          sudo rm -fr /usr/local/clang*
-          sudo mv clang+llvm-6.0.0-x86_64-apple-darwin/ llvm@6/
-          # Use llvm/llvm@10/llvm@6 Filecheck
-          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            if [[ -f /usr/local/opt/llvm/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@10/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@10/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            elif [[ -f /usr/local/opt/llvm\@6/bin/FileCheck ]]; then
-              sudo ln -s /usr/local/opt/llvm\@6/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-            fi
-          fi
-          popd
-        fi
+
         # For now Packages llvm@10, llvm@13, llvm@14 are not supported on brew.
         # Install llvm from github releases.
         if [[ '${{ matrix.clang-runtime }}' == '10' || '${{ matrix.clang-runtime }}' == '13' || '${{ matrix.clang-runtime }}' == '14' ]]; then
@@ -553,7 +501,7 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '5.0' && '${{ matrix.clang-runtime }}' != '6.0' && '${{ matrix.clang-runtime }}' != '10' && '${{ matrix.clang-runtime }}' != '13' && '${{ matrix.clang-runtime }}' != '14' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' != '10' && '${{ matrix.clang-runtime }}' != '13' && '${{ matrix.clang-runtime }}' != '14' ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         else
           # Remove the c++ headers that come with the llvm package from homebrew
