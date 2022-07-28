@@ -525,21 +525,6 @@ jobs:
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
-        # Ubuntu 16.04 & 18.04 & 20.04 llvm/clang-6.0 package is broken - install it from binary build.
-        if [[ '${{ matrix.clang-runtime }}' == '6.0' ]]; then
-          # Install clang-6.0 to run the plugin with.
-          PATH_TO_LLVM_BUILD=/usr/lib/opt/llvm-${{ matrix.clang-runtime }}/
-          sudo mkdir -p /usr/lib/opt
-          pushd /usr/lib/opt
-          sudo curl -L https://releases.llvm.org/6.0.1/clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}.tar.xz | sudo xz -d -c | sudo tar -x
-          sudo rm -fr /usr/lib/clang*
-          sudo mv clang+llvm-6.0.1-x86_64-linux-gnu-ubuntu-${UNIX_DISTRO}/ llvm-6.0/
-          if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            sudo apt install llvm-6.0-dev llvm-6.0-tools
-            sudo ln -s /usr/lib/llvm-6.0/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
-          fi
-          popd
-        fi
         # llvm-8-tools is broken as it depends on python2.7 we use FileCheck from llvm-7-tools
         if [[ '${{ matrix.clang-runtime }}' == '8' ]]; then
           if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
