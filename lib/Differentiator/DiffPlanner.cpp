@@ -445,8 +445,8 @@ namespace clad {
       // we need to search for independent parameters in fields of the
       // class that defines the call operator instead.
       if (FD->param_empty() && Functor) {
-        size_t totalFields = std::distance(Functor->field_begin(),
-                                           Functor->field_end());
+        int totalFields = std::distance(Functor->field_begin(),
+                                        Functor->field_end());
         // Fail if the specified index is invalid.
         if ((idx < 0) || idx >= totalFields) {
           utils::EmitDiag(semaRef, DiagnosticsEngine::Error,

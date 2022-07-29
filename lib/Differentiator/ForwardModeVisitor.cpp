@@ -162,8 +162,6 @@ namespace clad {
       if (identifierMissing)
         m_DeclReplacements[PVD] = newPVD;
 
-      QualType nonRefParamType = PVD->getType().getNonReferenceType();
-
       if (!isDifferentiableType(PVD->getType()))
         continue;
       auto derivedPVDName = "_d_" + std::string(PVDII->getName());
