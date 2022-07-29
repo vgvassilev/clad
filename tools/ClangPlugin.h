@@ -110,7 +110,8 @@ namespace clad {
 
     protected:
       std::unique_ptr<clang::ASTConsumer>
-      CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef InFile) {
+      CreateASTConsumer(clang::CompilerInstance& CI,
+                        llvm::StringRef InFile) override {
         return std::unique_ptr<clang::ASTConsumer>(new ConsumerType(CI, m_DO));
       }
 

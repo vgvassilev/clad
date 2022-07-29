@@ -279,7 +279,7 @@ public:
       bool hasAssignee) override;
   void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
-      llvm::SmallVectorImpl<clang::Decl*>& declsDiff);
+      llvm::SmallVectorImpl<clang::Decl*>& declsDiff) override;
 };
 } // namespace clad
 
