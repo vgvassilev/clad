@@ -43,7 +43,7 @@ void MultiplexExternalRMVSource::ActBeforeCreatingDerivedFnParamTypes(
   for (auto source : m_Sources) {
     source->ActBeforeCreatingDerivedFnParamTypes(numExtraParams);
   }
-};
+}
 void MultiplexExternalRMVSource::ActAfterCreatingDerivedFnParamTypes(
     llvm::SmallVectorImpl<clang::QualType>& paramTypes) {
   for (auto source : m_Sources) {

@@ -538,7 +538,7 @@ void ErrorEstimationHandler::ActAfterCreatingDerivedFnParamTypes(
   // will have an extra argument which will hold the final error value
   paramTypes.push_back(
       m_RMV->m_Context.getLValueReferenceType(m_RMV->m_Context.DoubleTy));
-};
+}
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
