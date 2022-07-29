@@ -99,7 +99,24 @@ namespace clad {
     };
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
-      : m_CI(CI), m_DO(DO), m_HasRuntime(false) { }
+        : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
+#if CLANG_VERSION_MAJOR > 8
+
+      FrontendOptions& Opts = CI.getFrontendOpts();
+      // Find the path to clad.
+      llvm::StringRef CladSoPath;
+      for (llvm::StringRef P : Opts.Plugins)
+        if (llvm::sys::path::stem(P).endswith("clad")) {
+          CladSoPath = P;
+          break;
+        }
+
+      // Register clad as a backend pass.
+      CodeGenOptions& CGOpts = CI.getCodeGenOpts();
+      CGOpts.PassPlugins.push_back(CladSoPath.str());
+#endif // CLANG_VERSION_MAJOR > 8
+    }
+
     CladPlugin::~CladPlugin() {}
 
     // We cannot use HandleTranslationUnit because codegen already emits code on
@@ -346,6 +363,8 @@ namespace clad {
   }
 } // end namespace clad
 
+// Attach the frontend plugin.
+
 using namespace clad::plugin;
 // register the PluginASTAction in the registry.
 static clang::FrontendPluginRegistry::Add<Action<CladPlugin> >
@@ -353,3 +372,21 @@ X("clad", "Produces derivatives or arbitrary functions");
 
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
+
+#include "clang/Basic/Version.h" // for CLANG_VERSION_MAJOR
+#if CLANG_VERSION_MAJOR > 8
+
+// Attach the backend plugin.
+
+#include "ClangBackendPlugin.h"
+
+#define BACKEND_PLUGIN_NAME "CladBackendPlugin"
+// FIXME: Add a proper versioning that's based on CLANG_VERSION_STRING and
+// a similar approach for clad (see Version.cpp and VERSION).
+#define BACKEND_PLUGIN_VERSION "FIXME"
+extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
+llvmGetPassPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, BACKEND_PLUGIN_NAME, BACKEND_PLUGIN_VERSION,
+          clad::ClangBackendPluginPass::registerCallbacks};
+}
+#endif // CLANG_VERSION_MAJOR
