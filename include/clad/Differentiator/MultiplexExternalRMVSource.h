@@ -16,6 +16,7 @@ private:
 
 public:
   MultiplexExternalRMVSource() = default;
+  virtual ~MultiplexExternalRMVSource();
   /// Adds `source` to the sequence of external RMV sources managed by this
   /// multiplexer.
   void AddSource(ExternalRMVSource& source);

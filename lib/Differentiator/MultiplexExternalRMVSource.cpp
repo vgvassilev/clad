@@ -3,6 +3,10 @@
 
 using namespace clang;
 namespace clad {
+
+// Pin the vtable here.
+MultiplexExternalRMVSource::~MultiplexExternalRMVSource() {}
+
 // void MultiplexExternalRMVSource::MultiplexExternalRMVSource() {}
 void MultiplexExternalRMVSource::AddSource(ExternalRMVSource& source) {
   m_Sources.push_back(&source);
