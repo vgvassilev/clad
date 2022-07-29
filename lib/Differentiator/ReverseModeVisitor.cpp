@@ -307,10 +307,6 @@ namespace clad {
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
-    // Calculate the total number of parameters that would be present in the
-    // derived function if all args are requested
-    size_t totalDerivedParamsSize = m_Function->getNumParams() * 2 +
-                                    numExtraParam;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
     if (!isVectorValued && numExtraParam == 0)
@@ -1270,7 +1266,6 @@ namespace clad {
         // _r0 = _d_a;
         // ```
         Expr* dArg = nullptr;
-        Expr* derivedArgE = nullptr;
         if (utils::isArrayOrPointerType(argDiff.getExpr()->getType())) {
           Expr* init = argDiff.getExpr_dx();
           if (isa<ConstantArrayType>(argDiff.getExpr_dx()->getType()))
@@ -1429,8 +1424,6 @@ namespace clad {
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     if (!OverloadedDerivedFn) {
-      unsigned size_type_bits = m_Context.getIntWidth(m_Context.getSizeType());
-
       size_t idx = 0;
 
       /// Add base derivative expression in the derived call output args list if
@@ -1472,8 +1465,7 @@ namespace clad {
           // is required because the pullback function expects `clad::array_ref`
           // type for representing array derivatives. Currently, only constant
           // array data members have derivatives of constant array types.
-          if (auto CAT =
-                  dyn_cast<ConstantArrayType>(argDerivative->getType())) {
+          if (isa<ConstantArrayType>(argDerivative->getType())) {
             Expr* init =
                 utils::BuildCladArrayInitByConstArray(m_Sema, argDerivative);
             auto derivativeArrayRefVD = BuildVarDecl(
@@ -1610,7 +1602,7 @@ namespace clad {
             usingNumericalDiff = true;
           }
         } else if (pullbackFD) {
-          if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+          if (isa<CXXMemberCallExpr>(CE)) {
             Expr* baseE = baseDiff.getExpr();
             OverloadedDerivedFn = BuildCallExprToMemFn(
                 baseE, pullbackFD->getName(), pullbackCallArgs, pullbackFD);
@@ -2339,7 +2331,6 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    Expr* tempClonedME = Clone(ME);
     auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
     auto field = ME->getMemberDecl();
     assert(!isa<CXXMethodDecl>(field) &&
