@@ -11,8 +11,20 @@
     <a class="navbar-brand" href="{{ site.url }}{{ site.baseurl }}/">Compiler Research</a>
     </div>
     <ul id="navbar-collapse-1" class="nav navbar-nav ml-auto navbar-collapse collapse">
-      <li class="nav-item">
-        <a class="nav-link" href="/team">Team</a>
+      <li class="nav-item dropdown">
+        <a href="#" class="nav-link dropdown-toggle" id="dropdown02" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Research</a>
+        <ul class="dropdown-menu" aria-labelledby="dropdown02">
+          <li class="dropdown-item"> <a class="nav-link" href="/caas">Compiler-As-A-Service</a></li>
+          <li class="dropdown-item"> <a class="nav-link" href="/interactive_cpp">Incremental C++</a></li>
+          <li class="dropdown-item"> <a class="nav-link" href="/libinterop">Language Interoperability</a></li>
+        </ul>
+      </li>
+      <li class="nav-item dropdown">
+        <a href="#" class="nav-link dropdown-toggle" id="dropdown02" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Projects</a>
+        <ul class="dropdown-menu" aria-labelledby="dropdown02">
+          <li class="dropdown-item"> <a class="nav-link" href="https://rawgit.com/root-project/cling/master/www/index.html">Cling</a></li>
+          <li class="dropdown-item"> <a class="nav-link" href="/clad">Clad</a></li>
+        </ul>
       </li>
       <li class="nav-item dropdown">
         <a href="#" class="nav-link dropdown-toggle" id="dropdown01" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Results</a>
@@ -22,14 +34,8 @@
           <li class="dropdown-item"> <a class="nav-link" href="/tutorials">Tutorials</a></li>
         </ul>
       </li>
-      <li class="nav-item dropdown">
-        <a href="#" class="nav-link dropdown-toggle" id="dropdown02" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Projects</a>
-        <ul class="dropdown-menu" aria-labelledby="dropdown02">
-          <li class="dropdown-item"> <a class="nav-link" href="/caas">CaaS</a></li>
-          <li class="dropdown-item"> <a class="nav-link" href="https://rawgit.com/root-project/cling/master/www/index.html">Cling</a></li>
-          <li class="dropdown-item"> <a class="nav-link" href="/clad">Clad</a></li>
-          <li class="dropdown-item"> <a class="nav-link" href="/libinterop">libInterOp</a></li>
-        </ul>
+      <li class="nav-item">
+        <a class="nav-link" href="/team">Team</a>
       </li>
       <li class="nav-item dropdown">
         <a href="#" class="nav-link dropdown-toggle" id="dropdown03" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Join us</a>
