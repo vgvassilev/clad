@@ -373,28 +373,59 @@ namespace clad {
 
       // Creates the ArraySubscriptExprs for the independent variables
       size_t idx = 0;
+      auto size_type = m_Context.getSizeType();
+      unsigned size_type_bits = m_Context.getIntWidth(size_type);
       for (auto arg : args) {
         // FIXME: fix when adding array inputs, now we are just skipping all
         // array/pointer inputs (not treating them as independent variables).
-        if (utils::isArrayOrPointerType(arg->getType())) {
+        if (utils::isArrayOrPointerType(
+                arg->getType())) { // is a array or pointer type parameter
           if (arg->getName() == "p")
             m_Variables[arg] = m_Result;
+
+          ParmVarDecl* parg =
+              dyn_cast<ParmVarDecl>(const_cast<ValueDecl*>(arg));
+          QualType qt = parg->getOriginalType();
+          assert(qt->isConstantArrayType() &&
+                 "Only Constant type arrays are allowed to be parameters of "
+                 "function whose jacobian is to be found. Non Constant types "
+                 "and Pointer type are not supported");
+          ConstantArrayType* t =
+              dyn_cast<ConstantArrayType>(const_cast<Type*>(qt.getTypePtr()));
+          int sizeOfArray = (int)(t->getSize().roundToDouble(false));
+          m_IndependentVars.push_back(arg);
+          m_IndependentVarsSize.push_back(sizeOfArray);
+
+          for (int j = 0; j < sizeOfArray; j++) {
+            std::string name =
+                arg->getNameAsString() + "[" + std::to_string(j) + "]";
+            // Create the idx literal.
+            auto i = IntegerLiteral::Create(
+                m_Context, llvm::APInt(size_type_bits, idx), size_type, noLoc);
+            // Create the jacobianMatrix[idx] expression.
+            auto result_at_i =
+                m_Sema
+                    .CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
+                    .get();
+            m_ExprVariables[name] = result_at_i;
+            idx += 1;
+            numActualParams++;
+          }
+        } else { // is normal variable parameter
+          // Create the idx literal.
+          auto i = IntegerLiteral::Create(
+              m_Context, llvm::APInt(size_type_bits, idx), size_type, noLoc);
+          // Create the jacobianMatrix[idx] expression.
+          auto result_at_i =
+              m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
+                  .get();
+          m_Variables[arg] = result_at_i;
+          m_ExprVariables[arg->getNameAsString()] = result_at_i;
           idx += 1;
-          continue;
+          numActualParams++;
+          m_IndependentVars.push_back(arg);
+          m_IndependentVarsSize.push_back(1);
         }
-        auto size_type = m_Context.getSizeType();
-        unsigned size_type_bits = m_Context.getIntWidth(size_type);
-        // Create the idx literal.
-        auto i =
-            IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
-                                   size_type, noLoc);
-        // Create the jacobianMatrix[idx] expression.
-        auto result_at_i =
-            m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
-                .get();
-        m_Variables[arg] = result_at_i;
-        idx += 1;
-        m_IndependentVars.push_back(arg);
       }
     }
     
@@ -1067,7 +1098,48 @@ namespace clad {
     auto ASI = SplitArraySubscript(ASE);
     const Expr* Base = ASI.first;
     const auto& Indices = ASI.second;
-    StmtDiff BaseDiff = Visit(Base);
+    StmtDiff BaseDiff;
+
+    // Check is we are visiting an Independent variable expressed as an array
+    // subscript expression in Jacobian Mode
+
+    if (isVectorValued) {
+      if (auto dyn =
+              dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(Base)->getDecl())) {
+        // Check if this an independent variable
+        for (auto i : m_IndependentVars) {
+          if (dyn->getNameAsString() == i->getNameAsString()) {
+            llvm::APSInt intIdx;
+            auto isIdxValid = clad_compat::Expr_EvaluateAsInt(
+                ASE->getIdx(), intIdx, m_Context);
+
+            // FIXME: We assume that inside the index is just an Integer
+            // Expression and not a Complex expression
+            assert(isIdxValid && "Only Integer Literals allowed as array "
+                                 "indices of Independent Variables");
+
+            int index = intIdx.getExtValue();
+            std::string indVarName =
+                dyn->getNameAsString() + "[" + std::to_string(index) + "]";
+            auto it = m_VectorOutputString[outputArrayCursor].find(indVarName);
+
+            // Create the (jacobianMatrix[idx] += dfdx) statement.
+            if (dfdx()) {
+              auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+              // Add it to the body statements.
+              addToCurrentBlock(add_assign, direction::reverse);
+            }
+            break;
+          }
+        }
+        BaseDiff = StmtDiff(dyn_cast<DeclRefExpr>(Clone(Base)));
+      } else {
+        BaseDiff = Visit(Base);
+      }
+    } else {
+      BaseDiff = Visit(Base);
+    }
+
     llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
     llvm::SmallVector<Expr*, 4> reverseIndices(Indices.size());
     llvm::SmallVector<Expr*, 4> forwSweepDerivativeIndices(Indices.size());
@@ -1918,21 +1990,46 @@ namespace clad {
 
               std::unordered_map<const clang::ValueDecl*, clang::Expr*>
                   temp_m_Variables;
-              for (unsigned i = 0; i < numParams; i++) {
-                auto size_type = m_Context.getSizeType();
-                unsigned size_type_bits = m_Context.getIntWidth(size_type);
-                llvm::APInt idxValue(size_type_bits,
-                                     i + (outputArrayCursor * numParams));
-                auto idx = IntegerLiteral::Create(m_Context, idxValue,
-                                                  size_type, noLoc);
-                // Create the jacobianMatrix[idx] expression.
-                auto result_at_i = m_Sema
-                                       .CreateBuiltinArraySubscriptExpr(
-                                           m_Result, noLoc, idx, noLoc)
-                                       .get();
-                temp_m_Variables[m_IndependentVars[i]] = result_at_i;
+              std::unordered_map<std::string, clang::Expr*> temp_m_VariablesStr;
+              auto size_type = m_Context.getSizeType();
+              unsigned size_type_bits = m_Context.getIntWidth(size_type);
+              for (unsigned i = 0, j = 0; i < numParams; i++) {
+                auto arg = m_IndependentVars[i];
+                ParmVarDecl* parg =
+                    dyn_cast<ParmVarDecl>(const_cast<ValueDecl*>(arg));
+                if (parg->getOriginalType()->isConstantArrayType()) {
+                  int arrSize = m_IndependentVarsSize[i];
+                  for (int k = 0; k < arrSize; k++, j++) {
+                    llvm::APInt idxValue(
+                        size_type_bits,
+                        j + (outputArrayCursor * numActualParams));
+                    auto idx = IntegerLiteral::Create(m_Context, idxValue,
+                                                      size_type, noLoc);
+                    auto result_at_i = m_Sema
+                                           .CreateBuiltinArraySubscriptExpr(
+                                               m_Result, noLoc, idx, noLoc)
+                                           .get();
+                    std::string sName =
+                        arg->getNameAsString() + "[" + std::to_string(k) + "]";
+                    temp_m_VariablesStr[sName] = result_at_i;
+                  }
+                } else {
+                  llvm::APInt idxValue(size_type_bits, j + (outputArrayCursor *
+                                                            numActualParams));
+                  auto idx = IntegerLiteral::Create(m_Context, idxValue,
+                                                    size_type, noLoc);
+                  // Create the jacobianMatrix[idx] expression.
+                  auto result_at_i = m_Sema
+                                         .CreateBuiltinArraySubscriptExpr(
+                                             m_Result, noLoc, idx, noLoc)
+                                         .get();
+                  temp_m_Variables[m_IndependentVars[i]] = result_at_i;
+                  temp_m_VariablesStr[arg->getNameAsString()] = result_at_i;
+                  j++;
+                }
               }
               m_VectorOutput.push_back(temp_m_Variables);
+              m_VectorOutputString.push_back(temp_m_VariablesStr);
             }
 
             auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,

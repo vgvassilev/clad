@@ -25,6 +25,9 @@ namespace clad {
   class ExternalRMVSource;
   class MultiplexExternalRMVSource;
 
+  using VectorOutputString =
+      std::vector<std::unordered_map<std::string, clang::Expr*>>;
+
   /// A visitor for processing the function code in reverse mode.
   /// Used to compute derivatives by clad::gradient.
   class ReverseModeVisitor
@@ -38,6 +41,10 @@ namespace clad {
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
     llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
+    llvm::SmallVector<int, 16> m_IndependentVarsSize;
+    std::unordered_map<std::string, clang::Expr*> m_ExprVariables;
+    VectorOutputString m_VectorOutputString;
+
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
@@ -62,6 +69,7 @@ namespace clad {
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
+    unsigned numActualParams = 0;
     bool isVectorValued = false;
     bool use_enzyme = false;
     // FIXME: Should we make this an object instead of a pointer?
