@@ -21,6 +21,10 @@
       date: 2022-07-20 14:00:00 +0200
       speaker: "Garima Singh"
       link: "[Slides](/assets/presentations/CaaS_Weekly_20_07_22_Garima-Adding_AD_to_RooFit.pdf)"
+    - title: "The CaaS Project. Progress & Plans Q2, Q3"
+      date: 2022-07-13 14:00:00 +0200
+      speaker: "Vassil Vassilev"
+      link: "[Slides](/assets/presentations/CaaS_Weekly_13_07_22_Vassil-Q2_Project_Progress_and_Plans.pdf)"
     - title: "Clang-REPL Interactive Analysis - Roadmap"
       date: 2022-06-29 14:00:00 +0200
       speaker: "Rohit Singh Rathaur"
