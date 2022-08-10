@@ -7,11 +7,6 @@ add_llvm_library(cladPlugin
   DerivedFnInfo.cpp
   RequiredSymbols.cpp
   )
-
-if (TARGET clangBasic)
-  add_dependencies(cladPlugin clangBasic)
-endif()
-
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_llvm_loadable_module(clad
     ClangPlugin.cpp
