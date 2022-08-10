@@ -6,11 +6,6 @@ if (TARGET check-clad)
   add_dependencies(check-clad cladCustomModelPlugin)
 endif()
 
-if (TARGET clangBasic)
-  add_dependencies(cladCustomModelPlugin clangBasic)
-endif()
-
-
 # Sometimes it seems that even if we do not specify -frtti some compilers
 # generate it by default. Then the library requires _ZTIN4clad22FPErrorEstimationModelE
 # but it does not find it and fails to load.

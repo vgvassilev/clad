@@ -272,6 +272,15 @@ option(CLAD_BUILD_STATIC_ONLY "Does not build shared libraries. Useful when we h
 if (NOT CLAD_BUILD_STATIC_ONLY AND NOT LLVM_ENABLE_PLUGINS)
   message(FATAL_ERROR "LLVM_ENABLE_PLUGINS is set to OFF. Please build clad with -DCLAD_BUILD_STATIC_ONLY=ON.")
 endif()
+
+# Add clad deps if we build together with clang.
+if (TARGET intrinsics_gen)
+  list(APPEND LLVM_COMMON_DEPENDS intrinsics_gen)
+endif()
+if (TARGET clang-headers)
+  list(APPEND LLVM_COMMON_DEPENDS clang-headers)
+endif()
+
 add_subdirectory(lib)
 add_subdirectory(tools)
 
@@ -302,9 +311,3 @@ if( CLAD_BUILT_STANDALONE AND MSVC_VERSION EQUAL 1600 )
     file(APPEND "${CLAD_SLN_FILENAME}" "\n# This should be regenerated!\n")
   endif()
 endif()
-
-# Add clad deps
-if (TARGET clangBasic)
-  add_dependencies(clad clangBasic)
-endif()
-
