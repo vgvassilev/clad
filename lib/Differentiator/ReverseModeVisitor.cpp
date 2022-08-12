@@ -99,15 +99,17 @@ namespace clad {
   FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
     auto gradientParams = m_Derivative->parameters();
     auto gradientNameInfo = m_Derivative->getNameInfo();
-    bool isStaticMethod = utils::IsStaticMethod(m_Function);
     // Calculate the total number of parameters that would be required for
     // automatic differentiation in the derived function if all args are
     // requested.
     // FIXME: Here we are assuming all function parameters are of differentiable
     // type. Ideally, we should not make any such assumption.
     std::size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
-    std::size_t numOfDerivativeParams =
-        m_Function->getNumParams() + !isStaticMethod;
+    std::size_t numOfDerivativeParams = m_Function->getNumParams();
+
+    // Account for the this pointer.
+    if (isa<CXXMethodDecl>(m_Function) && !utils::IsStaticMethod(m_Function))
+      ++numOfDerivativeParams;
     // All output parameters will be of type `clad::array_ref<void>`. These
     // parameters will be casted to correct type before the call to the actual
     // derived function.
