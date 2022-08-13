@@ -3001,8 +3001,10 @@ namespace clad {
           m_Sema.PushOnScopeChains(thisDerivativePVD, getCurrentScope(),
                                    /*AddToContext=*/false);
 
+        // This can instantiate an array_ref and needs a fake source location.
+        SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
         Expr* deref = BuildOp(UnaryOperatorKind::UO_Deref,
-                              BuildDeclRef(thisDerivativePVD));
+                              BuildDeclRef(thisDerivativePVD), fakeLoc);
         m_ThisExprDerivative = utils::BuildParenExpr(m_Sema, deref);
         ++dParamTypesIdx;
       }

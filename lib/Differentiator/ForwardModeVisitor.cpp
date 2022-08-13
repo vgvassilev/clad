@@ -773,9 +773,15 @@ namespace clad {
     } else {
       llvm::SmallVector<Expr*, 2> returnValues = {retValDiff.getExpr(),
                                                   retValDiff.getExpr_dx()};
-      Expr* initList = m_Sema.ActOnInitList(noLoc, returnValues, noLoc).get();
+      SourceLocation fakeInitLoc = utils::GetValidSLoc(m_Sema);
+      // This can instantiate as part of the move or copy initialization and
+      // needs a fake source location.
+      Expr* initList =
+          m_Sema.ActOnInitList(fakeInitLoc, returnValues, noLoc).get();
+
+      SourceLocation fakeRetLoc = utils::GetValidSLoc(m_Sema);
       returnStmt =
-          m_Sema.ActOnReturnStmt(noLoc, initList, getCurrentScope()).get();
+          m_Sema.ActOnReturnStmt(fakeRetLoc, initList, getCurrentScope()).get();
     }
     return StmtDiff(returnStmt);
   }
