@@ -189,11 +189,18 @@ namespace clad {
 
     FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
     // Create ref to generated FD.
-    Expr* DRE =
+    DeclRefExpr* DRE =
         DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc, replacementFD,
                             /*RefersToEnclosingVariableOrCapture=*/false,
                             replacementFD->getNameInfo(),
                             replacementFD->getType(), oldDRE->getValueKind());
+
+    // We have a DeclRefExpr pointing to a member declaration, which is an
+    // lvalue. However, due to an inconsistency of the expression classfication
+    // in clang we need to change it to an r-value to avoid an assertion when
+    // building a unary op. See llvm/llvm-project#53958.
+    if (isa<CXXMethodDecl>(DRE->getDecl()))
+      DRE->setValueKind(CLAD_COMPAT_ExprValueKind_R_or_PR_Value);
 
     // Add the "&" operator
     auto newUnOp =
