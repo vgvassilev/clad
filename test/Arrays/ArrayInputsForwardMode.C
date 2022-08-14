@@ -10,7 +10,7 @@ double multiply(double *arr) {
 }
 
 //CHECK:   double multiply_darg0_1(double *arr) {
-//CHECK-NEXT:       return 0 * arr[1] + arr[0] * 1;
+//CHECK-NEXT:       return 0. * arr[1] + arr[0] * 1.;
 //CHECK-NEXT:   }
 
 double divide(double *arr) {
@@ -18,7 +18,7 @@ double divide(double *arr) {
 }
 
 //CHECK:   double divide_darg0_1(double *arr) {
-//CHECK-NEXT:       return (0 * arr[1] - arr[0] * 1) / (arr[1] * arr[1]);
+//CHECK-NEXT:       return (0. * arr[1] - arr[0] * 1.) / (arr[1] * arr[1]);
 //CHECK-NEXT:   }
 
 double addArr(double *arr, int n) {
@@ -36,7 +36,7 @@ double addArr(double *arr, int n) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           int _d_i = 0;
 //CHECK-NEXT:           for (int i = 0; i < n; i++) {
-//CHECK-NEXT:               _d_ret += (i == 1);
+//CHECK-NEXT:               _d_ret += (i == 1.);
 //CHECK-NEXT:               ret += arr[i];
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
