@@ -849,6 +849,10 @@ namespace clad {
   StmtDiff
   ForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     auto ASI = SplitArraySubscript(ASE);
+    QualType ExprTy = ASE->getType();
+    if (ExprTy->isPointerType())
+      ExprTy = ExprTy->getPointeeType();
+    ExprTy = ExprTy->getCanonicalTypeInternal();
     const Expr* base = ASI.first;
     const auto& Indices = ASI.second;
     StmtDiff cloneDiff = Visit(base);
@@ -860,8 +864,7 @@ namespace clad {
                    [this](const Expr* E) { return Clone(E); });
     auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
 
-    auto zero =
-        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    auto zero = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 0);
     ValueDecl* VD;
     // Derived variables for member variables are also created when we are 
     // differentiating a call operator.
@@ -900,14 +903,12 @@ namespace clad {
 
       if (!clad_compat::Expr_EvaluateAsInt(
               clonedIndices.back(), index, m_Context)) {
-        diffExpr = BuildParens(
-            BuildOp(BO_EQ,
-                    clonedIndices.back(),
-                    ConstantFolder::synthesizeLiteral(
-                        m_Context.IntTy, m_Context, m_IndependentVarIndex)));
-      } else if (index.getExtValue() == m_IndependentVarIndex) {
         diffExpr =
-            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
+            BuildParens(BuildOp(BO_EQ, clonedIndices.back(),
+                                ConstantFolder::synthesizeLiteral(
+                                    ExprTy, m_Context, m_IndependentVarIndex)));
+      } else if (index.getExtValue() == m_IndependentVarIndex) {
+        diffExpr = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 1);
       } else {
         diffExpr = zero;
       }
@@ -1187,8 +1188,15 @@ namespace clad {
         }
       }
       CallArgs.push_back(argDiff.getExpr());
-      if (isDifferentiableType(arg->getType()))
-        diffArgs.push_back(argDiff.getExpr_dx());
+      if (isDifferentiableType(arg->getType())) {
+        Expr* dArg = argDiff.getExpr_dx();
+        QualType CallArgTy = CallArgs.back()->getType();
+        assert((!dArg || m_Context.hasSameType(CallArgTy, dArg->getType())) &&
+               "Type mismatch, we might fail to instantiate a pullback");
+        (void)CallArgTy;
+        // FIXME: What happens when dArg is nullptr?
+        diffArgs.push_back(dArg);
+      }
     }
 
     llvm::SmallVector<Expr*, 16> pushforwardFnArgs;

@@ -65,24 +65,28 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 
 //CHECK:   Double_t TFormula_example_darg1_0(Double_t *x, Double_t *p) {
 //CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], -1);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 0);
-//CHECK-NEXT:       return 0 * _t0 + x[0] * (1 + 0 + 0) + _t1.pushforward + _t2.pushforward;
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], -1.);
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 0.);
+//CHECK-NEXT:       return 0. * _t0 + x[0] * (1. + 0. + 0.) + _t1.pushforward + _t2.pushforward;
 //CHECK-NEXT:   }
 
 //CHECK:   Double_t TFormula_example_darg1_1(Double_t *x, Double_t *p) {
 //CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], -0);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 1);
-//CHECK-NEXT:       return 0 * _t0 + x[0] * (0 + 1 + 0) + _t1.pushforward + _t2.pushforward;
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], -0.);
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 1.);
+//CHECK-NEXT:       return 0. * _t0 + x[0] * (0. + 1. + 0.) + _t1.pushforward + _t2.pushforward;
 //CHECK-NEXT:   }
 
 //CHECK:   Double_t TFormula_example_darg1_2(Double_t *x, Double_t *p) {
 //CHECK-NEXT:       double _t0 = (p[0] + p[1] + p[2]);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], -0);
-//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 0);
-//CHECK-NEXT:       return 0 * _t0 + x[0] * (0 + 0 + 1) + _t1.pushforward + _t2.pushforward;
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t1 = clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], -0.);
+//CHECK-NEXT:       clad::ValueAndPushforward<Double_t, Double_t> _t2 = clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 0.);
+//CHECK-NEXT:       return 0. * _t0 + x[0] * (0. + 0. + 1.) + _t1.pushforward + _t2.pushforward;
 //CHECK-NEXT:   }
+
+Double_t TFormula_hess1(Double_t *x, Double_t *p) {
+    return x[0] * std::sin(p[0]) - x[1] * std::cos(p[1]);
+}
 
 int main() {
   Double_t x[] = { 3 };
@@ -102,4 +106,20 @@ int main() {
 
   auto differentiation2 = clad::differentiate(TFormula_example, "p[2]");
   printf("Result is = {%.2f}\n", differentiation2.execute(x, p)); // CHECK-EXEC: Result is = {3.00}
+
+  {
+     Double_t x[] = { 1, 2 };
+     Double_t p[] = { 30, 60 };
+
+     auto hess1 = clad::hessian(TFormula_hess1, "p[0:1]");
+     Double_t hess_result[4] = { 0 };
+     clad::array_ref<Double_t> hess_result_ref(hess_result, 4);
+     hess1.execute(x, p, hess_result_ref);
+     // hes_result[0] = -1 * x[0] * std::sin(p[0]);
+     // hes_result[1] = 0;
+     // hes_result[2] = 0;
+     // hes_result[0] = x[1] * std::cos(p[1]);
+     printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n",
+            hess_result[0], hess_result[1], hess_result[2], hess_result[3]); // CHECK-EXEC: Result is = {0.99, 0.00, 0.00, -1.90}
+  }
 }
