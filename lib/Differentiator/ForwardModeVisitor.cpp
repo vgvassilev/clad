@@ -58,11 +58,12 @@ namespace clad {
     QualType originalFnRT = m_Function->getReturnType();
     if (originalFnRT->isVoidType())
       return m_Context.VoidTy;
-    TemplateDecl* valueAndPushforward = GetCladClassDecl("ValueAndPushforward");
+    TemplateDecl* valueAndPushforward =
+        LookupTemplateDeclInCladNamespace("ValueAndPushforward");
     assert(valueAndPushforward &&
            "clad::ValueAndPushforward template not found!!");
     QualType RT =
-        GetCladClassOfType(valueAndPushforward, {originalFnRT, originalFnRT});
+        InstantiateTemplate(valueAndPushforward, {originalFnRT, originalFnRT});
     return RT;
   }
 

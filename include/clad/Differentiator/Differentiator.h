@@ -449,6 +449,9 @@ namespace clad {
         DerivedFnType>(derivedFn /* will be replaced by estimation code*/,
                        code);
   }
+
+  // Gradient Structure for Reverse Mode Enzyme
+  template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
 }
 #endif // CLAD_DIFFERENTIATOR
 

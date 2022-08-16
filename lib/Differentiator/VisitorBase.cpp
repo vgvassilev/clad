@@ -349,7 +349,8 @@ namespace clad {
     return Result;
   }
 
-  TemplateDecl* VisitorBase::GetCladClassDecl(llvm::StringRef ClassName) {
+  TemplateDecl*
+  VisitorBase::LookupTemplateDeclInCladNamespace(llvm::StringRef ClassName) {
     NamespaceDecl* CladNS = GetCladNamespace();
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
@@ -365,16 +366,8 @@ namespace clad {
     return cast<TemplateDecl>(TapeR.getFoundDecl());
   }
 
-  QualType
-  VisitorBase::GetCladClassOfType(TemplateDecl* CladClassDecl,
-                                  ArrayRef<QualType> TemplateArgs) {
-    // Create a list of template arguments.
-    TemplateArgumentListInfo TLI{};
-    for (auto T : TemplateArgs) {
-      TemplateArgument TA = T;
-      TLI.addArgument(
-          TemplateArgumentLoc(TA, m_Context.getTrivialTypeSourceInfo(T)));
-    }
+  QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
+                                            TemplateArgumentListInfo& TLI) {
     // This will instantiate tape<T> type and return it.
     QualType TT =
         m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl), noLoc, TLI);
@@ -388,10 +381,23 @@ namespace clad {
     return m_Context.getElaboratedType(ETK_None, NS, TT);
   }
 
+  QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
+                                            ArrayRef<QualType> TemplateArgs) {
+    // Create a list of template arguments.
+    TemplateArgumentListInfo TLI{};
+    for (auto T : TemplateArgs) {
+      TemplateArgument TA = T;
+      TLI.addArgument(
+          TemplateArgumentLoc(TA, m_Context.getTrivialTypeSourceInfo(T)));
+    }
+
+    return VisitorBase::InstantiateTemplate(CladClassDecl, TLI);
+  }
+
   TemplateDecl* VisitorBase::GetCladTapeDecl() {
     static TemplateDecl* Result = nullptr;
     if (!Result)
-      Result = GetCladClassDecl(/*ClassName=*/"tape");
+      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"tape");
     return Result;
   }
 
@@ -441,7 +447,7 @@ namespace clad {
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
-    return GetCladClassOfType(GetCladTapeDecl(), {T});
+    return InstantiateTemplate(GetCladTapeDecl(), {T});
   }
 
   Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
@@ -555,23 +561,23 @@ namespace clad {
   TemplateDecl* VisitorBase::GetCladArrayRefDecl() {
     static TemplateDecl* Result = nullptr;
     if (!Result)
-      Result = GetCladClassDecl(/*ClassName=*/"array_ref");
+      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"array_ref");
     return Result;
   }
 
   QualType VisitorBase::GetCladArrayRefOfType(clang::QualType T) {
-    return GetCladClassOfType(GetCladArrayRefDecl(), {T});
+    return InstantiateTemplate(GetCladArrayRefDecl(), {T});
   }
 
   TemplateDecl* VisitorBase::GetCladArrayDecl() {
     static TemplateDecl* Result = nullptr;
     if (!Result)
-      Result = GetCladClassDecl(/*ClassName=*/"array");
+      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"array");
     return Result;
   }
 
   QualType VisitorBase::GetCladArrayOfType(clang::QualType T) {
-    return GetCladClassOfType(GetCladArrayDecl(), {T});
+    return InstantiateTemplate(GetCladArrayDecl(), {T});
   }
 
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {

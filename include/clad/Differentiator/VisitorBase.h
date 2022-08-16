@@ -372,15 +372,18 @@ namespace clad {
     ///
     /// \param[in] className name of the class to be found
     /// \returns The declaration of the class with the name ClassName
-    clang::TemplateDecl* GetCladClassDecl(llvm::StringRef ClassName);
+    clang::TemplateDecl*
+    LookupTemplateDeclInCladNamespace(llvm::StringRef ClassName);
     /// Instantiate clad::class<TemplateArgs> type
     ///
     /// \param[in] CladClassDecl the decl of the class that is going to be used
     /// in the creation of the type \param[in] TemplateArgs an array of template
     /// arguments \returns The created type clad::class<TemplateArgs>
     clang::QualType
-    GetCladClassOfType(clang::TemplateDecl* CladClassDecl,
-                       llvm::ArrayRef<clang::QualType> TemplateArgs);
+    InstantiateTemplate(clang::TemplateDecl* CladClassDecl,
+                        llvm::ArrayRef<clang::QualType> TemplateArgs);
+    clang::QualType InstantiateTemplate(clang::TemplateDecl* CladClassDecl,
+                                        clang::TemplateArgumentListInfo& TLI);
     /// Find declaration of clad::tape templated type.
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.
