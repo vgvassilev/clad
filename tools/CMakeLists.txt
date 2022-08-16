@@ -48,7 +48,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     ExternalProject_Add(
       Enzyme
       GIT_REPOSITORY https://github.com/wsmoses/Enzyme
-      GIT_TAG v0.0.33
+      GIT_TAG v0.0.36
       GIT_SHALLOW 1 # Do not clone the history
       PATCH_COMMAND ${_enzyme_patch_command}
       UPDATE_COMMAND ""
