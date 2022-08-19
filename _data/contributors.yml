@@ -146,7 +146,7 @@
         most parts of Cling into LLVM. Since LLVM version 13 we have a version of Cling called
         Clang-Repl. As we advance the implementation and generalize its usage here we aim for
         improving the overall documentation experience in the area of interactive C++.
-      proposal: /assets/docs/Rohit_Singh_Rathaur_Proposal_2022.pdf
+      proposal: /assets/docs/Rohit_Singh_Rathaur_proposal_2022.pdf
       mentors: Vassil Vassilev, David Lange
 
 - name: Manish Kausik H
