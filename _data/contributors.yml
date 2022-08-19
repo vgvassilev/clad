@@ -251,7 +251,6 @@
   photo: Parth.jpg
   email: partharora99160808@gmail.com
   education: "B.Tech in Computer Science, USICT, Guru Gobind Singh Indraprastha University, New Delhi, India"
-  active: 1
   info: "IRIS-HEP Fellow"
   projects:
     - title: "Add support for custom types in Clad with a focus on the Softsusy library"
