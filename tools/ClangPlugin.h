@@ -66,7 +66,8 @@ namespace clad {
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
             DumpDerivedAST(false), GenerateSourceFile(false),
             ValidateClangVersion(false), CustomEstimationModel(false),
-            PrintNumDiffErrorInfo(false), CustomModelName("") {}
+            PrintNumDiffErrorInfo(false), CheckEnzymeWithClad(false),
+            CustomModelName("") {}
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
@@ -76,6 +77,7 @@ namespace clad {
       bool ValidateClangVersion : 1;
       bool CustomEstimationModel : 1;
       bool PrintNumDiffErrorInfo : 1;
+      bool CheckEnzymeWithClad : 1;
       std::string CustomModelName;
     };
 
@@ -157,6 +159,8 @@ namespace clad {
             m_DO.CustomModelName = args[i];
           } else if (args[i] == "-fprint-num-diff-errors") {
             m_DO.PrintNumDiffErrorInfo = true;
+          } else if (args[i] == "-fcheck-enzyme-with-clad") {
+            m_DO.CheckEnzymeWithClad = true;
           } else if (args[i] == "-help") {
             // Print some help info.
             llvm::errs()

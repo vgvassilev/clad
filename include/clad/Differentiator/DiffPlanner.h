@@ -62,6 +62,9 @@ namespace clad {
     // A flag to enable the use of enzyme for backend instead of clad
     bool use_enzyme = false;
 
+    // A flag to generate code that verifies clad and enzyme
+    bool checkEnzymeWithClad = false;
+
     /// Recomputes `DiffInputVarsInfo` using the current values of data members.
     ///
     /// Differentiation parameters info is computed by parsing the argument

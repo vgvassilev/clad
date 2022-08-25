@@ -64,6 +64,7 @@ namespace clad {
     unsigned numParams = 0;
     bool isVectorValued = false;
     bool use_enzyme = false;
+    bool checkEnzymeWithClad = false;
     // FIXME: Should we make this an object instead of a pointer?
     // Downside of making it an object: We will need to include
     // 'MultiplexExternalRMVSource.h' file
@@ -91,6 +92,9 @@ namespace clad {
 
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
+
+    // Function that inserts code to verify Enzyme Results with Clad Results
+    void CheckEnzymeResultsWithClad(clang::FunctionDecl* cladFD);
 
   public:
     using direction = rmv::direction;

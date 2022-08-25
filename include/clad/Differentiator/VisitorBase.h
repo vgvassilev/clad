@@ -374,6 +374,12 @@ namespace clad {
     /// \returns The declaration of the class with the name ClassName
     clang::TemplateDecl*
     LookupTemplateDeclInCladNamespace(llvm::StringRef ClassName);
+    /// Find declaration of clad::function templated type
+    ///
+    /// \param[in] FunctionName name of the function to be found
+    /// \returns The declaration of the function with the name FunctionName
+    clang::FunctionDecl*
+    LookupFunctionDeclInCladNamespace(llvm::StringRef FunctionName);
     /// Instantiate clad::class<TemplateArgs> type
     ///
     /// \param[in] CladClassDecl the decl of the class that is going to be used
