@@ -121,6 +121,9 @@ namespace clad {
       DiffSchedule requests{};
       DiffCollector collector(DGR, CladEnabledRange, requests, m_CI.getSema());
 
+      if (requests.empty())
+        return true;
+
       // FIXME: Remove the PerformPendingInstantiations altogether. We should
       // somehow make the relevant functions referenced.
       // Instantiate all pending for instantiations templates, because we will
