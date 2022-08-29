@@ -151,7 +151,7 @@ matrix. *The caller is responsible for allocating and zeroing-out the jacobian s
 #include "clad/Differentiator/Differentiator.h"
 #include <iostream>
 
-void h(double a, double b double output[]) {
+void h(double a, double b, double output[]) {
     output[0] = a * a * a;
     output[1] = a * a * a + b * b * b;
     output[2] = 2 * (a + b);
