@@ -17,6 +17,7 @@ namespace clad {
     DiffMode m_Mode = DiffMode::unknown;
     unsigned m_DerivativeOrder = 0;
     DiffInputVarsInfo m_DiffVarsInfo;
+    bool m_UsesEnzyme = false;
 
     DerivedFnInfo() {}
     DerivedFnInfo(const DiffRequest& request, clang::FunctionDecl* derivedFn,
