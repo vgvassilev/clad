@@ -87,6 +87,7 @@ The User Guide
    user/CoreConcepts
    user/reference
    user/tutorials
+   user/UsingEnzymeWithinClad
    user/FAQ
    user/DevelopersDocumentation
    
