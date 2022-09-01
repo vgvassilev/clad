@@ -15,6 +15,10 @@
   time_cest: "14:00"
   connect: "[Link to zoom](https://princeton.zoom.us/j/97915651167?pwd=MXJ1T2lhc3Z5QWlYbUFnMTZYQlNRdz09)"
   agenda:
+    - title: "Add Initial Integration of Clad with Enzyme - Final Presentation"
+      date: 2022-08-31 14:00:00 +0200
+      speaker: "Manish Kausik H"
+      link: "[Slides](/assets/presentations/Manish_Integration_of_Enzyme_with_Clad_Final_Presentation.pdf)"
     - title: Updates
       link: "[Meeting Notes](https://docs.google.com/document/d/1HMUtM8rRPeTYDqsWZVD-iQityjJj9_GKgu0FHHbiBr0)"
     - title: "Adding AD Support to RooFit"
