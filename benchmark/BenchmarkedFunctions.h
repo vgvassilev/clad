@@ -20,3 +20,22 @@ gaus(double* x, double* p /*means*/, double sigma, int dim) {
   t = -t / (2 * sigma * sigma);
   return std::pow(2 * M_PI, -dim / 2.0) * std::pow(sigma, -0.5) * std::exp(t);
 }
+
+///\returns the sum of elements in an array multiplied by scalars x and y
+inline double addArrayAndMultiplyWithScalars(double arr[], double x, double y,
+                                             int n) {
+  double res = 0;
+  for (int i = 0; i < n; i++) {
+    res += (arr[i] * x * y);
+  }
+  return res;
+}
+
+///\returns the product of the elements in \p
+inline double product(double p[], int n) {
+  double prod = 1;
+  for (int i = 0; i < n; i++) {
+    prod *= p[i];
+  }
+  return prod;
+}
