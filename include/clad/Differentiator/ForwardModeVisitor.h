@@ -13,6 +13,9 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
+#include "clad/Differentiator/DiffPlanner.h"
+
+
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -28,6 +31,14 @@ namespace clad {
     unsigned m_IndependentVarIndex = ~0;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
+    DiffInputVarsInfo m_DVI;
+    bool use_enzyme = false;
+
+    // Function to Differentiate with Clad as Backend
+    void DifferentiateWithClad();
+
+    // Function to Differentiate with Enzyme as Backend
+    void DifferentiateWithEnzyme();
     
   public:
     ForwardModeVisitor(DerivativeBuilder& builder);

@@ -9,7 +9,6 @@
 #include "ConstantFolder.h"
 
 #include "clad/Differentiator/CladUtils.h"
-#include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
 
@@ -214,8 +213,7 @@ namespace clad {
     m_DerivativeInFlight = true;
 
     DiffInputVarsInfo DVI = request.DVI;
-
-    DVI = request.DVI;
+    m_DVI=DVI;
     
     // FIXME: Shouldn't we give error here that no arg is specified?
     if (DVI.empty())
@@ -239,6 +237,10 @@ namespace clad {
     // FIXME: implement gradient-vector products to fix the issue.
     assert((DVI.size() == 1) &&
            "nested forward mode differentiation for several args is broken");
+
+        // Check if DiffRequest asks for use of enzyme as backend
+    if (request.use_enzyme)
+      use_enzyme = true;
            
     // FIXME: Differentiation variable cannot always be represented just by
     // `ValueDecl*` variable. For example -- `u.mem1.mem2,`, `arr[7]` etc.
@@ -307,6 +309,9 @@ namespace clad {
     for (auto field : diffVarInfo.fields)
       argInfo += "_" + field;
 
+    if(use_enzyme)
+      derivativeSuffix+="_enzyme";
+
     IdentifierInfo* II =
         &m_Context.Idents.get(request.BaseFunctionName + "_d" + s + "arg" +
                               argInfo + derivativeSuffix);
@@ -371,6 +376,33 @@ namespace clad {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
+
+    if(!use_enzyme)
+      DifferentiateWithClad();
+    else 
+      DifferentiateWithEnzyme();
+
+
+    Stmt* derivativeBody = endBlock();
+    derivedFD->setBody(derivativeBody);
+
+    endScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    m_DerivativeInFlight = false;
+
+    return DerivativeAndOverload{result.first,
+                                 /*OverloadFunctionDecl=*/nullptr};
+  }
+
+  void ForwardModeVisitor::DifferentiateWithClad(){
+    const clang::FunctionDecl* FD = m_Function;
+    llvm::ArrayRef<ParmVarDecl*> params = m_Derivative->parameters();
+    DiffInputVarInfo diffVarInfo = m_DVI.back(); 
+
+
     // For each function parameter variable, store its derivative value.
     for (auto param : params) {
       // We cannot create derivatives of reference type since seed value is
@@ -507,18 +539,76 @@ namespace clad {
         addToCurrentBlock(S);
     else
       addToCurrentBlock(BodyDiff);
-    Stmt* derivativeBody = endBlock();
-    derivedFD->setBody(derivativeBody);
+  }
 
-    endScope(); // Function body scope
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
-    endScope(); // Function decl scope
+  void ForwardModeVisitor::DifferentiateWithEnzyme(){
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
+    unsigned numParams = m_Function->getNumParams();
+    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+    auto returnType = m_Derivative->getReturnType();
 
-    m_DerivativeInFlight = false;
 
-    return DerivativeAndOverload{result.first,
-                                 /*OverloadFunctionDecl=*/nullptr};
+    // Prepare Arguments and Parameters to enzyme_autodiff
+    llvm::SmallVector<Expr*, 16> enzymeArgs;
+    llvm::SmallVector<ParmVarDecl*, 16> enzymeParams;
+
+    // First add the function itself as a parameter/argument
+    enzymeArgs.push_back(BuildDeclRef(const_cast<FunctionDecl*>(m_Function)));
+    DeclContext* fdDeclContext =
+        const_cast<DeclContext*>(m_Function->getDeclContext());
+    enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+        fdDeclContext, noLoc, m_Function->getType()));
+
+    // Add rest of the parameters/arguments
+    for (int i = 0; i < numParams; i++) {
+      auto paramType = paramsRef[i]->getType().getNonReferenceType();
+
+      // First Add the original parameter
+      enzymeArgs.push_back(BuildDeclRef(paramsRef[i]));
+      enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+          fdDeclContext, noLoc, paramType));
+
+      float fDx=0;
+      if(paramsRef[i]==m_IndependentVar)
+        fDx=1;
+      Expr* dx = dyn_cast<Expr>(
+            FloatingLiteral::Create(m_Context, llvm::APFloat(fDx),
+                                   false,paramType, noLoc));
+
+      // Then add the dx argument
+      enzymeArgs.push_back(dx);
+      enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+          fdDeclContext, noLoc, paramType));
+    }
+
+    llvm::SmallVector<QualType, 16> enzymeParamsType;
+    for (auto i : enzymeParams)
+      enzymeParamsType.push_back(i->getType());
+
+    // Prepare Function call
+    std::string enzymeCallName =
+        "__enzyme_fwddiff_" + m_Function->getNameAsString()+"_"+m_IndependentVar->getNameAsString();
+    IdentifierInfo* IIEnzyme = &m_Context.Idents.get(enzymeCallName);
+    DeclarationName nameEnzyme(IIEnzyme);
+    QualType enzymeFunctionType =
+        m_Sema.BuildFunctionType(returnType, enzymeParamsType, noLoc, nameEnzyme,
+                                 originalFnType->getExtProtoInfo());
+    FunctionDecl* enzymeCallFD = FunctionDecl::Create(
+        m_Context, fdDeclContext, noLoc, noLoc, nameEnzyme, enzymeFunctionType,
+        m_Function->getTypeSourceInfo(), SC_Extern);
+    enzymeCallFD->setParams(enzymeParams);
+    Expr* enzymeCall = BuildCallExprToFunction(enzymeCallFD, enzymeArgs);
+
+    auto diffDecl = BuildVarDecl(returnType, "diff", enzymeCall, true);
+    addToCurrentBlock(BuildDeclStmt(diffDecl));
+
+    // auto type = m_IndependentVar->getType().getNonReferenceType();
+    // Expr* retExpr = dyn_cast<Expr>(
+    //         FloatingLiteral::Create(m_Context, llvm::APFloat(5.01),
+    //                                true,type, noLoc));
+    Stmt* returnStmt = m_Sema.BuildReturnStmt(noLoc,BuildDeclRef(diffDecl)).get();
+
+    addToCurrentBlock(returnStmt);    
   }
 
   StmtDiff ForwardModeVisitor::VisitStmt(const Stmt* S) {
