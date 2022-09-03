@@ -106,6 +106,23 @@ void run_differentiate(CF cf, Args&&... args) {
   display(cf.execute(std::forward<Args>(args)...));
 }
 
+template <typename A, typename B>
+void EssentiallyEqual(A a, B b) {
+  // FIXME: We should select epsilon value in a more robust way.
+  const A epsilon = 1e-12;
+  bool ans = std::fabs(a - b) <=
+              ((std::fabs(a > b) ? std::fabs(b) : std::fabs(a)) * epsilon);
+
+  assert(ans && "Clad Gradient is not equal to Enzyme Gradient");
+}
+
+template <typename A, typename B>
+void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
+  for (int i = 0; i < size; i++) {
+    EssentiallyEqual(a[i], b[i]);
+  }
+}
+
 #define INIT_GRADIENT_ALL(fn) auto fn##_grad = clad::gradient(fn);
 
 #define INIT_DIFFERENTIATE(fn, ...)                                            \
