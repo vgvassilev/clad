@@ -1139,17 +1139,25 @@ namespace clad {
     addToCurrentBlock(LS, direction::reverse);
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
       addToCurrentBlock(S, direction::forward);
-    // Since returned expression may have some side effects affecting reverse
-    // computation (e.g. assignments), we also have to emit it to execute it.
-    Expr* retDeclRefExpr = StoreAndRef(ExprDiff.getExpr(), direction::forward,
-                                       utils::ComputeEffectiveFnName(
-                                           m_Function) +
-                                           "_return",
-                                       /*forceDeclCreation=*/true);
-    
-    if (m_ExternalSource)
-      m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff, retDeclRefExpr);
-    
+
+    // FIXME: When the return type of a function is a class, ExprDiff.getExpr()
+    // returns nullptr, which is a bug. For the time being, the only use case of
+    // a return type being class is in pushforwards. Hence a special case has
+    // been made to to not do the StoreAndRef operation when return type is
+    // ValueAndPushforward.
+    if (!isCladValueAndPushforwardType(type)) {
+      // Since returned expression may have some side effects affecting reverse
+      // computation (e.g. assignments), we also have to emit it to execute it.
+      Expr* retDeclRefExpr =
+          StoreAndRef(ExprDiff.getExpr(), direction::forward,
+                      utils::ComputeEffectiveFnName(m_Function) + "_return",
+                      /*forceDeclCreation=*/true);
+
+      if (m_ExternalSource)
+        m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff,
+                                                             retDeclRefExpr);
+    }
+
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
   }
@@ -1161,20 +1169,51 @@ namespace clad {
   }
 
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
+    QualType ILEType = ILE->getType();
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
-    for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
-      Expr* I =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
-      Expr* array_at_i = m_Sema
-                             .ActOnArraySubscriptExpr(getCurrentScope(), dfdx(),
-                                                      noLoc, I, noLoc)
-                             .get();
-      Expr* clonedEI = Visit(ILE->getInit(i), array_at_i).getExpr();
-      clonedExprs[i] = clonedEI;
-    }
+    if (isArrayOrPointerType(ILEType)) {
+      for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
+        Expr* I =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
+        Expr* array_at_i = m_Sema
+                               .ActOnArraySubscriptExpr(getCurrentScope(),
+                                                        dfdx(), noLoc, I, noLoc)
+                               .get();
+        Expr* clonedEI = Visit(ILE->getInit(i), array_at_i).getExpr();
+        clonedExprs[i] = clonedEI;
+      }
 
-    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-    return StmtDiff(clonedILE);
+      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+      return StmtDiff(clonedILE);
+    } else {
+      // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
+      // that represents a ValueAndPushforward type. Ideally this must be
+      // differentiated at VisitCXXConstructExpr
+      bool isValueAndPushforward = isCladValueAndPushforwardType(ILEType);
+      assert(isValueAndPushforward &&
+             "Only InitListExpr that represents arrays or ValueAndPushforward "
+             "Object initialization is supported");
+
+      // Here we assume that the adjoint expression of the first element in
+      // InitList is dfdx().value and the adjoint for the second element is
+      // dfdx().pushforward. At this point the top of the Tape must contain a
+      // ValueAndPushforward object that represents derivative of the
+      // ValueAndPushforward object returned by the function whose derivative is
+      // requested.
+      Expr* dValueExpr =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), dfdx(), "value");
+      StmtDiff clonedValueEI = Visit(ILE->getInit(0), dValueExpr).getExpr();
+      clonedExprs[0] = clonedValueEI.getExpr();
+
+      Expr* dPushforwardExpr = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                      dfdx(), "pushforward");
+      Expr* clonedPushforwardEI =
+          Visit(ILE->getInit(1), dPushforwardExpr).getExpr();
+      clonedExprs[1] = clonedPushforwardEI;
+
+      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+      return StmtDiff(clonedILE);
+    }
   }
 
   StmtDiff
@@ -2970,7 +3009,7 @@ namespace clad {
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     llvm::SmallVector<Expr*, 4> clonedArgs;
     for (auto arg : CE->arguments()) {
-      auto argDiff = Visit(arg);
+      auto argDiff = Visit(arg, dfdx());
       clonedArgs.push_back(argDiff.getExpr());
     }
     Expr* clonedArgsE = nullptr;
@@ -3019,6 +3058,12 @@ namespace clad {
     xValueType.removeLocalConst();
     QualType nonRefXValueType = xValueType.getNonReferenceType();
     return GetCladArrayRefOfType(nonRefXValueType);
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXStaticCastExpr(
+      const clang::CXXStaticCastExpr* SCE) {
+    StmtDiff subExprDiff = Visit(SCE->getSubExpr(), dfdx());
+    return subExprDiff;
   }
 
   clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {
