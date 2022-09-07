@@ -348,6 +348,7 @@ namespace clad {
     StmtDiff VisitCXXConstructExpr(const clang::CXXConstructExpr* CE);
     StmtDiff
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
+    StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
 
     /// A helper method to differentiate a single Stmt in the reverse mode.

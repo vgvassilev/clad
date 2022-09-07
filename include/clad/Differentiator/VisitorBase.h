@@ -469,6 +469,8 @@ namespace clad {
     /// Creates the expression Base.size() for the given Base expr. The Base
     /// expr must be of clad::array_ref<T> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
+    /// Checks if the type is of clad::ValueAndPushforward<T,U> type
+    bool isCladValueAndPushforwardType(clang::QualType QT);
     /// Creates the expression Base.slice(Args) for the given Base expr and Args
     /// array. The Base expr must be of clad::array_ref<T> type
     clang::Expr*

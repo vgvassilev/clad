@@ -595,6 +595,11 @@ namespace clad {
            QT.getAsString().find("clad::array_ref") != std::string::npos;
   }
 
+  bool VisitorBase::isCladValueAndPushforwardType(clang::QualType QT) {
+    // FIXME: Replace this check with a clang decl check
+    return QT.getAsString().find("ValueAndPushforward") != std::string::npos;
+  }
+
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
       unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args) {
