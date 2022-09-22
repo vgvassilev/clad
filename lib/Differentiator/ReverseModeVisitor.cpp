@@ -591,7 +591,7 @@ namespace clad {
 
     // Extract Pointer from Clad Array Ref
     llvm::SmallVector<VarDecl*, 8> cladRefParams;
-    for (int i = 0; i < numParams; i++) {
+    for (unsigned i = 0; i < numParams; i++) {
       QualType paramType = origParams[i]->getOriginalType();
       if (paramType->isRealType()) {
         cladRefParams.push_back(nullptr);
@@ -621,7 +621,7 @@ namespace clad {
         fdDeclContext, noLoc, m_Function->getType()));
 
     // Add rest of the parameters/arguments
-    for (int i = 0; i < numParams; i++) {
+    for (unsigned i = 0; i < numParams; i++) {
       // First Add the original parameter
       enzymeArgs.push_back(BuildDeclRef(paramsRef[i]));
       enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
@@ -685,7 +685,7 @@ namespace clad {
       auto gradDeclStmt = BuildVarDecl(QT, "grad", enzymeCall, true);
       addToCurrentBlock(BuildDeclStmt(gradDeclStmt), direction::forward);
 
-      for (int i = 0; i < enzymeRealParams.size(); i++) {
+      for (unsigned i = 0; i < enzymeRealParams.size(); i++) {
         auto LHSExpr = BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsRef[i]));
 
         auto ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
