@@ -1,6 +1,6 @@
 <div align="center">
 
-# Clad
+<img width=200em alt="Clad" src="https://user-images.githubusercontent.com/6516307/193281076-3f5a4c7f-2f0d-4c05-b76b-b2d6719adf0a.svg"/>
 
 [![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/clad)](https://github.com/conda-forge/clad-feedstock)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/clad/badges/license.svg)](https://anaconda.org/conda-forge/clad)
