@@ -8,6 +8,7 @@
 #define CLAD_DERIVATIVE_BUILDER_H
 
 #include "Compatibility.h"
+#include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -32,7 +33,6 @@ namespace clad {
   namespace utils {
     class StmtClone;
   }
-  struct DiffRequest;
   namespace plugin {
     class CladPlugin;
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,

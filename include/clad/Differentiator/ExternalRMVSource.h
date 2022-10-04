@@ -3,6 +3,7 @@
 
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
+#include "clad/Differentiator/ReverseModeVisitor.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
@@ -13,7 +14,6 @@
 
 namespace clad {
 
-class ReverseModeVisitor;
 class DiffRequest;
 class StmtDiff;
 class VarDeclDiff;
