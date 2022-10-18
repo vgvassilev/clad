@@ -435,15 +435,13 @@ jobs:
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
-        curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
-        echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
-        sudo apt update
-        if [[ '${{ matrix.clang-runtime }}' == '8' ]]; then
-          sudo apt install llvm-${{ matrix.clang-runtime }}-dev clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
-        else # ==7, >=9
-          sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
+        if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
+          curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
+          echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
+          sudo apt update
         fi
+        sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
       run: |
