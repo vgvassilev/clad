@@ -525,9 +525,9 @@ jobs:
     - name: Setup LLVM/Clang on Windows
       if: runner.os == 'Windows'
       run: |
-        choco install wget
-        wget --no-verbose https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/LLVM-15.0.2-win64.exe
-        LLVM-15.0.2-win64.exe
+        clang --version
+        choco install llvm --version 15 -my
+        clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
       run: |     
