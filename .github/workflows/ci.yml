@@ -526,7 +526,7 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         clang --version
-        choco install llvm --version 15 -my
+        choco install llvm --version 15.0 -my
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
@@ -559,8 +559,9 @@ jobs:
         echo "Use Clang/LLVM in $PATH_TO_LLVM_BUILD"
         echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
         python3 --version
-    - name: Build Clad
+    - name: Build Clad on *nix
       if: ${{ matrix.coverity == false }}
+      if: runner.os != 'Windows'
       run: |
         mkdir obj && cd obj
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
@@ -571,6 +572,22 @@ jobs:
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
 
+        cmake --build . -- -j4
+    - name: Build Clad on Windows
+      if: ${{ matrix.coverity == false }}
+      if: runner.os == 'Windows'
+      run: |
+        mkdir obj && cd obj
+        if ( '$BUILD_TYPE' -eq '' )
+        {
+          BUILD_TYPE="RelWithDebInfo"
+        }
+        cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
+          -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+          -DCODE_COVERAGE=$CODE_COVERAGE  \
+          $GITHUB_WORKSPACE                 \
+          ${{ matrix.extra_cmake_options }}
         cmake --build . -- -j4
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
