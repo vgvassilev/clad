@@ -360,6 +360,11 @@ jobs:
             compiler: clang-15
             clang-runtime: '14'
 
+          - name: win-clang15-runtime14
+            os: windows-latest
+            compiler: clang-15
+            clang-runtime: '14'
+
     steps:
     - uses: actions/checkout@v2
       with:
