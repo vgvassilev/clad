@@ -444,6 +444,18 @@ jobs:
         else
           echo "Unsupported compiler - fix YAML file"
         fi
+    - name: Setup compiler on Windows
+      if: runner.os == 'windows'
+      run: |
+        if ( '${{ matrix.compiler }}' -imatch 'clang' )
+        {
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+        }
+        else
+        {
+          echo "Unsupported compiler - fix YAML file"
+        }
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
@@ -510,6 +522,12 @@ jobs:
         pip3 install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+    - name: Setup LLVM/Clang on Windows
+      if: runner.os == 'Windows'
+      run: |
+        choco install wget
+        wget --no-verbose https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/LLVM-15.0.2-win64.exe
+        LLVM-15.0.2-win64.exe
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
       run: |     
@@ -531,6 +549,7 @@ jobs:
         echo "CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config
+      if: runner.os != 'Windows'
       run: |
         cmake --version
         $CC --version
