@@ -523,7 +523,7 @@ jobs:
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
-      if: runner.os == 'Windows'
+      if: runner.os == 'windows'
       run: |
         clang --version
         choco install llvm --version=15.0 -my
@@ -549,7 +549,7 @@ jobs:
         echo "CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config
-      if: runner.os != 'Windows'
+      if: runner.os != 'windows'
       run: |
         cmake --version
         $CC --version
@@ -560,7 +560,7 @@ jobs:
         echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
         python3 --version
     - name: Build Clad on *nix
-      if: ${{ matrix.coverity == false }} and ${{ runner.os != 'Windows' }}
+      if: ${{ matrix.coverity == false && runner.os != 'windows' }}
       run: |
         mkdir obj && cd obj
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
@@ -573,7 +573,7 @@ jobs:
 
         cmake --build . -- -j4
     - name: Build Clad on Windows
-      if: ${{ matrix.coverity == false }} and ${{ runner.os == 'Windows' }}
+      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
         mkdir obj && cd obj
         if ( '$BUILD_TYPE' -eq '' )
