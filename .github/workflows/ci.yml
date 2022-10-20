@@ -526,7 +526,7 @@ jobs:
       if: runner.os == 'windows'
       run: |
         clang --version
-        choco install llvm --version=15.0 -my
+        choco install llvm --version=15.0 --no-progress -my
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
@@ -580,12 +580,7 @@ jobs:
         {
           BUILD_TYPE="RelWithDebInfo"
         }
-        cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-          -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
-          -DCMAKE_BUILD_TYPE=$BUILD_TYPE  \
-          -DCODE_COVERAGE=$CODE_COVERAGE  \
-          $GITHUB_WORKSPACE               \
-          ${{ matrix.extra_cmake_options }}
+        cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" -DLLVM_DIR="$PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCODE_COVERAGE=$CODE_COVERAGE $GITHUB_WORKSPACE ${{ matrix.extra_cmake_options }}
         cmake --build . -- -j4
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
