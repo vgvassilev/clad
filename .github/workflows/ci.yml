@@ -451,6 +451,8 @@ jobs:
         {
           echo "CC=clang" >> $env:GITHUB_ENV
           echo "CXX=clang++" >> $env:GITHUB_ENV
+          $env:CC="clang"
+          $env:CXX="clang++"
         }
         else
         {
@@ -528,8 +530,8 @@ jobs:
         clang --version
         choco install llvm --version=15.0 --no-progress -my
         $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
-        echo "`$env:PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
-        echo "`$env:PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+        echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+        echo "`$env:PATH_TO_LLVM_BUILD=\"$env:PATH_TO_LLVM_BUILD\"" >> $GITHUB_ENV
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
@@ -570,11 +572,13 @@ jobs:
         echo "CC=$env:CC"
         if ( "$env:CC" -ne "" )
         {
-          Start-Process -Wait -FilePath "$env:CC" -Verb RunAs -ArgumentList '--version'
+          start -Wait $env:CC --version
+          #Start-Process -Wait -FilePath "$env:CC" -Verb RunAs -ArgumentList '--version'
         }
         echo "CXX=$env:CXX"
         if ( "$env:CXX" -ne "" )
         {
+          start -Wait $env:CXX --version
           Start-Process -Wait -FilePath "$env:CXX" -Verb RunAs -ArgumentList '--version'
         }
         xz --version
