@@ -395,8 +395,8 @@ jobs:
       run: |
         $env:BUILD_TYPE="Release"
         $env:CODE_COVERAGE="0"
-        echo 'BUILD_TYPE="Release"' >> $env:GITHUB_ENV
-        echo 'CODE_COVERAGE="0"' >> $env:GITHUB_ENV
+        echo "BUILD_TYPE=`"Release`"" >> $env:GITHUB_ENV
+        echo "CODE_COVERAGE=`"0`"" >> $env:GITHUB_ENV
     - name: Download Coverity Build Tool - Linux
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
@@ -459,8 +459,8 @@ jobs:
         {
           $env:CC="clang"
           $env:CXX="clang++"
-          echo 'CC="clang" >> $env:GITHUB_ENV
-          echo 'CXX="clang++"' >> $env:GITHUB_ENV
+          echo "CC=`"clang`"" >> $env:GITHUB_ENV
+          echo "CXX=`"clang++`"" >> $env:GITHUB_ENV
         }
         else
         {
@@ -539,7 +539,7 @@ jobs:
         choco install llvm --version=15.0 --no-progress -my
         $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
-        echo "PATH_TO_LLVM_BUILD=\`"$env:PATH_TO_LLVM_BUILD\`"" >> $env:GITHUB_ENV
+        echo "PATH_TO_LLVM_BUILD=`"$env:PATH_TO_LLVM_BUILD`"" >> $env:GITHUB_ENV
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
