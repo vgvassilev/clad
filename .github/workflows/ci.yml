@@ -548,7 +548,7 @@ jobs:
         sudo apt install lcov
         echo "CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
-    - name: Display config
+    - name: Display config *nix
       if: runner.os != 'windows'
       run: |
         cmake --version
@@ -559,7 +559,7 @@ jobs:
         echo "Use Clang/LLVM in $PATH_TO_LLVM_BUILD"
         echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
         python3 --version
-    - name: Display config
+    - name: Display config Windows
       if: runner.os == 'windows'
       run: |
         set
@@ -571,7 +571,7 @@ jobs:
         xz --version
         tar --version
         echo "Use Clang/LLVM in $PATH_TO_LLVM_BUILD"
-        echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
+        echo "Building clad in $BUILD_TYPE"
         python3 --version
     - name: Build Clad on *nix
       if: ${{ matrix.coverity == false && runner.os != 'windows' }}
