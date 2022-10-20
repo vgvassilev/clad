@@ -562,7 +562,7 @@ jobs:
     - name: Display config Windows
       if: runner.os == 'windows'
       run: |
-        set
+        dir env:
         cmake --version
         echo "CC=$CC"
         Start-Process -Wait -FilePath "$CC" -Verb RunAs -ArgumentList '--version'
@@ -652,7 +652,7 @@ jobs:
 
         cd ..
     - name: Failed job config
-      if: ${{ failure() }}
+      if: ${{ failure() && runner.os != 'windows' }}
       env:
         GITHUB_CONTEXT: ${{ toJson(github) }}
       run: |
