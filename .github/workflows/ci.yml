@@ -596,6 +596,8 @@ jobs:
     - name: Build Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
+        dir env:
+        type $GITHUB_ENV
         echo "cmake -DClang_DIR=$PATH_TO_LLVM_BUILD -DLLVM_DIR=$PATH_TO_LLVM_BUILD -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCODE_COVERAGE=$CODE_COVERAGE $GITHUB_WORKSPACE ${{ matrix.extra_cmake_options }}"
         mkdir obj
         cd obj
