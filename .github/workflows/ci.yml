@@ -447,7 +447,7 @@ jobs:
     - name: Setup compiler on Windows
       if: runner.os == 'windows'
       run: |
-        if ( '${{ matrix.compiler }}' -imatch 'clang' )
+        if ( "${{ matrix.compiler }}" -imatch "clang" )
         {
           echo "CC=clang" >> $GITHUB_ENV
           echo "CXX=clang++" >> $GITHUB_ENV
@@ -565,9 +565,15 @@ jobs:
         dir env:
         cmake --version
         echo "CC=$CC"
-        Start-Process -Wait -FilePath "$CC" -Verb RunAs -ArgumentList '--version'
+        if ( "$CC" -ne "" )
+        {
+          Start-Process -Wait -FilePath "$CC" -Verb RunAs -ArgumentList '--version'
+        }
         echo "CXX=$CXX"
-        Start-Process -Wait -FilePath "$CXX" -Verb RunAs -ArgumentList '--version'
+        if ( "$CXX" -ne "" )
+        {
+          Start-Process -Wait -FilePath "$CXX" -Verb RunAs -ArgumentList '--version'
+        }
         xz --version
         tar --version
         echo "Use Clang/LLVM in $PATH_TO_LLVM_BUILD"
@@ -591,7 +597,7 @@ jobs:
       run: |
         mkdir obj
         cd obj
-        if ( '$BUILD_TYPE' -eq '' )
+        if ( "$BUILD_TYPE" -eq "" )
         {
           BUILD_TYPE="RelWithDebInfo"
         }
