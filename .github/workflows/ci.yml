@@ -449,8 +449,8 @@ jobs:
       run: |
         if ( "${{ matrix.compiler }}" -imatch "clang" )
         {
-          echo "CC=clang" >> $GITHUB_ENV
-          echo "CXX=clang++" >> $GITHUB_ENV
+          echo "CC=clang" >> $env:GITHUB_ENV
+          echo "CXX=clang++" >> $env:GITHUB_ENV
         }
         else
         {
@@ -527,7 +527,7 @@ jobs:
       run: |
         clang --version
         choco install llvm --version=15.0 --no-progress -my
-        $PATH_TO_LLVM_BUILD="$ProgramFiles\LLVM"
+        $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
@@ -565,20 +565,20 @@ jobs:
       run: |
         dir env:
         cmake --version
-        echo "CC=$CC"
-        if ( "$CC" -ne "" )
+        echo "CC=$env:CC"
+        if ( "$env:CC" -ne "" )
         {
-          Start-Process -Wait -FilePath "$CC" -Verb RunAs -ArgumentList '--version'
+          Start-Process -Wait -FilePath "$env:CC" -Verb RunAs -ArgumentList '--version'
         }
-        echo "CXX=$CXX"
-        if ( "$CXX" -ne "" )
+        echo "CXX=$env:CXX"
+        if ( "$env:CXX" -ne "" )
         {
-          Start-Process -Wait -FilePath "$CXX" -Verb RunAs -ArgumentList '--version'
+          Start-Process -Wait -FilePath "$env:CXX" -Verb RunAs -ArgumentList '--version'
         }
         xz --version
         tar --version
-        echo "Use Clang/LLVM in $PATH_TO_LLVM_BUILD"
-        echo "Building clad in $BUILD_TYPE"
+        echo "Use Clang/LLVM in $env:PATH_TO_LLVM_BUILD"
+        echo "Building clad in $env:BUILD_TYPE"
         python3 --version
     - name: Build Clad on *nix
       if: ${{ matrix.coverity == false && runner.os != 'windows' }}
@@ -597,19 +597,19 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
         dir env:
-        type $GITHUB_ENV
-        echo "cmake -DClang_DIR=$PATH_TO_LLVM_BUILD -DLLVM_DIR=$PATH_TO_LLVM_BUILD -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCODE_COVERAGE=$CODE_COVERAGE $GITHUB_WORKSPACE ${{ matrix.extra_cmake_options }}"
+        type $env:GITHUB_ENV
+        echo "cmake -DClang_DIR=$env:PATH_TO_LLVM_BUILD -DLLVM_DIR=$env:PATH_TO_LLVM_BUILD -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DCODE_COVERAGE=$env:CODE_COVERAGE $env:GITHUB_WORKSPACE ${{ matrix.extra_cmake_options }}"
         mkdir obj
         cd obj
-        if ( "$BUILD_TYPE" -eq "" )
+        if ( "$env:BUILD_TYPE" -eq "" )
         {
-          $BUILD_TYPE="RelWithDebInfo"
+          $env:BUILD_TYPE="RelWithDebInfo"
         }
-        if ( "$CODE_COVERAGE" -eq "" )
+        if ( "$env:CODE_COVERAGE" -eq "" )
         {
-          $CODE_COVERAGE="0"
+          $env:CODE_COVERAGE="0"
         }
-        cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" -DLLVM_DIR="$PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCODE_COVERAGE=$CODE_COVERAGE "$GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DCODE_COVERAGE=$env:CODE_COVERAGE "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . -- -j4
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
