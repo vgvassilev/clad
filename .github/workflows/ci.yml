@@ -528,6 +528,8 @@ jobs:
         clang --version
         choco install llvm --version=15.0 --no-progress -my
         $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
+        echo "`$env:PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+        echo "`$env:PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
@@ -610,7 +612,7 @@ jobs:
           $env:CODE_COVERAGE="0"
         }
         cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DCODE_COVERAGE=$env:CODE_COVERAGE "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
-        cmake --build . -- -j4
+        cmake --build .
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
       run: |
