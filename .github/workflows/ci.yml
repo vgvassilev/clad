@@ -393,10 +393,10 @@ jobs:
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
-        $env:BUILD_TYPE=Release
-        $env:CODE_COVERAGE=0
-        echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
-        echo "CODE_COVERAGE=0" >> $env:GITHUB_ENV
+        $env:BUILD_TYPE="Release"
+        $env:CODE_COVERAGE="0"
+        echo 'BUILD_TYPE="Release"' >> $env:GITHUB_ENV
+        echo 'CODE_COVERAGE="0"' >> $env:GITHUB_ENV
     - name: Download Coverity Build Tool - Linux
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
@@ -459,8 +459,8 @@ jobs:
         {
           $env:CC="clang"
           $env:CXX="clang++"
-          echo "CC=clang" >> $env:GITHUB_ENV
-          echo "CXX=clang++" >> $env:GITHUB_ENV
+          echo 'CC="clang" >> $env:GITHUB_ENV
+          echo 'CXX="clang++"' >> $env:GITHUB_ENV
         }
         else
         {
