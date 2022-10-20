@@ -578,7 +578,7 @@ jobs:
       run: |
         mkdir obj && cd obj
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-          -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
+          -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCODE_COVERAGE=${CODE_COVERAGE}  \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
