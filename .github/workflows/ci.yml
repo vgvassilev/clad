@@ -527,7 +527,7 @@ jobs:
       run: |
         clang --version
         choco install llvm --version=15.0 --no-progress -my
-        $PATH_TO_LLVM_BUILD=$ProgramFiles\LLVM
+        $PATH_TO_LLVM_BUILD=$ProgramFiles/LLVM
         clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
