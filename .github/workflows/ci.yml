@@ -551,7 +551,8 @@ jobs:
         $ver="${{ matrix.compiler }}".split("-")[1]
         #wget --no-verbose "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip"
         Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip" -OutFile "llvmorg-$ver.zip"
-        sz x -ollvm "llvmorg-$ver.zip" -r ;
+        7z x "llvmorg-$ver.zip"
+        mv "llvm-project-llvmorg-$ver/" llvm/
         #git clone --depth=1 https://github.com/llvm/llvm-project.git llvm
         cd llvm
         $env:PATH_TO_LLVM_BUILD=pwd
