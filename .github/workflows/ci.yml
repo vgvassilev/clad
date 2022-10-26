@@ -457,6 +457,13 @@ jobs:
       run: |
         if ( "${{ matrix.compiler }}" -imatch "clang" )
         {
+          $ver="${{ matrix.compiler }}".split("-")[1]
+          choco install llvm --version=$ver --no-progress -my
+          $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
+          clang --version
+          #
           $env:CC="clang"
           $env:CXX="clang++"
           echo "CC=clang" >> $env:GITHUB_ENV
@@ -535,12 +542,24 @@ jobs:
     - name: Setup LLVM/Clang on Windows
       if: runner.os == 'windows'
       run: |
-        clang --version
-        choco install llvm --version=15.0 --no-progress -my
-        $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
+        #choco install llvm --version=15.0 --no-progress -my
+        #$env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
+        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
+        #clang --version
+        #TODO: clone llvm version = ${{ matrix.clang-runtime }}
+        $ver="${{ matrix.compiler }}".split("-")[1]
+        wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip
+        sz x -ollvm llvmorg-$ver.zip -r ;
+        #git clone --depth=1 https://github.com/llvm/llvm-project.git llvm
+        cd llvm
+        $env:PATH_TO_LLVM_BUILD=pwd
+        mkdir build
+        cd build
+        cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release ../llvm
+        cmake --build .
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
-        clang --version
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
       run: |     
