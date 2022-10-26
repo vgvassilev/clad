@@ -362,7 +362,7 @@ jobs:
 
           - name: win-clang15-runtime14
             os: windows-latest
-            compiler: clang-15
+            compiler: clang-15.0.2
             clang-runtime: '14'
 
     steps:
@@ -549,8 +549,9 @@ jobs:
         #clang --version
         #TODO: clone llvm version = ${{ matrix.clang-runtime }}
         $ver="${{ matrix.compiler }}".split("-")[1]
-        wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip
-        sz x -ollvm llvmorg-$ver.zip -r ;
+        #wget --no-verbose "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip"
+        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip" -OutFile "llvmorg-$ver.zip"
+        sz x -ollvm "llvmorg-$ver.zip" -r ;
         #git clone --depth=1 https://github.com/llvm/llvm-project.git llvm
         cd llvm
         $env:PATH_TO_LLVM_BUILD=pwd
