@@ -565,8 +565,8 @@ jobs:
         #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
         #
         C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
-        $env:PATH_TO_LLVM_BUILD="$env:CONDA"
-        Get-ChildItem -Path C:\Miniconda –Recurse
+        $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
+        #Get-ChildItem -Path C:\Miniconda –Recurse
         echo "Runtime LLVM/Clang: $env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
