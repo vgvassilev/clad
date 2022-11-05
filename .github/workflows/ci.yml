@@ -548,18 +548,26 @@ jobs:
         #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
         #clang --version
         #TODO: clone llvm version = ${{ matrix.clang-runtime }}
-        $ver="${{ matrix.compiler }}".split("-")[1]
+        ###$ver="${{ matrix.compiler }}".split("-")[1]
         #wget --no-verbose "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip"
-        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip" -OutFile "llvmorg-$ver.zip"
-        7z x "llvmorg-$ver.zip"
-        mv "llvm-project-llvmorg-$ver/" llvm/
-        #git clone --depth=1 https://github.com/llvm/llvm-project.git llvm
-        cd llvm
-        $env:PATH_TO_LLVM_BUILD=pwd
-        mkdir build
-        cd build
-        cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release ../llvm
-        cmake --build .
+        ###
+        #Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip" -OutFile "llvmorg-$ver.zip"
+        #7z x "llvmorg-$ver.zip"
+        #mv "llvm-project-llvmorg-$ver/" llvm/
+        ##git clone --depth=1 https://github.com/llvm/llvm-project.git llvm
+        #cd llvm
+        #$env:PATH_TO_LLVM_BUILD=pwd
+        #mkdir build
+        #cd build
+        #cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release ../llvm
+        #cmake --build .
+        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
+        #
+        $ver="${{ matrix.clang-runtime }}".split("-")[1]
+        conda install -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
+        $env:PATH_TO_LLVM_BUILD=$CONDA/llvm
+        echo "@@@$env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
     - name: Setup CUDA 8 on Linux
