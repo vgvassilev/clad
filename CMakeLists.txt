@@ -64,7 +64,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     endif()
 
     if (DEFINED LLVM_DIR)
-       set(search_hints HINTS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/llvm" "${LLVM_DIR}/cmake")
+       set(search_hints HINTS ${LLVM_DIR} "${LLVM_DIR}/lib/cmake/llvm" "${LLVM_DIR}/cmake" "${LLVM_DIR}/Library/cmake/llvm")
     endif()
 
     find_package(LLVM ${LLVM_VERSION} REQUIRED CONFIG ${search_hints})
@@ -100,7 +100,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     endif()
 
     if (DEFINED Clang_DIR)
-       set(extra_hints HINTS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake")
+       set(extra_hints HINTS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake" "${Clang_DIR}/Library/cmake/clang")
     endif()
 
     find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG ${extra_hints})
