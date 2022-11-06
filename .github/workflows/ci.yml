@@ -650,8 +650,8 @@ jobs:
         {
           $env:CODE_COVERAGE="0"
         }
-        echo "cmake -DClang_DIR=$env:PATH_TO_LLVM_BUILD -DLLVM_DIR=$env:PATH_TO_LLVM_BUILD -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DCODE_COVERAGE=$env:CODE_COVERAGE $env:GITHUB_WORKSPACE ${{ matrix.extra_cmake_options }}"
-        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DCODE_COVERAGE=$env:CODE_COVERAGE "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        echo "cmake -DClang_DIR=$env:PATH_TO_LLVM_BUILD -DLLVM_DIR=$env:PATH_TO_LLVM_BUILD -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}"
+        cmake -DClang_DIR=$env:PATH_TO_LLVM_BUILD -DLLVM_DIR=$env:PATH_TO_LLVM_BUILD -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DCODE_COVERAGE=$env:CODE_COVERAGE $env:GITHUB_WORKSPACE ${{ matrix.extra_cmake_options }}
         cmake --build .
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
