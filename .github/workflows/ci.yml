@@ -56,6 +56,11 @@ jobs:
             os: macos-latest
             compiler: clang
             clang-runtime: '14'
+            
+          - name: win-msvc-runtime14
+            os: windows-latest
+            compiler: msvc
+            clang-runtime: '14'
 
           - name: ubu20-gcc7-runtime8
             os: ubuntu-20.04
@@ -380,10 +385,18 @@ jobs:
         name: pr
         path: pr/
     - uses: nelonoel/branch-name@v1.0.1
-    - name: Setup default Build Type
+    - name: Setup default Build Type on *nux
+      if: runner.os != 'windows'
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
         echo "CODE_COVERAGE=0" >> $GITHUB_ENV
+    - name: Setup default Build Type on Windows
+      if: runner.os == 'windows'
+      run: |
+        $env:BUILD_TYPE="Release"
+        $env:CODE_COVERAGE="0"
+        echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
+        echo "CODE_COVERAGE=0" >> $env:GITHUB_ENV
     - name: Download Coverity Build Tool - Linux
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
@@ -439,6 +452,31 @@ jobs:
         else
           echo "Unsupported compiler - fix YAML file"
         fi
+    - name: Setup compiler on Windows
+      if: runner.os == 'windows'
+      run: |
+        if ( "${{ matrix.compiler }}" -imatch "clang" )
+        {
+          $ver="${{ matrix.compiler }}".split("-")[1]
+          choco install llvm --version=$ver --no-progress -my
+          $env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
+          clang --version
+          #
+          $env:CC="clang"
+          $env:CXX="clang++"
+          echo "CC=clang" >> $env:GITHUB_ENV
+          echo "CXX=clang++" >> $env:GITHUB_ENV
+        }
+        elseif ( "${{ matrix.compiler }}" -imatch "msvc" )
+        {
+          # MSVC is builtin in container image
+        }
+        else
+        {
+          echo "Unsupported compiler - fix YAML file"
+        }
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
@@ -505,6 +543,15 @@ jobs:
         pip3 install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+    - name: Setup LLVM/Clang on Windows
+      if: runner.os == 'windows'
+      run: |
+        C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
+        $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
+        pip3 install lit # LLVM lit is not part of the llvm releases...
+        echo "Runtime LLVM/Clang: $env:PATH_TO_LLVM_BUILD"
+        echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+        echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
       run: |     
@@ -525,7 +572,8 @@ jobs:
         sudo apt install lcov
         echo "CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
-    - name: Display config
+    - name: Display config *nix
+      if: runner.os != 'windows'
       run: |
         cmake --version
         $CC --version
@@ -535,12 +583,31 @@ jobs:
         echo "Use Clang/LLVM in $PATH_TO_LLVM_BUILD"
         echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
         python3 --version
-    - name: Build Clad
-      if: ${{ matrix.coverity == false }}
+    - name: Display config Windows
+      if: runner.os == 'windows'
+      run: |
+        cmake --version
+        echo "CC=$env:CC"
+        if ( "$env:CC" -ne "" )
+        {
+          Start-Process -Wait -FilePath "$env:CC" -Verb RunAs -ArgumentList '--version'
+        }
+        echo "CXX=$env:CXX"
+        if ( "$env:CXX" -ne "" )
+        {
+          Start-Process -Wait -FilePath "$env:CXX" -Verb RunAs -ArgumentList '--version'
+        }
+        xz --version
+        tar --version
+        echo "Use Clang/LLVM in $env:PATH_TO_LLVM_BUILD"
+        echo "Building clad in $env:BUILD_TYPE"
+        python3 --version
+    - name: Build Clad on *nix
+      if: ${{ runner.os != 'windows' }}
       run: |
         mkdir obj && cd obj
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-          -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
+          -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCODE_COVERAGE=${CODE_COVERAGE}  \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
@@ -548,6 +615,23 @@ jobs:
           ${{ matrix.extra_cmake_options }}
 
         cmake --build . -- -j4
+    - name: Build Clad on Windows
+      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      run: |
+        mkdir obj
+        cd obj
+        if ( "$env:BUILD_TYPE" -eq "" )
+        {
+          $env:BUILD_TYPE="RelWithDebInfo"
+        }
+        if ( "$env:CODE_COVERAGE" -eq "" )
+        {
+          $env:CODE_COVERAGE="0"
+        }
+        ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
+        $lit = @(which lit)
+        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        cmake --build . --config Release
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
       run: |
@@ -567,11 +651,16 @@ jobs:
         else
           echo "This action only runs on branch coverity_scan"
         fi
-    - name: Test Clad
-      if: ${{ matrix.coverity == false }}
+    - name: Test Clad on *nix
+      if: ${{ matrix.coverity == false && runner.os != 'windows' }}
       run: |
         cd obj
         cmake --build . --target check-clad -- -j4
+    - name: Test Clad on Windows
+      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      run: |
+        cd obj
+        #cmake --build . --target check-clad
     - name: Benchmark Clad
       if: ${{ matrix.benchmark }}
       run: |
@@ -603,7 +692,7 @@ jobs:
 
         cd ..
     - name: Failed job config
-      if: ${{ failure() }}
+      if: ${{ failure() && runner.os != 'windows' }}
       env:
         GITHUB_CONTEXT: ${{ toJson(github) }}
       run: |
