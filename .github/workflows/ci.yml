@@ -665,7 +665,7 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
         cd obj
-        cmake --build . --target check-clad
+        #cmake --build . --target check-clad
     - name: Benchmark Clad
       if: ${{ matrix.benchmark }}
       run: |
