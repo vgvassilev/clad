@@ -603,7 +603,7 @@ jobs:
         echo "Building clad in $env:BUILD_TYPE"
         python3 --version
     - name: Build Clad on *nix
-      if: ${{ matrix.coverity == false && runner.os != 'windows' }}
+      if: ${{ runner.os != 'windows' }}
       run: |
         mkdir obj && cd obj
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
@@ -716,7 +716,7 @@ jobs:
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
       # When debugging increase to a suitable value!
-      timeout-minutes: ${{ github.event.pull_request && 100 || 20 }}
+      timeout-minutes: ${{ github.event.pull_request && 1 || 20 }}
     - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
