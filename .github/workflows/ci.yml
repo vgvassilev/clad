@@ -59,7 +59,7 @@ jobs:
             
           - name: win-clang15-runtime14
             os: windows-latest
-            compiler: clang-15.0.2
+            compiler: msvc
             clang-runtime: '14'
 
           - name: ubu20-gcc7-runtime8
@@ -469,6 +469,10 @@ jobs:
           echo "CC=clang" >> $env:GITHUB_ENV
           echo "CXX=clang++" >> $env:GITHUB_ENV
         }
+        else if ( "${{ matrix.compiler }}" -imatch "msvc" )
+        {
+          # MSVC
+        }
         else
         {
           echo "Unsupported compiler - fix YAML file"
@@ -542,28 +546,6 @@ jobs:
     - name: Setup LLVM/Clang on Windows
       if: runner.os == 'windows'
       run: |
-        #choco install llvm --version=15.0 --no-progress -my
-        #$env:PATH_TO_LLVM_BUILD="$env:ProgramFiles\LLVM"
-        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
-        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
-        #clang --version
-        #TODO: clone llvm version = ${{ matrix.clang-runtime }}
-        ###$ver="${{ matrix.compiler }}".split("-")[1]
-        #wget --no-verbose "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip"
-        ###
-        #Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-$ver.zip" -OutFile "llvmorg-$ver.zip"
-        #7z x "llvmorg-$ver.zip"
-        #mv "llvm-project-llvmorg-$ver/" llvm/
-        ##git clone --depth=1 https://github.com/llvm/llvm-project.git llvm
-        #cd llvm
-        #$env:PATH_TO_LLVM_BUILD=pwd
-        #mkdir build
-        #cd build
-        #cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release ../llvm
-        #cmake --build .
-        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
-        #echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
-        #
         C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
         $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
         #Get-ChildItem -Path C:\Miniconda –Recurse
@@ -651,7 +633,7 @@ jobs:
           $env:CODE_COVERAGE="0"
         }
         ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
-        cmake --trace-expand -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . --config Release
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
@@ -672,11 +654,16 @@ jobs:
         else
           echo "This action only runs on branch coverity_scan"
         fi
-    - name: Test Clad
-      if: ${{ matrix.coverity == false }}
+    - name: Test Clad on *nix
+      if: ${{ matrix.coverity == false && runner.os != 'windows' }}
       run: |
         cd obj
         cmake --build . --target check-clad -- -j4
+    - name: Test Clad on Windows
+      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+      run: |
+        cd obj
+        cmake --build . --target check-clad
     - name: Benchmark Clad
       if: ${{ matrix.benchmark }}
       run: |
