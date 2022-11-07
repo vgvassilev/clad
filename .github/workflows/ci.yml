@@ -57,7 +57,7 @@ jobs:
             compiler: clang
             clang-runtime: '14'
             
-          - name: win-clang15-runtime14
+          - name: win-msvc-runtime14
             os: windows-latest
             compiler: msvc
             clang-runtime: '14'
