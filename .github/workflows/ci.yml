@@ -469,7 +469,7 @@ jobs:
           echo "CC=clang" >> $env:GITHUB_ENV
           echo "CXX=clang++" >> $env:GITHUB_ENV
         }
-        else if ( "${{ matrix.compiler }}" -imatch "msvc" )
+        elseif ( "${{ matrix.compiler }}" -imatch "msvc" )
         {
           # MSVC
         }
