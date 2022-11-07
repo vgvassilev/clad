@@ -56,6 +56,11 @@ jobs:
             os: macos-latest
             compiler: clang
             clang-runtime: '14'
+            
+          - name: win-clang15-runtime14
+            os: windows-latest
+            compiler: clang-15.0.2
+            clang-runtime: '14'
 
           - name: ubu20-gcc7-runtime8
             os: ubuntu-20.04
@@ -358,11 +363,6 @@ jobs:
           - name: ubu22-clang15-runtime14
             os: ubuntu-22.04
             compiler: clang-15
-            clang-runtime: '14'
-
-          - name: win-clang15-runtime14
-            os: windows-latest
-            compiler: clang-15.0.2
             clang-runtime: '14'
 
     steps:
