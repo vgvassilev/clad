@@ -650,8 +650,8 @@ jobs:
         {
           $env:CODE_COVERAGE="0"
         }
-        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
-        cmake --build .
+        cmake --trace-expand -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        cmake --build . --config Release
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
       run: |
