@@ -471,7 +471,7 @@ jobs:
         }
         elseif ( "${{ matrix.compiler }}" -imatch "msvc" )
         {
-          # MSVC
+          # MSVC is builtin in container image
         }
         else
         {
@@ -548,7 +548,6 @@ jobs:
       run: |
         C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
         $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
-        #Get-ChildItem -Path C:\Miniconda –Recurse
         pip3 install lit # LLVM lit is not part of the llvm releases...
         echo "Runtime LLVM/Clang: $env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
@@ -587,18 +586,15 @@ jobs:
     - name: Display config Windows
       if: runner.os == 'windows'
       run: |
-        dir env:
         cmake --version
         echo "CC=$env:CC"
         if ( "$env:CC" -ne "" )
         {
-          start -Wait $env:CC --version
-          #Start-Process -Wait -FilePath "$env:CC" -Verb RunAs -ArgumentList '--version'
+          Start-Process -Wait -FilePath "$env:CC" -Verb RunAs -ArgumentList '--version'
         }
         echo "CXX=$env:CXX"
         if ( "$env:CXX" -ne "" )
         {
-          start -Wait $env:CXX --version
           Start-Process -Wait -FilePath "$env:CXX" -Verb RunAs -ArgumentList '--version'
         }
         xz --version
@@ -622,7 +618,6 @@ jobs:
     - name: Build Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
-        dir env:
         mkdir obj
         cd obj
         if ( "$env:BUILD_TYPE" -eq "" )
