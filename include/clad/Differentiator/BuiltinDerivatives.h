@@ -83,9 +83,16 @@ template <typename T1, typename T2>
 CUDA_HOST_DEVICE ValueAndPushforward<decltype(::std::pow(T1(), T2())),
                                      decltype(::std::pow(T1(), T2()))>
 pow_pushforward(T1 x, T2 exponent, T1 d_x, T2 d_exponent) {
-  return {::std::pow(x, exponent),
-          (exponent * ::std::pow(x, exponent - 1)) * d_x +
-              (::std::pow(x, exponent) * ::std::log(x)) * d_exponent};
+  auto val = ::std::pow(x, exponent);
+  auto derivative = (exponent * ::std::pow(x, exponent - 1)) * d_x;
+  // Only add directional derivative of base^exp w.r.t exp if the directional
+  // seed d_exponent is non-zero. This is required because if base is less than or
+  // equal to 0, then log(base) is undefined, and therefore if user only requested
+  // directional derivative of base^exp w.r.t base -- which is valid --, the result would
+  // be undefined because as per C++ valid number + NaN * 0 = NaN.
+  if (d_exponent)
+    derivative += (::std::pow(x, exponent) * ::std::log(x)) * d_exponent;
+  return {val, derivative};
 }
 
 template <typename T>
