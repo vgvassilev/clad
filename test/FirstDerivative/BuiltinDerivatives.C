@@ -1,10 +1,10 @@
-// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out -lm 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out -lm -lstdc++ 2>&1 | FileCheck %s
 // RUN: ./BuiltinDerivatives.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
-
+#include "../TestUtils.h"
 extern "C" int printf(const char* fmt, ...);
 
 float f1(float x) {
@@ -207,6 +207,46 @@ void f10_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<int> 
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f11(double x, double y) {
+  return std::pow((1.-x),2) + 100. * std::pow(y-std::pow(x,2),2);
+}
+
+// CHECK: void f11_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     typename {{.*}} _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double _t3;
+// CHECK-NEXT:     _t0 = (1. - x);
+// CHECK-NEXT:     _t2 = x;
+// CHECK-NEXT:     _t3 = y - std::pow(_t2, 2);
+// CHECK-NEXT:     _t1 = std::pow(_t3, 2);
+// CHECK-NEXT:     double f11_return = std::pow(_t0, 2) + 100. * _t1;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         int _grad1 = 0;
+// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t0, 2, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         * _d_x += -_r0;
+// CHECK-NEXT:         int _r1 = _grad1;
+// CHECK-NEXT:         double _r2 = 1 * _t1;
+// CHECK-NEXT:         double _r3 = 100. * 1;
+// CHECK-NEXT:         double _grad4 = 0.;
+// CHECK-NEXT:         int _grad5 = 0;
+// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t3, 2, _r3, &_grad4, &_grad5);
+// CHECK-NEXT:         double _r4 = _grad4;
+// CHECK-NEXT:         * _d_y += _r4;
+// CHECK-NEXT:         double _grad2 = 0.;
+// CHECK-NEXT:         int _grad3 = 0;
+// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t2, 2, -_r4, &_grad2, &_grad3);
+// CHECK-NEXT:         double _r5 = _grad2;
+// CHECK-NEXT:         * _d_x += _r5;
+// CHECK-NEXT:         int _r6 = _grad3;
+// CHECK-NEXT:         int _r7 = _grad5;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -268,6 +308,10 @@ int main () { //expected-no-diagnostics
   clad::gradient(f10);
   f10_grad(3, 4, &f_result[0], &i_result[0]);
   printf("Result is = {%f, %d}\n", f_result[0], i_result[0]); //CHECK-EXEC: Result is = {108.000000, 88}
+
+  INIT_GRADIENT(f11);
+
+  TEST_GRADIENT(f11, /*numOfDerivativeArgs=*/2, -1, 1, &d_result[0], &d_result[1]); // CHECK-EXEC: {-4.00, 0.00}
 
   return 0;
 }
