@@ -81,7 +81,8 @@ namespace clad {
         .get();
   }
 
-  Expr* TaylorApprox::AssignError(StmtDiff refExpr) {
+  Expr* TaylorApprox::AssignError(StmtDiff refExpr,
+                                  const std::string& varName) {
     // Get the machine epsilon value.
     double val = std::numeric_limits<float>::epsilon();
     // Convert it into a floating point literal clang::Expr.
@@ -90,7 +91,6 @@ namespace clad {
     // Here, we first build a multiplication operation for the following:
     // refExpr * <--floating point literal (i.e. machine dependent constant)-->
     // Build another multiplication operation with above and the derivative
-    // value.
     auto errExpr = BuildOp(BO_Mul, refExpr.getExpr_dx(),
                            BuildOp(BO_Mul, refExpr.getExpr(), epsExpr));
     // Next, build a llvm vector-like container to store the parameters

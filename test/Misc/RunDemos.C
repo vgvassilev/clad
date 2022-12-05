@@ -181,6 +181,49 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: }
 
 //-----------------------------------------------------------------------------/
+// Demo: Print Error Estimation Plugin
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang -lstdc++ -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
+// RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/PrintModel/libcladPrintModelPlugin%shlibext \
+// RUN:   %S/../../demos/ErrorEstimation/PrintModel/test.cpp \
+// RUN: -I%S/../../include -oPrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL %s
+
+// CHECK_PRINT_MODEL-NOT: Could not load {{.*}}cladPrintModelPlugin{{.*}}
+
+// RUN: ./PrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL_EXEC %s
+// CHECK_PRINT_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
+// CHECK_PRINT_MODEL_EXEC: The code is:
+// CHECK_PRINT_MODEL_EXEC-NEXT: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
+// CHECK_PRINT_MODEL_EXEC-NEXT:    float _d_z = 0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_z = 0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    float _EERepl_z0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    float _EERepl_z1;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    float z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    float func_return = z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    {
+// CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        _delta_z += clad::getErrorVal(_r_d0, _EERepl_z1, "z");
+// CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    }
+// CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_x = 0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _delta_x += clad::getErrorVal(* _d_x, x, "x");
+// CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_y = 0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _delta_y += clad::getErrorVal(* _d_y, y, "y");
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
+// CHECK_PRINT_MODEL_EXEC-NEXT: }
+// CHECK_PRINT_MODEL_EXEC: Error in z : {{.+}}
+// CHECK_PRINT_MODEL_EXEC-NEXT: Error in x : {{.+}}
+// CHECK_PRINT_MODEL_EXEC-NEXT: Error in y : {{.+}}
+
+//-----------------------------------------------------------------------------/
 // Demo: Gradient Descent
 //-----------------------------------------------------------------------------/
 // RUN: %cladclang -lstdc++ %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s

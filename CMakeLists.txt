@@ -295,6 +295,7 @@ endif()
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_subdirectory(test)
   add_subdirectory(demos/ErrorEstimation/CustomModel)
+  add_subdirectory(demos/ErrorEstimation/PrintModel)
 
   # Add benchmarking infrastructure.
   if (CLAD_ENABLE_BENCHMARKS)

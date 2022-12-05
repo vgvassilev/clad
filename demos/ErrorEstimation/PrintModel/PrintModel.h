@@ -13,12 +13,11 @@
 /// This is our dummy estimation model class.
 // We will be using this to override the virtual function in the
 // FPErrorEstimationModel class.
-class CustomModel : public clad::FPErrorEstimationModel {
+class PrintModel : public clad::FPErrorEstimationModel {
 public:
-  CustomModel(clad::DerivativeBuilder& builder)
+  PrintModel(clad::DerivativeBuilder& builder)
       : FPErrorEstimationModel(builder) {}
-  /// Return an expression of the following kind:
-  ///  dfdx * delta_x
-  clang::Expr* AssignError(clad::StmtDiff refExpr,
-                           const std::string& name) override;
+  // Return an expression of the following kind:
+  //  dfdx * delta_x
+  clang::Expr* AssignError(clad::StmtDiff refExpr, const std::string& name) override;
 };
