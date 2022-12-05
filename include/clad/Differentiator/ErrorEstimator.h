@@ -182,10 +182,12 @@ public:
   ///
   /// \param[in] val The variable to get the error for.
   /// \param[in] valDiff The derivative of the variable 'var'
+  /// \param[in] varName Name of the variable to get the error for.
   ///
   /// \returns The error in the variable 'var'.
-  clang::Expr* GetError(clang::Expr* var, clang::Expr* varDiff) {
-    return m_EstModel->AssignError({var, varDiff});
+  clang::Expr* GetError(clang::Expr* var, clang::Expr* varDiff,
+                        const std::string& varName) {
+    return m_EstModel->AssignError({var, varDiff}, varName);
   }
 
   /// An abstraction of the error estimation model's IsVariableRegistered.

@@ -23,10 +23,10 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
 
 Expr* UpdateErrorForFuncCallAssigns(ErrorEstimationHandler* handler,
                                     Expr* savedExpr, Expr* origExpr,
-                                    Expr*& callError) {
+                                    Expr*& callError, const std::string& name) {
   Expr* errorExpr = nullptr;
   if (!callError)
-    errorExpr = handler->GetError(savedExpr, origExpr);
+    errorExpr = handler->GetError(savedExpr, origExpr, name);
   else {
     errorExpr = callError;
     callError = nullptr;
@@ -61,7 +61,8 @@ void ErrorEstimationHandler::BuildFinalErrorStmt() {
     auto flitr =
         FloatingLiteral::Create(m_RMV->m_Context, llvm::APFloat(1.0), true,
                                 m_RMV->m_Context.DoubleTy, noLoc);
-    finExpr = m_EstModel->AssignError(StmtDiff(m_RetErrorExpr, flitr));
+    finExpr =
+        m_EstModel->AssignError(StmtDiff(m_RetErrorExpr, flitr), "return_expr");
   }
 
   // Build the final error statement with the sum of all _delta_*.
@@ -170,7 +171,8 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
     //   continue;
     Expr* errorExpr = m_EstModel->AssignError(
-        {derivedCallArgs[i], m_RMV->BuildDeclRef(ArgResultDecls[i])});
+        {derivedCallArgs[i], m_RMV->BuildDeclRef(ArgResultDecls[i])},
+        fnDecl->getNameInfo().getAsString() + "_param_" + std::to_string(i));
     Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
     m_ReverseErrorStmts.push_back(errorStmt);
   }
@@ -373,7 +375,8 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         auto savedVal = GetParamReplacement(params[i]);
         savedVal = savedVal ? savedVal : m_RMV->BuildDeclRef(decl);
         // Finally emit the error.
-        auto errorExpr = GetError(savedVal, m_RMV->m_Variables[decl]);
+        auto errorExpr = GetError(savedVal, m_RMV->m_Variables[decl],
+                                  params[i]->getNameAsString());
         m_RMV->addToCurrentBlock(
             m_RMV->BuildOp(BO_AddAssign, deltaVar, errorExpr));
       } else {
@@ -394,7 +397,7 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         savedVal = savedVal ? savedVal : m_RMV->BuildDeclRef(decl);
         auto LRepl = getArraySubscriptExpr(savedVal, m_IdxExpr);
         // Build the loop to put in reverse mode.
-        Expr* errorExpr = GetError(LRepl, Ldiff);
+        Expr* errorExpr = GetError(LRepl, Ldiff, params[i]->getNameAsString());
         auto commonVarDecl =
             m_RMV->BuildVarDecl(errorExpr->getType(), "_t", errorExpr);
         Expr* commonVarExpr = m_RMV->BuildDeclRef(commonVarDecl);
@@ -449,7 +452,8 @@ void ErrorEstimationHandler::EmitUnaryOpErrorStmts(StmtDiff var,
             m_RMV->StoreAndRef(savedVar.getExpr_dx(), direction::reverse);
         savedVar = {savedVar.getExpr(), popVal};
       }
-      Expr* erroExpr = GetError(savedVar.getExpr_dx(), var.getExpr_dx());
+      Expr* erroExpr = GetError(savedVar.getExpr_dx(), var.getExpr_dx(),
+                                DRE->getDecl()->getNameAsString());
       AddErrorStmtToBlock(var.getExpr(), deltaVar, erroExpr, isInsideLoop);
     }
   }
@@ -492,8 +496,10 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr, Expr* oldValue,
   // previously.
   StmtDiff savedExpr = SaveValue(LExpr, isInsideLoop);
   // Assign the error.
-  Expr* errorExpr = UpdateErrorForFuncCallAssigns(this, savedExpr.getExpr_dx(),
-                                                  oldValue, m_NestedFuncError);
+  auto decl = GetUnderlyingDeclRefOrNull(LExpr)->getDecl();
+  Expr* errorExpr =
+      UpdateErrorForFuncCallAssigns(this, savedExpr.getExpr_dx(), oldValue,
+                                    m_NestedFuncError, decl->getNameAsString());
   AddErrorStmtToBlock(LExpr, deltaVar, errorExpr, isInsideLoop);
   // If there are assign statements to emit in reverse, do that.
   EmitErrorEstimationStmts(direction::reverse);
@@ -514,7 +520,8 @@ void ErrorEstimationHandler::EmitDeclErrorStmts(VarDeclDiff VDDiff,
     if (VD->getInit() && !GetUnderlyingDeclRefOrNull(VD->getInit())) {
       Expr* errorExpr = UpdateErrorForFuncCallAssigns(
           this, savedDecl.getExpr_dx(),
-          m_RMV->BuildDeclRef(VDDiff.getDecl_dx()), m_NestedFuncError);
+          m_RMV->BuildDeclRef(VDDiff.getDecl_dx()), m_NestedFuncError,
+          VD->getNameAsString());
       AddErrorStmtToBlock(VDRef, EstVD, errorExpr, isInsideLoop);
     }
   }

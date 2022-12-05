@@ -4,7 +4,8 @@
 
 // Here we use the BuildOp function provided by clad to build a multiplication
 // expression that clad can generate code for.
-clang::Expr* CustomModel::AssignError(clad::StmtDiff refExpr) {
+clang::Expr* CustomModel::AssignError(clad::StmtDiff refExpr,
+                                      const std::string& name) {
   return BuildOp(clang::BO_Mul, refExpr.getExpr_dx(), refExpr.getExpr());
 }
 

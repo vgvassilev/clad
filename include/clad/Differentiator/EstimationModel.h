@@ -69,7 +69,7 @@ namespace clad {
     ///
     /// \n \code
     /// clang::Expr*
-    /// AssignError(clad::StmtDiff* refExpr) {
+    /// AssignError(clad::StmtDiff* refExpr, const std::string& name) {
     ///   return BuildOp(BO_Mul, refExpr->getExpr_dx(), refExpr->getExpr());
     /// }
     /// \endcode
@@ -80,9 +80,11 @@ namespace clad {
     /// has to be assigned, this is a StmtDiff type hence one can use getExpr()
     /// to get the unmodified expression and getExpr_dx() to get the absolute
     /// derivative of the same.
+    /// \param [in] name Name of the variable being analysed.
     ///
     /// \returns The error expression of the input value.
-    virtual clang::Expr* AssignError(StmtDiff refExpr) = 0;
+    virtual clang::Expr* AssignError(StmtDiff refExpr,
+                                     const std::string& name) = 0;
 
     /// Initializes errors for '_delta_' statements.
     /// This function returns the initial error assignment. Similar to
@@ -148,7 +150,8 @@ namespace clad {
         : FPErrorEstimationModel(builder) {}
     // Return an expression of the following kind:
     // std::abs(dfdx * delta_x * Em)
-    clang::Expr* AssignError(StmtDiff refExpr) override;
+    clang::Expr* AssignError(StmtDiff refExpr,
+                             const std::string& name) override;
   };
 
   /// Register any custom error estimation model a user provides
