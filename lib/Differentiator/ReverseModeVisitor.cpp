@@ -36,6 +36,17 @@ using namespace clang;
 
 namespace clad {
 
+Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
+                       ReverseModeVisitor& rvm) {
+  if (auto CAT = dyn_cast<ConstantArrayType>(AT))
+    return ConstantFolder::synthesizeLiteral(context.getSizeType(), context,
+                                             CAT->getSize().getZExtValue());
+  else if (auto VSAT = dyn_cast<VariableArrayType>(AT))
+    return rvm.Clone(VSAT->getSizeExpr());
+
+  return nullptr;
+}
+
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
@@ -53,8 +64,11 @@ namespace clad {
   ReverseModeVisitor::CladTapeResult
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
+    QualType EQt = E->getType();
+    if (dyn_cast<ArrayType>(EQt))
+      EQt = GetCladArrayOfType(utils::GetValueType(EQt));
     QualType TapeType =
-        GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
+        GetCladTapeOfType(getNonConstType(EQt, m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
     Expr* TapeRef =
@@ -75,7 +89,12 @@ namespace clad {
     Expr* PopExpr =
         m_Sema.ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, TapeRef, noLoc)
             .get();
-    Expr* CallArgs[] = {TapeRef, E};
+    Expr* exprToPush = E;
+    if (auto AT = dyn_cast<ArrayType>(E->getType())) {
+      Expr* init = getArraySizeExpr(AT, m_Context, *this);
+      exprToPush = BuildOp(BO_Comma, E, init);
+    }
+    Expr* CallArgs[] = {TapeRef, exprToPush};
     Expr* PushExpr =
         m_Sema.ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, CallArgs, noLoc)
             .get();
@@ -228,7 +247,7 @@ namespace clad {
   ReverseModeVisitor::Derive(const FunctionDecl* FD,
                              const DiffRequest& request) {
     if (m_ExternalSource)
-      m_ExternalSource->ActOnStartOfDerive();                               
+      m_ExternalSource->ActOnStartOfDerive();
     silenceDiags = !request.VerboseDiags;
     m_Function = FD;
 
@@ -2258,10 +2277,12 @@ namespace clad {
     auto VDDerivedType = ComputeAdjointType(VD->getType());
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
-    
-    if (auto VDCAT = dyn_cast<ConstantArrayType>(VD->getType())) {
-      VDDerivedInit = ConstantFolder::synthesizeLiteral(
-          m_Context.getSizeType(), m_Context, VDCAT->getSize().getZExtValue());
+
+    // VDDerivedInit now serves two purposes -- as the initial derivative value
+    // or the size of the derivative array -- depending on the primal type.
+    if (auto AT = dyn_cast<ArrayType>(VD->getType())) {
+      Expr* init = getArraySizeExpr(AT, m_Context, *this);
+      VDDerivedInit = init;
       VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
                                VDDerivedInit, false, nullptr,
                                clang::VarDecl::InitializationStyle::CallInit);
@@ -2434,6 +2455,8 @@ namespace clad {
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
+    // Need to put array decls inlined.
+    llvm::SmallVector<Decl*, 4> localDeclsDiff;
     // For each variable declaration v, create another declaration _d_v to
     // store derivatives for potential reassignments. E.g.
     // double y = x;
@@ -2464,7 +2487,10 @@ namespace clad {
         if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
           m_DeclReplacements[VD] = VDDiff.getDecl();
         decls.push_back(VDDiff.getDecl());
-        declsDiff.push_back(VDDiff.getDecl_dx());
+        if (isa<VariableArrayType>(VD->getType()))
+          localDeclsDiff.push_back(VDDiff.getDecl_dx());
+        else
+          declsDiff.push_back(VDDiff.getDecl_dx());
       } else {
         diag(DiagnosticsEngine::Warning,
              D->getEndLoc(),
@@ -2473,11 +2499,22 @@ namespace clad {
     }
 
     Stmt* DSClone = BuildDeclStmt(decls);
-    Stmt* DSDiff = BuildDeclStmt(declsDiff);
-    addToBlock(DSDiff, m_Globals);
 
-    if (m_ExternalSource)
+    if (!localDeclsDiff.empty()) {
+      Stmt* localDSDIff = BuildDeclStmt(localDeclsDiff);
+      addToCurrentBlock(
+          localDSDIff,
+          clad::rmv::forward); // Doesnt work for arrays decl'd in loops.
+    }
+    if (!declsDiff.empty()) {
+      Stmt* DSDiff = BuildDeclStmt(declsDiff);
+      addToBlock(DSDiff, m_Globals);
+    }
+
+    if (m_ExternalSource) {
+      declsDiff.append(localDeclsDiff.begin(), localDeclsDiff.end());
       m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
+    }
     return StmtDiff(DSClone);
   }
 
@@ -2554,11 +2591,8 @@ namespace clad {
     m_CurScope = m_DerivativeFnScope;
 
     VarDecl* Var = nullptr;
-    if (auto CAT = dyn_cast<ConstantArrayType>(Type)) {
-      Type = GetCladArrayOfType(QualType(CAT->getPointeeOrArrayElementType(),
-                                         Type.getCVRQualifiers()));
-      init = ConstantFolder::synthesizeLiteral(
-          m_Context.getSizeType(), m_Context, CAT->getSize().getZExtValue());
+    if (isa<ArrayType>(Type)) {
+      Type = GetCladArrayOfType(m_Context.getBaseElementType(Type));
       Var = BuildVarDecl(Type, identifier, init, false, nullptr,
                          clang::VarDecl::InitializationStyle::CallInit);
     } else {
@@ -2584,14 +2618,19 @@ namespace clad {
       Expr* Push = CladTape.Push;
       Expr* Pop = CladTape.Pop;
       return {Push, Pop};
-    } else {
-      Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix));
-      if (E) {
-        Expr* Set = BuildOp(BO_Assign, Ref, E);
-        addToCurrentBlock(Set, direction::forward);
-      }
-      return {Ref, Ref};
     }
+
+    Expr* init = nullptr;
+    if (auto AT = dyn_cast<ArrayType>(Type)) {
+      init = getArraySizeExpr(AT, m_Context, *this);
+    }
+
+    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
+    if (E) {
+      Expr* Set = BuildOp(BO_Assign, Ref, E);
+      addToCurrentBlock(Set, direction::forward);
+    }
+    return {Ref, Ref};
   }
 
   StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E,
@@ -3074,10 +3113,9 @@ namespace clad {
       TValueType.removeLocalConst();
       return m_Context.getPointerType(TValueType);
     }
-    if (auto CAT = dyn_cast<ConstantArrayType>(T)) {
+    if (isa<ArrayType>(T) && !isa<IncompleteArrayType>(T)) {
       QualType adjointType =
-          GetCladArrayOfType(QualType(CAT->getPointeeOrArrayElementType(),
-                                      CAT->getIndexTypeCVRQualifiers()));
+          GetCladArrayOfType(m_Context.getBaseElementType(T));
       return adjointType;
     }
     T.removeLocalConst();

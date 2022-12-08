@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -lstdc++ -I%S/../../include -oArrayInputsReverseMode.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -lm -lstdc++ -I%S/../../include -Wno-unused-value -oArrayInputsReverseMode.out 2>&1 | FileCheck %s
 // RUN: ./ArrayInputsReverseMode.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -198,6 +198,130 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double func4(double x) {
+  double arr[3] = {x, 2 * x, x * x};
+  double sum = 0;
+  for (int i = 0; i < 3; i++) {
+    sum += addArr(arr, 3);
+  }
+  return sum;
+}
+
+//CHECK: void func4_grad(double x, clad::array_ref<double> _d_x) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     double _t1;
+//CHECK-NEXT:     double _t2;
+//CHECK-NEXT:     clad::array<double> _d_arr(3UL);
+//CHECK-NEXT:     double _d_sum = 0;
+//CHECK-NEXT:     unsigned long _t3;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     clad::tape<clad::array<double> > _t4 = {};
+//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     _t2 = x;
+//CHECK-NEXT:     _t1 = x;
+//CHECK-NEXT:     double arr[3] = {x, 2 * _t0, _t2 * _t1};
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     _t3 = 0;
+//CHECK-NEXT:     for (int i = 0; i < 3; i++) {
+//CHECK-NEXT:         _t3++;
+//CHECK-NEXT:         clad::push(_t4, arr , 3UL);
+//CHECK-NEXT:         sum += addArr(arr, 3);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     double func4_return = sum;
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t3; _t3--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             double _r_d0 = _d_sum;
+//CHECK-NEXT:             _d_sum += _r_d0;
+//CHECK-NEXT:             clad::array<double> _r5 = clad::pop(_t4);
+//CHECK-NEXT:             int _grad1 = 0;
+//CHECK-NEXT:             addArr_pullback(_r5, 3, _r_d0, _d_arr, &_grad1);
+//CHECK-NEXT:             clad::array<double> _r4(_d_arr);
+//CHECK-NEXT:             int _r6 = _grad1;
+//CHECK-NEXT:             _d_sum -= _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         * _d_x += _d_arr[0];
+//CHECK-NEXT:         double _r0 = _d_arr[1] * _t0;
+//CHECK-NEXT:         double _r1 = 2 * _d_arr[1];
+//CHECK-NEXT:         * _d_x += _r1;
+//CHECK-NEXT:         double _r2 = _d_arr[2] * _t1;
+//CHECK-NEXT:         * _d_x += _r2;
+//CHECK-NEXT:         double _r3 = _t2 * _d_arr[2];
+//CHECK-NEXT:         * _d_x += _r3;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double func5(int k) {
+  int n = k;
+  double arr[n];
+  for (int i = 0; i < n; i++) {
+    arr[i] = k;
+  }
+  double sum = 0;
+  for (int i = 0; i < 3; i++) {
+    sum += addArr(arr, n);
+  }
+  return sum;
+}
+
+//CHECK: void func5_grad(int k, clad::array_ref<int> _d_k) {
+//CHECK-NEXT:     int _d_n = 0;
+//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     clad::tape<int> _t1 = {};
+//CHECK-NEXT:     double _d_sum = 0;
+//CHECK-NEXT:     unsigned long _t3;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     clad::tape<clad::array<double> > _t4 = {};
+//CHECK-NEXT:     clad::tape<int> _t5 = {};
+//CHECK-NEXT:     int n = k;
+//CHECK-NEXT:     clad::array<double> _d_arr(n);
+//CHECK-NEXT:     double arr[n];
+//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     for (int i = 0; i < n; i++) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         arr[clad::push(_t1, i)] = k;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     _t3 = 0;
+//CHECK-NEXT:     for (int i = 0; i < 3; i++) {
+//CHECK-NEXT:         _t3++;
+//CHECK-NEXT:         clad::push(_t4, arr , n);
+//CHECK-NEXT:         sum += addArr(arr, clad::push(_t5, n));
+//CHECK-NEXT:     }
+//CHECK-NEXT:     double func5_return = sum;
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t3; _t3--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             double _r_d1 = _d_sum;
+//CHECK-NEXT:             _d_sum += _r_d1;
+//CHECK-NEXT:             clad::array<double> _r1 = clad::pop(_t4);
+//CHECK-NEXT:             int _grad1 = 0;
+//CHECK-NEXT:             addArr_pullback(_r1, clad::pop(_t5), _r_d1, _d_arr, &_grad1);
+//CHECK-NEXT:             clad::array<double> _r0(_d_arr);
+//CHECK-NEXT:             int _r2 = _grad1;
+//CHECK-NEXT:             _d_n += _r2;
+//CHECK-NEXT:             _d_sum -= _r_d1;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             int _t2 = clad::pop(_t1);
+//CHECK-NEXT:             double _r_d0 = _d_arr[_t2];
+//CHECK-NEXT:             * _d_k += _r_d0;
+//CHECK-NEXT:             _d_arr[_t2] -= _r_d0;
+//CHECK-NEXT:             _d_arr[_t2];
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     * _d_k += _d_n;
+//CHECK-NEXT: }
+
 int main() {
   double arr[] = {1, 2, 3};
   auto f_dx = clad::gradient(f);
@@ -223,4 +347,15 @@ int main() {
   auto nested = clad::gradient(func3);
   nested.execute(a3, b, da3, db2);
   printf("Result (b) = {%.2f, %.2f, %.2f}\n", db2[0], db2[1], db2[2]); // CHECK-EXEC: Result (b) = {0.00, 0.00, 0.00}
+
+  auto constArray = clad::gradient(func4);
+  double _dx = 0;
+  constArray.execute(1, &_dx);
+  printf("Result = {%.2f}\n", _dx); // CHECK-EXEC: Result = {15.00}
+
+  auto df = clad::gradient(func5);
+  int dk = 0;
+  // Should evaluate to k*3
+  df.execute(10, &dk);
+  printf("Result = {%.2d}", dk); // CHECK-EXEC: Result = {30}
 }
