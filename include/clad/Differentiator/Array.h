@@ -37,6 +37,14 @@ public:
     for (std::size_t i = 0; i < size; ++i)
       m_arr[i] = a[i];
   }
+
+  CUDA_HOST_DEVICE array(const array<T>& arr) : array(arr.m_arr, arr.m_size) {}
+
+  CUDA_HOST_DEVICE array<T>& operator=(const array<T>& arr) {
+    (*this) = arr.m_arr;
+    return *this;
+  }
+
   /// Destructor to delete the array if it was created by array_ref
   CUDA_HOST_DEVICE ~array() { delete[] m_arr; }
 
