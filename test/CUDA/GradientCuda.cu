@@ -12,6 +12,8 @@
 
 // expected-no-diagnostics
 
+// XFAIL: true
+
 #include "clad/Differentiator/Differentiator.h"
 
 #define N 3

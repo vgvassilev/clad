@@ -106,12 +106,13 @@ namespace clad {
                                                Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;
       block.push_back(S);
-      if (CompoundStmt* CS = dyn_cast<CompoundStmt>(initial))
+      CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
+      if (CS)
         block.append(CS->body_begin(), CS->body_end());
       else 
         block.push_back(initial);
       auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
-      return clad_compat::CompoundStmt_Create(C, stmtsRef, noLoc, noLoc);
+      return clad_compat::CompoundStmt_Create(C, stmtsRef /**/CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
     }
 
     CompoundStmt* AppendAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
@@ -119,11 +120,12 @@ namespace clad {
       llvm::SmallVector<Stmt*, 16> block;
       assert(isa<CompoundStmt>(initial) &&
              "initial should be of type `clang::CompoundStmt`");
-      if (CompoundStmt* CS = dyn_cast<CompoundStmt>(initial))
+      CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
+      if (CS)
         block.append(CS->body_begin(), CS->body_end());
       block.push_back(S);
       auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
-      return clad_compat::CompoundStmt_Create(C, stmtsRef, noLoc, noLoc);
+      return clad_compat::CompoundStmt_Create(C, stmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
     }
 
     void BuildNNS(clang::Sema& semaRef, DeclContext* DC, CXXScopeSpec& CSS,
@@ -248,7 +250,7 @@ namespace clad {
                                                     /*ASM=*/ArrayType::Normal,
                                                     /*IndexTypeQuals*/ 0);
       StringLiteral* SL = StringLiteral::Create(C, str,
-                                                /*Kind=*/StringLiteral::Ascii,
+                                                /*Kind=*/clad_compat::StringKind_Ordinary,
                                                 /*Pascal=*/false, StrTy, noLoc);
       return SL;
     }

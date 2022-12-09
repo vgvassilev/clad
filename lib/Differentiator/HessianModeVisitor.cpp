@@ -44,7 +44,7 @@ namespace clad {
                                           /*ASM=*/ArrayType::Normal,
                                           /*IndexTypeQuals*/ 0);
     const StringLiteral* SL =
-        StringLiteral::Create(C, str, /*Kind=*/StringLiteral::Ascii,
+        StringLiteral::Create(C, str, /*Kind=*/clad_compat::StringKind_Ordinary,
                               /*Pascal=*/false, StrTy, noLoc);
     return SL;
   }
@@ -370,7 +370,7 @@ namespace clad {
     auto StmtsRef =
         llvm::makeArrayRef(CompStmtSave.data(), CompStmtSave.size());
     CompoundStmt* CS =
-        clad_compat::CompoundStmt_Create(m_Context, StmtsRef, noLoc, noLoc);
+        clad_compat::CompoundStmt_Create(m_Context, StmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(clang::FPOptionsOverride()), noLoc, noLoc);
     hessianFD->setBody(CS);
     endScope(); // Function body scope
     m_Sema.PopFunctionScopeInfo();

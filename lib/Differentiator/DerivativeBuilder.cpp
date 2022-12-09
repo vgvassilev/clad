@@ -43,7 +43,8 @@ namespace clad {
     // FIXME: Attach out-of-line virtual function definitions to the TUScope.
     Scope* S = semaRef.getScopeForContext(derivedFD->getDeclContext());
     semaRef.CheckFunctionDeclaration(S, derivedFD, R,
-                                     /*IsMemberSpecialization=*/false);
+                                     /*IsMemberSpecialization=*/false
+                                     /*DeclIsDefn*/CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(derivedFD));
 
     // FIXME: Avoid the DeclContext lookup and the manual setPreviousDecl.
     // Consider out-of-line virtual functions.
