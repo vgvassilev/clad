@@ -12,7 +12,7 @@
 
 // expected-no-diagnostics
 
-// XFAIL: true
+// XFAIL: clang-15
 
 #include "clad/Differentiator/Differentiator.h"
 
