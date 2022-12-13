@@ -22,11 +22,6 @@ jobs:
       matrix:
 
         include:
-          - name: osx-clang-runtime8
-            os: macos-11
-            compiler: clang
-            clang-runtime: '8'
-
           - name: osx-clang-runtime9
             os: macos-11
             compiler: clang
@@ -99,11 +94,6 @@ jobs:
             clang-runtime: '11'
             coverity: true
 
-          - name: ubu20-clang8-runtime8
-            os: ubuntu-20.04
-            compiler: clang-8
-            clang-runtime: '8'
-
           - name: ubu20-gcc9-runtime9
             os: ubuntu-20.04
             compiler: gcc-9
@@ -134,11 +124,6 @@ jobs:
             compiler: gcc-9
             clang-runtime: '10'
 
-          - name: ubu20-clang6-runtime10
-            os: ubuntu-20.04
-            compiler: 'clang-6.0'
-            clang-runtime: '10'
-
           - name: ubu20-clang8-runtime10
             os: ubuntu-20.04
             compiler: clang-8
@@ -162,11 +147,6 @@ jobs:
           - name: ubu20-gcc9-runtime11
             os: ubuntu-20.04
             compiler: gcc-9
-            clang-runtime: '11'
-
-          - name: ubu20-clang6-runtime11
-            os: ubuntu-20.04
-            compiler: 'clang-6.0'
             clang-runtime: '11'
 
           - name: ubu20-clang8-runtime11
@@ -193,12 +173,6 @@ jobs:
             os: ubuntu-20.04
             compiler: gcc-9
             clang-runtime: '12'
-
-          - name: ubu20-clang6-runtime12
-            os: ubuntu-20.04
-            compiler: 'clang-6.0'
-            clang-runtime: '12'
-
           - name: ubu20-clang8-runtime12
             os: ubuntu-20.04
             compiler: clang-8
