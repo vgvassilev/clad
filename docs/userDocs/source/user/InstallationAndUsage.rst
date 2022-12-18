@@ -3,7 +3,7 @@ Clad Installation
 
 This page covers both installation and usage details for Clad.
 
-At the moment, LLVM/Clang 5.0.x - 14.0.4 are supported.
+At the moment, LLVM/Clang 5.0.x - 15.0.6 are supported.
 
 Conda Installation
 ====================
