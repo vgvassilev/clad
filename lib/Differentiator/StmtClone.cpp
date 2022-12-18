@@ -344,8 +344,8 @@ Stmt* StmtClone::VisitCompoundStmt(CompoundStmt *Node) {
 
   llvm::ArrayRef<Stmt*> stmtsRef = llvm::makeArrayRef(clonedBody.data(),
                                                       clonedBody.size());
-  return clad_compat::CompoundStmt_Create(Ctx, stmtsRef, Node->getLBracLoc(),
-                              Node->getLBracLoc());
+  return clad_compat::CompoundStmt_Create(Ctx, stmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(Node),
+                              Node->getLBracLoc(), Node->getLBracLoc());
 }
 
 VarDecl* StmtClone::CloneDeclOrNull(VarDecl* Node)  {

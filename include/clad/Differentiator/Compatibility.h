@@ -22,6 +22,8 @@ using namespace clang;
 using namespace llvm;
 
 // Compatibility helper function for creation CompoundStmt. Clang 6 and above use Create.
+// Clang 15
+// Clang 15 and above use a extra param FPFeatures in CompoundStmt::Create.
 
 static inline bool SourceManager_isPointWithin(const SourceManager& SM,
                                                SourceLocation Loc,
@@ -35,17 +37,38 @@ static inline bool SourceManager_isPointWithin(const SourceManager& SM,
 #endif
 }
 
+#if CLANG_VERSION_MAJOR == 5
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam(Node) /**/
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS) /**/
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FP) /**/
 static inline CompoundStmt* CompoundStmt_Create(
         const ASTContext &Ctx, ArrayRef<Stmt *> Stmts,
         SourceLocation LB, SourceLocation RB)
 {
-#if CLANG_VERSION_MAJOR == 5
    return new (Ctx) CompoundStmt(Ctx, Stmts, LB, RB);
-#elif CLANG_VERSION_MAJOR >= 6
-   return CompoundStmt::Create(Ctx, Stmts, LB, RB);
-#endif
 }
-
+#elif CLANG_VERSION_MAJOR < 15
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam(Node) /**/
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS) /**/
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FP) /**/
+static inline CompoundStmt* CompoundStmt_Create(
+        const ASTContext &Ctx, ArrayRef<Stmt *> Stmts,
+        SourceLocation LB, SourceLocation RB)
+{
+   return CompoundStmt::Create(Ctx, Stmts, LB, RB);
+}
+#elif CLANG_VERSION_MAJOR >= 15
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam(Node) ,(Node)->getFPFeatures()
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS) ,(((CS)&&(CS)->hasStoredFPFeatures())?(CS)->getStoredFPFeatures():FPOptionsOverride())
+#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FP) ,(FP)
+static inline CompoundStmt* CompoundStmt_Create(
+        const ASTContext &Ctx, ArrayRef<Stmt *> Stmts,
+        FPOptionsOverride FPFeatures,
+        SourceLocation LB, SourceLocation RB)
+{
+   return CompoundStmt::Create(Ctx, Stmts, FPFeatures, LB, RB);
+}
+#endif
 
 // Clang 6 rename Sema::ForRedeclaration to Sema::ForVisibleRedeclaration
 
@@ -412,11 +435,17 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
 
 
 // Clang 12 rename DeclaratorContext::LambdaExprContext to DeclaratorContext::LambdaExpr.
+// Clang 15 add one extra param to clang::Declarator() - const ParsedAttributesView & DeclarationAttrs
 
 #if CLANG_VERSION_MAJOR < 12
-   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr LambdaExprContext
-#elif CLANG_VERSION_MAJOR >= 12
-   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr LambdaExpr
+   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr clang::DeclaratorContext::LambdaExprContext
+   #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam /**/
+#elif CLANG_VERSION_MAJOR < 15
+   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr clang::DeclaratorContext::LambdaExpr
+   #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam /**/
+#elif CLANG_VERSION_MAJOR >= 15
+   #define CLAD_COMPAT_CLANG12_Declarator_LambdaExpr clang::DeclaratorContext::LambdaExpr
+   #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam clang::ParsedAttributesView::none(),
 #endif
 
 // Clang 12 add one extra param (FPO) that we get from Node in Create method of:
@@ -651,6 +680,23 @@ static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
   , Node->getUsedContext()
 #else
 #define CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node) /**/
+#endif
+
+// Clang 15 rename StringKind::Ascii to StringKind::Ordinary
+
+#if CLANG_VERSION_MAJOR < 15
+   const auto StringKind_Ordinary = clang::StringLiteral::StringKind::Ascii;
+#elif CLANG_VERSION_MAJOR >= 15
+   const auto StringKind_Ordinary = clang::StringLiteral::StringKind::Ordinary;
+#endif
+
+// Clang 15 add one extra param to Sema::CheckFunctionDeclaration
+
+#if CLANG_VERSION_MAJOR < 15
+#define CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(Fn) /**/
+#elif CLANG_VERSION_MAJOR >= 15
+#define CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(Fn) \
+  ,Fn->isThisDeclarationADefinition()
 #endif
 
 } // namespace clad_compat

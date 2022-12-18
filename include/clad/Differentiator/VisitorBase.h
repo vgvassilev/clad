@@ -17,6 +17,7 @@ namespace clad {
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 
 #include <array>
@@ -147,10 +148,10 @@ namespace clad {
       Intro.Range.setBegin(E->getBeginLoc());
       Intro.Range.setEnd(E->getEndLoc());
       clang::AttributeFactory AttrFactory;
-      clang::DeclSpec DS(AttrFactory);
+      const clang::DeclSpec DS(AttrFactory);
       clang::Declarator D(DS,
-                          clad_compat::DeclaratorContext::
-                              CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
+                          CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
+                          CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
       S.PushLambdaScope();
       V.beginScope(clang::Scope::BlockScope | clang::Scope::FnScope |
                    clang::Scope::DeclScope);

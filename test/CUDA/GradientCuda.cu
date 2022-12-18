@@ -12,6 +12,8 @@
 
 // expected-no-diagnostics
 
+// XFAIL: clang-15
+
 #include "clad/Differentiator/Differentiator.h"
 
 #define N 3
