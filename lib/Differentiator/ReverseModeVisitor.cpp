@@ -2485,7 +2485,8 @@ namespace clad {
     StmtDiff subExprDiff = Visit(ICE->getSubExpr(), dfdx());
     // Casts should be handled automatically when the result is used by
     // Sema::ActOn.../Build...
-    return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
+    return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx(),
+                    subExprDiff.getForwSweepStmt_dx());
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {

@@ -870,6 +870,34 @@ void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, 
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f_const_reference(double i, double j) {
+  double a = i;
+  const double& ar = a;
+  double res = 2*ar;
+  return res;
+}
+void f_const_reference_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j);
+//CHECK: void f_const_reference_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+//CHECK-NEXT:    double _d_a = 0;
+//CHECK-NEXT:    double *_d_ar = 0;
+//CHECK-NEXT:    double _t0;
+//CHECK-NEXT:    double _d_res = 0;
+//CHECK-NEXT:    double a = i;
+//CHECK-NEXT:    _d_ar = &_d_a;
+//CHECK-NEXT:    const double &ar = a;
+//CHECK-NEXT:    _t0 = ar;
+//CHECK-NEXT:    double res = 2 * _t0;
+//CHECK-NEXT:    double f_const_reference_return = res;
+//CHECK-NEXT:    goto _label0;
+//CHECK-NEXT:  _label0:
+//CHECK-NEXT:    _d_res += 1;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r0 = _d_res * _t0;
+//CHECK-NEXT:        double _r1 = 2 * _d_res;
+//CHECK-NEXT:        *_d_ar += _r1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    * _d_i += _d_a;
+//CHECK-NEXT:}
 float running_sum(float* p, int n) {
   for (int i = 1; i < n; i++) {
     p[i] += p[i - 1];     
@@ -971,6 +999,7 @@ int main() {
   TEST(f_decls3, 0, 100); // CHECK-EXEC: Result is = {0.00, 0.00}
   TEST(f_issue138, 1, 2); // CHECK-EXEC: Result is = {4.00, 32.00}
   TEST(f_const, 2, 3); // CHECK-EXEC: Result is = {3.00, 2.00}
+  TEST(f_const_reference, 5, 2); // CHECK-EXEC: Result is = {2.00, 0.00}
   clad::gradient(running_sum);
 
   INIT_GRADIENT(fn_global_var_use);
