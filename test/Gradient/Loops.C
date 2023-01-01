@@ -79,6 +79,7 @@ double f2(double x) {
 //CHECK-NEXT:               * _d_x += _r0;
 //CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
+//CHECK-NEXT:           _d_j = 0;
 //CHECK-NEXT:           clad::pop(_t1);
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -1552,6 +1553,76 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f_loop_init_var(double lower, double upper) {
+  double sum = 0;
+  double num_points = 10000;
+  double interval = (upper - lower) / num_points;
+  for (double x = lower; x <= upper; x += interval) {
+    sum += x * x * interval;
+  }
+  return sum;
+}
+
+// CHECK: void f_loop_init_var_grad(double lower, double upper, clad::array_ref<double> _d_lower, clad::array_ref<double> _d_upper) {
+// CHECK-NEXT:     double _d_sum = 0;
+// CHECK-NEXT:     double _d_num_points = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _d_interval = 0;
+// CHECK-NEXT:     unsigned long _t2;
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     clad::tape<double> _t5 = {};
+// CHECK-NEXT:     clad::tape<double> _t6 = {};
+// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     double num_points = 10000;
+// CHECK-NEXT:     _t1 = (upper - lower);
+// CHECK-NEXT:     _t0 = num_points;
+// CHECK-NEXT:     double interval = _t1 / _t0;
+// CHECK-NEXT:     _t2 = 0;
+// CHECK-NEXT:     for (double x = lower; x <= upper; x += interval) {
+// CHECK-NEXT:         _t2++;
+// CHECK-NEXT:         sum += clad::push(_t6, clad::push(_t5, x) * clad::push(_t4, x)) * clad::push(_t3, interval);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     double f_loop_init_var_return = sum;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         for (; _t2; _t2--) {
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 double _r_d0 = _d_x;
+// CHECK-NEXT:                 _d_x += _r_d0;
+// CHECK-NEXT:                 _d_interval += _r_d0;
+// CHECK-NEXT:                 _d_x -= _r_d0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 {
+// CHECK-NEXT:                     double _r_d1 = _d_sum;
+// CHECK-NEXT:                     _d_sum += _r_d1;
+// CHECK-NEXT:                     double _r2 = _r_d1 * clad::pop(_t3);
+// CHECK-NEXT:                     double _r3 = _r2 * clad::pop(_t4);
+// CHECK-NEXT:                     _d_x += _r3;
+// CHECK-NEXT:                     double _r4 = clad::pop(_t5) * _r2;
+// CHECK-NEXT:                     _d_x += _r4;
+// CHECK-NEXT:                     double _r5 = clad::pop(_t6) * _r_d1;
+// CHECK-NEXT:                     _d_interval += _r5;
+// CHECK-NEXT:                     _d_sum -= _r_d1;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:         * _d_lower += _d_x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = _d_interval / _t0;
+// CHECK-NEXT:         * _d_upper += _r0;
+// CHECK-NEXT:         * _d_lower += -_r0;
+// CHECK-NEXT:         double _r1 = _d_interval * -_t1 / (_t0 * _t0);
+// CHECK-NEXT:         _d_num_points += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -1616,4 +1687,5 @@ int main() {
   clad::array_ref<double> ref(d_arr, 5);
 
   TEST_GRADIENT(fn19, 1, arr, 5, d_arr);
-} 
+  TEST_2(f_loop_init_var, 1, 2); // CHECK-EXEC: {-1.00, 4.00}
+}

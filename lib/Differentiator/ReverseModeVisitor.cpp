@@ -1093,6 +1093,7 @@ namespace clad {
     addToCurrentBlock(Forward, direction::forward);
     Forward = endBlock(direction::forward);
     addToCurrentBlock(loopCounter.getPop(), direction::reverse);
+    addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
     endScope();
