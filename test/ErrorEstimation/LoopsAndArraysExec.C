@@ -113,6 +113,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:                 _delta_sum += std::abs(_r_d0 * _r2 * {{.+}});
 //CHECK-NEXT:                 _d_sum -= _r_d0;
 //CHECK-NEXT:             }
+//CHECK-NEXT:             _d_j = 0;
 //CHECK-NEXT:             clad::pop(_t1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
