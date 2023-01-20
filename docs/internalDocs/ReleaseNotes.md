@@ -24,37 +24,35 @@ External Dependencies
 * Clad now works with clang-5.0 to clang-15
 
 
-Forward Mode & Reverse Mode
----------------------------
-*
-
 Forward Mode
 ------------
-*
+* Fix a bug in pow pushforward
+
 
 Reverse Mode
 ------------
-*
+* Improve for-loop conditions
 
-CUDA
-----
-*
 
 Error Estimation
 ----------------
-*
+* Improvements in error estimation of arrays
+* Add error estimation example
 
-Misc
-----
-*
 
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
+[430](https://github.com/vgvassilev/clad/issues/430)
+[474](https://github.com/vgvassilev/clad/issues/474)
+[505](https://github.com/vgvassilev/clad/issues/505)
+[506](https://github.com/vgvassilev/clad/issues/506)
+[507](https://github.com/vgvassilev/clad/issues/507)
+[514](https://github.com/vgvassilev/clad/issues/514)
+[515](https://github.com/vgvassilev/clad/issues/515)
 
  <!---Get release bugs
- git log v0.9..master | grep 'Fixes'
+ git log v1.0..master | grep 'Fixes|Closes'
  --->
 
 Special Kudos
@@ -66,6 +64,15 @@ listed in the form of Firstname Lastname (#contributions):
 FirstName LastName (#commits)
 
 A B (N)
+
+Alexander Penev (5)
+Vassil Vassilev (3)
+vidushi (2)
+ioanaif (2)
+Vaibhav Thakkar (1)
+Parth Arora (1)
+Garima Singh (1)
+Baidyanath Kundu (1)
 
 <!---Find contributor list for this release
  git log --pretty=format:"%an"  v1.0...master | sort | uniq -c | sort -rn |\
