@@ -375,4 +375,7 @@ Please see License.txt for further information.
 
 ##  How to Contribute
 
-We are always looking for improvements to the tool, as such open-source developers are greatly appreciated! If you are interested in getting started with contributing to clad, make sure you checkout our [contribution guide]().
+We are always looking for improvements to the tool, as such open-source
+developers are greatly appreciated! If you are interested in getting started
+with contributing to clad, make sure you checkout our
+[contribution guide](CONTRIBUTING.md).
