@@ -36,6 +36,7 @@ instructions:
   git clone https://github.com/llvm/llvm-project.git
   cd llvm-project
   git checkout release/12.x
+  cd ../
   mkdir obj inst
   cd obj
   cmake ../llvm-project/llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
