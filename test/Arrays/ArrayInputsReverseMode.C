@@ -15,11 +15,10 @@ double addArr(double *arr, int n) {
 
 //CHECK: void addArr_pullback(double *arr, int n, double _d_y, clad::array_ref<double> _d_arr, clad::array_ref<int> _d_n) {
 //CHECK-NEXT:     double _d_ret = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     double ret = 0;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         ret += arr[clad::push(_t1, i)];
@@ -44,8 +43,7 @@ double f(double *arr) {
 }
 
 //CHECK:   void f_grad(double *arr, clad::array_ref<double> _d_arr) {
-//CHECK-NEXT:       double *_t0;
-//CHECK-NEXT:       _t0 = arr;
+//CHECK-NEXT:       double *_t0 = arr;
 //CHECK-NEXT:       double f_return = addArr(arr, 3);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
@@ -68,7 +66,7 @@ float func(float* a, float* b) {
 
 //CHECK: void func_grad(float *a, float *b, clad::array_ref<float> _d_a, clad::array_ref<float> _d_b) {
 //CHECK-NEXT:     float _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _t3 = {};
@@ -76,7 +74,6 @@ float func(float* a, float* b) {
 //CHECK-NEXT:     clad::tape<int> _t5 = {};
 //CHECK-NEXT:     clad::tape<int> _t7 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         float _ref0 = a[clad::push(_t1, i)];
@@ -114,8 +111,7 @@ float helper(float x) {
 }
 
 // CHECK: void helper_pullback(float x, float _d_y, clad::array_ref<float> _d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     float _t0 = x;
 // CHECK-NEXT:     float helper_return = 2 * _t0;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -135,12 +131,11 @@ float func2(float* a) {
 
 //CHECK: void func2_grad(float *a, clad::array_ref<float> _d_a) {
 //CHECK-NEXT:     float _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _t3 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += helper(clad::push(_t3, a[clad::push(_t1, i)]));
@@ -170,12 +165,11 @@ float func3(float* a, float* b) {
 
 //CHECK: void func3_grad(float *a, float *b, clad::array_ref<float> _d_a, clad::array_ref<float> _d_b) {
 //CHECK-NEXT:     float _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     clad::tape<int> _t3 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += (a[clad::push(_t1, i)] += b[clad::push(_t3, i)]);
@@ -208,20 +202,16 @@ double func4(double x) {
 }
 
 //CHECK: void func4_grad(double x, clad::array_ref<double> _d_x) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     double _t1;
-//CHECK-NEXT:     double _t2;
+//CHECK-NEXT:     double _t0 = x;
+//CHECK-NEXT:     double _t1 = x;
+//CHECK-NEXT:     double _t2 = x;
 //CHECK-NEXT:     clad::array<double> _d_arr(3UL);
 //CHECK-NEXT:     double _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t3;
+//CHECK-NEXT:     unsigned long _t3 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<clad::array<double> > _t4 = {};
-//CHECK-NEXT:     _t0 = x;
-//CHECK-NEXT:     _t2 = x;
-//CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     double arr[3] = {x, 2 * _t0, _t2 * _t1};
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t3 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t3++;
 //CHECK-NEXT:         clad::push(_t4, arr , 3UL);
@@ -270,24 +260,22 @@ double func5(int k) {
 
 //CHECK: void func5_grad(int k, clad::array_ref<int> _d_k) {
 //CHECK-NEXT:     int _d_n = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     double _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t3;
+//CHECK-NEXT:     unsigned long _t3 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<clad::array<double> > _t4 = {};
 //CHECK-NEXT:     clad::tape<int> _t5 = {};
 //CHECK-NEXT:     int n = k;
 //CHECK-NEXT:     clad::array<double> _d_arr(n);
 //CHECK-NEXT:     double arr[n];
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         arr[clad::push(_t1, i)] = k;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t3 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t3++;
 //CHECK-NEXT:         clad::push(_t4, arr , n);
