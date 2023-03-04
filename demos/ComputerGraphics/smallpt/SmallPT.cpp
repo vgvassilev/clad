@@ -8,7 +8,7 @@
 //----------------------------------------------------------------------------//
 
 // To compile the demo please type:
-// path/to/clang -O3 -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
+// path/to/clang++ -O3 -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
 // path/to/libclad.so -I../../include/ -x c++ -std=c++11 -lstdc++ -lm SmallPT.cpp \
 // -fopenmp=libiomp5 -o SmallPT
 //
@@ -16,7 +16,7 @@
 // ./SmallPT 500 && xv image.ppm
 
 // A typical invocation would be:
-// ../../../../../obj/Debug+Asserts/bin/clang -O3 -Xclang -add-plugin -Xclang clad \
+// ../../../../../obj/Debug+Asserts/bin/clang++ -O3 -Xclang -add-plugin -Xclang clad \
 // -Xclang -load -Xclang ../../../../../obj/Debug+Asserts/lib/libclad.dylib \
 // -I../../include/ -x c++ -std=c++11 -lstdc++ -lm SmallPT.cpp -fopenmp=libiomp5 -o SmallPT
 // ./SmallPT 500 && xv image.ppm

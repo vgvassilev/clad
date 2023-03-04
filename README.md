@@ -211,36 +211,27 @@ mamba create -n xeus-clad -c conda-forge clad xeus-cling jupyterlab
 conda activate xeus-clad
 ```
 
-Next, running ```jupyter notebook``` will show 3 new kernels for `C++ 11/14/17` with Clad attached. 
+Next, running `jupyter notebook` will show 3 new kernels for `C++ 11/14/17` with Clad attached.
 
 Try out a Clad [tutorial](https://compiler-research.org/tutorials/clad_jupyter/) interactively in your browser through binder: 
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/vgvassilev/clad/master?labpath=%2Fdemos%2FJupyter%2FIntro.ipynb)
 
 #### Using as a plugin for Clang
-Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`). To compile `SourceFile.cpp` with Clad enabled use:
-```
-clang -cc1 -x c++ -std=c++11 -load /full/path/to/lib/clad.so -plugin clad SourceFile.cpp
-```
+Since Clad is a Clang plugin, it must be properly attached when Clang compiler is invoked. First, the plugin must be built to get `libclad.so` (or `.dylib`).
 
-To compile using clang-9, use: 
-```
-clang-9 -I /full/path/to/include/  -x c++ -std=c++11 -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -o sourcefile -lstdc++ -lm
-```
+To compile `SourceFile.cpp` with Clad enabled, use the following commands:
 
-To save the Clad generated derivative code to `Derivatives.cpp` add:
-```
--Xclang -plugin-arg-clad -Xclang -fgenerate-source-file
-```
+- Clang++: `clang++ -std=c++11 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so Sourcefile.cpp`
+- Clang: `clang -x c++ -std=c++11 -I /full/path/to/include/ -fplugin=/full/path/to/lib/clad.so SourceFile.cpp -lstdc++ -lm`
 
-To print the Clad generated derivative add:
-```
--Xclang -plugin-arg-clad -Xclang -fdump-derived-fn
-```
+Clad also provides certain flags to save and print the generated derivative code:
+
+- To save the Clad generated derivative code to `Derivatives.cpp`: `-Xclang -plugin-arg-clad -Xclang -fgenerate-source-file`
+- To print the Clad generated derivative: `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn`
 
 ## How to install
-At the moment, LLVM/Clang 5.0.x - 15.0.6 are supported.
-
+At the moment, LLVM/Clang 5.0.x - 15.0.7 are supported.
 
 ### Conda Installation
 
@@ -264,9 +255,12 @@ sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 sudo -H pip install lit
 git clone https://github.com/vgvassilev/clad.git clad
 mkdir build_dir inst; cd build_dir
-cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="``which lit``"
+cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="$(which lit)"
 make && make install
 ```
+
+> **NOTE**: On some Linux distributions (e.g. Arch Linux), the LLVM and Clang libraries are installed at `/usr/lib/cmake/llvm` and `/usr/lib/cmake/clang`. If compilation fails with the above provided command, ensure that you are using the correct path to the libraries.
+
 ###  Building from source (example was tested on macOS Big Sur 11.6)
 ```
 brew install llvm@12
