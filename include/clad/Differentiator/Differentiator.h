@@ -450,6 +450,22 @@ namespace clad {
                        code);
   }
 
+  void EssentiallyEqual(double a, double b) {
+    // FIXME: We should select epsilon value in a more robust way.
+    const double epsilon = 1e-12;
+    // printf("a=%.40f, b=%.40f\n",a,b);
+    bool ans = std::fabs(a - b) <=
+               ((std::fabs(a > b) ? std::fabs(b) : std::fabs(a)) * epsilon);
+
+    assert(ans && "Clad Gradient is not equal to Enzyme Gradient");
+  }
+  void EssentiallyEqualArrays(double* a, double* b, unsigned size) {
+    // FIXME: We should select epsilon value in a more robust way.
+    for (int i = 0; i < size; i++) {
+      EssentiallyEqual(a[i], b[i]);
+    }
+  }
+
   // Gradient Structure for Reverse Mode Enzyme
   template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
 }

@@ -366,6 +366,20 @@ namespace clad {
     return cast<TemplateDecl>(TapeR.getFoundDecl());
   }
 
+  FunctionDecl*
+  VisitorBase::LookupFunctionDeclInCladNamespace(llvm::StringRef FunctionName) {
+    NamespaceDecl* CladNS = GetCladNamespace();
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, CladNS, noLoc, noLoc);
+    DeclarationName TapeName = &m_Context.Idents.get(FunctionName);
+    LookupResult TapeR(m_Sema, TapeName, noLoc, Sema::LookupUsingDeclName,
+                       clad_compat::Sema_ForVisibleRedeclaration);
+    m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
+    assert(!TapeR.empty() && isa<FunctionDecl>(TapeR.getFoundDecl()) &&
+           "cannot find clad::tape");
+    return cast<FunctionDecl>(TapeR.getFoundDecl());
+  }
+
   QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
                                             TemplateArgumentListInfo& TLI) {
     // This will instantiate tape<T> type and return it.

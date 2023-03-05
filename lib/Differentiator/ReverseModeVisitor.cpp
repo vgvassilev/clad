@@ -287,6 +287,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (request.use_enzyme)
       use_enzyme = true;
 
+    if (request.checkEnzymeWithClad) {
+      checkEnzymeWithClad = true;
+    }
+
     auto derivativeBaseName = request.BaseFunctionName;
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
@@ -431,6 +435,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       DifferentiateWithClad();
     else
       DifferentiateWithEnzyme();
+
+    if (use_enzyme && checkEnzymeWithClad) {
+      DiffRequest newRequest = const_cast<DiffRequest&>(request);
+      newRequest.checkEnzymeWithClad = false;
+      newRequest.use_enzyme = false;
+      FunctionDecl* cladFD =
+          plugin::ProcessDiffRequest(m_CladPlugin, newRequest);
+
+      CheckEnzymeResultsWithClad(cladFD);
+    }
 
     gradientBody = endBlock();
     m_Derivative->setBody(gradientBody);
@@ -726,6 +740,101 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(enzymeCall);
     }
   }
+  void ReverseModeVisitor::CheckEnzymeResultsWithClad(FunctionDecl* cladFD) {
+    // Prepare Arguments for the clad derivative function
+    llvm::SmallVector<Expr*, 16> cladGradArgs;
+    llvm::SmallVector<VarDecl*, 16> cladResultDecls;
+    unsigned numParams = m_Function->getNumParams();
+    llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
+
+    for (int i = 0; i < numParams; i++) {
+      cladGradArgs.push_back(BuildDeclRef(paramsRef[i]));
+    }
+    std::string varNames = "cladResult";
+    int varNo = 1;
+    auto size_type = m_Context.getSizeType();
+    unsigned size_type_bits = m_Context.getIntWidth(size_type);
+    for (int i = 0; i < numParams; i++) {
+      std::string finalVarName = varNames + std::to_string(varNo++);
+      auto paramType = paramsRef[i]->getOriginalType();
+
+      // FIX-ME: Non Constant Array/pointer type parameters can't be dealt with
+      // as of now because we don't know the size of the array This code will
+      // break if we use array type parameters. This can be fixed if the
+      // ReverseModeVisitor keeps track of the maximum index of the array seen
+      // so far.
+
+      if (isArrayOrPointerType(paramType)) {
+        assert(paramType->isConstantArrayType() &&
+               "Only Constant type arrays are allowed to be parameters of "
+               "functions whose gradients we want to verify with clad");
+
+        // Create InitList to set all elements of the result array to zero
+        auto init = FloatingLiteral::Create(
+            m_Context, llvm::APFloat(0.0), true,
+            dyn_cast<ConstantArrayType>(paramType)->getElementType(), noLoc);
+        llvm::SmallVector<Expr*, 2> initListElement{init};
+        auto initList = dyn_cast<InitListExpr>(
+            m_Sema.ActOnInitList(noLoc, initListElement, noLoc).get());
+        ImplicitValueInitExpr imp(
+            dyn_cast<ConstantArrayType>(paramType)->getElementType());
+        initList->setArrayFiller(&imp);
+
+        auto resultVar = BuildVarDecl(paramType, finalVarName, initList, true);
+        addToCurrentBlock(BuildDeclStmt(resultVar), direction::forward);
+        cladGradArgs.push_back(BuildDeclRef(resultVar));
+        cladResultDecls.push_back(resultVar);
+      } else {
+        VarDecl* resultVar;
+        if (paramType->isFloatingType()) {
+          auto init = FloatingLiteral::Create(m_Context, llvm::APFloat(0.0),
+                                              true, paramType, noLoc);
+          resultVar = BuildVarDecl(paramType, finalVarName, init, true);
+        } else {
+          resultVar = BuildVarDecl(paramType, finalVarName, nullptr, true);
+        }
+        addToCurrentBlock(BuildDeclStmt(resultVar), direction::forward);
+        cladGradArgs.push_back(BuildOp(UO_AddrOf, BuildDeclRef(resultVar)));
+        cladResultDecls.push_back(resultVar);
+      }
+    }
+
+    Expr* cladCall = BuildCallExprToFunction(cladFD, cladGradArgs);
+    addToCurrentBlock(cladCall);
+
+    // Compare the values
+    FunctionDecl* equalityFD =
+        LookupFunctionDeclInCladNamespace("EssentiallyEqual");
+    FunctionDecl* equalityFDForArrays =
+        LookupFunctionDeclInCladNamespace("EssentiallyEqualArrays");
+    for (int i = 0; i < numParams; i++) {
+      auto paramType = paramsRef[i]->getOriginalType();
+      llvm::SmallVector<Expr*, 2> equalityCheckArguments;
+      equalityCheckArguments.push_back(BuildDeclRef(cladResultDecls[i]));
+      if (paramType->isFloatingType()) {
+        equalityCheckArguments.push_back(
+            BuildOp(UO_Deref, BuildDeclRef(paramsRef[i + numParams])));
+        Expr* checkCall =
+            BuildCallExprToFunction(equalityFD, equalityCheckArguments);
+        addToCurrentBlock(checkCall);
+      } else if (paramType->isConstantArrayType()) {
+        equalityCheckArguments.push_back(BuildCallExprToMemFn(
+            BuildDeclRef(paramsRef[i + numParams]), "ptr", {}));
+        ConstantArrayType* t = dyn_cast<ConstantArrayType>(
+            const_cast<Type*>(paramType.getTypePtr()));
+        int sizeOfArray = (int)(t->getSize().roundToDouble(false));
+        llvm::APInt idxValue(size_type_bits, sizeOfArray);
+        auto idx =
+            IntegerLiteral::Create(m_Context, idxValue, size_type, noLoc);
+        equalityCheckArguments.push_back(idx);
+
+        Expr* checkCall = BuildCallExprToFunction(equalityFDForArrays,
+                                                  equalityCheckArguments);
+        addToCurrentBlock(checkCall);
+      }
+    }
+  }
+
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diag(
         DiagnosticsEngine::Warning,

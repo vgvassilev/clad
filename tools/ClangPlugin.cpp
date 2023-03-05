@@ -185,6 +185,12 @@ namespace clad {
       if (m_DO.DumpSourceFnAST) {
         FD->dumpColor();
       }
+
+      // If enabled, update request to also compare enzyme and clad results
+      if (m_DO.CheckEnzymeWithClad) {
+        request.checkEnzymeWithClad = true;
+      }
+
       // if enabled, load the dynamic library input from user to use
       // as a custom estimation model.
       if (m_DO.CustomEstimationModel) {
