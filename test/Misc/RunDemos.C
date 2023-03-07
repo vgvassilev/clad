@@ -228,7 +228,7 @@
 // RUN: %cladclang -lstdc++ %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
 
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t0 = x;;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t0 = x;
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t1 = theta_1;
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_return = theta_0 + _t1 * _t0;
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
