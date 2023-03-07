@@ -14,40 +14,24 @@ void f_1(double a, double b, double c, double output[]) {
 
 void f_1_jac(double a, double b, double c, double output[], double *_result);
 //CHECK: f_1_jac(double a, double b, double c, double output[], double *jacobianMatrix) {
-//CHECK-NEXT:  double _t0;
-//CHECK-NEXT:  double _t1;
-//CHECK-NEXT:  double _t2;
-//CHECK-NEXT:  double _t3;
-//CHECK-NEXT:  double _t4;
-//CHECK-NEXT:  double _t5;
-//CHECK-NEXT:  double _t6;
-//CHECK-NEXT:  double _t7;
-//CHECK-NEXT:  double _t8;
-//CHECK-NEXT:  double _t9;
-//CHECK-NEXT:  double _t10;
-//CHECK-NEXT:  double _t11;
-//CHECK-NEXT:  double _t12;
-//CHECK-NEXT:  double _t13;
-//CHECK-NEXT:  double _t14;
-//CHECK-NEXT:  double _t15;
-//CHECK-NEXT:  _t2 = a;
-//CHECK-NEXT:  _t1 = a;
-//CHECK-NEXT:  _t3 = _t2 * _t1;
-//CHECK-NEXT:  _t0 = a;
+//CHECK-NEXT:  double _t0 = a;
+//CHECK-NEXT:  double _t1 = a;
+//CHECK-NEXT:  double _t2 = a;
+//CHECK-NEXT:  double _t3 = _t2 * _t1;
+//CHECK-NEXT:  double _t4 = a;
+//CHECK-NEXT:  double _t5 = a;
+//CHECK-NEXT:  double _t6 = a;
+//CHECK-NEXT:  double _t7 = _t6 * _t5;
+//CHECK-NEXT:  double _t8 = b;
+//CHECK-NEXT:  double _t9 = b;
+//CHECK-NEXT:  double _t10 = b;
+//CHECK-NEXT:  double _t11 = _t10 * _t9;
+//CHECK-NEXT:  double _t12 = c;
+//CHECK-NEXT:  double _t13 = c;
+//CHECK-NEXT:  double _t14 = a;
+//CHECK-NEXT:  double _t15 = a;
 //CHECK-NEXT:  output[0] = a * a * a;
-//CHECK-NEXT:  _t6 = a;
-//CHECK-NEXT:  _t5 = a;
-//CHECK-NEXT:  _t7 = _t6 * _t5;
-//CHECK-NEXT:  _t4 = a;
-//CHECK-NEXT:  _t10 = b;
-//CHECK-NEXT:  _t9 = b;
-//CHECK-NEXT:  _t11 = _t10 * _t9;
-//CHECK-NEXT:  _t8 = b;
 //CHECK-NEXT:  output[1] = a * a * a + b * b * b;
-//CHECK-NEXT:  _t13 = c;
-//CHECK-NEXT:  _t12 = c;
-//CHECK-NEXT:  _t15 = a;
-//CHECK-NEXT:  _t14 = a;
 //CHECK-NEXT:  output[2] = c * c * 10 - a * a;
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r12 = 1 * 10;
@@ -143,10 +127,8 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 
 double multiply(double x, double y) { return x * y; }
 //CHECK: void multiply_pullback(double x, double y, double _d_y0, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-//CHECK-NEXT:    double _t0;
-//CHECK-NEXT:    double _t1;
-//CHECK-NEXT:    _t1 = x;
-//CHECK-NEXT:    _t0 = y;
+//CHECK-NEXT:    double _t0 = y;
+//CHECK-NEXT:    double _t1 = x;
 //CHECK-NEXT:    double multiply_return = _t1 * _t0;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
@@ -236,40 +218,24 @@ void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMa
 // CHECK: void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMatrix) {
 // CHECK-NEXT:  double _d_b = 0;
 // CHECK-NEXT:  double _d_c = 0;
-// CHECK-NEXT:  double _t0;
-// CHECK-NEXT:  double _t1;
-// CHECK-NEXT:  double _t2;
-// CHECK-NEXT:  double _t3;
-// CHECK-NEXT:  double _t4;
-// CHECK-NEXT:  double _t5;
-// CHECK-NEXT:  double _t6;
-// CHECK-NEXT:  double _t7;
-// CHECK-NEXT:  double _t8;
-// CHECK-NEXT:  double _t9;
-// CHECK-NEXT:  double _t10;
-// CHECK-NEXT:  double _t11;
-// CHECK-NEXT:  double _t12;
-// CHECK-NEXT:  double _t13;
-// CHECK-NEXT:  double _t14;
-// CHECK-NEXT:  double _t15;
-// CHECK-NEXT:  _t2 = a;
-// CHECK-NEXT:  _t1 = a;
-// CHECK-NEXT:  _t3 = _t2 * _t1;
-// CHECK-NEXT:  _t0 = a;
+// CHECK-NEXT:  double _t0 = a;
+// CHECK-NEXT:  double _t1 = a;
+// CHECK-NEXT:  double _t2 = a;
+// CHECK-NEXT:  double _t3 = _t2 * _t1;
+// CHECK-NEXT:  double _t4 = a;
+// CHECK-NEXT:  double _t5 = a;
+// CHECK-NEXT:  double _t6 = a;
+// CHECK-NEXT:  double _t7 = _t6 * _t5;
+// CHECK-NEXT:  double _t8 = b;
+// CHECK-NEXT:  double _t9 = b;
+// CHECK-NEXT:  double _t10 = b;
+// CHECK-NEXT:  double _t11 = _t10 * _t9;
+// CHECK-NEXT:  double _t12 = c;
+// CHECK-NEXT:  double _t13 = c;
+// CHECK-NEXT:  double _t14 = a;
+// CHECK-NEXT:  double _t15 = a;
 // CHECK-NEXT:  output[0] = a * a * a;
-// CHECK-NEXT:  _t6 = a;
-// CHECK-NEXT:  _t5 = a;
-// CHECK-NEXT:  _t7 = _t6 * _t5;
-// CHECK-NEXT:  _t4 = a;
-// CHECK-NEXT:  _t10 = b;
-// CHECK-NEXT:  _t9 = b;
-// CHECK-NEXT:  _t11 = _t10 * _t9;
-// CHECK-NEXT:  _t8 = b;
 // CHECK-NEXT:  output[1] = a * a * a + b * b * b;
-// CHECK-NEXT:  _t13 = c;
-// CHECK-NEXT:  _t12 = c;
-// CHECK-NEXT:  _t15 = a;
-// CHECK-NEXT:  _t14 = a;
 // CHECK-NEXT:  output[2] = c * c * 10 - a * a;
 // CHECK-NEXT:  {
 // CHECK-NEXT:    double _r12 = 1 * 10;

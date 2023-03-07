@@ -11,8 +11,7 @@ double test_1(double x){
 //CHECK: warning: Falling back to numerical differentiation for 'log10' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 
 //CHECK: void test_1_grad(double x, clad::array_ref<double> _d_x) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     double _t0 = x;
 //CHECK-NEXT:     double test_1_return = tanh(_t0);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:

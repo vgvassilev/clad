@@ -16,31 +16,19 @@ struct Experiment {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     double _t4;
-  // CHECK-NEXT:     double _t5;
-  // CHECK-NEXT:     double _t6;
-  // CHECK-NEXT:     double _t7;
-  // CHECK-NEXT:     double _t8;
-  // CHECK-NEXT:     double _t9;
-  // CHECK-NEXT:     double _t10;
-  // CHECK-NEXT:     double _t11;
-  // CHECK-NEXT:     _t3 = this->x;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t4 = _t3 * _t2;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t5 = _t4 * _t1;
-  // CHECK-NEXT:     _t0 = j;
+  // CHECK-NEXT:     double _t0 = j;
+  // CHECK-NEXT:     double _t1 = i;
+  // CHECK-NEXT:     double _t2 = i;
+  // CHECK-NEXT:     double _t3 = this->x;
+  // CHECK-NEXT:     double _t4 = _t3 * _t2;
+  // CHECK-NEXT:     double _t5 = _t4 * _t1;
+  // CHECK-NEXT:     double _t6 = j;
+  // CHECK-NEXT:     double _t7 = j;
+  // CHECK-NEXT:     double _t8 = i;
+  // CHECK-NEXT:     double _t9 = this->y;
+  // CHECK-NEXT:     double _t10 = _t9 * _t8;
+  // CHECK-NEXT:     double _t11 = _t10 * _t7;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     _t9 = this->y;
-  // CHECK-NEXT:     _t8 = i;
-  // CHECK-NEXT:     _t10 = _t9 * _t8;
-  // CHECK-NEXT:     _t7 = j;
-  // CHECK-NEXT:     _t11 = _t10 * _t7;
-  // CHECK-NEXT:     _t6 = j;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r6 = 1 * _t6;
@@ -79,31 +67,19 @@ struct ExperimentConst {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     double _t4;
-  // CHECK-NEXT:     double _t5;
-  // CHECK-NEXT:     double _t6;
-  // CHECK-NEXT:     double _t7;
-  // CHECK-NEXT:     double _t8;
-  // CHECK-NEXT:     double _t9;
-  // CHECK-NEXT:     double _t10;
-  // CHECK-NEXT:     double _t11;
-  // CHECK-NEXT:     _t3 = this->x;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t4 = _t3 * _t2;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t5 = _t4 * _t1;
-  // CHECK-NEXT:     _t0 = j;
+  // CHECK-NEXT:     double _t0 = j;
+  // CHECK-NEXT:     double _t1 = i;
+  // CHECK-NEXT:     double _t2 = i;
+  // CHECK-NEXT:     double _t3 = this->x;
+  // CHECK-NEXT:     double _t4 = _t3 * _t2;
+  // CHECK-NEXT:     double _t5 = _t4 * _t1;
+  // CHECK-NEXT:     double _t6 = j;
+  // CHECK-NEXT:     double _t7 = j;
+  // CHECK-NEXT:     double _t8 = i;
+  // CHECK-NEXT:     double _t9 = this->y;
+  // CHECK-NEXT:     double _t10 = _t9 * _t8;
+  // CHECK-NEXT:     double _t11 = _t10 * _t7;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     _t9 = this->y;
-  // CHECK-NEXT:     _t8 = i;
-  // CHECK-NEXT:     _t10 = _t9 * _t8;
-  // CHECK-NEXT:     _t7 = j;
-  // CHECK-NEXT:     _t11 = _t10 * _t7;
-  // CHECK-NEXT:     _t6 = j;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r6 = 1 * _t6;
@@ -142,31 +118,19 @@ struct ExperimentVolatile {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     volatile double _t3;
-  // CHECK-NEXT:     double _t4;
-  // CHECK-NEXT:     double _t5;
-  // CHECK-NEXT:     double _t6;
-  // CHECK-NEXT:     double _t7;
-  // CHECK-NEXT:     double _t8;
-  // CHECK-NEXT:     volatile double _t9;
-  // CHECK-NEXT:     double _t10;
-  // CHECK-NEXT:     double _t11;
-  // CHECK-NEXT:     _t3 = this->x;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t4 = _t3 * _t2;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t5 = _t4 * _t1;
-  // CHECK-NEXT:     _t0 = j;
+  // CHECK-NEXT:     double _t0 = j;
+  // CHECK-NEXT:     double _t1 = i;
+  // CHECK-NEXT:     double _t2 = i;
+  // CHECK-NEXT:     volatile double _t3 = this->x;
+  // CHECK-NEXT:     double _t4 = _t3 * _t2;
+  // CHECK-NEXT:     double _t5 = _t4 * _t1;
+  // CHECK-NEXT:     double _t6 = j;
+  // CHECK-NEXT:     double _t7 = j;
+  // CHECK-NEXT:     double _t8 = i;
+  // CHECK-NEXT:     volatile double _t9 = this->y;
+  // CHECK-NEXT:     double _t10 = _t9 * _t8;
+  // CHECK-NEXT:     double _t11 = _t10 * _t7;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     _t9 = this->y;
-  // CHECK-NEXT:     _t8 = i;
-  // CHECK-NEXT:     _t10 = _t9 * _t8;
-  // CHECK-NEXT:     _t7 = j;
-  // CHECK-NEXT:     _t11 = _t10 * _t7;
-  // CHECK-NEXT:     _t6 = j;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r6 = 1 * _t6;
@@ -205,31 +169,19 @@ struct ExperimentConstVolatile {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     volatile double _t3;
-  // CHECK-NEXT:     double _t4;
-  // CHECK-NEXT:     double _t5;
-  // CHECK-NEXT:     double _t6;
-  // CHECK-NEXT:     double _t7;
-  // CHECK-NEXT:     double _t8;
-  // CHECK-NEXT:     volatile double _t9;
-  // CHECK-NEXT:     double _t10;
-  // CHECK-NEXT:     double _t11;
-  // CHECK-NEXT:     _t3 = this->x;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t4 = _t3 * _t2;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t5 = _t4 * _t1;
-  // CHECK-NEXT:     _t0 = j;
+  // CHECK-NEXT:     double _t0 = j;
+  // CHECK-NEXT:     double _t1 = i;
+  // CHECK-NEXT:     double _t2 = i;
+  // CHECK-NEXT:     volatile double _t3 = this->x;
+  // CHECK-NEXT:     double _t4 = _t3 * _t2;
+  // CHECK-NEXT:     double _t5 = _t4 * _t1;;
+  // CHECK-NEXT:     double _t6 = j;
+  // CHECK-NEXT:     double _t7 = j;
+  // CHECK-NEXT:     double _t8 = i;
+  // CHECK-NEXT:     volatile double _t9 = this->y;
+  // CHECK-NEXT:     double _t10 = _t9 * _t8;
+  // CHECK-NEXT:     double _t11 = _t10 * _t7;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     _t9 = this->y;
-  // CHECK-NEXT:     _t8 = i;
-  // CHECK-NEXT:     _t10 = _t9 * _t8;
-  // CHECK-NEXT:     _t7 = j;
-  // CHECK-NEXT:     _t11 = _t10 * _t7;
-  // CHECK-NEXT:     _t6 = j;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r6 = 1 * _t6;
@@ -270,31 +222,19 @@ namespace outer {
       }
       
       // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
-      // CHECK-NEXT:     double _t0;
-      // CHECK-NEXT:     double _t1;
-      // CHECK-NEXT:     double _t2;
-      // CHECK-NEXT:     double _t3;
-      // CHECK-NEXT:     double _t4;
-      // CHECK-NEXT:     double _t5;
-      // CHECK-NEXT:     double _t6;
-      // CHECK-NEXT:     double _t7;
-      // CHECK-NEXT:     double _t8;
-      // CHECK-NEXT:     double _t9;
-      // CHECK-NEXT:     double _t10;
-      // CHECK-NEXT:     double _t11;
-      // CHECK-NEXT:     _t3 = this->x;
-      // CHECK-NEXT:     _t2 = i;
-      // CHECK-NEXT:     _t4 = _t3 * _t2;
-      // CHECK-NEXT:     _t1 = i;
-      // CHECK-NEXT:     _t5 = _t4 * _t1;
-      // CHECK-NEXT:     _t0 = j;
+      // CHECK-NEXT:     double _t0 = j;
+      // CHECK-NEXT:     double _t1 = i;
+      // CHECK-NEXT:     double _t2 = i;
+      // CHECK-NEXT:     double _t3 = this->x;
+      // CHECK-NEXT:     double _t4 = _t3 * _t2;
+      // CHECK-NEXT:     double _t5 = _t4 * _t1;
+      // CHECK-NEXT:     double _t6 = j;
+      // CHECK-NEXT:     double _t7 = j;
+      // CHECK-NEXT:     double _t8 = i;
+      // CHECK-NEXT:     double _t9 = this->y;
+      // CHECK-NEXT:     double _t10 = _t9 * _t8;
+      // CHECK-NEXT:     double _t11 = _t10 * _t7;
       // CHECK-NEXT:     output[0] = this->x * i * i * j;
-      // CHECK-NEXT:     _t9 = this->y;
-      // CHECK-NEXT:     _t8 = i;
-      // CHECK-NEXT:     _t10 = _t9 * _t8;
-      // CHECK-NEXT:     _t7 = j;
-      // CHECK-NEXT:     _t11 = _t10 * _t7;
-      // CHECK-NEXT:     _t6 = j;
       // CHECK-NEXT:     output[1] = this->y * i * j * j;
       // CHECK-NEXT:     {
       // CHECK-NEXT:         double _r6 = 1 * _t6;
@@ -327,23 +267,15 @@ namespace outer {
     };
 
     // CHECK: inline void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
-    // CHECK-NEXT:     double _t0;
-    // CHECK-NEXT:     double _t1;
-    // CHECK-NEXT:     double _t2;
-    // CHECK-NEXT:     double _t3;
-    // CHECK-NEXT:     double _t4;
-    // CHECK-NEXT:     double _t5;
-    // CHECK-NEXT:     double _t6;
-    // CHECK-NEXT:     double _t7;
-    // CHECK-NEXT:     _t2 = i;
-    // CHECK-NEXT:     _t1 = i;
-    // CHECK-NEXT:     _t3 = _t2 * _t1;
-    // CHECK-NEXT:     _t0 = j;
+    // CHECK-NEXT:     double _t0 = j;
+    // CHECK-NEXT:     double _t1 = i;
+    // CHECK-NEXT:     double _t2 = i;
+    // CHECK-NEXT:     double _t3 = _t2 * _t1;
+    // CHECK-NEXT:     double _t4 = j;
+    // CHECK-NEXT:     double _t5 = j;
+    // CHECK-NEXT:     double _t6 = i;
+    // CHECK-NEXT:     double _t7 = _t6 * _t5;
     // CHECK-NEXT:     output[0] = i * i * j;
-    // CHECK-NEXT:     _t6 = i;
-    // CHECK-NEXT:     _t5 = j;
-    // CHECK-NEXT:     _t7 = _t6 * _t5;
-    // CHECK-NEXT:     _t4 = j;
     // CHECK-NEXT:     output[1] = i * j * j;
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r4 = 1 * _t4;
@@ -400,23 +332,15 @@ int main() {
   };
 
   // CHECK: inline void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     double _t4;
-  // CHECK-NEXT:     double _t5;
-  // CHECK-NEXT:     double _t6;
-  // CHECK-NEXT:     double _t7;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
+  // CHECK-NEXT:     double _t0 = j;
+  // CHECK-NEXT:     double _t1 = i;
+  // CHECK-NEXT:     double _t2 = i;
+  // CHECK-NEXT:     double _t3 = _t2 * _t1;
+  // CHECK-NEXT:     double _t4 = j;
+  // CHECK-NEXT:     double _t5 = j;
+  // CHECK-NEXT:     double _t6 = i;
+  // CHECK-NEXT:     double _t7 = _t6 * _t5;
   // CHECK-NEXT:     output[0] = i * i * j;
-  // CHECK-NEXT:     _t6 = i;
-  // CHECK-NEXT:     _t5 = j;
-  // CHECK-NEXT:     _t7 = _t6 * _t5;
-  // CHECK-NEXT:     _t4 = j;
   // CHECK-NEXT:     output[1] = i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r4 = 1 * _t4;
@@ -444,31 +368,19 @@ int main() {
   };
 
   // CHECK: inline void operator_call_jac(double i, double jj, double *output, double *jacobianMatrix) const {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     double _t4;
-  // CHECK-NEXT:     double _t5;
-  // CHECK-NEXT:     double _t6;
-  // CHECK-NEXT:     double _t7;
-  // CHECK-NEXT:     double _t8;
-  // CHECK-NEXT:     double _t9;
-  // CHECK-NEXT:     double _t10;
-  // CHECK-NEXT:     double _t11;
-  // CHECK-NEXT:     _t3 = x;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t4 = _t3 * _t2;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t5 = _t4 * _t1;
-  // CHECK-NEXT:     _t0 = jj;
+  // CHECK-NEXT:     double _t0 = jj;
+  // CHECK-NEXT:     double _t1 = i;
+  // CHECK-NEXT:     double _t2 = i;
+  // CHECK-NEXT:     double _t3 = x;
+  // CHECK-NEXT:     double _t4 = _t3 * _t2;
+  // CHECK-NEXT:     double _t5 = _t4 * _t1;
+  // CHECK-NEXT:     double _t6 = jj;
+  // CHECK-NEXT:     double _t7 = jj;
+  // CHECK-NEXT:     double _t8 = i;
+  // CHECK-NEXT:     double _t9 = y;
+  // CHECK-NEXT:     double _t10 = _t9 * _t8;
+  // CHECK-NEXT:     double _t11 = _t10 * _t7;
   // CHECK-NEXT:     output[0] = x * i * i * jj;
-  // CHECK-NEXT:     _t9 = y;
-  // CHECK-NEXT:     _t8 = i;
-  // CHECK-NEXT:     _t10 = _t9 * _t8;
-  // CHECK-NEXT:     _t7 = jj;
-  // CHECK-NEXT:     _t11 = _t10 * _t7;
-  // CHECK-NEXT:     _t6 = jj;
   // CHECK-NEXT:     output[1] = y * i * jj * jj;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r6 = 1 * _t6;
