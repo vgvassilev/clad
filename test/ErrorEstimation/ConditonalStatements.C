@@ -99,8 +99,8 @@ float func2(float x) {
 }
 
 //CHECK: void func2_grad(float x, clad::array_ref<float> _d_x, double &_final_error) {
-//CHECK-NEXT:     float _t0;
-//CHECK-NEXT:     float _t1;
+//CHECK-NEXT:     float _t0 = x;
+//CHECK-NEXT:     float _t1 = x;
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
@@ -108,8 +108,6 @@ float func2(float x) {
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     float _t3;
-//CHECK-NEXT:     _t1 = x;
-//CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     float z = _t1 * _t0;
 //CHECK-NEXT:     _EERepl_z0 = z;
 //CHECK-NEXT:     _cond0 = z > 9;

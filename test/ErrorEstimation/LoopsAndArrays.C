@@ -18,13 +18,12 @@ float func(float* p, int n) {
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     float _EERepl_sum0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _EERepl_sum1 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _EERepl_sum0 = sum;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += p[clad::push(_t1, i)];
@@ -70,7 +69,7 @@ float func2(float x) {
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _delta_z = 0;
 //CHECK-NEXT:     float _EERepl_z0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
@@ -80,7 +79,6 @@ float func2(float x) {
 //CHECK-NEXT:     clad::tape<float> _EERepl_z1 = {};
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     _EERepl_z0 = z;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 9; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         float m = clad::push(_t2, x) * clad::push(_t1, x);
@@ -128,15 +126,13 @@ float func3(float x, float y) {
 //CHECK-NEXT:     clad::array<double> _d_arr(3UL);
 //CHECK-NEXT:     clad::array<double> _delta_arr(_d_arr.size());
 //CHECK-NEXT:     double _EERepl_arr0;
-//CHECK-NEXT:     float _t0;
-//CHECK-NEXT:     float _t1;
+//CHECK-NEXT:     float _t0 = x;
+//CHECK-NEXT:     float _t1 = x;
 //CHECK-NEXT:     double _EERepl_arr1;
 //CHECK-NEXT:     double _EERepl_arr2;
 //CHECK-NEXT:     double arr[3];
 //CHECK-NEXT:     arr[0] = x + y;
 //CHECK-NEXT:     _EERepl_arr0 = arr[0];
-//CHECK-NEXT:     _t1 = x;
-//CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     arr[1] = _t1 * _t0;
 //CHECK-NEXT:     _EERepl_arr1 = arr[1];
 //CHECK-NEXT:     arr[2] = arr[0] + arr[1];
@@ -194,7 +190,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     double _delta_sum = 0;
 //CHECK-NEXT:     float _EERepl_sum0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned long _t0 = 0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<int> _t1 = {};
 //CHECK-NEXT:     clad::array<float> _delta_x(_d_x.size());
@@ -208,7 +204,6 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     clad::tape<float> _EERepl_sum1 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _EERepl_sum0 = sum;
-//CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (int i = 0; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         x[clad::push(_t1, i)] += y[clad::push(_t3, i)];

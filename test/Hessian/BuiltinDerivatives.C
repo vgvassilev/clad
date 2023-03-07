@@ -18,14 +18,10 @@ float f1(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void sin_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     float _t1;
-// CHECK-NEXT:     float _t2;
-// CHECK-NEXT:     float _t3;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t2 = x;
-// CHECK-NEXT:     _t3 = ::std::cos(_t2);
-// CHECK-NEXT:     _t1 = d_x;
+// CHECK-NEXT:     float _t0 = x;
+// CHECK-NEXT:     float _t1 = d_x;
+// CHECK-NEXT:     float _t2 = x;
+// CHECK-NEXT:     float _t3 = ::std::cos(_t2);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -122,14 +118,10 @@ float f2(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     float _t1;
-// CHECK-NEXT:     float _t2;
-// CHECK-NEXT:     float _t3;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t2 = x;
-// CHECK-NEXT:     _t3 = ::std::exp(_t2);
-// CHECK-NEXT:     _t1 = d_x;
+// CHECK-NEXT:     float _t0 = x;
+// CHECK-NEXT:     float _t1 = d_x;
+// CHECK-NEXT:     float _t2 = x;
+// CHECK-NEXT:     float _t3 = ::std::exp(_t2);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -183,14 +175,10 @@ float f3(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void log_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t2 = x;
-// CHECK-NEXT:     _t3 = (1. / _t2);
-// CHECK-NEXT:     _t1 = d_x;
+// CHECK-NEXT:     float _t0 = x;
+// CHECK-NEXT:     double _t1 = d_x;
+// CHECK-NEXT:     double _t2 = x;
+// CHECK-NEXT:     double _t3 = (1. / _t2);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {

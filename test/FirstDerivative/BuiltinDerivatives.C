@@ -100,8 +100,7 @@ float f7(float x) {
 void f7_grad(float x, clad::array_ref<float> _d_x);
 
 // CHECK: void f7_grad(float x, clad::array_ref<float> _d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     float _t0 = x;
 // CHECK-NEXT:     {{.*}} f7_return = std::pow(_t0, 2.);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -128,8 +127,7 @@ double f8(float x) {
 void f8_grad(float x, clad::array_ref<float> _d_x);
 
 // CHECK: void f8_grad(float x, clad::array_ref<float> _d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     float _t0 = x;
 // CHECK-NEXT:     typename {{.*}} f8_return = std::pow(_t0, 2);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -157,10 +155,8 @@ float f9(float x, float y) {
 void f9_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y);
 
 // CHECK: void f9_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     float _t1;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t1 = y;
+// CHECK-NEXT:     float _t0 = x;
+// CHECK-NEXT:     float _t1 = y;
 // CHECK-NEXT:     float f9_return = std::pow(_t0, _t1);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -189,10 +185,8 @@ double f10(float x, int y) {
 void f10_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<int> _d_y);
 
 // CHECK: void f10_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<int> _d_y) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     int _t1;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t1 = y;
+// CHECK-NEXT:     float _t0 = x;
+// CHECK-NEXT:     int _t1 = y;
 // CHECK-NEXT:     typename {{.*}} f10_return = std::pow(_t0, _t1);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:

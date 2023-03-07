@@ -109,12 +109,11 @@
 //CHECK_FLOAT_SUM:     float _d_sum = 0;
 //CHECK_FLOAT_SUM:     double _delta_sum = 0;
 //CHECK_FLOAT_SUM:     float _EERepl_sum0;
-//CHECK_FLOAT_SUM:     unsigned long _t0;
+//CHECK_FLOAT_SUM:     unsigned long _t0 = 0;
 //CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
 //CHECK_FLOAT_SUM:     clad::tape<float> _EERepl_sum1 = {};
 //CHECK_FLOAT_SUM:     float sum = 0.;
 //CHECK_FLOAT_SUM:     _EERepl_sum0 = sum;
-//CHECK_FLOAT_SUM:     _t0 = 0;
 //CHECK_FLOAT_SUM:     for (unsigned int i = 0; i < n; i++) {
 //CHECK_FLOAT_SUM:         _t0++;
 //CHECK_FLOAT_SUM:         sum = sum + x;
@@ -229,10 +228,8 @@
 // RUN: %cladclang -lstdc++ %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
 
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t0 = x;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t0 = x;;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t1 = theta_1;
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_return = theta_0 + _t1 * _t0;
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
@@ -246,18 +243,13 @@
 //CHECK_GRADIENT_DESCENT-NEXT: }
 
 //CHECK_GRADIENT_DESCENT-NEXT: void cost_grad(double theta_0, double theta_1, double x, double y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t2;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t0 = theta_0;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t1 = theta_1;
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t2 = x;
 //CHECK_GRADIENT_DESCENT-NEXT:     double _d_f_x = 0;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t3;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t4;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t0 = theta_0;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t2 = x;
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(_t0, _t1, _t2);
-//CHECK_GRADIENT_DESCENT-NEXT:     _t4 = (f_x - y);
-//CHECK_GRADIENT_DESCENT-NEXT:     _t3 = (f_x - y);
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t4 = (f_x - y);
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t3 = (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:     double cost_return = _t4 * _t3;
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:

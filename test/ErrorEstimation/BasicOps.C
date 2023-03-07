@@ -241,11 +241,13 @@ float func5(float x, float y) {
 //CHECK-NEXT:     float _EERepl_y0 = y;
 //CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     float _EERepl_y1;
-//CHECK-NEXT:     float _t1 = y;
-//CHECK-NEXT:     float _t2 = y;
+//CHECK-NEXT:     float _t1;
+//CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     y = std::sin(_t0);
 //CHECK-NEXT:     _EERepl_y1 = y;
+//CHECK-NEXT:     _t2 = y;
+//CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     float func5_return = _t2 * _t1;
 //CHECK-NEXT:     _ret_value0 = func5_return;
 //CHECK-NEXT:     goto _label0;
