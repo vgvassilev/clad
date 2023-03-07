@@ -174,7 +174,7 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     double _t2 = i;
   // CHECK-NEXT:     volatile double _t3 = this->x;
   // CHECK-NEXT:     double _t4 = _t3 * _t2;
-  // CHECK-NEXT:     double _t5 = _t4 * _t1;;
+  // CHECK-NEXT:     double _t5 = _t4 * _t1;
   // CHECK-NEXT:     double _t6 = j;
   // CHECK-NEXT:     double _t7 = j;
   // CHECK-NEXT:     double _t8 = i;
