@@ -16,8 +16,6 @@ __attribute__((always_inline)) double f_add1(double x, double y) {
 
 //CHECK:   void f_add1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) __attribute__((always_inline)) {
 //CHECK-NEXT:       double f_add1_return = x + y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += 1;
 //CHECK-NEXT:           * _d_y += 1;
@@ -36,8 +34,6 @@ double f_add2(double x, double y) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       double f_add2_return = 3 * _t0 + 4 * _t1;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 3 * 1;
@@ -60,8 +56,6 @@ double f_add3(double x, double y) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       double f_add3_return = 3 * _t0 + 4 * _t1 * 4;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 3 * 1;
@@ -81,8 +75,6 @@ double f_sub1(double x, double y) {
 
 //CHECK:   void f_sub1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
 //CHECK-NEXT:       double f_sub1_return = x - y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += 1;
 //CHECK-NEXT:           * _d_y += -1;
@@ -100,8 +92,6 @@ double f_sub2(double x, double y) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       double f_sub2_return = 3 * _t0 - 4 * _t1;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 3 * 1;
@@ -124,8 +114,6 @@ double f_mult1(double x, double y) {
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = y;
 //CHECK-NEXT:       double f_mult1_return = _t1 * _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           * _d_x += _r0;
@@ -148,8 +136,6 @@ double f_mult2(double x, double y) {
 //CHECK-NEXT:       _t2 = 3 * _t1 * 4;
 //CHECK-NEXT:       _t0 = y;
 //CHECK-NEXT:       double f_mult2_return = _t2 * _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = _r0 * 4;
@@ -173,8 +159,6 @@ double f_div1(double x, double y) {
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = y;
 //CHECK-NEXT:       double f_div1_return = _t1 / _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 / _t0;
 //CHECK-NEXT:           * _d_x += _r0;
@@ -199,8 +183,6 @@ double f_div2(double x, double y) {
 //CHECK-NEXT:       _t3 = y;
 //CHECK-NEXT:       _t0 = (4 * _t3);
 //CHECK-NEXT:       double f_div2_return = _t2 / _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 / _t0;
 //CHECK-NEXT:           double _r1 = _r0 * _t1;
@@ -237,8 +219,6 @@ double f_c(double x, double y) {
 //CHECK-NEXT:       _t7 = x;
 //CHECK-NEXT:       _t6 = x;
 //CHECK-NEXT:       double f_c_return = _t1 * _t0 + _t3 * _t2 - _t7 * _t6;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           * _d_x += -_r0;
@@ -285,8 +265,6 @@ double f_rosenbrock(double x, double y) {
 //CHECK-NEXT:       _t7 = x;
 //CHECK-NEXT:       _t2 = (y - _t8 * _t7);
 //CHECK-NEXT:       double f_rosenbrock_return = _t1 * _t0 + _t6 * _t2;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           * _d_x += _r0;
@@ -319,8 +297,6 @@ double f_cond1(double x, double y) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       double f_cond1_return = (_cond0 ? x : y);
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           * _d_x += 1;
 //CHECK-NEXT:       else
@@ -342,8 +318,6 @@ double f_cond2(double x, double y) {
 //CHECK-NEXT:       else
 //CHECK-NEXT:           _cond1 = y > 0;
 //CHECK-NEXT:       double f_cond2_return = (_cond0 ? x : (_cond1 ? y : -y));
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           * _d_x += 1;
 //CHECK-NEXT:       else if (_cond1)
@@ -362,8 +336,6 @@ double f_cond3(double x, double c) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       _cond0 = c > 0;
 //CHECK-NEXT:       double f_cond3_return = (_cond0 ? x + c : x - c);
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           * _d_x += 1;
 //CHECK-NEXT:           * _d_c += 1;
@@ -458,8 +430,6 @@ struct S {
   //CHECK-NEXT:       _t3 = this->c2;
   //CHECK-NEXT:       _t2 = y;
   //CHECK-NEXT:       double f_return = _t1 * _t0 + _t3 * _t2;
-  //CHECK-NEXT:       goto _label0;
-  //CHECK-NEXT:     _label0:
   //CHECK-NEXT:       {
   //CHECK-NEXT:           double _r0 = 1 * _t0;
   //CHECK-NEXT:           (* _d_this).c1 += _r0;
@@ -570,8 +540,6 @@ void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_re
 //CHECK-NEXT:       _t3 = (std::sin(_t1) + std::sin(_t2));
 //CHECK-NEXT:       _t0 = (x + y);
 //CHECK-NEXT:       double f_sin_return = _t3 * _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 // CHECK-NEXT:         double _r1 = _r0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t1, 1.).pushforward;
@@ -596,8 +564,6 @@ void f_types_grad(int x,
                   clad::array_ref<double> _d_z);
 //CHECK:   void f_types_grad(int x, float y, double z, clad::array_ref<int> _d_x, clad::array_ref<float> _d_y, clad::array_ref<double> _d_z) {
 //CHECK-NEXT:       double f_types_return = x + y + z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += 1;
 //CHECK-NEXT:           * _d_y += 1;
@@ -627,8 +593,6 @@ void f_decls1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
 //CHECK-NEXT:       double c = a + b;
 //CHECK-NEXT:       _t2 = c;
 //CHECK-NEXT:       double f_decls1_return = 2 * _t2;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r4 = 1 * _t2;
 //CHECK-NEXT:           double _r5 = 2 * 1;
@@ -680,8 +644,6 @@ void f_decls2_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
 //CHECK-NEXT:       double c = _t5 * _t4;
 //CHECK-NEXT:       _t6 = b;
 //CHECK-NEXT:       double f_decls2_return = a + 2 * _t6 + c;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_a += 1;
 //CHECK-NEXT:           double _r6 = 1 * _t6;
@@ -754,8 +716,6 @@ void f_decls3_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
 //CHECK-NEXT:       _t4 = a;
 //CHECK-NEXT:       double b = _t5 * _t4;
 //CHECK-NEXT:       double f_decls3_return = b;
-//CHECK-NEXT:       goto _label2;
-//CHECK-NEXT:     _label2:
 //CHECK-NEXT:       _d_b += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r8 = _d_b * _t4;
@@ -823,8 +783,6 @@ void f_issue138_grad(double x, double y, clad::array_ref<double> _d_x, clad::arr
 //CHECK-NEXT:       _t12 = _t11 * _t7;
 //CHECK-NEXT:       _t6 = y;
 //CHECK-NEXT:       double f_issue138_return = _t5 * _t0 + _t12 * _t6;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = _r0 * _t1;
@@ -860,8 +818,6 @@ void f_const_grad(const double a, const double b, clad::array_ref<double> _d_a, 
 //CHECK-NEXT:       _t1 = a;
 //CHECK-NEXT:       _t0 = b;
 //CHECK-NEXT:       double f_const_return = _t1 * _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           * _d_a += _r0;
@@ -888,8 +844,6 @@ void f_const_reference_grad(double i, double j, clad::array_ref<double> _d_i, cl
 //CHECK-NEXT:    _t0 = ar;
 //CHECK-NEXT:    double res = 2 * _t0;
 //CHECK-NEXT:    double f_const_reference_return = res;
-//CHECK-NEXT:    goto _label0;
-//CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_res += 1;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = _d_res * _t0;
@@ -910,8 +864,6 @@ void f_const02_grad(double i, double j, clad::array_ref<double> _d_i, clad::arra
 //CHECK-NEXT:       const double a = i;
 //CHECK-NEXT:       double res = a;
 //CHECK-NEXT:       double f_const02_return = res;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_res += 1;
 //CHECK-NEXT:       _d_a += _d_res;
 //CHECK-NEXT:       * _d_i += _d_a;
@@ -937,8 +889,6 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _t5 = n - 1;
 // CHECK-NEXT:     float running_sum_return = p[_t5];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_p[_t5] += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         {
@@ -968,8 +918,6 @@ double fn_global_var_use(double i, double j) {
 // CHECK-NEXT:     _t1 = ref;
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     double fn_global_var_use_return = _t1 * _t0;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         _d_ref += _r0;

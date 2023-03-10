@@ -14,8 +14,6 @@ double nonMemFn(double i) {
 // CHECK-NEXT:     _t1 = i;
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     double nonMemFn_return = _t1 * _t0;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         * _d_i += _r0;

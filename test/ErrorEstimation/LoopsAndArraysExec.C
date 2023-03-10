@@ -33,8 +33,6 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:         clad::push(_EERepl_sum1, sum);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double runningSum_return = sum;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -95,8 +93,6 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double mulSum_return = sum;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -163,8 +159,6 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:         clad::push(_EERepl_sum1, sum);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double divSum_return = sum;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {

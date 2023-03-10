@@ -43,8 +43,6 @@ double f(double x, double y) {
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       double sq_return = _t1 * _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = _d_y * _t0;
 //CHECK-NEXT:           * _d_x += _r0;
@@ -63,8 +61,6 @@ double f(double x, double y) {
 //CHECK-NEXT:       _t2 = x;
 //CHECK-NEXT:       _t3 = std::cos(_t2);
 //CHECK-NEXT:       double one_return = sq(_t1) + sq(_t3);
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _grad0 = 0.;
 //CHECK-NEXT:           sq_pullback(_t1, _d_y, &_grad0);
@@ -89,8 +85,6 @@ double f(double x, double y) {
 //CHECK-NEXT:       _t2 = t;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       double f_return = _t2 * _t1;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r1 = 1 * _t1;
 //CHECK-NEXT:           _d_t += _r1;

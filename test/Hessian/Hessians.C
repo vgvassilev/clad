@@ -60,8 +60,6 @@ void f_cubed_add1_darg0_grad(double a, double b, clad::array_ref<double> _d_a, c
 //CHECK-NEXT:    _t20 = _t10;
 //CHECK-NEXT:    _t19 = _d_b0;
 //CHECK-NEXT:    double f_cubed_add1_darg0_return = _t9 * _t4 + _t12 * _t11 + _t18 * _t13 + _t20 * _t19;
-//CHECK-NEXT:    goto _label0;
-//CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r4 = 1 * _t4;
 //CHECK-NEXT:        double _r5 = _r4 * _t5;
@@ -159,8 +157,6 @@ void f_cubed_add1_darg1_grad(double a, double b, clad::array_ref<double> _d_a, c
 //CHECK-NEXT:    _t20 = _t10;
 //CHECK-NEXT:    _t19 = _d_b0;
 //CHECK-NEXT:    double f_cubed_add1_darg1_return = _t9 * _t4 + _t12 * _t11 + _t18 * _t13 + _t20 * _t19;
-//CHECK-NEXT:    goto _label0;
-//CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r4 = 1 * _t4;
 //CHECK-NEXT:        double _r5 = _r4 * _t5;
