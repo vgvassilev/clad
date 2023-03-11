@@ -140,7 +140,7 @@ namespace clad {
             m_DO.DumpSourceFnAST = true;
           } else if (args[i] == "-fdump-derived-fn") {
             m_DO.DumpDerivedFn = true;
-          } else if (args[i] == "-fdump-derived-fn-ast") {
+          } else if (args[i] == "-fdu-derived-fn-ast") {
             m_DO.DumpDerivedAST = true;
           } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;

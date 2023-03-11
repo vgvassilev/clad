@@ -205,11 +205,20 @@ double f_decls2(double x, double y) {
 double f_decls3(double x, double y) {
   double a = 3 * x;
   double c = 333 * y;
+  double b=0;
   if (x > 1)
-    return 2 * a;
+    goto jump1;
   else if (x < -1)
-    return -2 * a;
-  double b = a * a;
+    goto jump2;
+  else
+  goto jump3;
+  
+  jump1:
+    b= 2*a;
+  jump2:
+    b= -2*a;
+  jump3:
+    b=a*a;
   return b;
 }
 
