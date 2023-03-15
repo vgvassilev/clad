@@ -39,6 +39,8 @@ namespace clad {
     const Expr* ignoreExpr;
     SourceLocation ignoreLoc;
     SourceRange ignoreRange;
+    if(auto array = dyn_cast<clad::array>(E))
+    	return false;
     return E->isUnusedResultAWarning(
         ignoreExpr, ignoreLoc, ignoreRange, ignoreRange, m_Context);
   }
