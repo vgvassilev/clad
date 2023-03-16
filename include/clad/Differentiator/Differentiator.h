@@ -163,6 +163,11 @@ namespace clad {
         m_Function = nullptr;
         m_Code = nullptr;
       }
+      std::string str(m_Code);
+      std::regex pattern("goto _label[0-9]+;\\n\\s*_label[0-9]+:");
+      str = std::regex_replace(str, pattern, "_label$1");
+      strcpy(m_Code, str.c_str());
+      printf("%s",m_Code);
     }
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
