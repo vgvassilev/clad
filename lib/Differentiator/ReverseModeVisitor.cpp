@@ -2625,10 +2625,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       init = getArraySizeExpr(AT, m_Context, *this);
     }
 
-    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
+    auto identifier = CreateUniqueIdentifier(prefix);
+    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    assert(m_DerivativeFnScope && "must be set");
+    m_CurScope = m_DerivativeFnScope;
+
+    VarDecl* Var = BuildVarDecl(Type, identifier, E);
+    Expr* Ref = BuildDeclRef(Var);
+
     if (E) {
-      Expr* Set = BuildOp(BO_Assign, Ref, E);
-      addToCurrentBlock(Set, direction::forward);
+      addToCurrentBlock(BuildDeclStmt(Var), direction::forward);
     }
     return {Ref, Ref};
   }
