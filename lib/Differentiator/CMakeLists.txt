@@ -5,7 +5,7 @@ endif()
 
 clad_compat__find_first_existing_vc_file("${CLANG_SOURCE_DIR}" clang_vc)
 clad_compat__find_first_existing_vc_file("${CLAD_SOURCE_DIR}" clad_vc)
-set(last_known_good_rev "${CLAD_SOURCE_DIR}/LastKnownGoodLLVMRevision.txt")
+# set(last_known_good_rev "${CLAD_SOURCE_DIR}/LastKnownGoodLLVMRevision.txt")
 
 # The VC revision include that we want to generate.
 set(version_inc "${CMAKE_CURRENT_BINARY_DIR}/VCSVersion.inc")
