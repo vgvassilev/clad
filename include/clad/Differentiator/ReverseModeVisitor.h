@@ -61,6 +61,7 @@ namespace clad {
     Stmts m_PopIdxValues;
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
+    bool if_encounter = false;//Used to Remove redundant goto
     unsigned numParams = 0;
     bool isVectorValued = false;
     bool use_enzyme = false;

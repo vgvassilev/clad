@@ -277,12 +277,12 @@ make check-clad
 sudo -H pip install lit
 git clone https://github.com/llvm/llvm-project.git src
 cd src; git checkout llvmorg-13.0.0
-cd /tools
+cd llvm/tools/
 git clone https://github.com/vgvassilev/clad.git clad
 cd ../../../
 mkdir obj inst
 cd obj
-cmake -S ../src/llvm -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst 
+cmake -S ../src/llvm -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst
 make && make install
 ```
 
