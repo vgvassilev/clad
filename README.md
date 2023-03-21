@@ -277,7 +277,7 @@ make check-clad
 sudo -H pip install lit
 git clone https://github.com/llvm/llvm-project.git src
 cd src; git checkout llvmorg-13.0.0
-cd /tools
+cd llvm/tools/
 git clone https://github.com/vgvassilev/clad.git clad
 cd ../../../
 mkdir obj inst
