@@ -774,6 +774,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // to this scope.
     beginScope(Scope::DeclScope | Scope::ControlScope);
 
+    if_encounter = true;
+
     StmtDiff cond = Clone(If->getCond());
     // Condition has to be stored as a "global" variable, to take the correct
     // branch in the reverse pass.
@@ -1179,7 +1181,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     // Create goto to the label.
-    return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    if(if_encounter==true)
+    {
+        if_encounter=false;
+        return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    }	
+    else
+    {
+    	return m_Sema.ActOnNullStmt(noLoc).get();
+    }
   }
 
   StmtDiff ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
