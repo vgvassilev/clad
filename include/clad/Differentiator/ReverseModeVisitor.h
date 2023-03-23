@@ -92,6 +92,9 @@ namespace clad {
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
 
+    // Whether the block has if statements
+    bool hasIfStmts = false;
+
   public:
     using direction = rmv::direction;
     clang::Expr* dfdx() {

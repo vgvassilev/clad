@@ -770,6 +770,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
+    // If we encounter an if statement, we cannot omit the goto statements
+    hasIfStmts = true;
     // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
     // to this scope.
     beginScope(Scope::DeclScope | Scope::ControlScope);
@@ -1149,14 +1151,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
     // skipped. We create a label in the reverse pass and jump to it via goto.
-    LabelDecl* LD = LabelDecl::Create(
-        m_Context, m_Sema.CurContext, noLoc, CreateUniqueIdentifier("_label"));
-    m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);
+    LabelDecl* LD = nullptr;
+    if (hasIfStmts) {
+      LD = LabelDecl::Create(
+          m_Context, m_Sema.CurContext, noLoc, CreateUniqueIdentifier("_label"));
+      m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);      
+    }
     // Attach label to the last Stmt in the corresponding Reverse Stmt.
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
-    Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
-    addToCurrentBlock(LS, direction::reverse);
+    if (hasIfStmts) {
+      Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
+      addToCurrentBlock(LS, direction::reverse);
+    }
+    else {
+      addToCurrentBlock(Reverse, direction::reverse);
+    }
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
       addToCurrentBlock(S, direction::forward);
 
@@ -1179,7 +1189,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     // Create goto to the label.
-    return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    if (hasIfStmts) {
+      return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    } else {
+      return nullptr;
+    }
   }
 
   StmtDiff ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
