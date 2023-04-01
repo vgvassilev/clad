@@ -64,6 +64,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::CladTapeResult
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
+    if (auto IE = dyn_cast<ImplicitCastExpr>(E)) {
+      E = IE->getSubExpr()->IgnoreImplicit();
+    }
     QualType EQt = E->getType();
     if (dyn_cast<ArrayType>(EQt))
       EQt = GetCladArrayOfType(utils::GetValueType(EQt));

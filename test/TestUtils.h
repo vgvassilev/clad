@@ -11,6 +11,8 @@ template <typename T> void print(T t) {
   fprintf(stderr, "Print method not defined for type: %s", typeid(t).name());
 }
 
+void print(float f) { printf("%.2f", f); }
+
 void print(const char* s) { printf("%s", s); }
 
 void print(double d) { printf("%.2f", d); }
