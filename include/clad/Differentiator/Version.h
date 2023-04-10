@@ -11,7 +11,6 @@
 
 namespace clad {
   std::string getCladRevision();
-  std::string getClangCompatRevision();
 } // end namespace clad
 
 #endif //CLAD_DIFFERENTIATOR_VERSION

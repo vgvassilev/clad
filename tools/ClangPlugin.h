@@ -34,6 +34,8 @@ namespace clang {
 } // namespace clang
 
 namespace clad {
+
+  bool checkClangVersion();
   /// This class is designed to store collection of `DerivedFnInfo` objects.
   /// It's purpose is to avoid repeated generation of same derivatives by
   /// making it possible to reuse previously computed derivatives.
@@ -65,7 +67,7 @@ namespace clad {
       DifferentiationOptions()
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
             DumpDerivedAST(false), GenerateSourceFile(false),
-            ValidateClangVersion(false), CustomEstimationModel(false),
+            ValidateClangVersion(true), CustomEstimationModel(false),
             PrintNumDiffErrorInfo(false), CustomModelName("") {}
 
       bool DumpSourceFn : 1;
@@ -115,22 +117,6 @@ namespace clad {
         return std::unique_ptr<clang::ASTConsumer>(new ConsumerType(CI, m_DO));
       }
 
-      static bool IsRunningOnExpectedClangVersion() {
-        // FIXME: The check does more damage than good. We need to make it much
-        // more sophisticated to work as expected. For example, clang can be
-        // checked out from svn or git; the compatible revision can be a range;
-        // clang itself can have local patches on top of the compatible version.
-        if (clang::getClangRevision() != "" &&
-            clang::getClangRevision() != clad::getClangCompatRevision()) {
-          // TODO: Print nice looking diagnostics through the DiagEngine.
-          llvm::errs() << "Clang is not compatible with clad."
-                       << " (" << clang::getClangRevision()
-                       << " != " << clad::getClangCompatRevision() << " )\n";
-          return false;
-        }
-        return true;
-      }
-
       bool ParseArgs(const clang::CompilerInstance& CI,
                      const std::vector<std::string>& args) override {
         for (unsigned i = 0, e = args.size(); i != e; ++i) {
@@ -144,10 +130,8 @@ namespace clad {
             m_DO.DumpDerivedAST = true;
           } else if (args[i] == "-fgenerate-source-file") {
             m_DO.GenerateSourceFile = true;
-          } else if (args[i] == "-fvalidate-clang-version") {
-            m_DO.ValidateClangVersion = true;
-            if (!IsRunningOnExpectedClangVersion())
-              return false; // Tells clang not to create the plugin.
+          } else if (args[i] == "-fno-validate-clang-version") {
+            m_DO.ValidateClangVersion = false;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
@@ -183,6 +167,10 @@ namespace clad {
             llvm::errs() << "clad: Error: invalid option " << args[i] << "\n";
             return false; // Tells clang not to create the plugin.
           }
+        }
+        if (m_DO.ValidateClangVersion != false) {
+          if (!checkClangVersion())
+            return false;
         }
         return true;
       }
