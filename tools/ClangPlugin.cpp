@@ -330,6 +330,17 @@ namespace clad {
     }
   } // end namespace plugin
 
+  // Routine to check clang version at runtime against the clang version for
+  // which clad was built.
+  bool checkClangVersion() {
+    std::string runtimeVersion = clang::getClangFullCPPVersion();
+    std::string builtVersion = CLANG_MAJOR_VERSION;
+    if (runtimeVersion.find(builtVersion) == std::string::npos)
+      return false;
+    else
+      return true;
+  }
+
   void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
     assert(!AlreadyExists(DFI) &&
            "We are generating same derivative more than once, or calling "

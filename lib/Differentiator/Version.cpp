@@ -18,12 +18,4 @@ namespace clad {
     return "";
 #endif
   }
-
-  std::string getClangCompatRevision() {
-#ifdef CLAD_CLANG_COMPAT_REVISION
-    return CLAD_CLANG_COMPAT_REVISION;
-#else
-    return "";
-#endif
-  }
 } // end namespace clad
