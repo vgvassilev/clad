@@ -58,6 +58,17 @@ template <typename... Args> void display(Args... args) {
   printf("}\n");
 }
 
+template <typename T> void displayarr(T* arr, std::size_t n) {
+  printf("{");
+  for (std::size_t i = 0; i < n; ++i) {
+    print(arr[i]);
+    if (i != n - 1) {
+      printf(", ");
+    }
+  }
+  printf("}\n");
+}
+
 template <std::size_t...> struct index_pack {};
 
 template <std::size_t l, std::size_t r, std::size_t... S>
@@ -95,12 +106,34 @@ void run_gradient_impl(CF cf, index_pack<S...> s, Args&&... args) {
   display(std::get<S>(t)...);
 }
 
+template <class CF, std::size_t... S, class... Args>
+void run_jacobian_impl(CF cf, std::size_t size, index_pack<S...> s,
+                       Args&&... args) {
+  std::tuple<Args...> t = {args...};
+  reset(std::get<S>(t)...);
+  cf.execute(args...);
+  typedef
+      typename std::remove_reference<decltype(*std::get<sizeof...(args) - 1>(
+          t))>::type arrElemType;
+  displayarr<arrElemType>(std::get<sizeof...(args) - 1>(t), size);
+}
+
 template <std::size_t NumOfDerivativeArgs, class CF, class... Args>
 void run_gradient(CF cf, Args&&... args) {
   using DerivativeArgsRange =
       typename GenerateRange<sizeof...(Args) - NumOfDerivativeArgs,
                              sizeof...(Args) - 1>::type;
   run_gradient_impl(cf, DerivativeArgsRange(), std::forward<Args>(args)...);
+}
+
+template <std::size_t NumOfDerivativeArgs, std::size_t size, class CF,
+          class... Args>
+void run_jacobian(CF cf, Args&&... args) {
+  using DerivativeArgRange =
+      typename GenerateRange<sizeof...(Args) - NumOfDerivativeArgs,
+                             sizeof...(Args) - 1>::type;
+  run_jacobian_impl(cf, size, DerivativeArgRange(),
+                    std::forward<Args>(args)...);
 }
 
 template <class CF, class... Args>
@@ -127,11 +160,16 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
 
 #define INIT_GRADIENT_ALL(fn) auto fn##_grad = clad::gradient(fn);
 
+#define INIT_JACOBIAN_ALL(fn) auto fn##_jac = clad::jacobian(fn);
+
 #define INIT_DIFFERENTIATE(fn, ...)                                            \
   auto fn##_diff = clad::differentiate(fn, __VA_ARGS__);
 
 #define INIT_GRADIENT_SPECIFIC(fn, args)                                       \
   auto fn##_grad = clad::gradient(fn, args);
+
+#define INIT_JACOBIAN_SPECIFIC(fn, args)                                       \
+  auto fn##_jac = clad::jacobian(fn, args);
 
 #define GET_MACRO(_1, _2, MACRO, ...) MACRO
 
@@ -139,11 +177,18 @@ void EssentiallyEqualArrays(A* a, B* b, unsigned size) {
   GET_MACRO(__VA_ARGS__, INIT_GRADIENT_SPECIFIC, INIT_GRADIENT_ALL)            \
   (__VA_ARGS__)
 
+#define INIT_JACOBIAN(...)                                                     \
+  GET_MACRO(__VA_ARGS__, INIT_JACOBIAN_SPECIFIC, INIT_JACOBIAN_ALL)            \
+  (__VA_ARGS__)
+
 #define TEST_GRADIENT(fn, numOfDerivativeArgs, ...)                            \
   test_utils::run_gradient<numOfDerivativeArgs>(fn##_grad, __VA_ARGS__);
 
 #define TEST_DIFFERENTIATE(fn, ...)                                            \
   test_utils::run_differentiate(fn##_diff, __VA_ARGS__);
+
+#define TEST_JACOBIAN(fn, numOfDerivativeArgs, size, ...)                      \
+  test_utils::run_jacobian<numOfDerivativeArgs, size>(fn##_jac, __VA_ARGS__);
 
 #endif
 }
