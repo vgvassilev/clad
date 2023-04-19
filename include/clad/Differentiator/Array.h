@@ -86,7 +86,7 @@ public:
   /// Initializes the clad::array to the given array
   CUDA_HOST_DEVICE array<T>& operator=(T* arr) {
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] = arr[i];
+      m_arr[i] = arr ? arr[i] : 0;
     return *this;
   }
   /// Performs element wise addition

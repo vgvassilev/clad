@@ -322,6 +322,59 @@ double func5(int k) {
 //CHECK-NEXT:     * _d_k += _d_n;
 //CHECK-NEXT: }
 
+double func6(double seed) {
+  double sum = 0;
+  for (int i = 0; i < 3; i++) {
+    double arr[3] = {seed, seed * i, seed + i};
+    sum += addArr(arr, 3);
+  }
+  return sum;
+}
+
+//CHECK: void func6_grad(double seed, clad::array_ref<double> _d_seed) {
+//CHECK-NEXT:     double _d_sum = 0;
+//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     clad::tape<int> _t1 = {};
+//CHECK-NEXT:     clad::tape<double> _t2 = {};
+//CHECK-NEXT:     clad::array<double> _d_arr(3UL);
+//CHECK-NEXT:     clad::tape<clad::array<double> > _t3 = {};
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     for (int i = 0; i < 3; i++) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         double arr[3] = {seed, clad::push(_t2, seed) * clad::push(_t1, i), seed + i};
+//CHECK-NEXT:         clad::push(_t3, arr , 3UL);
+//CHECK-NEXT:         sum += addArr(arr, 3);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     double func6_return = sum;
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             double _r_d0 = _d_sum;
+//CHECK-NEXT:             _d_sum += _r_d0;
+//CHECK-NEXT:             clad::array<double> _r3 = clad::pop(_t3);
+//CHECK-NEXT:             int _grad1 = 0;
+//CHECK-NEXT:             addArr_pullback(_r3, 3, _r_d0, _d_arr, &_grad1);
+//CHECK-NEXT:             clad::array<double> _r2(_d_arr);
+//CHECK-NEXT:             int _r4 = _grad1;
+//CHECK-NEXT:             _d_sum -= _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         {
+//CHECK-NEXT:             * _d_seed += _d_arr[0];
+//CHECK-NEXT:             double _r0 = _d_arr[1] * clad::pop(_t1);
+//CHECK-NEXT:             * _d_seed += _r0;
+//CHECK-NEXT:             double _r1 = clad::pop(_t2) * _d_arr[1];
+//CHECK-NEXT:             _d_i += _r1;
+//CHECK-NEXT:             * _d_seed += _d_arr[2];
+//CHECK-NEXT:             _d_i += _d_arr[2];
+//CHECK-NEXT:             _d_arr = {};
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 int main() {
   double arr[] = {1, 2, 3};
   auto f_dx = clad::gradient(f);
@@ -357,5 +410,10 @@ int main() {
   int dk = 0;
   // Should evaluate to k*3
   df.execute(10, &dk);
-  printf("Result = {%.2d}", dk); // CHECK-EXEC: Result = {30}
+  printf("Result = {%.2d}\n", dk); // CHECK-EXEC: Result = {30}
+
+  auto localArray = clad::gradient(func6);
+  double dseed = 0;
+  localArray.execute(1, &dseed);
+  printf("Result = {%.2f}", dseed); // CHECK-EXEC: Result = {9.00}
 }
