@@ -247,6 +247,15 @@ double f11(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f12(double a, double b) { return std::fma(a, b, b); }
+
+//CHECK: double f12_darg1(double a, double b) {
+//CHECK-NEXT:     double _d_a = 0;
+//CHECK-NEXT:     double _d_b = 1;
+//CHECK-NEXT:     ValueAndPushforward<decltype(::std::fma(double(), double(), double())), decltype(::std::fma(double(), double(), double()))> _t0 = clad::custom_derivatives::fma_pushforward(a, b, b, _d_a, _d_b, _d_b);
+//CHECK-NEXT:     return _t0.pushforward;
+//CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -312,6 +321,9 @@ int main () { //expected-no-diagnostics
   INIT_GRADIENT(f11);
 
   TEST_GRADIENT(f11, /*numOfDerivativeArgs=*/2, -1, 1, &d_result[0], &d_result[1]); // CHECK-EXEC: {-4.00, 0.00}
+
+  auto f12_darg1 = clad::differentiate(f12, 1);
+  printf("Result is = %f\n", f12_darg1.execute(2, 1)); //CHECK-EXEC: Result is = 3.000000
 
   return 0;
 }

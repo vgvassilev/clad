@@ -110,6 +110,25 @@ CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y,
   *d_exponent += t.pushforward * d_y;
 }
 
+template <typename T1, typename T2, typename T3>
+CUDA_HOST_DEVICE ValueAndPushforward<decltype(::std::fma(T1(), T2(), T3())),
+                                     decltype(::std::fma(T1(), T2(), T3()))>
+fma_pushforward(T1 a, T2 b, T3 c, T1 d_a, T2 d_b, T3 d_c) {
+  auto val = ::std::fma(a, b, c);
+  auto derivative = d_a * b + a * d_b + d_c;
+  return {val, derivative};
+}
+
+template <typename T1, typename T2, typename T3, typename T4>
+CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y,
+                                   clad::array_ref<decltype(T1())> d_a,
+                                   clad::array_ref<decltype(T2())> d_b,
+                                   clad::array_ref<decltype(T3())> d_c) {
+  *d_a += b * d_y;
+  *d_b += a * d_y;
+  *d_c += d_y;
+}
+
 } // namespace std
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
@@ -120,7 +139,9 @@ using std::log_pushforward;
 using std::pow_pushforward;
 using std::sin_pushforward;
 using std::sqrt_pushforward;
+using std::fma_pushforward;
 using std::pow_pullback;
+using std::fma_pullback;
 } // namespace custom_derivatives
 } // namespace clad
 
