@@ -59,6 +59,7 @@ namespace clad {
     /// to maintain the correct statement order when the current block has
     /// delayed emission i.e. assignment LHS.
     Stmts m_PopIdxValues;
+    Stmts m_RPopIdxValues;//for reference variables as input in function argumentlist
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
@@ -392,6 +393,33 @@ namespace clad {
     /// https://github.com/vgvassilev/clad/issues/385
     clang::QualType GetParameterDerivativeType(clang::QualType yType,
                                                clang::QualType xType);
+                                               
+                                               
+    bool Ref=false;
+	  bool hasReferenceType(const clang::QualType& type) {
+  		return type->isReferenceType();
+	  }
+	  bool printArgTypes(const clang::CallExpr* CE) {
+  		const clang::FunctionDecl* FD = CE->getDirectCallee();
+  		if (!FD) {
+    		return false;
+  		}
+  		int numParams = FD->getNumParams();
+  		if (CE->getNumArgs() != numParams) {
+    		return false;
+  		}
+  		bool hasRefType = false;
+  		for (int i = 0; i < numParams; i++) {
+    		const clang::ParmVarDecl* param = FD->getParamDecl(i);
+    		const clang::Expr* arg = CE->getArg(i);
+    		bool isReferenceType = hasReferenceType(param->getType());
+    		if (isReferenceType) {
+      			hasRefType = true;
+    		}
+  		}
+		  return hasRefType;
+	  }
+
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop. 
