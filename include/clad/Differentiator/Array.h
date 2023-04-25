@@ -54,7 +54,7 @@ public:
   CUDA_HOST_DEVICE T* ptr() { return m_arr; }
   /// Returns the reference to the location at the index of the underlying
   /// array
-  CUDA_HOST_DEVICE T& operator[](std::size_t i) { return m_arr[i]; }
+  CUDA_HOST_DEVICE T& operator[](std::ptrdiff_t i) { return m_arr[i]; }
   /// Returns the reference to the underlying array
   CUDA_HOST_DEVICE T& operator*() { return *m_arr; }
 
