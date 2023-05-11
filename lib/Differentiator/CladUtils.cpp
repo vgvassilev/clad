@@ -153,6 +153,20 @@ namespace clad {
       }
     }
 
+    // Adds a namespace specifier to the given type if the type is not already an elaborated type.
+    clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext &C, clang::QualType QT) {
+      auto typePtr = QT.getTypePtr();
+      if (typePtr->isRecordType() && !typePtr->getAs<clang::ElaboratedType>()) {
+        CXXScopeSpec CSS;
+        clang::CXXRecordDecl const* recordDecl = typePtr->getAsCXXRecordDecl();
+        clang::DeclContext const* declContext = static_cast<clang::DeclContext const*>(recordDecl);
+        utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
+        NestedNameSpecifier* NS = CSS.getScopeRep();
+        return C.getElaboratedType(ETK_None, NS->getPrefix(), QT);
+      }
+      return QT;
+    }
+
     DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
                                  clang::DeclContext* DC2) {
       // llvm::errs()<<"DC1 name: "<<DC1->getDeclKindName()<<"\n";

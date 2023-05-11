@@ -76,6 +76,25 @@ namespace clad {
     void BuildNNS(clang::Sema& semaRef, clang::DeclContext* DC,
                   clang::CXXScopeSpec& CSS, bool addGlobalNS = false);
 
+    /// Add the namespace specifier to the type if it is not already an elaborated type.
+    /// For example, if the type is `SomeClass` and it is declared in namespace `A::B`,
+    /// as:
+    /// ```
+    /// namespace A {
+    ///  namespace B {
+    ///    struct SomeClass {};
+    ///  }
+    /// }
+    /// ```
+    /// then the function will return `A::B::SomeClass`.
+    /// If the type is already an elaborated type, then it is returned as is.
+    ///
+    /// \param semaRef
+    /// \param[in] C
+    /// \param[in] QT
+    /// \returns  type with namespace specifier added.
+    clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
+
     /// Finds declaration context associated with the DC1::DC2.
     /// For example, consider DC1 corresponds to the following declaration
     /// context:
