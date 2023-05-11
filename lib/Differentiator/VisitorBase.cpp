@@ -11,6 +11,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -63,6 +64,8 @@ namespace clad {
                                      TypeSourceInfo* TSI,
                                      VarDecl::InitializationStyle IS) {
 
+    // add namespace specifier in variable declaration if needed.
+    Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
     auto VD =
         VarDecl::Create(m_Context, m_Sema.CurContext, m_Function->getLocation(),
                         m_Function->getLocation(), Identifier, Type, TSI,
