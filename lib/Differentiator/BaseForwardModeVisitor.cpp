@@ -616,6 +616,8 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
   } else {
     auto zero =
         ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
+    if (clad::utils::hasNonDifferentiableAttribute(ME))
+      return {clonedME, zero};
     auto baseDiff = Visit(ME->getBase());
     // No derivative found for base. Therefore, derivative is 0.
     if (isa<IntegerLiteral>(baseDiff.getExpr_dx()) ||
@@ -919,6 +921,26 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
          "Differentiation of only direct calls is supported. Ignored");
     return StmtDiff(Clone(CE));
   }
+
+  // If the function is non_differentiable, return zero derivative.
+  if (clad::utils::hasNonDifferentiableAttribute(CE)) {
+    // Calling the function without computing derivatives
+    llvm::SmallVector<Expr*, 4> ClonedArgs;
+    for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
+      ClonedArgs.push_back(Clone(CE->getArg(i)));
+
+    Expr* Call = m_Sema
+                     .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                    noLoc, ClonedArgs, noLoc)
+                     .get();
+    // Creating a zero derivative
+    auto* zero =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+
+    // Returning the function call and zero derivative
+    return StmtDiff(Call, zero);
+  }
+
   // Find the built-in derivatives namespace.
   std::string s = std::to_string(m_DerivativeOrder);
   if (m_DerivativeOrder == 1)
@@ -1322,6 +1344,32 @@ VarDeclDiff BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;
+  // If the type is marked as non_differentiable, skip generating its derivative
+  // Get the iterator
+  const auto* declsBegin = DS->decls().begin();
+  const auto* declsEnd = DS->decls().end();
+
+  // If the DeclStmt is not empty, check the first declaration.
+  if (declsBegin != declsEnd && isa<VarDecl>(*declsBegin)) {
+    auto* VD = dyn_cast<VarDecl>(*declsBegin);
+    // Check for non-differentiable types.
+    QualType QT = VD->getType();
+    if (QT->isPointerType())
+      QT = QT->getPointeeType();
+    auto* typeDecl = QT->getAsCXXRecordDecl();
+    if (typeDecl && clad::utils::hasNonDifferentiableAttribute(typeDecl)) {
+      for (auto* D : DS->decls()) {
+        if (auto* VD = dyn_cast<VarDecl>(D))
+          decls.push_back(VD);
+        else
+          diag(DiagnosticsEngine::Warning, D->getEndLoc(),
+               "Unsupported declaration");
+      }
+      Stmt* DSClone = BuildDeclStmt(decls);
+      return StmtDiff(DSClone, nullptr);
+    }
+  }
+
   // For each variable declaration v, create another declaration _d_v to
   // store derivatives for potential reassignments. E.g.
   // double y = x;

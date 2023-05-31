@@ -309,6 +309,10 @@ namespace clad {
     clang::QualType
     ComputeMemExprPathType(clang::Sema& semaRef, clang::RecordDecl* RD,
                            llvm::ArrayRef<llvm::StringRef> fields);
+
+    bool hasNonDifferentiableAttribute(const clang::Decl* D);
+
+    bool hasNonDifferentiableAttribute(const clang::Expr* E);
   } // namespace utils
 }
 
