@@ -487,5 +487,51 @@ namespace clad {
       }
       return T;
     }
+
+    bool hasNonDifferentiableAttribute(const clang::Decl* D) {
+      for (auto* Attr : D->specific_attrs<clang::AnnotateAttr>())
+        if (Attr->getAnnotation() == "non_differentiable")
+          return true;
+      return false;
+    }
+
+    bool hasNonDifferentiableAttribute(const clang::Expr* E) {
+      // Check MemberExpr
+      if (const clang::MemberExpr* ME = clang::dyn_cast<clang::MemberExpr>(E)) {
+        // Check attribute of the member declaration
+        if (auto* memberDecl = ME->getMemberDecl()) {
+          if (hasNonDifferentiableAttribute(memberDecl))
+            return true;
+        }
+
+        // Check attribute of the base class
+        if (auto* classType = ME->getBase()->getType()->getAsCXXRecordDecl()) {
+          if (hasNonDifferentiableAttribute(classType))
+            return true;
+        }
+      }
+      // Check CallExpr
+      else if (const clang::CallExpr* CE =
+                   clang::dyn_cast<clang::CallExpr>(E)) {
+        // Check if the function is non-differentiable
+        if (auto FD = CE->getDirectCallee()) {
+          if (hasNonDifferentiableAttribute(FD))
+            return true;
+        }
+
+        // Check if the base class is non-differentiable
+        if (const auto* ME = dyn_cast<CXXMemberCallExpr>(CE)) {
+          if (auto* classType = ME->getImplicitObjectArgument()
+                                    ->getType()
+                                    ->getAsCXXRecordDecl()) {
+            if (hasNonDifferentiableAttribute(classType))
+              return true;
+          }
+        }
+      }
+      // If E is not a MemberExpr or CallExpr or doesn't have a
+      // non-differentiable attribute
+      return false;
+    }
   } // namespace utils
 } // namespace clad

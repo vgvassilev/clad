@@ -27,6 +27,7 @@
 
 #include <algorithm>
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
@@ -180,7 +181,33 @@ namespace clad {
              "definition", { FD->getNameAsString() });
       return {};
     }
+
     FD = FD->getDefinition();
+
+    // check if the function is non-differentiable.
+    if (clad::utils::hasNonDifferentiableAttribute(FD)) {
+      diag(DiagnosticsEngine::Error,
+           request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
+           "attempted differentiation of function '%0', which is marked as "
+           "non-differentiable",
+           {FD->getNameAsString()});
+      return {};
+    }
+
+    // If the function is a method of a class, check if the class is
+    // non-differentiable.
+    if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      const CXXRecordDecl* CD = MD->getParent();
+      if (clad::utils::hasNonDifferentiableAttribute(CD)) {
+        diag(DiagnosticsEngine::Error, MD->getLocation(),
+             "attempted differentiation of method '%0' in class '%1', which is "
+             "marked as "
+             "non-differentiable",
+             {MD->getNameAsString(), CD->getNameAsString()});
+        return {};
+      }
+    }
+
     DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
       BaseForwardModeVisitor V(*this);
