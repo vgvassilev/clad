@@ -6,7 +6,7 @@
 #include "clad/Differentiator/Differentiator.h"
 
 double f1(double x, double y) {
-  return x*y*(x+y);
+  return x*y*(x+y+1);
 }
 
 void f1_d_all_args(double x, double y, double *_d_x, double *_d_y);
@@ -15,9 +15,9 @@ void f1_d_all_args(double x, double y, double *_d_x, double *_d_y);
 // CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
 // CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
 // CHECK-NEXT:   double _t0 = x * y;
-// CHECK-NEXT:   double _t1 = (x + y);
+// CHECK-NEXT:   double _t1 = (x + y + 1);
 // CHECK-NEXT:   {
-// CHECK-NEXT:     clad::array<double> _d_vector_return = (_d_vector_x * y + x * _d_vector_y) * _t1 + _t0 * (_d_vector_x + _d_vector_y);
+// CHECK-NEXT:     clad::array<double> _d_vector_return = (_d_vector_x * y + x * _d_vector_y) * _t1 + _t0 * (_d_vector_x + _d_vector_y + 0);
 // CHECK-NEXT:     *_d_x = _d_vector_return[0];
 // CHECK-NEXT:     *_d_y = _d_vector_return[1];
 // CHECK-NEXT:     return;
@@ -27,7 +27,7 @@ void f1_d_all_args(double x, double y, double *_d_x, double *_d_y);
 double f2(double x, double y) {
   // to test usage of local variables.
   double temp1 = x*y;
-  double temp2 = x+y;
+  double temp2 = x+y+1;
   return temp1*temp2;
 }
 
@@ -38,8 +38,8 @@ void f2_d_all_args(double x, double y, double *_d_x, double *_d_y);
 // CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
 // CHECK-NEXT:   clad::array<double> _d_vector_temp1 = _d_vector_x * y + x * _d_vector_y;
 // CHECK-NEXT:   double temp1 = x * y;
-// CHECK-NEXT:   clad::array<double> _d_vector_temp2 = _d_vector_x + _d_vector_y;
-// CHECK-NEXT:   double temp2 = x + y;
+// CHECK-NEXT:   clad::array<double> _d_vector_temp2 = _d_vector_x + _d_vector_y + 0;
+// CHECK-NEXT:   double temp2 = x + y + 1;
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = _d_vector_temp1 * temp2 + temp1 * _d_vector_temp2;
 // CHECK-NEXT:     *_d_x = _d_vector_return[0];
@@ -49,9 +49,10 @@ void f2_d_all_args(double x, double y, double *_d_x, double *_d_y);
 // CHECK-NEXT: }
 
 double f3(double x, double y) {
-  // x * abs(y)
+  // x * (abs(y) + 1)
   if (y < 0) // to test if statements.
     y = -y;
+  y += 1;
   return x*y;
 }
 
@@ -64,6 +65,8 @@ void f3_d_all_args(double x, double y, double *_d_x, double *_d_y);
 // CHECK-NEXT:     _d_vector_y = - _d_vector_y;
 // CHECK-NEXT:     y = -y;
 // CHECK-NEXT:   }
+// CHECK-NEXT:   _d_vector_y += 0;
+// CHECK-NEXT:   y += 1;
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = _d_vector_x * y + x * _d_vector_y;
 // CHECK-NEXT:     *_d_x = _d_vector_return[0];
@@ -84,7 +87,7 @@ void f3_d_all_args(double x, double y, double *_d_x, double *_d_y);
 int main() {
   double result[2];
 
-  TEST(f1, 3, 4); // CHECK-EXEC: Result is = {40.00, 33.00}
-  TEST(f2, 3, 4); // CHECK-EXEC: Result is = {40.00, 33.00}
-  TEST(f3, 3, -4); // CHECK-EXEC: Result is = {4.00, -3.00}
+  TEST(f1, 3, 4); // CHECK-EXEC: Result is = {44.00, 36.00}
+  TEST(f2, 3, 4); // CHECK-EXEC: Result is = {44.00, 36.00}
+  TEST(f3, 3, -4); // CHECK-EXEC: Result is = {5.00, -3.00}
 }
