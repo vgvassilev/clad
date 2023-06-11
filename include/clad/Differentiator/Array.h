@@ -239,8 +239,9 @@ public:
 
 /// Multiplies the number to every element in the array and returns a new
 /// array.
-template <typename T>
-CUDA_HOST_DEVICE array<T> operator*(const array<T>& arr, T n) {
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator*(const array<T>& arr, U n) {
   array<T> arr2(arr);
   arr2 *= n;
   return arr2;
@@ -248,23 +249,26 @@ CUDA_HOST_DEVICE array<T> operator*(const array<T>& arr, T n) {
 
 /// Multiplies the number to every element in the array and returns a new
 /// array, when the number is on the left side.
-template <typename T>
-CUDA_HOST_DEVICE array<T> operator*(T n, const array<T>& arr) {
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator*(U n, const array<T>& arr) {
   return arr * n;
 }
 
 /// Divides the number from every element in the array and returns a new
 /// array
-template <typename T>
-CUDA_HOST_DEVICE array<T> operator/(const array<T>& arr, T n) {
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator/(const array<T>& arr, U n) {
   array<T> arr2(arr);
   arr2 /= n;
   return arr2;
 }
 
 /// Adds the number to every element in the array and returns a new array
-template <typename T>
-CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr, T n) {
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr, U n) {
   array<T> arr2(arr);
   arr2 += n;
   return arr2;
@@ -272,15 +276,17 @@ CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr, T n) {
 
 /// Adds the number to every element in the array and returns a new array,
 /// when the number is on the left side.
-template <typename T>
-CUDA_HOST_DEVICE array<T> operator+(T n, const array<T>& arr) {
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator+(U n, const array<T>& arr) {
   return arr + n;
 }
 
 /// Subtracts the number from every element in the array and returns a new
 /// array
-template <typename T>
-CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr, T n) {
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr, U n) {
   array<T> arr2(arr);
   arr2 -= n;
   return arr2;
