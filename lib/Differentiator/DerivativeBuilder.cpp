@@ -186,6 +186,9 @@ namespace clad {
     } else if (request.Mode == DiffMode::experimental_pushforward) {
       ForwardModeVisitor V(*this);
       result = V.DerivePushforward(FD, request);
+    } else if (request.Mode == DiffMode::vector_forward_mode) {
+      ForwardModeVisitor V(*this);
+      result = V.DeriveVectorMode(FD, request);
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
       result = V.Derive(FD, request);

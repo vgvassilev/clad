@@ -719,6 +719,25 @@ namespace clad {
   using ExtractDerivedFnTraitsForwMode_t =
       typename ExtractDerivedFnTraitsForwMode<F>::type;
 
+  template <class T, class R> struct OutputVecParamType {
+    using type = typename std::add_pointer<R>::type;
+  };
+
+  template <class T, class R>
+  using OutputVecParamType_t = typename OutputVecParamType<T, R>::type;
+
+  /// Specialization for vector forward mode type.
+  template <class F, class = void> struct ExtractDerivedFnTraitsVecForwMode {};
+
+  template <class F>
+  using ExtractDerivedFnTraitsVecForwMode_t =
+      typename ExtractDerivedFnTraitsVecForwMode<F>::type;
+
+  template <class ReturnType, class... Args>
+  struct ExtractDerivedFnTraitsVecForwMode<ReturnType (*)(Args...)> {
+    using type = void (*)(Args..., OutputVecParamType_t<Args, ReturnType>...);
+  };
+
   /// Specialization for free function pointer type
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
