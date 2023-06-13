@@ -536,7 +536,7 @@ namespace clad {
     if (A &&
         (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") ||
          A->getAnnotation().equals("H") || A->getAnnotation().equals("J") ||
-         A->getAnnotation().equals("E"))) {
+         A->getAnnotation().equals("E") || A->getAnnotation().equals("VD"))) {
       // A call to clad::differentiate or clad::gradient was found.
       DeclRefExpr* DRE = getArgFunction(E, m_Sema);
       if (!DRE)
@@ -545,13 +545,14 @@ namespace clad {
 
       // Check if enzyme is requested in case of Forward Mode or reverse Mode
       if (A->getAnnotation().equals("D") || A->getAnnotation().equals("G")) {
-        signed enzyme_request = FD->getTemplateSpecializationArgs()
-                                    ->get(0)
-                                    .getAsIntegral()
-                                    .getZExtValue();
+        signed opts_value = FD->getTemplateSpecializationArgs()
+                                ->get(0)
+                                .getAsIntegral()
+                                .getZExtValue();
 
-        if (enzyme_request == -1)
+        if (opts_value == -1) {
           request.use_enzyme = true;
+        }
       }
 
       if (A->getAnnotation().equals("D")) {
@@ -562,6 +563,17 @@ namespace clad {
         unsigned derivativeOrder = 1;
         if (!request.use_enzyme)
           derivativeOrder = derivativeOrderAPSInt.getZExtValue();
+        request.RequestedDerivativeOrder = derivativeOrder;
+      } else if (A->getAnnotation().equals("VD")) {
+        request.Mode = DiffMode::vector_forward_mode;
+        unsigned derivativeOrder = FD->getTemplateSpecializationArgs()
+                                       ->get(0)
+                                       .getAsIntegral()
+                                       .getZExtValue();
+        // currently only first order derivative is supported.
+        assert(derivativeOrder == 1 &&
+               "Only first order derivative is supported for now in vector "
+               "forward mode.");
         request.RequestedDerivativeOrder = derivativeOrder;
       } else if (A->getAnnotation().equals("H")) {
         request.Mode = DiffMode::hessian;

@@ -4,6 +4,7 @@
 #include "clad/Differentiator/CladConfig.h"
 
 #include <assert.h>
+#include <initializer_list>
 #include <type_traits>
 
 namespace clad {
@@ -40,6 +41,13 @@ public:
 
   CUDA_HOST_DEVICE array(const array<T>& arr) : array(arr.m_arr, arr.m_size) {}
 
+  CUDA_HOST_DEVICE array(std::initializer_list<T> arr)
+      : m_arr(new T[arr.size()]{static_cast<T>(T())}), m_size(arr.size()) {
+    std::size_t i = 0;
+    for (const auto& e : arr)
+      m_arr[i++] = e;
+  }
+
   CUDA_HOST_DEVICE array<T>& operator=(const array<T>& arr) {
     (*this) = arr.m_arr;
     return *this;
@@ -49,7 +57,7 @@ public:
   CUDA_HOST_DEVICE ~array() { delete[] m_arr; }
 
   /// Returns the size of the underlying array
-  CUDA_HOST_DEVICE std::size_t size() { return m_size; }
+  CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   /// Returns the ptr of the underlying array
   CUDA_HOST_DEVICE T* ptr() { return m_arr; }
   /// Returns the reference to the location at the index of the underlying
@@ -192,9 +200,100 @@ public:
       m_arr[i] /= arr[i];
     return *this;
   }
+
+  /// Negate the array and return a new array.
+  CUDA_HOST_DEVICE array<T> operator-() const {
+    array<T> arr2(m_size);
+    for (std::size_t i = 0; i < m_size; i++)
+      arr2[i] = -m_arr[i];
+    return arr2;
+  }
+
+  /// Subtracts the number from every element in the array and returns a new
+  /// array, when the number is on the left side.
+  CUDA_HOST_DEVICE friend array<T> operator-(T n, const array<T>& arr) {
+    size_t size = arr.size();
+    array<T> arr2(size);
+    for (std::size_t i = 0; i < size; i++)
+      arr2[i] = n - arr[i];
+    return arr2;
+  }
+
   /// Implicitly converts from clad::array to pointer to an array of type T
   CUDA_HOST_DEVICE operator T*() const { return m_arr; }
-};
+}; // class array
+
+/// Overloaded operators for clad::array which return a new array.
+
+/// Multiplies the number to every element in the array and returns a new
+/// array.
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator*(const array<T>& arr, T n) {
+  array<T> arr2(arr);
+  arr2 *= n;
+  return arr2;
+}
+
+/// Multiplies the number to every element in the array and returns a new
+/// array, when the number is on the left side.
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator*(T n, const array<T>& arr) {
+  return arr * n;
+}
+
+/// Divides the number from every element in the array and returns a new
+/// array
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator/(const array<T>& arr, T n) {
+  array<T> arr2(arr);
+  arr2 /= n;
+  return arr2;
+}
+
+/// Adds the number to every element in the array and returns a new array
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr, T n) {
+  array<T> arr2(arr);
+  arr2 += n;
+  return arr2;
+}
+
+/// Adds the number to every element in the array and returns a new array,
+/// when the number is on the left side.
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator+(T n, const array<T>& arr) {
+  return arr + n;
+}
+
+/// Subtracts the number from every element in the array and returns a new
+/// array
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr, T n) {
+  array<T> arr2(arr);
+  arr2 -= n;
+  return arr2;
+}
+
+/// Function to define element wise adding of two arrays.
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr1,
+                                    const array<T>& arr2) {
+  assert(arr1.size() == arr2.size());
+  array<T> arr(arr1);
+  arr += arr2;
+  return arr;
+}
+
+/// Function to define element wise subtraction of two arrays.
+template <typename T>
+CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr1,
+                                    const array<T>& arr2) {
+  assert(arr1.size() == arr2.size());
+  array<T> arr(arr1);
+  arr -= arr2;
+  return arr;
+}
+
 } // namespace clad
 
 #endif // CLANG_ARRAY_H

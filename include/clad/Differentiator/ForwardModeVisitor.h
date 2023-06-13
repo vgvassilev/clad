@@ -28,7 +28,10 @@ namespace clad {
     unsigned m_IndependentVarIndex = ~0;
     unsigned m_DerivativeOrder = ~0;
     unsigned m_ArgIndex = ~0;
-    
+    /// Map used to keep track of variable declarations and match them
+    /// with their vectorized derivatives - only used in vector mode.
+    std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_VectorVariables;
+
   public:
     ForwardModeVisitor(DerivativeBuilder& builder);
     ~ForwardModeVisitor();
@@ -44,6 +47,8 @@ namespace clad {
                                  const DiffRequest& request);
     DerivativeAndOverload DerivePushforward(const clang::FunctionDecl* FD,
                                             const DiffRequest& request);
+    DerivativeAndOverload DeriveVectorMode(const clang::FunctionDecl* FD,
+                                           const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
@@ -96,6 +101,26 @@ namespace clad {
     StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
     StmtDiff VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
     StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
+
+    /// Builds and returns the sequence of derived function parameters for
+    //  vectorized forward mode.
+    ///
+    /// Information about the original function, derived function, derived
+    /// function parameter types and the differentiation mode are implicitly
+    /// taken from the data member variables. In particular, `m_Function`,
+    /// `m_Mode` and `m_Derivative` should be correctly set before using this
+    /// function.
+    llvm::SmallVector<clang::ParmVarDecl*, 8>
+    BuildVectorModeParams(DiffParams& diffParams);
+
+    /// Get an expression used to initialize the one-hot vector for the
+    /// given index and size. A one-hot vector is a vector with all elements
+    /// set to 0 except for one element which is set to 1.
+    ///
+    /// For example: for index = 2 and size = 4, the returned expression
+    /// is: {0, 0, 1, 0}
+    clang::Expr* getOneHotInitExpr(size_t index, size_t size);
+
   private:
     /// Helper function for differentiating the switch statement body.
     ///

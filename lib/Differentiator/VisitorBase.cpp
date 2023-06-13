@@ -217,7 +217,8 @@ namespace clad {
     if (isa<BinaryOperator>(ENoCasts) ||
         (isa<CXXOperatorCallExpr>(ENoCasts) &&
          cast<CXXOperatorCallExpr>(ENoCasts)->getNumArgs() == 2) ||
-        isa<ConditionalOperator>(ENoCasts))
+        isa<ConditionalOperator>(ENoCasts) ||
+        isa<CXXBindTemporaryExpr>(ENoCasts))
       return m_Sema.ActOnParenExpr(noLoc, noLoc, E).get();
     else
       return E;
