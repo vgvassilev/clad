@@ -173,31 +173,35 @@ public:
     return *this;
   }
   /// Performs element wise addition
-  CUDA_HOST_DEVICE array<T>& operator+=(array<T>& arr) {
+  template <typename U>
+  CUDA_HOST_DEVICE array<T>& operator+=(array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] += arr[i];
+      m_arr[i] += static_cast<T>(arr[i]);
     return *this;
   }
   /// Performs element wise subtraction
-  CUDA_HOST_DEVICE array<T>& operator-=(array<T>& arr) {
+  template <typename U>
+  CUDA_HOST_DEVICE array<T>& operator-=(array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] -= arr[i];
+      m_arr[i] -= static_cast<T>(arr[i]);
     return *this;
   }
   /// Performs element wise multiplication
-  CUDA_HOST_DEVICE array<T>& operator*=(array<T>& arr) {
+  template <typename U>
+  CUDA_HOST_DEVICE array<T>& operator*=(array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] *= arr[i];
+      m_arr[i] *= static_cast<T>(arr[i]);
     return *this;
   }
   /// Performs element wise division
-  CUDA_HOST_DEVICE array<T>& operator/=(array<T>& arr) {
+  template <typename U>
+  CUDA_HOST_DEVICE array<T>& operator/=(array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] /= arr[i];
+      m_arr[i] /= static_cast<T>(arr[i]);
     return *this;
   }
   /// Implicitly converts from clad::array to pointer to an array of type T
