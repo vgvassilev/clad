@@ -68,25 +68,33 @@ public:
 
   // Arithmetic overloads
   /// Divides the number from every element in the array
-  CUDA_HOST_DEVICE array<T>& operator/=(T n) {
+  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
+                                                int>::type = 0>
+  CUDA_HOST_DEVICE array<T>& operator/=(U n) {
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] /= n;
     return *this;
   }
   /// Multiplies the number to every element in the array
-  CUDA_HOST_DEVICE array<T>& operator*=(T n) {
+  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
+                                                int>::type = 0>
+  CUDA_HOST_DEVICE array<T>& operator*=(U n) {
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] *= n;
     return *this;
   }
   /// Adds the number to every element in the array
-  CUDA_HOST_DEVICE array<T>& operator+=(T n) {
+  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
+                                                int>::type = 0>
+  CUDA_HOST_DEVICE array<T>& operator+=(U n) {
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] += n;
     return *this;
   }
   /// Subtracts the number from every element in the array
-  CUDA_HOST_DEVICE array<T>& operator-=(T n) {
+  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
+                                                int>::type = 0>
+  CUDA_HOST_DEVICE array<T>& operator-=(U n) {
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] -= n;
     return *this;
