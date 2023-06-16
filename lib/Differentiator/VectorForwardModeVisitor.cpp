@@ -208,12 +208,36 @@ VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   VarDecl* VDClone =
       BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
                    VD->isDirectInit(), nullptr, VD->getInitStyle());
+  // Create an expression to initialize the derivative vector of the
+  // size of the number of parameters to be differentiated and initialize
+  // the derivative vector to the derivative expression.
+  //
+  // For example:
+  // clad::array<double> _d_vector_y(2, ...);
+  //
+  // This will also help in initializing the derivative vector in the
+  // case when initExprDx is not an array.
+  // So, for example, if we have:
+  // clad::array<double> _d_vector_y(2, 1);
+  // this means that we have to initialize the derivative vector of
+  // size 2 with all elements equal to 1.
+  Expr* size = ConstantFolder::synthesizeLiteral(
+      m_Context.UnsignedLongTy, m_Context, m_Function->getNumParams());
+  llvm::SmallVector<Expr*, 2> args = {size, initDiff.getExpr_dx()};
+  Expr* constructorCallExpr =
+      m_Sema
+          .ActOnCXXTypeConstructExpr(
+              OpaquePtr<QualType>::make(
+                  GetCladArrayOfType(utils::GetValueType(VD->getType()))),
+              noLoc, args, noLoc, false)
+          .get();
+
   VarDecl* VDDerived =
       BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
-                   "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-                   VD->isDirectInit(), nullptr, VD->getInitStyle());
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+                   "_d_vector_" + VD->getNameAsString(), constructorCallExpr,
+                   false, nullptr, VarDecl::InitializationStyle::CallInit);
 
+  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return VarDeclDiff(VDClone, VDDerived);
 }
 
