@@ -36,9 +36,9 @@ void f2_d_all_args(double x, double y, double *_d_x, double *_d_y);
 // CHECK: void f2_d_all_args(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
 // CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
-// CHECK-NEXT:   clad::array<double> _d_vector_temp1 = _d_vector_x * y + x * _d_vector_y;
+// CHECK-NEXT:   clad::array<double> _d_vector_temp1(clad::array<double>(2UL, _d_vector_x * y + x * _d_vector_y));
 // CHECK-NEXT:   double temp1 = x * y;
-// CHECK-NEXT:   clad::array<double> _d_vector_temp2 = _d_vector_x + _d_vector_y + 0;
+// CHECK-NEXT:   clad::array<double> _d_vector_temp2(clad::array<double>(2UL, _d_vector_x + _d_vector_y + 0));
 // CHECK-NEXT:   double temp2 = x + y + 1;
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = _d_vector_temp1 * temp2 + temp1 * _d_vector_temp2;
@@ -75,6 +75,45 @@ void f3_d_all_args(double x, double y, double *_d_x, double *_d_y);
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
+double f4(double lower, double upper) {
+  // integral of x^2 using reimann sum
+  double sum = 0;
+  double num_points = 10000;
+  double interval = (upper - lower) / num_points;
+  for (double x = lower; x <= upper; x += interval) {
+    sum += x * x * interval;
+  }
+  return sum;
+}
+
+void f4_d_all_args(double lower, double upper, double *_d_lower, double *_d_upper);
+
+// CHECK: void f4_d_all_args(double lower, double upper, double *_d_lower, double *_d_upper) {
+// CHECK-NEXT:   clad::array<double> _d_vector_lower = {1., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_upper = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_sum(clad::array<double>(2UL, 0));
+// CHECK-NEXT:   double sum = 0;
+// CHECK-NEXT:   clad::array<double> _d_vector_num_points(clad::array<double>(2UL, 0));
+// CHECK-NEXT:   double num_points = 10000;
+// CHECK-NEXT:   double _t0 = (upper - lower);
+// CHECK-NEXT:   clad::array<double> _d_vector_interval(clad::array<double>(2UL, ((_d_vector_upper - _d_vector_lower) * num_points - _t0 * _d_vector_num_points) / (num_points * num_points)));
+// CHECK-NEXT:   double interval = _t0 / num_points;
+// CHECK-NEXT:   {
+// CHECK-NEXT:       clad::array<double> _d_vector_x(clad::array<double>(2UL, _d_vector_lower));
+// CHECK-NEXT:       for (double x = lower; x <= upper; (_d_vector_x += _d_vector_interval) , (x += interval)) {
+// CHECK-NEXT:           double _t1 = x * x;
+// CHECK-NEXT:           _d_vector_sum += (_d_vector_x * x + x * _d_vector_x) * interval + _t1 * _d_vector_interval;
+// CHECK-NEXT:           sum += _t1 * interval;
+// CHECK-NEXT:       }
+// CHECK-NEXT:   }
+// CHECK-NEXT:   {
+// CHECK-NEXT:       clad::array<double> _d_vector_return = _d_vector_sum;
+// CHECK-NEXT:       *_d_lower = _d_vector_return[0];
+// CHECK-NEXT:       *_d_upper = _d_vector_return[1];
+// CHECK-NEXT:       return;
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -90,4 +129,5 @@ int main() {
   TEST(f1, 3, 4); // CHECK-EXEC: Result is = {44.00, 36.00}
   TEST(f2, 3, 4); // CHECK-EXEC: Result is = {44.00, 36.00}
   TEST(f3, 3, -4); // CHECK-EXEC: Result is = {5.00, -3.00}
+  TEST(f4, 1, 2); // CHECK-EXEC: Result is = {-1.00, 4.00}
 }

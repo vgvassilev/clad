@@ -41,6 +41,17 @@ public:
 
   CUDA_HOST_DEVICE array(const array<T>& arr) : array(arr.m_arr, arr.m_size) {}
 
+  CUDA_HOST_DEVICE array(std::size_t size, const clad::array<T>& arr)
+      : m_arr(new T[size]{static_cast<T>(T())}), m_size(size) {
+    for (std::size_t i = 0; i < size; ++i)
+      m_arr[i] = arr[i];
+  }
+
+  // initializing all entries using the same value
+  template <typename U>
+  CUDA_HOST_DEVICE array(std::size_t size, U val)
+      : m_arr(new T[size]{static_cast<T>(val)}), m_size(size) {}
+
   CUDA_HOST_DEVICE array(std::initializer_list<T> arr)
       : m_arr(new T[arr.size()]{static_cast<T>(T())}), m_size(arr.size()) {
     std::size_t i = 0;
