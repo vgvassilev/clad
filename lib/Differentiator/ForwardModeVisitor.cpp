@@ -1704,12 +1704,16 @@ namespace clad {
                            deriveDiv(Ldiff, Rdiff));
       }
     } else if (opCode == BO_Comma) {
-      if (!isUnusedResult(Ldiff.getExpr_dx()))
-        opDiff = BuildOp(BO_Comma,
-                         BuildParens(Ldiff.getExpr_dx()),
+      // if expression is (E1, E2) then derivative is (E1', E1, E2')
+      // because E1 may change some variables that E2 depends on.
+      if (!isUnusedResult(Ldiff.getExpr_dx())) {
+        opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr_dx()),
+                         BuildParens(Ldiff.getExpr()));
+        opDiff = BuildOp(BO_Comma, BuildParens(opDiff),
                          BuildParens(Rdiff.getExpr_dx()));
-      else
-        opDiff = Rdiff.getExpr_dx();
+      } else
+        opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr()),
+                         BuildParens(Rdiff.getExpr_dx()));
     }
     if (!opDiff) {
       // FIXME: add support for other binary operators
@@ -1719,7 +1723,12 @@ namespace clad {
     opDiff = folder.fold(opDiff);
     // Recover the original operation from the Ldiff and Rdiff instead of
     // cloning the tree.
-    Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
+    Expr* op;
+    if (opCode == BO_Comma)
+      // Ldiff.getExpr() is already included in opDiff.
+      op = Rdiff.getExpr();
+    else
+      op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
     return StmtDiff(op, opDiff);
   }
 
