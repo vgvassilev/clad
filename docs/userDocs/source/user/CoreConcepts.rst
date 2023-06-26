@@ -4,12 +4,128 @@ Core Concepts
 How Clad Works
 =================
 
-.. todo:: todo
+Clad is an open source clang plugin that enables automatic differentiation of 
+mathematical functions in C++. Clad which is based on the LLVM compiler 
+infrastructure does this by parsing and transforming the abstract syntax tree 
+(AST); it detects mathematical function and consequently inserts the derived 
+function in the AST.
 
 Forward and Reverse Mode Automatic Differentiation
 ====================================================
 
-.. todo:: todo
+
+Forward Mode Automatic Differentiation
+----------------------------------------
+
+In forward mode AD, one first fixes the independent variable with respect to 
+which differentiation is performed and computes the derivative of each 
+sub-expression recursively. Compared to reverse mode AD, forward 
+mode is natural and easy to implement as the flow of derivative information 
+coincides with the order of evaluation of the mathematical function.
+
+Consider the following equation : 
+
+.. math::
+
+   z = x * y + sin(x) 
+
+Consider, 
+
+.. math::
+
+   a = x * y
+   b = sin(x)
+   z = a + b
+
+Differentiating this eqn w.r.t to any arbitrary variable t we get : 
+
+.. math::
+
+   \pdv{a}{t} = y * \pdv{x}{t} + x * \pdv{y}{t}\\
+   \pdv{b}{t} = cos(x) * \pdv{x}{t}\\
+   \pdv{z}{t} = \pdv{a}{t} + \pdv{b}{t} 
+
+The above equations were obtained using the chain rule for differentiation which
+is as follows : 
+
+ .. math:: 
+
+  \pdv{w}{t} = \pdv{w}{u1} * \pdv{u1}{t} + \pdv{w}{u2} * \pdv{u2}{t} ....
+
+Here `w` denotes the output variable and `u1` and `u2` denote the input variables.
+
+Replacing :math:`\pdv{a}{t}` with :math:`da` and so on we get.
+
+.. math:: 
+   
+   da = y * dx + x * dy\\
+   db = cos(x) * dx\\
+   dz = da + db
+
+If we substitute :math:`t = x` i.e. we need to substitute :math:`dx = 1` and
+:math:`dy = 0`. Thus :math:`dz` will be :math:`\pdv{z}{x}`. Similarly we need 
+to substitute :math:`dy = 1` as the seed value while differentiating w.r.t 
+:math:`y`. The disadvantage of the forward mode AD is clearly visible here; we need to
+calculate derivative w.r.t to both independent variables separately.
+
+
+Reverse Mode Automatic Differentiation
+----------------------------------------
+
+In reverse mode AD, the dependent variable to be differentiated is fixed and the 
+derivative is computed with respect to each sub-expression recursively. 
+Reverse accumulation traverses the chain rule from outside to inside, or in the 
+case of the directed acyclic graph of the function(often used to show flow of 
+information), from top to bottom. The reverse mode AD requires only one sweep of
+the computation graph; this is faster than forward mode AD; however it 
+should also be noted that the intermidiate variables need to be stored during 
+computation which may result in significant amount of memory if the computation 
+graph is large.
+
+Thus the simplicity of the foward mode comes with a big disadvantage we need 
+to seed `dx = 0` and `dy = 1`, run the program and then seed `dx = 1` and `dy = 0`
+and run another iteration  of the program. The cost of forward mode AD thus scales
+to `o(n)` where n is the number of input variables. Thus the cost would be very 
+high; if we want to calculate the gradient of a very complicated function with large
+number of input variables. 
+
+Rewriting the chain rule upside down taking advantage of its symmetry we get :
+ 
+.. math::
+
+  \pdv{s}{u} = \pdv{w1}{u} * \pdv{s}{w1} + \pdv{w2}{u} * \pdv{s}{w2}
+
+Here we have reversed the roles of the input and output variables. Here `u` is
+some input variable and `wi` is an output variable dependent on `u`. `s` is an 
+intermidiate variable to show change in the position of the derivative.
+
+Here we apply the chain rule for every input variable `u` as opposed to the forward
+mode where we applied chain rule for every output variable `w`.
+
+Applying this modified version of the chain rule on our given equations we 
+get : 
+
+.. math:: 
+
+   \pdv{s}{b} = \pdv{s}{z}\\
+   \pdv{s}{a} = \pdv{s}{z}\\
+   \pdv{s}{y} = x * \pdv{s}{a}\\
+   \pdv{s}{x} = y * \pdv{s}{a} + cos(x) * \pdv{s}{b}
+
+
+Replacing :math:`\pdv{s}{b}` by `sb` and so on.
+
+.. math:: 
+
+  sb = sz \\
+  sa = sz \\
+  sy = x * sa \\
+  sx = y * sa + cos(x) * gb
+
+Substituting `s = z` we will get `sz` = 1
+
+Thus we don't need to run the program twice for each input. However, as mentioned
+above the only drawback is we need to re-run the program for a different output.   
 
 Derived Function Types and Derivative Types
 =============================================
