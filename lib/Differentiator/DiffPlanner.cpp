@@ -214,6 +214,7 @@ namespace clad {
       clang::LangOptions LangOpts;
       LangOpts.CPlusPlus = true;
       clang::PrintingPolicy Policy(LangOpts);
+      Policy.Bool = true;
 
       std::string s;
       llvm::raw_string_ostream Out(s);

@@ -83,6 +83,12 @@ namespace clad {
     return VD;
   }
 
+  void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
+    utils::ReferencesUpdater up(m_Sema, m_Builder.m_NodeCloner.get(),
+                                getCurrentScope(), m_Function);
+    up.TraverseStmt(InSubtree);
+  }
+
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,

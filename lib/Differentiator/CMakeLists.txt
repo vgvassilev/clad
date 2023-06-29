@@ -20,18 +20,20 @@ set_property(SOURCE Version.cpp APPEND PROPERTY
 
 # (Ab)use llvm facilities for adding libraries.
 add_llvm_library(cladDifferentiator
+  BaseForwardModeVisitor.cpp
   CladUtils.cpp
   ConstantFolder.cpp
   DerivativeBuilder.cpp
   DiffPlanner.cpp
+  ErrorEstimator.cpp
+  EstimationModel.cpp
   ForwardModeVisitor.cpp
   HessianModeVisitor.cpp
   JacobianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
   ReverseModeVisitor.cpp
-  ErrorEstimator.cpp
-  EstimationModel.cpp
   StmtClone.cpp
+  VectorForwardModeVisitor.cpp
   Version.cpp
   VisitorBase.cpp
   ${version_inc}

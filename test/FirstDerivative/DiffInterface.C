@@ -85,6 +85,12 @@ int f_try_catch(int x)
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
+void fn_with_no_return(double x) { return; }
+
+// CHECK: void fn_with_no_return_darg0(double x) {
+// CHECK-NEXT:   double _d_x = 1;
+// CHECK-NEXT: }
+
 double fn_with_no_params() {
   return 11;
 }
@@ -150,6 +156,7 @@ int main () {
   clad::differentiate(f_2, "x, x"); // expected-error {{Requested parameter 'x' was specified multiple times}}
   
   clad::differentiate(f_2, ""); // expected-error {{No parameters were provided}}
+  clad::differentiate(fn_with_no_return, "x");
   clad::differentiate(fn_with_no_params); // expected-error {{Attempted to differentiate a function without parameters}}
 
   clad::differentiate(f_2, "x.mem1");                                   // expected-error {{Fields can only be provided for class type parameters. Field information is incorrectly specified in 'x.mem1' for non-class type parameter 'x'}}
