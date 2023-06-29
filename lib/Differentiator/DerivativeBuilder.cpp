@@ -6,22 +6,24 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/TemplateBase.h"
+#include "clang/Sema/Lookup.h"
+#include "clang/Sema/Overload.h"
+#include "clang/Sema/Scope.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/Template.h"
+#include "clad/Differentiator/BaseForwardModeVisitor.h"
+#include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ForwardModeVisitor.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/JacobianModeVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
-
-#include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/StmtClone.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/TemplateBase.h"
-#include "clang/Sema/Sema.h"
-#include "clang/Sema/Scope.h"
-#include "clang/Sema/Lookup.h"
-#include "clang/Sema/Overload.h"
-#include "clang/Sema/SemaInternal.h"
-#include "clang/Sema/Template.h"
+#include "clad/Differentiator/VectorForwardModeVisitor.h"
 
 #include <algorithm>
 
@@ -181,13 +183,13 @@ namespace clad {
     FD = FD->getDefinition();
     DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
-      ForwardModeVisitor V(*this);
+      BaseForwardModeVisitor V(*this);
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::experimental_pushforward) {
       ForwardModeVisitor V(*this);
       result = V.DerivePushforward(FD, request);
     } else if (request.Mode == DiffMode::vector_forward_mode) {
-      ForwardModeVisitor V(*this);
+      VectorForwardModeVisitor V(*this);
       result = V.DeriveVectorMode(FD, request);
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
