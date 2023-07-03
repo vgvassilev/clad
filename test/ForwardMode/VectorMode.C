@@ -9,9 +9,9 @@ double f1(double x, double y) {
   return x*y*(x+y+1);
 }
 
-void f1_d_all_args(double x, double y, double *_d_x, double *_d_y);
+void f1_dvec(double x, double y, double *_d_x, double *_d_y);
 
-// CHECK: void f1_d_all_args(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: void f1_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
 // CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
 // CHECK-NEXT:   double _t0 = x * y;
@@ -31,9 +31,9 @@ double f2(double x, double y) {
   return temp1*temp2;
 }
 
-void f2_d_all_args(double x, double y, double *_d_x, double *_d_y);
+void f2_dvec(double x, double y, double *_d_x, double *_d_y);
 
-// CHECK: void f2_d_all_args(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: void f2_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
 // CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
 // CHECK-NEXT:   clad::array<double> _d_vector_temp1(clad::array<double>(2UL, _d_vector_x * y + x * _d_vector_y));
@@ -56,9 +56,9 @@ double f3(double x, double y) {
   return x*y;
 }
 
-void f3_d_all_args(double x, double y, double *_d_x, double *_d_y);
+void f3_dvec(double x, double y, double *_d_x, double *_d_y);
 
-// CHECK: void f3_d_all_args(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: void f3_dvec(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
 // CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
 // CHECK-NEXT:   if (y < 0) {
@@ -86,9 +86,9 @@ double f4(double lower, double upper) {
   return sum;
 }
 
-void f4_d_all_args(double lower, double upper, double *_d_lower, double *_d_upper);
+void f4_dvec(double lower, double upper, double *_d_lower, double *_d_upper);
 
-// CHECK: void f4_d_all_args(double lower, double upper, double *_d_lower, double *_d_upper) {
+// CHECK: void f4_dvec(double lower, double upper, double *_d_lower, double *_d_upper) {
 // CHECK-NEXT:   clad::array<double> _d_vector_lower = {1., 0.};
 // CHECK-NEXT:   clad::array<double> _d_vector_upper = {0., 1.};
 // CHECK-NEXT:   clad::array<double> _d_vector_sum(clad::array<double>(2UL, 0));
@@ -114,20 +114,109 @@ void f4_d_all_args(double lower, double upper, double *_d_lower, double *_d_uppe
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
+double f5(double x, double y, double z) {
+  return 1.0*x + 2.0*y + 3.0*z;
+}
+
+// all
+// CHECK: void f5_dvec(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
+// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 0., 1.};
+// CHECK-NEXT:   {
+// CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
+// CHECK-NEXT:     *_d_x = _d_vector_return[0];
+// CHECK-NEXT:     *_d_y = _d_vector_return[1];
+// CHECK-NEXT:     *_d_z = _d_vector_return[2];
+// CHECK-NEXT:     return;
+// CHECK-NEXT:   }
+
+// x, y
+// CHECK: void f5_dvec_0_1(double x, double y, double z, double *_d_x, double *_d_y) {
+// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 0.};
+// CHECK-NEXT:   {
+// CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
+// CHECK-NEXT:     *_d_x = _d_vector_return[0];
+// CHECK-NEXT:     *_d_y = _d_vector_return[1];
+// CHECK-NEXT:     return;
+// CHECK-NEXT:   }
+
+// x, z
+// CHECK: void f5_dvec_0_2(double x, double y, double z, double *_d_x, double *_d_z) {
+// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 1.};
+// CHECK-NEXT:   {
+// CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
+// CHECK-NEXT:     *_d_x = _d_vector_return[0];
+// CHECK-NEXT:     *_d_z = _d_vector_return[1];
+// CHECK-NEXT:     return;
+// CHECK-NEXT:   }
+
+// y, z
+// CHECK: void f5_dvec_1_2(double x, double y, double z, double *_d_y, double *_d_z) {
+// CHECK-NEXT:   clad::array<double> _d_vector_x = {0., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_y = {1., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 1.};
+// CHECK-NEXT:   {
+// CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
+// CHECK-NEXT:     *_d_y = _d_vector_return[0];
+// CHECK-NEXT:     *_d_z = _d_vector_return[1];
+// CHECK-NEXT:     return;
+// CHECK-NEXT:   }
+
+// z
+// CHECK: void f5_dvec_2(double x, double y, double z, double *_d_z) {
+// CHECK-NEXT:   clad::array<double> _d_vector_x = {0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_y = {0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_z = {1.};
+// CHECK-NEXT:   {
+// CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
+// CHECK-NEXT:     *_d_z = _d_vector_return[0];
+// CHECK-NEXT:     return;
+// CHECK-NEXT:   }
+
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
     result[1] = 0;                                                             \
     clad::vector_forward_differentiate(F);                                     \
-    F##_d_all_args(x, y, &result[0], &result[1]);                              \
+    F##_dvec(x, y, &result[0], &result[1]);                                    \
     printf("Result is = {%.2f, %.2f}\n", result[0], result[1]);                \
   }
 
 int main() {
-  double result[2];
+  double result[3];
 
   TEST(f1, 3, 4); // CHECK-EXEC: Result is = {44.00, 36.00}
   TEST(f2, 3, 4); // CHECK-EXEC: Result is = {44.00, 36.00}
   TEST(f3, 3, -4); // CHECK-EXEC: Result is = {5.00, -3.00}
   TEST(f4, 1, 2); // CHECK-EXEC: Result is = {-1.00, 4.00}
+
+  // Testing derivatives of partial parameters.
+  auto f_dvec_x_y_z = clad::vector_forward_differentiate(f5, "x, y, z");
+  f_dvec_x_y_z.execute(1, 2, 3, &result[0], &result[1], &result[2]);
+  printf("Result is = {%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: Result is = {1.00, 2.00, 3.00}
+
+  auto f_dvec_x_y = clad::vector_forward_differentiate(f5, "x, y");
+  f_dvec_x_y.execute(1, 2, 3, &result[0], &result[1]);
+  printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {1.00, 2.00}
+
+  auto f_dvec_x_z = clad::vector_forward_differentiate(f5, "x, z");
+  f_dvec_x_z.execute(1, 2, 3, &result[0], &result[1]);
+  printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {1.00, 3.00}
+
+  auto f_dvec_y_z = clad::vector_forward_differentiate(f5, "y, z");
+  f_dvec_y_z.execute(1, 2, 3, &result[0], &result[1]);
+  printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {2.00, 3.00}
+
+  auto f_dvec_y_x = clad::vector_forward_differentiate(f5, "y, x");
+  f_dvec_y_x.execute(1, 2, 3, &result[0], &result[1]);
+
+  auto f_dvec_z = clad::vector_forward_differentiate(f5, "z");
+  f_dvec_z.execute(1, 2, 3, &result[0]);
+  printf("Result is = {%.2f}\n", result[0]); // CHECK-EXEC: Result is = {3.00}
 }

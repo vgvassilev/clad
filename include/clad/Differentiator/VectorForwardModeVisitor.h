@@ -10,6 +10,7 @@ namespace clad {
 /// Used to compute derivatives by clad::vector_forward_differentiate.
 class VectorForwardModeVisitor : public BaseForwardModeVisitor {
 private:
+  llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
   /// Map used to keep track of parameter variables w.r.t which the
   /// the derivative is being computed. This is separate from the
   /// m_Variables map because all other intermediate variables will have
@@ -49,6 +50,11 @@ public:
   /// For example: for index = 2 and size = 4, the returned expression
   /// is: {0, 0, 1, 0}
   clang::Expr* getOneHotInitExpr(size_t index, size_t size);
+
+  /// Get an expression used to initialize a zero vector of the given size.
+  ///
+  /// For example: for size = 4, the returned expression is: {0, 0, 0, 0}
+  clang::Expr* getZeroInitListExpr(size_t size);
 
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
   // Decl is not Stmt, so it cannot be visited directly.

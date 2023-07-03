@@ -19,18 +19,35 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   m_Function = FD;
   m_Mode = DiffMode::vector_forward_mode;
 
-  // Generated function name for the derivative.
-  IdentifierInfo* II =
-      &m_Context.Idents.get(request.BaseFunctionName + "_d_all_args");
+  DiffParams args{};
+  DiffInputVarsInfo DVI;
+  DVI = request.DVI;
+  for (auto dParam : DVI)
+    args.push_back(dParam.param);
+
+  // Generate name for the derivative function.
+  std::string derivedFnName = request.BaseFunctionName + "_dvec";
+  if (args.size() != FD->getNumParams()) {
+    for (auto arg : args) {
+      auto it = std::find(FD->param_begin(), FD->param_end(), arg);
+      auto idx = std::distance(FD->param_begin(), it);
+      derivedFnName += ('_' + std::to_string(idx));
+    }
+  }
+  IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
   DeclarationNameInfo name(II, noLoc);
 
   // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
-  paramTypes.reserve(m_Function->getNumParams() * 2);
+  paramTypes.reserve(m_Function->getNumParams() + args.size());
   for (auto PVD : m_Function->parameters()) {
     paramTypes.push_back(PVD->getType());
   }
   for (auto PVD : m_Function->parameters()) {
+    auto it = std::find(std::begin(args), std::end(args), PVD);
+    if (it == std::end(args))
+      continue; // This parameter is not in the diff list.
+
     QualType ValueType = utils::GetValueType(PVD->getType());
     ValueType.removeLocalConst();
     // Generate pointer type for the derivative.
@@ -62,8 +79,6 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
   // Set the parameters for the derivative.
-  DiffParams args{};
-  std::copy(FD->param_begin(), FD->param_end(), args.begin());
   auto params = BuildVectorModeParams(args);
   vectorDiffFD->setParams(llvm::makeArrayRef(params.data(), params.size()));
   vectorDiffFD->setBody(nullptr);
@@ -72,17 +87,32 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   beginScope(Scope::FnScope | Scope::DeclScope);
   m_DerivativeFnScope = getCurrentScope();
   beginBlock();
+  size_t independentVarIndex = 0;
   for (size_t i = 0; i < m_Function->getNumParams(); ++i) {
     auto param = params[i];
     QualType dParamType = clad::utils::GetValueType(param->getType());
 
-    // initialize a one hot vector for the parameter with 1 at the index.
-    Expr* dVectorParam = getOneHotInitExpr(i, m_Function->getNumParams());
-    // For each function arg, create a variable _d_vector_arg to store the
-    // vector of derivatives for that arg.
-    // for ex: double f(double x, double y);
+    Expr* dVectorParam = nullptr;
+    if (m_IndependentVars.size() > independentVarIndex &&
+        m_IndependentVars[independentVarIndex] == m_Function->getParamDecl(i)) {
+      // This parameter is an independent variable.
+      // Create a one hot vector for the parameter.
+      dVectorParam =
+          getOneHotInitExpr(independentVarIndex, m_IndependentVars.size());
+      ++independentVarIndex;
+    } else {
+      // This parameter is not an independent variable.
+      // Initialize by all zeros.
+      dVectorParam = getZeroInitListExpr(m_IndependentVars.size());
+    }
+
+    // For each function arg to be differentiated, create a variable
+    // _d_vector_arg to store the vector of derivatives for that arg.
+    // for ex: double f(double x, double y, double z);
+    // and we want to differentiate w.r.t. x and z, then we will have
     // -> clad::array<double> _d_vector_x = {1, 0};
-    // -> clad::array<double> _d_vector_y = {0, 1};
+    // -> clad::array<double> _d_vector_y = {0, 0};
+    // -> clad::array<double> _d_vector_z = {0, 1};
     auto dVectorParamDecl =
         BuildVarDecl(GetCladArrayOfType(dParamType),
                      "_d_vector_" + param->getNameAsString(), dVectorParam);
@@ -123,6 +153,14 @@ clang::Expr* VectorForwardModeVisitor::getOneHotInitExpr(size_t index,
   return m_Sema.ActOnInitList(noLoc, oneHotInitList, noLoc).get();
 }
 
+clang::Expr* VectorForwardModeVisitor::getZeroInitListExpr(size_t size) {
+  // define a vector of size `size` with all elements set to 0.
+  auto zero =
+      ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
+  llvm::SmallVector<clang::Expr*, 8> zeroInitList(size, zero);
+  return m_Sema.ActOnInitList(noLoc, zeroInitList, noLoc).get();
+}
+
 llvm::SmallVector<clang::ParmVarDecl*, 8>
 VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
   llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
@@ -140,6 +178,10 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
       m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
                                /*AddToContext=*/false);
 
+    auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
+    if (it == std::end(diffParams))
+      continue; // This parameter is not in the diff list.
+
     QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
     IdentifierInfo* dII =
         CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
@@ -152,10 +194,13 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                /*AddToContext=*/false);
 
-    m_ParamVariables[newPVD] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
+    m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
   }
   // insert the derivative parameters at the end of the parameter list.
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
+  // store the independent variables for later use.
+  m_IndependentVars.insert(m_IndependentVars.end(), diffParams.begin(),
+                           diffParams.end());
   return params;
 }
 
@@ -175,9 +220,9 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // Assign values from return vector to the derivatives of the
   // parameters.
   auto dVectorRef = BuildDeclRef(dVectorParamDecl);
-  for (size_t i = 0; i < m_Function->getNumParams(); ++i) {
+  for (size_t i = 0; i < m_IndependentVars.size(); ++i) {
     // Get the derivative of the ith parameter.
-    auto dParam = m_ParamVariables[m_Derivative->getParamDecl(i)];
+    auto dParam = m_ParamVariables[m_IndependentVars[i]];
     // Create an array subscript expression to access the ith element
     auto indexExpr =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
@@ -222,7 +267,7 @@ VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   // this means that we have to initialize the derivative vector of
   // size 2 with all elements equal to 1.
   Expr* size = ConstantFolder::synthesizeLiteral(
-      m_Context.UnsignedLongTy, m_Context, m_Function->getNumParams());
+      m_Context.UnsignedLongTy, m_Context, m_IndependentVars.size());
   llvm::SmallVector<Expr*, 2> args = {size, initDiff.getExpr_dx()};
   Expr* constructorCallExpr =
       m_Sema
