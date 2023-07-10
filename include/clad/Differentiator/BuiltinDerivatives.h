@@ -72,6 +72,16 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> sqrt_pushforward(T x, T d_x) {
   return {::std::sqrt(x), (((T)1) / (((T)2) * ::std::sqrt(x))) * d_x};
 }
 
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T /*d_x*/) {
+  return {::std::floor(x), (T)0};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> ceil_pushforward(T x, T /*d_x*/) {
+  return {::std::ceil(x), (T)0};
+}
+
 #ifdef MACOS
 ValueAndPushforward<float, float> sqrtf_pushforward(float x, float d_x) {
   return {sqrtf(x), (1.F / (2.F * sqrtf(x))) * d_x};
@@ -133,15 +143,17 @@ CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y,
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
 using std::abs_pushforward;
+using std::ceil_pushforward;
 using std::cos_pushforward;
 using std::exp_pushforward;
+using std::floor_pushforward;
+using std::fma_pullback;
+using std::fma_pushforward;
 using std::log_pushforward;
+using std::pow_pullback;
 using std::pow_pushforward;
 using std::sin_pushforward;
 using std::sqrt_pushforward;
-using std::fma_pushforward;
-using std::pow_pullback;
-using std::fma_pullback;
 } // namespace custom_derivatives
 } // namespace clad
 
