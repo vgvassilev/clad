@@ -73,7 +73,7 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> sqrt_pushforward(T x, T d_x) {
 }
 
 template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T d_x) {
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T  /*d_x*/) {
   return {::std::floor(x), (T)0};
 }
 
