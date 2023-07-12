@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   precheckin:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v3
