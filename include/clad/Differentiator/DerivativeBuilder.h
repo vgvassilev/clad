@@ -71,7 +71,9 @@ namespace clad {
   class DerivativeBuilder {
   private:
     friend class VisitorBase;
+    friend class BaseForwardModeVisitor;
     friend class ForwardModeVisitor;
+    friend class VectorForwardModeVisitor;
     friend class ReverseModeVisitor;
     friend class HessianModeVisitor;
     friend class JacobianModeVisitor;

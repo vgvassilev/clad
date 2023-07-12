@@ -16,6 +16,36 @@ Linux (Ubuntu)
   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
   make && make install
 
+
+Instructions to build documentation
+-------------------------------------
+
+Make sure you have installed `sphinx` before building clad with documentation.
+
+Please use the project's `requirements.txt` file to install Python dependencies.
+This will also install the correct version of `sphinx` : 
+
+.. code-block:: bash
+
+  pip install -r requirements.txt
+
+Make sure `doxygen` is installed if you want to build the internal documentation : 
+
+Doxygen Installation `Instructions`_.
+
+.. _Instructions : https://www.doxygen.nl/download.html
+
+
+To build clad and its documentation, use the following CMake command:
+
+.. code-block:: bash
+
+  cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCLAD_INCLUDE_DOCS=ON -DCLAD_ENABLE_DOXYGEN=ON -DCLAD_ENABLE_SPHINX=ON -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
+  make sphinx-clad doxygen-clad
+
+The built user documentation can be found in `build/docs/userDocs/build`; 
+while the built internal documentation can be found in `build/docs/internalDocs/build`.
+
 Linux (Ubuntu) with debug build of LLVM
 -----------------------------------------
 

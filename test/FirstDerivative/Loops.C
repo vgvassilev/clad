@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oLoops.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -std=c++17 -lm -I%S/../../include -oLoops.out 2>&1 | FileCheck %s
 // RUN: ./Loops.out | FileCheck -check-prefix=CHECK-EXEC %s
-//CHECK-NOT: {{.*error|warning|note:.*}}
+// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
@@ -356,6 +356,43 @@ double fn9(double i, double j) {
 // CHECK-NEXT:     return _d_a;
 // CHECK-NEXT: }
 
+double fn10(double x, size_t n) {
+  // compute n*(x^2) using if-else and for loops
+  // with condition variables.
+  double res = 0;
+  for (size_t count = 0; size_t max_count = n; ++count) {
+    if (count >= max_count)
+      break;
+    if (double y = x)
+      res += y * y;
+  }
+  return res;
+}
+
+double fn10_darg0(double x, size_t n);
+// CHECK: double fn10_darg0(double x, size_t n) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     size_t _d_n = 0;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         size_t _d_count = 0;
+// CHECK-NEXT:         size_t _d_max_count = _d_n;
+// CHECK-NEXT:         for (size_t count = 0; max_count; ++count) {
+// CHECK-NEXT:             if (count >= max_count)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 double _d_y = _d_x;
+// CHECK-NEXT:                 if (double y = x) {
+// CHECK-NEXT:                     _d_res += _d_y * y + y * _d_y;
+// CHECK-NEXT:                     res += y * y;
+// CHECK-NEXT:                 }
+// CHECK-NEXT:             }
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
 #define TEST(fn)\
 auto d_##fn = clad::differentiate(fn, "i");\
 printf("%.2f\n", d_##fn.execute(3, 5));
@@ -390,4 +427,7 @@ int main() {
   TEST(fn7);  // CHECK-EXEC: 3.00
   TEST(fn8);  // CHECK-EXEC: 6.00
   TEST(fn9);  // CHECK-EXEC: 23.00
+
+  clad::differentiate(fn10, 0);
+  printf("Result is = %.2f\n", fn10_darg0(3, 5)); // CHECK-EXEC: Result is = 30.00
 }

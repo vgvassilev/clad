@@ -1,0 +1,30 @@
+name: Post clang-tidy review comments
+
+on:
+  workflow_run:
+    workflows: ["clang-tidy-review"]
+    types:
+      - completed
+
+permissions:
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Post review comments
+        id: post-review
+        uses: ZedThree/clang-tidy-review/post@v0.13.1
+        with:
+          max_comments: 10
+
+       # If there are any comments, fail the check
+      - if: steps.post-review.outputs.total_comments > 0
+        run: exit 1

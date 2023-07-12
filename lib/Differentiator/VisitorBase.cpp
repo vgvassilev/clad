@@ -11,6 +11,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -63,6 +64,8 @@ namespace clad {
                                      TypeSourceInfo* TSI,
                                      VarDecl::InitializationStyle IS) {
 
+    // add namespace specifier in variable declaration if needed.
+    Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
     auto VD =
         VarDecl::Create(m_Context, m_Sema.CurContext, m_Function->getLocation(),
                         m_Function->getLocation(), Identifier, Type, TSI,
@@ -78,6 +81,12 @@ namespace clad {
     // Add the identifier to the scope and IdResolver
     m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
     return VD;
+  }
+
+  void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
+    utils::ReferencesUpdater up(m_Sema, m_Builder.m_NodeCloner.get(),
+                                getCurrentScope(), m_Function);
+    up.TraverseStmt(InSubtree);
   }
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
@@ -214,7 +223,8 @@ namespace clad {
     if (isa<BinaryOperator>(ENoCasts) ||
         (isa<CXXOperatorCallExpr>(ENoCasts) &&
          cast<CXXOperatorCallExpr>(ENoCasts)->getNumArgs() == 2) ||
-        isa<ConditionalOperator>(ENoCasts))
+        isa<ConditionalOperator>(ENoCasts) ||
+        isa<CXXBindTemporaryExpr>(ENoCasts))
       return m_Sema.ActOnParenExpr(noLoc, noLoc, E).get();
     else
       return E;

@@ -36,7 +36,9 @@ namespace clad {
     return count;
   }
 
-  enum opts { use_enzyme = -1 }; // enum opts
+  enum opts {
+    use_enzyme = -1,
+  }; // enum opts
 
   /// Tape type used for storing values in reverse-mode AD inside loops.
   template <typename T>
@@ -274,9 +276,10 @@ namespace clad {
 
   // This is the function which will be instantiated with the concrete arguments
   // After that our AD library will have all the needed information. For eg:
-  // which is the differentiated function, which is the argument with respect to.
+  // which is the differentiated function, which is the argument with respect
+  // to.
   //
-  // This will be useful in fucture when we are ready to support partial diff.
+  // This will be useful in future when we are ready to support partial diff.
   //
 
   /// Differentiates function using forward mode.
@@ -297,9 +300,9 @@ namespace clad {
   differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
-    assert(fn && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
-                                                                  code);
+      assert(fn && "Must pass in a non-0 argument");
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                    code);
   }
 
   /// Specialization for differentiating functors.
@@ -315,6 +318,28 @@ namespace clad {
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn, code, f);
+  }
+
+  /// Generates function which computes derivative of `fn` argument w.r.t
+  /// all parameters using a vectorized version of forward mode.
+  ///
+  /// \param[in] fn function to differentiate
+  /// \param[in] args independent parameters information
+  /// \returns `CladFunction` object to access the corresponding derived
+  /// function.
+  template <signed N = 1, typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = ExtractDerivedFnTraitsVecForwMode_t<F>,
+            typename = typename std::enable_if<
+                !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
+      annotate("VD")))
+  vector_forward_differentiate(
+      F fn, ArgSpec args = "",
+      DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+      const char* code = "") {
+    assert(fn && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn, code);
   }
 
   /// Generates function which computes gradient of the given function wrt the

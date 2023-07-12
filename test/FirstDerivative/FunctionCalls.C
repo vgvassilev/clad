@@ -4,7 +4,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#include <math.h>
+#include <cmath>
 
 int printf(const char* fmt, ...);
 int no_body(int x);
@@ -106,11 +106,56 @@ float test_5(int x) {
 // CHECK-NEXT: return _t0.pushforward;
 // CHECK-NEXT: }
 
+float test_6(float x, float y) {
+  return std::sin(x) + std::cos(y);
+}
+
+// CHECK: float test_6_darg0(float x, float y) {
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, _d_x);
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t1 = clad::custom_derivatives{{(::std)?}}::cos_pushforward(y, _d_y);
+// CHECK-NEXT: return _t0.pushforward + _t1.pushforward;
+// CHECK-NEXT: }
+
+void increment(int &i) {
+  ++i;
+}
+
+double test_7(double i, double j) {
+  double res = 0;
+  for (int i=0; i < 5; increment(i))
+    res += i*j;
+  return res;
+}
+
+// CHECK: void increment_pushforward(int &i, int &_d_i) {
+// CHECK-NEXT: ++i;
+// CHECK-NEXT: }
+
+// CHECK: double test_7_darg0(double i, double j) {
+// CHECK-NEXT: double _d_i = 1;
+// CHECK-NEXT: double _d_j = 0;
+// CHECK-NEXT: double _d_res = 0;
+// CHECK-NEXT: double res = 0;
+// CHECK-NEXT: {
+// CHECK-NEXT:    int _d_i0 = 0;
+// CHECK-NEXT:    for (int i0 = 0; i < 5; increment_pushforward(i0, _d_i0)) {
+// CHECK-NEXT:      _d_res += _d_i0 * j + i0 * _d_j;
+// CHECK-NEXT:      res += i0 * j;
+// CHECK-NEXT:    }
+// CHECK-NEXT: }
+// CHECK-NEXT: return _d_res;
+// CHECK-NEXT: }
+
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
   clad::differentiate(test_3, 0); //expected-error {{Invalid argument index '0' of '0' argument(s)}}
   clad::differentiate(test_4, 0);
   clad::differentiate(test_5, 0);
+  clad::differentiate(test_6, "x");
+  clad::differentiate(test_7, "i");
+
   return 0;
 }
