@@ -8,7 +8,7 @@
 
 #include "../TestUtils.h"
 
-float fn_type_conversion(float z, int a) { 
+float fn_type_conversion(float z, int a) {
   for (int i = 1; i < a; i++){
     z = z * a;
   }
@@ -26,7 +26,6 @@ void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         z = clad::push(_t2, z) * clad::push(_t1, a);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     float fn_type_conversion_return = z;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     * _d_z += 1;

@@ -21,7 +21,6 @@ struct Experiment {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -53,7 +52,6 @@ struct ExperimentConst {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -90,7 +88,6 @@ struct ExperimentVolatile {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -127,7 +124,6 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -161,7 +157,6 @@ struct ExperimentNNS {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -220,7 +215,6 @@ int main() {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -245,7 +239,6 @@ int main() {
   // CHECK-NEXT:     _t1 = ii;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     double operator_call_return = _t3 * _t0;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {

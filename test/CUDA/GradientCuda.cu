@@ -73,7 +73,6 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     _t22 = _t20 * _t17;
 //CHECK-NEXT:     _t23 = t;
 //CHECK-NEXT:     _t16 = std::exp(_t23);
-//CHECK-NEXT:     double gauss_return = _t22 * _t16;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {

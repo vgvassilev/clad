@@ -51,7 +51,6 @@ The code is: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad:
     _EERepl_z0 = z;
     z = x + y;
     _EERepl_z1 = z;
-    float func_return = z;
     goto _label0;
   _label0:
     _d_z += 1;
