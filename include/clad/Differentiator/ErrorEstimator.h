@@ -111,7 +111,7 @@ public:
   /// \param[in] retExpr The return expression.
   /// \param[in] retDeclRefExpr The temporary value in which the return
   /// expression is stored.
-  void SaveReturnExpr(clang::Expr* retExpr, clang::DeclRefExpr* retDeclRefExpr);
+  void SaveReturnExpr(clang::Expr* retExpr);
 
   /// Emit the error for parameters of nested functions.
   ///
@@ -261,8 +261,7 @@ public:
   void ActBeforeDifferentiatingSingleStmtLoopBody() override;
   void ActAfterProcessingSingleStmtBodyInVisitForLoop() override;
   void
-  ActBeforeFinalisingVisitReturnStmt(StmtDiff& ExprDiff,
-                                     clang::Expr*& retDeclRefExpr) override;
+  ActBeforeFinalisingVisitReturnStmt(StmtDiff& retExprDiff) override;
   void ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) override;
   void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& fnDecl,

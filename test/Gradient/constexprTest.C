@@ -21,7 +21,6 @@ constexpr double mul (double a, double b, double c) {
 //CHECK-NEXT:    _t3 = _t2 * _t1;
 //CHECK-NEXT:    _t0 = c;
 //CHECK-NEXT:    double result = _t3 * _t0;
-//CHECK-NEXT:    double mul_return = result;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;
@@ -59,7 +58,6 @@ constexpr double fn( double a, double b, double c) {
 //CHECK-NEXT:    _t5 = _t4 / _t1;
 //CHECK-NEXT:    _t0 = (a + b);
 //CHECK-NEXT:    double result = _t5 * _t0 * 100 + c;
-//CHECK-NEXT:    double fn_return = result;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;

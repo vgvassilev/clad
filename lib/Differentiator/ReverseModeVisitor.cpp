@@ -1169,16 +1169,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // been made to to not do the StoreAndRef operation when return type is
     // ValueAndPushforward.
     if (!isCladValueAndPushforwardType(type)) {
-      // Since returned expression may have some side effects affecting reverse
-      // computation (e.g. assignments), we also have to emit it to execute it.
-      Expr* retDeclRefExpr =
-          StoreAndRef(ExprDiff.getExpr(), direction::forward,
-                      utils::ComputeEffectiveFnName(m_Function) + "_return",
-                      /*forceDeclCreation=*/true);
-
       if (m_ExternalSource)
-        m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff,
-                                                             retDeclRefExpr);
+        m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff);
     }
 
     // Create goto to the label.

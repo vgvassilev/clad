@@ -35,7 +35,6 @@ float func(float x, float y) {
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     float z = _t1 * _t0;
 //CHECK-NEXT:     _EERepl_z0 = z;
-//CHECK-NEXT:     float func_return = z;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
@@ -69,7 +68,7 @@ float func(float x, float y) {
 //CHECK-NEXT:     _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
 //CHECK-NEXT: }
 
-// This function may evaluate incorrectly due to absence of usage of 
+// This function may evaluate incorrectly due to absence of usage of
 // absolute values
 float func2(float x, float y) {
   x = x - y - y * y;
@@ -96,7 +95,6 @@ float func2(float x, float y) {
 //CHECK-NEXT:     _t2 = x;
 //CHECK-NEXT:     float z = _t3 / _t2;
 //CHECK-NEXT:     _EERepl_z0 = z;
-//CHECK-NEXT:     float func2_return = z;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
@@ -166,7 +164,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:     float t = _t5 * _t2;
 //CHECK-NEXT:     _EERepl_t0 = t;
 //CHECK-NEXT:     _EERepl_y1 = y;
-//CHECK-NEXT:     float func3_return = t;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_t += 1;
@@ -212,8 +209,7 @@ float func4(float x, float y) { return std::pow(x, y); }
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     _t1 = y;
-//CHECK-NEXT:     float func4_return = std::pow(_t0, _t1);
-//CHECK-NEXT:     _ret_value0 = func4_return;
+//CHECK-NEXT:     _ret_value0 = std::pow(_t0, _t1);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -251,8 +247,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:     _EERepl_y1 = y;
 //CHECK-NEXT:     _t2 = y;
 //CHECK-NEXT:     _t1 = y;
-//CHECK-NEXT:     float func5_return = _t2 * _t1;
-//CHECK-NEXT:     _ret_value0 = func5_return;
+//CHECK-NEXT:     _ret_value0 = _t2 * _t1;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -284,8 +279,7 @@ double helper(double x, double y) { return x * y; }
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     _t0 = y;
-//CHECK-NEXT:     double helper_return = _t1 * _t0;
-//CHECK-NEXT:     _ret_value0 = helper_return;
+//CHECK-NEXT:     _ret_value0 = _t1 * _t0;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -321,8 +315,7 @@ float func6(float x, float y) {
 //CHECK-NEXT:     _EERepl_z0 = z;
 //CHECK-NEXT:     _t4 = z;
 //CHECK-NEXT:     _t3 = z;
-//CHECK-NEXT:     float func6_return = _t4 * _t3;
-//CHECK-NEXT:     _ret_value0 = func6_return;
+//CHECK-NEXT:     _ret_value0 = _t4 * _t3;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -357,7 +350,6 @@ float func7(float x) {
 //CHECK: void func7_grad(float x, clad::array_ref<float> _d_x, double &_final_error) {
 //CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     int z = x;
-//CHECK-NEXT:     int func7_return = z + z;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -379,8 +371,7 @@ double helper2(float& x) { return x * x; }
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     _t0 = x;
-//CHECK-NEXT:     float helper2_return = _t1 * _t0;
-//CHECK-NEXT:     _ret_value0 = helper2_return;
+//CHECK-NEXT:     _ret_value0 = _t1 * _t0;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -409,7 +400,6 @@ float func8(float x, float y) {
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     z = y + helper2(x);
 //CHECK-NEXT:     _EERepl_z1 = z;
-//CHECK-NEXT:     float func8_return = z;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
@@ -459,7 +449,6 @@ float func9(float x, float y) {
 //CHECK-NEXT:     _t5 = helper2(y);
 //CHECK-NEXT:     z += _t8 * _t5;
 //CHECK-NEXT:     _EERepl_z1 = z;
-//CHECK-NEXT:     float func9_return = z;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;

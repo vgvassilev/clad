@@ -6,7 +6,7 @@
 
 #include <cmath>
 
-double func(double x) { return std::tanh(x); } 
+double func(double x) { return std::tanh(x); }
 
 //CHECK: warning: Numerical differentiation is diabled using the -DCLAD_NO_NUM_DIFF flag, this means that every try to numerically differentiate a function will fail! Remove the flag to revert to default behaviour.
 //CHECK: warning: Numerical differentiation is diabled using the -DCLAD_NO_NUM_DIFF flag, this means that every try to numerically differentiate a function will fail! Remove the flag to revert to default behaviour.
@@ -18,7 +18,6 @@ double func(double x) { return std::tanh(x); }
 //CHECK: void func_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     _t0 = x;
-//CHECK-NEXT:     double func_return = std::tanh(x);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {

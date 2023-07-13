@@ -17,7 +17,6 @@ double test_1(double x, double y){
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t0 = x;
 // CHECK-NEXT:     _t1 = y;
-// CHECK-NEXT:     double test_1_return = std::hypot(_t0, _t1);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -36,10 +35,9 @@ double test_1(double x, double y){
 
 
 int main(){
-    auto df = clad::gradient(test_1);  
+    auto df = clad::gradient(test_1);
     double dx = 0, dy = 0;
     df.execute(3, 4, &dx, &dy);
     printf("Result is = %f\n", dx); // CHECK-EXEC: Result is = 0.600000
     printf("Result is = %f\n", dy); // CHECK-EXEC: Result is = 0.800000
 }
-

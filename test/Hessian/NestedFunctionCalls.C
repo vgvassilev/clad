@@ -6,8 +6,8 @@
 #include "clad/Differentiator/Differentiator.h"
 
 
-double f(double x, double y) { 
-    return x*x + y*y; 
+double f(double x, double y) {
+    return x*x + y*y;
 }
 
 double f2(double x, double y){
@@ -102,7 +102,6 @@ double f2(double x, double y){
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(_t0, _t1, _t2, _t3);
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
 // CHECK-NEXT:     double ans = _t00.value;
-// CHECK-NEXT:     double f2_darg0_return = _d_ans;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d__d_ans += 1;
@@ -153,7 +152,6 @@ double f2(double x, double y){
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(_t0, _t1, _t2, _t3);
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
 // CHECK-NEXT:     double ans = _t00.value;
-// CHECK-NEXT:     double f2_darg1_return = _d_ans;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d__d_ans += 1;
@@ -184,7 +182,7 @@ double f2(double x, double y){
 int main() {
     auto f_hess = clad::hessian(f2);
     double mat_f[4] = {0};
-    clad::array_ref<double> mat_f_ref(mat_f, 4);    
+    clad::array_ref<double> mat_f_ref(mat_f, 4);
     f_hess.execute(3, 4, mat_f_ref);
     printf("[%.2f, %.2f, %.2f, %.2f]\n", mat_f_ref[0], mat_f_ref[1], mat_f_ref[2], mat_f_ref[3]); //CHECK-EXEC: [2.00, 0.00, 0.00, 2.00]
 }

@@ -42,7 +42,6 @@ double f(double x, double y) {
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = x;
-//CHECK-NEXT:       double sq_return = _t1 * _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -62,7 +61,6 @@ double f(double x, double y) {
 //CHECK-NEXT:       _t1 = std::sin(_t0);
 //CHECK-NEXT:       _t2 = x;
 //CHECK-NEXT:       _t3 = std::cos(_t2);
-//CHECK-NEXT:       double one_return = sq(_t1) + sq(_t3);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -88,7 +86,6 @@ double f(double x, double y) {
 //CHECK-NEXT:       double t = one(_t0);
 //CHECK-NEXT:       _t2 = t;
 //CHECK-NEXT:       _t1 = y;
-//CHECK-NEXT:       double f_return = _t2 * _t1;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -109,7 +106,7 @@ int main () { // expected-no-diagnostics
   auto df = clad::differentiate(f, 0);
   printf("%.2f\n", df.execute(1, 2)); // CHECK-EXEC: 0.00
   printf("%.2f\n", df.execute(10, 11)); // CHECK-EXEC: 0.00
-   
+
   auto gradf = clad::gradient(f);
   double result[2] = {};
   gradf.execute(2, 3, &result[0], &result[1]);

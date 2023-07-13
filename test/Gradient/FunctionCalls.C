@@ -8,7 +8,6 @@
 namespace A {
   template <typename T> T constantFn(T i) { return 3; }
   // CHECK: void constantFn_pullback(float i, float _d_y, clad::array_ref<float> _d_i) {
-  // CHECK-NEXT:     int constantFn_return = 3;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     ;
@@ -36,7 +35,6 @@ double fn1(float i) {
 // CHECK-NEXT:     _t2 = res;
 // CHECK-NEXT:     _t1 = i;
 // CHECK-NEXT:     double a = _t2 * _t1;
-// CHECK-NEXT:     double fn1_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -66,7 +64,6 @@ double modify1(double& i, double& j) {
 // CHECK-NEXT:     i += j;
 // CHECK-NEXT:     j += j;
 // CHECK-NEXT:     double res = i + j;
-// CHECK-NEXT:     double modify1_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += _d_y;
@@ -110,7 +107,6 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     _t2 = i;
 // CHECK-NEXT:     _t3 = j;
 // CHECK-NEXT:     temp = modify1(i, j);
-// CHECK-NEXT:     double fn2_return = i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     * _d_i += 1;
@@ -171,7 +167,6 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     _t2 = i;
 // CHECK-NEXT:     _t3 = j;
 // CHECK-NEXT:     update1(i, j);
-// CHECK-NEXT:     double fn3_return = i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     * _d_i += 1;
@@ -191,7 +186,7 @@ float sum(double* arr, int n) {
   float res = 0;
   for (int i=0; i<n; ++i)
     res += arr[i];
-  arr[0] += 10*arr[0];    
+  arr[0] += 10*arr[0];
   return res;
 }
 
@@ -209,7 +204,6 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _t3 = arr[0];
 // CHECK-NEXT:     arr[0] += 10 * _t3;
-// CHECK-NEXT:     float sum_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += _d_y;
@@ -280,7 +274,6 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:         twice(arr[clad::push(_t6, i)]);
 // CHECK-NEXT:         res += arr[clad::push(_t8, i)];
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double fn4_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -321,7 +314,6 @@ double modify2(double* arr) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     _t0 = arr[0];
 // CHECK-NEXT:     arr[0] = 5 * _t0 + arr[1];
-// CHECK-NEXT:     int modify2_return = 1;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     ;
@@ -346,7 +338,6 @@ double fn5(double* arr, int n) {
 // CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     _t0 = arr;
 // CHECK-NEXT:     double temp = modify2(arr);
-// CHECK-NEXT:     double fn5_return = arr[0];
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_arr[0] += 1;
@@ -420,4 +411,3 @@ int main() {
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
 }
-

@@ -10,14 +10,13 @@
 extern "C" int printf(const char* fmt, ...);
 
 double test_1(double x){
-   return tanh(x); 
+   return tanh(x);
 }
 
 //CHECK: warning: Falling back to numerical differentiation for 'tanh' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 //CHECK: void test_1_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     _t0 = x;
-//CHECK-NEXT:     double test_1_return = tanh(_t0);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -35,5 +34,5 @@ int main(){
     //CHECK-EXEC: Error Report for parameter at position 0:
     //CHECK-EXEC: Error due to the five-point central difference is: 0.0000000000
     //CHECK-EXEC: Error due to function evaluation is: 0.0000000000
-    //CHECK-EXEC: Result is:0.997504 
+    //CHECK-EXEC: Result is:0.997504
 }

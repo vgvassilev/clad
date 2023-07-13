@@ -9,7 +9,7 @@
 //  Demo: Gradient.cpp
 //-----------------------------------------------------------------------------/
 
-// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out 2>&1 | FileCheck -check-prefix CHECK_GRADIENT %s 
+// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out 2>&1 | FileCheck -check-prefix CHECK_GRADIENT %s
 // CHECK_GRADIENT-NOT:{{.*error|warning|note:.*}}
 // CHECK_GRADIENT:float sphere_implicit_func_darg0(float x, float y, float z, float xc, float yc, float zc, float r) {
 // CHECK_GRADIENT: float _d_x = 1;
@@ -120,7 +120,6 @@
 //CHECK_FLOAT_SUM:         sum = sum + x;
 //CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     float vanillaSum_return = sum;
 //CHECK_FLOAT_SUM:     goto _label0;
 //CHECK_FLOAT_SUM:   _label0:
 //CHECK_FLOAT_SUM:     _d_sum += 1;
@@ -162,7 +161,6 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float func_return = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
@@ -202,7 +200,6 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    float func_return = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
@@ -233,7 +230,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t0 = x;
-//CHECK_GRADIENT_DESCENT-NEXT:     double f_return = theta_0 + _t1 * _t0;
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
@@ -258,7 +254,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(_t0, _t1, _t2);
 //CHECK_GRADIENT_DESCENT-NEXT:     _t4 = (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:     _t3 = (f_x - y);
-//CHECK_GRADIENT_DESCENT-NEXT:     double cost_return = _t4 * _t3;
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {

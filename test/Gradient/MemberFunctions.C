@@ -23,7 +23,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -50,7 +49,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -66,7 +64,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double volatile_mem_fn(double i, double j) volatile { 
+  double volatile_mem_fn(double i, double j) volatile {
     return (x+y)*i + i*j;
   }
 
@@ -79,7 +77,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double volatile_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -95,7 +92,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_volatile_mem_fn(double i, double j) const volatile { 
+  double const_volatile_mem_fn(double i, double j) const volatile {
     return (x+y)*i + i*j;
   }
 
@@ -108,7 +105,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_volatile_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -135,7 +131,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -151,7 +146,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_lval_ref_mem_fn(double i, double j) const & { 
+  double const_lval_ref_mem_fn(double i, double j) const & {
     return (x+y)*i + i*j;
   }
 
@@ -164,7 +159,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -180,7 +174,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double volatile_lval_ref_mem_fn(double i, double j) volatile & { 
+  double volatile_lval_ref_mem_fn(double i, double j) volatile & {
     return (x+y)*i + i*j;
   }
 
@@ -193,7 +187,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double volatile_lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -209,7 +202,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_volatile_lval_ref_mem_fn(double i, double j) const volatile & { 
+  double const_volatile_lval_ref_mem_fn(double i, double j) const volatile & {
     return (x+y)*i + i*j;
   }
 
@@ -222,7 +215,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_volatile_lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -249,7 +241,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double rval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -265,7 +256,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_rval_ref_mem_fn(double i, double j) const && { 
+  double const_rval_ref_mem_fn(double i, double j) const && {
     return (x+y)*i + i*j;
   }
 
@@ -278,7 +269,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_rval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -294,7 +284,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double volatile_rval_ref_mem_fn(double i, double j) volatile && { 
+  double volatile_rval_ref_mem_fn(double i, double j) volatile && {
     return (x+y)*i + i*j;
   }
 
@@ -307,7 +297,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double volatile_rval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -323,7 +312,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_volatile_rval_ref_mem_fn(double i, double j) const volatile && { 
+  double const_volatile_rval_ref_mem_fn(double i, double j) const volatile && {
     return (x+y)*i + i*j;
   }
 
@@ -336,7 +325,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_volatile_rval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -352,7 +340,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double noexcept_mem_fn(double i, double j) noexcept { 
+  double noexcept_mem_fn(double i, double j) noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -365,7 +353,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -381,7 +368,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_noexcept_mem_fn(double i, double j) const noexcept { 
+  double const_noexcept_mem_fn(double i, double j) const noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -394,7 +381,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -410,7 +396,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double volatile_noexcept_mem_fn(double i, double j) volatile noexcept { 
+  double volatile_noexcept_mem_fn(double i, double j) volatile noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -423,7 +409,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double volatile_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -439,7 +424,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_volatile_noexcept_mem_fn(double i, double j) const volatile noexcept { 
+  double const_volatile_noexcept_mem_fn(double i, double j) const volatile noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -452,7 +437,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_volatile_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -468,7 +452,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double lval_ref_noexcept_mem_fn(double i, double j) & noexcept { 
+  double lval_ref_noexcept_mem_fn(double i, double j) & noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -481,7 +465,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double lval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -497,7 +480,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_lval_ref_noexcept_mem_fn(double i, double j) const & noexcept { 
+  double const_lval_ref_noexcept_mem_fn(double i, double j) const & noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -510,7 +493,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_lval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -526,7 +508,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double volatile_lval_ref_noexcept_mem_fn(double i, double j) volatile & noexcept { 
+  double volatile_lval_ref_noexcept_mem_fn(double i, double j) volatile & noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -539,7 +521,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double volatile_lval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -555,7 +536,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_volatile_lval_ref_noexcept_mem_fn(double i, double j) const volatile & noexcept { 
+  double const_volatile_lval_ref_noexcept_mem_fn(double i, double j) const volatile & noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -568,7 +549,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_volatile_lval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -584,7 +564,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double rval_ref_noexcept_mem_fn(double i, double j) && noexcept { 
+  double rval_ref_noexcept_mem_fn(double i, double j) && noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -597,7 +577,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -613,7 +592,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_rval_ref_noexcept_mem_fn(double i, double j) const && noexcept { 
+  double const_rval_ref_noexcept_mem_fn(double i, double j) const && noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -626,7 +605,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -642,7 +620,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double volatile_rval_ref_noexcept_mem_fn(double i, double j) volatile && noexcept { 
+  double volatile_rval_ref_noexcept_mem_fn(double i, double j) volatile && noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -655,7 +633,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double volatile_rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -671,7 +648,7 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
-  double const_volatile_rval_ref_noexcept_mem_fn(double i, double j) const volatile && noexcept { 
+  double const_volatile_rval_ref_noexcept_mem_fn(double i, double j) const volatile && noexcept {
     return (x+y)*i + i*j;
   }
 
@@ -684,7 +661,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double const_volatile_rval_ref_noexcept_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -712,7 +688,6 @@ public:
   // CHECK-NEXT:     _t0 = i;
   // CHECK-NEXT:     _t3 = i;
   // CHECK-NEXT:     _t2 = j;
-  // CHECK-NEXT:     double partial_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
@@ -768,7 +743,6 @@ double fn(double i,double j) {
 // CHECK-NEXT:     _t1 = i;
 // CHECK-NEXT:     _t3 = _t2 * _t1;
 // CHECK-NEXT:     _t0 = j;
-// CHECK-NEXT:     double fn_return = _t3 * _t0;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -815,7 +789,7 @@ int main() {
   for(unsigned i=0;i<2;++i) {
     printf("%.2f ",result[i]);  //CHECK-EXEC: 40.00 16.00
   }
-  
+
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
   // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, clad::array_ref<volatile SimpleFunctions> _d_this, clad::array_ref<double> _d_i) const volatile & {
@@ -828,7 +802,6 @@ int main() {
   // CHECK-NEXT:       _t0 = i;
   // CHECK-NEXT:       _t3 = i;
   // CHECK-NEXT:       _t2 = j;
-  // CHECK-NEXT:       double const_volatile_lval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:       goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:       {
@@ -856,7 +829,6 @@ int main() {
   // CHECK-NEXT:       _t0 = i;
   // CHECK-NEXT:       _t3 = i;
   // CHECK-NEXT:       _t2 = j;
-  // CHECK-NEXT:       double const_volatile_rval_ref_mem_fn_return = _t1 * _t0 + _t3 * _t2;
   // CHECK-NEXT:       goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:       {

@@ -116,8 +116,7 @@ public:
 
   /// This is called just before finalising `VisitReturnStmt`.
   virtual void
-  ActBeforeFinalisingVisitReturnStmt(StmtDiff& ExprDiff,
-                                     clang::Expr*& retDeclRefExpr) {}
+  ActBeforeFinalisingVisitReturnStmt(StmtDiff& retExprDiff) {}
 
   /// This ic called just before finalising `VisitCallExpr`.
   ///

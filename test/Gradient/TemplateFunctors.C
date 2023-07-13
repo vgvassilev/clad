@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | FileCheck %s 
+// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | FileCheck %s
 // RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -25,7 +25,6 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     _t5 = this->y;
 // CHECK-NEXT:     _t4 = j;
-// CHECK-NEXT:     double operator_call_return = _t3 * _t0 + _t5 * _t4;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -74,7 +73,6 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     _t7 = j;
 // CHECK-NEXT:     _t9 = _t8 * _t7;
 // CHECK-NEXT:     _t6 = i;
-// CHECK-NEXT:     long double operator_call_return = _t5 * _t0 + _t9 * _t6;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -119,7 +117,6 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     _t5 = this->y;
 // CHECK-NEXT:     _t4 = j;
-// CHECK-NEXT:     double operator_call_return = _t3 * _t0 + _t5 * _t4;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -168,7 +165,6 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK-NEXT:     _t7 = j;
 // CHECK-NEXT:     _t9 = _t8 * _t7;
 // CHECK-NEXT:     _t6 = i;
-// CHECK-NEXT:     long double operator_call_return = _t5 * _t0 + _t9 * _t6;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {

@@ -46,8 +46,7 @@ float func(float x, float y) {
 //CHECK-NEXT:         _EERepl_temp1 = temp;
 //CHECK-NEXT:         x = y;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     float func_return = x + y;
-//CHECK-NEXT:     _ret_value0 = func_return;
+//CHECK-NEXT:     _ret_value0 = x + y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -114,14 +113,12 @@ float func2(float x) {
 //CHECK-NEXT:     _EERepl_z0 = z;
 //CHECK-NEXT:     _cond0 = z > 9;
 //CHECK-NEXT:     if (_cond0) {
-//CHECK-NEXT:         float func2_return = x + x;
-//CHECK-NEXT:         _ret_value0 = func2_return;
+//CHECK-NEXT:         _ret_value0 = x + x;
 //CHECK-NEXT:         goto _label0;
 //CHECK-NEXT:     } else {
 //CHECK-NEXT:         _t3 = x;
 //CHECK-NEXT:         _t2 = x;
-//CHECK-NEXT:         float func2_return0 = _t3 * _t2;
-//CHECK-NEXT:         _ret_value0 = func2_return0;
+//CHECK-NEXT:         _ret_value0 = _t3 * _t2;
 //CHECK-NEXT:         goto _label1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     if (_cond0)
@@ -162,8 +159,7 @@ float func3(float x, float y) { return x > 30 ? x * y : x + y; }
 //CHECK-NEXT:         _t1 = x;
 //CHECK-NEXT:         _t0 = y;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     float func3_return = _cond0 ? _t1 * _t0 : x + y;
-//CHECK-NEXT:     _ret_value0 = func3_return;
+//CHECK-NEXT:     _ret_value0 = _cond0 ? _t1 * _t0 : x + y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     if (_cond0) {
@@ -210,8 +206,7 @@ float func4(float x, float y) {
 //CHECK-NEXT:     _EERepl_x1 = x;
 //CHECK-NEXT:     _t3 = y;
 //CHECK-NEXT:     _t2 = x;
-//CHECK-NEXT:     float func4_return = _t3 / _t2;
-//CHECK-NEXT:     _ret_value0 = func4_return;
+//CHECK-NEXT:     _ret_value0 = _t3 / _t2;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {

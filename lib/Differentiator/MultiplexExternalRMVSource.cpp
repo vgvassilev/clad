@@ -140,9 +140,9 @@ void MultiplexExternalRMVSource::
 }
 
 void MultiplexExternalRMVSource::ActBeforeFinalisingVisitReturnStmt(
-    StmtDiff& ExprDiff, clang::Expr*& retDeclRefExpr) {
+    StmtDiff& retExprDiff) {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalisingVisitReturnStmt(ExprDiff, retDeclRefExpr);
+    source->ActBeforeFinalisingVisitReturnStmt(retExprDiff);
   }
 }
 
