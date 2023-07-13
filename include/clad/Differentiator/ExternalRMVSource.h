@@ -117,9 +117,7 @@ public:
   virtual void ActAfterProcessingSingleStmtBodyInVisitForLoop() {}
 
   /// This is called just before finalising `VisitReturnStmt`.
-  virtual void
-  ActBeforeFinalisingVisitReturnStmt(StmtDiff& ExprDiff,
-                                     clang::Expr*& retDeclRefExpr) {}
+  virtual void ActBeforeFinalisingVisitReturnStmt(StmtDiff& retExprDiff) {}
 
   /// This ic called just before finalising `VisitCallExpr`.
   ///

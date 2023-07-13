@@ -19,7 +19,6 @@ float func(float x, float y) {
 //CHECK-NEXT:     x = x + y;
 //CHECK-NEXT:     _EERepl_x1 = x;
 //CHECK-NEXT:     y = x;
-//CHECK-NEXT:     float func_return = y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_y += 1;
@@ -62,7 +61,6 @@ float func2(float x, int y) {
 //CHECK-NEXT:     _t2 = x;
 //CHECK-NEXT:     x = _t1 * _t0 + _t3 * _t2;
 //CHECK-NEXT:     _EERepl_x1 = x;
-//CHECK-NEXT:     float func2_return = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_x += 1;
@@ -91,7 +89,6 @@ float func3(int x, int y) {
 
 //CHECK: void func3_grad(int x, int y, clad::array_ref<int> _d_x, clad::array_ref<int> _d_y, double &_final_error) {
 //CHECK-NEXT:     x = y;
-//CHECK-NEXT:     int func3_return = y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_y += 1;
@@ -120,7 +117,6 @@ float func4(float x, float y) {
 //CHECK-NEXT:     _EERepl_z0 = z;
 //CHECK-NEXT:     x = z + y;
 //CHECK-NEXT:     _EERepl_x1 = x;
-//CHECK-NEXT:     float func4_return = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_x += 1;
@@ -153,7 +149,6 @@ float func5(float x, float y) {
 //CHECK-NEXT:     int z = 56;
 //CHECK-NEXT:     x = z + y;
 //CHECK-NEXT:     _EERepl_x1 = x;
-//CHECK-NEXT:     float func5_return = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_x += 1;
@@ -174,7 +169,6 @@ float func5(float x, float y) {
 float func6(float x) { return x; }
 
 //CHECK: void func6_grad(float x, clad::array_ref<float> _d_x, double &_final_error) {
-//CHECK-NEXT:     float func6_return = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     * _d_x += 1;
@@ -191,8 +185,7 @@ float func7(float x, float y) { return (x * y); }
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     _t0 = y;
-//CHECK-NEXT:     float func7_return = (_t1 * _t0);
-//CHECK-NEXT:     _ret_value0 = func7_return;
+//CHECK-NEXT:     _ret_value0 = (_t1 * _t0);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {

@@ -27,7 +27,6 @@ double f1(double x) {
 //CHECK-NEXT:           clad::push(_t2, t);
 //CHECK-NEXT:           t *= clad::push(_t1, x);
 //CHECK-NEXT:       }
-//CHECK-NEXT:       double f1_return = t;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_t += 1;
@@ -67,7 +66,6 @@ double f2(double x) {
 //CHECK-NEXT:               t *= clad::push(_t2, x);
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
-//CHECK-NEXT:       double f2_return = t;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_t += 1;
@@ -109,14 +107,11 @@ double f3(double x) {
 //CHECK-NEXT:           t *= clad::push(_t1, x);
 //CHECK-NEXT:           bool _t3 = i == 1;
 //CHECK-NEXT:           {
-//CHECK-NEXT:               if (_t3) {
-//CHECK-NEXT:                   double f3_return = t;
+//CHECK-NEXT:               if (_t3)
 //CHECK-NEXT:                   goto _label0;
-//CHECK-NEXT:               }
 //CHECK-NEXT:               clad::push(_t4, _t3);
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
-//CHECK-NEXT:       double f3_return = t;
 //CHECK-NEXT:       goto _label1;
 //CHECK-NEXT:     _label1:
 //CHECK-NEXT:       _d_t += 1;
@@ -153,7 +148,6 @@ double f4(double x) {
 //CHECK-NEXT:           _t0++;
 //CHECK-NEXT:           i++;
 //CHECK-NEXT:       }
-//CHECK-NEXT:       double f4_return = t;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_t += 1;
@@ -180,7 +174,6 @@ double f5(double x){
 //CHECK-NEXT:           _t0++;
 //CHECK-NEXT:           x++;
 //CHECK-NEXT:       }
-//CHECK-NEXT:       double f5_return = x;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       * _d_x += 1;
@@ -207,7 +200,6 @@ double f_sum(double *p, int n) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         s += p[clad::push(_t1, i)];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     double f_sum_return = s;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_s += 1;
@@ -226,7 +218,6 @@ double sq(double x) { return x * x; }
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       _t0 = x;
-//CHECK-NEXT:       double sq_return = _t1 * _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -257,7 +248,6 @@ double f_sum_squares(double *p, int n) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         s += sq(clad::push(_t3, p[clad::push(_t1, i)]));
 //CHECK-NEXT:     }
-//CHECK-NEXT:     double f_sum_squares_return = s;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_s += 1;
@@ -329,7 +319,6 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:     _t10 = std::exp(_t18);
 //CHECK-NEXT:     double gaus = _t17 * _t10;
 //CHECK-NEXT:     _t19 = gaus;
-//CHECK-NEXT:     double f_log_gaus_return = std::log(_t19);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
@@ -405,7 +394,6 @@ void f_const_grad(const double, const double, clad::array_ref<double>, clad::arr
 //CHECK-NEXT:           int sq0 = clad::push(_t2, b) * clad::push(_t1, b);
 //CHECK-NEXT:           r += sq0;
 //CHECK-NEXT:       }
-//CHECK-NEXT:       int f_const_return = r;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_r += 1;
@@ -456,7 +444,6 @@ double f6 (double i, double j) {
 // CHECK-NEXT:         b += j;
 // CHECK-NEXT:         a += b + c + i;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double f6_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -495,7 +482,7 @@ double f6 (double i, double j) {
 double fn7(double i, double j) {
   double a = 0;
   int counter = 3;
-  while (counter--) 
+  while (counter--)
     a += i*i + j;
   return a;
 }
@@ -514,7 +501,6 @@ double fn7(double i, double j) {
 // CHECK-NEXT:             _t0++;
 // CHECK-NEXT:             a += clad::push(_t2, i) * clad::push(_t1, i) + j;
 // CHECK-NEXT:         }
-// CHECK-NEXT:     double fn7_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -563,7 +549,6 @@ double fn8(double i, double j) {
 // CHECK-NEXT:                 a += clad::push(_t3, i) * clad::push(_t2, i) + j;
 // CHECK-NEXT:             } while (--counter);
 // CHECK-NEXT:         }
-// CHECK-NEXT:     double fn8_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -626,7 +611,6 @@ double fn9(double i, double j) {
 // CHECK-NEXT:                     a += clad::push(_t3, i) * clad::push(_t2, i) + j;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:         }
-// CHECK-NEXT:     double fn9_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -696,7 +680,6 @@ double fn10(double i, double j) {
 // CHECK-NEXT:             a += b;
 // CHECK-NEXT:             counter -= 1;
 // CHECK-NEXT:         }
-// CHECK-NEXT:     double fn10_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -757,7 +740,6 @@ double fn11(double i, double j) {
 // CHECK-NEXT:         a += clad::push(_t2, i) * clad::push(_t1, i) + j;
 // CHECK-NEXT:         counter -= 1;
 // CHECK-NEXT:     } while (counter);
-// CHECK-NEXT:     double fn11_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -828,7 +810,6 @@ double fn12(double i, double j) {
 // CHECK-NEXT:         } while (counter_again);
 // CHECK-NEXT:         counter -= 1;
 // CHECK-NEXT:     } while (counter);
-// CHECK-NEXT:     double fn12_return = a;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_a += 1;
@@ -907,7 +888,6 @@ double fn13(double i, double j) {
 // CHECK-NEXT:         double temp = k;
 // CHECK-NEXT:         res += temp;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double fn13_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1017,7 +997,6 @@ double fn14(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:             clad::push(_t3, 4UL);
 // CHECK-NEXT:         }
-// CHECK-NEXT:     double fn14_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1136,7 +1115,6 @@ double fn15(double i, double j) {
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             clad::push(_t3, 2UL);
 // CHECK-NEXT:         }
-// CHECK-NEXT:     double fn15_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1241,7 +1219,6 @@ double fn16(double i, double j) {
 // CHECK-NEXT:         res += i + j;
 // CHECK-NEXT:         clad::push(_t5, 3UL);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double fn16_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1362,7 +1339,6 @@ double fn17(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:         clad::push(_t3, 2UL);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double fn17_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1425,7 +1401,7 @@ double fn17(double i, double j) {
 double fn18(double i, double j) {
   int choice = 5;
   double res = 0;
-  for (int counter=0; counter<choice; ++counter) 
+  for (int counter=0; counter<choice; ++counter)
     if (counter < 2)
       res += i+j;
     else if (counter < 4)
@@ -1476,7 +1452,6 @@ double fn18(double i, double j) {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         clad::push(_t5, 3UL);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double fn18_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1537,7 +1512,6 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:         double &ref = arr[clad::push(_t1, i)];
 // CHECK-NEXT:         res += ref;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double fn19_return = res;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
@@ -1585,7 +1559,6 @@ double f_loop_init_var(double lower, double upper) {
 // CHECK-NEXT:         _t2++;
 // CHECK-NEXT:         sum += clad::push(_t6, clad::push(_t5, x) * clad::push(_t4, x)) * clad::push(_t3, interval);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     double f_loop_init_var_return = sum;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
@@ -1642,8 +1615,8 @@ int main() {
   double result[5] = {};
   clad::array_ref<double> result_ref(result, 5);
   TEST(f1, 3); // CHECK-EXEC: {27.00}
-  TEST(f2, 3); // CHECK-EXEC: {59049.00} 
-  TEST(f3, 3); // CHECK-EXEC: {6.00} 
+  TEST(f2, 3); // CHECK-EXEC: {59049.00}
+  TEST(f3, 3); // CHECK-EXEC: {6.00}
   TEST(f4, 3); // CHECK-EXEC: {27.00}
   TEST(f5, 3); // CHECK-EXEC: {1.00}
 
@@ -1664,7 +1637,7 @@ int main() {
   double x[] = { 1, 1, 1, 1, 1 };
   f_log_gaus_d_means.execute(x, p, 5, 2.0, result_ref);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {0.00, -0.25, -0.50, -0.75, -1.00}
-  
+
   TEST_2(f_const, 2, 3);  // CHECK-EXEC: {0.00, 12.00}
   TEST_2(f6, 3, 5);       // CHECK-EXEC: {21.00, 33.00}
   TEST_2(fn7, 3, 5);      // CHECK-EXEC: {18.00, 3.00}

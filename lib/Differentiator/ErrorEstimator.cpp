@@ -135,12 +135,11 @@ void ErrorEstimationHandler::EmitErrorEstimationStmts(
   }
 }
 
-void ErrorEstimationHandler::SaveReturnExpr(Expr* retExpr,
-                                            DeclRefExpr* retDeclRefExpr) {
+void ErrorEstimationHandler::SaveReturnExpr(Expr* retExpr) {
   // If the return expression is a declRefExpr or is a non-floating point
   // type, we should not do anything.
   if (GetUnderlyingDeclRefOrNull(retExpr) ||
-      !retDeclRefExpr->getType()->isFloatingType())
+      !retExpr->getType()->isFloatingType())
     return;
 
   // Build a variable to store the current return value.
@@ -153,9 +152,8 @@ void ErrorEstimationHandler::SaveReturnExpr(Expr* retExpr,
     m_RMV->AddToGlobalBlock(m_RMV->BuildDeclStmt(retVarDecl));
     m_RetErrorExpr = m_RMV->BuildDeclRef(retVarDecl);
   }
-  m_RMV->addToCurrentBlock(
-      m_RMV->BuildOp(BO_Assign, m_RetErrorExpr, retDeclRefExpr),
-      direction::forward);
+  m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_Assign, m_RetErrorExpr, retExpr),
+                           direction::forward);
 }
 
 void ErrorEstimationHandler::EmitNestedFunctionParamError(
@@ -614,11 +612,11 @@ void ErrorEstimationHandler::ActAfterProcessingSingleStmtBodyInVisitForLoop() {
 }
 
 void ErrorEstimationHandler::ActBeforeFinalisingVisitReturnStmt(
-    StmtDiff& ExprDiff, clang::Expr*& retDeclRefExpr) {
+    StmtDiff& retExprDiff) {
   // If the return expression is not a DeclRefExpression and is of type
   // float, we should add it to the error estimate because returns are
   // similiar to implicit assigns.
-  SaveReturnExpr(ExprDiff.getExpr(), cast<DeclRefExpr>(retDeclRefExpr));
+  SaveReturnExpr(retExprDiff.getExpr());
 }
 
 void ErrorEstimationHandler::ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) {

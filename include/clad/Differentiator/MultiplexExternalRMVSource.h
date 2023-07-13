@@ -44,9 +44,7 @@ public:
   void ActBeforeDifferentiatingLoopInitStmt() override;
   void ActBeforeDifferentiatingSingleStmtLoopBody() override;
   void ActAfterProcessingSingleStmtBodyInVisitForLoop() override;
-  void
-  ActBeforeFinalisingVisitReturnStmt(StmtDiff& ExprDiff,
-                                     clang::Expr*& retDeclRefExpr) override;
+  void ActBeforeFinalisingVisitReturnStmt(StmtDiff& retExprDiff) override;
   void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,

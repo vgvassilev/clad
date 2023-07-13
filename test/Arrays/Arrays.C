@@ -106,7 +106,6 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       _t2 = consts[1];
 //CHECK-NEXT:       _t5 = vars[2];
 //CHECK-NEXT:       _t4 = consts[2];
-//CHECK-NEXT:       double const_dot_product_return = _t1 * _t0 + _t3 * _t2 + _t5 * _t4;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -133,7 +132,7 @@ double const_dot_product(double x, double y, double z) {
 double const_matmul_sum(double a, double b, double c, double d) {
   double A[2][2] = {{a, b}, {c, d}};
   double B[2][2] = {{1, 2}, {3, 4}};
-  double C[2][2] = {{A[0][0] * B[0][0] + A[0][1] * B[1][0], 
+  double C[2][2] = {{A[0][0] * B[0][0] + A[0][1] * B[1][0],
                      A[0][0] * B[0][1] + A[0][1] * B[1][1]},
                     {A[1][0] * B[0][0] + A[1][1] * B[1][0],
                      A[1][0] * B[0][1] + A[1][1] * B[1][1]}};
@@ -194,7 +193,6 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //:       _t15 = A[1][1];
 //:       _t14 = B[1][1];
 //:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
-//:       double const_matmul_sum_return = C[0][0] + C[0][1] + C[1][0] + C[1][1];
 //:       goto _label0;
 //:     _label0:
 //:       {
@@ -262,7 +260,7 @@ int main () { // expected-no-diagnostics
 //  FIXME: Add multi index support to clad::array and clad::array_ref
 //  auto dcms = clad::differentiate(const_matmul_sum, 0);
 //  printf("%.2f\n", dcms.execute(11, 12, 13, 14)); // : 3.00
-  
+
 //  auto grad = clad::gradient(const_matmul_sum);
 //  double result2[4] = {};
 //  grad.execute(
