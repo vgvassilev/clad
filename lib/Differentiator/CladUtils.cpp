@@ -393,7 +393,7 @@ namespace clad {
               .BuildCXXNew(
                   SourceRange(), false, noLoc, MultiExprArg(), noLoc,
                   SourceRange(), qType, TSI,
-                  (arraySize ? arraySize : clad_compat::EmptyOptional<Expr*>()),
+                  (arraySize ? arraySize : clad_compat::ArraySize_None()),
                   GetValidSRange(semaRef), initializer)
               .getAs<CXXNewExpr>();
       return newExpr;

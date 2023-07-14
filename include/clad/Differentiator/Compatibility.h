@@ -651,20 +651,18 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
 #endif
 
 #if CLANG_VERSION_MAJOR < 9
-template <typename T>
-typename std::enable_if<std::is_pointer<T>::value, T>::type EmptyOptional() {
-  return nullptr;
-}
-#elif CLANG_VERSION_MAJOR >= 9
-template <typename T> llvm::Optional<T> EmptyOptional() {
-  return llvm::Optional<T>();
+static inline Expr* ArraySize_None() { return nullptr; }
+#else
+static inline llvm::Optional<Expr*> ArraySize_None() {
+  return llvm::Optional<Expr*>();
 }
 #endif
 
 #if CLANG_VERSION_MAJOR < 9
-template <typename T> const T& Optional_GetValue(const T& val) { return val; }
+static inline const Expr* ArraySize_GetValue(const Expr* val) { return val; }
 #else
-template <typename T> const T& Optional_GetValue(const llvm::Optional<T>& opt) {
+static inline const Expr*
+ArraySize_GetValue(const llvm::Optional<const Expr*>& opt) {
   return opt.getValue();
 }
 #endif
