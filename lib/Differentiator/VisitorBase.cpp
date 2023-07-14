@@ -423,10 +423,10 @@ namespace clad {
   }
 
   LookupResult& VisitorBase::GetCladTapePush() {
-    static llvm::Optional<LookupResult> Result{};
+    static clad_compat::llvm_Optional<LookupResult> Result{};
     if (!Result)
       Result = LookupCladTapeMethod("push");
-    return Result.getValue();
+    return clad_compat::llvm_Optional_GetValue(Result);
   }
 
   DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
@@ -439,17 +439,17 @@ namespace clad {
   }
 
   LookupResult& VisitorBase::GetCladTapePop() {
-    static llvm::Optional<LookupResult> Result{};
+    static clad_compat::llvm_Optional<LookupResult> Result{};
     if (!Result)
       Result = LookupCladTapeMethod("pop");
-    return Result.getValue();
+    return clad_compat::llvm_Optional_GetValue(Result);
   }
 
   LookupResult& VisitorBase::GetCladTapeBack() {
-    static llvm::Optional<LookupResult> Result{};
+    static clad_compat::llvm_Optional<LookupResult> Result{};
     if (!Result)
       Result = LookupCladTapeMethod("back");
-    return Result.getValue();
+    return clad_compat::llvm_Optional_GetValue(Result);
   }
 
   QualType VisitorBase::GetCladTapeOfType(QualType T) {

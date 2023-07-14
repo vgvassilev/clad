@@ -650,20 +650,41 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
   Node->isReferenceParameter(),
 #endif
 
+#if CLANG_VERSION_MAJOR < 16
+template <typename T> using llvm_Optional = llvm::Optional<T>;
+#else
+template <typename T> using llvm_Optional = std::optional<T>;
+#endif
+
+#if CLANG_VERSION_MAJOR < 16
+template <typename T> T& llvm_Optional_GetValue(llvm::Optional<T>& opt) {
+  return opt.getValue();
+}
+#else
+template <typename T> T& llvm_Optional_GetValue(std::optional<T>& opt) {
+  return opt.value();
+}
+#endif
+
 #if CLANG_VERSION_MAJOR < 9
 static inline Expr* ArraySize_None() { return nullptr; }
 #else
-static inline llvm::Optional<Expr*> ArraySize_None() {
-  return llvm::Optional<Expr*>();
+static inline llvm_Optional<Expr*> ArraySize_None() {
+  return llvm_Optional<Expr*>();
 }
 #endif
 
 #if CLANG_VERSION_MAJOR < 9
 static inline const Expr* ArraySize_GetValue(const Expr* val) { return val; }
-#else
+#elif CLANG_VERSION_MAJOR < 16
 static inline const Expr*
 ArraySize_GetValue(const llvm::Optional<const Expr*>& opt) {
   return opt.getValue();
+}
+#else
+static inline const Expr*
+ArraySize_GetValue(const std::optional<const Expr*>& opt) {
+   return opt.value();
 }
 #endif
 
