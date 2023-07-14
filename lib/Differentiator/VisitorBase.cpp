@@ -121,7 +121,7 @@ namespace clad {
         PrevNS = ND->getAnonymousNamespace();
       }
     }
-    NamespaceDecl* NDecl = NamespaceDecl::Create(
+    NamespaceDecl* NDecl = clad_compat::NamespaceDecl_Create(
         m_Context, m_Sema.CurContext, isInline, noLoc, noLoc, II, PrevNS);
     if (II)
       m_Sema.PushOnScopeChains(NDecl, m_CurScope);

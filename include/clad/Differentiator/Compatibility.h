@@ -70,6 +70,23 @@ static inline CompoundStmt* CompoundStmt_Create(
 }
 #endif
 
+#if CLANG_VERSION_MAJOR < 16
+static inline NamespaceDecl*
+NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
+                     SourceLocation StartLoc, SourceLocation IdLoc,
+                     IdentifierInfo* Id, NamespaceDecl* PrevDecl) {
+   return NamespaceDecl::Create(C, DC, Inline, StartLoc, IdLoc, Id, PrevDecl);
+}
+#else
+static inline NamespaceDecl*
+NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
+                     SourceLocation StartLoc, SourceLocation IdLoc,
+                     IdentifierInfo* Id, NamespaceDecl* PrevDecl) {
+   return NamespaceDecl::Create(C, DC, Inline, StartLoc, IdLoc, Id, PrevDecl,
+                                /*Nested=*/false);
+}
+#endif
+
 // Clang 6 rename Sema::ForRedeclaration to Sema::ForVisibleRedeclaration
 
 #if CLANG_VERSION_MAJOR == 5
