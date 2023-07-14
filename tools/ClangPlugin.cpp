@@ -78,8 +78,10 @@ namespace clad {
           PP.Diag(PragmaTok, diag::warn_pragma_diagnostic_invalid);
           return;
         }
+#ifndef NDEBUG
         IdentifierInfo* II = PragmaTok.getIdentifierInfo();
         assert(II->isStr("clad"));
+#endif
 
         tok::OnOffSwitch OOS;
         if (PP.LexOnOffSwitch(OOS))
