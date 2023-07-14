@@ -399,9 +399,9 @@ Stmt* StmtClone::VisitStmt(Stmt*) {
   return 0;
 }
 
-ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, utils::StmtClone* C,
-                                     Scope* S, const FunctionDecl* FD)
-    : m_Sema(SemaRef), m_NodeCloner(C), m_CurScope(S), m_Function(FD) {}
+ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, Scope* S,
+                                     const FunctionDecl* FD)
+    : m_Sema(SemaRef), m_CurScope(S), m_Function(FD) {}
 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // We should only update references of the declarations that were inside
