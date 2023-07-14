@@ -1801,7 +1801,7 @@ StmtDiff BaseForwardModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
     // We can use `clone(..)`, but `clone` does not perform declaration
     // replacements and thus can cause issues.
     clonedArraySizeE =
-        Visit(clad_compat::Optional_GetValue(CNE->getArraySize())).getExpr();
+        Visit(clad_compat::ArraySize_GetValue(CNE->getArraySize())).getExpr();
     // Array size is a non-differentiable expression, thus the original value
     // should be used in both the cloned and the derived statements.
     derivedArraySizeE = Clone(clonedArraySizeE);
