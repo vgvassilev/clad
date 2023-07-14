@@ -231,7 +231,7 @@ Clad also provides certain flags to save and print the generated derivative code
 - To print the Clad generated derivative: `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn`
 
 ## How to install
-At the moment, LLVM/Clang 5.0.x - 15.0.7 are supported.
+At the moment, LLVM/Clang 5.0.x - 16.0.x are supported.
 
 ### Conda Installation
 
