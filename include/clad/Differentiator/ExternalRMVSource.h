@@ -34,6 +34,8 @@ class ExternalRMVSource {
 public:
   ExternalRMVSource() = default;
 
+  virtual ~ExternalRMVSource() = default;
+
   /// Initialise the external source with the ReverseModeVisitor object.
   virtual void InitialiseRMV(ReverseModeVisitor& RMV) {}
 

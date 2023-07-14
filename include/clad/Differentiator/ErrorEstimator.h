@@ -59,7 +59,7 @@ public:
   ErrorEstimationHandler()
       : m_DoNotEmitDelta(false), m_FinalError(nullptr), m_RetErrorExpr(nullptr),
         m_EstModel(nullptr), m_IdxExpr(nullptr) {}
-  ~ErrorEstimationHandler() {}
+  ~ErrorEstimationHandler() override = default;
 
   /// Function to set the error estimation model currently in use.
   ///
