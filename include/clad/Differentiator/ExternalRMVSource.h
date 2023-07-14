@@ -14,7 +14,7 @@
 
 namespace clad {
 
-class DiffRequest;
+struct DiffRequest;
 class StmtDiff;
 class VarDeclDiff;
 

@@ -6,7 +6,7 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 namespace clad {
-  class DiffRequest;
+  struct DiffRequest;
 
   /// `DerivedFnInfo` is designed to effectively store information about a
   /// derived function.

@@ -6,7 +6,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 namespace clad {
-class DiffRequest;
+struct DiffRequest;
 
 // is `ExternalRMVSourceMultiplexer` a better name for the class?
 /// Manages multiple external RMV sources.
