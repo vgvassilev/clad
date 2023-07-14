@@ -208,7 +208,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   }
 
   llvm::ArrayRef<ParmVarDecl*> paramsRef =
-      llvm::makeArrayRef(params.data(), params.size());
+      clad_compat::makeArrayRef(params.data(), params.size());
   derivedFD->setParams(paramsRef);
   derivedFD->setBody(nullptr);
 

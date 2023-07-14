@@ -111,7 +111,7 @@ namespace clad {
         block.append(CS->body_begin(), CS->body_end());
       else 
         block.push_back(initial);
-      auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
+      auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
     }
 
@@ -124,7 +124,7 @@ namespace clad {
       if (CS)
         block.append(CS->body_begin(), CS->body_end());
       block.push_back(S);
-      auto stmtsRef = llvm::makeArrayRef(block.begin(), block.end());
+      auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
     }
 

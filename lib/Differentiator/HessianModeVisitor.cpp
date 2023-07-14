@@ -289,7 +289,7 @@ namespace clad {
                                /*AddToContext*/ false);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
-        llvm::makeArrayRef(params.data(), params.size());
+        clad_compat::makeArrayRef(params.data(), params.size());
     hessianFD->setParams(paramsRef);
     Expr* m_Result = BuildDeclRef(params.back());
     std::vector<Stmt*> CompStmtSave;
@@ -368,7 +368,7 @@ namespace clad {
     }
 
     auto StmtsRef =
-        llvm::makeArrayRef(CompStmtSave.data(), CompStmtSave.size());
+        clad_compat::makeArrayRef(CompStmtSave.data(), CompStmtSave.size());
     CompoundStmt* CS =
         clad_compat::CompoundStmt_Create(m_Context, StmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(clang::FPOptionsOverride()), noLoc, noLoc);
     hessianFD->setBody(CS);

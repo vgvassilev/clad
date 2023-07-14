@@ -108,7 +108,7 @@ DEFINE_CREATE_EXPR(CXXStaticCastExpr, (Ctx, Node->getType(), Node->getValueKind(
 DEFINE_CREATE_EXPR(CXXDynamicCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXReinterpretCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getCastKind(), Clone(Node->getSubExpr()), 0, Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXConstCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Clone(Node->getSubExpr()), Node->getTypeInfoAsWritten(), Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
-DEFINE_CREATE_EXPR(CXXConstructExpr, (Ctx, Node->getType(), Node->getLocation(), Node->getConstructor(), Node->isElidable(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization(), Node->getConstructionKind(), Node->getParenOrBraceRange()))
+DEFINE_CREATE_EXPR(CXXConstructExpr, (Ctx, Node->getType(), Node->getLocation(), Node->getConstructor(), Node->isElidable(), clad_compat::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization(), Node->getConstructionKind(), Node->getParenOrBraceRange()))
 DEFINE_CREATE_EXPR(CXXFunctionalCastExpr, (Ctx, Node->getType(), Node->getValueKind(), Node->getTypeInfoAsWritten(), Node->getCastKind(), Clone(Node->getSubExpr()), 0 /*EP*/CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node), Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
                                       Node->cleanupsHaveSideEffects(), {}))
@@ -117,7 +117,7 @@ DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
 DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()) CLAD_COMPAT_ConstantExpr_Create_ExtraParams))
 #endif
 
-DEFINE_CLONE_EXPR_CO(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getType(), Node->getTypeSourceInfo(), llvm::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization()))
+DEFINE_CLONE_EXPR_CO(CXXTemporaryObjectExpr, (Ctx, Node->getConstructor(), Node->getType(), Node->getTypeSourceInfo(), clad_compat::makeArrayRef(Node->getArgs(), Node->getNumArgs()), Node->getSourceRange(), Node->hadMultipleCandidates(), Node->isListInitialization(), Node->isStdInitListInitialization(), Node->requiresZeroInitialization()))
 
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr, (Node->getType(), CLAD_COMPAT_CLANG10_GetTemporaryExpr(Node), Node->isBoundToLvalueReference()))
 DEFINE_CLONE_EXPR_CO11(CompoundAssignOperator, (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getOpcode(), Node->getType(),
@@ -182,8 +182,8 @@ Stmt* StmtClone::VisitDesignatedInitExpr(DesignatedInitExpr* Node) {
     indexExprs[i] = Clone(Node->getSubExpr(i));
 
   // no &indexExprs[1]
-  llvm::ArrayRef<Expr*> indexExprsRef
-    = llvm::makeArrayRef(&indexExprs[0] + 1, indexExprs.size() - 1);
+  llvm::ArrayRef<Expr*> indexExprsRef =
+      clad_compat::makeArrayRef(&indexExprs[0] + 1, indexExprs.size() - 1);
 
   return DesignatedInitExpr::Create(Ctx, Node->designators(),
                                     indexExprsRef,
@@ -286,8 +286,8 @@ Stmt* StmtClone::VisitShuffleVectorExpr(ShuffleVectorExpr* Node) {
   llvm::SmallVector<Expr*, 8> cloned(std::max(1u, Node->getNumSubExprs()));
   for (unsigned i = 0, e = Node->getNumSubExprs(); i < e; ++i)
     cloned[i] = Clone(Node->getExpr(i));
-  llvm::ArrayRef<Expr*> clonedRef
-    = llvm::makeArrayRef(cloned.data(), cloned.size());
+  llvm::ArrayRef<Expr*> clonedRef =
+      clad_compat::makeArrayRef(cloned.data(), cloned.size());
   return new (Ctx) ShuffleVectorExpr(Ctx, clonedRef, Node->getType(),
                                      Node->getBuiltinLoc(),
                                      Node->getRParenLoc());
@@ -334,8 +334,8 @@ Stmt* StmtClone::VisitCXXTryStmt(CXXTryStmt* Node) {
   {
     CatchStmts[i] = Clone(Node->getHandler(i));
   }
-  llvm::ArrayRef<Stmt*> handlers = llvm::makeArrayRef(CatchStmts.data(),
-                                                      CatchStmts.size());
+  llvm::ArrayRef<Stmt*> handlers =
+      clad_compat::makeArrayRef(CatchStmts.data(), CatchStmts.size());
   return CXXTryStmt::Create(Ctx, Node->getTryLoc(), Clone(Node->getTryBlock()),
                             handlers);
 }
@@ -346,8 +346,8 @@ Stmt* StmtClone::VisitCompoundStmt(CompoundStmt *Node) {
          e = Node->body_end(); i != e; ++i)
     clonedBody.push_back(Clone(*i));
 
-  llvm::ArrayRef<Stmt*> stmtsRef = llvm::makeArrayRef(clonedBody.data(),
-                                                      clonedBody.size());
+  llvm::ArrayRef<Stmt*> stmtsRef =
+      clad_compat::makeArrayRef(clonedBody.data(), clonedBody.size());
   return clad_compat::CompoundStmt_Create(Ctx, stmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(Node),
                               Node->getLBracLoc(), Node->getLBracLoc());
 }

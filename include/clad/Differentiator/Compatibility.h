@@ -672,6 +672,26 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
 #endif
 
 #if CLANG_VERSION_MAJOR < 16
+template <typename T>
+llvm::ArrayRef<T> makeArrayRef(const T* data, size_t length) {
+  return llvm::makeArrayRef(data, length);
+}
+template <typename T>
+llvm::ArrayRef<T> makeArrayRef(const T* begin, const T* end) {
+  return llvm::makeArrayRef(begin, end);
+}
+#else
+template <typename T>
+llvm::ArrayRef<T> makeArrayRef(const T* data, size_t length) {
+  return llvm::ArrayRef(data, length);
+}
+template <typename T>
+llvm::ArrayRef<T> makeArrayRef(const T* begin, const T* end) {
+  return llvm::ArrayRef(begin, end);
+}
+#endif
+
+#if CLANG_VERSION_MAJOR < 16
 template <typename T> using llvm_Optional = llvm::Optional<T>;
 #else
 template <typename T> using llvm_Optional = std::optional<T>;

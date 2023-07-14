@@ -80,7 +80,8 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
 
   // Set the parameters for the derivative.
   auto params = BuildVectorModeParams(args);
-  vectorDiffFD->setParams(llvm::makeArrayRef(params.data(), params.size()));
+  vectorDiffFD->setParams(
+      clad_compat::makeArrayRef(params.data(), params.size()));
   vectorDiffFD->setBody(nullptr);
 
   // Create the body of the derivative.
