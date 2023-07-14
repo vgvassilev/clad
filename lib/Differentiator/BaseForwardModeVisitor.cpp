@@ -667,7 +667,7 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
 
   auto zero = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 0);
-  ValueDecl* VD;
+  ValueDecl* VD = nullptr;
   // Derived variables for member variables are also created when we are
   // differentiating a call operator.
   if (m_Functor) {
