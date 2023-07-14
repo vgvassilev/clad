@@ -384,10 +384,11 @@ namespace clad {
           llvm::StringRef firstStr, lastStr;
           std::tie(firstStr, lastStr) = interval.split(':');
 
+          static constexpr unsigned Radix = 10;
           if (lastStr.empty()) {
             // The string is not a range just a single index
             size_t index;
-            if (firstStr.getAsInteger(10, index)) {
+            if (firstStr.getAsInteger(Radix, index)) {
                 utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
                                 diffArgs->getEndLoc(),
                                 "Could not parse index '%0'", {diffSpec});
@@ -396,8 +397,8 @@ namespace clad {
             dVarInfo.paramIndexInterval = IndexInterval(index);
           } else {
             size_t first, last;
-            if (firstStr.getAsInteger(10, first) ||
-                lastStr.getAsInteger(10, last)) {
+            if (firstStr.getAsInteger(Radix, first) ||
+                lastStr.getAsInteger(Radix, last)) {
                 utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
                                 diffArgs->getEndLoc(),
                                 "Could not parse range '%0'", {diffSpec});
