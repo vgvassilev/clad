@@ -387,12 +387,22 @@ namespace clad {
           if (lastStr.empty()) {
             // The string is not a range just a single index
             size_t index;
-            firstStr.getAsInteger(10, index);
+            if (firstStr.getAsInteger(10, index)) {
+                utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                                diffArgs->getEndLoc(),
+                                "Could not parse index '%0'", {diffSpec});
+                return;
+            }
             dVarInfo.paramIndexInterval = IndexInterval(index);
           } else {
             size_t first, last;
-            firstStr.getAsInteger(10, first);
-            lastStr.getAsInteger(10, last);
+            if (firstStr.getAsInteger(10, first) ||
+                lastStr.getAsInteger(10, last)) {
+                utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
+                                diffArgs->getEndLoc(),
+                                "Could not parse range '%0'", {diffSpec});
+                return;
+            }
             if (first >= last) {
               utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
                               diffArgs->getEndLoc(),
