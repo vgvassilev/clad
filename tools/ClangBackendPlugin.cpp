@@ -34,7 +34,7 @@ void ClangBackendPluginPass::registerCallbacks(PassBuilder& PB) {
 
 #endif // CLANG_VERSION_MAJOR > 8
 
-#if LLVM_VERSION_MAJOR >= 10
+#if LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
 
 static void loadEnzymePass(const llvm::PassManagerBuilder& Builder,
                            llvm::legacy::PassManagerBase& PM) {
@@ -70,4 +70,4 @@ static llvm::RegisterStandardPasses
     nvvmPassLoader_OEarly(llvm::PassManagerBuilder::EP_EarlyAsPossible,
                           loadNVVMPass);
 
-#endif // LLVM_VERSION_MAJOR >=10
+#endif // LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
