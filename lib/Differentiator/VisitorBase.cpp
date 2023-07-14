@@ -84,8 +84,7 @@ namespace clad {
   }
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
-    utils::ReferencesUpdater up(m_Sema, m_Builder.m_NodeCloner.get(),
-                                getCurrentScope(), m_Function);
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function);
     up.TraverseStmt(InSubtree);
   }
 
