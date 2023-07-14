@@ -32,7 +32,7 @@ using namespace clang;
 
 namespace clad {
   clang::CompoundStmt* VisitorBase::MakeCompoundStmt(const Stmts& Stmts) {
-    auto Stmts_ref = llvm::makeArrayRef(Stmts.data(), Stmts.size());
+    auto Stmts_ref = clad_compat::makeArrayRef(Stmts.data(), Stmts.size());
     return clad_compat::CompoundStmt_Create(m_Context, Stmts_ref /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FPOptionsOverride()), noLoc, noLoc);
   }
 

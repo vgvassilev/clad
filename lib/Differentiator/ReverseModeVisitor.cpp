@@ -382,7 +382,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
-        llvm::makeArrayRef(params.data(), params.size());
+        clad_compat::makeArrayRef(params.data(), params.size());
     gradientFD->setParams(paramsRef);
     gradientFD->setBody(nullptr);
 
