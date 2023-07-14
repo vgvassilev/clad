@@ -424,9 +424,8 @@ namespace clad {
 
   LookupResult& VisitorBase::GetCladTapePush() {
     static llvm::Optional<LookupResult> Result{};
-    if (Result)
-      return Result.getValue();
-    Result = LookupCladTapeMethod("push");
+    if (!Result)
+      Result = LookupCladTapeMethod("push");
     return Result.getValue();
   }
 
@@ -441,17 +440,15 @@ namespace clad {
 
   LookupResult& VisitorBase::GetCladTapePop() {
     static llvm::Optional<LookupResult> Result{};
-    if (Result)
-      return Result.getValue();
-    Result = LookupCladTapeMethod("pop");
+    if (!Result)
+      Result = LookupCladTapeMethod("pop");
     return Result.getValue();
   }
 
   LookupResult& VisitorBase::GetCladTapeBack() {
     static llvm::Optional<LookupResult> Result{};
-    if (Result)
-      return Result.getValue();
-    Result = LookupCladTapeMethod("back");
+    if (!Result)
+      Result = LookupCladTapeMethod("back");
     return Result.getValue();
   }
 
