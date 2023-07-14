@@ -1139,7 +1139,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     auto dfdf = m_Pullback;
-    if (isa<FloatingLiteral>(dfdf) | isa<IntegerLiteral>(dfdf)) {
+    if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
       ExprResult tmp = dfdf;
       dfdf = m_Sema
                  .ImpCastExprToType(tmp.get(), type,
