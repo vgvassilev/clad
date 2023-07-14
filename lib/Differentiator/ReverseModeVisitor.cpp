@@ -466,11 +466,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     DiffParams args{};
     std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
+#ifndef NDEBUG
     bool isStaticMethod = utils::IsStaticMethod(FD);
-
     assert((!args.empty() || !isStaticMethod) &&
            "Cannot generate pullback function of a function "
            "with no differentiable arguments");
+#endif
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(request, args);
@@ -1212,10 +1213,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
       // that represents a ValueAndPushforward type. Ideally this must be
       // differentiated at VisitCXXConstructExpr
+#ifndef NDEBUG
       bool isValueAndPushforward = isCladValueAndPushforwardType(ILEType);
       assert(isValueAndPushforward &&
              "Only InitListExpr that represents arrays or ValueAndPushforward "
              "Object initialization is supported");
+#endif
 
       // Here we assume that the adjoint expression of the first element in
       // InitList is dfdx().value and the adjoint for the second element is
