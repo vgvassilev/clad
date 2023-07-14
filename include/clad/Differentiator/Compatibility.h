@@ -232,7 +232,11 @@ static inline void ExprSetDeps(Expr* result, Expr* Node) {
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar ,clang::CallExpr::ADLCallKind UsesADL
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse ,UsesADL
    #define CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPOptionsOverride
-   #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams Ctx.getLangOpts()
+   #if CLANG_VERSION_MAJOR >= 16
+      #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams /**/
+   #else
+      #define CLAD_COMPAT_CLANG11_LangOptions_EtraParams Ctx.getLangOpts()
+   #endif
    #define CLAD_COMPAT_CLANG11_Ctx_ExtraParams Ctx,
    #define CLAD_COMPAT_CREATE11(CLASS, CTORARGS) (CLASS::Create CTORARGS)
    #define CLAD_COMPAT_CLANG11_CompoundAssignOperator_EtraParams_Removed /**/
@@ -699,6 +703,13 @@ static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
   , Node->getUsedContext()
 #else
 #define CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node) /**/
+#endif
+
+#if CLANG_VERSION_MAJOR >= 16
+#define CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node)     \
+  , Node->getRewrittenExpr()
+#else
+#define CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node) /**/
 #endif
 
 // Clang 15 rename StringKind::Ascii to StringKind::Ordinary
