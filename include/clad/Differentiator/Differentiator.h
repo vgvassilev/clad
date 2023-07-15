@@ -36,10 +36,6 @@ namespace clad {
     return count;
   }
 
-  enum opts {
-    use_enzyme = -1,
-  }; // enum opts
-
   /// Tape type used for storing values in reverse-mode AD inside loops.
   template <typename T>
   using tape = tape_impl<T>;
@@ -285,15 +281,18 @@ namespace clad {
   /// Differentiates function using forward mode.
   ///
   /// Performs partial differentiation of the `fn` argument using forward mode
-  /// wrt parameter specified in `args`. Template parameter `N` denotes
-  /// the derivative order. To differentiate `fn` wrt several parameters,
-  /// please see `clad::gradient`. 
-  /// \param[in] fn function to differentiate 
-  /// \param[in] args independent parameter information 
-  /// \returns `CladFunction` object to access the corresponding derived function.
-  template <signed N = 1, typename ArgSpec = const char*, typename F,
+  /// wrt parameter specified in `args`. Template parameter `BitMaskedOpts`
+  /// denotes the derivative order and any extra options. To differentiate `fn`
+  /// wrt several parameters, please see `clad::gradient`. \param[in] fn
+  /// function to differentiate \param[in] args independent parameter
+  /// information \returns `CladFunction` object to access the corresponding
+  /// derived function.
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F,
             typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
             typename = typename std::enable_if<
+                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                 opts::vector_mode) &&
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
       annotate("D")))
@@ -308,16 +307,20 @@ namespace clad {
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <signed N = 1, typename ArgSpec = const char*, typename F,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F,
             typename DerivedFnType = ExtractDerivedFnTraitsForwMode_t<F>,
             typename = typename std::enable_if<
+                !clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                 opts::vector_mode) &&
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
       annotate("D")))
   differentiate(F&& f, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn, code, f);
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                    code, f);
   }
 
   /// Generates function which computes derivative of `fn` argument w.r.t
@@ -327,19 +330,21 @@ namespace clad {
   /// \param[in] args independent parameters information
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <signed N = 1, typename ArgSpec = const char*, typename F,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F,
             typename DerivedFnType = ExtractDerivedFnTraitsVecForwMode_t<F>,
             typename = typename std::enable_if<
+                clad::HasOption(GetBitmaskedOpts(BitMaskedOpts...),
+                                opts::vector_mode) &&
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
-      annotate("VD")))
-  vector_forward_differentiate(
-      F fn, ArgSpec args = "",
-      DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-      const char* code = "") {
-    assert(fn && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-        derivedFn, code);
+      annotate("D")))
+  differentiate(F fn, ArgSpec args = "",
+                DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+                const char* code = "") {
+      assert(fn && "Must pass in a non-0 argument");
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+          derivedFn, code);
   }
 
   /// Generates function which computes gradient of the given function wrt the
@@ -349,7 +354,7 @@ namespace clad {
   /// \param[in] args independent parameters information
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <signed E = 1 /*To check for enzyme*/,
+  template <unsigned... BitMaskedOpts /*To check for enzyme*/,
             typename ArgSpec = const char*, typename F,
             typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
@@ -359,15 +364,15 @@ namespace clad {
   gradient(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-        derivedFn /* will be replaced by gradient*/, code);
+      assert(f && "Must pass in a non-0 argument");
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+          derivedFn /* will be replaced by gradient*/, code);
   }
 
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <signed E = 1 /*To check for enzyme*/,
+  template <unsigned... BitMaskedOpts /*To check for enzyme*/,
             typename ArgSpec = const char*, typename F,
             typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
@@ -377,8 +382,8 @@ namespace clad {
   gradient(F&& f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-        derivedFn /* will be replaced by gradient*/, code, f);
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+          derivedFn /* will be replaced by gradient*/, code, f);
   }
 
   /// Generates function which computes hessian matrix of the given function wrt

@@ -183,7 +183,7 @@ double f5(double x, double y, double z) {
   {                                                                            \
     result[0] = 0;                                                             \
     result[1] = 0;                                                             \
-    clad::vector_forward_differentiate(F);                                     \
+    clad::differentiate<clad::opts::vector_mode>(F);                        \
     F##_dvec(x, y, &result[0], &result[1]);                                    \
     printf("Result is = {%.2f, %.2f}\n", result[0], result[1]);                \
   }
@@ -197,26 +197,26 @@ int main() {
   TEST(f4, 1, 2); // CHECK-EXEC: Result is = {-1.00, 4.00}
 
   // Testing derivatives of partial parameters.
-  auto f_dvec_x_y_z = clad::vector_forward_differentiate(f5, "x, y, z");
+  auto f_dvec_x_y_z = clad::differentiate<clad::opts::vector_mode>(f5, "x, y, z");
   f_dvec_x_y_z.execute(1, 2, 3, &result[0], &result[1], &result[2]);
   printf("Result is = {%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: Result is = {1.00, 2.00, 3.00}
 
-  auto f_dvec_x_y = clad::vector_forward_differentiate(f5, "x, y");
+  auto f_dvec_x_y = clad::differentiate<clad::opts::vector_mode>(f5, "x, y");
   f_dvec_x_y.execute(1, 2, 3, &result[0], &result[1]);
   printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {1.00, 2.00}
 
-  auto f_dvec_x_z = clad::vector_forward_differentiate(f5, "x, z");
+  auto f_dvec_x_z = clad::differentiate<clad::opts::vector_mode>(f5, "x, z");
   f_dvec_x_z.execute(1, 2, 3, &result[0], &result[1]);
   printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {1.00, 3.00}
 
-  auto f_dvec_y_z = clad::vector_forward_differentiate(f5, "y, z");
+  auto f_dvec_y_z = clad::differentiate<clad::opts::vector_mode>(f5, "y, z");
   f_dvec_y_z.execute(1, 2, 3, &result[0], &result[1]);
   printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {2.00, 3.00}
 
-  auto f_dvec_y_x = clad::vector_forward_differentiate(f5, "y, x");
+  auto f_dvec_y_x = clad::differentiate<clad::opts::vector_mode>(f5, "y, x");
   f_dvec_y_x.execute(1, 2, 3, &result[0], &result[1]);
 
-  auto f_dvec_z = clad::vector_forward_differentiate(f5, "z");
+  auto f_dvec_z = clad::differentiate<clad::opts::vector_mode>(f5, "z");
   f_dvec_z.execute(1, 2, 3, &result[0]);
   printf("Result is = {%.2f}\n", result[0]); // CHECK-EXEC: Result is = {3.00}
 }

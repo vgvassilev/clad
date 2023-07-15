@@ -6,6 +6,37 @@
 #include <cstdlib>
 #include <memory>
 
+namespace clad {
+// The aim is to have a single unsigned integer for storing both, the
+// differentiation order and the options. The differentiation order is
+// stored in the lower 8 bits, and the options are stored in the upper
+// 24 bits. The differentiation order is stored in the lower 8 bits
+// thus allowing for a maximum differentiation order of 2^8 - 1 = 255.
+constexpr unsigned ORDER_BITS = 8;
+constexpr unsigned ORDER_MASK = (1 << ORDER_BITS) - 1;
+
+enum opts {
+  use_enzyme = 1 << ORDER_BITS,
+  vector_mode = 1 << (ORDER_BITS + 1),
+}; // enum opts
+
+constexpr unsigned GetDerivativeOrder(unsigned const bitmasked_opts) {
+  return bitmasked_opts & ORDER_MASK;
+}
+
+constexpr bool HasOption(unsigned const bitmasked_opts, unsigned const option) {
+  return (bitmasked_opts & option) == option;
+}
+
+constexpr unsigned GetBitmaskedOpts() { return 0; }
+constexpr unsigned GetBitmaskedOpts(unsigned const first) { return first; }
+template <typename... Opts>
+constexpr unsigned GetBitmaskedOpts(unsigned const first, Opts... opts) {
+  return first | GetBitmaskedOpts(opts...);
+}
+
+} // namespace clad
+
 // Define CUDA_HOST_DEVICE attribute for adding CUDA support to
 // clad functions
 #ifdef __CUDACC__
