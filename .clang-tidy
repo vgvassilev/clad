@@ -42,3 +42,5 @@ CheckOptions:
     value:           aNy_CasE
   - key:             readability-identifier-naming.IgnoreMainLikeFunctions
     value:           1
+  - key:             readability-implicit-bool-conversion.AllowPointerConditions
+    value:           1
