@@ -10,6 +10,7 @@
 
 #include "llvm/Support/SaveAndRestore.h"
 
+#include "clad/Differentiator/CladConfig.h"
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
@@ -548,51 +549,72 @@ namespace clad {
     if (A &&
         (A->getAnnotation().equals("D") || A->getAnnotation().equals("G") ||
          A->getAnnotation().equals("H") || A->getAnnotation().equals("J") ||
-         A->getAnnotation().equals("E") || A->getAnnotation().equals("VD"))) {
+         A->getAnnotation().equals("E"))) {
       // A call to clad::differentiate or clad::gradient was found.
       DeclRefExpr* DRE = getArgFunction(E, m_Sema);
       if (!DRE)
         return true;
       DiffRequest request{};
 
-      // Check if enzyme is requested in case of Forward Mode or reverse Mode
-      if (A->getAnnotation().equals("D") || A->getAnnotation().equals("G")) {
-        signed opts_value = FD->getTemplateSpecializationArgs()
-                                ->get(0)
-                                .getAsIntegral()
-                                .getZExtValue();
-
-        if (opts_value == -1) {
-          request.use_enzyme = true;
-        }
-      }
-
       if (A->getAnnotation().equals("D")) {
         request.Mode = DiffMode::forward;
-        llvm::APSInt derivativeOrderAPSInt
-          = FD->getTemplateSpecializationArgs()->get(0).getAsIntegral();
 
-        unsigned derivativeOrder = 1;
-        if (!request.use_enzyme)
-          derivativeOrder = derivativeOrderAPSInt.getZExtValue();
-        request.RequestedDerivativeOrder = derivativeOrder;
-      } else if (A->getAnnotation().equals("VD")) {
-        request.Mode = DiffMode::vector_forward_mode;
-        unsigned derivativeOrder = FD->getTemplateSpecializationArgs()
-                                       ->get(0)
-                                       .getAsIntegral()
-                                       .getZExtValue();
-        // currently only first order derivative is supported.
-        assert(derivativeOrder == 1 &&
-               "Only first order derivative is supported for now in vector "
-               "forward mode.");
-        request.RequestedDerivativeOrder = derivativeOrder;
+        // bitmask_opts is a template pack of unsigned integers, so we need to
+        // do bitwise or of all the values to get the final value.
+        unsigned bitmasked_opts_value = 0;
+        for (auto const& arg :
+             FD->getTemplateSpecializationArgs()->get(0).pack_elements()) {
+          bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
+        }
+        unsigned derivative_order =
+            clad::GetDerivativeOrder(bitmasked_opts_value);
+        if (derivative_order == 0) {
+          derivative_order = 1; // default to first order derivative.
+        }
+        request.RequestedDerivativeOrder = derivative_order;
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme)) {
+          request.use_enzyme = true;
+        }
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
+          request.Mode = DiffMode::vector_forward_mode;
+
+          // currently only first order derivative is supported.
+          if (derivative_order != 1) {
+            utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                            "Only first order derivative is supported for now "
+                            "in vector forward mode.");
+            return true;
+          }
+          // we don't yet support enzyme with vector mode.
+          if (request.use_enzyme) {
+            utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                            "Enzyme's vector mode is not yet supported.");
+            return true;
+          }
+        }
       } else if (A->getAnnotation().equals("H")) {
         request.Mode = DiffMode::hessian;
       } else if (A->getAnnotation().equals("J")) {
         request.Mode = DiffMode::jacobian;
       } else if (A->getAnnotation().equals("G")) {
         request.Mode = DiffMode::reverse;
+
+        // bitmask_opts is a template pack of unsigned integers, so we need to
+        // do bitwise or of all the values to get the final value.
+        unsigned bitmasked_opts_value = 0;
+        for (auto const& arg :
+             FD->getTemplateSpecializationArgs()->get(0).pack_elements()) {
+          bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
+        }
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme)) {
+          request.use_enzyme = true;
+        }
+        // reverse vector mode is not yet supported.
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
+          utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                          "Reverse vector mode is not yet supported.");
+          return true;
+        }
       } else {
         request.Mode = DiffMode::error_estimation;
       }
