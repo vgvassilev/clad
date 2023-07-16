@@ -102,7 +102,7 @@ int main() {
   clad::differentiate(f2, 1);
   clad::differentiate(f3, 0);
   clad::differentiate(f3, 1);
-  clad::differentiate(f4, 0);
+  clad::differentiate <clad::order::first> (f4, 0); // testing order template parameter
 }
 
 

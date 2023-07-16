@@ -15,6 +15,12 @@ namespace clad {
 constexpr unsigned ORDER_BITS = 8;
 constexpr unsigned ORDER_MASK = (1 << ORDER_BITS) - 1;
 
+enum order {
+  first = 1,
+  second = 2,
+  third = 3,
+}; // enum order
+
 enum opts {
   use_enzyme = 1 << ORDER_BITS,
   vector_mode = 1 << (ORDER_BITS + 1),
