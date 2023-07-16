@@ -115,6 +115,14 @@ differentiation. The following examples demonstrate computation of higher-order 
 
 .. note::
 
+   For derivative orders upto 3, clad has specially defined enums that can be used
+   instead of the integer template parameter. For example, the following code is
+   equivalent to the code shown above::
+
+      auto d_fn_3 = clad::differentiate<clad::order::third>(fn, "i");
+
+.. note::
+
    Forward mode AD can only be used to differentiate with respect to a single 
    value. For differentiating with respect to multiple values (parameters), 
    reverse-mode AD must be used..
