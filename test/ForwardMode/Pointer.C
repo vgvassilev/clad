@@ -19,10 +19,10 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     double *_d_p = &_d_i;
 // CHECK-NEXT:     double *p = &i;
-// CHECK-NEXT:     double **_d_q = new double *(/*implicit*/(double *)0);
-// CHECK-NEXT:     double **q = new double *(/*implicit*/(double *)0);
-// CHECK-NEXT:     *_d_q = new double(/*implicit*/(double)0);
-// CHECK-NEXT:     *q = new double(/*implicit*/(double)0);
+// CHECK-NEXT:     double **_d_q = new double *;
+// CHECK-NEXT:     double **q = new double *;
+// CHECK-NEXT:     *_d_q = new double;
+// CHECK-NEXT:     *q = new double;
 // CHECK-NEXT:     **_d_q = _d_j;
 // CHECK-NEXT:     **q = j;
 // CHECK-NEXT:     return *_d_p * **q + *p * **_d_q;
@@ -48,8 +48,8 @@ double fn3(double i, double j) {
 // CHECK: double fn3_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     double *_d_p = new double [2](/*implicit*/(double{{ ?}}[2])0);
-// CHECK-NEXT:     double *p = new double [2](/*implicit*/(double{{ ?}}[2])0);
+// CHECK-NEXT:     double *_d_p = new double [2];
+// CHECK-NEXT:     double *p = new double [2];
 // CHECK-NEXT:     _d_p[0] = _d_i + _d_j;
 // CHECK-NEXT:     p[0] = i + j;
 // CHECK-NEXT:     _d_p[1] = _d_i * j + i * _d_j;
