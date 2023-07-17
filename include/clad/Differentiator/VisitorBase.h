@@ -483,6 +483,16 @@ namespace clad {
     clang::TemplateDecl* GetCladArrayDecl();
     /// Create clad::array<T> type.
     clang::QualType GetCladArrayOfType(clang::QualType T);
+    /// Find declaration of clad::matrix templated type.
+    clang::TemplateDecl* GetCladMatrixDecl();
+    /// Create clad::matrix<T> type.
+    clang::QualType GetCladMatrixOfType(clang::QualType T);
+    /// Creates the expression clad::matrix<T>::identity(Args) for the given
+    /// type and args.
+    clang::Expr*
+    BuildIdentityMatrixExpr(clang::QualType T,
+                            llvm::MutableArrayRef<clang::Expr*> Args,
+                            clang::SourceLocation Loc);
     /// Creates the expression Base.size() for the given Base expr. The Base
     /// expr must be of clad::array_ref<T> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);

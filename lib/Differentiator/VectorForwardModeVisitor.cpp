@@ -11,7 +11,7 @@ using namespace clang;
 
 namespace clad {
 VectorForwardModeVisitor::VectorForwardModeVisitor(DerivativeBuilder& builder)
-    : BaseForwardModeVisitor(builder) {}
+    : BaseForwardModeVisitor(builder), m_IndVarCountExpr(nullptr) {}
 
 VectorForwardModeVisitor::~VectorForwardModeVisitor() {}
 
@@ -51,10 +51,16 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
     if (it == std::end(args))
       continue; // This parameter is not in the diff list.
 
-    QualType ValueType = utils::GetValueType(PVD->getType());
-    ValueType.removeLocalConst();
-    // Generate pointer type for the derivative.
-    QualType dParamType = m_Context.getPointerType(ValueType);
+    QualType valueType = utils::GetValueType(PVD->getType());
+    valueType.removeLocalConst();
+    QualType dParamType;
+    if (utils::isArrayOrPointerType(PVD->getType())) {
+      // Generate array reference type for the derivative.
+      dParamType = GetCladArrayRefOfType(valueType);
+    } else {
+      // Generate pointer type for the derivative.
+      dParamType = m_Context.getPointerType(valueType);
+    }
     paramTypes.push_back(dParamType);
   }
 
@@ -91,23 +97,84 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   beginScope(Scope::FnScope | Scope::DeclScope);
   m_DerivativeFnScope = getCurrentScope();
   beginBlock();
+
+  // Instantiate a variable indepVarCount to store the total number of
+  // independent variables requested.
+  // size_t indepVarCount = m_IndVarCountExpr;
+  auto* totalIndVars = BuildVarDecl(m_Context.UnsignedLongTy, "indepVarCount",
+                                    m_IndVarCountExpr);
+  addToCurrentBlock(BuildDeclStmt(totalIndVars));
+  m_IndVarCountExpr = BuildDeclRef(totalIndVars);
+
+  // Expression for maintaining the number of independent variables processed
+  // till now present as array elements. This will be sum of sizes of all such
+  // arrays.
+  Expr* arrayIndVarCountExpr = nullptr;
+
+  // Number of non-array independent variables processed till now.
+  size_t nonArrayIndVarCount = 0;
+
+  // Current Index of independent variable in the param list of the function.
   size_t independentVarIndex = 0;
+
   for (size_t i = 0; i < m_Function->getNumParams(); ++i) {
+    bool is_array =
+        utils::isArrayOrPointerType(m_Function->getParamDecl(i)->getType());
     auto param = params[i];
     QualType dParamType = clad::utils::GetValueType(param->getType());
 
     Expr* dVectorParam = nullptr;
     if (m_IndependentVars.size() > independentVarIndex &&
         m_IndependentVars[independentVarIndex] == m_Function->getParamDecl(i)) {
-      // This parameter is an independent variable.
-      // Create a one hot vector for the parameter.
-      dVectorParam = getOneHotInitExpr(independentVarIndex,
-                                       m_IndependentVars.size(), dParamType);
+
+      // Current offset for independent variable.
+      Expr* offsetExpr = arrayIndVarCountExpr;
+      Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
+          m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
+      if (!offsetExpr) {
+        offsetExpr = nonArrayIndVarCountExpr;
+      } else if (nonArrayIndVarCount != 0) {
+        offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
+                             nonArrayIndVarCountExpr);
+      }
+
+      if (is_array) {
+        // Get size of the array.
+        Expr* getSize = BuildArrayRefSizeExpr(
+            m_ParamVariables[m_Function->getParamDecl(i)]);
+
+        // Create an identity matrix for the parameter,
+        // with number of rows equal to the size of the array,
+        // and number of columns equal to the number of independent variables
+        llvm::SmallVector<Expr*> args = {getSize, m_IndVarCountExpr,
+                                         offsetExpr};
+        dVectorParam = BuildCallExprToCladFunction("identity_matrix", args,
+                                                   {dParamType}, loc);
+
+        // Update the array independent expression.
+        if (!arrayIndVarCountExpr) {
+          arrayIndVarCountExpr = getSize;
+        } else {
+          arrayIndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add,
+                                         arrayIndVarCountExpr, getSize);
+        }
+      } else {
+        // Create a one hot vector for the parameter.
+        llvm::SmallVector<Expr*> args = {m_IndVarCountExpr, offsetExpr};
+        dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
+                                                   {dParamType}, loc);
+        ++nonArrayIndVarCount;
+      }
       ++independentVarIndex;
     } else {
+      // We cannot initialize derived variable for pointer types because
+      // we do not know the correct size.
+      if (is_array)
+        continue;
       // This parameter is not an independent variable.
       // Initialize by all zeros.
-      dVectorParam = getZeroInitListExpr(m_IndependentVars.size(), dParamType);
+      dVectorParam = BuildCallExprToCladFunction(
+          "zero_vector", {m_IndVarCountExpr}, {dParamType}, loc);
     }
 
     // For each function arg to be differentiated, create a variable
@@ -117,9 +184,15 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
     // -> clad::array<double> _d_vector_x = {1, 0};
     // -> clad::array<double> _d_vector_y = {0, 0};
     // -> clad::array<double> _d_vector_z = {0, 1};
+    QualType dVectorParamType;
+    if (is_array) {
+      dVectorParamType = GetCladMatrixOfType(dParamType);
+    } else {
+      dVectorParamType = GetCladArrayOfType(dParamType);
+    }
     auto dVectorParamDecl =
-        BuildVarDecl(GetCladArrayOfType(dParamType),
-                     "_d_vector_" + param->getNameAsString(), dVectorParam);
+        BuildVarDecl(dVectorParamType, "_d_vector_" + param->getNameAsString(),
+                     dVectorParam);
     addToCurrentBlock(BuildDeclStmt(dVectorParamDecl));
     dVectorParam = BuildDeclRef(dVectorParamDecl);
     // Memorize the derivative vector for the parameter.
@@ -164,11 +237,12 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   }
 
   // instantiate output parameter type as void*
-  QualType outputParamType = m_Context.getPointerType(m_Context.VoidTy);
+  QualType outputParamType = GetCladArrayRefOfType(m_Context.VoidTy);
 
   // Push param types for derived params.
-  for (std::size_t i = 0; i < m_Function->getNumParams(); ++i)
+  for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
     paramTypes.push_back(outputParamType);
+  }
 
   auto vectorModeFuncOverloadEPI =
       dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo();
@@ -250,16 +324,21 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
 
     // Create a cast expression to cast the derivative parameter to the correct
     // type.
-    auto* castExpr =
+    Expr* toCastExpr = BuildDeclRef(overloadParam);
+    if (!isCladArrayType(vectorModeParam->getType())) {
+      toCastExpr =
+          BuildCallExprToMemFn(toCastExpr, /*MemberFunctionName=*/"ptr", {});
+    }
+    auto* castedExpr =
         m_Sema
             .BuildCXXNamedCast(
                 noLoc, tok::TokenKind::kw_static_cast,
                 m_Context.getTrivialTypeSourceInfo(vectorModeParam->getType()),
-                BuildDeclRef(overloadParam), noLoc, noLoc)
+                toCastExpr, noLoc, noLoc)
             .get();
     auto* vectorModeVD =
         BuildVarDecl(vectorModeParam->getType(),
-                     vectorModeParam->getNameAsString(), castExpr);
+                     vectorModeParam->getNameAsString(), castedExpr);
     callArgs.push_back(BuildDeclRef(vectorModeVD));
     addToCurrentBlock(BuildDeclStmt(vectorModeVD));
   }
@@ -279,36 +358,16 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   return vectorModeOverloadFD;
 }
 
-clang::Expr* VectorForwardModeVisitor::getOneHotInitExpr(size_t index,
-                                                         size_t size,
-                                                         clang::QualType type) {
-  // Build call expression for one_hot
-  llvm::SmallVector<Expr*, 2> args = {
-      ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy, m_Context,
-                                        size),
-      ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy, m_Context,
-                                        index)};
-  return BuildCallExprToCladFunction("one_hot_vector", args, {type},
-                                     m_Function->getLocation());
-}
-
-clang::Expr*
-VectorForwardModeVisitor::getZeroInitListExpr(size_t size,
-                                              clang::QualType type) {
-  // define a vector of size `size` with all elements set to 0.
-  // Build call expression for zero_vector
-  llvm::SmallVector<Expr*, 2> args = {ConstantFolder::synthesizeLiteral(
-      m_Context.UnsignedLongTy, m_Context, size)};
-  return BuildCallExprToCladFunction("zero_vector", args, {type},
-                                     m_Function->getLocation());
-}
-
 llvm::SmallVector<clang::ParmVarDecl*, 8>
 VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
   llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
   params.reserve(m_Function->getNumParams() + diffParams.size());
   auto derivativeFnType = cast<FunctionProtoType>(m_Derivative->getType());
   std::size_t dParamTypesIdx = m_Function->getNumParams();
+
+  // Count the number of non-array independent variables requested for
+  // differentiation.
+  size_t nonArrayIndVarCount = 0;
 
   for (auto PVD : m_Function->parameters()) {
     auto newPVD = utils::BuildParmVarDecl(
@@ -336,8 +395,36 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                /*AddToContext=*/false);
 
-    m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
+    if (utils::isArrayOrPointerType(PVD->getType())) {
+      m_ParamVariables[*it] = (Expr*)BuildDeclRef(dPVD);
+      // dPVD will be a clad::array or clad::array_ref, both have size() method.
+      // If m_IndVarCountExpr is null, initialize it with dPVD.size().
+      // Otherwise, increment it by dPVD.size().
+      Expr* getSize = BuildArrayRefSizeExpr(m_ParamVariables[*it]);
+      if (!m_IndVarCountExpr) {
+        m_IndVarCountExpr = getSize;
+      } else {
+        m_IndVarCountExpr =
+            BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr, getSize);
+      }
+    } else {
+      m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
+      nonArrayIndVarCount += 1;
+    }
   }
+
+  // Process the expression for the number independent variables.
+  // This will be the sum of the sizes of all array parameters and the number
+  // of non-array parameters.
+  Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
+      m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
+  if (!m_IndVarCountExpr) {
+    m_IndVarCountExpr = nonArrayIndVarCountExpr;
+  } else if (nonArrayIndVarCount != 0) {
+    m_IndVarCountExpr = BuildOp(BinaryOperatorKind::BO_Add, m_IndVarCountExpr,
+                                nonArrayIndVarCountExpr);
+  }
+
   // insert the derivative parameters at the end of the parameter list.
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
   // store the independent variables for later use.
@@ -346,15 +433,52 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
   return params;
 }
 
+StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
+    const ArraySubscriptExpr* ASE) {
+  auto ASI = SplitArraySubscript(ASE);
+  const Expr* Base = ASI.first;
+  StmtDiff BaseDiff = Visit(Base);
+  const auto& Indices = ASI.second;
+  Expr* clonedBase = BaseDiff.getExpr();
+  llvm::SmallVector<Expr*, 4> clonedIndices(Indices.size());
+  std::transform(std::begin(Indices), std::end(Indices),
+                 std::begin(clonedIndices),
+                 [this](const Expr* E) { return Clone(E); });
+  auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
+
+  QualType ExprTy = ASE->getType();
+  if (ExprTy->isPointerType())
+    ExprTy = ExprTy->getPointeeType();
+  auto zero = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 0);
+  Expr* diffExpr = zero;
+
+  Expr* target = BaseDiff.getExpr_dx();
+  if (target) {
+    diffExpr =
+        m_Sema
+            .ActOnArraySubscriptExpr(getCurrentScope(), target,
+                                     target->getExprLoc(), clonedIndices, noLoc)
+            .get();
+  }
+  return StmtDiff(cloned, diffExpr);
+}
+
 StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
-  StmtDiff retValDiff = Visit(RS->getRetValue());
+  const Expr* retVal = RS->getRetValue();
+  QualType retType = retVal->getType();
+  StmtDiff retValDiff = Visit(retVal);
   Expr* derivedRetValE = retValDiff.getExpr_dx();
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
+  SourceLocation loc{m_Function->getLocation()};
+  llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, derivedRetValE};
+  QualType cladArrayType = GetCladArrayOfType(utils::GetValueType(retType));
+  TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(cladArrayType, loc);
+  Expr* constructorCallExpr =
+      m_Sema.BuildCXXTypeConstructExpr(TSI, loc, args, loc, false).get();
   auto dVectorParamDecl =
-      BuildVarDecl(GetCladArrayOfType(
-                       clad::utils::GetValueType(RS->getRetValue()->getType())),
-                   "_d_vector_return", derivedRetValE);
+      BuildVarDecl(cladArrayType, "_d_vector_return", constructorCallExpr,
+                   false, nullptr, VarDecl::InitializationStyle::CallInit);
   // Create an array of statements to hold the return statement and the
   // assignments to the derivatives of the parameters.
   Stmts returnStmts;
@@ -362,17 +486,53 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // Assign values from return vector to the derivatives of the
   // parameters.
   auto dVectorRef = BuildDeclRef(dVectorParamDecl);
+
+  // Expression for maintaining the number of independent variables processed
+  // till now present as array elements. This will be sum of sizes of all such
+  // arrays.
+  Expr* arrayIndVarCountExpr = nullptr;
+  // Number of non-array independent variables processed till now.
+  size_t nonArrayIndVarCount = 0;
+
   for (size_t i = 0; i < m_IndependentVars.size(); ++i) {
     // Get the derivative of the ith parameter.
     auto dParam = m_ParamVariables[m_IndependentVars[i]];
-    // Create an array subscript expression to access the ith element
-    auto indexExpr =
-        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
-    auto dParamValue =
-        m_Sema
-            .ActOnArraySubscriptExpr(getCurrentScope(), dVectorRef,
-                                     dVectorRef->getExprLoc(), indexExpr, noLoc)
-            .get();
+    Expr* dParamValue = nullptr;
+
+    // Current offset for independent variable.
+    Expr* offsetExpr = arrayIndVarCountExpr;
+    Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
+        m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
+    if (!offsetExpr) {
+      offsetExpr = nonArrayIndVarCountExpr;
+    } else if (nonArrayIndVarCount != 0) {
+      offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
+                           nonArrayIndVarCountExpr);
+    }
+
+    if (isCladArrayType(dParam->getType())) {
+      // Get the size of the array.
+      Expr* getSize = BuildArrayRefSizeExpr(dParam);
+
+      // Create an expression to fetch slice of the return vector.
+      llvm::SmallVector<Expr*> args = {offsetExpr, getSize};
+      dParamValue = BuildArrayRefSliceExpr(dVectorRef, args);
+
+      // Update the array independent expression.
+      if (!arrayIndVarCountExpr) {
+        arrayIndVarCountExpr = getSize;
+      } else {
+        arrayIndVarCountExpr =
+            BuildOp(BinaryOperatorKind::BO_Add, arrayIndVarCountExpr, getSize);
+      }
+    } else {
+      dParamValue = m_Sema
+                        .ActOnArraySubscriptExpr(getCurrentScope(), dVectorRef,
+                                                 dVectorRef->getExprLoc(),
+                                                 offsetExpr, noLoc)
+                        .get();
+      ++nonArrayIndVarCount;
+    }
     // Create an assignment expression to assign the ith element of the
     // return vector to the derivative of the ith parameter.
     auto dParamAssign = BuildOp(BO_Assign, dParam, dParamValue);
@@ -408,16 +568,13 @@ VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   // clad::array<double> _d_vector_y(2, 1);
   // this means that we have to initialize the derivative vector of
   // size 2 with all elements equal to 1.
-  Expr* size = ConstantFolder::synthesizeLiteral(
-      m_Context.UnsignedLongTy, m_Context, m_IndependentVars.size());
-  llvm::SmallVector<Expr*, 2> args = {size, initDiff.getExpr_dx()};
+  SourceLocation loc{m_Function->getLocation()};
+  llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, initDiff.getExpr_dx()};
+  QualType cladArrayType =
+      GetCladArrayOfType(utils::GetValueType(VD->getType()));
+  TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(cladArrayType, loc);
   Expr* constructorCallExpr =
-      m_Sema
-          .ActOnCXXTypeConstructExpr(
-              OpaquePtr<QualType>::make(
-                  GetCladArrayOfType(utils::GetValueType(VD->getType()))),
-              noLoc, args, noLoc, false)
-          .get();
+      m_Sema.BuildCXXTypeConstructExpr(TSI, loc, args, loc, false).get();
 
   VarDecl* VDDerived =
       BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),

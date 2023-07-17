@@ -16,6 +16,11 @@ private:
   /// m_Variables map because all other intermediate variables will have
   /// derivatives as vectors.
   std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_ParamVariables;
+  /// Expression for total number of independent variables. This also includes
+  /// the size of array independent variables which will be inferred from the
+  /// size of the corresponding clad array they provide at runtime for storing
+  /// the derivatives.
+  clang::Expr* m_IndVarCountExpr;
 
 public:
   VectorForwardModeVisitor(DerivativeBuilder& builder);
@@ -68,6 +73,8 @@ public:
   /// For example: for size = 4, the returned expression is: {0, 0, 0, 0}
   clang::Expr* getZeroInitListExpr(size_t size, clang::QualType type);
 
+  StmtDiff
+  VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
   // Decl is not Stmt, so it cannot be visited directly.
   VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD) override;

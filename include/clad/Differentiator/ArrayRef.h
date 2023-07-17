@@ -33,7 +33,8 @@ public:
   /// Constructor for clad::array types
   CUDA_HOST_DEVICE array_ref(array<T>& a) : m_arr(a.ptr()), m_size(a.size()) {}
 
-  template <typename U> CUDA_HOST_DEVICE array_ref<T>& operator=(array<U>& a) {
+  template <typename U>
+  CUDA_HOST_DEVICE array_ref<T>& operator=(const array<U>& a) {
     assert(m_size == a.size());
     for (std::size_t i = 0; i < m_size; ++i)
       m_arr[i] = a[i];
@@ -53,6 +54,7 @@ public:
   /// Returns the reference to the location at the index of the underlying
   /// array
   CUDA_HOST_DEVICE T& operator[](std::size_t i) { return m_arr[i]; }
+  CUDA_HOST_DEVICE const T& operator[](std::size_t i) const { return m_arr[i]; }
   /// Returns the reference to the underlying array
   CUDA_HOST_DEVICE T& operator*() { return *m_arr; }
 
@@ -155,6 +157,116 @@ public:
     return *this;
   }
 };
+
+/// Overloaded operators for clad::array_ref which returns a new clad::array
+/// object.
+
+/// Multiplies the arrays element wise
+template <typename T, typename U>
+CUDA_HOST_DEVICE array<T> operator*(const array_ref<T>& Ar,
+                                    const array_ref<U>& Br) {
+  assert(Ar.size() == Br.size() &&
+         "Size of both the array_refs must be equal for carrying out addition "
+         "assignment");
+  array<T> C(Ar);
+  C *= Br;
+  return C;
+}
+
+/// Adds the arrays element wise
+template <typename T, typename U>
+CUDA_HOST_DEVICE array<T> operator+(const array_ref<T>& Ar,
+                                    const array_ref<U>& Br) {
+  assert(Ar.size() == Br.size() &&
+         "Size of both the array_refs must be equal for carrying out addition "
+         "assignment");
+  array<T> C(Ar);
+  C += Br;
+  return C;
+}
+
+/// Subtracts the arrays element wise
+template <typename T, typename U>
+CUDA_HOST_DEVICE array<T> operator-(const array_ref<T>& Ar,
+                                    const array_ref<U>& Br) {
+  assert(Ar.size() == Br.size() &&
+         "Size of both the array_refs must be equal for carrying out addition "
+         "assignment");
+  array<T> C(Ar);
+  C -= Br;
+  return C;
+}
+
+/// Divides the arrays element wise
+template <typename T, typename U>
+CUDA_HOST_DEVICE array<T> operator/(const array_ref<T>& Ar,
+                                    const array_ref<U>& Br) {
+  assert(Ar.size() == Br.size() &&
+         "Size of both the array_refs must be equal for carrying out addition "
+         "assignment");
+  array<T> C(Ar);
+  C /= Br;
+  return C;
+}
+
+/// Multiplies array_ref by a scalar
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator*(const array_ref<T>& Ar, U a) {
+  array<T> C(Ar);
+  C *= a;
+  return C;
+}
+
+/// Multiplies array_ref by a scalar (reverse order)
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator*(U a, const array_ref<T>& Ar) {
+  return Ar * a;
+}
+
+/// Divides array_ref by a scalar
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator/(const array_ref<T>& Ar, U a) {
+  array<T> C(Ar);
+  C /= a;
+  return C;
+}
+
+/// Adds array_ref by a scalar
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator+(const array_ref<T>& Ar, U a) {
+  array<T> C(Ar);
+  C += a;
+  return C;
+}
+
+/// Adds array_ref by a scalar (reverse order)
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator+(U a, const array_ref<T>& Ar) {
+  return Ar + a;
+}
+
+/// Subtracts array_ref by a scalar
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator-(const array_ref<T>& Ar, U a) {
+  array<T> C(Ar);
+  C -= a;
+  return C;
+}
+
+/// Subtracts array_ref by a scalar (reverse order)
+template <typename T, typename U,
+          typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
+CUDA_HOST_DEVICE array<T> operator-(U a, const array_ref<T>& Ar) {
+  array<T> C(Ar.size(), a);
+  C -= Ar;
+  return C;
+}
 
   /// `array_ref<void>` specialisation is created to be used as a placeholder
   /// type in the overloaded derived function. All `array_ref<T>` types are

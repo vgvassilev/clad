@@ -611,6 +611,25 @@ namespace clad {
     return InstantiateTemplate(GetCladArrayDecl(), {T});
   }
 
+  TemplateDecl* VisitorBase::GetCladMatrixDecl() {
+    static TemplateDecl* Result = nullptr;
+    if (!Result)
+      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"matrix");
+    return Result;
+  }
+
+  QualType VisitorBase::GetCladMatrixOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladMatrixDecl(), {T});
+  }
+
+  Expr* VisitorBase::BuildIdentityMatrixExpr(clang::QualType T,
+                                             MutableArrayRef<Expr*> Args,
+                                             clang::SourceLocation Loc) {
+    auto* M =
+        BuildCallExprToCladFunction(/*name=*/"identity_matrix", Args, {T}, Loc);
+    return M;
+  }
+
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {
     return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"size", {});
   }

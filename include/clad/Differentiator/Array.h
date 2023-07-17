@@ -154,7 +154,7 @@ public:
     return *this;
   }
   /// Initializes the clad::array to the given clad::array_ref
-  CUDA_HOST_DEVICE array<T>& operator=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] = arr[i];
@@ -162,7 +162,7 @@ public:
   }
 
   template <typename U>
-  CUDA_HOST_DEVICE array<T>& operator=(array_ref<U>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator=(const array_ref<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] = arr[i];
@@ -170,28 +170,28 @@ public:
   }
 
   /// Performs element wise addition
-  CUDA_HOST_DEVICE array<T>& operator+=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator+=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] += arr[i];
     return *this;
   }
   /// Performs element wise subtraction
-  CUDA_HOST_DEVICE array<T>& operator-=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator-=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] -= arr[i];
     return *this;
   }
   /// Performs element wise multiplication
-  CUDA_HOST_DEVICE array<T>& operator*=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator*=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] *= arr[i];
     return *this;
   }
   /// Performs element wise division
-  CUDA_HOST_DEVICE array<T>& operator/=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator/=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] /= arr[i];
