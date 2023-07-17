@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang -lm -lstdc++ %s  -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
 // RUN: ./Gradients.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

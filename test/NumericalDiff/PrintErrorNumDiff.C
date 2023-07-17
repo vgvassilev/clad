@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang -lm -lstdc++ -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors %s -I%S/../../include -oPrintErrorNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors %s -I%S/../../include -oPrintErrorNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
 // -Xclang -verify 2>&1 RUN: ./PrintErrorNumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

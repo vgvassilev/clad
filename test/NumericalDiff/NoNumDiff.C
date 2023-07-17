@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oNoNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
+// RUN: %cladclang %s -I%S/../../include -oNoNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

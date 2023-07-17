@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -lstdc++ -I%S/../../include -oLoopsAndArraysExec.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oLoopsAndArraysExec.out 2>&1 | FileCheck %s
 // RUN: ./LoopsAndArraysExec.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}

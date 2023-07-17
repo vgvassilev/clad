@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -lstdc++ -I%S/../../include -oVectorMode.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oVectorMode.out 2>&1 | FileCheck %s
 // RUN: ./VectorMode.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

@@ -2,7 +2,7 @@
 // RUN: %cladclang %S/../../demos/ControlFlow.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/DebuggingClad.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include 2>&1
-// RUN: %cladclang -lstdc++ -lm %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
+// RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
 
 
 //-----------------------------------------------------------------------------/
@@ -96,13 +96,13 @@
 //-----------------------------------------------------------------------------/
 // Demo: ODE Solver Sensitivity
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang -lstdc++ %S/../../demos/ODESolverSensitivity.cpp -I%S/../../include -oODESolverSensitivity.out
+// RUN: %cladclang %S/../../demos/ODESolverSensitivity.cpp -I%S/../../include -oODESolverSensitivity.out
 
 //-----------------------------------------------------------------------------/
 // Demo: Error Estimation Float Sum
 //-----------------------------------------------------------------------------/
 
-// RUN: %cladclang -lm -lstdc++ %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include 2>&1  | FileCheck -check-prefix CHECK_FLOAT_SUM %s
+// RUN: %cladclang %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include 2>&1  | FileCheck -check-prefix CHECK_FLOAT_SUM %s
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, clad::array_ref<float> _d_x, clad::array_ref<unsigned int> _d_n, double &_final_error) {
@@ -183,7 +183,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Print Error Estimation Plugin
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang -lstdc++ -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
 // RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/PrintModel/libcladPrintModelPlugin%shlibext \
 // RUN:   %S/../../demos/ErrorEstimation/PrintModel/test.cpp \
 // RUN: -I%S/../../include -oPrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL %s
@@ -226,7 +226,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Gradient Descent
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang -lstdc++ %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
+// RUN: %cladclang %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
 
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
@@ -286,7 +286,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Custom Type Numerical Diff
 //-----------------------------------------------------------------------------/
-// RUN: %cladnumdiffclang -lm -lstdc++ %S/../../demos/CustomTypeNumDiff.cpp -I%S/../../include -oCustomTypeNumDiff.out
+// RUN: %cladnumdiffclang %S/../../demos/CustomTypeNumDiff.cpp -I%S/../../include -oCustomTypeNumDiff.out
 // RUN: ./CustomTypeNumDiff.out | FileCheck -check-prefix CHECK_CUSTOM_NUM_DIFF_EXEC %s
 // CHECK_CUSTOM_NUM_DIFF_EXEC: Result of df/dx is = 0.07
 // CHECK_CUSTOM_NUM_DIFF_EXEC: Result of df/dx is = 0.003
@@ -294,7 +294,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Arrays.cpp
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang %S/../../demos/Arrays.cpp -I%S/../../include -oArrays.out 2>&1 -lstdc++ -lm
+// RUN: %cladclang %S/../../demos/Arrays.cpp -I%S/../../include -oArrays.out 2>&1
 // RUN: ./Arrays.out | FileCheck -check-prefix CHECK_ARRAYS_EXEC %s
 // CHECK_ARRAYS_EXEC: Forward Mode w.r.t. arr:
 // CHECK_ARRAYS_EXEC:  res_arr = 0.17, 0.2, 0.1
