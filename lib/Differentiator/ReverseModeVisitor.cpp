@@ -1527,7 +1527,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       CallArgDx.push_back(argDiff.getExpr_dx());
       // Save cloned arg in a "global" variable, so that it is accessible from
       // the reverse pass.
-      StmtDiff argDiffStore = GlobalStoreAndRef(argDiff.getExpr(), "_t");
+      // FIXME: At this point, we assume all the variables passed by reference
+      // may be changed since we have no way to determine otherwise.
+      StmtDiff argDiffStore =
+        GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/ passByRef);
       // We need to pass the actual argument in the cloned call expression,
       // instead of a temporary, for arguments passed by reference. This is
       // because, callee function may modify the argument passed as reference
@@ -1572,11 +1575,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           auto& block = getCurrentBlock(direction::reverse);
           block.insert(block.begin() + insertionPoint,
                        BuildDeclStmt(argDiffLocalVD));
+          // Restore agrs
+          auto op = BuildOp(BinaryOperatorKind::BO_Assign,
+             argDiff.getExpr(), BuildDeclRef(argDiffLocalVD));
+          block.insert(block.begin() + insertionPoint + 1, op);
+
           Expr* argDiffLocalE = BuildDeclRef(argDiffLocalVD);
 
-          // We added local variable to store result of `clad::pop(...)`. Thus
-          // we need to correspondingly adjust the insertion point.
-          insertionPoint += 1;
+          // We added local variable to store result of `clad::pop(...)` and
+          // restoration of the original arg. Thus we need to correspondingly
+          // adjust the insertion point.
+          insertionPoint += 2;
           // We cannot use the already existing `argDiff.getExpr()` here because
           // it will cause inconsistent pushes and pops to the clad tape.
           // FIXME: Modify `GlobalStoreAndRef` such that its functioning is
@@ -1585,6 +1594,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           Expr* newArgE = Visit(arg).getExpr();
           argDiffStore = {newArgE, argDiffLocalE};
         } else {
+          // Restore args
+          auto& block = getCurrentBlock(direction::reverse);
+          auto op = BuildOp(BinaryOperatorKind::BO_Assign,
+             argDiff.getExpr(), argDiffStore.getExpr());
+          block.insert(block.begin() + insertionPoint, op);
+          // We added restoration of the original arg. Thus we need to
+          // correspondingly adjust the insertion point.
+          insertionPoint += 1;
+
           argDiffStore = {argDiff.getExpr(), argDiffStore.getExpr_dx()};
         }
       }
