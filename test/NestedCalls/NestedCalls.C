@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oNestedCalls.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oNestedCalls.out 2>&1 | FileCheck %s
 // RUN: ./NestedCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

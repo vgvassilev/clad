@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -otesthessUtility.out 2>&1 -lstdc++ -lm | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -otesthessUtility.out 2>&1 | FileCheck %s
 // RUN: ./testhessUtility.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

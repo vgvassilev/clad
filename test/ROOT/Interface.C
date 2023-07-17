@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oInterface.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oInterface.out 2>&1 | FileCheck %s
 // RUN: ./Interface.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -lm -I%S/../../include -oFunctionCalls.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oFunctionCalls.out 2>&1 | FileCheck %s
 // RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
