@@ -110,8 +110,8 @@ std::vector<double> optimize(std::vector<double> theta, Dataset dt,
     std::cout << "Steps #" << currentStep << " Theta 0: " << theta[0]
               << " Theta 1: " << theta[1] << std::endl;
 
-    hasConverged = abs(diff[0] - theta[0]) <= eps &&
-                   abs(diff[1] - theta[1]) <= eps;
+    hasConverged = std::abs(diff[0] - theta[0]) <= eps &&
+                   std::abs(diff[1] - theta[1]) <= eps;
 
     diff = theta;
   } while (currentStep++ < maxSteps && !hasConverged);
