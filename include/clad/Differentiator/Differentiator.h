@@ -206,7 +206,6 @@ namespace clad {
       else
         return "<invalid>";
     }
- 
     void dump() const {
       printf("The code is: \n%s\n", getCode());
     }
