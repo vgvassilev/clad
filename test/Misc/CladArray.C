@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -x c++ -lstdc++ -I%S/../../include -oCladArray.out 2>&1
+// RUN: %cladclang %s -lstdc++ -I%S/../../include -oCladArray.out 2>&1
 // RUN: ./CladArray.out
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
