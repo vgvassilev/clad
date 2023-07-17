@@ -2033,6 +2033,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     auto opCode = UnOp->getOpcode();
     StmtDiff diff{};
+    Expr* E = UnOp->getSubExpr();
     // If it is a post-increment/decrement operator, its result is a reference
     // and we should return it.
     Expr* ResultRef = nullptr;
@@ -2040,23 +2041,35 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // xi = +xj
       // dxi/dxj = +1.0
       // df/dxj += df/dxi * dxi/dxj = df/dxi
-      diff = Visit(UnOp->getSubExpr(), dfdx());
+      diff = Visit(E, dfdx());
     else if (opCode == UO_Minus) {
       // xi = -xj
       // dxi/dxj = -1.0
       // df/dxj += df/dxi * dxi/dxj = -df/dxi
       auto d = BuildOp(UO_Minus, dfdx());
-      diff = Visit(UnOp->getSubExpr(), d);
+      diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
-      diff = Visit(UnOp->getSubExpr(), dfdx());
+      auto EStored = GlobalStoreAndRef(E, "_t", /*force=*/true);
+      auto assign = BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
+      if (isInsideLoop)
+          addToCurrentBlock(EStored.getExpr(), direction::forward);
+      addToCurrentBlock(assign, direction::reverse);
+
+      diff = Visit(E, dfdx());
       ResultRef = diff.getExpr_dx();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
-      diff = Visit(UnOp->getSubExpr(), dfdx());
+      auto EStored = GlobalStoreAndRef(E, "_t", /*force=*/true);
+      auto assign = BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
+      if (isInsideLoop)
+          addToCurrentBlock(EStored.getExpr(), direction::forward);
+      addToCurrentBlock(assign, direction::reverse);
+
+      diff = Visit(E, dfdx());
     } else if (opCode == UnaryOperatorKind::UO_Real ||
                opCode == UnaryOperatorKind::UO_Imag) {
-      diff = VisitWithExplicitNoDfDx(UnOp->getSubExpr());
+      diff = VisitWithExplicitNoDfDx(E);
       ResultRef = BuildOp(opCode, diff.getExpr_dx());
       /// Create and add `__real r += dfdx()` expression.
       if (dfdx()) {
@@ -2079,7 +2092,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           if (MD->isInstance()) {
             auto thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
             if (utils::SameCanonicalType(thisType, UnOp->getType())) {
-              diff = Visit(UnOp->getSubExpr());
+              diff = Visit(E);
               Expr* cloneE =
                   BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr());
               Expr* derivedE =
@@ -2095,11 +2108,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (opCode != UO_LNot)
         unsupportedOpWarn(UnOp->getEndLoc());
 
-      Expr* subExpr = UnOp->getSubExpr();
-      if (isa<DeclRefExpr>(subExpr))
-        diff = Visit(subExpr);
+      if (isa<DeclRefExpr>(E))
+        diff = Visit(E);
       else
-        diff = StmtDiff(subExpr);
+        diff = StmtDiff(E);
     }
     Expr* op = BuildOp(opCode, diff.getExpr());
     return StmtDiff(op, ResultRef);
