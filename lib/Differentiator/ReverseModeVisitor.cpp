@@ -13,7 +13,6 @@
 #include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
-
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/TemplateBase.h"
@@ -28,6 +27,7 @@
 
 #include <algorithm>
 #include <numeric>
+
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
@@ -744,6 +744,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     for (Stmt* S : CS->body()) {
+      std::string cppString="ReturnStmt";
+      const char* cString = S->getStmtClassName();
+      if(cppString.compare(cString) != 0 )
+        hasIfStmts = true; 
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
@@ -752,6 +756,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
+      hasIfStmts = false; 
     }
     CompoundStmt* Forward = endBlock(direction::forward);
     CompoundStmt* Reverse = endBlock(direction::reverse);
@@ -774,6 +779,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
+    // If we encounter an if statement, we cannot omit the goto statements
+   // hasIfStmts = true; //shounak
+    
     // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
     // to this scope.
     beginScope(Scope::DeclScope | Scope::ControlScope);
@@ -1153,14 +1161,30 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
     // skipped. We create a label in the reverse pass and jump to it via goto.
+    LabelDecl* LD = nullptr;
+    if (hasIfStmts) {
+      LD = LabelDecl::Create(
+          m_Context, m_Sema.CurContext, noLoc, CreateUniqueIdentifier("_label"));
+      m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);      
+    }
+    /*
     LabelDecl* LD = LabelDecl::Create(
         m_Context, m_Sema.CurContext, noLoc, CreateUniqueIdentifier("_label"));
     m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);
+    */
     // Attach label to the last Stmt in the corresponding Reverse Stmt.
     if (!Reverse)
       Reverse = m_Sema.ActOnNullStmt(noLoc).get();
-    Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
-    addToCurrentBlock(LS, direction::reverse);
+    if (hasIfStmts) {
+      Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
+      addToCurrentBlock(LS, direction::reverse);
+    }
+    else {
+      addToCurrentBlock(Reverse, direction::reverse);
+    }
+    
+    //Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
+    //addToCurrentBlock(LS, direction::reverse);
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
       addToCurrentBlock(S, direction::forward);
 
@@ -1181,9 +1205,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff,
                                                              retDeclRefExpr);
     }
-
     // Create goto to the label.
-    return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    if (hasIfStmts) {
+      return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();
+    } else {
+      return nullptr;
+    }
   }
 
   StmtDiff ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
