@@ -12,6 +12,7 @@
 #include "BuiltinDerivatives.h"
 #include "CladConfig.h"
 #include "FunctionTraits.h"
+#include "Matrix.h"
 #include "NumericalDiff.h"
 #include "Tape.h"
 

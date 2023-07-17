@@ -169,4 +169,38 @@ int main() {
   // CHECK-EXEC: 0 : 0.00
   // CHECK-EXEC: 1 : 1.00
   // CHECK-EXEC: 2 : 0.00
+
+  // Create a slice of double_test_arr2 and modify one of its elements.
+  // This should modify the original array.
+  clad::array<double> double_test_arr2_slice = double_test_arr2.slice(1, 2);
+  double_test_arr2_slice[0] = 2;
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr2[i]);
+  }
+  // CHECK-EXEC: 0 : 0.00
+  // CHECK-EXEC: 1 : 2.00
+  // CHECK-EXEC: 2 : 0.00
+
+  // Create a clad array from pointer with copy=true and modify
+  // one of its elements. This should not modify the original array.
+  double double_test_arr3[] = {1, 2, 3};
+  clad::array<double> double_test_arr4(double_test_arr3, 3, true);
+  double_test_arr4[0] = 2;
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr3[i]);
+  }
+  // CHECK-EXEC: 0 : 1.00
+  // CHECK-EXEC: 1 : 2.00
+  // CHECK-EXEC: 2 : 3.00
+
+  // Create a clad array from pointer with copy=false and modify
+  // one of its elements. This should modify the original array.
+  clad::array<double> double_test_arr5(double_test_arr3, 3, false);
+  double_test_arr5[0] = 2;
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr3[i]);
+  }
+  // CHECK-EXEC: 0 : 2.00
+  // CHECK-EXEC: 1 : 2.00
+  // CHECK-EXEC: 2 : 3.00
 }
