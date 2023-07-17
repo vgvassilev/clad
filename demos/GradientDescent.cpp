@@ -9,12 +9,12 @@
 
 // To run the demo please type:
 // path/to/clang++  -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang \
-// path/to/libclad.so  -I../include/ -x c++ -lstdc++ -lm GradientDescent.cpp
+// path/to/libclad.so  -I../include/ GradientDescent.cpp
 //
 // A typical invocation would be:
 // ../../../../obj/Debug+Asserts/bin/clang++  -Xclang -add-plugin -Xclang clad \
 // -Xclang -load -Xclang ../../../../obj/Debug+Asserts/lib/libclad.dylib     \
-// -I../include/ -x c++ -lstdc++ -lm GradientDescent.cpp
+// -I../include/ GradientDescent.cpp
 //
 // To plot the results install gnuplot and type:
 // gnuplot -e "plot 'dataset_gd.dat' with points pt 7; replot 'out_gd.dat' \

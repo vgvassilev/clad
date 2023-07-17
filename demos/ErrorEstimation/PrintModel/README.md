@@ -34,7 +34,7 @@ Now, to use your custom estimation model, you can just specify the `.so` created
 So a typical invocation to clad would then look like the following:
 
 ```bash
-clang -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/clad.so -ICLAD_INST/include -x c++ -lstdc++ -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad -Xclang ./libPrintModel.so CLAD_BASE/demos/PrintModel/test.cpp
+clang++ -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/clad.so -ICLAD_INST/include -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model -Xclang -plugin-arg-clad -Xclang ./libPrintModel.so CLAD_BASE/demos/PrintModel/test.cpp
 ```
 ## Verifying results
 
