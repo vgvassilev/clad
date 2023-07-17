@@ -162,7 +162,8 @@ namespace clad {
         clang::DeclContext const* declContext = static_cast<clang::DeclContext const*>(recordDecl);
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
         NestedNameSpecifier* NS = CSS.getScopeRep();
-        return C.getElaboratedType(ETK_None, NS->getPrefix(), QT);
+        if (auto* Prefix = NS->getPrefix())
+          return C.getElaboratedType(ETK_None, Prefix, QT);
       }
       return QT;
     }
