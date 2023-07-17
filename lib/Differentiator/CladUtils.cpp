@@ -395,7 +395,8 @@ namespace clad {
                   SourceRange(), false, noLoc, MultiExprArg(), noLoc,
                   SourceRange(), qType, TSI,
                   (arraySize ? arraySize : clad_compat::ArraySize_None()),
-                  GetValidSRange(semaRef), initializer)
+                  initializer ? GetValidSRange(semaRef) : SourceRange(),
+                  initializer)
               .getAs<CXXNewExpr>();
       return newExpr;
     }
