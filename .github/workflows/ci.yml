@@ -3,10 +3,12 @@ on:
   push:
     branches:
       - master
+      - tape-push
       - coverity_scan
   pull_request:
     branches:
       - master
+      - tape-push
       - coverity_scan
 
 concurrency:
