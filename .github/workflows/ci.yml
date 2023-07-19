@@ -38,11 +38,13 @@ jobs:
           chmod +x git-clang-format
       - name: Run git-clang-format
         run: |
+          PR_BASE=$(git rev-list ${{ github.event.pull_request.head.sha }} ^${{ github.event.pull_request.base.sha }} | tail --lines 1 | xargs -I {} git rev-parse {}~1)
+          echo "running git clang-format against $PR_BASE commit"
           git \
           -c color.ui=always \
           -c diff.wsErrorHighlight=all \
           -c color.diff.whitespace='red reverse' \
-          clang-format-15 --diff --binary clang-format-15 origin/master -- demos/ include/ lib/ tools/ || \
+          clang-format-15 --diff --binary clang-format-15 --commit $PR_BASE -- demos/ include/ lib/ tools/ || \
           (echo "Please run the following git-clang-format locally to fix the formatting: \n
                 git clang-format origin/master -- demos/ include/ lib/ tools/" && exit 1)
   build:
@@ -82,12 +84,12 @@ jobs:
             os: macos-latest
             compiler: clang
             clang-runtime: '14'
-            
+
           - name: osx-clang-runtime15
             os: macos-latest
             compiler: clang
             clang-runtime: '15'
-            
+
           - name: osx-clang-runtime16
             os: macos-latest
             compiler: clang
@@ -414,7 +416,7 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-15
             clang-runtime: '14'
-          
+
           - name: ubu22-clang15-runtime15
             os: ubuntu-22.04
             compiler: clang-15
@@ -614,15 +616,15 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
     - name: Setup CUDA 8 on Linux
       if: ${{ matrix.cuda == true }}
-      run: |     
-        wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/local_installers/cuda_8.0.61_375.26_linux-run 
+      run: |
+        wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/local_installers/cuda_8.0.61_375.26_linux-run
         wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/patches/2/cuda_8.0.61.2_linux-run
         sh ./cuda_8.0.61_375.26_linux-run --tar mxvf
         sudo cp InstallUtils.pm /usr/lib/x86_64-linux-gnu/perl-base
         export $PERL5LIB
-        sudo sh cuda_8.0.61_375.26_linux-run --override --no-opengl-lib --silent --toolkit --kernel-source-path=/lib/modules/4.15.0-1113-azure/build 
-        sudo sh cuda_8.0.61.2_linux-run --silent --accept-eula 
-        export PATH=/usr/local/cuda-8.0/bin:${PATH} 
+        sudo sh cuda_8.0.61_375.26_linux-run --override --no-opengl-lib --silent --toolkit --kernel-source-path=/lib/modules/4.15.0-1113-azure/build
+        sudo sh cuda_8.0.61.2_linux-run --silent --accept-eula
+        export PATH=/usr/local/cuda-8.0/bin:${PATH}
         export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-8.0/lib64
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
         echo "PATH=$PATH" >> $GITHUB_ENV
