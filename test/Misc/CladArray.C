@@ -1,5 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oCladArray.out 2>&1
-// RUN: ./CladArray.out
+// RUN: ./CladArray.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -28,7 +28,7 @@ int main() {
   for (int i = 0; i < 3; i++) {
     printf("%d : %d\n", i, test_arr[i]);
   }
-  //CHECK-EXEC: 0 : 2
+  //CHECK-EXEC: 0 : 1
   //CHECK-EXEC: 1 : 2
   //CHECK-EXEC: 2 : 3
 
