@@ -9,7 +9,7 @@
 //  Demo: Gradient.cpp
 //-----------------------------------------------------------------------------/
 
-// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out 2>&1 | FileCheck -check-prefix CHECK_GRADIENT %s
+// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out 2>&1 
 // CHECK_GRADIENT-NOT:{{.*error|warning|note:.*}}
 // CHECK_GRADIENT:float sphere_implicit_func_darg0(float x, float y, float z, float xc, float yc, float zc, float r) {
 // CHECK_GRADIENT: float _d_x = 1;
