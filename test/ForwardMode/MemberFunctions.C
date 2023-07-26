@@ -726,7 +726,102 @@ public:
   // CHECK-NEXT:       p = this->arr[1];
   // CHECK-NEXT:       return _d_i;
   // CHECK-NEXT:   }
+
+  SimpleFunctions operator+=(double value) noexcept {
+      this->x += value;
+      this->y += value;
+      return *this;
+  }
+
+  SimpleFunctions& operator-=(double value) noexcept {
+      this->x -= value;
+      this->y -= value;
+      return *this;
+  }
+
+  SimpleFunctions& operator*=(double value) noexcept {
+    this->x *= value;
+    this->y *= value;
+    return *this;
+  }
+
 };
+
+namespace clad {
+namespace custom_derivatives {
+namespace class_functions {
+template <typename T, typename U>
+clad::ValueAndPushforward<T, T> operator_plus_equal_pushforward(T* v, U value, T* d_v, U _d_value) noexcept {
+    d_v->x += _d_value;
+    v->x += value;
+    d_v->y += _d_value;
+    v->y += value;
+    return {*v, *d_v};
+}
+
+template <typename T, typename U>
+clad::ValueAndPushforward<T&, T&> operator_minus_equal_pushforward(T* v, U value, T* d_v, U _d_value) noexcept {
+    d_v->x -= _d_value;
+    v->x -= value;
+    d_v->y -= _d_value;
+    v->y -= value;
+    return {*v, *d_v};
+}
+
+template <typename T, typename U>
+clad::ValueAndPushforward<T&, T&> operator_star_equal_pushforward(T* v, U value, T* d_v, U _d_value) noexcept {
+    double &_t0 = d_v->x;
+    double &_t1 = v->x;
+    _t0 = _t0 * value + _t1 * _d_value;
+    _t1 *= value;
+
+    double &_t2 = d_v->y;
+    double &_t3 = v->y;
+    _t2 = _t2 * value + _t3 * _d_value;
+    _t3 *= value;
+
+    return {*v, *d_v};
+}
+}
+}
+}
+
+double addValueToSimpleFunction(SimpleFunctions v, double value) {
+    v += value;
+    return v.x;
+}
+
+double subtractValueFromSimpleFunction(SimpleFunctions v, double value) {
+    v -= value;
+    return v.x;
+}
+
+double multiplySimpleFunctionByValue(SimpleFunctions v, double value) {
+    v *= value;
+    return v.x;
+}
+
+  // CHECK:   double addValueToSimpleFunction_darg1(SimpleFunctions v, double value) {
+  // CHECK-NEXT:       SimpleFunctions _d_v;
+  // CHECK-NEXT:       double _d_value = 1;
+  // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions, SimpleFunctions> _t0 = clad::custom_derivatives::class_functions::operator_plus_equal_pushforward(&v, value, &_d_v, _d_value);
+  // CHECK-NEXT:       return _d_v.x;
+  // CHECK-NEXT:   }
+
+  // CHECK:   double subtractValueFromSimpleFunction_darg1(SimpleFunctions v, double value) {
+  // CHECK-NEXT:       SimpleFunctions _d_v;
+  // CHECK-NEXT:       double _d_value = 1;
+  // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions &, SimpleFunctions &> _t0 = clad::custom_derivatives::class_functions::operator_minus_equal_pushforward(&v, value, &_d_v, _d_value);
+  // CHECK-NEXT:       return _d_v.x;
+  // CHECK-NEXT:   }
+
+  // CHECK:   double multiplySimpleFunctionByValue_darg1(SimpleFunctions v, double value) {
+  // CHECK-NEXT:       SimpleFunctions _d_v;
+  // CHECK-NEXT:       double _d_value = 1;
+  // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions &, SimpleFunctions &> _t0 = clad::custom_derivatives::class_functions::operator_star_equal_pushforward(&v, value, &_d_v, _d_value);
+  // CHECK-NEXT:       return _d_v.x;
+  // CHECK-NEXT:   }
+
 
 #define TEST(name,i,j) \
   auto d_##name = clad::differentiate(&SimpleFunctions::name,"i");\
@@ -899,4 +994,11 @@ int main() {
                                                                                 // CHECK-EXEC: 33.00
 
   auto d_use_mem_var = clad::differentiate(&SimpleFunctions::use_mem_var, "i");
+
+  SimpleFunctions sf(2, 3);
+  auto d_addValueToSimpleFunction = clad::differentiate(addValueToSimpleFunction, "value");
+  auto d_subtractValueFromSimpleFunction = clad::differentiate(subtractValueFromSimpleFunction, "value");
+  auto d_multiplySimpleFunctionByValue = clad::differentiate(multiplySimpleFunctionByValue, "value");
+
+  printf("%.2f %.2f %.2f\n", d_addValueToSimpleFunction.execute(sf, 3), d_subtractValueFromSimpleFunction.execute(sf, 3), d_multiplySimpleFunctionByValue.execute(sf, 3));  // CHECK-EXEC: 1.00 -1.00 2.00
 }

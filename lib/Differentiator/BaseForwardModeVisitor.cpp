@@ -1033,7 +1033,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   }
 
   // Try to find a user-defined overloaded derivative.
-  std::string customPushforward = FD->getNameAsString() + "_pushforward";
+  std::string customPushforward =
+      clad::utils::ComputeEffectiveFnName(FD) + "_pushforward";
   Expr* callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
       customPushforward, customDerivativeArgs, getCurrentScope(),
       const_cast<DeclContext*>(FD->getDeclContext()));
