@@ -25,8 +25,6 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     _t5 = this->y;
 // CHECK-NEXT:     _t4 = j;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -73,8 +71,6 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     _t7 = j;
 // CHECK-NEXT:     _t9 = _t8 * _t7;
 // CHECK-NEXT:     _t6 = i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         long double _r0 = 1 * _t0;
 // CHECK-NEXT:         long double _r1 = _r0 * _t1;
@@ -117,8 +113,6 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     _t5 = this->y;
 // CHECK-NEXT:     _t4 = j;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -165,8 +159,6 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK-NEXT:     _t7 = j;
 // CHECK-NEXT:     _t9 = _t8 * _t7;
 // CHECK-NEXT:     _t6 = i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         long double _r0 = 1 * _t0;
 // CHECK-NEXT:         long double _r1 = _r0 * _t1;

@@ -30,8 +30,6 @@ float func(float* p, int n) {
 //CHECK-NEXT:         sum += p[clad::push(_t1, i)];
 //CHECK-NEXT:         clad::push(_EERepl_sum1, sum);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -87,8 +85,6 @@ float func2(float x) {
 //CHECK-NEXT:         z = m + m;
 //CHECK-NEXT:         clad::push(_EERepl_z1, z);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -139,8 +135,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:     _EERepl_arr1 = arr[1];
 //CHECK-NEXT:     arr[2] = arr[0] + arr[1];
 //CHECK-NEXT:     _EERepl_arr2 = arr[2];
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_arr[2] += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r_d2 = _d_arr[2];
@@ -213,8 +207,6 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         sum += x[clad::push(_t5, i)];
 //CHECK-NEXT:         clad::push(_EERepl_sum1, sum);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -306,8 +298,6 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     output[2] = _t9 * _t8 - _t11 * _t10;
 //CHECK-NEXT:     _EERepl_output3 = output[2];
 //CHECK-NEXT:     _ret_value0 = output[0] + output[1] + output[2];
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_output[0] += 1;
 //CHECK-NEXT:         _d_output[1] += 1;

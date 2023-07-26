@@ -24,8 +24,6 @@ double addArr(double *arr, int n) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         ret += arr[clad::push(_t1, i)];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_ret += _d_y;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -45,8 +43,6 @@ double f(double *arr) {
 //CHECK:   void f_grad(double *arr, clad::array_ref<double> _d_arr) {
 //CHECK-NEXT:       double *_t0;
 //CHECK-NEXT:       _t0 = arr;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         int _grad1 = 0;
 //CHECK-NEXT:         addArr_pullback(_t0, 3, 1, _d_arr, &_grad1);
@@ -82,8 +78,6 @@ float func(float* a, float* b) {
 //CHECK-NEXT:         _ref0 *= clad::push(_t3, b[clad::push(_t5, i)]);
 //CHECK-NEXT:         sum += a[clad::push(_t7, i)];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {
@@ -113,8 +107,6 @@ float helper(float x) {
 // CHECK: void helper_pullback(float x, float _d_y, clad::array_ref<float> _d_x) {
 // CHECK-NEXT:     float _t0;
 // CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = _d_y * _t0;
 // CHECK-NEXT:         float _r1 = 2 * _d_y;
@@ -141,8 +133,6 @@ float func2(float* a) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += helper(clad::push(_t3, a[clad::push(_t1, i)]));
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         float _r_d0 = _d_sum;
@@ -175,8 +165,6 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         sum += (a[clad::push(_t1, i)] += b[clad::push(_t3, i)]);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         float _r_d0 = _d_sum;
@@ -221,8 +209,6 @@ double func4(double x) {
 //CHECK-NEXT:         clad::push(_t4, arr , 3UL);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t3; _t3--) {
 //CHECK-NEXT:         {
@@ -286,8 +272,6 @@ double func5(int k) {
 //CHECK-NEXT:         clad::push(_t4, arr , n);
 //CHECK-NEXT:         sum += addArr(arr, clad::push(_t5, n));
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t3; _t3--) {
 //CHECK-NEXT:         {
@@ -339,8 +323,6 @@ double func6(double seed) {
 //CHECK-NEXT:         clad::push(_t3, arr , 3UL);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         {

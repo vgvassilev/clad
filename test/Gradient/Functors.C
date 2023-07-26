@@ -21,8 +21,6 @@ struct Experiment {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -52,8 +50,6 @@ struct ExperimentConst {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -88,8 +84,6 @@ struct ExperimentVolatile {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -124,8 +118,6 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -157,8 +149,6 @@ struct ExperimentNNS {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -215,8 +205,6 @@ int main() {
   // CHECK-NEXT:     _t1 = i;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;
@@ -239,8 +227,6 @@ int main() {
   // CHECK-NEXT:     _t1 = ii;
   // CHECK-NEXT:     _t3 = _t2 * _t1;
   // CHECK-NEXT:     _t0 = j;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 1 * _t0;
   // CHECK-NEXT:         double _r1 = _r0 * _t1;

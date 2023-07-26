@@ -14,7 +14,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
-
+#include "clang/AST/ParentMapContext.h"  
 #include <array>
 #include <memory>
 #include <stack>
@@ -91,6 +91,9 @@ namespace clad {
 
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
+    
+    // Whether Stmt is Return and not inside any block;
+    bool OnlyReturn = false;
 
   public:
     using direction = rmv::direction;
