@@ -161,4 +161,12 @@ int main() {
   // CHECK-EXEC: 0 : 2.00
   // CHECK-EXEC: 1 : 2.00
   // CHECK-EXEC: 2 : 2.00
+
+  clad::array<double> double_test_arr2 = clad::one_hot_vector<double> (3, 1);
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr2[i]);
+  }
+  // CHECK-EXEC: 0 : 0.00
+  // CHECK-EXEC: 1 : 1.00
+  // CHECK-EXEC: 2 : 0.00
 }

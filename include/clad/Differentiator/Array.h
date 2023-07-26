@@ -246,6 +246,22 @@ public:
   CUDA_HOST_DEVICE operator T*() const { return m_arr; }
 }; // class array
 
+// Function to instantiate a one-hot array of size n with 1 at index i.
+// A one-hot vector is a vector with all elements set to 0 except for one
+// element which is set to 1.
+// For example, if n=4 and i=2, the returned array is: {0, 0, 1, 0}
+template <typename T>
+CUDA_HOST_DEVICE array<T> one_hot_vector(std::size_t n, std::size_t i) {
+  array<T> arr(n);
+  arr[i] = 1;
+  return arr;
+}
+
+// Function to instantiate a zero vector of size n
+template <typename T> CUDA_HOST_DEVICE array<T> zero_vector(std::size_t n) {
+  return array<T>(n);
+}
+
 /// Overloaded operators for clad::array which return a new array.
 
 /// Multiplies the number to every element in the array and returns a new

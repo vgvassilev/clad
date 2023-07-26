@@ -3,6 +3,8 @@
 #include "ConstantFolder.h"
 #include "clad/Differentiator/CladUtils.h"
 
+#include "clang/AST/TemplateName.h"
+#include "clang/Sema/Lookup.h"
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -99,13 +101,13 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
         m_IndependentVars[independentVarIndex] == m_Function->getParamDecl(i)) {
       // This parameter is an independent variable.
       // Create a one hot vector for the parameter.
-      dVectorParam =
-          getOneHotInitExpr(independentVarIndex, m_IndependentVars.size());
+      dVectorParam = getOneHotInitExpr(independentVarIndex,
+                                       m_IndependentVars.size(), dParamType);
       ++independentVarIndex;
     } else {
       // This parameter is not an independent variable.
       // Initialize by all zeros.
-      dVectorParam = getZeroInitListExpr(m_IndependentVars.size());
+      dVectorParam = getZeroInitListExpr(m_IndependentVars.size(), dParamType);
     }
 
     // For each function arg to be differentiated, create a variable
@@ -139,28 +141,166 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   m_Sema.PopDeclContext();
   endScope(); // Function decl scope
 
-  return DerivativeAndOverload{vectorDiffFD, nullptr};
+  // Create the overload declaration for the derivative.
+  FunctionDecl* overloadFD = CreateVectorModeOverload();
+  return DerivativeAndOverload{vectorDiffFD, overloadFD};
+}
+
+clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
+  auto vectorModeParams = m_Derivative->parameters();
+  auto vectorModeNameInfo = m_Derivative->getNameInfo();
+
+  // Calculate the total number of parameters that would be required for
+  // automatic differentiation in the derived function if all args are
+  // requested.
+  std::size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
+  std::size_t numDerivativeParams = m_Function->getNumParams();
+
+  // Generate the function type for the derivative.
+  llvm::SmallVector<clang::QualType, 8> paramTypes;
+  paramTypes.reserve(totalDerivedParamsSize);
+  for (auto* PVD : m_Function->parameters()) {
+    paramTypes.push_back(PVD->getType());
+  }
+
+  // instantiate output parameter type as void*
+  QualType outputParamType = m_Context.getPointerType(m_Context.VoidTy);
+
+  // Push param types for derived params.
+  for (std::size_t i = 0; i < m_Function->getNumParams(); ++i)
+    paramTypes.push_back(outputParamType);
+
+  auto vectorModeFuncOverloadEPI =
+      dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo();
+  QualType vectorModeFuncOverloadType = m_Context.getFunctionType(
+      m_Context.VoidTy,
+      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
+      vectorModeFuncOverloadEPI);
+
+  // Create the function declaration for the derivative.
+  auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+  m_Sema.CurContext = DC;
+  DeclWithContext result =
+      m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
+                              vectorModeNameInfo, vectorModeFuncOverloadType);
+  FunctionDecl* vectorModeOverloadFD = result.first;
+
+  // Function declaration scope
+  beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+             Scope::DeclScope);
+  m_Sema.PushFunctionScope();
+  m_Sema.PushDeclContext(getCurrentScope(), vectorModeOverloadFD);
+
+  llvm::SmallVector<ParmVarDecl*, 4> overloadParams;
+  overloadParams.reserve(totalDerivedParamsSize);
+
+  llvm::SmallVector<Expr*, 4> callArgs; // arguments to the call the requested
+                                        // vectormode function.
+  callArgs.reserve(vectorModeParams.size());
+
+  for (auto* PVD : m_Function->parameters()) {
+    auto* VD = utils::BuildParmVarDecl(
+        m_Sema, vectorModeOverloadFD, PVD->getIdentifier(), PVD->getType(),
+        PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
+    overloadParams.push_back(VD);
+    callArgs.push_back(BuildDeclRef(VD));
+  }
+
+  for (std::size_t i = 0; i < numDerivativeParams; ++i) {
+    ParmVarDecl* PVD = nullptr;
+    std::size_t effectiveIndex = m_Function->getNumParams() + i;
+
+    if (effectiveIndex < vectorModeParams.size()) {
+      // This parameter represents an actual derivative parameter.
+      auto* OriginalVD = vectorModeParams[effectiveIndex];
+      PVD = utils::BuildParmVarDecl(
+          m_Sema, vectorModeOverloadFD,
+          CreateUniqueIdentifier("_temp_" + OriginalVD->getNameAsString()),
+          outputParamType, OriginalVD->getStorageClass());
+    } else {
+      PVD = utils::BuildParmVarDecl(
+          m_Sema, vectorModeOverloadFD,
+          CreateUniqueIdentifier("_d_" + std::to_string(i)), outputParamType,
+          StorageClass::SC_None);
+    }
+    overloadParams.push_back(PVD);
+  }
+
+  for (auto* PVD : overloadParams) {
+    if (PVD->getIdentifier())
+      m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
+                               /*AddToContext=*/false);
+  }
+
+  vectorModeOverloadFD->setParams(overloadParams);
+  vectorModeOverloadFD->setBody(/*B=*/nullptr);
+
+  // Create the body of the derivative.
+  beginScope(Scope::FnScope | Scope::DeclScope);
+  m_DerivativeFnScope = getCurrentScope();
+  beginBlock();
+
+  // Build derivatives to be used in the call to the actual derived function.
+  // These are initialised by effectively casting the derivative parameters of
+  // overloaded derived function to the correct type.
+  for (std::size_t i = m_Function->getNumParams(); i < vectorModeParams.size();
+       ++i) {
+    auto* overloadParam = overloadParams[i];
+    auto* vectorModeParam = vectorModeParams[i];
+
+    // Create a cast expression to cast the derivative parameter to the correct
+    // type.
+    auto* castExpr =
+        m_Sema
+            .BuildCXXNamedCast(
+                noLoc, tok::TokenKind::kw_static_cast,
+                m_Context.getTrivialTypeSourceInfo(vectorModeParam->getType()),
+                BuildDeclRef(overloadParam), noLoc, noLoc)
+            .get();
+    auto* vectorModeVD =
+        BuildVarDecl(vectorModeParam->getType(),
+                     vectorModeParam->getNameAsString(), castExpr);
+    callArgs.push_back(BuildDeclRef(vectorModeVD));
+    addToCurrentBlock(BuildDeclStmt(vectorModeVD));
+  }
+
+  Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
+                                           /*UseRefQualifiedThisObj=*/true);
+  addToCurrentBlock(callExpr);
+  Stmt* vectorModeOverloadBody = endBlock();
+
+  vectorModeOverloadFD->setBody(vectorModeOverloadBody);
+
+  endScope(); // Function body scope
+  m_Sema.PopFunctionScopeInfo();
+  m_Sema.PopDeclContext();
+  endScope(); // Function decl scope
+
+  return vectorModeOverloadFD;
 }
 
 clang::Expr* VectorForwardModeVisitor::getOneHotInitExpr(size_t index,
-                                                         size_t size) {
-  // define a vector of size `size` with all elements set to 0,
-  // except for the element at `index` which is set to 1.
-  auto zero =
-      ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
-  auto one =
-      ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 1);
-  llvm::SmallVector<clang::Expr*, 8> oneHotInitList(size, zero);
-  oneHotInitList[index] = one;
-  return m_Sema.ActOnInitList(m_Function->getLocation(), llvm::MutableArrayRef<clang::Expr*>(oneHotInitList), m_Function->getLocation()).get();
+                                                         size_t size,
+                                                         clang::QualType type) {
+  // Build call expression for one_hot
+  llvm::SmallVector<Expr*, 2> args = {
+      ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy, m_Context,
+                                        size),
+      ConstantFolder::synthesizeLiteral(m_Context.UnsignedLongTy, m_Context,
+                                        index)};
+  return BuildCallExprToCladFunction("one_hot_vector", args, {type},
+                                     m_Function->getLocation());
 }
 
-clang::Expr* VectorForwardModeVisitor::getZeroInitListExpr(size_t size) {
+clang::Expr*
+VectorForwardModeVisitor::getZeroInitListExpr(size_t size,
+                                              clang::QualType type) {
   // define a vector of size `size` with all elements set to 0.
-  auto zero =
-      ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
-  llvm::SmallVector<clang::Expr*, 8> zeroInitList(size, zero);
-  return m_Sema.ActOnInitList(m_Function->getLocation(), llvm::MutableArrayRef<clang::Expr*>(zeroInitList), m_Function->getLocation()).get();
+  // Build call expression for zero_vector
+  llvm::SmallVector<Expr*, 2> args = {ConstantFolder::synthesizeLiteral(
+      m_Context.UnsignedLongTy, m_Context, size)};
+  return BuildCallExprToCladFunction("zero_vector", args, {type},
+                                     m_Function->getLocation());
 }
 
 llvm::SmallVector<clang::ParmVarDecl*, 8>
@@ -196,7 +336,7 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                /*AddToContext=*/false);
 
-    m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD),     m_Function->getLocation());
+    m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
   }
   // insert the derivative parameters at the end of the parameter list.
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
@@ -231,7 +371,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     auto dParamValue =
         m_Sema
             .ActOnArraySubscriptExpr(getCurrentScope(), dVectorRef,
-                                     dVectorRef->getExprLoc(), indexExpr, m_Function->getLocation())
+                                     dVectorRef->getExprLoc(), indexExpr, noLoc)
             .get();
     // Create an assignment expression to assign the ith element of the
     // return vector to the derivative of the ith parameter.
@@ -241,7 +381,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   }
   // Add an empty return statement to the array of statements.
   returnStmts.push_back(
-      m_Sema.ActOnReturnStmt(m_Function->getLocation(), nullptr, getCurrentScope()).get());
+      m_Sema.ActOnReturnStmt(noLoc, nullptr, getCurrentScope()).get());
 
   // Create a return statement from the compound statement.
   Stmt* returnStmt = MakeCompoundStmt(returnStmts);
@@ -276,13 +416,13 @@ VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
           .ActOnCXXTypeConstructExpr(
               OpaquePtr<QualType>::make(
                   GetCladArrayOfType(utils::GetValueType(VD->getType()))),
-              m_Function->getLocation(), args, m_Function->getLocation(), false)
+              noLoc, args, noLoc, false)
           .get();
 
   VarDecl* VDDerived =
       BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
                    "_d_vector_" + VD->getNameAsString(), constructorCallExpr,
-                   true, nullptr, VarDecl::InitializationStyle::CallInit);
+                   false, nullptr, VarDecl::InitializationStyle::CallInit);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return VarDeclDiff(VDClone, VDDerived);
