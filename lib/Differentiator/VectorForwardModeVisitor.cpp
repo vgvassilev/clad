@@ -35,7 +35,8 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
     }
   }
   IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
-  DeclarationNameInfo name(II, noLoc);
+  SourceLocation loc{m_Function->getLocation()};
+  DeclarationNameInfo name(II, loc);
 
   // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
@@ -65,7 +66,7 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
-      m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, noLoc,
+      m_Builder.cloneFunction(m_Function, *this, DC, m_Sema, m_Context, loc,
                               name, vectorDiffFunctionType);
   FunctionDecl* vectorDiffFD = result.first;
   m_Derivative = vectorDiffFD;
@@ -151,7 +152,7 @@ clang::Expr* VectorForwardModeVisitor::getOneHotInitExpr(size_t index,
       ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 1);
   llvm::SmallVector<clang::Expr*, 8> oneHotInitList(size, zero);
   oneHotInitList[index] = one;
-  return m_Sema.ActOnInitList(noLoc, oneHotInitList, noLoc).get();
+  return m_Sema.ActOnInitList(m_Function->getLocation(), llvm::MutableArrayRef<clang::Expr*>(oneHotInitList), m_Function->getLocation()).get();
 }
 
 clang::Expr* VectorForwardModeVisitor::getZeroInitListExpr(size_t size) {
@@ -159,7 +160,7 @@ clang::Expr* VectorForwardModeVisitor::getZeroInitListExpr(size_t size) {
   auto zero =
       ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
   llvm::SmallVector<clang::Expr*, 8> zeroInitList(size, zero);
-  return m_Sema.ActOnInitList(noLoc, zeroInitList, noLoc).get();
+  return m_Sema.ActOnInitList(m_Function->getLocation(), llvm::MutableArrayRef<clang::Expr*>(zeroInitList), m_Function->getLocation()).get();
 }
 
 llvm::SmallVector<clang::ParmVarDecl*, 8>
@@ -195,7 +196,7 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                /*AddToContext=*/false);
 
-    m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD), noLoc);
+    m_ParamVariables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD),     m_Function->getLocation());
   }
   // insert the derivative parameters at the end of the parameter list.
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
@@ -230,7 +231,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     auto dParamValue =
         m_Sema
             .ActOnArraySubscriptExpr(getCurrentScope(), dVectorRef,
-                                     dVectorRef->getExprLoc(), indexExpr, noLoc)
+                                     dVectorRef->getExprLoc(), indexExpr, m_Function->getLocation())
             .get();
     // Create an assignment expression to assign the ith element of the
     // return vector to the derivative of the ith parameter.
@@ -240,7 +241,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   }
   // Add an empty return statement to the array of statements.
   returnStmts.push_back(
-      m_Sema.ActOnReturnStmt(noLoc, nullptr, getCurrentScope()).get());
+      m_Sema.ActOnReturnStmt(m_Function->getLocation(), nullptr, getCurrentScope()).get());
 
   // Create a return statement from the compound statement.
   Stmt* returnStmt = MakeCompoundStmt(returnStmts);
@@ -275,13 +276,13 @@ VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
           .ActOnCXXTypeConstructExpr(
               OpaquePtr<QualType>::make(
                   GetCladArrayOfType(utils::GetValueType(VD->getType()))),
-              noLoc, args, noLoc, false)
+              m_Function->getLocation(), args, m_Function->getLocation(), false)
           .get();
 
   VarDecl* VDDerived =
       BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
                    "_d_vector_" + VD->getNameAsString(), constructorCallExpr,
-                   false, nullptr, VarDecl::InitializationStyle::CallInit);
+                   true, nullptr, VarDecl::InitializationStyle::CallInit);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return VarDeclDiff(VDClone, VDDerived);
