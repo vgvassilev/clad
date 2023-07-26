@@ -735,7 +735,7 @@ namespace clad {
 
   template <class ReturnType, class... Args>
   struct ExtractDerivedFnTraitsVecForwMode<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputVecParamType_t<Args, ReturnType>...);
+    using type = void (*)(Args..., OutputVecParamType_t<Args, void>...);
   };
 
   /// Specialization for free function pointer type

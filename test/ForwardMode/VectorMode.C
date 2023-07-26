@@ -12,8 +12,8 @@ double f1(double x, double y) {
 void f1_dvec(double x, double y, double *_d_x, double *_d_y);
 
 // CHECK: void f1_dvec(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(2UL, 1UL);
 // CHECK-NEXT:   double _t0 = x * y;
 // CHECK-NEXT:   double _t1 = (x + y + 1);
 // CHECK-NEXT:   {
@@ -34,8 +34,8 @@ double f2(double x, double y) {
 void f2_dvec(double x, double y, double *_d_x, double *_d_y);
 
 // CHECK: void f2_dvec(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(2UL, 1UL);
 // CHECK-NEXT:   clad::array<double> _d_vector_temp1(clad::array<double>(2UL, _d_vector_x * y + x * _d_vector_y));
 // CHECK-NEXT:   double temp1 = x * y;
 // CHECK-NEXT:   clad::array<double> _d_vector_temp2(clad::array<double>(2UL, _d_vector_x + _d_vector_y + 0));
@@ -59,8 +59,8 @@ double f3(double x, double y) {
 void f3_dvec(double x, double y, double *_d_x, double *_d_y);
 
 // CHECK: void f3_dvec(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(2UL, 1UL);
 // CHECK-NEXT:   if (y < 0) {
 // CHECK-NEXT:     _d_vector_y = - _d_vector_y;
 // CHECK-NEXT:     y = -y;
@@ -89,8 +89,8 @@ double f4(double lower, double upper) {
 void f4_dvec(double lower, double upper, double *_d_lower, double *_d_upper);
 
 // CHECK: void f4_dvec(double lower, double upper, double *_d_lower, double *_d_upper) {
-// CHECK-NEXT:   clad::array<double> _d_vector_lower = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_upper = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_lower = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_upper = clad::one_hot_vector(2UL, 1UL);
 // CHECK-NEXT:   clad::array<double> _d_vector_sum(clad::array<double>(2UL, 0));
 // CHECK-NEXT:   double sum = 0;
 // CHECK-NEXT:   clad::array<double> _d_vector_num_points(clad::array<double>(2UL, 0));
@@ -120,9 +120,9 @@ double f5(double x, double y, double z) {
 
 // all
 // CHECK: void f5_dvec(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(3UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(3UL, 1UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_z = clad::one_hot_vector(3UL, 2UL);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
 // CHECK-NEXT:     *_d_x = _d_vector_return[0];
@@ -133,9 +133,9 @@ double f5(double x, double y, double z) {
 
 // x, y
 // CHECK: void f5_dvec_0_1(double x, double y, double z, double *_d_x, double *_d_y) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 1.};
-// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 0.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(2UL, 1UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_z = clad::zero_vector(2UL);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
 // CHECK-NEXT:     *_d_x = _d_vector_return[0];
@@ -145,9 +145,9 @@ double f5(double x, double y, double z) {
 
 // x, z
 // CHECK: void f5_dvec_0_2(double x, double y, double z, double *_d_x, double *_d_z) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::zero_vector(2UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_z = clad::one_hot_vector(2UL, 1UL);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
 // CHECK-NEXT:     *_d_x = _d_vector_return[0];
@@ -157,9 +157,9 @@ double f5(double x, double y, double z) {
 
 // y, z
 // CHECK: void f5_dvec_1_2(double x, double y, double z, double *_d_y, double *_d_z) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {0., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {1., 0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_z = {0., 1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::zero_vector(2UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::one_hot_vector(2UL, 0UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_z = clad::one_hot_vector(2UL, 1UL);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
 // CHECK-NEXT:     *_d_y = _d_vector_return[0];
@@ -169,9 +169,9 @@ double f5(double x, double y, double z) {
 
 // z
 // CHECK: void f5_dvec_2(double x, double y, double z, double *_d_z) {
-// CHECK-NEXT:   clad::array<double> _d_vector_x = {0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_y = {0.};
-// CHECK-NEXT:   clad::array<double> _d_vector_z = {1.};
+// CHECK-NEXT:   clad::array<double> _d_vector_x = clad::zero_vector(1UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_y = clad::zero_vector(1UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_z = clad::one_hot_vector(1UL, 0UL);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return = 0. * x + 1. * _d_vector_x + 0. * y + 2. * _d_vector_y + 0. * z + 3. * _d_vector_z;
 // CHECK-NEXT:     *_d_z = _d_vector_return[0];
