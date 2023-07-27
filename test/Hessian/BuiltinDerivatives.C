@@ -26,8 +26,6 @@ float f1(float x) {
 // CHECK-NEXT:     _t2 = x;
 // CHECK-NEXT:     _t3 = ::std::cos(_t2);
 // CHECK-NEXT:     _t1 = d_x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = _d_y.value * clad::custom_derivatives{{(::std)?}}::sin_pushforward(_t0, 1.F).pushforward;
 // CHECK-NEXT:         * _d_x += _r0;
@@ -50,8 +48,6 @@ float f1(float x) {
 // CHECK-NEXT:     _t2 = ::std::sin(_t3);
 // CHECK-NEXT:     _t4 = -1 * _t2;
 // CHECK-NEXT:     _t1 = d_x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = _d_y.value * clad::custom_derivatives{{(::std)?}}::cos_pushforward(_t0, 1.F).pushforward;
 // CHECK-NEXT:         * _d_x += _r0;
@@ -80,8 +76,6 @@ float f1(float x) {
 // CHECK-NEXT:     _t2 = x;
 // CHECK-NEXT:     _t3 = _d_x0;
 // CHECK-NEXT:     ValueAndPushforward<float, float> _t10 = clad::custom_derivatives{{(::std)?}}::cos_pushforward(_t2, _t3);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__t0.pushforward += 1;
 // CHECK-NEXT:         _d__t1.pushforward += 1;

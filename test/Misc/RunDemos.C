@@ -120,8 +120,6 @@
 //CHECK_FLOAT_SUM:         sum = sum + x;
 //CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     goto _label0;
-//CHECK_FLOAT_SUM:   _label0:
 //CHECK_FLOAT_SUM:     _d_sum += 1;
 //CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
 //CHECK_FLOAT_SUM:         {
@@ -161,8 +159,6 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
@@ -200,8 +196,6 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
@@ -230,8 +224,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t0 = x;
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = _d_y * _t0;
@@ -254,8 +246,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(_t0, _t1, _t2);
 //CHECK_GRADIENT_DESCENT-NEXT:     _t4 = (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:     _t3 = (f_x - y);
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r3 = 1 * _t3;
 //CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += _r3;
