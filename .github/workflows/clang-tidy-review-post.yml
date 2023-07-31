@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Post review comments
         id: post-review
-        uses: ZedThree/clang-tidy-review/post@v0.13.1
+        uses: ZedThree/clang-tidy-review/post@v0.13.2
         with:
           max_comments: 10
 
