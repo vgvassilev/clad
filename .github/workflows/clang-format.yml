@@ -1,0 +1,46 @@
+name: clang-format
+
+on:
+  pull_request:
+    paths:
+      - '**.h'
+      - '**.cpp'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  precheckin:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.7
+      - name: Install clang-format
+        run: |
+          curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" | sudo tee -a /etc/apt/sources.list
+          sudo apt update
+          sudo apt install -y clang-format-15
+      - name: Download git-clang-format
+        run: |
+          wget https://raw.githubusercontent.com/llvm/llvm-project/main/clang/tools/clang-format/git-clang-format
+          chmod +x git-clang-format
+      - name: Run git-clang-format
+        run: |
+          PR_BASE=$(git rev-list ${{ github.event.pull_request.head.sha }} ^${{ github.event.pull_request.base.sha }} | tail --lines 1 | xargs -I {} git rev-parse {}~1)
+          echo "running git clang-format against $PR_BASE commit"
+          git \
+          -c color.ui=always \
+          -c diff.wsErrorHighlight=all \
+          -c color.diff.whitespace='red reverse' \
+          clang-format-15 --diff --binary clang-format-15 --commit $PR_BASE -- demos/ include/ lib/ tools/ || \
+          (echo "Please run the following git-clang-format locally to fix the formatting: \n
+                git clang-format origin/master -- demos/ include/ lib/ tools/" && exit 1)
