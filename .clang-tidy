@@ -29,11 +29,11 @@ Checks: >
 
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
-    value:           CamelCase
+    value:           aNy_CasE
   - key:             readability-identifier-naming.FunctionCase
     value:           aNy_CasE
   - key:             readability-identifier-naming.MemberCase
-    value:           CamelCase
+    value:           aNy_CasE
   - key:             readability-identifier-naming.ParameterCase
     value:           aNy_CasE
   - key:             readability-identifier-naming.UnionCase
