@@ -58,8 +58,6 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     _t0 = j;
 // CHECK-NEXT:     _t3 = i;
 // CHECK-NEXT:     _t2 = _d_j0;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         _d__d_i += _r0;

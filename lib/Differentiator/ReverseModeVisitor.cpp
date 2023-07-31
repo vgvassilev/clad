@@ -754,6 +754,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             OnlyReturn=true;
           else
             OnlyReturn=false;
+        }else{
+          OnlyReturn=true;
         }
       }
       if (m_ExternalSource)
