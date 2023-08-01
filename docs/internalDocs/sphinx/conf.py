@@ -56,8 +56,8 @@ CLAD_ROOT = '../../..'
 html_extra_path = [CLAD_ROOT + '/build/docs/internalDocs/doxygen/html']
 
 import subprocess
-command = 'mkdir {0}/build; cd {0}/build; cmake ../ -DClang_DIR=/usr/lib/llvm-10\
-          -DLLVM_DIR=/usr/lib/llvm-10 -DCLAD_ENABLE_DOXYGEN=ON\
+command = 'mkdir {0}/build; cd {0}/build; cmake ../ -DClang_DIR=/usr/lib/llvm-14\
+          -DLLVM_DIR=/usr/lib/llvm-14 -DCLAD_ENABLE_DOXYGEN=ON\
           -DCLAD_INCLUDE_DOCS=ON'.format(CLAD_ROOT)
 subprocess.call(command, shell=True)
 subprocess.call('doxygen {0}/build/docs/internalDocs/doxygen.cfg'.format(CLAD_ROOT), shell=True)
