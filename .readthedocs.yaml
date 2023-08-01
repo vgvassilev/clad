@@ -5,10 +5,12 @@ sphinx:
   builder: html
 
 build:
-  image: latest
+  os: "ubuntu-22.04"
+  tools:
+    python: "3.11"
   apt_packages:
-    - clang-10
+    - clang-14
     - cmake
-    - libclang-10-dev
-    - llvm-10-dev
-    - llvm-10-tools
+    - libclang-14-dev
+    - llvm-14-dev
+    - llvm-14-tools

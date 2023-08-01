@@ -85,8 +85,8 @@ if os.environ.get("CLAD_BUILD_INTERNAL_DOCS"):
 
     CMAKE_CONFIGURE_COMMAND = (
         "mkdir {0}/build; cd {0}/build; cmake ../ "
-        "-DClang_DIR=/usr/lib/llvm-10 -DLLVM_DIR="
-        "/usr/lib/llvm-10 -DCLAD_ENABLE_DOXYGEN=ON "
+        "-DClang_DIR=/usr/lib/llvm-14 -DLLVM_DIR="
+        "/usr/lib/llvm-14 -DCLAD_ENABLE_DOXYGEN=ON "
         "-DCLAD_INCLUDE_DOCS=ON"
     ).format(CLAD_ROOT)
     subprocess.call(CMAKE_CONFIGURE_COMMAND, shell=True)
