@@ -153,4 +153,20 @@ int main() {
   // CHECK-EXEC: 2, 0 : 0
   // CHECK-EXEC: 2, 1 : 0
   // CHECK-EXEC: 2, 2 : 0
+
+  test3_mat[0][0] = 4;
+  for (int i = 0; i < test3_mat.rows(); i++) {
+    for (int j = 0; j < test3_mat.cols(); ++j) {
+      printf("%d, %d : %d\n", i, j, test3_mat(i, j));
+    }
+  }
+  // CHECK-EXEC: 0, 0 : 4
+  // CHECK-EXEC: 0, 1 : 2
+  // CHECK-EXEC: 0, 2 : 3
+  // CHECK-EXEC: 1, 0 : 0
+  // CHECK-EXEC: 1, 1 : 0
+  // CHECK-EXEC: 1, 2 : 1
+  // CHECK-EXEC: 2, 0 : 0
+  // CHECK-EXEC: 2, 1 : 0
+  // CHECK-EXEC: 2, 2 : 0
 }
