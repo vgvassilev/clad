@@ -81,15 +81,9 @@ public:
   }
 
   /// Returns the reference to the row at the given index.
-  CUDA_HOST_DEVICE clad::array<T>& operator[](size_t row_idx) {
+  CUDA_HOST_DEVICE clad::array_ref<T> operator[](size_t row_idx) {
     assert(row_idx < m_rows);
-    return m_data.slice(row_idx * m_cols, m_cols);
-  }
-
-  /// Returns the reference to the row at the given index.
-  CUDA_HOST_DEVICE const clad::array<T>& operator[](size_t row_idx) const {
-    assert(row_idx < m_rows);
-    return m_data.slice(row_idx * m_cols, m_cols);
+    return clad::array_ref<T>(m_data).slice(row_idx * m_cols, m_cols);
   }
 
   /// Adding constant to matrix.

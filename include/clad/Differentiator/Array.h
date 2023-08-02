@@ -20,8 +20,6 @@ private:
   T* m_arr = nullptr;
   /// The size of the array
   std::size_t m_size = 0;
-  // Boolean to indicate if the array is owned by this class or not.
-  bool m_owned = true;
 
 public:
   /// Delete default constructor
@@ -36,21 +34,11 @@ public:
     (*this) = arr;
   }
 
-  // use this only if U and T are not the same type.
-  template <typename U, typename = typename std::enable_if<
-                            !std::is_same<T, U>::value>::type>
+  template <typename U>
   CUDA_HOST_DEVICE array(U* a, std::size_t size)
       : m_arr(new T[size]{static_cast<T>(T())}), m_size(size) {
     for (std::size_t i = 0; i < size; ++i)
-      m_arr[i] = a[i];
-  }
-
-  CUDA_HOST_DEVICE array(T* a, std::size_t size, bool copy = true)
-      : m_arr(copy ? new T[size]{static_cast<T>(T())} : a), m_size(size),
-        m_owned(copy) {
-    if (copy)
-      for (std::size_t i = 0; i < size; ++i)
-        m_arr[i] = a[i];
+      m_arr[i] = static_cast<T>(a[i]);
   }
 
   CUDA_HOST_DEVICE array(const array<T>& arr) : array(arr.m_arr, arr.m_size) {}
@@ -64,7 +52,10 @@ public:
   // initializing all entries using the same value
   template <typename U>
   CUDA_HOST_DEVICE array(std::size_t size, U val)
-      : m_arr(new T[size]{static_cast<T>(val)}), m_size(size) {}
+      : m_arr(new T[size]{static_cast<T>(T())}), m_size(size) {
+    for (std::size_t i = 0; i < size; ++i)
+      m_arr[i] = static_cast<T>(val);
+  }
 
   CUDA_HOST_DEVICE array(std::initializer_list<T> arr)
       : m_arr(new T[arr.size()]{static_cast<T>(T())}), m_size(arr.size()) {
@@ -78,16 +69,13 @@ public:
     return *this;
   }
 
-  CUDA_HOST_DEVICE array<T> slice(std::size_t offset, std::size_t size) {
+  CUDA_HOST_DEVICE array<T> slice(std::size_t offset, std::size_t size) const {
     assert(offset + size <= m_size);
-    return array<T>(&m_arr[offset], size, false);
+    return array<T>(&m_arr[offset], size);
   }
 
-  /// Destructor to delete the array if owned by this class.
-  CUDA_HOST_DEVICE ~array() {
-    if (m_owned)
-      delete[] m_arr;
-  }
+  /// Destructor to delete the array.
+  CUDA_HOST_DEVICE ~array() { delete[] m_arr; }
 
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
