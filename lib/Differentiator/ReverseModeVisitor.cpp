@@ -2744,7 +2744,8 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
     if (!UsefulToStoreGlobal(E)) {
       Expr* Cloned = Clone(E);
       Expr::EvalResult evalRes;
-      bool isConst = E->EvaluateAsConstantExpr(evalRes, m_Context);
+      bool isConst =
+          clad_compat::Expr_EvaluateAsConstantExpr(E, evalRes, m_Context);
       return DelayedStoreResult{*this, StmtDiff{Cloned, Cloned},
                                 /*isConstant*/ isConst,
                                 /*isInsideLoop*/ false,
