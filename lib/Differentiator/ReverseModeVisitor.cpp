@@ -1529,8 +1529,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // the reverse pass.
       // FIXME: At this point, we assume all the variables passed by reference
       // may be changed since we have no way to determine otherwise.
-      StmtDiff argDiffStore =
-        GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/ passByRef);
+      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
+      // arrays are not stored.
+      StmtDiff argDiffStore = GlobalStoreAndRef(
+          argDiff.getExpr(), "_t",
+          /*force=*/passByRef && !argDiff.getExpr()->getType()->isArrayType());
       // We need to pass the actual argument in the cloned call expression,
       // instead of a temporary, for arguments passed by reference. This is
       // because, callee function may modify the argument passed as reference
@@ -1554,7 +1557,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // _t1 = a;
       // modify(a);
       // ```
-      if (passByRef) {
+      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
+      // arrays are not stored.
+      if (passByRef && !argDiff.getExpr()->getType()->isArrayType()) {
         if (isInsideLoop) {
           // Add tape push expression. We need to explicitly add it here because
           // we cannot add it as call expression argument -- we need to pass the
@@ -2050,9 +2055,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       auto EStored = GlobalStoreAndRef(E, "_t", /*force=*/true);
-      auto assign = BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
+      auto assign =
+          BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
       if (isInsideLoop)
-          addToCurrentBlock(EStored.getExpr(), direction::forward);
+        addToCurrentBlock(EStored.getExpr(), direction::forward);
       addToCurrentBlock(assign, direction::reverse);
 
       diff = Visit(E, dfdx());
@@ -2061,9 +2067,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       auto EStored = GlobalStoreAndRef(E, "_t", /*force=*/true);
-      auto assign = BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
+      auto assign =
+          BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
       if (isInsideLoop)
-          addToCurrentBlock(EStored.getExpr(), direction::forward);
+        addToCurrentBlock(EStored.getExpr(), direction::forward);
       addToCurrentBlock(assign, direction::reverse);
 
       diff = Visit(E, dfdx());
