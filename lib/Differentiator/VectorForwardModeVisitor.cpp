@@ -146,10 +146,9 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
         // and number of columns equal to the number of independent variables
-        llvm::SmallVector<Expr*> args = {getSize, m_IndVarCountExpr,
-                                         offsetExpr};
-        dVectorParam = BuildCallExprToCladFunction("identity_matrix", args,
-                                                   {dParamType}, loc);
+        llvm::SmallVector<Expr*, 3> args = {getSize, m_IndVarCountExpr,
+                                            offsetExpr};
+        dVectorParam = BuildIdentityMatrixExpr(dParamType, args, loc);
 
         // Update the array independent expression.
         if (!arrayIndVarCountExpr) {
@@ -160,7 +159,7 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
         }
       } else {
         // Create a one hot vector for the parameter.
-        llvm::SmallVector<Expr*> args = {m_IndVarCountExpr, offsetExpr};
+        llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, offsetExpr};
         dVectorParam = BuildCallExprToCladFunction("one_hot_vector", args,
                                                    {dParamType}, loc);
         ++nonArrayIndVarCount;
@@ -444,21 +443,18 @@ StmtDiff VectorForwardModeVisitor::VisitArraySubscriptExpr(
   std::transform(std::begin(Indices), std::end(Indices),
                  std::begin(clonedIndices),
                  [this](const Expr* E) { return Clone(E); });
-  auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
+  auto* cloned = BuildArraySubscript(clonedBase, clonedIndices);
 
-  QualType ExprTy = ASE->getType();
-  if (ExprTy->isPointerType())
-    ExprTy = ExprTy->getPointeeType();
-  auto zero = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 0);
+  auto* zero = ConstantFolder::synthesizeLiteral(ASE->getType(), m_Context, 0);
   Expr* diffExpr = zero;
 
   Expr* target = BaseDiff.getExpr_dx();
   if (target) {
-    diffExpr =
-        m_Sema
-            .ActOnArraySubscriptExpr(getCurrentScope(), target,
-                                     target->getExprLoc(), clonedIndices, noLoc)
-            .get();
+    diffExpr = m_Sema
+                   .ActOnArraySubscriptExpr(getCurrentScope(), target,
+                                            target->getExprLoc(),
+                                            clonedIndices.front(), noLoc)
+                   .get();
   }
   return StmtDiff(cloned, diffExpr);
 }
@@ -515,7 +511,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
       Expr* getSize = BuildArrayRefSizeExpr(dParam);
 
       // Create an expression to fetch slice of the return vector.
-      llvm::SmallVector<Expr*> args = {offsetExpr, getSize};
+      llvm::SmallVector<Expr*, 2> args = {offsetExpr, getSize};
       dParamValue = BuildArrayRefSliceExpr(dVectorRef, args);
 
       // Update the array independent expression.

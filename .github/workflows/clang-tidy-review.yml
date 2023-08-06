@@ -27,7 +27,7 @@ jobs:
         id: review
         with:
           build_dir: build
-          exclude: "test/*,benchmark/*"
+          exclude: "test/*,benchmark/*,demos/*"
           split_workflow: true
           cmake_command: >
             pip install cmake lit &&
