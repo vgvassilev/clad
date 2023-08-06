@@ -625,9 +625,8 @@ namespace clad {
   Expr* VisitorBase::BuildIdentityMatrixExpr(clang::QualType T,
                                              MutableArrayRef<Expr*> Args,
                                              clang::SourceLocation Loc) {
-    auto* M =
-        BuildCallExprToCladFunction(/*name=*/"identity_matrix", Args, {T}, Loc);
-    return M;
+    return BuildCallExprToCladFunction(/*name=*/"identity_matrix", Args, {T},
+                                       Loc);
   }
 
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {
