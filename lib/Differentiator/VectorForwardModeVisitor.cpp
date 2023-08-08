@@ -131,12 +131,11 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
       Expr* offsetExpr = arrayIndVarCountExpr;
       Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
           m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-      if (!offsetExpr) {
+      if (!offsetExpr)
         offsetExpr = nonArrayIndVarCountExpr;
-      } else if (nonArrayIndVarCount != 0) {
+      else if (nonArrayIndVarCount != 0)
         offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
                              nonArrayIndVarCountExpr);
-      }
 
       if (is_array) {
         // Get size of the array.
@@ -184,11 +183,10 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
     // -> clad::array<double> _d_vector_y = {0, 0};
     // -> clad::array<double> _d_vector_z = {0, 1};
     QualType dVectorParamType;
-    if (is_array) {
+    if (is_array)
       dVectorParamType = GetCladMatrixOfType(dParamType);
-    } else {
+    else
       dVectorParamType = GetCladArrayOfType(dParamType);
-    }
     auto dVectorParamDecl =
         BuildVarDecl(dVectorParamType, "_d_vector_" + param->getNameAsString(),
                      dVectorParam);
@@ -239,9 +237,8 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   QualType outputParamType = GetCladArrayRefOfType(m_Context.VoidTy);
 
   // Push param types for derived params.
-  for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
+  for (std::size_t i = 0; i < m_Function->getNumParams(); ++i)
     paramTypes.push_back(outputParamType);
-  }
 
   auto vectorModeFuncOverloadEPI =
       dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo();
@@ -499,12 +496,11 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     Expr* offsetExpr = arrayIndVarCountExpr;
     Expr* nonArrayIndVarCountExpr = ConstantFolder::synthesizeLiteral(
         m_Context.UnsignedLongTy, m_Context, nonArrayIndVarCount);
-    if (!offsetExpr) {
+    if (!offsetExpr)
       offsetExpr = nonArrayIndVarCountExpr;
-    } else if (nonArrayIndVarCount != 0) {
+    else if (nonArrayIndVarCount != 0)
       offsetExpr = BuildOp(BinaryOperatorKind::BO_Add, offsetExpr,
                            nonArrayIndVarCountExpr);
-    }
 
     if (isCladArrayType(dParam->getType())) {
       // Get the size of the array.
