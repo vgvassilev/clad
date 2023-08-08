@@ -20,9 +20,8 @@
 // A function for weighted sum of array elements.
 double weighted_sum(double* arr, double* weights, int n) {
   double res = 0;
-  for (int i = 0; i < n; ++i) {
+  for (int i = 0; i < n; ++i)
     res += weights[i] * arr[i];
-  }
   return res;
 }
 
