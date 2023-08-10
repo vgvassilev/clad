@@ -179,11 +179,12 @@ namespace clad {
     return new (m_Context) DeclStmt(DGR, noLoc, noLoc);
   }
 
-  DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D) {
+  DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
+                                         const CXXScopeSpec* SS /*=nullptr*/) {
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
-        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, noLoc)));
+        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, noLoc, SS)));
   }
 
   IdentifierInfo*
@@ -546,12 +547,13 @@ namespace clad {
   Expr*
   VisitorBase::BuildCallExprToFunction(FunctionDecl* FD,
                                        llvm::MutableArrayRef<Expr*> argExprs,
-                                       bool useRefQualifiedThisObj) {
+                                       bool useRefQualifiedThisObj /*=false*/,
+                                       const CXXScopeSpec* SS /*=nullptr*/) {
     Expr* call = nullptr;
     if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
       call = BuildCallExprToMemFn(derMethod, argExprs, useRefQualifiedThisObj);
     } else {
-      Expr* exprFunc = BuildDeclRef(FD);
+      Expr* exprFunc = BuildDeclRef(FD, SS);
       call = m_Sema
                  .ActOnCallExpr(
                      getCurrentScope(),
@@ -562,6 +564,29 @@ namespace clad {
                  .get();
     }
     return call;
+  }
+
+  Expr* VisitorBase::BuildCallExprToCladFunction(
+      llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
+      llvm::ArrayRef<clang::TemplateArgument> templateArgs,
+      SourceLocation loc) {
+    DeclarationName declName = &m_Context.Idents.get(name);
+    clang::LookupResult R(m_Sema, declName, noLoc, Sema::LookupOrdinaryName);
+
+    // Find function declaration
+    NamespaceDecl* CladNS = GetCladNamespace();
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, CladNS, loc, loc);
+    m_Sema.LookupQualifiedName(R, CladNS, CSS);
+
+    // Build the template specialization expression.
+    // FIXME: currently this doesn't print func<templates>(args...) while
+    // dumping and only prints func(args...), we need to fix this.
+    auto* FTD = dyn_cast<FunctionTemplateDecl>(R.getRepresentativeDecl());
+    clang::TemplateArgumentList TL(TemplateArgumentList::OnStack, templateArgs);
+    FunctionDecl* FD = m_Sema.InstantiateFunctionDeclaration(FTD, &TL, loc);
+
+    return BuildCallExprToFunction(FD, argExprs, false, &CSS);
   }
 
   TemplateDecl* VisitorBase::GetCladArrayRefDecl() {
@@ -584,6 +609,24 @@ namespace clad {
 
   QualType VisitorBase::GetCladArrayOfType(clang::QualType T) {
     return InstantiateTemplate(GetCladArrayDecl(), {T});
+  }
+
+  TemplateDecl* VisitorBase::GetCladMatrixDecl() {
+    static TemplateDecl* Result = nullptr;
+    if (!Result)
+      Result = LookupTemplateDeclInCladNamespace(/*ClassName=*/"matrix");
+    return Result;
+  }
+
+  QualType VisitorBase::GetCladMatrixOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladMatrixDecl(), {T});
+  }
+
+  Expr* VisitorBase::BuildIdentityMatrixExpr(clang::QualType T,
+                                             MutableArrayRef<Expr*> Args,
+                                             clang::SourceLocation Loc) {
+    return BuildCallExprToCladFunction(/*name=*/"identity_matrix", Args, {T},
+                                       Loc);
   }
 
   Expr* VisitorBase::BuildArrayRefSizeExpr(Expr* Base) {

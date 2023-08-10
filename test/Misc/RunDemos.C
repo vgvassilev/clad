@@ -301,3 +301,33 @@
 // CHECK_ARRAYS_EXEC:   {0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0, 0}
+
+//-----------------------------------------------------------------------------/
+// Demo: VectorForwardMode.cpp
+//-----------------------------------------------------------------------------/
+// RUN: %cladclang %S/../../demos/VectorForwardMode.cpp -I%S/../../include -oVectorForwardMode.out 2>&1 | FileCheck -check-prefix CHECK_VECTOR_FORWARD_MODE %s
+// CHECK_VECTOR_FORWARD_MODE: void weighted_sum_dvec_0_1(double *arr, double *weights, int n, clad::array_ref<double> _d_arr, clad::array_ref<double> _d_weights) {
+// CHECK_VECTOR_FORWARD_MODE-NEXT    unsigned long indepVarCount = _d_arr.size() + _d_weights.size();
+// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
+// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_weights = clad::identity_matrix(_d_weights.size(), indepVarCount, _d_arr.size());
+// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);
+// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::array<double> _d_vector_res(clad::array<double>(indepVarCount, 0));
+// CHECK_VECTOR_FORWARD_MODE-NEXT    double res = 0;
+// CHECK_VECTOR_FORWARD_MODE-NEXT    {
+// CHECK_VECTOR_FORWARD_MODE-NEXT        clad::array<int> _d_vector_i(clad::array<int>(indepVarCount, 0));
+// CHECK_VECTOR_FORWARD_MODE-NEXT        for (int i = 0; i < n; ++i) {
+// CHECK_VECTOR_FORWARD_MODE-NEXT            _d_vector_res += (_d_vector_weights[i]) * arr[i] + weights[i] * (_d_vector_arr[i]);
+// CHECK_VECTOR_FORWARD_MODE-NEXT            res += weights[i] * arr[i];
+// CHECK_VECTOR_FORWARD_MODE-NEXT        }
+// CHECK_VECTOR_FORWARD_MODE-NEXT    }
+// CHECK_VECTOR_FORWARD_MODE-NEXT    {
+// CHECK_VECTOR_FORWARD_MODE-NEXT        clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, _d_vector_res));
+// CHECK_VECTOR_FORWARD_MODE-NEXT        _d_arr = _d_vector_return.slice(0UL, _d_arr.size());
+// CHECK_VECTOR_FORWARD_MODE-NEXT        _d_weights = _d_vector_return.slice(_d_arr.size(), _d_weights.size());
+// CHECK_VECTOR_FORWARD_MODE-NEXT        return;
+// CHECK_VECTOR_FORWARD_MODE-NEXT    }
+// CHECK_VECTOR_FORWARD_MODE-NEXT }
+// RUN: ./VectorForwardMode.out | FileCheck -check-prefix CHECK_VECTOR_FORWARD_MODE_EXEC %s
+// CHECK_VECTOR_FORWARD_MODE_EXEC: Vector forward mode w.r.t. all:
+// CHECK_VECTOR_FORWARD_MODE_EXEC:  darr = {0.5, 0.7, 0.9}
+// CHECK_VECTOR_FORWARD_MODE_EXEC:  dweights = {3, 4, 5}

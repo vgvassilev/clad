@@ -12,6 +12,8 @@ template <typename T> class array_ref;
 
 /// This class is not meant to be used by user. It is used by clad internally
 /// only
+
+// NOLINTBEGIN(*-pointer-arithmetic)
 template <typename T> class array {
 private:
   /// The pointer to the underlying array
@@ -36,7 +38,7 @@ public:
   CUDA_HOST_DEVICE array(U* a, std::size_t size)
       : m_arr(new T[size]{static_cast<T>(T())}), m_size(size) {
     for (std::size_t i = 0; i < size; ++i)
-      m_arr[i] = a[i];
+      m_arr[i] = static_cast<T>(a[i]);
   }
 
   CUDA_HOST_DEVICE array(const array<T>& arr) : array(arr.m_arr, arr.m_size) {}
@@ -50,7 +52,10 @@ public:
   // initializing all entries using the same value
   template <typename U>
   CUDA_HOST_DEVICE array(std::size_t size, U val)
-      : m_arr(new T[size]{static_cast<T>(val)}), m_size(size) {}
+      : m_arr(new T[size]{static_cast<T>(T())}), m_size(size) {
+    for (std::size_t i = 0; i < size; ++i)
+      m_arr[i] = static_cast<T>(val);
+  }
 
   CUDA_HOST_DEVICE array(std::initializer_list<T> arr)
       : m_arr(new T[arr.size()]{static_cast<T>(T())}), m_size(arr.size()) {
@@ -64,7 +69,12 @@ public:
     return *this;
   }
 
-  /// Destructor to delete the array if it was created by array_ref
+  CUDA_HOST_DEVICE array<T> slice(std::size_t offset, std::size_t size) const {
+    assert(offset + size <= m_size);
+    return array<T>(&m_arr[offset], size);
+  }
+
+  /// Destructor to delete the array.
   CUDA_HOST_DEVICE ~array() { delete[] m_arr; }
 
   /// Returns the size of the underlying array
@@ -74,6 +84,9 @@ public:
   /// Returns the reference to the location at the index of the underlying
   /// array
   CUDA_HOST_DEVICE T& operator[](std::ptrdiff_t i) { return m_arr[i]; }
+  CUDA_HOST_DEVICE const T& operator[](std::ptrdiff_t i) const {
+    return m_arr[i];
+  }
   /// Returns the reference to the underlying array
   CUDA_HOST_DEVICE T& operator*() { return *m_arr; }
 
@@ -141,7 +154,7 @@ public:
     return *this;
   }
   /// Initializes the clad::array to the given clad::array_ref
-  CUDA_HOST_DEVICE array<T>& operator=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] = arr[i];
@@ -149,7 +162,7 @@ public:
   }
 
   template <typename U>
-  CUDA_HOST_DEVICE array<T>& operator=(array_ref<U>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator=(const array_ref<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] = arr[i];
@@ -157,43 +170,44 @@ public:
   }
 
   /// Performs element wise addition
-  CUDA_HOST_DEVICE array<T>& operator+=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator+=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] += arr[i];
     return *this;
   }
   /// Performs element wise subtraction
-  CUDA_HOST_DEVICE array<T>& operator-=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator-=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] -= arr[i];
     return *this;
   }
   /// Performs element wise multiplication
-  CUDA_HOST_DEVICE array<T>& operator*=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator*=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] *= arr[i];
     return *this;
   }
   /// Performs element wise division
-  CUDA_HOST_DEVICE array<T>& operator/=(array_ref<T>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator/=(const array_ref<T>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] /= arr[i];
     return *this;
   }
   /// Initializes the clad::array to the given clad::array
-  CUDA_HOST_DEVICE array<T>& operator=(array<T>& arr) {
+  template <typename U>
+  CUDA_HOST_DEVICE array<T>& operator=(const array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
-      m_arr[i] = arr[i];
+      m_arr[i] = static_cast<T>(arr[i]);
     return *this;
   }
   /// Performs element wise addition
   template <typename U>
-  CUDA_HOST_DEVICE array<T>& operator+=(array<U>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator+=(const array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] += static_cast<T>(arr[i]);
@@ -201,7 +215,7 @@ public:
   }
   /// Performs element wise subtraction
   template <typename U>
-  CUDA_HOST_DEVICE array<T>& operator-=(array<U>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator-=(const array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] -= static_cast<T>(arr[i]);
@@ -209,7 +223,7 @@ public:
   }
   /// Performs element wise multiplication
   template <typename U>
-  CUDA_HOST_DEVICE array<T>& operator*=(array<U>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator*=(const array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] *= static_cast<T>(arr[i]);
@@ -217,7 +231,7 @@ public:
   }
   /// Performs element wise division
   template <typename U>
-  CUDA_HOST_DEVICE array<T>& operator/=(array<U>& arr) {
+  CUDA_HOST_DEVICE array<T>& operator/=(const array<U>& arr) {
     assert(arr.size() == m_size);
     for (std::size_t i = 0; i < m_size; i++)
       m_arr[i] /= static_cast<T>(arr[i]);
@@ -234,7 +248,9 @@ public:
 
   /// Subtracts the number from every element in the array and returns a new
   /// array, when the number is on the left side.
-  CUDA_HOST_DEVICE friend array<T> operator-(T n, const array<T>& arr) {
+  template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
+                                                int>::type = 0>
+  CUDA_HOST_DEVICE friend array<T> operator-(U n, const array<T>& arr) {
     size_t size = arr.size();
     array<T> arr2(size);
     for (std::size_t i = 0; i < size; i++)
@@ -245,6 +261,23 @@ public:
   /// Implicitly converts from clad::array to pointer to an array of type T
   CUDA_HOST_DEVICE operator T*() const { return m_arr; }
 }; // class array
+// NOLINTEND(*-pointer-arithmetic)
+
+// Function to instantiate a one-hot array of size n with 1 at index i.
+// A one-hot vector is a vector with all elements set to 0 except for one
+// element which is set to 1.
+// For example, if n=4 and i=2, the returned array is: {0, 0, 1, 0}
+template <typename T>
+CUDA_HOST_DEVICE array<T> one_hot_vector(std::size_t n, std::size_t i) {
+  array<T> arr(n);
+  arr[i] = 1;
+  return arr;
+}
+
+// Function to instantiate a zero vector of size n
+template <typename T> CUDA_HOST_DEVICE array<T> zero_vector(std::size_t n) {
+  return array<T>(n);
+}
 
 /// Overloaded operators for clad::array which return a new array.
 
@@ -304,9 +337,9 @@ CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr, U n) {
 }
 
 /// Function to define element wise adding of two arrays.
-template <typename T>
+template <typename T, typename U>
 CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr1,
-                                    const array<T>& arr2) {
+                                    const array<U>& arr2) {
   assert(arr1.size() == arr2.size());
   array<T> arr(arr1);
   arr += arr2;
@@ -314,9 +347,9 @@ CUDA_HOST_DEVICE array<T> operator+(const array<T>& arr1,
 }
 
 /// Function to define element wise subtraction of two arrays.
-template <typename T>
+template <typename T, typename U>
 CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr1,
-                                    const array<T>& arr2) {
+                                    const array<U>& arr2) {
   assert(arr1.size() == arr2.size());
   array<T> arr(arr1);
   arr -= arr2;
@@ -325,4 +358,4 @@ CUDA_HOST_DEVICE array<T> operator-(const array<T>& arr1,
 
 } // namespace clad
 
-#endif // CLANG_ARRAY_H
+#endif // CLAD_ARRAY_H

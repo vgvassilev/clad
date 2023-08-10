@@ -719,8 +719,10 @@ namespace clad {
   using ExtractDerivedFnTraitsForwMode_t =
       typename ExtractDerivedFnTraitsForwMode<F>::type;
 
+  // OutputVecParamType is used to deduce the type of derivative arguments
+  // for vector forward mode.
   template <class T, class R> struct OutputVecParamType {
-    using type = typename std::add_pointer<R>::type;
+    using type = array_ref<typename std::remove_pointer<R>::type>;
   };
 
   template <class T, class R>
@@ -735,7 +737,7 @@ namespace clad {
 
   template <class ReturnType, class... Args>
   struct ExtractDerivedFnTraitsVecForwMode<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputVecParamType_t<Args, ReturnType>...);
+    using type = void (*)(Args..., OutputVecParamType_t<Args, void>...);
   };
 
   /// Specialization for free function pointer type

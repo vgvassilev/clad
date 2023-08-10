@@ -23,11 +23,11 @@ jobs:
           version: "12.0.0"
 
       - name: Run clang-tidy
-        uses: ZedThree/clang-tidy-review@v0.13.1
+        uses: ZedThree/clang-tidy-review@v0.13.2
         id: review
         with:
           build_dir: build
-          exclude: "test/*"
+          exclude: "test/*,benchmark/*,demos/*"
           split_workflow: true
           cmake_command: >
             pip install cmake lit &&

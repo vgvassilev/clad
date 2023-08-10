@@ -39,7 +39,8 @@ public:
 
   static bool IsDifferentiableType(clang::QualType T);
 
-  StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
+  virtual StmtDiff
+  VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
   StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);

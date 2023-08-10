@@ -12,6 +12,7 @@
 #include "BuiltinDerivatives.h"
 #include "CladConfig.h"
 #include "FunctionTraits.h"
+#include "Matrix.h"
 #include "NumericalDiff.h"
 #include "Tape.h"
 
@@ -205,7 +206,6 @@ namespace clad {
       else
         return "<invalid>";
     }
- 
     void dump() const {
       printf("The code is: \n%s\n", getCode());
     }

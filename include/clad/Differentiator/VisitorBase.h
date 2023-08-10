@@ -49,7 +49,7 @@ namespace clad {
     clang::Expr* getExpr_dx() {
       return llvm::cast_or_null<clang::Expr>(getStmt_dx());
     }
-    
+
     void updateStmt(clang::Stmt* S) { data[1] = S; }
     void updateStmtDx(clang::Stmt* S) { data[0] = S; }
     // Stmt_dx goes first!
@@ -309,8 +309,10 @@ namespace clad {
     /// declaration reference expressions. This function builds a declaration
     /// reference given a declaration.
     /// \param[in] D The declaration to build a DeclRefExpr for.
+    /// \param[in] SS The scope specifier for the declaration.
     /// \returns the DeclRefExpr for the given declaration.
-    clang::DeclRefExpr* BuildDeclRef(clang::DeclaratorDecl* D);
+    clang::DeclRefExpr* BuildDeclRef(clang::DeclaratorDecl* D,
+                                     const clang::CXXScopeSpec* SS = nullptr);
 
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
@@ -456,7 +458,21 @@ namespace clad {
     clang::Expr*
     BuildCallExprToFunction(clang::FunctionDecl* FD,
                             llvm::MutableArrayRef<clang::Expr*> argExprs,
-                            bool useRefQualifiedThisObj = false);
+                            bool useRefQualifiedThisObj = false,
+                            const clang::CXXScopeSpec* SS = nullptr);
+
+    /// Build a call to templated free function inside the clad namespace.
+    ///
+    /// \param[in] name name of the function
+    /// \param[in] argExprs function arguments expressions
+    /// \param[in] templateArgs template arguments
+    /// \param[in] loc location of the call
+    /// \returns Built call expression
+    clang::Expr* BuildCallExprToCladFunction(
+        llvm::StringRef name, llvm::MutableArrayRef<clang::Expr*> argExprs,
+        llvm::ArrayRef<clang::TemplateArgument> templateArgs,
+        clang::SourceLocation loc);
+
     /// Find declaration of clad::array_ref templated type.
     clang::TemplateDecl* GetCladArrayRefDecl();
     /// Create clad::array_ref<T> type.
@@ -467,6 +483,16 @@ namespace clad {
     clang::TemplateDecl* GetCladArrayDecl();
     /// Create clad::array<T> type.
     clang::QualType GetCladArrayOfType(clang::QualType T);
+    /// Find declaration of clad::matrix templated type.
+    clang::TemplateDecl* GetCladMatrixDecl();
+    /// Create clad::matrix<T> type.
+    clang::QualType GetCladMatrixOfType(clang::QualType T);
+    /// Creates the expression clad::matrix<T>::identity(Args) for the given
+    /// type and args.
+    clang::Expr*
+    BuildIdentityMatrixExpr(clang::QualType T,
+                            llvm::MutableArrayRef<clang::Expr*> Args,
+                            clang::SourceLocation Loc);
     /// Creates the expression Base.size() for the given Base expr. The Base
     /// expr must be of clad::array_ref<T> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
@@ -492,9 +518,8 @@ namespace clad {
     ///
     /// \returns The derivative function call.
     clang::Expr* GetSingleArgCentralDiffCall(
-        clang::Expr* targetFuncCall, clang::Expr* targetArg, 
-        unsigned targetPos, unsigned numArgs, 
-        llvm::SmallVectorImpl<clang::Expr*>& args);
+        clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
+        unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args);
     /// A function to get the multi-argument "central_difference"
     /// call expression for the given arguments.
     ///
@@ -508,17 +533,16 @@ namespace clad {
     ///
     /// \returns The derivative function call.
     clang::Expr* GetMultiArgCentralDiffCall(
-        clang::Expr* targetFuncCall, clang::QualType retType, 
-        unsigned numArgs,
+        clang::Expr* targetFuncCall, clang::QualType retType, unsigned numArgs,
         llvm::SmallVectorImpl<clang::Stmt*>& NumericalDiffMultiArg,
         llvm::SmallVectorImpl<clang::Expr*>& args,
         llvm::SmallVectorImpl<clang::Expr*>& outputArgs);
-    /// Emits diagnostic messages on differentiation (or lack thereof) for 
+    /// Emits diagnostic messages on differentiation (or lack thereof) for
     /// call expressions.
     ///
-    /// \param[in] \c funcName The name of the underlying function of the 
+    /// \param[in] \c funcName The name of the underlying function of the
     /// call expression.
-    /// \param[in] \c srcLoc Any associated source location information. 
+    /// \param[in] \c srcLoc Any associated source location information.
     /// \param[in] \c isDerived A flag to determine if differentiation of the
     /// call expression was successful.
     void CallExprDiffDiagnostics(llvm::StringRef funcName,

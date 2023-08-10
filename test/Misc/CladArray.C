@@ -161,4 +161,46 @@ int main() {
   // CHECK-EXEC: 0 : 2.00
   // CHECK-EXEC: 1 : 2.00
   // CHECK-EXEC: 2 : 2.00
+
+  clad::array<double> double_test_arr2 = clad::one_hot_vector<double> (3, 1);
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr2[i]);
+  }
+  // CHECK-EXEC: 0 : 0.00
+  // CHECK-EXEC: 1 : 1.00
+  // CHECK-EXEC: 2 : 0.00
+
+  // Create a slice of double_test_arr2 and modify one of its elements.
+  // This should not modify the original array.
+  clad::array<double> double_test_arr2_slice = double_test_arr2.slice(1, 2);
+  double_test_arr2_slice[0] = 2;
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr2[i]);
+  }
+  // CHECK-EXEC: 0 : 0.00
+  // CHECK-EXEC: 1 : 1.00
+  // CHECK-EXEC: 2 : 0.00
+
+  // Create a slice by creating array_ref and modify one of its elements.
+  // This should modify the original array.
+  clad::array_ref<double> ref_slice = clad::array_ref<double>(double_test_arr2).slice(1, 2);
+  ref_slice[0] = 2;
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr2[i]);
+  }
+  // CHECK-EXEC: 0 : 0.00
+  // CHECK-EXEC: 1 : 2.00
+  // CHECK-EXEC: 2 : 0.00
+
+  // Create a clad array from pointer and modify one of its elements.
+  // This should not modify the original array.
+  double double_test_arr3[] = {1, 2, 3};
+  clad::array<double> double_test_arr4(double_test_arr3, 3);
+  double_test_arr4[0] = 2;
+  for (int i = 0; i < 3; i++) {
+    printf("%d : %.2f\n", i, double_test_arr3[i]);
+  }
+  // CHECK-EXEC: 0 : 1.00
+  // CHECK-EXEC: 1 : 2.00
+  // CHECK-EXEC: 2 : 3.00
 }
