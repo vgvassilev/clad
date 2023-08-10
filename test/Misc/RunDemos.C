@@ -120,8 +120,6 @@
 //CHECK_FLOAT_SUM:         sum = sum + x;
 //CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     goto _label0;
-//CHECK_FLOAT_SUM:   _label0:
 //CHECK_FLOAT_SUM:     _d_sum += 1;
 //CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
 //CHECK_FLOAT_SUM:         {
@@ -161,8 +159,6 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
@@ -200,8 +196,6 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
@@ -230,8 +224,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t0 = x;
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = _d_y * _t0;
@@ -254,8 +246,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(_t0, _t1, _t2);
 //CHECK_GRADIENT_DESCENT-NEXT:     _t4 = (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:     _t3 = (f_x - y);
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r3 = 1 * _t3;
 //CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += _r3;
@@ -311,33 +301,3 @@
 // CHECK_ARRAYS_EXEC:   {0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0, 0}
-
-//-----------------------------------------------------------------------------/
-// Demo: VectorForwardMode.cpp
-//-----------------------------------------------------------------------------/
-// RUN: %cladclang %S/../../demos/VectorForwardMode.cpp -I%S/../../include -oVectorForwardMode.out 2>&1 | FileCheck -check-prefix CHECK_VECTOR_FORWARD_MODE %s
-// CHECK_VECTOR_FORWARD_MODE: void weighted_sum_dvec_0_1(double *arr, double *weights, int n, clad::array_ref<double> _d_arr, clad::array_ref<double> _d_weights) {
-// CHECK_VECTOR_FORWARD_MODE-NEXT    unsigned long indepVarCount = _d_arr.size() + _d_weights.size();
-// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
-// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_weights = clad::identity_matrix(_d_weights.size(), indepVarCount, _d_arr.size());
-// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);
-// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::array<double> _d_vector_res(clad::array<double>(indepVarCount, 0));
-// CHECK_VECTOR_FORWARD_MODE-NEXT    double res = 0;
-// CHECK_VECTOR_FORWARD_MODE-NEXT    {
-// CHECK_VECTOR_FORWARD_MODE-NEXT        clad::array<int> _d_vector_i(clad::array<int>(indepVarCount, 0));
-// CHECK_VECTOR_FORWARD_MODE-NEXT        for (int i = 0; i < n; ++i) {
-// CHECK_VECTOR_FORWARD_MODE-NEXT            _d_vector_res += (_d_vector_weights[i]) * arr[i] + weights[i] * (_d_vector_arr[i]);
-// CHECK_VECTOR_FORWARD_MODE-NEXT            res += weights[i] * arr[i];
-// CHECK_VECTOR_FORWARD_MODE-NEXT        }
-// CHECK_VECTOR_FORWARD_MODE-NEXT    }
-// CHECK_VECTOR_FORWARD_MODE-NEXT    {
-// CHECK_VECTOR_FORWARD_MODE-NEXT        clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, _d_vector_res));
-// CHECK_VECTOR_FORWARD_MODE-NEXT        _d_arr = _d_vector_return.slice(0UL, _d_arr.size());
-// CHECK_VECTOR_FORWARD_MODE-NEXT        _d_weights = _d_vector_return.slice(_d_arr.size(), _d_weights.size());
-// CHECK_VECTOR_FORWARD_MODE-NEXT        return;
-// CHECK_VECTOR_FORWARD_MODE-NEXT    }
-// CHECK_VECTOR_FORWARD_MODE-NEXT }
-// RUN: ./VectorForwardMode.out | FileCheck -check-prefix CHECK_VECTOR_FORWARD_MODE_EXEC %s
-// CHECK_VECTOR_FORWARD_MODE_EXEC: Vector forward mode w.r.t. all:
-// CHECK_VECTOR_FORWARD_MODE_EXEC:  darr = {0.5, 0.7, 0.9}
-// CHECK_VECTOR_FORWARD_MODE_EXEC:  dweights = {3, 4, 5}

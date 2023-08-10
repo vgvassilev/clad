@@ -47,8 +47,6 @@ float func(float x, float y) {
 //CHECK-NEXT:         x = y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _ret_value0 = x + y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         * _d_x += 1;
 //CHECK-NEXT:         * _d_y += 1;
@@ -160,8 +158,6 @@ float func3(float x, float y) { return x > 30 ? x * y : x + y; }
 //CHECK-NEXT:         _t0 = y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _ret_value0 = _cond0 ? _t1 * _t0 : x + y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         float _r0 = 1 * _t0;
 //CHECK-NEXT:         * _d_x += _r0;
@@ -207,8 +203,6 @@ float func4(float x, float y) {
 //CHECK-NEXT:     _t3 = y;
 //CHECK-NEXT:     _t2 = x;
 //CHECK-NEXT:     _ret_value0 = _t3 / _t2;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r1 = 1 / _t2;
 //CHECK-NEXT:         * _d_y += _r1;

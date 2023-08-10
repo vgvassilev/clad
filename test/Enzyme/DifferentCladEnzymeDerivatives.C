@@ -15,8 +15,6 @@ double foo(double x, double y){
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t1 = x;
 // CHECK-NEXT:     _t0 = y;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         * _d_x += _r0;
