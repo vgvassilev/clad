@@ -13,7 +13,7 @@
 #include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
-#include "clang/AST/ParentMapContext.h"  
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/TemplateBase.h"
@@ -743,21 +743,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     beginScope(Scope::DeclScope);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    CCount++;
     for (Stmt* S : CS->body()) {
-      std::string cppString="ReturnStmt";
-      const char* cString = S->getStmtClassName();
-      if(cppString.compare(cString) == 0 ){
-        auto parents = m_Context.getParents(*CS);
-        if (!parents.empty()){
-          const Stmt* parentStmt =  parents[0].get<Stmt>();
-          if(parentStmt==nullptr)
-            OnlyReturn=true;
-          else
-            OnlyReturn=false;
-        }else{
-          OnlyReturn=true;
-        }
-      }
+      if(CCount==1&&isa<ReturnStmt>(S))
+        OnlyReturn=true;
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeDifferentiatingStmtInVisitCompoundStmt();
       StmtDiff SDiff = DifferentiateSingleStmt(S);
@@ -770,6 +759,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     CompoundStmt* Forward = endBlock(direction::forward);
     CompoundStmt* Reverse = endBlock(direction::reverse);
     endScope();
+    CCount--;
     return StmtDiff(Forward, Reverse);
   }
 
