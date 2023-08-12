@@ -109,7 +109,7 @@ namespace clad {
       CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
       if (CS)
         block.append(CS->body_begin(), CS->body_end());
-      else 
+      else
         block.push_back(initial);
       auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
@@ -182,7 +182,7 @@ namespace clad {
         if (isa<TranslationUnitDecl>(DC2))
           break;
         if (isa<LinkageSpecDecl>(DC2)) {
-          DC2 = DC2->getParent();  
+          DC2 = DC2->getParent();
           continue;
         }
         // We don't want to 'extend' the DC1 context with class declarations.
@@ -253,7 +253,7 @@ namespace clad {
       }
       return DC;
     }
-    
+
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();
@@ -346,10 +346,10 @@ namespace clad {
       QualType valueType = T;
       if (T->isPointerType())
         valueType = T->getPointeeType();
-      else if (T->isReferenceType()) 
+      else if (T->isReferenceType())
         valueType = T.getNonReferenceType();
       // FIXME: `QualType::getPointeeOrArrayElementType` loses type qualifiers.
-      else if (T->isArrayType()) 
+      else if (T->isArrayType())
         valueType =
             T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
       return valueType;
@@ -427,7 +427,7 @@ namespace clad {
       else if (S)
         block.push_back(S);
     }
-    
+
     MemberExpr*
     BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
                     llvm::ArrayRef<clang::StringRef> fields) {
@@ -532,6 +532,69 @@ namespace clad {
       // If E is not a MemberExpr or CallExpr or doesn't have a
       // non-differentiable attribute
       return false;
+    }
+
+    std::vector<clang::Expr*> GetInnermostReturnExpr(clang::Expr* E) {
+      struct Finder : public ConstStmtVisitor<Finder> {
+        std::vector<clang::Expr*> m_return_exprs;
+        // Sema* m_Sema;
+        // ASTContext* m_Context;
+
+      public:
+        Finder(/*Sema* S*/) /* : m_Sema(S), m_Context(S.getASTContext()) */ {}
+
+        std::vector<clang::Expr*> Find(const clang::Expr* E) {
+          Visit(E);
+          return m_return_exprs;
+        }
+
+        void VisitBinaryOperator(const clang::BinaryOperator* BO) {
+          if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
+            Visit(BO->getLHS());
+          } else if (BO->isCommaOp()) {
+            /**/
+          } else {
+            assert("Unexpected binary operator!!");
+          }
+        }
+
+        void VisitConditionalOperator(const clang::ConditionalOperator* CO) {
+          // FIXME: in cases like (cond ? x : y) = 2; both x and y will be
+          // stored.
+          Visit(CO->getTrueExpr());
+          Visit(CO->getFalseExpr());
+        }
+
+        void VisitUnaryOperator(const clang::UnaryOperator* UnOp) {
+          auto opCode = UnOp->getOpcode();
+          if (opCode == clang::UO_PreInc || opCode == clang::UO_PreDec)
+            Visit(UnOp->getSubExpr());
+        }
+
+        void VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
+          m_return_exprs.push_back(const_cast<clang::DeclRefExpr*>(DRE));
+        }
+
+        void VisitExpr(const clang::Expr* E) {
+          if (auto PE = dyn_cast<clang::ParenExpr>(E)) {
+            Visit(PE->getSubExpr());
+          }
+        }
+
+        void VisitMemberExpr(const clang::MemberExpr* ME) {
+          m_return_exprs.push_back(const_cast<clang::MemberExpr*>(ME));
+        }
+
+        void VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) {
+          m_return_exprs.push_back(const_cast<clang::ArraySubscriptExpr*>(ASE));
+        }
+
+        void VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE) {
+          Visit(ICE->getSubExpr());
+        }
+      };
+      Finder finder;
+      return finder.Find(E);
     }
   } // namespace utils
 } // namespace clad
