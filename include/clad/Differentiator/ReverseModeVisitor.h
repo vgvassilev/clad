@@ -582,7 +582,9 @@ namespace clad {
     void PopBreakContStmtHandler() {
       m_BreakContStmtHandlers.pop_back();
     }
-                                   
+
+    std::map<clang::SourceLocation, bool> m_ToBeRecorded;
+
     /// Registers an external RMV source.
     ///
     /// Multiple external RMV source can be registered by calling this function
