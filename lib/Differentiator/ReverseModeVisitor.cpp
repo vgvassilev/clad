@@ -10,9 +10,10 @@
 
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
-#include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
+#include "clad/Differentiator/StmtClone.h"
+#include "clad/Differentiator/TBRAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -375,7 +376,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnScope();
-    
+
     auto params = BuildParams(args);
 
     if (m_ExternalSource)
@@ -417,7 +418,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_IndependentVars.push_back(arg);
       }
     }
-    
+
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
 
@@ -454,6 +455,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
+    TBRAnalyzer* analyzer = new TBRAnalyzer(&m_Context);
+    analyzer->Analyze(FD);
+    m_ToBeRecorded = analyzer->getResult();
+    delete analyzer;
+
+    // for (auto pair : m_ToBeRecorded) {
+    //   auto line =
+    //   m_Context.getSourceManager().getPresumedLoc(pair.first).getLine(); auto
+    //   column =
+    //   m_Context.getSourceManager().getPresumedLoc(pair.first).getColumn();
+    //   llvm::errs() << line << "|" <<column << ": " << pair.second << "\n";
+    // }
+
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
@@ -557,6 +571,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
+    TBRAnalyzer* analyzer = new TBRAnalyzer(&m_Context);
+    analyzer->Analyze(m_Function);
+    m_ToBeRecorded = analyzer->getResult();
+    delete analyzer;
+
+    // for (auto pair : m_ToBeRecorded) {
+    //   auto line =
+    //   m_Context.getSourceManager().getPresumedLoc(pair.first).getLine(); auto
+    //   column =
+    //   m_Context.getSourceManager().getPresumedLoc(pair.first).getColumn();
+    //   llvm::errs() << line << "|" <<column << ": " << pair.second << "\n";
+    // }
+
     llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
 
     // create derived variables for parameters which are not part of
@@ -749,7 +776,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       StmtDiff SDiff = DifferentiateSingleStmt(S);
       addToCurrentBlock(SDiff.getStmt(), direction::forward);
       addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
-      
+
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingStmtInVisitCompoundStmt();
     }
@@ -868,7 +895,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           m_ExternalSource->ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt();
         StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr);
         addToCurrentBlock(BranchDiff.getStmt(), direction::forward);
-        
+
         if (m_ExternalSource)
           m_ExternalSource->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
 
@@ -1905,7 +1932,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto d = BuildOp(UO_Minus, dfdx());
       diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
-      auto EStored = GlobalStoreAndRef(E, "_t", /*force=*/true);
+      auto EStored = GlobalStoreAndRef(E);
       auto assign =
           BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
       if (isInsideLoop)
@@ -1917,7 +1944,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
-      auto EStored = GlobalStoreAndRef(E, "_t", /*force=*/true);
+      auto EStored = GlobalStoreAndRef(E);
       auto assign =
           BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
       if (isInsideLoop)
@@ -1975,45 +2002,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(op, ResultRef);
   }
 
-std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
-  struct Finder : public ConstStmtVisitor<Finder> {
-    std::vector<Expr*> m_return_exprs;
-    Sema& m_Sema;
-    ASTContext& m_Context;
-
-    public:
-
-    Finder(Sema& S) : m_Sema(S), m_Context(S.getASTContext()) {}
-
-    std::vector<Expr*> Find(const Expr* E) {
-      Visit(E);
-      return m_return_exprs;
-    }
-
-    void VisitBinaryOperator(const BinaryOperator* BO) {
-      if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
-        Visit(BO->getLHS());
-      } else if (BO->isCommaOp()) {
-        /**/
-      } else {
-        assert("Unexpected binary operator!!");
-      }
-    }
-
-    void VisitDeclRefExpr(const DeclRefExpr* DRE) {
-      m_return_exprs.push_back(const_cast<DeclRefExpr*>(DRE));
-    }
-
-    void VisitExpr(const Expr* E) {
-      if (auto PE = dyn_cast<ParenExpr>(E)) {
-        Visit(PE->getSubExpr());
-      }
-    }
-  };
-  Finder finder(m_Sema);
-  return finder.Find(E);
-};
-
   StmtDiff
   ReverseModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     auto opCode = BinOp->getOpcode();
@@ -2069,7 +2057,11 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
       if (!RDelayed.isConstant) {
         Expr* dr = nullptr;
         if (dfdx()) {
-          StmtDiff LResult = GlobalStoreAndRef(LStored);
+          StmtDiff LResult;
+          if (isa<DeclRefExpr>(LStored->IgnoreImpCasts()))
+            LResult = {LStored, LStored};
+          else
+            LResult = GlobalStoreAndRef(LStored, "_t", /*force=*/true);
           LStored = LResult.getExpr();
           dr = BuildOp(BO_Mul, LResult.getExpr_dx(), dfdx());
           dr = StoreAndRef(dr, direction::reverse);
@@ -2099,8 +2091,12 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
       Expr* LStored = Ldiff.getExpr();
       if (!RDelayed.isConstant) {
         Expr* dr = nullptr;
+        StmtDiff LResult;
         if (dfdx()) {
-          StmtDiff LResult = GlobalStoreAndRef(LStored);
+          if (isa<DeclRefExpr>(LStored->IgnoreParenImpCasts()))
+            LResult = {LStored, LStored};
+          else
+            LResult = GlobalStoreAndRef(LStored, "_t", /*force=*/true);
           LStored = LResult.getExpr();
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
           dr = BuildOp(BO_Mul,
@@ -2190,13 +2186,13 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
       Ldiff = Visit(L, dfdx());
       Stmts essentialRevBlock = EndBlockWithoutCreatingCS(direction::essential_reverse);
       auto Lblock = endBlock(direction::reverse);
-      auto return_exprs = GetInnermostReturnExpr(Ldiff.getExpr());
+      auto return_exprs = utils::GetInnermostReturnExpr(Ldiff.getExpr());
       if (L->HasSideEffects(m_Context)) {
         Expr* E = Ldiff.getExpr();
         auto storeE = StoreAndRef(E, m_Context.getLValueReferenceType(E->getType()));
         Ldiff.updateStmt(storeE);
       }
-      
+
       // if (/*!L->HasSideEffects(m_Context)*/true) {
       //   Lstored = GlobalStoreAndRef(Ldiff.getExpr(), "_t", /*force*/true);
       //   auto assign = BuildOp(BO_Assign, Ldiff.getExpr(), Lstored.getExpr_dx());
@@ -2245,13 +2241,26 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
       for (auto E : return_exprs) {
         // E->dumpColor();
         // llvm::errs()<<"\n";
-        Lstored = GlobalStoreAndRef(E, "_t", /*force=*/true);
-        auto assign = BuildOp(BinaryOperatorKind::BO_Assign, E, Lstored.getExpr_dx());
-        if (isInsideLoop) {
-          addToCurrentBlock(Lstored.getExpr(), direction::forward);
+        Lstored = GlobalStoreAndRef(E);
+        if (Lstored.getExpr() != E) {
+          auto assign =
+              BuildOp(BinaryOperatorKind::BO_Assign, E, Lstored.getExpr_dx());
+          if (isInsideLoop)
+            addToCurrentBlock(Lstored.getExpr(), direction::forward);
+          addToCurrentBlock(assign, direction::reverse);
         }
-        addToCurrentBlock(assign, direction::reverse);
       }
+      // Lstored = GlobalStoreAndRef(L, "_t", /*force=*/true);
+      // // auto line =
+      // m_Context.getSourceManager().getPresumedLoc(L->getBeginLoc()).getLine();
+      // // auto column =
+      // m_Context.getSourceManager().getPresumedLoc(L->getBeginLoc()).getColumn();
+      // // llvm::errs() << line << "|" <<column << "?\n";
+      // auto assign = BuildOp(BinaryOperatorKind::BO_Assign, L,
+      // Lstored.getExpr_dx()); if (isInsideLoop) {
+      //   addToCurrentBlock(Lstored.getExpr(), direction::forward);
+      // }
+      // addToCurrentBlock(assign, direction::reverse);
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
@@ -2294,13 +2303,16 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
           //   double & _ref0 = (x *= y);
           //   _t0 = _ref0;
           //   double r = _ref0 *= z;
+          StmtDiff LResult;
           if (LCloned->HasSideEffects(m_Context)) {
             auto RefType = getNonConstType(L->getType(), m_Context, m_Sema);
             // RefType = m_Context.getLValueReferenceType(RefType);
             LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
                                /*forceDeclCreation=*/true);
-          }
-          StmtDiff LResult = GlobalStoreAndRef(LRef);
+            LResult = GlobalStoreAndRef(LRef, "_t", /*force=*/true);
+          } else
+            LResult = {LRef, LRef};
+
           if (isInsideLoop)
             addToCurrentBlock(LResult.getExpr(), direction::forward);
           Expr* dr = BuildOp(BO_Mul, LResult.getExpr_dx(), oldValue);
@@ -2319,13 +2331,15 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
                           direction::reverse);
         Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
+          StmtDiff LResult;
           if (LCloned->HasSideEffects(m_Context)) {
             QualType RefType = m_Context.getLValueReferenceType(
                 getNonConstType(L->getType(), m_Context, m_Sema));
             LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
                                /*forceDeclCreation=*/true);
-          }
-          StmtDiff LResult = GlobalStoreAndRef(LRef);
+            LResult = GlobalStoreAndRef(LRef, "_t", /*force=*/true);
+          } else
+            LResult = {LRef, LRef};
           if (isInsideLoop)
             addToCurrentBlock(LResult.getExpr(), direction::forward);
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
@@ -2405,13 +2419,13 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
       VDDerivedInit = getZeroInit(VD->getType());
 
       // `specialThisDiffCase` is only required for correctly differentiating
-      // the following code: 
+      // the following code:
       // ```
       // Class _d_this_obj;
       // Class* _d_this = &_d_this_obj;
       // ```
       // Computation of hessian requires this code to be correctly
-      // differentiated. 
+      // differentiated.
       bool specialThisDiffCase = false;
       if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
         if (VDDerivedType->isPointerType() && MD->isInstance()) {
@@ -2467,7 +2481,7 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
 
       // If we are differentiating `VarDecl` corresponding to a local variable
       // inside a loop, then we need to reset it to 0 at each iteration.
-      // 
+      //
       // for example, if defined inside a loop,
       // ```
       // double localVar = i;
@@ -2477,7 +2491,7 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
       // {
       //   *_d_i += _d_localVar;
       //   _d_localVar = 0;
-      // }                        
+      // }
       if (isInsideLoop) {
         Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign,
                                      BuildDeclRef(VDDerived),
@@ -2524,10 +2538,10 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
 
     return VarDeclDiff(VDClone, VDDerived);
   }
-  
+
   // TODO: 'shouldEmit' parameter should be removed after converting
   // Error estimation framework to callback style. Some more research
-  // need to be done to 
+  // need to be done to
   StmtDiff
   ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS) {
     if (m_ExternalSource)
@@ -2688,8 +2702,20 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
     // We lack context to decide if this is useful to store or not. In the
     // current system that should have been decided by the parent expression.
     // FIXME: Here will be the entry point of the advanced activity analysis.
-    if (isa<DeclRefExpr>(B))
-      return false;
+    if (isa<DeclRefExpr>(B)) {
+      // auto line =
+      // m_Context.getSourceManager().getPresumedLoc(B->getBeginLoc()).getLine();
+      // auto column =
+      // m_Context.getSourceManager().getPresumedLoc(B->getBeginLoc()).getColumn();
+      // llvm::errs() << line << "|" <<column << "?\n";
+      auto it = m_ToBeRecorded.find(B->getBeginLoc());
+      if (it == m_ToBeRecorded.end()) {
+        return true;
+      } else {
+        return it->second;
+      }
+      // return true;
+    }
 
     // FIXME: Attach checkpointing.
     if (isa<CallExpr>(B))
@@ -2777,7 +2803,7 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
   ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E,
                                                llvm::StringRef prefix) {
     assert(E && "must be provided");
-    if (!UsefulToStoreGlobal(E)) {
+    if (isa<DeclRefExpr>(E) /*!UsefulToStoreGlobal(E)*/) {
       Expr* Cloned = Clone(E);
       Expr::EvalResult evalRes;
       bool isConst =
@@ -3153,7 +3179,7 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
 
     bodyDiff = {bodyDiff.getStmt(), CFSS};
   }
-  
+
   void ReverseModeVisitor::AddExternalSource(ExternalRMVSource& source) {
     if (!m_ExternalSource)
       m_ExternalSource = new MultiplexExternalRMVSource();
@@ -3209,7 +3235,7 @@ std::vector<Expr*> ReverseModeVisitor::GetInnermostReturnExpr(Expr* E) {
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
                                                           QualType xType) {
-                                               
+
     if (m_Mode == DiffMode::reverse)
       assert(yType->isRealType() &&
              "yType should be a non-reference builtin-numerical scalar type!!");

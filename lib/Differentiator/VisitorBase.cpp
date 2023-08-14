@@ -168,9 +168,10 @@ namespace clad {
   }
 
   DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
-    Stmt* DS =
-        m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D), noLoc, noLoc)
-            .get();
+    Stmt* DS = m_Sema
+                   .ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D),
+                                  D->getBeginLoc(), D->getEndLoc())
+                   .get();
     return cast<DeclStmt>(DS);
   }
 
@@ -184,7 +185,7 @@ namespace clad {
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
-        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, noLoc, SS)));
+        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, D->getBeginLoc(), SS)));
   }
 
   IdentifierInfo*

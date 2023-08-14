@@ -313,6 +313,8 @@ namespace clad {
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
+    /// FIXME: add documentation
+    std::vector<clang::Expr*> GetInnermostReturnExpr(clang::Expr* E);
   } // namespace utils
 }
 
