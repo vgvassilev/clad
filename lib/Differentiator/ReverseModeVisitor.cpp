@@ -1271,16 +1271,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> reverseIndices(Indices.size());
     llvm::SmallVector<Expr*, 4> forwSweepDerivativeIndices(Indices.size());
     for (std::size_t i = 0; i < Indices.size(); i++) {
+      /// FIXME: Remove redundant indices vectors.
       StmtDiff IdxDiff = Visit(Indices[i]);
-      auto idxStored = GlobalStoreAndRef(IdxDiff.getExpr(), "_t", /*force=*/true);
-      clonedIndices[i] = idxStored.getExpr();
-      reverseIndices[i] = idxStored.getExpr_dx();
-      if (isInsideLoop) {
-        auto forwIndex = StoreAndRef(idxStored.getExpr(), direction::forward);
-        auto revIndex = StoreAndRef(idxStored.getExpr_dx(), direction::essential_reverse, "_r");
-        clonedIndices[i] = forwIndex;
-        reverseIndices[i] = revIndex;
-      }
+      clonedIndices[i] = IdxDiff.getExpr();
+      reverseIndices[i] = IdxDiff.getExpr();
       // reverseIndices[i] = Clone(IdxDiff.getExpr());
       forwSweepDerivativeIndices[i] = IdxDiff.getExpr();
     }
@@ -2081,26 +2075,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto d = BuildOp(UO_Minus, dfdx());
       diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
-      auto EStored = GlobalStoreAndRef(E);
+      diff = Visit(E, dfdx());
+      auto EStored = GlobalStoreAndRef(diff.getExpr());
       auto assign =
-          BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
+          BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(), EStored.getExpr_dx());
       if (isInsideLoop)
         addToCurrentBlock(EStored.getExpr(), direction::forward);
       addToCurrentBlock(assign, direction::reverse);
 
-      diff = Visit(E, dfdx());
       ResultRef = diff.getExpr_dx();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
-      auto EStored = GlobalStoreAndRef(E);
+      diff = Visit(E, dfdx());
+      auto EStored = GlobalStoreAndRef(diff.getExpr());
       auto assign =
-          BuildOp(BinaryOperatorKind::BO_Assign, E, EStored.getExpr_dx());
+          BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(), EStored.getExpr_dx());
       if (isInsideLoop)
         addToCurrentBlock(EStored.getExpr(), direction::forward);
       addToCurrentBlock(assign, direction::reverse);
 
-      diff = Visit(E, dfdx());
     } else if (opCode == UnaryOperatorKind::UO_Real ||
                opCode == UnaryOperatorKind::UO_Imag) {
       diff = VisitWithExplicitNoDfDx(E);
@@ -2386,10 +2380,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Lblock_begin = std::next(Lblock_begin);
       }
 
-      // llvm::errs()<<"Dumping return_exprs:\n";
       for (auto E : return_exprs) {
-        // E->dumpColor();
-        // llvm::errs()<<"\n";
         Lstored = GlobalStoreAndRef(E);
         if (Lstored.getExpr() != E) {
           auto assign =
@@ -2399,17 +2390,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           addToCurrentBlock(assign, direction::reverse);
         }
       }
-      // Lstored = GlobalStoreAndRef(L, "_t", /*force=*/true);
-      // // auto line =
-      // m_Context.getSourceManager().getPresumedLoc(L->getBeginLoc()).getLine();
-      // // auto column =
-      // m_Context.getSourceManager().getPresumedLoc(L->getBeginLoc()).getColumn();
-      // // llvm::errs() << line << "|" <<column << "?\n";
-      // auto assign = BuildOp(BinaryOperatorKind::BO_Assign, L,
-      // Lstored.getExpr_dx()); if (isInsideLoop) {
-      //   addToCurrentBlock(Lstored.getExpr(), direction::forward);
-      // }
-      // addToCurrentBlock(assign, direction::reverse);
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
