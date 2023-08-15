@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -otestUtility.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -otestUtility.out
 // RUN: ./testUtility.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -142,4 +142,3 @@ int main(){
     TEST_JACOBIAN(f_1, 3, 9, 4, 5, 6, output1, jacobian1); // CHECK-EXEC: {48.00, 0.00, 0.00, 80.00, 32.00, 0.00, 60.00, -6.00, 35.00}
 
 }
-

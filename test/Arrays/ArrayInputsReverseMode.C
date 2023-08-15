@@ -390,7 +390,7 @@ int main() {
 
   auto nested = clad::gradient(func3);
   nested.execute(a3, b, da3, db2);
-  printf("Result (b) = {%.2f, %.2f, %.2f}\n", db2[0], db2[1], db2[2]); // CHECK-EXEC: Result (b) = {0.00, 0.00, 0.00}
+  printf("Result (b) = {%.2f, %.2f, %.2f}\n", db2[0], db2[1], db2[2]); // CHECK-EXEC: Result (b) = {1.00, 1.00, 1.00}
 
   auto constArray = clad::gradient(func4);
   double _dx = 0;

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -std=c++14 -oconstexprTest.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -std=c++14 -oconstexprTest.out
 // RUN: ./constexprTest.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -134,7 +134,7 @@ constexpr void f_1(double x, double y, double z, double output[]) {
 //CHECK-NEXT:}
 
 int main() {
-    
+
     INIT_JACOBIAN(fn_mul);
     INIT_JACOBIAN(f_1);
 

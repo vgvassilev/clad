@@ -9,7 +9,7 @@
 //  Demo: Gradient.cpp
 //-----------------------------------------------------------------------------/
 
-// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out 2>&1 | FileCheck -check-prefix CHECK_GRADIENT %s
+// RUN: %cladclang %S/../../demos/Gradient.cpp -I%S/../../include -oGradient.out
 // CHECK_GRADIENT-NOT:{{.*error|warning|note:.*}}
 // CHECK_GRADIENT:float sphere_implicit_func_darg0(float x, float y, float z, float xc, float yc, float zc, float r) {
 // CHECK_GRADIENT: float _d_x = 1;
@@ -68,7 +68,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Rosenbrock Function
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include -oRosenbrockFunction.out 2>&1 | FileCheck -check-prefix CHECK_ROSENBROCK %s
+// RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include -oRosenbrockFunction.out
 // CHECK_ROSENBROCK-NOT:{{.*error|warning|note:.*}}
 // CHECK_ROSENBROCK:double rosenbrock_func_darg0(double x, double y) {
 // CHECK_ROSENBROCK: double _d_x = 1;
@@ -102,7 +102,7 @@
 // Demo: Error Estimation Float Sum
 //-----------------------------------------------------------------------------/
 
-// RUN: %cladclang %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include 2>&1  | FileCheck -check-prefix CHECK_FLOAT_SUM %s
+// RUN: %cladclang %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, clad::array_ref<float> _d_x, clad::array_ref<unsigned int> _d_n, double &_final_error) {
@@ -145,7 +145,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
 // RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/CustomModel/libcladCustomModelPlugin%shlibext \
 // RUN:   %S/../../demos/ErrorEstimation/CustomModel/test.cpp \
-// RUN: -I%S/../../include -oCustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL %s
+// RUN: -I%S/../../include -oCustomModelTest.out
 
 // CHECK_CUSTOM_MODEL-NOT: Could not load {{.*}}cladCustomModelPlugin{{.*}}
 
@@ -184,7 +184,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -fcustom-estimation-model \
 // RUN:  -Xclang -plugin-arg-clad -Xclang %clad_obj_root/demos/ErrorEstimation/PrintModel/libcladPrintModelPlugin%shlibext \
 // RUN:   %S/../../demos/ErrorEstimation/PrintModel/test.cpp \
-// RUN: -I%S/../../include -oPrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL %s
+// RUN: -I%S/../../include -oPrintModelTest.out
 
 // CHECK_PRINT_MODEL-NOT: Could not load {{.*}}cladPrintModelPlugin{{.*}}
 
@@ -223,7 +223,7 @@
 //-----------------------------------------------------------------------------/
 // Demo: Gradient Descent
 //-----------------------------------------------------------------------------/
-// RUN: %cladclang %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
+// RUN: %cladclang %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out
 
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t0;

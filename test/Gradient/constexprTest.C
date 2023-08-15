@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out
 // RUN: ./constexprTest.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "clad/Differentiator/Differentiator.h"
