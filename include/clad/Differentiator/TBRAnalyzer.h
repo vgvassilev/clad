@@ -1,8 +1,9 @@
-#ifndef CLAD_TBR_ANALYZER_H
-#define CLAD_TBR_ANALYZER_H
+#ifndef CLAD_DIFFERENTIATOR_TBRANALYZER_H
+#define CLAD_DIFFERENTIATOR_TBRANALYZER_H
 
 #include "clang/AST/StmtVisitor.h"
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 
 #include <map>
 #include <unordered_map>
@@ -17,7 +18,7 @@ private:
   /// type keys.
   struct APIntHash {
     size_t operator()(const llvm::APInt& apint) const {
-      return std::hash<std::string>{}(apint.toString(10, true));
+      return llvm::hash_value(apint);
     }
   };
 
@@ -301,4 +302,4 @@ public:
 };
 
 } // end namespace clad
-#endif // CLAD_TBR_ANALYZER_H
+#endif // CLAD_DIFFERENTIATOR_TBRANALYZER_H

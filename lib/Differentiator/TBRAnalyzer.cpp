@@ -28,8 +28,19 @@ void TBRAnalyzer::VarData::merge(VarData* mergeData) {
       pair.second->merge(mergeData->val.objData[pair.first]);
     }
   } else if (this->type == ARR_TYPE) {
+    /// FIXME: Currently non-constant indices are not supported in merging.
     for (auto pair : this->val.arrData) {
-      pair.second->merge(mergeData->val.arrData[pair.first]);
+      auto it = mergeData->val.arrData.find(pair.first);
+      if (it != mergeData->val.arrData.end()) {
+        pair.second->merge(it->second);
+      }
+    }
+    for (auto pair : mergeData->val.arrData) {
+      auto it = this->val.arrData.find(pair.first);
+      if (it == mergeData->val.arrData.end()) {
+        std::unordered_map<VarData*, VarData*> refVars;
+        this->val.arrData[pair.first] = pair.second->copy(refVars);
+      }
     }
   } else if (this->type == REF_TYPE && this->val.refData) {
     this->val.refData->merge(mergeData->val.refData);
@@ -551,8 +562,9 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
     /// Multiplication results in a linear expression if and only if one of the
     /// factors is constant.
     Expr::EvalResult dummy;
-    bool nonLinear = !R->EvaluateAsConstantExpr(dummy, *m_Context) &&
-                     !L->EvaluateAsConstantExpr(dummy, *m_Context);
+    bool nonLinear =
+        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, *m_Context) &&
+        !clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, *m_Context);
     if (nonLinear)
       startNonLinearMode();
 
@@ -565,7 +577,8 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
     /// Division normally only results in a linear expression when the
     /// denominator is constant.
     Expr::EvalResult dummy;
-    bool nonLinear = !R->EvaluateAsConstantExpr(dummy, *m_Context);
+    bool nonLinear =
+        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, *m_Context);
     if (nonLinear)
       startNonLinearMode();
 
@@ -591,7 +604,8 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
       /// represents the same operation as 'x = x * y' ('x = x / y') and,
       /// therefore, LHS has to be visited in markingMode|nonLinearMode.
       Expr::EvalResult dummy;
-      bool RisNotConst = !R->EvaluateAsConstantExpr(dummy, *m_Context);
+      bool RisNotConst =
+          !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, *m_Context);
       if (RisNotConst)
         setMode(Mode::markingMode | Mode::nonLinearMode);
       Visit(L);
@@ -757,7 +771,6 @@ void TBRAnalyzer::VisitWhileStmt(const clang::WhileStmt* WS) {
   /// First pass
   innermostLoopBranch = reqStack.size() - 2;
   firstLoopPass = true;
-  mergeCurBranchTo(innermostLoopBranch - 1);
   if (body)
     Visit(body);
   if (deleteCurBranch) {
