@@ -1516,9 +1516,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // may be changed since we have no way to determine otherwise.
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
-      StmtDiff argDiffStore = GlobalStoreAndRef(
-          argDiff.getExpr(), "_t",
-          /*force=*/passByRef && !argDiff.getExpr()->getType()->isArrayType());
+      StmtDiff argDiffStore;
+      if (passByRef && !argDiff.getExpr()->getType()->isArrayType()) {
+        argDiffStore =
+            GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
+      } else {
+        argDiffStore = {argDiff.getExpr(), argDiff.getExpr()};
+      }
+
       // We need to pass the actual argument in the cloned call expression,
       // instead of a temporary, for arguments passed by reference. This is
       // because, callee function may modify the argument passed as reference
@@ -1928,11 +1933,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(E, dfdx());
       auto EStored = GlobalStoreAndRef(diff.getExpr());
-      auto assign =
-          BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(), EStored.getExpr_dx());
-      if (isInsideLoop)
-        addToCurrentBlock(EStored.getExpr(), direction::forward);
-      addToCurrentBlock(assign, direction::reverse);
+      if (EStored.getExpr() != diff.getExpr()) {
+        auto assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
+                              EStored.getExpr_dx());
+        if (isInsideLoop)
+          addToCurrentBlock(EStored.getExpr(), direction::forward);
+        addToCurrentBlock(assign, direction::reverse);
+      }
 
       ResultRef = diff.getExpr_dx();
       if (m_ExternalSource)
@@ -1940,12 +1947,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       diff = Visit(E, dfdx());
       auto EStored = GlobalStoreAndRef(diff.getExpr());
-      auto assign =
-          BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(), EStored.getExpr_dx());
-      if (isInsideLoop)
-        addToCurrentBlock(EStored.getExpr(), direction::forward);
-      addToCurrentBlock(assign, direction::reverse);
-
+      if (EStored.getExpr() != diff.getExpr()) {
+        auto assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
+                              EStored.getExpr_dx());
+        if (isInsideLoop)
+          addToCurrentBlock(EStored.getExpr(), direction::forward);
+        addToCurrentBlock(assign, direction::reverse);
+      }
     } else if (opCode == UnaryOperatorKind::UO_Real ||
                opCode == UnaryOperatorKind::UO_Imag) {
       diff = VisitWithExplicitNoDfDx(E);
@@ -2675,14 +2683,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         return UsefulToStoreGlobal(UO->getSubExpr());
       return true;
     }
-    if (isa<ArraySubscriptExpr>(B)) {
-      auto ASE = cast<ArraySubscriptExpr>(B);
-      return UsefulToStoreGlobal(ASE->getBase()) || UsefulToStoreGlobal(ASE->getIdx());
-    }
     // We lack context to decide if this is useful to store or not. In the
     // current system that should have been decided by the parent expression.
     // FIXME: Here will be the entry point of the advanced activity analysis.
-    if (isa<DeclRefExpr>(B)) {
+    if (isa<DeclRefExpr>(B) /* || isa<ArraySubscriptExpr>(B)*/) {
       // auto line =
       // m_Context.getSourceManager().getPresumedLoc(B->getBeginLoc()).getLine();
       // auto column =
@@ -2998,6 +3002,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       bodyDiff.updateStmtDx(MakeCompoundStmt(revLoopBlock));
     m_LoopBlock.pop_back();
 
+    /// Increment statement in the for-loop is only executed if the iteration
+    /// did not end with a break/continue statement. Therefore, forLoopIncDiff
+    /// should be inside the last switch case in the reverse pass.
+    if (forLoopIncDiff) {
+      if (bodyDiff.getStmt_dx()) {
+        bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+            m_Context, bodyDiff.getStmt_dx(), forLoopIncDiff));
+      } else {
+        bodyDiff.updateStmtDx(forLoopIncDiff);
+      }
+    }
+
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
@@ -3019,7 +3035,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(counterDecrement, direction::reverse);
     addToCurrentBlock(condVarDiff, direction::reverse);
     addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
-    addToCurrentBlock(forLoopIncDiff, direction::reverse);
     bodyDiff = {bodyDiff.getStmt(),
                 unwrapIfSingleStmt(endBlock(direction::reverse))};
     return bodyDiff;

@@ -228,6 +228,11 @@ namespace clad {
                                       forceDeclCreation, IS);
     }
 
+    /// Based on To-Be-Recorded analysis performed before differentiation,
+    /// tells UsefulToStoreGlobal whether a variable with a given
+    /// SourceLocation has to be stored before changed or not.
+    std::map<clang::SourceLocation, bool> m_ToBeRecorded;
+
     /// For an expr E, decides if it is useful to store it in a global temporary
     /// variable and replace E's further usage by a reference to that variable
     /// to avoid recomputiation.
@@ -583,8 +588,6 @@ namespace clad {
     void PopBreakContStmtHandler() {
       m_BreakContStmtHandlers.pop_back();
     }
-
-    std::map<clang::SourceLocation, bool> m_ToBeRecorded;
 
     /// Registers an external RMV source.
     ///

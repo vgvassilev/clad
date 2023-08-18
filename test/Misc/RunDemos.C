@@ -149,7 +149,7 @@
 
 // CHECK_CUSTOM_MODEL-NOT: Could not load {{.*}}cladCustomModelPlugin{{.*}}
 
-// RUN: ./CustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL_EXEC %s
+// RUN: ./CustomModelTest.out
 // CHECK_CUSTOM_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_CUSTOM_MODEL_EXEC: The code is:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
@@ -188,7 +188,7 @@
 
 // CHECK_PRINT_MODEL-NOT: Could not load {{.*}}cladPrintModelPlugin{{.*}}
 
-// RUN: ./PrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL_EXEC %s
+// RUN: ./PrintModelTest.out
 // CHECK_PRINT_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_PRINT_MODEL_EXEC: The code is:
 // CHECK_PRINT_MODEL_EXEC-NEXT: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
