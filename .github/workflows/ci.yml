@@ -490,9 +490,9 @@ jobs:
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
         PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
 
-        # For now Packages llvm@10, llvm@13, llvm@14 are not supported on brew.
+        # For now Package llvm@17 is unsuported on brew, llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
-        if [[ '${{ matrix.clang-runtime }}' == '10' || '${{ matrix.clang-runtime }}' == '13' || '${{ matrix.clang-runtime }}' == '14' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 11 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
           sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.0.0/clang+llvm-${{ matrix.clang-runtime }}.0.0-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
@@ -511,7 +511,7 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '10' && '${{ matrix.clang-runtime }}' != '13' && '${{ matrix.clang-runtime }}' != '14' ]]; then
+        if [[ '${{ matrix.clang-runtime }}' != '17' && ${{ matrix.clang-runtime }} -gt 11 ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         else
           # Remove the c++ headers that come with the llvm package from homebrew
