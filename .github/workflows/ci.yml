@@ -715,8 +715,8 @@ jobs:
         COMPARER='./googlebenchmark-prefix/src/googlebenchmark/tools/compare.py'
         for baseline in *-$hash.json
         do
-          common=${baseline:0:-12}
-          pr_change=$(find . ! -name '*$hash.json'  -name "${common}*.json")
+          common=${baseline%$hash.json}
+          pr_change=$(find . ! -name "*$hash.json" -name "$common*.json")
 
           echo "Running 'python3 ${COMPARER} benchmarks '${baseline}' '${pr_change}''"
           python3 ${COMPARER} benchmarks ${baseline} ${pr_change}

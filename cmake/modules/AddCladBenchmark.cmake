@@ -1,12 +1,12 @@
 # Find the current branch.
 execute_process(WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                COMMAND git rev-parse --abbrev-ref HEAD
-                OUTPUT_VARIABLE CURRENT_REPO_BRANCH
+                COMMAND git rev-parse HEAD
+                OUTPUT_VARIABLE CURRENT_REPO_COMMIT
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(REPLACE "/" "" CURRENT_REPO_BRANCH ${CURRENT_REPO_BRANCH})
+string(REPLACE "/" "" CURRENT_REPO_COMMIT ${CURRENT_REPO_COMMIT})
 
 # Ask cmake to reconfigure each time we change the branch so that it can change
-# the value of CURRENT_REPO_BRANCH.
+# the value of CURRENT_REPO_COMMIT.
 set_property(DIRECTORY APPEND PROPERTY
              CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/HEAD")
 
@@ -74,7 +74,7 @@ function(CB_ADD_GBENCHMARK benchmark)
   # Add benchmark as a CTest
   add_test(NAME clad-${benchmark}
     COMMAND ${benchmark} --benchmark_out_format=json
-    --benchmark_out=clad-gbenchmark-${benchmark}-${CURRENT_REPO_BRANCH}.json
+    --benchmark_out=clad-gbenchmark-${benchmark}-${CURRENT_REPO_COMMIT}.json
     --benchmark_color=false)
   set_tests_properties(clad-${benchmark} PROPERTIES
                        TIMEOUT "${TIMEOUT_VALUE}"
