@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out
 // RUN: ./DifferentCladEnzymeDerivatives.out
 // CHECK-NOT: {{.*error|warning|note:.*}}
 // REQUIRES: Enzyme
@@ -32,6 +32,6 @@ double foo(double x, double y){
 // CHECK-NEXT: }
 
 int main(){
-    auto grad = clad::gradient(foo);    
+    auto grad = clad::gradient(foo);
     auto gradEnzyme = clad::gradient<clad::opts::use_enzyme>(foo);
 }

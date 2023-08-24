@@ -30,23 +30,41 @@ private:
     union IdxOrMemberValue {
       const clang::FieldDecl* field;
       llvm::APInt index;
-      IdxOrMemberValue() {}
+      IdxOrMemberValue() : field(nullptr) {}
       ~IdxOrMemberValue() {}
+      IdxOrMemberValue(const IdxOrMemberValue&) = delete;
+      IdxOrMemberValue& operator=(const IdxOrMemberValue&) = delete;
+      IdxOrMemberValue(const IdxOrMemberValue&&) = delete;
+      IdxOrMemberValue& operator=(const IdxOrMemberValue&&) = delete;
     };
     IdxOrMemberType type;
     IdxOrMemberValue val;
     IdxOrMember(const clang::FieldDecl* field) : type(IdxOrMemberType::FIELD) {
       val.field = field;
     }
-    IdxOrMember(llvm::APInt index) : type(IdxOrMemberType::INDEX) {
+    IdxOrMember(llvm::APInt&& index) : type(IdxOrMemberType::INDEX) {
       new (&val.index) llvm::APInt(index);
     }
-    IdxOrMember(const IdxOrMember& other) : type(other.type) {
+    IdxOrMember(const IdxOrMember& other) {
+      new (&val.index) llvm::APInt();
+      *this = other;
+    }
+    IdxOrMember(const IdxOrMember&& other) noexcept {
+      new (&val.index) llvm::APInt();
+      *this = other;
+    }
+    IdxOrMember& operator=(const IdxOrMember& other) {
+      type = other.type;
       if (type == IdxOrMemberType::FIELD)
         val.field = other.val.field;
       else
-        new (&val.index) llvm::APInt(other.val.index);
+        val.index = other.val.index;
+      return *this;
     }
+    IdxOrMember& operator=(const IdxOrMember&& other) noexcept {
+      return *this = other;
+    }
+    ~IdxOrMember() = default;
   };
 
   /// Stores all the necessary information about one variable. Fundamental type
@@ -71,39 +89,47 @@ private:
   /// a row, which seems uncommon. It's worth considering analysing arrays as
   /// whole structures instead (just one VarData for the whole array).
 
+  struct VarData;
+  using ObjMap = std::unordered_map<const clang::FieldDecl*, VarData*>;
+  using ArrMap = std::unordered_map<const llvm::APInt, VarData*, APIntHash>;
+
   struct VarData {
     enum VarDataType { UNDEFINED, FUND_TYPE, OBJ_TYPE, ARR_TYPE, REF_TYPE };
     union VarDataValue {
       bool fundData;
-      std::unordered_map<const clang::FieldDecl*, VarData*> objData;
-      std::unordered_map<const llvm::APInt, VarData*, APIntHash> arrData;
+      /// objData, arrData are stored as pointers for VarDataValue to take
+      /// less space.
+      ObjMap* objData;
+      ArrMap* arrData;
       VarData* refData;
-      VarDataValue() {}
-      ~VarDataValue() {}
+      VarDataValue() : fundData(false) {}
     };
     VarDataType type;
     VarDataValue val;
     bool isReferenced = false;
 
-    /// For non-fundamental type variables, all the child nodes have to be
-    /// deleted.
+    VarData() = default;
+    VarData(const VarData&) = delete;
+    VarData& operator=(const VarData&) = delete;
+    VarData(const VarData&&) = delete;
+    VarData& operator=(const VarData&&) = delete;
+
     ~VarData() {
       if (type == OBJ_TYPE) {
-        for (auto pair : val.objData) {
+        for (auto& pair : *val.objData) {
           delete pair.second;
         }
       } else if (type == ARR_TYPE) {
-        for (auto pair : val.arrData) {
+        for (auto& pair : *val.arrData) {
           delete pair.second;
         }
       }
     }
-
     /// Recursively sets all the leaves' bools to isReq.
     void setIsRequired(bool isReq = true);
     /// Returns true if there is at least one required to store node among
     /// child nodes.
-    bool findReq();
+    bool findReq() const;
     /// Whenever an array element with a non-constant index is set to required
     /// this function is used to set to required all the array elements that
     /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required
@@ -122,7 +148,9 @@ private:
     /// corresponding original nodes in case those are referenced (a referenced
     /// node is a child to multiple nodes, therefore, we need to make sure we
     /// don't make multiple copies of it).
+    VarData* copy();
     VarData* copy(std::unordered_map<VarData*, VarData*>& refVars);
+    void restoreRefs(std::unordered_map<VarData*, VarData*>& refVars);
   };
 
   /// Given a MemberExpr*/ArraySubscriptExpr* return a pointer to its
@@ -138,7 +166,7 @@ private:
   /// Given an Expr* returns its corresponding VarData.
   VarData* getExprVarData(const clang::Expr* E, bool addNonConstIdx = false);
   /// Adds the field FD to objData.
-  void addField(std::unordered_map<const clang::FieldDecl*, VarData*>& objData,
+  void addField(std::unordered_map<const clang::FieldDecl*, VarData*>* objData,
                 const FieldDecl* FD);
   /// Whenever an array element with a non-constant index is set to required
   /// this function is used to set to required all the array elements that
@@ -164,7 +192,7 @@ private:
   std::map<clang::SourceLocation, bool> TBRLocs;
   /// Stores VarsData for every branch in control flow (e.g. if-else statements,
   /// loops).
-  std::vector<VarsData> reqStack;
+  std::vector<std::vector<VarsData>> reqStack;
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
   std::vector<int> modeStack;
@@ -179,7 +207,7 @@ private:
 
   /// The index of the innermost branch corresponding to a loop (used to handle
   /// break/continue statements).
-  size_t innermostLoopBranch = 0;
+  size_t innermostLoopLayer = 0;
   /// Tells if the current branch should be deleted instead of merged with
   /// others. This happens when the branch has a break/continue statement or a
   /// return expression in it.
@@ -204,22 +232,28 @@ private:
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   //// Control Flow
-  /// Creates a new branch as a copy of the last used branch.
-  void addBranch();
-  /// Merges the last into the one right before it and deletes it.
-  /// If keepNewVars==false, it removes all the variables that are present
-  /// in the last branch but not the other. If keepNewVars==true, all the new
-  /// variables are kept.
-  /// Note: The branch we are merging into is not supposed to have its own
-  /// local variables (this doesn't matter to the branch being merged).
-  void mergeAndDelete(bool keepNewVars = false);
-  /// Swaps the last two branches in the stack.
-  void swapLastPairOfBranches();
-  /// Merges the current branch to a branch with a given index in the stack.
-  /// Current branch is NOT deleted.
-  /// Note: The branch we are merging into is not supposed to have its own
-  /// local variables (this doesn't matter to the branch being merged).
-  void mergeCurBranchTo(size_t targetBranchNum);
+  /// Returns the current branch.
+  VarsData& getCurBranch() { return reqStack.back().back(); }
+  /// Adds a new layer.
+  void addLayer() { reqStack.emplace_back(); }
+  /// Creates a new empty branch.
+  void addBranch() { reqStack.back().emplace_back(); }
+  /// Deletes the last branch.
+  void deleteBranch() {
+    for (auto& pair : getCurBranch())
+      delete pair.second;
+    reqStack.back().pop_back();
+  }
+  /// Merges the last layer into the one last branch on the previous layer
+  /// right and deletes the last layer.
+  void mergeLayer();
+  /// Merges the last layer but, unlike the previous method, basically replaces
+  /// the last branch on the previous layer with the result of merging. After
+  /// that, removes the last layer.
+  void mergeLayerOnTop();
+  /// Merges the branch with index targetBranch into a sourceBranchNum.
+  /// No branches are deleted.
+  void mergeBranchTo(size_t sourceBranchNum, VarsData& targetBranch);
   /// Removes local variables from the current branch (uses localVarsStack).
   /// This is necessary when merging if-else branches.
   void removeLocalVars();
@@ -239,29 +273,31 @@ private:
   void resetMode() { modeStack.pop_back(); }
 
 public:
-  // Constructor
+  /// Constructor
   TBRAnalyzer(ASTContext* m_Context) : m_Context(m_Context) {
     modeStack.push_back(0);
-    reqStack.push_back(VarsData());
+    addLayer();
+    addBranch();
   }
 
-  // Destructor
+  /// Destructor
   ~TBRAnalyzer() {
-    /// By the end of analysis, reqStack is supposed have just one branch
-    /// but it's better to iterate through it just to make sure there's no
-    /// memory leak.
-    for (auto& branch : reqStack) {
-      for (auto pair : branch) {
-        delete pair.second;
-      }
-    }
+    for (auto& layer : reqStack)
+      for (auto& branch : layer)
+        for (auto& pair : branch)
+          delete pair.second;
   }
+
+  /// Delete copy/move operators and constructors.
+  TBRAnalyzer(const TBRAnalyzer&) = delete;
+  TBRAnalyzer& operator=(const TBRAnalyzer&) = delete;
+  TBRAnalyzer(const TBRAnalyzer&&) = delete;
+  TBRAnalyzer& operator=(const TBRAnalyzer&&) = delete;
 
   /// Returns the result of the whole analysis
-  const std::map<clang::SourceLocation, bool> getResult() { return TBRLocs; }
+  std::map<clang::SourceLocation, bool> getResult() { return TBRLocs; }
 
   /// Visitors
-
   void Analyze(const clang::FunctionDecl* FD);
 
   void Visit(const clang::Stmt* stmt) {

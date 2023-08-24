@@ -455,7 +455,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
-    TBRAnalyzer* analyzer = new TBRAnalyzer(&m_Context);
+    auto* analyzer = new TBRAnalyzer(&m_Context);
     analyzer->Analyze(FD);
     m_ToBeRecorded = analyzer->getResult();
     delete analyzer;
@@ -571,7 +571,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
-    TBRAnalyzer* analyzer = new TBRAnalyzer(&m_Context);
+    auto* analyzer = new TBRAnalyzer(&m_Context);
     analyzer->Analyze(m_Function);
     m_ToBeRecorded = analyzer->getResult();
     delete analyzer;
@@ -1897,10 +1897,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // call to gradient and call to original function. At this point, each arg
     // is either a simple expression or a reference to a temporary variable.
     // Therefore cloning it has constant complexity.
-    std::transform(std::begin(CallArgs),
-                   std::end(CallArgs),
-                   std::begin(CallArgs),
-                   [this](Expr* E) { return Clone(E); });
     // Recreate the original call expression.
     Expr* call = m_Sema
                      .ActOnCallExpr(getCurrentScope(),
@@ -1934,8 +1930,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       diff = Visit(E, dfdx());
       auto EStored = GlobalStoreAndRef(diff.getExpr());
       if (EStored.getExpr() != diff.getExpr()) {
-        auto assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
-                              EStored.getExpr_dx());
+        auto* assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
+                               EStored.getExpr_dx());
         if (isInsideLoop)
           addToCurrentBlock(EStored.getExpr(), direction::forward);
         addToCurrentBlock(assign, direction::reverse);
@@ -1948,8 +1944,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       diff = Visit(E, dfdx());
       auto EStored = GlobalStoreAndRef(diff.getExpr());
       if (EStored.getExpr() != diff.getExpr()) {
-        auto assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
-                              EStored.getExpr_dx());
+        auto* assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
+                               EStored.getExpr_dx());
         if (isInsideLoop)
           addToCurrentBlock(EStored.getExpr(), direction::forward);
         addToCurrentBlock(assign, direction::reverse);
@@ -2242,7 +2238,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (auto E : return_exprs) {
         Lstored = GlobalStoreAndRef(E);
         if (Lstored.getExpr() != E) {
-          auto assign =
+          auto* assign =
               BuildOp(BinaryOperatorKind::BO_Assign, E, Lstored.getExpr_dx());
           if (isInsideLoop)
             addToCurrentBlock(Lstored.getExpr(), direction::forward);
@@ -2695,10 +2691,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto it = m_ToBeRecorded.find(B->getBeginLoc());
       if (it == m_ToBeRecorded.end()) {
         return true;
-      } else {
-        return it->second;
       }
-      // return true;
+      return it->second;
     }
 
     // FIXME: Attach checkpointing.
