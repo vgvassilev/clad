@@ -702,7 +702,7 @@ jobs:
 
         # Get the performance for previous version. If it were a PR the master
         # or the previous hash
-        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo ${{ github.base_ref }})
+        hash=$([[ -z "${{ github.event.pull_request }}" ]] && echo ${{ github.event.before }} || echo ${{ github.event.pull_request.base.sha }})
         echo "Running git checkout '$hash'"
         git checkout $hash
         cd obj
