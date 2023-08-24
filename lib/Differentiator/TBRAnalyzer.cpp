@@ -8,11 +8,11 @@ void TBRAnalyzer::VarData::setIsRequired(bool isReq) {
   if (type == FUND_TYPE) {
     val.fundData = isReq;
   } else if (type == OBJ_TYPE) {
-    for (auto pair : val.objData) {
+    for (auto& pair : *val.objData) {
       pair.second->setIsRequired(isReq);
     }
   } else if (type == ARR_TYPE) {
-    for (auto pair : val.arrData) {
+    for (auto& pair : *val.arrData) {
       pair.second->setIsRequired(isReq);
     }
   } else if (type == REF_TYPE && val.refData) {
@@ -24,22 +24,22 @@ void TBRAnalyzer::VarData::merge(VarData* mergeData) {
   if (this->type == FUND_TYPE) {
     this->val.fundData = this->val.fundData || mergeData->val.fundData;
   } else if (this->type == OBJ_TYPE) {
-    for (auto pair : this->val.objData) {
-      pair.second->merge(mergeData->val.objData[pair.first]);
+    for (auto& pair : *this->val.objData) {
+      pair.second->merge((*mergeData->val.objData)[pair.first]);
     }
   } else if (this->type == ARR_TYPE) {
     /// FIXME: Currently non-constant indices are not supported in merging.
-    for (auto pair : this->val.arrData) {
-      auto it = mergeData->val.arrData.find(pair.first);
-      if (it != mergeData->val.arrData.end()) {
+    for (auto& pair : *this->val.arrData) {
+      auto it = mergeData->val.arrData->find(pair.first);
+      if (it != mergeData->val.arrData->end()) {
         pair.second->merge(it->second);
       }
     }
-    for (auto pair : mergeData->val.arrData) {
-      auto it = this->val.arrData.find(pair.first);
-      if (it == mergeData->val.arrData.end()) {
+    for (auto& pair : *mergeData->val.arrData) {
+      auto it = this->val.arrData->find(pair.first);
+      if (it == mergeData->val.arrData->end()) {
         std::unordered_map<VarData*, VarData*> refVars;
-        this->val.arrData[pair.first] = pair.second->copy(refVars);
+        (*this->val.arrData)[pair.first] = pair.second->copy(refVars);
       }
     }
   } else if (this->type == REF_TYPE && this->val.refData) {
@@ -47,59 +47,73 @@ void TBRAnalyzer::VarData::merge(VarData* mergeData) {
   }
 }
 
-TBRAnalyzer::VarData*
-TBRAnalyzer::VarData::copy(std::unordered_map<VarData*, VarData*>& refVars) {
-  VarData* res;
-
-  /// The child node of a reference node should be copied only once. Hence,
-  /// we use refVars to match original referenced nodes to corresponding copies.
-  if (isReferenced) {
-    auto it = refVars.find(this);
-    if (it != refVars.end()) {
-      return it->second;
-    } else {
-      res = new VarData();
-      refVars[this] = res;
-    }
-  } else {
-    res = new VarData();
-  }
-
-  res->type = this->type;
-
-  if (this->type == FUND_TYPE) {
-    res->val.fundData = this->val.fundData;
-  } else if (this->type == OBJ_TYPE) {
-    for (auto pair : this->val.objData)
-      res->val.objData[pair.first] = pair.second->copy(refVars);
-  } else if (this->type == ARR_TYPE) {
-    for (auto pair : this->val.arrData) {
-      res->val.arrData[pair.first] = pair.second->copy(refVars);
-    }
-  } else if (this->type == REF_TYPE && this->val.refData) {
-    res->val.refData = this->val.refData->copy(refVars);
-    res->val.refData->isReferenced = true;
-  }
-
+TBRAnalyzer::VarData* TBRAnalyzer::VarData::copy() {
+  std::unordered_map<VarData*, VarData*> refVars;
+  VarData* res = copy(refVars);
+  res->restoreRefs(refVars);
   return res;
 }
 
-bool TBRAnalyzer::VarData::findReq() {
+TBRAnalyzer::VarData*
+TBRAnalyzer::VarData::copy(std::unordered_map<VarData*, VarData*>& refVars) {
+  auto* res = new VarData();
+  /// The child node of a reference node should be copied only once. Hence,
+  /// we use refVars to match original referenced nodes to corresponding copies.
+  if (isReferenced) {
+    refVars[this] = res;
+  }
+  res->type = this->type;
+  if (this->type == FUND_TYPE) {
+    res->val.fundData = this->val.fundData;
+  } else if (this->type == OBJ_TYPE) {
+    res->val.objData = new ObjMap();
+    for (auto& pair : *this->val.objData)
+      (*res->val.objData)[pair.first] = pair.second->copy(refVars);
+  } else if (this->type == ARR_TYPE) {
+    res->val.arrData = new ArrMap();
+    for (auto& pair : *this->val.arrData) {
+      (*res->val.arrData)[pair.first] = pair.second->copy(refVars);
+    }
+  } else if (this->type == REF_TYPE && this->val.refData) {
+    res->val.refData = this->val.refData;
+  }
+  return res;
+}
+
+void TBRAnalyzer::VarData::restoreRefs(
+    std::unordered_map<VarData*, VarData*>& refVars) {
+  if (this->type == OBJ_TYPE) {
+    for (auto& pair : *val.objData)
+      pair.second->restoreRefs(refVars);
+  } else if (this->type == ARR_TYPE) {
+    for (auto& pair : *this->val.arrData) {
+      pair.second->restoreRefs(refVars);
+    }
+  } else if (this->type == REF_TYPE && this->val.refData) {
+    this->val.refData = refVars[this->val.refData];
+  }
+}
+
+bool TBRAnalyzer::VarData::findReq() const {
   if (type == FUND_TYPE) {
     return val.fundData;
-  } else if (type == OBJ_TYPE) {
-    for (auto pair : val.objData) {
-      if (pair.second->findReq())
+  }
+  if (type == OBJ_TYPE) {
+    for (auto& pair : *val.objData) {
+      if (pair.second->findReq()) {
         return true;
+      }
     }
   } else if (type == ARR_TYPE) {
-    for (auto pair : val.arrData) {
-      if (pair.second->findReq())
+    for (auto& pair : *val.arrData) {
+      if (pair.second->findReq()) {
         return true;
+      }
     }
   } else if (type == REF_TYPE && val.refData) {
-    if (val.refData->findReq())
+    if (val.refData->findReq()) {
       return true;
+    }
   }
   return false;
 }
@@ -113,23 +127,23 @@ void TBRAnalyzer::VarData::overlay(
   --i;
   IdxOrMember& curIdxOrMember = IdxAndMemberSequence[i];
   if (curIdxOrMember.type == IdxOrMember::IdxOrMemberType::FIELD) {
-    val.objData[curIdxOrMember.val.field]->overlay(IdxAndMemberSequence, i);
+    (*val.objData)[curIdxOrMember.val.field]->overlay(IdxAndMemberSequence, i);
   } else if (curIdxOrMember.type == IdxOrMember::IdxOrMemberType::INDEX) {
     auto idx = curIdxOrMember.val.index;
-    if (idx == llvm::APInt(32, -1, true)) {
-      for (auto pair : val.arrData) {
+    if (idx == llvm::APInt(2, -1, true)) {
+      for (auto& pair : *val.arrData) {
         pair.second->overlay(IdxAndMemberSequence, i);
       }
     } else {
-      val.arrData[idx]->overlay(IdxAndMemberSequence, i);
+      (*val.arrData)[idx]->overlay(IdxAndMemberSequence, i);
     }
   }
 }
 
 TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
                                                     bool addNonConstIdx) {
-  if (auto FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
-    auto base = ME->getBase();
+  if (const auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
+    const auto* base = ME->getBase();
     VarData* baseData = getExprVarData(base);
     /// If the VarData is ref type just go to the VarData being referenced.
     if (baseData && baseData->type == VarData::VarDataType::REF_TYPE) {
@@ -141,8 +155,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
     /// FUND_TYPE might be set by default earlier.
     if (baseData->type == VarData::VarDataType::FUND_TYPE) {
       baseData->type = VarData::VarDataType::OBJ_TYPE;
-      baseData->val.objData =
-          std::unordered_map<const clang::FieldDecl*, VarData*>();
+      baseData->val.objData = new ObjMap();
     }
     /// if non-const index was found and it is not supposed to be added just
     /// return the current VarData*.
@@ -151,14 +164,14 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
 
     auto& baseObjData = baseData->val.objData;
     /// Add the current field if it was not added previously
-    if (baseObjData.find(FD) == baseObjData.end()) {
-      VarData* FDData = new VarData();
-      baseObjData[FD] = FDData;
+    if (baseObjData->find(FD) == baseObjData->end()) {
+      (*baseObjData)[FD] = new VarData();
+      auto* FDData = (*baseObjData)[FD];
       FDData->type = VarData::VarDataType::UNDEFINED;
       return FDData;
     }
 
-    return baseObjData[FD];
+    return (*baseObjData)[FD];
   }
   return nullptr;
 }
@@ -166,17 +179,17 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
 TBRAnalyzer::VarData*
 TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
                               bool addNonConstIdx) {
-  auto idxExpr = ASE->getIdx();
+  const auto* idxExpr = ASE->getIdx();
   llvm::APInt idx;
-  if (auto IL = dyn_cast<IntegerLiteral>(idxExpr)) {
+  if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr)) {
     idx = IL->getValue();
   } else {
     nonConstIndexFound = true;
     /// Non-const indices are represented with -1.
-    idx = llvm::APInt(32, -1, true);
+    idx = llvm::APInt(2, -1, true);
   }
 
-  auto base = ASE->getBase()->IgnoreImpCasts();
+  const auto* base = ASE->getBase()->IgnoreImpCasts();
   VarData* baseData = getExprVarData(base);
   /// If the VarData is ref type just go to the VarData being referenced.
   if (baseData && baseData->type == VarData::VarDataType::REF_TYPE) {
@@ -188,8 +201,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
   /// FUND_TYPE might be set by default earlier.
   if (baseData->type == VarData::VarDataType::FUND_TYPE) {
     baseData->type = VarData::VarDataType::ARR_TYPE;
-    baseData->val.arrData =
-        std::unordered_map<const llvm::APInt, VarData*, APIntHash>();
+    baseData->val.arrData = new ArrMap();
   }
 
   /// if non-const index was found and it is not supposed to be added just
@@ -198,16 +210,16 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
     return baseData;
 
   auto& baseArrData = baseData->val.arrData;
-  auto itEnd = baseArrData.end();
+  auto itEnd = baseArrData->end();
 
   /// Add the current index if it was not added previously
-  if (baseArrData.find(idx) == itEnd) {
-    VarData* idxData = new VarData();
-    baseArrData[idx] = idxData;
+  if (baseArrData->find(idx) == itEnd) {
+    (*baseArrData)[idx] = new VarData();
+    auto* idxData = (*baseArrData)[idx];
     /// Since -1 represents non-const indices, whenever we add a new index we
     /// have to copy the VarData of -1's element (if an element with undefined
     /// index was used this might be our current element).
-    auto it = baseArrData.find(llvm::APInt(32, -1, true));
+    auto it = baseArrData->find(llvm::APInt(2, -1, true));
     if (it != itEnd) {
       std::unordered_map<VarData*, VarData*> dummy;
       idxData = it->second->copy(dummy);
@@ -217,7 +229,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
     return idxData;
   }
 
-  return baseArrData[idx];
+  return (*baseArrData)[idx];
 }
 
 TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
@@ -226,20 +238,27 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
   /// x would be implicitly casted with the * operator).
   E = E->IgnoreImpCasts();
   VarData* EData;
-  if (auto DRE = dyn_cast<clang::DeclRefExpr>(E)) {
-    if (auto VD = dyn_cast<clang::VarDecl>(DRE->getDecl())) {
-      EData = reqStack.back()[VD];
+  if (isa<clang::DeclRefExpr>(E) || isa<clang::CXXThisExpr>(E)) {
+    const VarDecl* VD = nullptr;
+    /// ``this`` does not have a declaration so it is represented with nullptr.
+    if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E))
+      VD = dyn_cast<clang::VarDecl>(DRE->getDecl());
+    /// The index i is shifted since otherwise the last value would be i=-1
+    /// and size_t can only take positive values.
+    for (size_t i = reqStack.size(); i > 0; --i) {
+      auto& branch = reqStack[i - 1].back();
+      const auto it = branch.find(VD);
+      if (it != branch.end()) {
+        EData = it->second;
+        break;
+      }
     }
   }
-  if (auto ME = dyn_cast<clang::MemberExpr>(E)) {
+  if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
     EData = getMemberVarData(ME, addNonConstIdx);
   }
-  if (auto ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
+  if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
     EData = getArrSubVarData(ASE, addNonConstIdx);
-  }
-  /// 'this' pointer is represented as a nullptr.
-  if (auto TE = dyn_cast<clang::CXXThisExpr>(E)) {
-    EData = reqStack.back()[nullptr];
   }
 
   /// If the type of this VarData was not defined previously set it to
@@ -253,28 +272,25 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
   return EData;
 }
 
-void TBRAnalyzer::addField(
-    std::unordered_map<const clang::FieldDecl*, VarData*>& objData,
-    const FieldDecl* FD) {
-  auto varType = FD->getType();
-  VarData* data = new VarData();
-  objData[FD] = data;
+void TBRAnalyzer::addField(ObjMap* objData, const FieldDecl* FD) {
+  const auto varType = FD->getType();
+  (*objData)[FD] = new VarData();
+  VarData* data = (*objData)[FD];
 
   if (varType->isReferenceType()) {
     data->type = VarData::VarDataType::REF_TYPE;
     data->val.refData = nullptr;
   } else if (utils::isArrayOrPointerType(varType)) {
     data->type = VarData::VarDataType::ARR_TYPE;
-    data->val.arrData =
-        std::unordered_map<const llvm::APInt, VarData*, APIntHash>();
+    data->val.arrData = new ArrMap();
   } else if (varType->isBuiltinType()) {
     data->type = VarData::VarDataType::FUND_TYPE;
     data->val.fundData = false;
   } else if (varType->isRecordType()) {
     data->type = VarData::VarDataType::OBJ_TYPE;
-    auto recordDecl = varType->getAs<RecordType>()->getDecl();
+    const auto* recordDecl = varType->getAs<RecordType>()->getDecl();
     auto& newObjData = data->val.objData;
-    for (auto field : recordDecl->fields()) {
+    for (const auto* field : recordDecl->fields()) {
       addField(newObjData, field);
     }
   }
@@ -288,15 +304,15 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
   /// Unwrap the given expression to a vector of indices and fields.
   while (cond) {
     E = E->IgnoreImplicit();
-    if (auto ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
-      if (auto IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx())) {
+    if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
+      if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx())) {
         IdxAndMemberSequence.push_back(IdxOrMember(IL->getValue()));
       } else {
-        IdxAndMemberSequence.push_back(IdxOrMember(llvm::APInt(32, -1, true)));
+        IdxAndMemberSequence.push_back(IdxOrMember(llvm::APInt(2, -1, true)));
       }
       E = ASE->getBase();
-    } else if (auto ME = dyn_cast<clang::MemberExpr>(E)) {
-      if (auto FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl())) {
+    } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
+      if (const auto* FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl())) {
         IdxAndMemberSequence.push_back(IdxOrMember(FD));
       }
       E = ME->getBase();
@@ -305,16 +321,21 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
     } else
       return;
   }
+
   /// Overlay on all the VarData's recursively.
-  if (auto VD = dyn_cast<clang::VarDecl>(innermostDRE->getDecl()))
-    reqStack.back()[VD]->overlay(IdxAndMemberSequence,
-                                 IdxAndMemberSequence.size());
+  if (const auto* VD = dyn_cast<clang::VarDecl>(innermostDRE->getDecl())) {
+    getCurBranch()[VD]->overlay(IdxAndMemberSequence,
+                                IdxAndMemberSequence.size());
+  }
 }
 
 void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
-  // FIXME: this marks the SourceLocation of DeclStmt which doesn't work for
-  // declarations with multiple VarDecls.
-  auto& curBranch = reqStack.back();
+  /// If a declaration is passed a second time (meaning it is inside a loop),
+  /// treat it as an assigment operation.
+  /// FIXME: this marks the SourceLocation of DeclStmt which doesn't work for
+  /// declarations with multiple VarDecls.
+  size_t len = reqStack.size();
+  auto& curBranch = reqStack[len - 1].back();
   if (curBranch.find(VD) != curBranch.end()) {
     auto& VDData = curBranch[VD];
     if (VDData->type == VarData::VarDataType::FUND_TYPE) {
@@ -322,46 +343,54 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
           (deleteCurBranch ? false : VDData->findReq());
     }
   }
+  /// The index here is shifted by one since otherwise the loop would end with
+  /// i=-1 and size_t is positive only.
+  for (size_t i = len - 1; i > 0; --i) {
+    auto& branch = reqStack[i - 1].back();
+    if (branch.find(VD) != branch.end()) {
+      curBranch[VD] = branch[VD]->copy();
+      break;
+    }
+  }
 
   if (!localVarsStack.empty()) {
     localVarsStack.back().push_back(VD);
   }
 
-  auto varType = VD->getType();
-  VarData* data = new VarData();
-  curBranch[VD] = data;
+  const auto varType = VD->getType();
+  curBranch[VD] = new VarData();
+  VarData* data = curBranch[VD];
 
   if (varType->isReferenceType()) {
     data->type = VarData::VarDataType::REF_TYPE;
     data->val.refData = nullptr;
   } else if (utils::isArrayOrPointerType(varType)) {
-    if (auto pointerType = llvm::dyn_cast<clang::PointerType>(varType)) {
+    if (const auto pointerType = llvm::dyn_cast<clang::PointerType>(varType)) {
       /// FIXME: If the pointer points to an object we represent it with a
       /// OBJ_TYPE VarData*.
-      auto pointeeType = pointerType->getPointeeType().getTypePtrOrNull();
+      const auto pointeeType = pointerType->getPointeeType().getTypePtrOrNull();
       if (pointeeType && pointeeType->isRecordType()) {
         data->type = VarData::VarDataType::OBJ_TYPE;
-        auto recordDecl = pointeeType->getAs<RecordType>()->getDecl();
+        const auto* recordDecl = pointeeType->getAs<RecordType>()->getDecl();
         auto& objData = data->val.objData;
-        objData = std::unordered_map<const clang::FieldDecl*, VarData*>();
-        for (auto field : recordDecl->fields()) {
+        objData = new ObjMap();
+        for (const auto* field : recordDecl->fields()) {
           addField(objData, field);
         }
         return;
       }
     }
     data->type = VarData::VarDataType::ARR_TYPE;
-    data->val.arrData =
-        std::unordered_map<const llvm::APInt, VarData*, APIntHash>();
+    data->val.arrData = new ArrMap();
   } else if (varType->isBuiltinType()) {
     data->type = VarData::VarDataType::FUND_TYPE;
     data->val.fundData = false;
   } else if (varType->isRecordType()) {
     data->type = VarData::VarDataType::OBJ_TYPE;
-    auto recordDecl = varType->getAs<RecordType>()->getDecl();
+    const auto* recordDecl = varType->getAs<RecordType>()->getDecl();
     auto& objData = data->val.objData;
-    objData = std::unordered_map<const clang::FieldDecl*, VarData*>();
-    for (auto field : recordDecl->fields()) {
+    objData = new ObjMap();
+    for (const auto* field : recordDecl->fields()) {
       addField(objData, field);
     }
   }
@@ -385,46 +414,87 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
     TBRLocs[E->getBeginLoc()] = !deleteCurBranch;
 }
 
-void TBRAnalyzer::addBranch() {
-  VarsData& curBranch = reqStack.back();
-  VarsData newBranch;
-  std::unordered_map<VarData*, VarData*> refVars;
-  for (auto pair : curBranch) {
-    newBranch[pair.first] = pair.second->copy(refVars);
-  }
-  reqStack.push_back(newBranch);
-}
+void TBRAnalyzer::mergeLayer() {
+  size_t len = reqStack.size();
+  auto& removedLayer = reqStack[len - 1];
+  auto& curBranch = reqStack[len - 2].back();
 
-void TBRAnalyzer::mergeAndDelete(bool keepNewVars) {
-  auto removedBranch = reqStack.back();
-  reqStack.pop_back();
-  auto& curBranch = reqStack.back();
-
-  if (keepNewVars) {
+  for (auto& removedBranch : removedLayer) {
     for (auto& pair : curBranch) {
-      removedBranch[pair.first]->merge(pair.second);
-      delete pair.second;
-      pair.second = removedBranch[pair.first];
+      auto it = removedBranch.find(pair.first);
+      if (it != removedBranch.end()) {
+        pair.second->merge(it->second);
+      }
     }
-  } else {
-    for (auto pair : curBranch) {
-      pair.second->merge(removedBranch[pair.first]);
-      delete removedBranch[pair.first];
+    for (auto& pair : removedBranch) {
+      auto it = curBranch.find(pair.first);
+      if (it == curBranch.end()) {
+        delete curBranch[pair.first];
+        curBranch[pair.first] = pair.second;
+      } else {
+        delete pair.second;
+      }
     }
   }
+  reqStack.pop_back();
 }
 
-void TBRAnalyzer::swapLastPairOfBranches() {
-  size_t s = reqStack.size();
-  std::swap(reqStack[s - 1], reqStack[s - 2]);
+void TBRAnalyzer::mergeLayerOnTop() {
+  size_t len = reqStack.size();
+  auto& removedLayer = reqStack[len - 1];
+
+  if (removedLayer.empty()) {
+    reqStack.pop_back();
+    return;
+  }
+
+  auto& curBranch = reqStack[len - 2].back();
+
+  /// First, we merge every branch on the layer with the first one there.
+  auto branchIter = removedLayer.begin();
+  auto branchIterEnd = removedLayer.end();
+  auto& firstBranch = *branchIter;
+  while ((++branchIter) != branchIterEnd) {
+    for (auto& pair : firstBranch) {
+      auto elemIter = branchIter->find(pair.first);
+      if (elemIter != branchIter->end()) {
+        pair.second->merge(elemIter->second);
+      }
+    }
+    for (auto& pair : *branchIter) {
+      auto elemIter = firstBranch.find(pair.first);
+      if (elemIter == firstBranch.end()) {
+        delete firstBranch[pair.first];
+        firstBranch[pair.first] = pair.second;
+      } else {
+        delete pair.second;
+      }
+    }
+  }
+
+  /// Second, we place it on top of the branch on the previous layer's last
+  /// branch.
+  for (auto& pair : firstBranch) {
+    delete curBranch[pair.first];
+    curBranch[pair.first] = pair.second;
+  }
+
+  reqStack.pop_back();
 }
 
-void TBRAnalyzer::mergeCurBranchTo(size_t targetBranchNum) {
-  auto& targetBranch = reqStack[targetBranchNum];
-  auto& curBranch = reqStack.back();
-
+void TBRAnalyzer::mergeBranchTo(size_t sourceBranchNum,
+                                VarsData& targetBranch) {
   for (auto& pair : targetBranch) {
-    pair.second->merge(curBranch[pair.first]);
+    /// Index i is shifted by one since otherwise its last value could be -1
+    /// and size_t is only positive.
+    for (size_t i = sourceBranchNum + 1; i > 0; --i) {
+      auto& sourceBranch = reqStack[i - 1].back();
+      auto it = sourceBranch.find(pair.first);
+      if (it != sourceBranch.end()) {
+        pair.second->merge(it->second);
+        break;
+      }
+    }
   }
 }
 
@@ -447,14 +517,15 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   /// If we are analysing a method add a VarData for 'this' pointer (it is
   /// represented with nullptr).
+
   if (isa<CXXMethodDecl>(FD)) {
-    VarData* data = new VarData();
-    reqStack.back()[nullptr] = data;
-    data->type = VarData::VarDataType::OBJ_TYPE;
+    auto& thisData = getCurBranch()[nullptr];
+    thisData = new VarData();
+    thisData->type = VarData::VarDataType::OBJ_TYPE;
     auto recordDecl = dyn_cast<CXXRecordDecl>(FD->getParent());
-    auto& objData = data->val.objData;
-    objData = std::unordered_map<const clang::FieldDecl*, VarData*>();
-    for (auto field : recordDecl->fields()) {
+    auto& objData = thisData->val.objData;
+    objData = new ObjMap();
+    for (const auto* field : recordDecl->fields()) {
       addField(objData, field);
     }
   }
@@ -471,8 +542,8 @@ void TBRAnalyzer::VisitCompoundStmt(const CompoundStmt* CS) {
 }
 
 void TBRAnalyzer::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-  if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    auto& curBranch = reqStack.back();
+  if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+    auto& curBranch = getCurBranch();
     // FIXME: this is only necessary to ensure global variables are added.
     // It doesn't make any sense to first add variables when visiting DeclStmt
     // and then checking if they were added while visiting DeclRefExpr.
@@ -480,7 +551,7 @@ void TBRAnalyzer::VisitDeclRefExpr(const DeclRefExpr* DRE) {
       addVar(VD);
   }
 
-  if (auto E = dyn_cast<clang::Expr>(DRE)) {
+  if (const auto* E = dyn_cast<clang::Expr>(DRE)) {
     setIsRequired(E);
   }
 }
@@ -511,20 +582,21 @@ void TBRAnalyzer::VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE) {
 }
 
 void TBRAnalyzer::VisitDeclStmt(const DeclStmt* DS) {
-  for (auto D : DS->decls()) {
-    if (auto VD = dyn_cast<VarDecl>(D)) {
+  for (const auto* D : DS->decls()) {
+    if (const auto* VD = dyn_cast<VarDecl>(D)) {
       addVar(VD);
-      if (clang::Expr* init = VD->getInit()) {
+      if (const clang::Expr* init = VD->getInit()) {
         setMode(Mode::markingMode);
         Visit(init);
         resetMode();
-        auto VDExpr = reqStack.back()[VD];
+        auto& VDExpr = getCurBranch()[VD];
         /// if the declared variable is ref type attach its VarData* to the
         /// VarData* of the RHS variable.
         if (VDExpr->type == VarData::VarDataType::REF_TYPE) {
-          auto RHSExpr = getExprVarData(utils::GetInnermostReturnExpr(init)[0]);
+          auto* RHSExpr =
+              getExprVarData(utils::GetInnermostReturnExpr(init)[0]);
           VDExpr->val.refData = RHSExpr;
-          RHSExpr->isReferenced = VDExpr;
+          RHSExpr->isReferenced = true;
         }
       }
     }
@@ -537,25 +609,23 @@ void TBRAnalyzer::VisitConditionalOperator(
   Visit(CO->getCond());
   resetMode();
 
+  addLayer();
   addBranch();
   Visit(CO->getTrueExpr());
-  swapLastPairOfBranches();
+  addBranch();
   Visit(CO->getFalseExpr());
-  mergeAndDelete();
+  mergeLayerOnTop();
 }
 
 void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
-  auto opCode = BinOp->getOpcode();
-  auto L = BinOp->getLHS();
-  auto R = BinOp->getRHS();
+  const auto opCode = BinOp->getOpcode();
+  const auto* L = BinOp->getLHS();
+  const auto* R = BinOp->getRHS();
   /// Addition is not able to create any differential influence by itself so
   /// markingMode should be left as it is. Similarly, addition does not affect
   /// linearity so nonLinearMode shouldn't be changed as well. The same applies
   /// to subtraction.
-  if (opCode == BO_Add) {
-    Visit(L);
-    Visit(R);
-  } else if (opCode == BO_Sub) {
+  if (opCode == BO_Add || opCode == BO_Sub) {
     Visit(L);
     Visit(R);
   } else if (opCode == BO_Mul) {
@@ -616,8 +686,8 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
       Visit(R);
       resetMode();
     }
-    auto return_exprs = utils::GetInnermostReturnExpr(L);
-    for (auto innerExpr : return_exprs) {
+    const auto return_exprs = utils::GetInnermostReturnExpr(L);
+    for (const auto* innerExpr : return_exprs) {
       /// Mark corresponding SourceLocation as required/not required to be
       /// stored for all expressions that could be used changed.
       markLocation(innerExpr);
@@ -640,16 +710,16 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
 }
 
 void TBRAnalyzer::VisitUnaryOperator(const clang::UnaryOperator* UnOp) {
-  auto opCode = UnOp->getOpcode();
-  Expr* E = UnOp->getSubExpr();
+  const auto opCode = UnOp->getOpcode();
+  const Expr* E = UnOp->getSubExpr();
   Visit(E);
   if (opCode == UO_PostInc || opCode == UO_PostDec || opCode == UO_PreInc ||
       opCode == UO_PreDec) {
     // FIXME: this doesn't support all the possible references
     /// Mark corresponding SourceLocation as required/not required to be
     /// stored for all expressions that could be used in this operation.
-    auto innerExprs = utils::GetInnermostReturnExpr(E);
-    for (auto innerExpr : innerExprs) {
+    const auto innerExprs = utils::GetInnermostReturnExpr(E);
+    for (const auto* innerExpr : innerExprs) {
       /// Mark corresponding SourceLocation as required/not required to be
       /// stored for all expressions that could be changed.
       markLocation(innerExpr);
@@ -662,9 +732,9 @@ void TBRAnalyzer::VisitUnaryOperator(const clang::UnaryOperator* UnOp) {
 }
 
 void TBRAnalyzer::VisitIfStmt(const clang::IfStmt* If) {
-  auto cond = If->getCond();
-  auto condVarDecl = If->getConditionVariable();
-  auto condInit = If->getInit();
+  const auto* cond = If->getCond();
+  const auto* condVarDecl = If->getConditionVariable();
+  const auto* condInit = If->getInit();
 
   /// We have to separated analyse then-block and else-block and then merge
   /// them together. First, we make a copy of the current branch and analyse
@@ -678,14 +748,14 @@ void TBRAnalyzer::VisitIfStmt(const clang::IfStmt* If) {
   /// ... - <state after then-block> - <state after else-block>
   /// ... - <merged state after then-block/else-block>
 
-  addBranch();
+  const auto* thenBranch = If->getThen();
+  const auto* elseBranch = If->getElse();
 
-  bool thenBranchNotDeleted = true;
-  bool elseBranchNotDeleted = true;
-  auto thenBranch = If->getThen();
-  auto elseBranch = If->getElse();
+  localVarsStack.emplace_back();
+  addLayer();
+
   if (thenBranch) {
-    localVarsStack.push_back(std::vector<const VarDecl*>());
+    addBranch();
     Visit(cond);
     if (condVarDecl)
       addVar(condVarDecl);
@@ -698,20 +768,13 @@ void TBRAnalyzer::VisitIfStmt(const clang::IfStmt* If) {
     if (deleteCurBranch) {
       /// This section is performed if this branch had break/continue/return
       /// and, therefore, shouldn't be merged.
-      reqStack.pop_back();
+      deleteBranch();
       deleteCurBranch = false;
-      thenBranchNotDeleted = false;
-    } else {
-      /// We have to remove local variables from then-branch to later merge the
-      /// else-branch into it.
-      removeLocalVars();
-      localVarsStack.pop_back();
     }
   }
 
   if (elseBranch) {
-    if (thenBranchNotDeleted)
-      swapLastPairOfBranches();
+    addBranch();
     Visit(cond);
     if (condVarDecl)
       addVar(condVarDecl);
@@ -721,23 +784,23 @@ void TBRAnalyzer::VisitIfStmt(const clang::IfStmt* If) {
       resetMode();
     }
     Visit(elseBranch);
-    if (deleteCurBranch && thenBranchNotDeleted) {
+    if (deleteCurBranch) {
       /// This section is performed if this branch had break/continue/return
       /// and, therefore, shouldn't be merged.
-      reqStack.pop_back();
+      deleteBranch();
       deleteCurBranch = false;
-      elseBranchNotDeleted = false;
     }
   }
 
-  if (thenBranchNotDeleted && elseBranchNotDeleted)
-    mergeAndDelete();
+  mergeLayerOnTop();
+  removeLocalVars();
+  localVarsStack.pop_back();
 }
 
 void TBRAnalyzer::VisitWhileStmt(const clang::WhileStmt* WS) {
-  auto body = WS->getBody();
-  auto cond = WS->getCond();
-  size_t backupILB = innermostLoopBranch;
+  const auto* body = WS->getBody();
+  const auto* cond = WS->getCond();
+  size_t backupILB = innermostLoopLayer;
   bool backupFLP = firstLoopPass;
   bool backupDCB = deleteCurBranch;
   /// Let's assume we have a section of code structured like this
@@ -766,45 +829,51 @@ void TBRAnalyzer::VisitWhileStmt(const clang::WhileStmt* WS) {
   /// ... - <the state representing all possible scenarios merged>
 
   Visit(cond);
+  addLayer();
+  addBranch();
+  addBranch();
+
+  addLayer();
   addBranch();
   addBranch();
   /// First pass
-  innermostLoopBranch = reqStack.size() - 2;
+  innermostLoopLayer = reqStack.size() - 1;
   firstLoopPass = true;
   if (body)
     Visit(body);
   if (deleteCurBranch) {
-    reqStack.pop_back();
+    deleteBranch();
     deleteCurBranch = backupDCB;
   } else {
     Visit(cond);
-    mergeAndDelete(/*keepNewVars=*/true);
   }
+  --innermostLoopLayer;
+  mergeLayer();
+  mergeBranchTo(innermostLoopLayer - 1, reqStack[innermostLoopLayer].back());
 
   /// Second pass
-  --innermostLoopBranch;
   firstLoopPass = false;
   if (body)
     Visit(body);
   if (deleteCurBranch)
-    reqStack.pop_back();
+    deleteBranch();
   else {
     Visit(cond);
-    mergeAndDelete();
   }
+  mergeLayer();
 
-  innermostLoopBranch = backupILB;
+  innermostLoopLayer = backupILB;
   firstLoopPass = backupFLP;
   deleteCurBranch = backupDCB;
 }
 
 void TBRAnalyzer::VisitForStmt(const clang::ForStmt* FS) {
-  auto body = FS->getBody();
-  auto condVar = FS->getConditionVariable();
-  auto init = FS->getInit();
-  auto cond = FS->getCond();
-  auto incr = FS->getInc();
-  size_t backupILB = innermostLoopBranch;
+  const auto* body = FS->getBody();
+  const auto* condVar = FS->getConditionVariable();
+  auto* init = FS->getInit();
+  const auto* cond = FS->getCond();
+  const auto* incr = FS->getInc();
+  size_t backupILB = innermostLoopLayer;
   bool backupFLP = firstLoopPass;
   bool backupDCB = deleteCurBranch;
   /// The logic here is virtually the same as with while-loop. Take a look at
@@ -816,50 +885,55 @@ void TBRAnalyzer::VisitForStmt(const clang::ForStmt* FS) {
   }
   if (cond)
     Visit(cond);
+  addLayer();
+  addBranch();
   addBranch();
   if (condVar)
     addVar(condVar);
+  addLayer();
+  addBranch();
   addBranch();
   /// First pass
-  innermostLoopBranch = reqStack.size() - 2;
+  innermostLoopLayer = reqStack.size() - 1;
   firstLoopPass = true;
   if (body)
     Visit(body);
   if (deleteCurBranch) {
-    reqStack.pop_back();
+    deleteBranch();
     deleteCurBranch = backupDCB;
   } else {
     if (incr)
       Visit(incr);
     if (cond)
       Visit(cond);
-    mergeAndDelete(/*keepNewVars=*/true);
   }
+  --innermostLoopLayer;
+  mergeLayer();
+  mergeBranchTo(innermostLoopLayer - 1, reqStack[innermostLoopLayer].back());
 
   /// Second pass
-  --innermostLoopBranch;
   firstLoopPass = false;
   if (body)
     Visit(body);
   if (incr)
     Visit(incr);
   if (deleteCurBranch)
-    reqStack.pop_back();
+    deleteBranch();
   else {
     if (cond)
       Visit(cond);
-    mergeAndDelete();
   }
+  mergeLayer();
 
-  innermostLoopBranch = backupILB;
+  innermostLoopLayer = backupILB;
   firstLoopPass = backupFLP;
   deleteCurBranch = backupDCB;
 }
 
 void TBRAnalyzer::VisitDoStmt(const clang::DoStmt* DS) {
-  auto body = DS->getBody();
-  auto cond = DS->getCond();
-  size_t backupILB = innermostLoopBranch;
+  const auto* body = DS->getBody();
+  const auto* cond = DS->getCond();
+  size_t backupILB = innermostLoopLayer;
   bool backupFLP = firstLoopPass;
   bool backupDCB = deleteCurBranch;
 
@@ -870,10 +944,14 @@ void TBRAnalyzer::VisitDoStmt(const clang::DoStmt* DS) {
   /// having two loop branches is necessary for handling continue statements
   /// so we can't just remove one of them.
 
+  addLayer();
+  addBranch();
+  addBranch();
+  addLayer();
   addBranch();
   addBranch();
   /// First pass
-  innermostLoopBranch = reqStack.size() - 2;
+  innermostLoopLayer = reqStack.size() - 2;
   firstLoopPass = true;
   if (body)
     Visit(body);
@@ -882,21 +960,58 @@ void TBRAnalyzer::VisitDoStmt(const clang::DoStmt* DS) {
     deleteCurBranch = backupDCB;
   } else {
     Visit(cond);
-    mergeAndDelete(/*keepNewVars=*/true);
+    mergeLayer();
   }
 
   /// Second pass
-  --innermostLoopBranch;
+  --innermostLoopLayer;
   firstLoopPass = false;
   if (body)
     Visit(body);
   Visit(cond);
   if (deleteCurBranch) {
     reqStack.pop_back();
-    mergeAndDelete();
+    mergeLayer();
   }
 
-  innermostLoopBranch = backupILB;
+  innermostLoopLayer = backupILB;
+  firstLoopPass = backupFLP;
+  deleteCurBranch = backupDCB;
+
+  addLayer();
+  addBranch();
+  addBranch();
+
+  addLayer();
+  addBranch();
+  addBranch();
+  /// First pass
+  innermostLoopLayer = reqStack.size() - 1;
+  firstLoopPass = true;
+  if (body)
+    Visit(body);
+  if (deleteCurBranch) {
+    deleteBranch();
+    deleteCurBranch = backupDCB;
+  } else {
+    Visit(cond);
+  }
+  --innermostLoopLayer;
+  mergeLayer();
+  mergeBranchTo(innermostLoopLayer - 1, reqStack[innermostLoopLayer].back());
+
+  /// Second pass
+  firstLoopPass = false;
+  if (body)
+    Visit(body);
+  if (deleteCurBranch)
+    deleteBranch();
+  else {
+    Visit(cond);
+  }
+  mergeLayer();
+
+  innermostLoopLayer = backupILB;
   firstLoopPass = backupFLP;
   deleteCurBranch = backupDCB;
 }
@@ -915,11 +1030,18 @@ void TBRAnalyzer::VisitContinueStmt(const clang::ContinueStmt* CS) {
   /// followed by another iteration. We have to either add an additional branch
   /// or find a better solution. (However, this bug will matter only in really
   /// rare cases)
-  mergeCurBranchTo(innermostLoopBranch);
+
+  auto& targetLayer1 = reqStack[innermostLoopLayer];
+  auto& targetBranch1 = targetLayer1[targetLayer1.size() - 2];
+  size_t sourceBranchNum = reqStack.size() - 1;
+  mergeBranchTo(sourceBranchNum, targetBranch1);
   /// After the continue statement, this branch cannot be followed by any other
   /// code so we can delete it.
-  if (firstLoopPass)
-    mergeCurBranchTo(innermostLoopBranch - 1);
+  if (firstLoopPass) {
+    auto& targetLayer2 = reqStack[innermostLoopLayer - 1];
+    auto& targetBranch2 = targetLayer2[targetLayer2.size() - 2];
+    mergeBranchTo(sourceBranchNum, targetBranch2);
+  }
   deleteCurBranch = true;
 }
 
@@ -928,8 +1050,11 @@ void TBRAnalyzer::VisitBreakStmt(const clang::BreakStmt* BS) {
   /// ... - <original state> - <original state (copy)>
   /// And so this break could be the end of this loop. So we have to merge
   /// the current branch into the first branch on the diagram.
-  if (!firstLoopPass)
-    mergeCurBranchTo(innermostLoopBranch);
+  if (!firstLoopPass) {
+    auto& targetLayer = reqStack[innermostLoopLayer];
+    auto& targetBranch = targetLayer[targetLayer.size() - 2];
+    mergeBranchTo(reqStack.size() - 1, targetBranch);
+  }
   /// After the break statement, this branch cannot be followed by any other
   /// code so we can delete it.
   deleteCurBranch = true;
@@ -939,17 +1064,17 @@ void TBRAnalyzer::VisitCallExpr(const clang::CallExpr* CE) {
   /// FIXME: Currently TBR analysis just stops here and assumes that all the
   /// variables passed by value/reference are used/used and changed. Analysis
   /// could proceed to the function to analyse data flow inside it.
-  auto FD = CE->getDirectCallee();
+  auto* FD = CE->getDirectCallee();
   setMode(Mode::markingMode | Mode::nonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
-    clang::Expr* arg = const_cast<clang::Expr*>(CE->getArg(i));
+    const clang::Expr* arg = CE->getArg(i);
     bool passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
     setMode(Mode::markingMode | Mode::nonLinearMode);
     Visit(arg);
     resetMode();
-    auto B = arg->IgnoreParenImpCasts();
+    const auto* B = arg->IgnoreParenImpCasts();
     // FIXME: this supports only DeclRefExpr
-    auto innerExpr = utils::GetInnermostReturnExpr(arg);
+    const auto innerExpr = utils::GetInnermostReturnExpr(arg);
     if (passByRef) {
       /// Mark SourceLocation as required for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
@@ -970,15 +1095,15 @@ void TBRAnalyzer::VisitCXXConstructExpr(const clang::CXXConstructExpr* CE) {
   /// variables passed by value/reference are used/used and changed. Analysis
   /// could proceed to the constructor to analyse data flow inside it.
   /// FIXME: add support for default values
-  auto FD = CE->getConstructor();
+  auto* FD = CE->getConstructor();
   setMode(Mode::markingMode | Mode::nonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
-    auto arg = CE->getArg(i);
+    const auto* arg = CE->getArg(i);
     bool passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
     setMode(Mode::markingMode | Mode::nonLinearMode);
     Visit(arg);
     resetMode();
-    auto B = arg->IgnoreParenImpCasts();
+    const auto* B = arg->IgnoreParenImpCasts();
     // FIXME: this supports only DeclRefExpr
     if (passByRef) {
       /// Mark SourceLocation as required for ref-type arguments.
@@ -1001,6 +1126,9 @@ void TBRAnalyzer::VisitMemberExpr(const clang::MemberExpr* ME) {
 
 void TBRAnalyzer::VisitArraySubscriptExpr(
     const clang::ArraySubscriptExpr* ASE) {
+  setMode(0);
+  Visit(ASE->getBase());
+  resetMode();
   setIsRequired(dyn_cast<clang::Expr>(ASE));
   setMode(Mode::markingMode | Mode::nonLinearMode);
   Visit(ASE->getIdx());
@@ -1009,15 +1137,15 @@ void TBRAnalyzer::VisitArraySubscriptExpr(
 
 void TBRAnalyzer::VisitInitListExpr(const clang::InitListExpr* ILE) {
   setMode(0);
-  for (auto init : ILE->inits()) {
+  for (auto* init : ILE->inits()) {
     Visit(init);
   }
   resetMode();
 }
 
 void TBRAnalyzer::removeLocalVars() {
-  auto& curBranch = reqStack.back();
-  for (auto VD : localVarsStack.back())
+  auto& curBranch = getCurBranch();
+  for (const auto* VD : localVarsStack.back())
     curBranch.erase(VD);
 }
 

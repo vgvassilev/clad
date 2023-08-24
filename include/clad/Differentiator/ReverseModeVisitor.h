@@ -51,6 +51,10 @@ namespace clad {
     Stmts m_Globals;
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
+    /// Based on To-Be-Recorded analysis performed before differentiation,
+    /// tells UsefulToStoreGlobal whether a variable with a given
+    /// SourceLocation has to be stored before being changed or not.
+    std::map<clang::SourceLocation, bool> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
@@ -135,7 +139,7 @@ namespace clad {
         return m_Blocks.back();
       else if (d == direction::reverse)
         return m_Reverse.back();
-      else 
+      else
         return m_EssentialReverse.back();
     }
     /// Create new block.
@@ -144,7 +148,7 @@ namespace clad {
         m_Blocks.push_back({});
       else if (d == direction::reverse)
         m_Reverse.push_back({});
-      else 
+      else
         m_EssentialReverse.push_back({});
       return getCurrentBlock(d);
     }
@@ -226,11 +230,6 @@ namespace clad {
       return VisitorBase::StoreAndRef(E, Type, *blk, prefix,
                                       forceDeclCreation, IS);
     }
-
-    /// Based on To-Be-Recorded analysis performed before differentiation,
-    /// tells UsefulToStoreGlobal whether a variable with a given
-    /// SourceLocation has to be stored before changed or not.
-    std::map<clang::SourceLocation, bool> m_ToBeRecorded;
 
     /// For an expr E, decides if it is useful to store it in a global temporary
     /// variable and replace E's further usage by a reference to that variable
@@ -428,7 +427,7 @@ namespace clad {
                                                clang::QualType xType);
 
     /// Allows to easily create and manage a counter for counting the number of
-    /// executed iterations of a loop. 
+    /// executed iterations of a loop.
     ///
     /// It is required to save the number of executed iterations to use the
     /// same number of iterations in the reverse pass.
@@ -447,11 +446,11 @@ namespace clad {
       /// for counter; otherwise, returns nullptr.
       clang::Expr* getPush() const { return m_Push; }
 
-      /// Returns `clad::pop(_t)` expression if clad tape is used for 
+      /// Returns `clad::pop(_t)` expression if clad tape is used for
       /// for counter; otherwise, returns nullptr.
       clang::Expr* getPop() const { return m_Pop; }
 
-      /// Returns reference to the last object of the clad tape if clad tape 
+      /// Returns reference to the last object of the clad tape if clad tape
       /// is used as the counter; otherwise returns reference to the counter
       /// variable.
       clang::Expr* getRef() const { return m_Ref; }
@@ -493,11 +492,11 @@ namespace clad {
 
     /// This class modifies forward and reverse blocks of the loop
     /// body so that `break` and `continue` statements are correctly
-    /// handled. `break` and `continue` statements are handled by 
+    /// handled. `break` and `continue` statements are handled by
     /// enclosing entire reverse block loop body in a switch statement
     /// and only executing the statements, with the help of case labels,
-    /// that were executed in the associated forward iteration. This is 
-    /// determined by keeping track of which `break`/`continue` statement 
+    /// that were executed in the associated forward iteration. This is
+    /// determined by keeping track of which `break`/`continue` statement
     /// was hit in which iteration and that in turn helps to determine which
     /// case label should be selected.
     ///
@@ -525,7 +524,7 @@ namespace clad {
       /// \note `m_ControlFlowTape` is only initialized if the body contains
       /// `continue` or `break` statement.
       std::unique_ptr<CladTapeResult> m_ControlFlowTape;
-      
+
       /// Each `break` and `continue` statement is assigned a unique number,
       /// starting from 1, that is used as the case label corresponding to that `break`/`continue`
       /// statement. `m_CaseCounter` stores the value that was used for last
@@ -564,7 +563,7 @@ namespace clad {
       /// control flow switch statement.
       clang::CaseStmt* GetNextCFCaseStmt();
 
-      /// Builds and returns `clad::push(TapeRef, m_CurrentCounter)` 
+      /// Builds and returns `clad::push(TapeRef, m_CurrentCounter)`
       /// expression, where `TapeRef` and `m_CurrentCounter` are replaced
       /// by their actual values respectively.
       clang::Stmt* CreateCFTapePushExprToCurrentCase();

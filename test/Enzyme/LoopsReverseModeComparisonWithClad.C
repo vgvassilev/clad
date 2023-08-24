@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out
 // RUN: ./EnzymeLoops.out | FileCheck -check-prefix=CHECK-EXEC %s
 // REQUIRES: Enzyme
 // CHECK-NOT: {{.*error|warning|note:.*}}
@@ -92,7 +92,7 @@ double f6 (double i, double j) {
 double fn7(double i, double j) {
   double a = 0;
   int counter = 3;
-  while (counter--) 
+  while (counter--)
     a += i*i + j;
   return a;
 }
@@ -229,7 +229,7 @@ double fn13(double i, double j) {
 double fn14(double i, double j) {
   int choice = 5;
   double res = 0;
-  for (int counter=0; counter<choice; ++counter) 
+  for (int counter=0; counter<choice; ++counter)
     if (counter < 2)
       res += i+j;
     else if (counter < 4)
@@ -269,14 +269,14 @@ double fn14(double i, double j) {
     F##gradClad.execute(x, y, resultClad, resultClad+1);                       \
     test_utils::EssentiallyEqualArrays(resultClad,resultEnzyme,2);             \
   }
-  
+
 
 int main() {
   double resultEnzyme[5] = {};
   double resultClad[5] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
-  TEST(f2, 3); // CHECK-EXEC: {59049.00} 
-  TEST(f3, 3); // CHECK-EXEC: {6.00} 
+  TEST(f2, 3); // CHECK-EXEC: {59049.00}
+  TEST(f3, 3); // CHECK-EXEC: {6.00}
   TEST(f4, 3); // CHECK-EXEC: {27.00}
   TEST(f5, 3); // CHECK-EXEC: {1.00}
 
@@ -289,4 +289,4 @@ int main() {
   TEST_2(fn12, 3, 5);     // CHECK-EXEC: {10.00, 6.00}
   TEST_2(fn13, 3, 5);     // CHECK-EXEC: {15.00, 9.00}
   TEST_2(fn14, 3, 5);     // CHECK-EXEC: {4.00, 4.00}
-} 
+}

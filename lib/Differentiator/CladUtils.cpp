@@ -544,15 +544,11 @@ namespace clad {
       return false;
     }
 
-    std::vector<clang::Expr*> GetInnermostReturnExpr(clang::Expr* E) {
+    std::vector<clang::Expr*> GetInnermostReturnExpr(const clang::Expr* E) {
       struct Finder : public ConstStmtVisitor<Finder> {
         std::vector<clang::Expr*> m_return_exprs;
-        // Sema* m_Sema;
-        // ASTContext* m_Context;
 
       public:
-        Finder(/*Sema* S*/) /* : m_Sema(S), m_Context(S.getASTContext()) */ {}
-
         std::vector<clang::Expr*> Find(const clang::Expr* E) {
           Visit(E);
           return m_return_exprs;
@@ -561,7 +557,7 @@ namespace clad {
         void VisitBinaryOperator(const clang::BinaryOperator* BO) {
           if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
             Visit(BO->getLHS());
-          } else if (BO->isCommaOp()) {
+          } else if (BO->getOpcode() == clang::BO_Comma) {
             /**/
           } else {
             assert("Unexpected binary operator!!");
@@ -585,10 +581,8 @@ namespace clad {
           m_return_exprs.push_back(const_cast<clang::DeclRefExpr*>(DRE));
         }
 
-        void VisitExpr(const clang::Expr* E) {
-          if (auto PE = dyn_cast<clang::ParenExpr>(E)) {
-            Visit(PE->getSubExpr());
-          }
+        void VisitParenExpr(const clang::ParenExpr* PE) {
+          Visit(PE->getSubExpr());
         }
 
         void VisitMemberExpr(const clang::MemberExpr* ME) {
