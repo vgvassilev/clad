@@ -39,3 +39,11 @@ inline double product(double p[], int n) {
   }
   return prod;
 }
+
+///\returns the weighted sum of the elements in \p
+inline double weightedSum(double p[], double w[], int n) {
+  double sum = 0;
+  for (int i = 0; i < n; i++)
+    sum += p[i] * w[i];
+  return sum;
+}
