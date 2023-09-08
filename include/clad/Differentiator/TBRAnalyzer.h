@@ -17,8 +17,20 @@ private:
   /// Used to provide a hash function for an unordered_map with llvm::APInt
   /// type keys.
   struct APIntHash {
-    size_t operator()(const llvm::APInt& apint) const {
-      return llvm::hash_value(apint);
+    size_t operator()(const llvm::APInt& x) const {
+      return llvm::hash_value(x);
+    }
+  };
+
+  static bool eqAPInt(const llvm::APInt& x, const llvm::APInt& y) {
+    if (x.getBitWidth() != y.getBitWidth())
+      return false;
+    return x == y;
+  }
+
+  struct APIntComp {
+    bool operator()(const llvm::APInt& x, const llvm::APInt& y) const {
+      return eqAPInt(x, y);
     }
   };
 
@@ -91,7 +103,8 @@ private:
 
   struct VarData;
   using ObjMap = std::unordered_map<const clang::FieldDecl*, VarData*>;
-  using ArrMap = std::unordered_map<const llvm::APInt, VarData*, APIntHash>;
+  using ArrMap =
+      std::unordered_map<const llvm::APInt, VarData*, APIntHash, APIntComp>;
 
   struct VarData {
     enum VarDataType { UNDEFINED, FUND_TYPE, OBJ_TYPE, ARR_TYPE, REF_TYPE };
@@ -114,15 +127,16 @@ private:
     VarData(const VarData&&) = delete;
     VarData& operator=(const VarData&&) = delete;
 
+    /// Builds a VarData object (and its children) based on the provided type.
+    VarData(const QualType QT);
+
     ~VarData() {
       if (type == OBJ_TYPE) {
-        for (auto& pair : *val.objData) {
+        for (auto& pair : *val.objData)
           delete pair.second;
-        }
       } else if (type == ARR_TYPE) {
-        for (auto& pair : *val.arrData) {
+        for (auto& pair : *val.arrData)
           delete pair.second;
-        }
       }
     }
     /// Recursively sets all the leaves' bools to isReq.
@@ -165,9 +179,6 @@ private:
                             bool addNonConstIdx = false);
   /// Given an Expr* returns its corresponding VarData.
   VarData* getExprVarData(const clang::Expr* E, bool addNonConstIdx = false);
-  /// Adds the field FD to objData.
-  void addField(std::unordered_map<const clang::FieldDecl*, VarData*>* objData,
-                const FieldDecl* FD);
   /// Whenever an array element with a non-constant index is set to required
   /// this function is used to set to required all the array elements that
   /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required when

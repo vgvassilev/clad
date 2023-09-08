@@ -600,5 +600,17 @@ namespace clad {
       Finder finder;
       return finder.Find(E);
     }
+
+    bool IsAutoOrAutoPtrType(const clang::Type* T) {
+      if (isa<clang::AutoType>(T))
+        return true;
+
+      if (const auto pointerType = dyn_cast<clang::PointerType>(T)) {
+        return IsAutoOrAutoPtrType(
+            pointerType->getPointeeType().getTypePtrOrNull());
+      }
+
+      return false;
+    }
   } // namespace utils
 } // namespace clad
