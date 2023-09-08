@@ -1273,8 +1273,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (std::size_t i = 0; i < Indices.size(); i++) {
       /// FIXME: Remove redundant indices vectors.
       StmtDiff IdxDiff = Visit(Indices[i]);
-      clonedIndices[i] = IdxDiff.getExpr();
-      reverseIndices[i] = IdxDiff.getExpr();
+      clonedIndices[i] = Clone(IdxDiff.getExpr());
+      reverseIndices[i] = Clone(IdxDiff.getExpr());
       // reverseIndices[i] = Clone(IdxDiff.getExpr());
       forwSweepDerivativeIndices[i] = IdxDiff.getExpr();
     }
@@ -1965,17 +1965,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
         CE, OverloadedDerivedFn, DerivedCallArgs, ArgResultDecls, asGrad);
 
-    // FIXME: Why are we cloning args here? We already created different
-    // expressions for call to original function and call to gradient.
-    // Re-clone function arguments again, since they are required at 2 places:
-    // call to gradient and call to original function. At this point, each arg
-    // is either a simple expression or a reference to a temporary variable.
-    // Therefore cloning it has constant complexity.
-    std::transform(std::begin(CallArgs),
-                   std::end(CallArgs),
-                   std::begin(CallArgs),
-                   [this](Expr* E) { return Clone(E); });
-
     Expr* call = nullptr;
 
     QualType returnType = FD->getReturnType();
@@ -2646,11 +2635,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Here separate behaviour for record and non-record types is only
     // necessary to preserve the old tests.
     if (VD->getType()->isRecordType())
-      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
+      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit(),
                              VD->getTypeSourceInfo(), VD->getInitStyle());
     else
-      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
+      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit());
     Expr* derivedVDE = BuildDeclRef(VDDerived);
 
