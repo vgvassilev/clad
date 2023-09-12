@@ -173,6 +173,12 @@ struct ExperimentNNS {
 } // namespace inner
 } // namespace outer
 
+// A function calling operator() on a functor.
+double CallFunctor(double i, double j) {
+  Experiment E(3, 5);
+  return E(i, j);
+}
+
 #define INIT(E)                                                                \
   auto E##_grad = clad::gradient(&E);                                          \
   auto E##Ref_grad = clad::gradient(E);
@@ -298,4 +304,32 @@ int main() {
                                               // CHECK-EXEC: 54.00 42.00
   TEST_LAMBDA(lambdaWithCapture);             // CHECK-EXEC: 54.00 42.00
                                               // CHECK-EXEC: 54.00 42.00
+
+  // CHECK: void CallFunctor_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:     Experiment _d_E({});
+  // CHECK-NEXT:     double _t0;
+  // CHECK-NEXT:     double _t1;
+  // CHECK-NEXT:     Experiment _t2;
+  // CHECK-NEXT:     Experiment E(3, 5);
+  // CHECK-NEXT:     _t0 = i;
+  // CHECK-NEXT:     _t1 = j;
+  // CHECK-NEXT:     _t2 = E;
+  // CHECK-NEXT:     goto _label0;
+  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         double _grad0 = 0.;
+  // CHECK-NEXT:         double _grad1 = 0.;
+  // CHECK-NEXT:         _t2.operator_call_pullback(_t0, _t1, 1, &_d_E, &_grad0, &_grad1);
+  // CHECK-NEXT:         double _r0 = _grad0;
+  // CHECK-NEXT:         * _d_i += _r0;
+  // CHECK-NEXT:         double _r1 = _grad1;
+  // CHECK-NEXT:         * _d_j += _r1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+  // testing differentiating a function calling operator() on a functor
+  auto CallFunctor_grad = clad::gradient(CallFunctor);
+  double di = 0, dj = 0;
+  CallFunctor_grad.execute(7, 9, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 }
