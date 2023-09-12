@@ -470,7 +470,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(request, args);
 
-    auto derivativeName = request.BaseFunctionName + "_pullback";
+    auto derivativeName =
+        utils::ComputeEffectiveFnName(m_Function) + "_pullback";
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);
@@ -1412,12 +1413,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
+    // `CXXOperatorCallExpr` have the `base` expression as the first argument.
+    size_t skipFirstArg = 0;
+
+    // Here we do not need to check if FD is an instance method or a static
+    // method because C++ forbids creating operator overloads as static methods.
+    if (isa<CXXOperatorCallExpr>(CE) && isa<CXXMethodDecl>(FD))
+      skipFirstArg = 1;
+
     // FIXME: We should add instructions for handling non-differentiable
     // arguments. Currently we are implicitly assuming function call only
     // contains differentiable arguments.
-    for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+    for (std::size_t i = skipFirstArg, e = CE->getNumArgs(); i != e; ++i) {
       const Expr* arg = CE->getArg(i);
-      auto PVD = FD->getParamDecl(i);
+      const auto* PVD = FD->getParamDecl(i - skipFirstArg);
       StmtDiff argDiff{};
       bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
       // We do not need to create result arg for arguments passed by reference
@@ -1597,26 +1606,37 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       /// Add base derivative expression in the derived call output args list if
       /// `CE` is a call to an instance member function.
-      if (auto MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
-        baseDiff = Visit(MCE->getImplicitObjectArgument());
-        StmtDiff baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
-        if (isInsideLoop) {
-          addToCurrentBlock(baseDiffStore.getExpr());
-          VarDecl* baseLocalVD = BuildVarDecl(
-              baseDiffStore.getExpr_dx()->getType(),
-              CreateUniqueIdentifier("_r"), baseDiffStore.getExpr_dx(),
-              /*DirectInit=*/false, /*TSI=*/nullptr,
-              VarDecl::InitializationStyle::CInit);
-          auto& block = getCurrentBlock(direction::reverse);
-          block.insert(block.begin() + insertionPoint,
-                       BuildDeclStmt(baseLocalVD));
-          insertionPoint += 1;
-          Expr* baseLocalE = BuildDeclRef(baseLocalVD);
-          baseDiffStore = {baseDiffStore.getExpr(), baseLocalE};
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+        if (MD->isInstance()) {
+          const Expr* baseOriginalE = nullptr;
+          if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
+            baseOriginalE = MCE->getImplicitObjectArgument();
+          else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
+            baseOriginalE = OCE->getArg(0);
+
+          baseDiff = Visit(baseOriginalE);
+          StmtDiff baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
+          if (isInsideLoop) {
+            addToCurrentBlock(baseDiffStore.getExpr());
+            VarDecl* baseLocalVD = BuildVarDecl(
+                baseDiffStore.getExpr_dx()->getType(),
+                CreateUniqueIdentifier("_r"), baseDiffStore.getExpr_dx(),
+                /*DirectInit=*/false, /*TSI=*/nullptr,
+                VarDecl::InitializationStyle::CInit);
+            auto& block = getCurrentBlock(direction::reverse);
+            block.insert(block.begin() + insertionPoint,
+                         BuildDeclStmt(baseLocalVD));
+            insertionPoint += 1;
+            Expr* baseLocalE = BuildDeclRef(baseLocalVD);
+            baseDiffStore = {baseDiffStore.getExpr(), baseLocalE};
+          }
+          baseDiff = {baseDiffStore.getExpr_dx(), baseDiff.getExpr_dx()};
+          Expr* baseDerivative = baseDiff.getExpr_dx();
+          if (!baseDerivative->getType()->isPointerType())
+            baseDerivative =
+                BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
+          DerivedCallOutputArgs.push_back(baseDerivative);
         }
-        baseDiff = {baseDiffStore.getExpr_dx(), baseDiff.getExpr_dx()};
-        DerivedCallOutputArgs.push_back(
-            BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr_dx()));
       }
 
       for (auto argDerivative : CallArgDx) {
@@ -1689,7 +1709,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       pullbackCallArgs = DerivedCallArgs;
 
       if (pullback)
-        pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs(),
+        pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs() -
+                                    static_cast<int>(skipFirstArg),
                                 pullback);
 
       // Try to find it in builtin derivatives
@@ -1775,7 +1796,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             usingNumericalDiff = true;
           }
         } else if (pullbackFD) {
-          if (isa<CXXMemberCallExpr>(CE)) {
+          if (baseDiff.getExpr()) {
             Expr* baseE = baseDiff.getExpr();
             OverloadedDerivedFn = BuildCallExprToMemFn(
                 baseE, pullbackFD->getName(), pullbackCallArgs, pullbackFD);
@@ -1878,7 +1899,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // We cannot reuse the derivatives previously computed because
       // they might contain 'clad::pop(..)` expression.
-      if (isa<CXXMemberCallExpr>(CE)) {
+      if (baseDiff.getExpr_dx()) {
         Expr* derivedBase = baseDiff.getExpr_dx();
         // FIXME: We may need this if-block once we support pointers, and
         // passing pointers-by-reference if
@@ -1906,7 +1927,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         } else
           CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
       }
-      if (isa<CXXMemberCallExpr>(CE)) {
+      if (baseDiff.getExpr()) {
         Expr* baseE = baseDiff.getExpr();
         call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
                                     CallArgs, calleeFnForwPassFD);
