@@ -158,114 +158,104 @@ public:
   }
 };
 
-/// Overloaded operators for clad::array_ref which returns a new clad::array
-/// object.
+/// Overloaded operators for clad::array_ref which returns an array
+/// expression.
 
 /// Multiplies the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array<T> operator*(const array_ref<T>& Ar,
-                                    const array_ref<U>& Br) {
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryMul, array_ref<U>>
+operator*(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
-         "Size of both the array_refs must be equal for carrying out addition "
-         "assignment");
-  array<T> C(Ar);
-  C *= Br;
-  return C;
+         "Size of both the array_refs must be equal for carrying out "
+         "multiplication assignment");
+  return array_expression<array_ref<T>, BinaryMul, array_ref<U>>(Ar, Br);
 }
 
 /// Adds the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array<T> operator+(const array_ref<T>& Ar,
-                                    const array_ref<U>& Br) {
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryAdd, array_ref<U>>
+operator+(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
          "Size of both the array_refs must be equal for carrying out addition "
          "assignment");
-  array<T> C(Ar);
-  C += Br;
-  return C;
+  return array_expression<array_ref<T>, BinaryAdd, array_ref<U>>(Ar, Br);
 }
 
 /// Subtracts the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array<T> operator-(const array_ref<T>& Ar,
-                                    const array_ref<U>& Br) {
-  assert(Ar.size() == Br.size() &&
-         "Size of both the array_refs must be equal for carrying out addition "
-         "assignment");
-  array<T> C(Ar);
-  C -= Br;
-  return C;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinarySub, array_ref<U>>
+operator-(const array_ref<T>& Ar, const array_ref<U>& Br) {
+  assert(
+      Ar.size() == Br.size() &&
+      "Size of both the array_refs must be equal for carrying out subtraction "
+      "assignment");
+  return array_expression<array_ref<T>, BinarySub, array_ref<U>>(Ar, Br);
 }
 
 /// Divides the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array<T> operator/(const array_ref<T>& Ar,
-                                    const array_ref<U>& Br) {
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryDiv, array_ref<U>>
+operator/(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
-         "Size of both the array_refs must be equal for carrying out addition "
+         "Size of both the array_refs must be equal for carrying out division "
          "assignment");
-  array<T> C(Ar);
-  C /= Br;
-  return C;
+  return array_expression<array_ref<T>, BinaryDiv, array_ref<U>>(Ar, Br);
 }
 
 /// Multiplies array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator*(const array_ref<T>& Ar, U a) {
-  array<T> C(Ar);
-  C *= a;
-  return C;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryMul, U>
+operator*(const array_ref<T>& Ar, U a) {
+  return array_expression<array_ref<T>, BinaryMul, U>(Ar, a);
 }
 
 /// Multiplies array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator*(U a, const array_ref<T>& Ar) {
-  return Ar * a;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryMul, U>
+operator*(U a, const array_ref<T>& Ar) {
+  return array_expression<array_ref<T>, BinaryMul, U>(Ar, a);
 }
 
 /// Divides array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator/(const array_ref<T>& Ar, U a) {
-  array<T> C(Ar);
-  C /= a;
-  return C;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryDiv, U>
+operator/(const array_ref<T>& Ar, U a) {
+  return array_expression<array_ref<T>, BinaryDiv, U>(Ar, a);
 }
 
 /// Adds array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator+(const array_ref<T>& Ar, U a) {
-  array<T> C(Ar);
-  C += a;
-  return C;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryAdd, U>
+operator+(const array_ref<T>& Ar, U a) {
+  return array_expression<array_ref<T>, BinaryAdd, U>(Ar, a);
 }
 
 /// Adds array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator+(U a, const array_ref<T>& Ar) {
-  return Ar + a;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryAdd, U>
+operator+(U a, const array_ref<T>& Ar) {
+  return array_expression<array_ref<T>, BinaryAdd, U>(Ar, a);
 }
 
 /// Subtracts array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator-(const array_ref<T>& Ar, U a) {
-  array<T> C(Ar);
-  C -= a;
-  return C;
+CUDA_HOST_DEVICE array_expression<array_ref<T>, BinarySub, U>
+operator-(const array_ref<T>& Ar, U a) {
+  return array_expression<array_ref<T>, BinarySub, U>(Ar, a);
 }
 
 /// Subtracts array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array<T> operator-(U a, const array_ref<T>& Ar) {
-  array<T> C(Ar.size(), a);
-  C -= Ar;
-  return C;
+CUDA_HOST_DEVICE array_expression<U, BinarySub, array_ref<T>>
+operator-(U a, const array_ref<T>& Ar) {
+  return array_expression<U, BinarySub, array_ref<T>>(a, Ar);
 }
 
   /// `array_ref<void>` specialisation is created to be used as a placeholder
