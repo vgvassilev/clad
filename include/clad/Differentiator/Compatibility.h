@@ -767,5 +767,27 @@ static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
   ,Fn->isThisDeclarationADefinition()
 #endif
 
+
+// Clang 17 change type of last param of ActOnStartOfLambdaDefinition
+// from Scope* to 'const DeclSpec&'
+#if CLANG_VERSION_MAJOR < 17
+static inline Scope* Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(Scope *CurScope, const DeclSpec &DS) {
+  return CurScope;
+}
+#elif CLANG_VERSION_MAJOR >= 17
+static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(Scope *CurScope, const DeclSpec &DS) {
+  return DS;
+}
+#endif
+
+// Clang 17 add one extra param to clang::PredefinedExpr::Create - isTransparent
+
+#if CLANG_VERSION_MAJOR < 17
+#define CLAD_COMPAT_CLANG17_IsTransparent(Node) /**/
+#elif CLANG_VERSION_MAJOR >= 17
+#define CLAD_COMPAT_CLANG17_IsTransparent(Node) \
+  ,Node->isTransparent()
+#endif
+
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

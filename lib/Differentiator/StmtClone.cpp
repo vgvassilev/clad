@@ -71,7 +71,7 @@ Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   return DeclRefExpr::Create(Ctx, Node->getQualifierLoc(), Node->getTemplateKeywordLoc(), Node->getDecl(), Node->refersToEnclosingVariableOrCapture(), Node->getNameInfo(), Node->getType(), Node->getValueKind(), Node->getFoundDecl(), &TAListInfo);
 }
 DEFINE_CREATE_EXPR(IntegerLiteral, (Ctx, Node->getValue(), Node->getType(), Node->getLocation()))
-DEFINE_CLONE_EXPR_CO(PredefinedExpr, (CLAD_COMPAT_CLANG8_Ctx_ExtraParams Node->getLocation(), Node->getType(), Node->getIdentKind(), Node->getFunctionName()))
+DEFINE_CLONE_EXPR_CO(PredefinedExpr, (CLAD_COMPAT_CLANG8_Ctx_ExtraParams Node->getLocation(), Node->getType(), Node->getIdentKind() CLAD_COMPAT_CLANG17_IsTransparent(Node), Node->getFunctionName()))
 DEFINE_CLONE_EXPR(CharacterLiteral, (Node->getValue(), Node->getKind(), Node->getType(), Node->getLocation()))
 DEFINE_CLONE_EXPR(ImaginaryLiteral, (Clone(Node->getSubExpr()), Node->getType()))
 DEFINE_CLONE_EXPR(ParenExpr, (Node->getLParen(), Node->getRParen(), Clone(Node->getSubExpr())))
