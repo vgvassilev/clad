@@ -155,7 +155,8 @@ namespace clad {
       S.PushLambdaScope();
       V.beginScope(clang::Scope::BlockScope | clang::Scope::FnScope |
                    clang::Scope::DeclScope);
-      S.ActOnStartOfLambdaDefinition(Intro, D, V.getCurrentScope());
+      S.ActOnStartOfLambdaDefinition(Intro, D,
+                   clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(V.getCurrentScope(), DS));
       V.beginBlock();
       func();
       clang::CompoundStmt* body = V.endBlock();

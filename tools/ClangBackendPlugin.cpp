@@ -15,7 +15,10 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
+
+#if LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#endif // LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
 
 namespace clad {
 using namespace llvm;
