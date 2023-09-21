@@ -786,6 +786,10 @@ double fn2(SimpleFunctions& sf, double i) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn3(double x, double y, double i, double j) {
+  SimpleFunctions sf(x, y);
+  return sf.mem_fn(i, j);
+}
 
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
@@ -880,4 +884,33 @@ int main() {
   // CHECK-NEXT:           * _d_j += _r3;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }
+
+  auto d_fn3 = clad::gradient(fn3, "i,j");
+  result[0] = result[1] = 0;
+  d_fn3.execute(2, 3, 4, 5, &result[0], &result[1]);
+  printf("%.2f %.2f", result[0], result[1]); // CHECK-EXEC: 10.00 4.00
+
+  // CHECK: void fn3_grad_2_3(double x, double y, double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     SimpleFunctions _d_sf({});
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     SimpleFunctions _t2;
+// CHECK-NEXT:     SimpleFunctions sf(x, y);
+// CHECK-NEXT:     _t0 = i;
+// CHECK-NEXT:     _t1 = j;
+// CHECK-NEXT:     _t2 = sf;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _grad0 = 0.;
+// CHECK-NEXT:         double _grad1 = 0.;
+// CHECK-NEXT:         _t2.mem_fn_pullback(_t0, _t1, 1, &_d_sf, &_grad0, &_grad1);
+// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         * _d_i += _r0;
+// CHECK-NEXT:         double _r1 = _grad1;
+// CHECK-NEXT:         * _d_j += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 }

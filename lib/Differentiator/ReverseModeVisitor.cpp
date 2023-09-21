@@ -2440,11 +2440,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // need to call `Visit` since non-local variables are not differentiated.
     if (!isDerivativeOfRefType) {
       Expr* derivedE = BuildDeclRef(VDDerived);
-      initDiff = VD->getInit() ? Visit(VD->getInit(), derivedE) : StmtDiff{};
+      initDiff = StmtDiff{};
+      if (VD->getInit()) {
+        if (isa<CXXConstructExpr>(VD->getInit()))
+          initDiff = Visit(VD->getInit());
+        else
+          initDiff = Visit(VD->getInit(), derivedE);
+      }
 
       // If we are differentiating `VarDecl` corresponding to a local variable
       // inside a loop, then we need to reset it to 0 at each iteration.
-      // 
+      //
       // for example, if defined inside a loop,
       // ```
       // double localVar = i;
@@ -2454,7 +2460,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // {
       //   *_d_i += _d_localVar;
       //   _d_localVar = 0;
-      // }                        
+      // }
       if (isInsideLoop) {
         Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign,
                                      BuildDeclRef(VDDerived),
