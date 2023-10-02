@@ -5,11 +5,11 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-double multiply(double *arr) {
+double multiply(const double *arr) {
   return arr[0] * arr[1];
 }
 
-// CHECK: void multiply_dvec(double *arr, clad::array_ref<double> _d_arr) {
+// CHECK: void multiply_dvec(const double *arr, clad::array_ref<double> _d_arr) {
 // CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size();
 // CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
 // CHECK-NEXT:   {
@@ -33,7 +33,7 @@ double divide(double *arr) {
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
-double addArr(double *arr, int n) {
+double addArr(const double *arr, int n) {
   double ret = 0;
   for (int i = 0; i < n; i++) {
     ret += arr[i];
@@ -41,7 +41,7 @@ double addArr(double *arr, int n) {
   return ret;
 }
 
-// CHECK: void addArr_dvec_0(double *arr, int n, clad::array_ref<double> _d_arr) {
+// CHECK: void addArr_dvec_0(const double *arr, int n, clad::array_ref<double> _d_arr) {
 // CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size();
 // CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
 // CHECK-NEXT:   clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);
@@ -61,7 +61,7 @@ double addArr(double *arr, int n) {
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
-double maskedSum(double *arr, int n, int *signedMask, double alpha, double beta) {
+double maskedSum(const double *arr, int n, int *signedMask, double alpha, double beta) {
   double ret = 0;
   for (int i = 0; i < n; i++) {
     if (signedMask[i] > 0) {
@@ -73,7 +73,7 @@ double maskedSum(double *arr, int n, int *signedMask, double alpha, double beta)
   return ret;
 }
 
-// CHECK: void maskedSum_dvec_0_3_4(double *arr, int n, int *signedMask, double alpha, double beta, clad::array_ref<double> _d_arr, double *_d_alpha, double *_d_beta) {
+// CHECK: void maskedSum_dvec_0_3_4(const double *arr, int n, int *signedMask, double alpha, double beta, clad::array_ref<double> _d_arr, double *_d_alpha, double *_d_beta) {
 // CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size() + 2UL;
 // CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
 // CHECK-NEXT:   clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);

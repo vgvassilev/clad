@@ -5,7 +5,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-double addArr(double *arr, int n) {
+double addArr(const double *arr, int n) {
   double ret = 0;
   for (int i = 0; i < n; i++) {
     ret += arr[i];
@@ -13,7 +13,7 @@ double addArr(double *arr, int n) {
   return ret;
 }
 
-//CHECK: void addArr_pullback(double *arr, int n, double _d_y, clad::array_ref<double> _d_arr, clad::array_ref<int> _d_n) {
+//CHECK: void addArr_pullback(const double *arr, int n, double _d_y, clad::array_ref<double> _d_arr, clad::array_ref<int> _d_n) {
 //CHECK-NEXT:     double _d_ret = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
