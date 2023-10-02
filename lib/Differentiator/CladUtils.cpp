@@ -352,6 +352,7 @@ namespace clad {
       else if (T->isArrayType()) 
         valueType =
             T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
+      valueType.removeLocalConst();
       return valueType;
     }
 
