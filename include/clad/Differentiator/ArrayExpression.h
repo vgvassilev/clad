@@ -12,7 +12,7 @@ namespace clad {
 // Operator to add two elements.
 struct BinaryAdd {
   template <typename T, typename U>
-  static auto apply(T const& t, U const& u) -> decltype(t + u) {
+  static auto apply(const T& t, const U& u) -> decltype(t + u) {
     return t + u;
   }
 };
@@ -20,7 +20,7 @@ struct BinaryAdd {
 // Operator to add two elements.
 struct BinaryMul {
   template <typename T, typename U>
-  static auto apply(T const& t, U const& u) -> decltype(t * u) {
+  static auto apply(const T& t, const U& u) -> decltype(t * u) {
     return t * u;
   }
 };
@@ -28,7 +28,7 @@ struct BinaryMul {
 // Operator to divide two elements.
 struct BinaryDiv {
   template <typename T, typename U>
-  static auto apply(T const& t, U const& u) -> decltype(t / u) {
+  static auto apply(const T& t, const U& u) -> decltype(t / u) {
     return t / u;
   }
 };
@@ -36,7 +36,7 @@ struct BinaryDiv {
 // Operator to subtract two elements.
 struct BinarySub {
   template <typename T, typename U>
-  static auto apply(T const& t, U const& u) -> decltype(t - u) {
+  static auto apply(const T& t, const U& u) -> decltype(t - u) {
     return t - u;
   }
 };
@@ -53,24 +53,24 @@ public:
   // for scalars
   template <typename T, typename std::enable_if<std::is_arithmetic<T>::value,
                                                 int>::type = 0>
-  std::size_t get_size(T const& t) const {
+  std::size_t get_size(const T& t) const {
     return 1;
   }
   template <typename T, typename std::enable_if<std::is_arithmetic<T>::value,
                                                 int>::type = 0>
-  T get(T const& t, std::size_t i) const {
+  T get(const T& t, std::size_t i) const {
     return t;
   }
 
   // for vectors
   template <typename T, typename std::enable_if<!std::is_arithmetic<T>::value,
                                                 int>::type = 0>
-  std::size_t get_size(T const& t) const {
+  std::size_t get_size(const T& t) const {
     return t.size();
   }
   template <typename T, typename std::enable_if<!std::is_arithmetic<T>::value,
                                                 int>::type = 0>
-  auto get(T const& t, std::size_t i) const -> decltype(t[i]) {
+  auto get(const T& t, std::size_t i) const -> decltype(t[i]) {
     return t[i];
   }
 
@@ -84,41 +84,41 @@ public:
 
   // Operator overload for addition.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+  array_expression<const array_expression<LeftExp, BinaryOp, RightExp>&,
                    BinaryAdd, RE>
-  operator+(RE const& r) const {
+  operator+(const RE& r) const {
     return array_expression<
-        array_expression<LeftExp, BinaryOp, RightExp> const&, BinaryAdd, RE>(
+        const array_expression<LeftExp, BinaryOp, RightExp>&, BinaryAdd, RE>(
         *this, r);
   }
 
   // Operator overload for multiplication.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+  array_expression<const array_expression<LeftExp, BinaryOp, RightExp>&,
                    BinaryMul, RE>
-  operator*(RE const& r) const {
+  operator*(const RE& r) const {
     return array_expression<
-        array_expression<LeftExp, BinaryOp, RightExp> const&, BinaryMul, RE>(
+        const array_expression<LeftExp, BinaryOp, RightExp>&, BinaryMul, RE>(
         *this, r);
   }
 
   // Operator overload for subtraction.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+  array_expression<const array_expression<LeftExp, BinaryOp, RightExp>&,
                    BinarySub, RE>
-  operator-(RE const& r) const {
+  operator-(const RE& r) const {
     return array_expression<
-        array_expression<LeftExp, BinaryOp, RightExp> const&, BinarySub, RE>(
+        const array_expression<LeftExp, BinaryOp, RightExp>&, BinarySub, RE>(
         *this, r);
   }
 
   // Operator overload for division.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+  array_expression<const array_expression<LeftExp, BinaryOp, RightExp>&,
                    BinaryDiv, RE>
-  operator/(RE const& r) const {
+  operator/(const RE& r) const {
     return array_expression<
-        array_expression<LeftExp, BinaryOp, RightExp> const&, BinaryDiv, RE>(
+        const array_expression<LeftExp, BinaryOp, RightExp>&, BinaryDiv, RE>(
         *this, r);
   }
 };
@@ -128,10 +128,10 @@ public:
 template <typename T, typename LeftExp, typename BinaryOp, typename RightExp,
           typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
 array_expression<T, BinaryAdd,
-                 array_expression<LeftExp, BinaryOp, RightExp> const&>
-operator+(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
+                 const array_expression<LeftExp, BinaryOp, RightExp>&>
+operator+(const T& l, const array_expression<LeftExp, BinaryOp, RightExp>& r) {
   return array_expression<T, BinaryAdd,
-                          array_expression<LeftExp, BinaryOp, RightExp> const&>(
+                          const array_expression<LeftExp, BinaryOp, RightExp>&>(
       l, r);
 }
 
@@ -140,10 +140,10 @@ operator+(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
 template <typename T, typename LeftExp, typename BinaryOp, typename RightExp,
           typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
 array_expression<T, BinaryMul,
-                 array_expression<LeftExp, BinaryOp, RightExp> const&>
-operator*(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
+                 const array_expression<LeftExp, BinaryOp, RightExp>&>
+operator*(const T& l, const array_expression<LeftExp, BinaryOp, RightExp>& r) {
   return array_expression<T, BinaryMul,
-                          array_expression<LeftExp, BinaryOp, RightExp> const&>(
+                          const array_expression<LeftExp, BinaryOp, RightExp>&>(
       l, r);
 }
 
@@ -152,10 +152,10 @@ operator*(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
 template <typename T, typename LeftExp, typename BinaryOp, typename RightExp,
           typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
 array_expression<T, BinarySub,
-                 array_expression<LeftExp, BinaryOp, RightExp> const&>
-operator-(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
+                 const array_expression<LeftExp, BinaryOp, RightExp>&>
+operator-(const T& l, const array_expression<LeftExp, BinaryOp, RightExp>& r) {
   return array_expression<T, BinarySub,
-                          array_expression<LeftExp, BinaryOp, RightExp> const&>(
+                          const array_expression<LeftExp, BinaryOp, RightExp>&>(
       l, r);
 }
 } // namespace clad
