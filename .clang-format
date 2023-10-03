@@ -4,6 +4,7 @@ Language: Cpp
 Standard: Cpp11
 PointerAlignment: Left
 RemoveBracesLLVM: true
+QualifierAlignment: Left
 
 IncludeCategories:
   - Regex:           '^"[^/]+\"'
