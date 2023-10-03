@@ -6,6 +6,7 @@ include(AddCladBenchmark)
 
 CB_ADD_GBENCHMARK(Simple Simple.cpp)
 CB_ADD_GBENCHMARK(AlgorithmicComplexity AlgorithmicComplexity.cpp)
+CB_ADD_GBENCHMARK(ArrayExpressionTemplates ArrayExpressionTemplates.cpp)
 CB_ADD_GBENCHMARK(EnzymeCladComparison EnzymeCladComparison.cpp)
 CB_ADD_GBENCHMARK(MemoryComplexity MemoryComplexity.cpp)
 CB_ADD_GBENCHMARK(VectorModeComparison VectorModeComparison.cpp)

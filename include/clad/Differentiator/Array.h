@@ -58,6 +58,13 @@ public:
       m_arr[i] = expression[i];
   }
 
+  template <typename L, typename BinaryOp, typename R>
+  CUDA_HOST_DEVICE array(const array_expression<L, BinaryOp, R>& expression)
+      : m_arr(new T[expression.size()]), m_size(expression.size()) {
+    for (std::size_t i = 0; i < expression.size(); ++i)
+      m_arr[i] = expression[i];
+  }
+
   // initializing all entries using the same value
   template <typename U>
   CUDA_HOST_DEVICE array(std::size_t size, U val)
@@ -293,17 +300,19 @@ public:
   }
 
   /// Negate the array and return a new array.
-  CUDA_HOST_DEVICE array_expression<T, BinarySub, array<T>> operator-() const {
-    return array_expression<T, BinarySub, array<T>>(static_cast<T>(0), *this);
+  CUDA_HOST_DEVICE array_expression<T, BinarySub, array<T> const&>
+  operator-() const {
+    return array_expression<T, BinarySub, array<T> const&>(static_cast<T>(0),
+                                                           *this);
   }
 
   /// Subtracts the number from every element in the array and returns a new
   /// array, when the number is on the left side.
   template <typename U, typename std::enable_if<std::is_arithmetic<U>::value,
                                                 int>::type = 0>
-  CUDA_HOST_DEVICE friend array_expression<U, BinarySub, array<T>>
+  CUDA_HOST_DEVICE friend array_expression<U, BinarySub, array<T> const&>
   operator-(U n, const array<T>& arr) {
-    return array_expression<U, BinarySub, array<T>>(n, arr);
+    return array_expression<U, BinarySub, array<T> const&>(n, arr);
   }
 
   /// Implicitly converts from clad::array to pointer to an array of type T
@@ -333,69 +342,89 @@ template <typename T> CUDA_HOST_DEVICE array<T> zero_vector(std::size_t n) {
 /// expression.
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array<T>, BinaryMul, U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryMul, U>
 operator*(const array<T>& arr, U n) {
-  return array_expression<array<T>, BinaryMul, U>(arr, n);
+  return array_expression<array<T> const&, BinaryMul, U>(arr, n);
 }
 
 /// Multiplies the number to every element in the array and returns an array
 /// expression, when the number is on the left side.
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array<T>, BinaryMul, U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryMul, U>
 operator*(U n, const array<T>& arr) {
-  return array_expression<array<T>, BinaryMul, U>(arr, n);
+  return array_expression<array<T> const&, BinaryMul, U>(arr, n);
 }
 
 /// Divides the number from every element in the array and returns an array
 /// expression.
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array<T>, BinaryDiv, U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryDiv, U>
 operator/(const array<T>& arr, U n) {
-  return array_expression<array<T>, BinaryDiv, U>(arr, n);
+  return array_expression<array<T> const&, BinaryDiv, U>(arr, n);
 }
 
 /// Adds the number to every element in the array and returns a new array
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array<T>, BinaryAdd, U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryAdd, U>
 operator+(const array<T>& arr, U n) {
-  return array_expression<array<T>, BinaryAdd, U>(arr, n);
+  return array_expression<array<T> const&, BinaryAdd, U>(arr, n);
 }
 
 /// Adds the number to every element in the array and returns an array
 /// expression, when the number is on the left side.
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array<T>, BinaryAdd, U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryAdd, U>
 operator+(U n, const array<T>& arr) {
-  return array_expression<array<T>, BinaryAdd, U>(arr, n);
+  return array_expression<array<T> const&, BinaryAdd, U>(arr, n);
 }
 
 /// Subtracts the number from every element in the array and returns an array
 /// expression.
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array<T>, BinarySub, U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinarySub, U>
 operator-(const array<T>& arr, U n) {
-  return array_expression<array<T>, BinarySub, U>(arr, n);
+  return array_expression<array<T> const&, BinarySub, U>(arr, n);
 }
 
 /// Function to define element wise adding of two arrays.
 template <typename T, typename U>
-CUDA_HOST_DEVICE array_expression<array<T>, BinaryAdd, array<U>>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryAdd, array<U> const&>
 operator+(const array<T>& arr1, const array<U>& arr2) {
   assert(arr1.size() == arr2.size());
-  return array_expression<array<T>, BinaryAdd, array<U>>(arr1, arr2);
+  return array_expression<array<T> const&, BinaryAdd, array<U> const&>(arr1,
+                                                                       arr2);
 }
 
 /// Function to define element wise subtraction of two arrays.
 template <typename T, typename U>
-CUDA_HOST_DEVICE array_expression<array<T>, BinarySub, array<U>>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinarySub, array<U> const&>
 operator-(const array<T>& arr1, const array<U>& arr2) {
   assert(arr1.size() == arr2.size());
-  return array_expression<array<T>, BinarySub, array<U>>(arr1, arr2);
+  return array_expression<array<T> const&, BinarySub, array<U> const&>(arr1,
+                                                                       arr2);
+}
+
+/// Function to define element wise multiplication of two arrays.
+template <typename T, typename U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryMul, array<U> const&>
+operator*(const array<T>& arr1, const array<U>& arr2) {
+  assert(arr1.size() == arr2.size());
+  return array_expression<array<T> const&, BinaryMul, array<U> const&>(arr1,
+                                                                       arr2);
+}
+
+/// Function to define element wise division of two arrays.
+template <typename T, typename U>
+CUDA_HOST_DEVICE array_expression<array<T> const&, BinaryDiv, array<U> const&>
+operator/(const array<T>& arr1, const array<U>& arr2) {
+  assert(arr1.size() == arr2.size());
+  return array_expression<array<T> const&, BinaryDiv, array<U> const&>(arr1,
+                                                                       arr2);
 }
 
 } // namespace clad

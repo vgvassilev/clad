@@ -163,99 +163,107 @@ public:
 
 /// Multiplies the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryMul, array_ref<U>>
-operator*(const array_ref<T>& Ar, const array_ref<U>& Br) {
+CUDA_HOST_DEVICE
+    array_expression<array_ref<T> const&, BinaryMul, array_ref<U> const&>
+    operator*(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
          "Size of both the array_refs must be equal for carrying out "
          "multiplication assignment");
-  return array_expression<array_ref<T>, BinaryMul, array_ref<U>>(Ar, Br);
+  return array_expression<array_ref<T> const&, BinaryMul, array_ref<U> const&>(
+      Ar, Br);
 }
 
 /// Adds the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryAdd, array_ref<U>>
-operator+(const array_ref<T>& Ar, const array_ref<U>& Br) {
+CUDA_HOST_DEVICE
+    array_expression<array_ref<T> const&, BinaryAdd, array_ref<U> const&>
+    operator+(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
          "Size of both the array_refs must be equal for carrying out addition "
          "assignment");
-  return array_expression<array_ref<T>, BinaryAdd, array_ref<U>>(Ar, Br);
+  return array_expression<array_ref<T> const&, BinaryAdd, array_ref<U> const&>(
+      Ar, Br);
 }
 
 /// Subtracts the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinarySub, array_ref<U>>
-operator-(const array_ref<T>& Ar, const array_ref<U>& Br) {
+CUDA_HOST_DEVICE
+    array_expression<array_ref<T> const&, BinarySub, array_ref<U> const&>
+    operator-(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(
       Ar.size() == Br.size() &&
       "Size of both the array_refs must be equal for carrying out subtraction "
       "assignment");
-  return array_expression<array_ref<T>, BinarySub, array_ref<U>>(Ar, Br);
+  return array_expression<array_ref<T> const&, BinarySub, array_ref<U> const&>(
+      Ar, Br);
 }
 
 /// Divides the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryDiv, array_ref<U>>
-operator/(const array_ref<T>& Ar, const array_ref<U>& Br) {
+CUDA_HOST_DEVICE
+    array_expression<array_ref<T> const&, BinaryDiv, array_ref<U> const&>
+    operator/(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
          "Size of both the array_refs must be equal for carrying out division "
          "assignment");
-  return array_expression<array_ref<T>, BinaryDiv, array_ref<U>>(Ar, Br);
+  return array_expression<array_ref<T> const&, BinaryDiv, array_ref<U> const&>(
+      Ar, Br);
 }
 
 /// Multiplies array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryMul, U>
+CUDA_HOST_DEVICE array_expression<array_ref<T> const&, BinaryMul, U>
 operator*(const array_ref<T>& Ar, U a) {
-  return array_expression<array_ref<T>, BinaryMul, U>(Ar, a);
+  return array_expression<array_ref<T> const&, BinaryMul, U>(Ar, a);
 }
 
 /// Multiplies array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryMul, U>
+CUDA_HOST_DEVICE array_expression<array_ref<T> const&, BinaryMul, U>
 operator*(U a, const array_ref<T>& Ar) {
-  return array_expression<array_ref<T>, BinaryMul, U>(Ar, a);
+  return array_expression<array_ref<T> const&, BinaryMul, U>(Ar, a);
 }
 
 /// Divides array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryDiv, U>
+CUDA_HOST_DEVICE array_expression<array_ref<T> const&, BinaryDiv, U>
 operator/(const array_ref<T>& Ar, U a) {
-  return array_expression<array_ref<T>, BinaryDiv, U>(Ar, a);
+  return array_expression<array_ref<T> const&, BinaryDiv, U>(Ar, a);
 }
 
 /// Adds array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryAdd, U>
+CUDA_HOST_DEVICE array_expression<array_ref<T> const&, BinaryAdd, U>
 operator+(const array_ref<T>& Ar, U a) {
-  return array_expression<array_ref<T>, BinaryAdd, U>(Ar, a);
+  return array_expression<array_ref<T> const&, BinaryAdd, U>(Ar, a);
 }
 
 /// Adds array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinaryAdd, U>
+CUDA_HOST_DEVICE array_expression<array_ref<T> const&, BinaryAdd, U>
 operator+(U a, const array_ref<T>& Ar) {
-  return array_expression<array_ref<T>, BinaryAdd, U>(Ar, a);
+  return array_expression<array_ref<T> const&, BinaryAdd, U>(Ar, a);
 }
 
 /// Subtracts array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<array_ref<T>, BinarySub, U>
+CUDA_HOST_DEVICE array_expression<array_ref<T> const&, BinarySub, U>
 operator-(const array_ref<T>& Ar, U a) {
-  return array_expression<array_ref<T>, BinarySub, U>(Ar, a);
+  return array_expression<array_ref<T> const&, BinarySub, U>(Ar, a);
 }
 
 /// Subtracts array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<U, BinarySub, array_ref<T>>
+CUDA_HOST_DEVICE array_expression<U, BinarySub, array_ref<T> const&>
 operator-(U a, const array_ref<T>& Ar) {
-  return array_expression<U, BinarySub, array_ref<T>>(a, Ar);
+  return array_expression<U, BinarySub, array_ref<T> const&>(a, Ar);
 }
 
   /// `array_ref<void>` specialisation is created to be used as a placeholder
