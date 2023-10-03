@@ -48,7 +48,7 @@ class array_expression {
   RightExp r;
 
 public:
-  array_expression(LeftExp const& l, RightExp const& r) : l(l), r(r) {}
+  array_expression(LeftExp l, RightExp r) : l(l), r(r) {}
 
   // for scalars
   template <typename T, typename std::enable_if<std::is_arithmetic<T>::value,
@@ -84,34 +84,42 @@ public:
 
   // Operator overload for addition.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp>, BinaryAdd, RE>
+  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+                   BinaryAdd, RE>
   operator+(RE const& r) const {
-    return array_expression<array_expression<LeftExp, BinaryOp, RightExp>,
-                            BinaryAdd, RE>(*this, r);
+    return array_expression<
+        array_expression<LeftExp, BinaryOp, RightExp> const&, BinaryAdd, RE>(
+        *this, r);
   }
 
   // Operator overload for multiplication.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp>, BinaryMul, RE>
+  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+                   BinaryMul, RE>
   operator*(RE const& r) const {
-    return array_expression<array_expression<LeftExp, BinaryOp, RightExp>,
-                            BinaryMul, RE>(*this, r);
+    return array_expression<
+        array_expression<LeftExp, BinaryOp, RightExp> const&, BinaryMul, RE>(
+        *this, r);
   }
 
   // Operator overload for subtraction.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp>, BinarySub, RE>
+  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+                   BinarySub, RE>
   operator-(RE const& r) const {
-    return array_expression<array_expression<LeftExp, BinaryOp, RightExp>,
-                            BinarySub, RE>(*this, r);
+    return array_expression<
+        array_expression<LeftExp, BinaryOp, RightExp> const&, BinarySub, RE>(
+        *this, r);
   }
 
   // Operator overload for division.
   template <typename RE>
-  array_expression<array_expression<LeftExp, BinaryOp, RightExp>, BinaryDiv, RE>
+  array_expression<array_expression<LeftExp, BinaryOp, RightExp> const&,
+                   BinaryDiv, RE>
   operator/(RE const& r) const {
-    return array_expression<array_expression<LeftExp, BinaryOp, RightExp>,
-                            BinaryDiv, RE>(*this, r);
+    return array_expression<
+        array_expression<LeftExp, BinaryOp, RightExp> const&, BinaryDiv, RE>(
+        *this, r);
   }
 };
 
@@ -119,30 +127,36 @@ public:
 // and the left operand is a scalar.
 template <typename T, typename LeftExp, typename BinaryOp, typename RightExp,
           typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
-array_expression<T, BinaryAdd, array_expression<LeftExp, BinaryOp, RightExp>>
+array_expression<T, BinaryAdd,
+                 array_expression<LeftExp, BinaryOp, RightExp> const&>
 operator+(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
   return array_expression<T, BinaryAdd,
-                          array_expression<LeftExp, BinaryOp, RightExp>>(l, r);
+                          array_expression<LeftExp, BinaryOp, RightExp> const&>(
+      l, r);
 }
 
 // Operator overload for multiplication, when the right operand is an
 // array_expression and the left operand is a scalar.
 template <typename T, typename LeftExp, typename BinaryOp, typename RightExp,
           typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
-array_expression<T, BinaryMul, array_expression<LeftExp, BinaryOp, RightExp>>
+array_expression<T, BinaryMul,
+                 array_expression<LeftExp, BinaryOp, RightExp> const&>
 operator*(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
   return array_expression<T, BinaryMul,
-                          array_expression<LeftExp, BinaryOp, RightExp>>(l, r);
+                          array_expression<LeftExp, BinaryOp, RightExp> const&>(
+      l, r);
 }
 
 // Operator overload for subtraction, when the right operand is an
 // array_expression and the left operand is a scalar.
 template <typename T, typename LeftExp, typename BinaryOp, typename RightExp,
           typename std::enable_if<std::is_arithmetic<T>::value, int>::type = 0>
-array_expression<T, BinarySub, array_expression<LeftExp, BinaryOp, RightExp>>
+array_expression<T, BinarySub,
+                 array_expression<LeftExp, BinaryOp, RightExp> const&>
 operator-(T const& l, array_expression<LeftExp, BinaryOp, RightExp> const& r) {
   return array_expression<T, BinarySub,
-                          array_expression<LeftExp, BinaryOp, RightExp>>(l, r);
+                          array_expression<LeftExp, BinaryOp, RightExp> const&>(
+      l, r);
 }
 } // namespace clad
 // NOLINTEND(*-pointer-arithmetic)
