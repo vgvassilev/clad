@@ -72,8 +72,9 @@ namespace clad {
   private:
     friend class VisitorBase;
     friend class BaseForwardModeVisitor;
-    friend class ForwardModeVisitor;
+    friend class PushForwardModeVisitor;
     friend class VectorForwardModeVisitor;
+    friend class VectorPushForwardModeVisitor;
     friend class ReverseModeVisitor;
     friend class HessianModeVisitor;
     friend class JacobianModeVisitor;

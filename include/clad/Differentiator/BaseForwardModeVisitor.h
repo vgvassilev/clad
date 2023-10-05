@@ -37,6 +37,16 @@ public:
   DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
                                const DiffRequest& request);
 
+  DerivativeAndOverload DerivePushforward(const clang::FunctionDecl* FD,
+                                          const DiffRequest& request);
+
+  /// Returns the return type for the pushforward function of the function
+  /// `m_Function`.
+  /// \note `m_Function` field should be set before using this function.
+  clang::QualType ComputePushforwardFnReturnType();
+
+  virtual void ExecuteInsidePushforwardFunctionBlock();
+
   static bool IsDifferentiableType(clang::QualType T);
 
   virtual StmtDiff
@@ -92,6 +102,11 @@ public:
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
   StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
+
+  virtual clang::QualType
+  GetPushForwardDerivativeType(clang::QualType ParamType);
+  virtual std::string GetPushForwardFunctionSuffix();
+  virtual DiffMode GetPushForwardMode();
 
 protected:
   /// Helper function for differentiating the switch statement body.

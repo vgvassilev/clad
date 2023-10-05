@@ -15,6 +15,43 @@ VectorForwardModeVisitor::VectorForwardModeVisitor(DerivativeBuilder& builder)
 
 VectorForwardModeVisitor::~VectorForwardModeVisitor() {}
 
+std::string VectorForwardModeVisitor::GetPushForwardFunctionSuffix() {
+  return "_vector_pushforward";
+}
+
+DiffMode VectorForwardModeVisitor::GetPushForwardMode() {
+  return DiffMode::experimental_vector_pushforward;
+}
+
+QualType
+VectorForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
+  QualType valueType = utils::GetValueType(ParamType);
+  QualType resType;
+  if (utils::isArrayOrPointerType(ParamType)) {
+    // If the parameter is a pointer or an array, then the derivative will be a
+    // reference to the matrix.
+    resType = GetCladMatrixOfType(valueType);
+    resType = m_Context.getLValueReferenceType(resType);
+  } else {
+    // If the parameter is not a pointer or an array, then the derivative will
+    // be a clad array.
+    resType = GetCladArrayOfType(valueType);
+
+    // Add const qualifier if the parameter is const.
+    if (ParamType.getNonReferenceType().isConstQualified())
+      resType.addConst();
+
+    // Add reference qualifier if the parameter is a reference.
+    if (ParamType->isReferenceType())
+      resType = m_Context.getLValueReferenceType(resType);
+  }
+  return resType;
+}
+
+void VectorForwardModeVisitor::SetIndependentVarsExpr(Expr* IndVarCountExpr) {
+  m_IndVarCountExpr = IndVarCountExpr;
+}
+
 DerivativeAndOverload
 VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
                                            const DiffRequest& request) {

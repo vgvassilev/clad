@@ -78,6 +78,14 @@ public:
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
   // Decl is not Stmt, so it cannot be visited directly.
   VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD) override;
+
+  clang::QualType
+  GetPushForwardDerivativeType(clang::QualType ParamType) override;
+  std::string GetPushForwardFunctionSuffix() override;
+  DiffMode GetPushForwardMode() override;
+
+  // Function for setting the independent variables for vector mode.
+  void SetIndependentVarsExpr(clang::Expr* IndVarCountExpr);
 };
 } // end namespace clad
 
