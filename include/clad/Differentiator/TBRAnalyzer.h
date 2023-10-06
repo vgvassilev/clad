@@ -116,12 +116,11 @@ private:
       /// less space.
       ObjMap* objData;
       ArrMap* arrData;
-      VarData* refData;
+      Expr* refData;
       VarDataValue() : fundData(false) {}
     };
     VarDataType type;
     VarDataValue val;
-    bool isReferenced = false;
 
     VarData() = default;
     VarData(const VarData&) = delete;
@@ -140,34 +139,29 @@ private:
         for (auto& pair : *val.arrData)
           delete pair.second;
     }
-
-    /// Recursively sets all the leaves' bools to isReq.
-    void setIsRequired(bool isReq = true);
-    /// Returns true if there is at least one required to store node among
-    /// child nodes.
-    bool findReq() const;
-    /// Whenever an array element with a non-constant index is set to required
-    /// this function is used to set to required all the array elements that
-    /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required
-    /// when 'a[k].y' is set to required). Takes unwrapped sequence of
-    /// indices/members of the expression being overlaid and the index of of the
-    /// current index/member.
-    void overlay(llvm::SmallVector<IdxOrMember, 2>& IdxAndMemberSequence,
-                 size_t i);
-    /// Used to merge together VarData for one variable from two branches
-    /// (e.g. after an if-else statements). Look at the Control Flow section for
-    /// more information.
-    void merge(VarData* mergeData);
-    /// Used to recursively copy VarData when separating into different branches
-    /// (e.g. when entering an if-else statements). Look at the Control Flow
-    /// section for more information. refVars stores copied nodes for
-    /// corresponding original nodes in case those are referenced (a referenced
-    /// node is a child to multiple nodes, therefore, we need to make sure we
-    /// don't make multiple copies of it).
-    VarData* copy();
-    VarData* copy(std::unordered_map<VarData*, VarData*>& refVars);
-    void restoreRefs(std::unordered_map<VarData*, VarData*>& refVars);
   };
+  /// Recursively sets all the leaves' bools to isReq.
+  void setIsRequired(VarData* varData, bool isReq = true);
+  /// Whenever an array element with a non-constant index is set to required
+  /// this function is used to set to required all the array elements that
+  /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required
+  /// when 'a[k].y' is set to required). Takes unwrapped sequence of
+  /// indices/members of the expression being overlaid and the index of of the
+  /// current index/member.
+  void overlay(VarData* targetData,
+               llvm::SmallVector<IdxOrMember, 2>& IdxAndMemberSequence,
+               size_t i);
+  /// Returns true if there is at least one required to store node among
+  /// child nodes.
+  bool findReq(const VarData* varData);
+  /// Used to merge together VarData for one variable from two branches
+  /// (e.g. after an if-else statements). Look at the Control Flow section for
+  /// more information.
+  void merge(VarData* targetData, VarData* mergeData);
+  /// Used to recursively copy VarData when separating into different branches
+  /// (e.g. when entering an if-else statements). Look at the Control Flow
+  /// section for more information.
+  VarData* copy(VarData* copyData);
 
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
@@ -215,12 +209,11 @@ private:
     void emplace(std::pair<const clang::VarDecl*, VarData*> pair) {
       data.emplace(pair);
     }
-
-    std::unique_ptr<VarsData>
-    collectDataFromPredecessors(VarsData* limit = nullptr);
-    VarsData* findLowestCommonAncestor(VarsData* other);
-    void merge(VarsData* mergeData);
   };
+  std::unique_ptr<VarsData>
+  collectDataFromPredecessors(VarsData* varsData, VarsData* limit = nullptr);
+  VarsData* findLowestCommonAncestor(VarsData* varsData1, VarsData* varsData2);
+  void merge(VarsData* targetData, VarsData* mergeData);
 
   /// Used to find DeclRefExpr's that will be used in the backwards pass.
   /// In order to be marked as required, a variables has to appear in a place
