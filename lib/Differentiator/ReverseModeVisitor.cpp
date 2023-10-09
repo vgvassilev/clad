@@ -2072,8 +2072,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       diff = Visit(E, dfdx());
       auto EStored = GlobalStoreAndRef(diff.getExpr());
       if (EStored.getExpr() != diff.getExpr()) {
-        auto* assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
-                               EStored.getExpr_dx());
+        auto* assign = BuildOp(BinaryOperatorKind::BO_Assign,
+                               Clone(diff.getExpr()), EStored.getExpr_dx());
         if (isInsideLoop)
           addToCurrentBlock(EStored.getExpr(), direction::forward);
         addToCurrentBlock(assign, direction::reverse);
@@ -2086,8 +2086,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       diff = Visit(E, dfdx());
       auto EStored = GlobalStoreAndRef(diff.getExpr());
       if (EStored.getExpr() != diff.getExpr()) {
-        auto* assign = BuildOp(BinaryOperatorKind::BO_Assign, diff.getExpr(),
-                               EStored.getExpr_dx());
+        auto* assign = BuildOp(BinaryOperatorKind::BO_Assign,
+                               Clone(diff.getExpr()), EStored.getExpr_dx());
         if (isInsideLoop)
           addToCurrentBlock(EStored.getExpr(), direction::forward);
         addToCurrentBlock(assign, direction::reverse);
@@ -2634,13 +2634,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     VarDecl* VDClone = nullptr;
     // Here separate behaviour for record and non-record types is only
     // necessary to preserve the old tests.
-    if (VD->getType()->isRecordType())
+    if (VD->getType()->isRecordType()) {
       VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit(),
                              VD->getTypeSourceInfo(), VD->getInitStyle());
-    else
-      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+    } else {
+      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit());
+    }
     Expr* derivedVDE = BuildDeclRef(VDDerived);
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
@@ -2830,17 +2831,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // We lack context to decide if this is useful to store or not. In the
     // current system that should have been decided by the parent expression.
     // FIXME: Here will be the entry point of the advanced activity analysis.
-    if (isa<DeclRefExpr>(B) /* || isa<ArraySubscriptExpr>(B)*/) {
-      // auto line =
-      // m_Context.getSourceManager().getPresumedLoc(B->getBeginLoc()).getLine();
-      // auto column =
-      // m_Context.getSourceManager().getPresumedLoc(B->getBeginLoc()).getColumn();
-      // llvm::errs() << line << "|" <<column << "?\n";
-      auto it = m_ToBeRecorded.find(B->getBeginLoc());
-      if (it == m_ToBeRecorded.end()) {
-        return true;
-      }
-      return it->second;
+    if (isa<DeclRefExpr>(B) || isa<ArraySubscriptExpr>(B)) {
+      auto found = m_ToBeRecorded.find(B->getBeginLoc());
+      return found != m_ToBeRecorded.end();
     }
 
     // FIXME: Attach checkpointing.

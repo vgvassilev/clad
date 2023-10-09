@@ -54,7 +54,7 @@ namespace clad {
     /// Based on To-Be-Recorded analysis performed before differentiation,
     /// tells UsefulToStoreGlobal whether a variable with a given
     /// SourceLocation has to be stored before being changed or not.
-    std::map<clang::SourceLocation, bool> m_ToBeRecorded;
+    std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function

@@ -223,7 +223,7 @@ private:
   enum Mode { markingMode = 1, nonLinearMode = 2 };
   /// Tells if the variable at a given location is required to store. Basically,
   /// is the result of analysis.
-  std::map<clang::SourceLocation, bool> TBRLocs;
+  std::set<clang::SourceLocation> TBRLocs;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
@@ -297,7 +297,7 @@ public:
   TBRAnalyzer& operator=(const TBRAnalyzer&&) = delete;
 
   /// Returns the result of the whole analysis
-  std::map<clang::SourceLocation, bool> getResult() { return TBRLocs; }
+  std::set<clang::SourceLocation> getResult() { return TBRLocs; }
 
   /// Visitors
   void Analyze(const clang::FunctionDecl* FD);

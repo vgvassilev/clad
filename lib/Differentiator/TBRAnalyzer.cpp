@@ -295,20 +295,16 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
 
 void TBRAnalyzer::markLocation(const clang::Expr* E) {
   VarData* data = getExprVarData(E);
-  if (data) {
+  if (!data || findReq(data)) {
     /// FIXME: If any of the data's child nodes are required to store then data
     /// itself is stored. We might add an option to store separate fields.
-    bool& ToBeRec = TBRLocs[E->getBeginLoc()];
     /// FIXME: Sometimes one location might correspond to multiple stores.
     /// For example, in ``(x*=y)=u`` x's location will first be marked as
     /// required to be stored (when passing *= operator) but then marked as not
     /// required to be stored (when passing = operator). Current method of
     /// marking locations does not allow to differentiate between these two.
-    ToBeRec = ToBeRec || findReq(data);
-  } else
-    /// If the current branch is going to be deleted then there is not point in
-    /// storing anything in it.
-    TBRLocs[E->getBeginLoc()] = true;
+    TBRLocs.insert(E->getBeginLoc());
+  }
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
@@ -723,15 +719,11 @@ void TBRAnalyzer::VisitCallExpr(const clang::CallExpr* CE) {
     // FIXME: this supports only DeclRefExpr
     const auto innerExpr = utils::GetInnermostReturnExpr(arg);
     if (passByRef) {
-      /// Mark SourceLocation as required for ref-type arguments.
+      /// Mark SourceLocation as required to store for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
-        TBRLocs[arg->getBeginLoc()] = true;
+        TBRLocs.insert(arg->getBeginLoc());
         setIsRequired(arg, /*isReq=*/false);
       }
-    } else {
-      /// Mark SourceLocation as not required for non-ref-type arguments.
-      if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B))
-        TBRLocs[arg->getBeginLoc()] = false;
     }
   }
   resetMode();
@@ -755,13 +747,9 @@ void TBRAnalyzer::VisitCXXConstructExpr(const clang::CXXConstructExpr* CE) {
     if (passByRef) {
       /// Mark SourceLocation as required for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
-        TBRLocs[arg->getBeginLoc()] = true;
+        TBRLocs.insert(arg->getBeginLoc());
         setIsRequired(arg, /*isReq=*/false);
       }
-    } else {
-      /// Mark SourceLocation as not required for non-ref-type arguments.
-      if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B))
-        TBRLocs[arg->getBeginLoc()] = false;
     }
   }
   resetMode();
