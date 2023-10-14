@@ -95,7 +95,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* exprToPush = E;
     if (auto AT = dyn_cast<ArrayType>(E->getType())) {
       Expr* init = getArraySizeExpr(AT, m_Context, *this);
-      exprToPush = BuildOp(BO_Comma, E, init);
+      llvm::SmallVector<Expr*, 2> pushArgs{E, init};
+      SourceLocation loc = E->getExprLoc();
+      TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(EQt, loc);
+      exprToPush =
+          m_Sema.BuildCXXTypeConstructExpr(TSI, loc, pushArgs, loc, false)
+              .get();
     }
     Expr* CallArgs[] = {TapeRef, exprToPush};
     Expr* PushExpr =
