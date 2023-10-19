@@ -83,6 +83,7 @@ namespace clad {
 
   /// A base class for all common functionality for visitors
   class VisitorBase {
+    friend class ForLoopInfo;
   protected:
     VisitorBase(DerivativeBuilder& builder)
         : m_Builder(builder), m_Sema(builder.m_Sema),
