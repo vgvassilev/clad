@@ -86,14 +86,9 @@ float test_4(int x) {
   return overloaded();
 }
 
-// CHECK: {{(clad::)?}}ValueAndPushforward<int, int> overloaded_pushforward() {
-// CHECK-NEXT:     return {3, 0};
-// CHECK-NEXT: }
-
 // CHECK: float test_4_darg0(int x) {
 // CHECK-NEXT: int _d_x = 1;
-// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<int, int> _t0 = overloaded_pushforward();
-// CHECK-NEXT: return _t0.pushforward;
+// CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
 float test_5(int x) {

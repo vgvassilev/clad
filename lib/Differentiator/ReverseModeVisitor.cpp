@@ -1381,6 +1381,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         !isa<CXXOperatorCallExpr>(CE))
       return StmtDiff(Clone(CE));
 
+    // If all arguments are constant literals, then this does not contribute to
+    // the gradient.
+    // FIXME: revert this when this is integrated in the activity analysis pass.
+    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
+      bool allArgsAreConstantLiterals = true;
+      for (const Expr* arg : CE->arguments()) {
+        // if it's of type MaterializeTemporaryExpr, then check its
+        // subexpression.
+        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
+          arg = clad_compat::GetSubExpr(MTE);
+        if (!isa<FloatingLiteral>(arg) && !isa<IntegerLiteral>(arg)) {
+          allArgsAreConstantLiterals = false;
+          break;
+        }
+      }
+      if (allArgsAreConstantLiterals)
+        return StmtDiff(Clone(CE));
+    }
+
     // Stores the call arguments for the function to be derived
     llvm::SmallVector<Expr*, 16> CallArgs{};
     // Stores the dx of the call arguments for the function to be derived
@@ -1418,14 +1437,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Save current index in the current block, to potentially put some
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
-
-    // `CXXOperatorCallExpr` have the `base` expression as the first argument.
-    size_t skipFirstArg = 0;
-
-    // Here we do not need to check if FD is an instance method or a static
-    // method because C++ forbids creating operator overloads as static methods.
-    if (isa<CXXOperatorCallExpr>(CE) && isa<CXXMethodDecl>(FD))
-      skipFirstArg = 1;
 
     // FIXME: We should add instructions for handling non-differentiable
     // arguments. Currently we are implicitly assuming function call only
@@ -1665,7 +1676,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // is required because the pullback function expects `clad::array_ref`
           // type for representing array derivatives. Currently, only constant
           // array data members have derivatives of constant array types.
-          if (isa<ConstantArrayType>(argDerivative->getType())) {
+          if ((argDerivative != nullptr) &&
+              isa<ConstantArrayType>(argDerivative->getType())) {
             Expr* init =
                 utils::BuildCladArrayInitByConstArray(m_Sema, argDerivative);
             auto derivativeArrayRefVD = BuildVarDecl(
@@ -1676,11 +1688,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             ArgDeclStmts.push_back(BuildDeclStmt(derivativeArrayRefVD));
             argDerivative = BuildDeclRef(derivativeArrayRefVD);
           }
-          if (isCladArrayType(argDerivative->getType())) {
+          if ((argDerivative != nullptr) &&
+              isCladArrayType(argDerivative->getType()))
             gradArgExpr = argDerivative;
-          } else {
+          else
             gradArgExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, argDerivative);
-          }
         } else {
           // Declare: diffArgType _grad = 0;
           gradVarDecl = BuildVarDecl(
@@ -1721,7 +1733,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       if (pullback)
         pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs() -
-                                    static_cast<int>(skipFirstArg),
+                                    static_cast<int>(isCXXOperatorCall),
                                 pullback);
 
       // Try to find it in builtin derivatives

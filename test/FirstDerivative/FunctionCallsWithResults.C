@@ -297,7 +297,7 @@ double sum(double* arr, int n) {
 double fn8(double i, double j) {
   double arr[5] = {};
   modifyArr(arr, 5, i*j);
-  return sum(arr, 5);
+  return sum(arr, 5) * std::tanh(1.0);
 }
 
 // CHECK: double fn8_darg0(double i, double j) {
@@ -307,7 +307,9 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     double arr[5] = {};
 // CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
-// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT:     double &_t1 = _t0.value; 
+// CHECK-NEXT:     double _t2 = std::tanh(1.); 
+// CHECK-NEXT:     return _t0.pushforward * _t2 + _t1 * 0; 
 // CHECK-NEXT: }
 
 float test_1_darg0(float x);
@@ -346,6 +348,6 @@ int main () {
   TEST(fn5, 3, 5);    // CHECK-EXEC: {1.00}
   TEST(fn6, 3, 5, 7); // CHECK-EXEC: {3.00}
   TEST(fn7, 3, 5);    // CHECK-EXEC: {8.00}
-  TEST(fn8, 3, 5);    // CHECK-EXEC: {25.00}
+  TEST(fn8, 3, 5);    // CHECK-EXEC: {19.04}
   return 0;
 }

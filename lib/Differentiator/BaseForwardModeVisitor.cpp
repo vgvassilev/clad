@@ -1055,6 +1055,36 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
             .get();
   }
 
+  // If all arguments are constant literals, then this does not contribute to
+  // the gradient.
+  // FIXME: revert this when this is integrated in the activity analysis pass.
+  if (!callDiff) {
+    if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE)) {
+      bool allArgsAreConstantLiterals = true;
+      for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+        const Expr* arg = CE->getArg(i);
+        // if it's of type MaterializeTemporaryExpr, then check its
+        // subexpression.
+        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
+          arg = clad_compat::GetSubExpr(MTE);
+        if (!isa<FloatingLiteral>(arg) && !isa<IntegerLiteral>(arg)) {
+          allArgsAreConstantLiterals = false;
+          break;
+        }
+      }
+      if (allArgsAreConstantLiterals) {
+        Expr* call =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                               llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+                .get();
+        auto* zero =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+        return StmtDiff(call, zero);
+      }
+    }
+  }
+
   if (!callDiff) {
     // Overloaded derivative was not found, request the CladPlugin to
     // derive the called function.
