@@ -460,6 +460,36 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn8(double x, double y) {
+  return x*y*std::tanh(1.0)*std::max(1.0, 2.0);
+}
+
+// CHECK: void fn8_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     double _t3;
+// CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _t5;
+// CHECK-NEXT:     _t3 = x;
+// CHECK-NEXT:     _t2 = y;
+// CHECK-NEXT:     _t4 = _t3 * _t2;
+// CHECK-NEXT:     _t1 = std::tanh(1.);
+// CHECK-NEXT:     _t5 = _t4 * _t1;
+// CHECK-NEXT:     _t0 = std::max(1., 2.);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 1 * _t0;
+// CHECK-NEXT:         double _r1 = _r0 * _t1;
+// CHECK-NEXT:         double _r2 = _r1 * _t2;
+// CHECK-NEXT:         * _d_x += _r2;
+// CHECK-NEXT:         double _r3 = _t3 * _r1;
+// CHECK-NEXT:         * _d_y += _r3;
+// CHECK-NEXT:         double _r4 = _t4 * _r0;
+// CHECK-NEXT:         double _r5 = _t5 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 template<typename T>
 void reset(T* arr, int n) {
@@ -513,6 +543,7 @@ int main() {
   INIT(fn5);
   INIT(fn6);
   INIT(fn7);
+  INIT(fn8);
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -522,4 +553,5 @@ int main() {
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn7, 3, 5);             // CHECK-EXEC: {10.00, 71.00}
+  TEST2(fn8, 3, 5);             // CHECK-EXEC: {7.62, 4.57}
 }
