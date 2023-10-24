@@ -179,6 +179,18 @@ double CallFunctor(double i, double j) {
   return E(i, j);
 }
 
+// A function taking functor as an argument.
+template<typename Func>
+double FunctorAsArg(Func fn, double i, double j) {
+  return fn(i, j);
+}
+
+// A wrapper for function taking functor as an argument.
+double FunctorAsArgWrapper(double i, double j) {
+  Experiment E(3, 5);
+  return FunctorAsArg(E, i, j);
+}
+
 #define INIT(E)                                                                \
   auto E##_grad = clad::gradient(&E);                                          \
   auto E##Ref_grad = clad::gradient(E);
@@ -331,5 +343,82 @@ int main() {
   auto CallFunctor_grad = clad::gradient(CallFunctor);
   double di = 0, dj = 0;
   CallFunctor_grad.execute(7, 9, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
+
+  // CHECK: void FunctorAsArg_grad(Experiment fn, double i, double j, clad::array_ref<Experiment> _d_fn, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:     double _t0;
+  // CHECK-NEXT:     double _t1;
+  // CHECK-NEXT:     Experiment _t2;
+  // CHECK-NEXT:     _t0 = i;
+  // CHECK-NEXT:     _t1 = j;
+  // CHECK-NEXT:     _t2 = fn;
+  // CHECK-NEXT:     goto _label0;
+  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         double _grad0 = 0.;
+  // CHECK-NEXT:         double _grad1 = 0.;
+  // CHECK-NEXT:         _t2.operator_call_pullback(_t0, _t1, 1, &(* _d_fn), &_grad0, &_grad1);
+  // CHECK-NEXT:         double _r0 = _grad0;
+  // CHECK-NEXT:         * _d_i += _r0;
+  // CHECK-NEXT:         double _r1 = _grad1;
+  // CHECK-NEXT:         * _d_j += _r1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+  // testing differentiating a function taking functor as an argument
+  auto FunctorAsArg_grad = clad::gradient(FunctorAsArg<Experiment>);
+  di = 0, dj = 0;
+  Experiment E_temp(3, 5), dE_temp;
+  FunctorAsArg_grad.execute(E_temp, 7, 9, &dE_temp, &di, &dj);
+  printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
+
+  // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, clad::array_ref<Experiment> _d_fn, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:     double _t0;
+  // CHECK-NEXT:     double _t1;
+  // CHECK-NEXT:     Experiment _t2;
+  // CHECK-NEXT:     _t0 = i;
+  // CHECK-NEXT:     _t1 = j;
+  // CHECK-NEXT:     _t2 = fn;
+  // CHECK-NEXT:     goto _label0;
+  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         double _grad0 = 0.;
+  // CHECK-NEXT:         double _grad1 = 0.;
+  // CHECK-NEXT:         _t2.operator_call_pullback(_t0, _t1, _d_y, &(* _d_fn), &_grad0, &_grad1);
+  // CHECK-NEXT:         double _r0 = _grad0;
+  // CHECK-NEXT:         * _d_i += _r0;
+  // CHECK-NEXT:         double _r1 = _grad1;
+  // CHECK-NEXT:         * _d_j += _r1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+  // CHECK: void FunctorAsArgWrapper_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+  // CHECK-NEXT:     Experiment _d_E({});
+  // CHECK-NEXT:     Experiment _t0;
+  // CHECK-NEXT:     double _t1;
+  // CHECK-NEXT:     double _t2;
+  // CHECK-NEXT:     Experiment E(3, 5);
+  // CHECK-NEXT:     _t0 = E
+  // CHECK-NEXT:     _t1 = i;
+  // CHECK-NEXT:     _t2 = j;
+  // CHECK-NEXT:     goto _label0;
+  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         Experiment _grad0;
+  // CHECK-NEXT:         double _grad1 = 0.;
+  // CHECK-NEXT:         double _grad2 = 0.;
+  // CHECK-NEXT:         FunctorAsArg_pullback(_t0, _t1, _t2, 1, &_grad0, &_grad1, &_grad2);
+  // CHECK-NEXT:         Experiment _r0(_grad0);
+  // CHECK-NEXT:         double _r1 = _grad1;
+  // CHECK-NEXT:         * _d_i += _r1;
+  // CHECK-NEXT:         double _r2 = _grad2;
+  // CHECK-NEXT:         * _d_j += _r2;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
+  // testing differentiating a wrapper for function taking functor as an argument
+  auto FunctorAsArgWrapper_grad = clad::gradient(FunctorAsArgWrapper);
+  di = 0, dj = 0;
+  FunctorAsArgWrapper_grad.execute(7, 9, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 }

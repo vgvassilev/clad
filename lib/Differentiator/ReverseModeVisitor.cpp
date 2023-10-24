@@ -1345,9 +1345,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
         // Create the (_d_param[idx] += dfdx) statement.
         if (dfdx()) {
-          Expr* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-          // Add it to the body statements.
-          addToCurrentBlock(add_assign, direction::reverse);
+          // FIXME: not sure if this is generic.
+          // Don't update derivatives of non-record types.
+          if (!decl->getType()->isRecordType()) {
+            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+            // Add it to the body statements.
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
         }
         return StmtDiff(clonedDRE, it->second, it->second);
       }
@@ -1694,10 +1698,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           else
             gradArgExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, argDerivative);
         } else {
-          // Declare: diffArgType _grad = 0;
-          gradVarDecl = BuildVarDecl(
-              PVD->getType(), gradVarII,
-              ConstantFolder::synthesizeLiteral(PVD->getType(), m_Context, 0));
+          // Declare: diffArgType _grad;
+          Expr* initVal = nullptr;
+          if (!PVD->getType()->isRecordType()) {
+            // If the argument is not a class type, then initialize the grad
+            // variable with 0.
+            initVal =
+                ConstantFolder::synthesizeLiteral(PVD->getType(), m_Context, 0);
+          }
+          gradVarDecl = BuildVarDecl(PVD->getType(), gradVarII, initVal);
           // Pass the address of the declared variable
           gradVarExpr = BuildDeclRef(gradVarDecl);
           gradArgExpr =
