@@ -1455,6 +1455,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           FD->getParamDecl(i - static_cast<unsigned long>(isCXXOperatorCall));
       StmtDiff argDiff{};
       bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
+      if (passByRef && isa<MaterializeTemporaryExpr>(arg)) {
+        // If the argument is a temporary variable, this means that param type
+        // is a reference to a const type and we are passing a temporary
+        // variable to it. In this case, we should not pass the derivative
+        // argument by reference.
+        passByRef = false;
+      }
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
@@ -1498,7 +1505,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // same as the call expression as it is the type used to declare the
         // _gradX array
         Expr* dArg;
-        dArg = StoreAndRef(/*E=*/nullptr, arg->getType(), direction::reverse, "_r",
+        QualType argType = utils::GetValueType(arg->getType());
+        dArg = StoreAndRef(/*E=*/nullptr, argType, direction::reverse, "_r",
                            /*forceDeclCreation=*/true);
         ArgResultDecls.push_back(
             cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
@@ -1673,6 +1681,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
         auto PVD = FD->getParamDecl(idx);
         bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
+        if (passByRef && isa<MaterializeTemporaryExpr>(CE->getArg(idx))) {
+          // If the argument is a temporary variable, this means that param type
+          // is a reference to a const type and we are passing a temporary
+          // variable to it. In this case, we should not pass the derivative
+          // argument by reference.
+          passByRef = false;
+        }
         if (passByRef) {
           // If derivative type is constant array type instead of
           // `clad::array_ref` or `clad::array` type, then create an
@@ -1700,13 +1715,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         } else {
           // Declare: diffArgType _grad;
           Expr* initVal = nullptr;
-          if (!PVD->getType()->isRecordType()) {
+          QualType gradVarType = utils::GetValueType(PVD->getType());
+          if (!gradVarType->isRecordType()) {
             // If the argument is not a class type, then initialize the grad
             // variable with 0.
             initVal =
-                ConstantFolder::synthesizeLiteral(PVD->getType(), m_Context, 0);
+                ConstantFolder::synthesizeLiteral(gradVarType, m_Context, 0);
           }
-          gradVarDecl = BuildVarDecl(PVD->getType(), gradVarII, initVal);
+          gradVarDecl = BuildVarDecl(gradVarType, gradVarII, initVal);
           // Pass the address of the declared variable
           gradVarExpr = BuildDeclRef(gradVarDecl);
           gradArgExpr =
