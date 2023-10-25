@@ -491,6 +491,48 @@ double fn8(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double custom_max(const double& a, const double& b) {
+  return a > b ? a : b;
+}
+
+// CHECK: void custom_max_pullback(const double &a, const double &b, double _d_y, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     _cond0 = a > b;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     if (_cond0)
+// CHECK-NEXT:         * _d_a += _d_y;
+// CHECK-NEXT:     else
+// CHECK-NEXT:         * _d_b += _d_y;
+// CHECK-NEXT: }
+
+double fn9(double x, double y) {
+  return custom_max(x*y, y);
+}
+
+// CHECK: void fn9_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:    double _t0;
+// CHECK-NEXT:    double _t1;
+// CHECK-NEXT:    double _t2;
+// CHECK-NEXT:    double _t3;
+// CHECK-NEXT:    _t1 = x;
+// CHECK-NEXT:    _t0 = y;
+// CHECK-NEXT:    _t2 = _t1 * _t0;
+// CHECK-NEXT:    _t3 = y;
+// CHECK-NEXT:    goto _label0;
+// CHECK-NEXT:  _label0:
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _grad0 = 0.;
+// CHECK-NEXT:        custom_max_pullback(_t2, _t3, 1, &_grad0, &* _d_y);
+// CHECK-NEXT:        double _r0 = _grad0;
+// CHECK-NEXT:        double _r1 = _r0 * _t0;
+// CHECK-NEXT:        * _d_x += _r1;
+// CHECK-NEXT:        double _r2 = _t1 * _r0;
+// CHECK-NEXT:        * _d_y += _r2;
+// CHECK-NEXT:        double _r3 = * _d_y;
+// CHECK-NEXT:    }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -544,6 +586,7 @@ int main() {
   INIT(fn6);
   INIT(fn7);
   INIT(fn8);
+  INIT(fn9);
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -554,4 +597,5 @@ int main() {
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn7, 3, 5);             // CHECK-EXEC: {10.00, 71.00}
   TEST2(fn8, 3, 5);             // CHECK-EXEC: {7.62, 4.57}
+  TEST2(fn9, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
 }
