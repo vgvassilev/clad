@@ -365,8 +365,6 @@ void TBRAnalyzer::VisitCFGBlock(CFGBlock* block) {
   for (clang::CFGElement& Element : *block) {
     if (Element.getKind() == clang::CFGElement::Statement) {
       auto* Stmt = Element.castAs<clang::CFGStmt>().getStmt();
-      //            llvm::errs() << "stmt:\n"; //
-      //            Stmt->dump(); //
       Visit(Stmt);
     }
   }
@@ -377,13 +375,27 @@ void TBRAnalyzer::VisitCFGBlock(CFGBlock* block) {
     if (!varsData) {
       varsData = new VarsData();
       varsData->prev = blockData[block->getBlockID()];
-    } else if (varsData->prev != blockData[block->getBlockID()]) {
-      merge(varsData, blockData[block->getBlockID()]);
     }
     if (notLastPass) {
-      CFGQueue.insert(succ->getBlockID());
-      if (succ->getBlockID() < block->getBlockID())
-        blockPassCounter[succ->getBlockID()] = 0;
+        /// Add the successor to the queue.
+        CFGQueue.insert(succ->getBlockID());
+
+        /// This part is necessary for loops. For other cases, this is not
+        /// supposed to do anything.
+        if (succ->getBlockID() < block->getBlockID()) {
+            /// If there is another loop condition present inside a loop,
+            /// We have to set it's loop pass counter to 0 (it might be 3
+            /// from the previous outer loop pass).
+            blockPassCounter[succ->getBlockID()] = 0;
+            /// Remove VarsData left after the previous pass.
+            varsData->clear();
+        }
+    }
+
+    /// If the successor's previous block is not this one,
+    /// perform a merge.
+    if (varsData->prev != blockData[block->getBlockID()]) {
+        merge(varsData, blockData[block->getBlockID()]);
     }
   }
   //    llvm::errs() << "----------------\n\n";
@@ -448,13 +460,15 @@ std::unique_ptr<TBRAnalyzer::VarsData>
 TBRAnalyzer::collectDataFromPredecessors(VarsData* varsData,
                                          TBRAnalyzer::VarsData* limit) {
   auto result = std::unique_ptr<VarsData>(new VarsData(*varsData));
+
   if (varsData != limit) {
-    auto pred = varsData->prev;
-    while (pred != limit) {
+    /// Copy data from every predecessor.
+    for (auto pred = varsData->prev; pred != limit; pred = pred->prev) {
+      /// If a variable from 'pred' is not present
+      /// in 'result', place it in there.
       for (auto pair : *pred)
         if (result->find(pair.first) == result->end())
           result->emplace(pair);
-      pred = pred->prev;
     }
   }
 
@@ -465,6 +479,7 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
   auto* LCA = findLowestCommonAncestor(targetData, mergeData);
   auto collectedMergeData =
       collectDataFromPredecessors(mergeData, /*limit=*/LCA);
+  auto collectedTargetData = collectDataFromPredecessors(targetData, /*limit=*/LCA);
 
   for (auto& pair : *collectedMergeData) {
     VarData* found = nullptr;
@@ -490,10 +505,14 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
       targetData->emplace(pair.first, copy(pair.second));
   }
 
-  auto collectedThis = collectDataFromPredecessors(targetData, /*limit=*/LCA);
-  for (auto& pair : *collectedThis) {
-    auto elemSearch = mergeData->find(pair.first);
-    if (elemSearch == targetData->end()) {
+  /// For every variable in collectedTargetData, search it inside
+  /// collectedMergeData. If it's not found, that means it
+  /// was not used anywhere between LCA and mergeData.
+  /// To correctly merge, we have to take it from LCA's
+  /// predecessors and merge it to targetData.
+  for (auto& pair : *collectedTargetData) {
+    auto elemSearch = collectedMergeData->find(pair.first);
+    if (elemSearch == collectedMergeData->end()) {
       auto* branch = LCA;
       while (branch) {
         auto it = branch->find(pair.first);
@@ -771,9 +790,10 @@ void TBRAnalyzer::VisitArraySubscriptExpr(
 }
 
 void TBRAnalyzer::VisitInitListExpr(const clang::InitListExpr* ILE) {
-  setMode(0);
-  for (auto* init : ILE->inits())
-    Visit(init);
+  setMode(Mode::markingMode);
+  for (auto* init : ILE->inits()) {
+      Visit(init);
+  }
   resetMode();
 }
 

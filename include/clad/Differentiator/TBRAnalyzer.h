@@ -209,6 +209,9 @@ private:
     void emplace(std::pair<const clang::VarDecl*, VarData*> pair) {
       data.emplace(pair);
     }
+    void clear() {
+        data.clear();
+    }
   };
   std::unique_ptr<VarsData>
   collectDataFromPredecessors(VarsData* varsData, VarsData* limit = nullptr);
