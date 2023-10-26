@@ -739,10 +739,6 @@ void TBRAnalyzer::VisitUnaryOperator(const clang::UnaryOperator* UnOp) {
       /// Mark corresponding SourceLocation as required/not required to be
       /// stored for all expressions that could be changed.
       markLocation(innerExpr);
-      /// Set them to not required to store because the values were changed.
-      /// (if some value was not changed, this could only happen if it was
-      /// already not required to store).
-      setIsRequired(innerExpr, /*isReq=*/false);
     }
   }
 }
