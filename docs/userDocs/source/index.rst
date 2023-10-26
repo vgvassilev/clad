@@ -90,6 +90,7 @@ The User Guide
    user/UsingEnzymeWithinClad
    user/FAQ
    user/DevelopersDocumentation
+   user/FloatingPointErrorEstimation
    
 Citing Clad
 -------------
