@@ -177,6 +177,7 @@ private:
                             bool addNonConstIdx = false);
   /// Given an Expr* returns its corresponding VarData.
   VarData* getExprVarData(const clang::Expr* E, bool addNonConstIdx = false);
+
   /// Whenever an array element with a non-constant index is set to required
   /// this function is used to set to required all the array elements that
   /// could match that element (e.g. set 'a[1].y' and 'a[6].y' to required when
@@ -185,8 +186,14 @@ private:
   /// VarData::overlay() recursively.
   void overlay(const clang::Expr* E);
 
+
+
   /// Used to store all the necessary information about variables at a
   /// particular moment.
+  /// Note: the VarsData of one CFG block only stores information specific
+  /// to that block and relies on the VarsData of it's predecessors
+  /// for old information. This is done to avoid excessive copying
+  /// memory and usage.
   /// Note: 'this' pointer does not have a declaration so nullptr is used as
   /// its key instead.
   struct VarsData {
@@ -213,9 +220,27 @@ private:
         data.clear();
     }
   };
+
+
+  /// Collects the data from 'varsData' and its predecessors until
+  /// 'limit' into one VarsData ('limit' VarsData is not included).
+  /// If 'limit' is 'nullptr', data is collected starting with
+  /// the entry CFG block.
+  /// Note: the returned VarsData contains original data from
+  /// the predecessors (NOT copies). It should not be modified.
   std::unique_ptr<VarsData>
   collectDataFromPredecessors(VarsData* varsData, VarsData* limit = nullptr);
+
+  /// Finds the lowest common ancestor of two VarsData
+  /// (based on the prev field in VarsData).
   VarsData* findLowestCommonAncestor(VarsData* varsData1, VarsData* varsData2);
+
+  /// Merges mergeData into targetData. Should be called
+  /// after mergeData is passed and the corresponding CFG
+  /// block is one of the predecessors of targetData's CFG block
+  /// (e.g. instance when merging if- and else- blocks).
+  /// Note: The first predecessor (targetData->prev) does NOT have
+  /// to be merged to targetData.
   void merge(VarsData* targetData, VarsData* mergeData);
 
   /// Used to find DeclRefExpr's that will be used in the backwards pass.
@@ -234,14 +259,20 @@ private:
 
   ASTContext* m_Context;
 
+  /// clang::CFG of the function being analysed.
   std::unique_ptr<clang::CFG> m_CFG;
 
+  /// Stores VarsData structures for CFG blocks (the indices in
+  /// the vector correspond to CFG blocks' IDs)
   std::vector<VarsData*> blockData;
 
+  /// Stores the number of performed passes for a given CFG block index.
   std::vector<short> blockPassCounter;
 
+  /// ID of the CFG block being visited.
   unsigned curBlockID;
 
+  /// The set of IDs of the CFG blocks that should be visited.
   std::set<unsigned> CFGQueue;
 
   /// Set to true when a non-const index is found while analysing an
@@ -260,6 +291,7 @@ private:
   /// ArraySubscriptExpr* or MemberExpr*.
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
+  /// Returns the VarsData of the CFG block being visited.
   VarsData& getCurBranch() { return *blockData[curBlockID]; }
 
   //// Modes Setters

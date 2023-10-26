@@ -322,16 +322,20 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 }
 
 void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
+  /// Build the CFG (control-flow graph) of FD.
   clang::CFG::BuildOptions Options;
   m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), m_Context, Options);
+
   blockData.resize(m_CFG->size(), nullptr);
   blockPassCounter.resize(m_CFG->size(), 0);
+
+  /// Set current block ID to the ID of entry the block.
   auto* entry = &m_CFG->getEntry();
   curBlockID = entry->getBlockID();
   blockData[curBlockID] = new VarsData();
 
-  /// If we are analysing a method, add a VarData for 'this' pointer (it is
-  /// represented with nullptr).
+  /// If we are analysing a method, add a VarData for 'this' pointer
+  /// (it is represented with nullptr).
   if (isa<CXXMethodDecl>(FD)) {
     const Type* recordType =
         dyn_cast<CXXRecordDecl>(FD->getParent())->getTypeForDecl();
@@ -341,7 +345,10 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
     addVar(paramsRef[i]);
+  /// Add the entry block to the queue.
   CFGQueue.insert(curBlockID);
+
+  /// Visit CFG blocks in the queue until it's empty.
   while (!CFGQueue.empty()) {
     auto IDIter = std::prev(CFGQueue.end());
     curBlockID = *IDIter;
@@ -361,21 +368,39 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
 
 void TBRAnalyzer::VisitCFGBlock(CFGBlock* block) {
   //    llvm::errs() << "\n-----BLOCK" << block->getBlockID() << "-----\n";
+  /// Visiting loop blocks just once is not enough since the end of one
+  /// loop iteration may have an effect on the next one. However, two
+  /// iterations is always enough. Allow a third visit without going to
+  /// successors to correctly analyse loop conditions.
   bool notLastPass = ++blockPassCounter[block->getBlockID()] <= 2;
+
+  /// Visit all the statements inside the block.
   for (clang::CFGElement& Element : *block) {
     if (Element.getKind() == clang::CFGElement::Statement) {
       auto* Stmt = Element.castAs<clang::CFGStmt>().getStmt();
       Visit(Stmt);
     }
   }
+
+  /// Traverse successor CFG blocks.
   for (auto succ : block->succs()) {
+    /// Sometimes clang CFG does not create blocks for parts of code that
+    /// are never executed (e.g. 'if (0) {...'). Add this check for safety.
     if (!succ)
       continue;
     auto*& varsData = blockData[succ->getBlockID()];
+
+    /// Create VarsData for the succ branch if it hasn't been done previously.
+    /// If the successor doesn't have a VarsData, assign it and attach the
+    /// current block as previous.
     if (!varsData) {
       varsData = new VarsData();
       varsData->prev = blockData[block->getBlockID()];
     }
+
+    /// If this is the third (last) pass of block, it means block represents
+    /// a loop condition and the loop body has already been visited 2 times.
+    /// This means we should not visit the loop body anymore.
     if (notLastPass) {
         /// Add the successor to the queue.
         CFGQueue.insert(succ->getBlockID());
@@ -481,6 +506,9 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
       collectDataFromPredecessors(mergeData, /*limit=*/LCA);
   auto collectedTargetData = collectDataFromPredecessors(targetData, /*limit=*/LCA);
 
+  /// For every variable in 'collectedMergeData', search it in targetData
+  /// and all its predecessors (if found in a predecessor, make a copy to
+  /// targetData).
   for (auto& pair : *collectedMergeData) {
     VarData* found = nullptr;
     auto elemSearch = targetData->find(pair.first);
@@ -499,6 +527,8 @@ void TBRAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
       found = elemSearch->second;
     }
 
+    /// If the variable was found, perform a merge.
+    /// Else, just copy it from collectedMergeData.
     if (found)
       merge(found, pair.second);
     else
