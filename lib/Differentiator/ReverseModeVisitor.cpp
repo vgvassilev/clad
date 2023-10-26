@@ -2877,33 +2877,67 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!force && !UsefulToStoreGlobal(E))
       return {E, E};
 
+    auto pushPop = BuildPushPop(E, Type, prefix, force);
+    if (!isInsideLoop) {
+      if (E) {
+        Expr *Set = BuildOp(BO_Assign, pushPop.getExpr(), E);
+        addToCurrentBlock(Set, direction::forward);
+      }
+    }
+
+    return pushPop;
+  }
+
+  StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
+                                               bool force) {
+    assert(E && "cannot infer type");
+    return GlobalStoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema),
+                           prefix, force);
+  }
+
+  StmtDiff ReverseModeVisitor::BuildPushPop(clang::Expr* E, clang::QualType Type, llvm::StringRef prefix, bool force) {
     if (isInsideLoop) {
-      auto CladTape = MakeCladTapeFor(E);
+      auto CladTape = MakeCladTapeFor(Clone(E));
       Expr* Push = CladTape.Push;
       Expr* Pop = CladTape.Pop;
       return {Push, Pop};
     }
-
     Expr* init = nullptr;
-    if (auto AT = dyn_cast<ArrayType>(Type)) {
-      init = getArraySizeExpr(AT, m_Context, *this);
-    }
+    if (auto AT = dyn_cast<ArrayType>(Type))
+        init = getArraySizeExpr(AT, m_Context, *this);
 
     Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
-    if (E) {
-      Expr* Set = BuildOp(BO_Assign, Ref, E);
-      addToCurrentBlock(Set, direction::forward);
-    }
     return {Ref, Ref};
   }
 
-  StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E,
-                                                 llvm::StringRef prefix,
-                                                 bool force) {
-    assert(E && "cannot infer type");
-    return GlobalStoreAndRef(
-        E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
-  }
+  StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E, llvm::StringRef prefix, bool force) {
+    auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
+
+    if (!force && !UsefulToStoreGlobal(E))
+        return {};
+
+    if (isInsideLoop) {
+        auto pushPop = BuildPushPop(E, Type, prefix, true);
+        auto popAssign = BuildOp(BinaryOperatorKind::BO_Assign, Clone(E), pushPop.getExpr_dx());
+        return {pushPop.getExpr(), popAssign};
+    }
+
+    Expr* init = nullptr;
+    if (auto AT = dyn_cast<ArrayType>(Type))
+        init = getArraySizeExpr(AT, m_Context, *this);
+
+    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
+    if (E) {
+      Expr* Store = BuildOp(BO_Assign, Ref, Clone(E));
+      Expr* Restore = nullptr;
+      if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
+        auto r = Clone(E);
+        Restore = BuildOp(BO_Assign, r, Ref);
+      }
+      return {Store, Restore};
+    }
+    return {};
+}
 
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
     if (isConstant || !needsUpdate)

@@ -61,10 +61,15 @@ namespace clad {
     clang::Stmt* getForwSweepStmt_dx() { return m_DerivativeForForwSweep; }
 
     clang::Expr* getRevSweepExpr() {
-      return llvm::cast_or_null<clang::Expr>(m_ValueForRevSweep);
+      return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
 
     clang::Stmt* getRevSweepStmt() {
+      /// If there is no specific value for
+      /// the reverse sweep, use Stmt_dx.
+      if (!m_ValueForRevSweep) {
+        return data[1];
+      }
       return m_ValueForRevSweep;
     }
 

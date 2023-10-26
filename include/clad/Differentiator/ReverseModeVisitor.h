@@ -265,6 +265,8 @@ namespace clad {
     StmtDiff GlobalStoreAndRef(clang::Expr* E,
                                llvm::StringRef prefix = "_t",
                                bool force = false);
+    StmtDiff BuildPushPop(clang::Expr* E, clang::QualType Type, llvm::StringRef prefix = "_t", bool force = false);
+    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t", bool force = false);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
