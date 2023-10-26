@@ -904,9 +904,8 @@ Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
 
     SourceLocation Loc;
 
-    if (noOverloadExists(UnresolvedLookup, MARargs)) {
+    if (noOverloadExists(UnresolvedLookup, MARargs))
       return 0;
-    }
 
     OverloadedFn =
         m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc).get();

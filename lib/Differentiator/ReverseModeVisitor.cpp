@@ -1394,7 +1394,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // if it's of type MaterializeTemporaryExpr, then check its
         // subexpression.
         if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
-          arg = clad_compat::GetSubExpr(MTE);
+          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
         if (!isa<FloatingLiteral>(arg) && !isa<IntegerLiteral>(arg)) {
           allArgsAreConstantLiterals = false;
           break;
@@ -1934,7 +1934,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     Expr* call = nullptr;
 
-    if (FD->getReturnType()->isReferenceType()) {
+    QualType returnType = FD->getReturnType();
+    if (returnType->isReferenceType() &&
+        !returnType.getNonReferenceType().isConstQualified()) {
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;

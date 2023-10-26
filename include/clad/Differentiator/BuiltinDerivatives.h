@@ -13,6 +13,7 @@ namespace custom_derivatives{}
 #include "clad/Differentiator/ArrayRef.h"
 #include "clad/Differentiator/CladConfig.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace clad {
@@ -139,6 +140,61 @@ CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y,
   *d_c += d_y;
 }
 
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+min_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
+  return {::std::min(a, b), a < b ? d_a : d_b};
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
+  return {::std::max(a, b), a < b ? d_b : d_a};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y,
+                                   clad::array_ref<decltype(T())> d_a,
+                                   clad::array_ref<decltype(T())> d_b) {
+  if (a < b)
+    *d_a += d_y;
+  else
+    *d_b += d_y;
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y,
+                                   clad::array_ref<decltype(T())> d_a,
+                                   clad::array_ref<decltype(T())> d_b) {
+  if (a < b)
+    *d_b += d_y;
+  else
+    *d_a += d_y;
+}
+
+#if __cplusplus >= 201703L
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T>
+clamp_pushforward(const T& v, const T& lo, const T& hi, const T& d_v,
+                  const T& d_lo, const T& d_hi) {
+  return {::std::clamp(v, lo, hi), v < lo ? d_lo : hi < v ? d_hi : d_v};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
+                                     const U& d_y,
+                                     clad::array_ref<decltype(T())> d_v,
+                                     clad::array_ref<decltype(T())> d_lo,
+                                     clad::array_ref<decltype(T())> d_hi) {
+  if (v < lo)
+    *d_lo += d_y;
+  else if (hi < v)
+    *d_hi += d_y;
+  else
+    *d_v += d_y;
+}
+#endif
+
 } // namespace std
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
@@ -150,6 +206,10 @@ using std::floor_pushforward;
 using std::fma_pullback;
 using std::fma_pushforward;
 using std::log_pushforward;
+using std::max_pullback;
+using std::max_pushforward;
+using std::min_pullback;
+using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sin_pushforward;
