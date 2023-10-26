@@ -4,6 +4,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+#include <algorithm>
 #include <cmath>
 
 int printf(const char* fmt, ...);

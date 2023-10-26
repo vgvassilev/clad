@@ -158,8 +158,9 @@ namespace clad {
       auto typePtr = QT.getTypePtr();
       if (typePtr->isRecordType() && !typePtr->getAs<clang::ElaboratedType>()) {
         CXXScopeSpec CSS;
-        clang::CXXRecordDecl const* recordDecl = typePtr->getAsCXXRecordDecl();
-        clang::DeclContext const* declContext = static_cast<clang::DeclContext const*>(recordDecl);
+        const clang::CXXRecordDecl* recordDecl = typePtr->getAsCXXRecordDecl();
+        const auto* declContext =
+            static_cast<const clang::DeclContext*>(recordDecl);
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
         NestedNameSpecifier* NS = CSS.getScopeRep();
         if (auto* Prefix = NS->getPrefix())
@@ -183,6 +184,10 @@ namespace clad {
           break;
         if (isa<LinkageSpecDecl>(DC2)) {
           DC2 = DC2->getParent();  
+          continue;
+        }
+        if (DC2->isInlineNamespace()) {
+          DC2 = DC2->getParent();
           continue;
         }
         // We don't want to 'extend' the DC1 context with class declarations.

@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang %s  -I%S/../../include -oFunctionCalls.out 2>&1 | FileCheck %s
+// RUN: %cladnumdiffclang -std=c++17 %s  -I%S/../../include -oFunctionCalls.out 2>&1 | FileCheck %s
 // RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -533,6 +533,67 @@ double fn9(double x, double y) {
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
+double fn10(double x, double y) {
+  double out = x;
+  out = std::max(out, 0.0);
+  out = std::min(out, 10.0);
+  out = std::clamp(out, 3.0, 7.0);
+  return out * y;
+}
+
+// CHECK: void fn10_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:    double _d_out = 0;
+// CHECK-NEXT:    double _t0;
+// CHECK-NEXT:    double _t1;
+// CHECK-NEXT:    double _t2;
+// CHECK-NEXT:    double _t3;
+// CHECK-NEXT:    double _t4;
+// CHECK-NEXT:    double out = x;
+// CHECK-NEXT:    _t0 = out;
+// CHECK-NEXT:    out = std::max(out, 0.);
+// CHECK-NEXT:    _t1 = out;
+// CHECK-NEXT:    out = std::min(out, 10.);
+// CHECK-NEXT:    _t2 = out;
+// CHECK-NEXT:    out = std::clamp(out, 3., 7.);
+// CHECK-NEXT:    _t4 = out;
+// CHECK-NEXT:    _t3 = y;
+// CHECK-NEXT:    goto _label0;
+// CHECK-NEXT:  _label0:
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r7 = 1 * _t3;
+// CHECK-NEXT:        _d_out += _r7;
+// CHECK-NEXT:        double _r8 = _t4 * 1;
+// CHECK-NEXT:        * _d_y += _r8;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r_d2 = _d_out;
+// CHECK-NEXT:        double _grad5 = 0.;
+// CHECK-NEXT:        double _grad6 = 0.;
+// CHECK-NEXT:        clad::custom_derivatives::std::clamp_pullback(_t2, 3., 7., _r_d2, &_d_out, &_grad5, &_grad6);
+// CHECK-NEXT:        double _r4 = _d_out;
+// CHECK-NEXT:        double _r5 = _grad5;
+// CHECK-NEXT:        double _r6 = _grad6;
+// CHECK-NEXT:        _d_out -= _r_d2;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r_d1 = _d_out;
+// CHECK-NEXT:        double _grad3 = 0.;
+// CHECK-NEXT:        clad::custom_derivatives::std::min_pullback(_t1, 10., _r_d1, &_d_out, &_grad3);
+// CHECK-NEXT:        double _r2 = _d_out;
+// CHECK-NEXT:        double _r3 = _grad3;
+// CHECK-NEXT:        _d_out -= _r_d1;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        double _r_d0 = _d_out;
+// CHECK-NEXT:        double _grad1 = 0.;
+// CHECK-NEXT:        clad::custom_derivatives::std::max_pullback(_t0, 0., _r_d0, &_d_out, &_grad1);
+// CHECK-NEXT:        double _r0 = _d_out;
+// CHECK-NEXT:        double _r1 = _grad1;
+// CHECK-NEXT:        _d_out -= _r_d0;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    * _d_x += _d_out;
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -587,6 +648,7 @@ int main() {
   INIT(fn7);
   INIT(fn8);
   INIT(fn9);
+  INIT(fn10);
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -598,4 +660,5 @@ int main() {
   TEST2(fn7, 3, 5);             // CHECK-EXEC: {10.00, 71.00}
   TEST2(fn8, 3, 5);             // CHECK-EXEC: {7.62, 4.57}
   TEST2(fn9, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
+  TEST2(fn10, 8, 5);            // CHECK-EXEC: {0.00, 7.00}
 }
