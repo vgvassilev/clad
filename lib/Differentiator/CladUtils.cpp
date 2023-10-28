@@ -187,6 +187,10 @@ namespace clad {
           continue;
         }
         if (DC2->isInlineNamespace()) {
+          // Inline namespace can be skipped from context, because its members
+          // are automatically searched from the parent namespace.
+          // This will also help us to deal with intermediate inline namespaces
+          // like std::__1::, as present in std functions for libc++.
           DC2 = DC2->getParent();
           continue;
         }
