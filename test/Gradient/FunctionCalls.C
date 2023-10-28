@@ -594,6 +594,45 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    * _d_x += _d_out;
 // CHECK-NEXT: }
 
+namespace n1{
+  inline namespace n2{
+    double sum(const double& x, const double& y) {
+      return x + y;
+    }
+  }
+}
+
+namespace clad{
+namespace custom_derivatives{
+  namespace n1{
+    inline namespace n2{
+      void sum_pullback(const double& x, const double& y, double _d_y0, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+        * _d_x += _d_y0;
+        * _d_y += _d_y0;
+      }
+    }
+  }
+}
+}
+
+double fn11(double x, double y) {
+  return n1::n2::sum(x, y);
+}
+
+// CHECK: void fn11_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:    double _t0;
+// CHECK-NEXT:    double _t1;
+// CHECK-NEXT:    _t0 = x;
+// CHECK-NEXT:    _t1 = y;
+// CHECK-NEXT:    goto _label0;
+// CHECK-NEXT:  _label0:
+// CHECK-NEXT:    {
+// CHECK-NEXT:        clad::custom_derivatives::n1::sum_pullback(_t0, _t1, 1, &* _d_x, &* _d_y);
+// CHECK-NEXT:        double _r0 = * _d_x;
+// CHECK-NEXT:        double _r1 = * _d_y;
+// CHECK-NEXT:    }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -649,6 +688,7 @@ int main() {
   INIT(fn8);
   INIT(fn9);
   INIT(fn10);
+  INIT(fn11);
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -661,4 +701,5 @@ int main() {
   TEST2(fn8, 3, 5);             // CHECK-EXEC: {7.62, 4.57}
   TEST2(fn9, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn10, 8, 5);            // CHECK-EXEC: {0.00, 7.00}
+  TEST2(fn11, 3, 5);            // CHECK-EXEC: {1.00, 1.00}
 }
