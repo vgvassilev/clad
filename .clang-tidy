@@ -26,6 +26,7 @@ Checks: >
   -readability-magic-numbers,
   -readability-named-parameter,
   -readability-function-cognitive-complexity,
+  -cppcoreguidelines-avoid-magic-numbers,
 
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
