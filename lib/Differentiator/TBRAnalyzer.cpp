@@ -6,37 +6,37 @@ namespace clad {
 
 void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
   if (varData.type == VarData::FUND_TYPE)
-    varData.val.fundData = isReq;
+    varData.val.m_FundData = isReq;
   else if (varData.type == VarData::OBJ_TYPE)
-    for (auto& pair : *varData.val.objData)
+    for (auto& pair : *varData.val.m_ObjData)
       setIsRequired(pair.second, isReq);
   else if (varData.type == VarData::ARR_TYPE)
-    for (auto& pair : *varData.val.arrData)
+    for (auto& pair : *varData.val.m_ArrData)
       setIsRequired(pair.second, isReq);
-  else if (varData.type == VarData::REF_TYPE && varData.val.refData)
-    if (auto data = getExprVarData(varData.val.refData)) {
+  else if (varData.type == VarData::REF_TYPE && varData.val.m_RefData)
+    if (auto* data = getExprVarData(varData.val.m_RefData)) {
       setIsRequired(*data, isReq);
     }
 }
 
 void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
   if (targetData.type == VarData::FUND_TYPE) {
-    targetData.val.fundData =
-        targetData.val.fundData || mergeData.val.fundData;
+    targetData.val.m_FundData =
+        targetData.val.m_FundData || mergeData.val.m_FundData;
   } else if (targetData.type == VarData::OBJ_TYPE) {
-    for (auto& pair : *targetData.val.objData)
-      merge(pair.second, (*mergeData.val.objData)[pair.first]);
+    for (auto& pair : *targetData.val.m_ObjData)
+      merge(pair.second, (*mergeData.val.m_ObjData)[pair.first]);
   } else if (targetData.type == VarData::ARR_TYPE) {
     /// FIXME: Currently non-constant indices are not supported in merging.
-    for (auto& pair : *targetData.val.arrData) {
-      auto it = mergeData.val.arrData->find(pair.first);
-      if (it != mergeData.val.arrData->end())
+    for (auto& pair : *targetData.val.m_ArrData) {
+      auto it = mergeData.val.m_ArrData->find(pair.first);
+      if (it != mergeData.val.m_ArrData->end())
         merge(pair.second, it->second);
     }
-    for (auto& pair : *mergeData.val.arrData) {
-      auto it = targetData.val.arrData->find(pair.first);
-      if (it == mergeData.val.arrData->end())
-        (*targetData.val.arrData)[pair.first] = copy(pair.second);
+    for (auto& pair : *mergeData.val.m_ArrData) {
+      auto it = targetData.val.m_ArrData->find(pair.first);
+      if (it == mergeData.val.m_ArrData->end())
+        (*targetData.val.m_ArrData)[pair.first] = copy(pair.second);
     }
   }
   /// This might be useful in future if used to analyse pointers. However, for
@@ -48,34 +48,34 @@ TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
   VarData res;
   res.type = copyData.type;
   if (copyData.type == VarData::FUND_TYPE) {
-    res.val.fundData = copyData.val.fundData;
+    res.val.m_FundData = copyData.val.m_FundData;
   } else if (copyData.type == VarData::OBJ_TYPE) {
-    res.val.objData = new ObjMap();
-    for (auto& pair : *copyData.val.objData)
-      (*res.val.objData)[pair.first] = copy(pair.second);
+    res.val.m_ObjData = new ObjMap();
+    for (auto& pair : *copyData.val.m_ObjData)
+      (*res.val.m_ObjData)[pair.first] = copy(pair.second);
   } else if (copyData.type == VarData::ARR_TYPE) {
-    res.val.arrData = new ArrMap();
-    for (auto& pair : *copyData.val.arrData)
-      (*res.val.arrData)[pair.first] = copy(pair.second);
-  } else if (copyData.type == VarData::REF_TYPE && copyData.val.refData) {
-    res.val.refData = copyData.val.refData;
+    res.val.m_ArrData = new ArrMap();
+    for (auto& pair : *copyData.val.m_ArrData)
+      (*res.val.m_ArrData)[pair.first] = copy(pair.second);
+  } else if (copyData.type == VarData::REF_TYPE && copyData.val.m_RefData) {
+    res.val.m_RefData = copyData.val.m_RefData;
   }
   return res;
 }
 
 bool TBRAnalyzer::findReq(const VarData& varData) {
   if (varData.type == VarData::FUND_TYPE)
-    return varData.val.fundData;
+    return varData.val.m_FundData;
   if (varData.type == VarData::OBJ_TYPE) {
-    for (auto& pair : *varData.val.objData)
+    for (auto& pair : *varData.val.m_ObjData)
       if (findReq(pair.second))
         return true;
   } else if (varData.type == VarData::ARR_TYPE) {
-    for (auto& pair : *varData.val.arrData)
+    for (auto& pair : *varData.val.m_ArrData)
       if (findReq(pair.second))
         return true;
-  } else if (varData.type == VarData::REF_TYPE && varData.val.refData) {
-    if (auto* data = getExprVarData(varData.val.refData)) {
+  } else if (varData.type == VarData::REF_TYPE && varData.val.m_RefData) {
+    if (auto* data = getExprVarData(varData.val.m_RefData)) {
       if (findReq(*data)) {
         return true;
       }
@@ -94,15 +94,15 @@ void TBRAnalyzer::overlay(
   --i;
   IdxOrMember& curIdxOrMember = IdxAndMemberSequence[i];
   if (curIdxOrMember.type == IdxOrMember::IdxOrMemberType::FIELD) {
-    overlay((*targetData.val.objData)[curIdxOrMember.val.field],
+    overlay((*targetData.val.m_ObjData)[curIdxOrMember.val.field],
             IdxAndMemberSequence, i);
   } else if (curIdxOrMember.type == IdxOrMember::IdxOrMemberType::INDEX) {
     auto idx = curIdxOrMember.val.index;
     if (eqAPInt(idx, llvm::APInt(2, -1, true)))
-      for (auto& pair : *targetData.val.arrData)
+      for (auto& pair : *targetData.val.m_ArrData)
         overlay(pair.second, IdxAndMemberSequence, i);
     else
-      overlay((*targetData.val.arrData)[idx], IdxAndMemberSequence, i);
+      overlay((*targetData.val.m_ArrData)[idx], IdxAndMemberSequence, i);
   }
 }
 
@@ -120,7 +120,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
     if (nonConstIndexFound && !addNonConstIdx)
       return baseData;
 
-    return &(*baseData->val.objData)[FD];
+    return &(*baseData->val.m_ObjData)[FD];
   }
   return nullptr;
 }
@@ -149,7 +149,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
   if (nonConstIndexFound && !addNonConstIdx)
     return baseData;
 
-  auto* baseArrMap = baseData->val.arrData;
+  auto* baseArrMap = baseData->val.m_ArrData;
   auto it = baseArrMap->find(idx);
 
   /// Add the current index if it was not added previously
@@ -176,7 +176,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
     /// ``this`` does not have a declaration so it is represented with nullptr.
     if (const auto* DRE = dyn_cast<clang::DeclRefExpr>(E))
       VD = dyn_cast<clang::VarDecl>(DRE->getDecl());
-    auto* branch = &getCurBranch();
+    auto* branch = &getCurBlockVarsData();
     while (branch) {
       auto it = branch->find(VD);
       if (it != branch->end()) {
@@ -191,8 +191,8 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
   if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E))
     EData = getArrSubVarData(ASE, addNonConstIdx);
 
-  if (EData && EData->type == VarData::REF_TYPE && EData->val.refData)
-    EData = getExprVarData(EData->val.refData);
+  if (EData && EData->type == VarData::REF_TYPE && EData->val.m_RefData)
+    EData = getExprVarData(EData->val.m_RefData);
 
   return EData;
 }
@@ -200,24 +200,24 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
 TBRAnalyzer::VarData::VarData(const QualType QT) {
   if (QT->isReferenceType()) {
     type = VarData::REF_TYPE;
-    val.refData = nullptr;
+    val.m_RefData = nullptr;
   } else if (utils::isArrayOrPointerType(QT)) {
     type = VarData::ARR_TYPE;
-    val.arrData = new ArrMap();
+    val.m_ArrData = new ArrMap();
     const Type* elemType;
-    if (const auto pointerType = llvm::dyn_cast<clang::PointerType>(QT))
+    if (const auto* const pointerType = llvm::dyn_cast<clang::PointerType>(QT))
       elemType = pointerType->getPointeeType().getTypePtrOrNull();
     else
       elemType = QT->getArrayElementTypeNoTypeQual();
-    auto& idxData = (*val.arrData)[llvm::APInt(2, -1, true)];
+    auto& idxData = (*val.m_ArrData)[llvm::APInt(2, -1, true)];
     idxData = VarData (QualType::getFromOpaquePtr(elemType));
   } else if (QT->isBuiltinType()) {
     type = VarData::FUND_TYPE;
-    val.fundData = false;
+    val.m_FundData = false;
   } else if (QT->isRecordType()) {
     type = VarData::OBJ_TYPE;
     const auto* recordDecl = QT->getAs<RecordType>()->getDecl();
-    auto& newObjMap = val.objData;
+    auto& newObjMap = val.m_ObjData;
     newObjMap = new ObjMap();
     for (const auto* field : recordDecl->fields()) {
       const auto varType = field->getType();
@@ -253,7 +253,7 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
 
   /// Overlay on all the VarData's recursively.
   if (const auto* VD = dyn_cast<clang::VarDecl>(innermostDRE->getDecl())) {
-    overlay(getCurBranch()[VD], IdxAndMemberSequence,
+    overlay(getCurBlockVarsData()[VD], IdxAndMemberSequence,
             IdxAndMemberSequence.size());
   }
 }
@@ -263,7 +263,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
   /// treat it as an assigment operation.
   /// FIXME: this marks the SourceLocation of DeclStmt which doesn't work for
   /// declarations with multiple VarDecls.
-  auto& curBranch = getCurBranch();
+  auto& curBranch = getCurBlockVarsData();
 
   auto* branch = curBranch.prev;
   while (branch) {
@@ -288,7 +288,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
   /// OBJ_TYPE VarData. This is done for '_d_this' pointer to be processed
   /// correctly in hessian mode. This should be removed once full support for
   /// pointers in analysis is introduced.
-  if (const auto pointerType = dyn_cast<clang::PointerType>(varType)) {
+  if (const auto* const pointerType = dyn_cast<clang::PointerType>(varType)) {
     const auto* elemType = pointerType->getPointeeType().getTypePtrOrNull();
     if (elemType && elemType->isRecordType()) {
       curBranch[VD] = VarData(QualType::getFromOpaquePtr(elemType));
@@ -329,7 +329,7 @@ void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
 void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   /// Build the CFG (control-flow graph) of FD.
   clang::CFG::BuildOptions Options;
-  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), m_Context, Options);
+  m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
 
   blockData.resize(m_CFG->size(), nullptr);
   blockPassCounter.resize(m_CFG->size(), 0);
@@ -344,7 +344,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   if (isa<CXXMethodDecl>(FD)) {
     const Type* recordType =
         dyn_cast<CXXRecordDecl>(FD->getParent())->getTypeForDecl();
-    getCurBranch()[nullptr] =
+    getCurBlockVarsData()[nullptr] =
         VarData(QualType::getFromOpaquePtr(recordType));
   }
   auto paramsRef = FD->parameters();
@@ -371,7 +371,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   //    }
 }
 
-void TBRAnalyzer::VisitCFGBlock(CFGBlock* block) {
+void TBRAnalyzer::VisitCFGBlock(const CFGBlock* block) {
   //    llvm::errs() << "\n-----BLOCK" << block->getBlockID() << "-----\n";
   /// Visiting loop blocks just once is not enough since the end of one
   /// loop iteration may have an effect on the next one. However, two
@@ -380,9 +380,9 @@ void TBRAnalyzer::VisitCFGBlock(CFGBlock* block) {
   bool notLastPass = ++blockPassCounter[block->getBlockID()] <= 2;
 
   /// Visit all the statements inside the block.
-  for (clang::CFGElement& Element : *block) {
+  for (const clang::CFGElement& Element : *block) {
     if (Element.getKind() == clang::CFGElement::Statement) {
-      auto* Stmt = Element.castAs<clang::CFGStmt>().getStmt();
+      const auto* Stmt = Element.castAs<clang::CFGStmt>().getStmt();
       Visit(Stmt);
     }
   }
@@ -444,7 +444,7 @@ TBRAnalyzer::findLowestCommonAncestor(VarsData* varsData1,
     if (pred1 == pred2)
       return pred1;
 
-    auto branch = varsData1;
+    auto* branch = varsData1;
     while (branch != pred1) {
       if (branch == pred2)
         return branch;
@@ -482,8 +482,6 @@ TBRAnalyzer::findLowestCommonAncestor(VarsData* varsData1,
       return pred2;
     }
   }
-  /// This is not supposed to ever happen.
-  return nullptr;
 }
 
 std::unordered_map<const clang::VarDecl*, TBRAnalyzer::VarData*>
@@ -492,7 +490,7 @@ TBRAnalyzer::collectDataFromPredecessors(VarsData* varsData,
   std::unordered_map<const clang::VarDecl*, VarData*> result;
   if (varsData != limit) {
     /// Copy data from every predecessor.
-    for (auto pred = varsData->prev; pred != limit; pred = pred->prev) {
+    for (auto* pred = varsData->prev; pred != limit; pred = pred->prev) {
       /// If a variable from 'pred' is not present
       /// in 'result', place it in there.
       for (auto& pair : *pred)
@@ -568,13 +566,12 @@ void TBRAnalyzer::VisitCompoundStmt(const CompoundStmt* CS) {
 
 void TBRAnalyzer::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    auto& curBranch = getCurBranch();
+    auto& curBranch = getCurBlockVarsData();
     if (curBranch.find(VD) == curBranch.end())
       addVar(VD);
   }
 
-  if (const auto* E = dyn_cast<clang::Expr>(DRE))
-    setIsRequired(E);
+  setIsRequired(DRE);
 }
 
 void TBRAnalyzer::VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE) {
@@ -609,12 +606,12 @@ void TBRAnalyzer::VisitDeclStmt(const DeclStmt* DS) {
         setMode(Mode::markingMode);
         Visit(init);
         resetMode();
-        auto& VDExpr = getCurBranch()[VD];
+        auto& VDExpr = getCurBlockVarsData()[VD];
         /// if the declared variable is ref type attach its VarData to the
         /// VarData of the RHS variable.
         auto returnExprs = utils::GetInnermostReturnExpr(init);
         if (VDExpr.type == VarData::REF_TYPE && !returnExprs.empty())
-          VDExpr.val.refData = returnExprs[0];
+          VDExpr.val.m_RefData = returnExprs[0];
       }
     }
   }
@@ -656,8 +653,8 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
     /// factors is constant.
     Expr::EvalResult dummy;
     bool nonLinear =
-        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, *m_Context) &&
-        !clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, *m_Context);
+        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context) &&
+        !clad_compat::Expr_EvaluateAsConstantExpr(L, dummy, m_Context);
     if (nonLinear)
       startNonLinearMode();
 
@@ -671,7 +668,7 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
     /// denominator is constant.
     Expr::EvalResult dummy;
     bool nonLinear =
-        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, *m_Context);
+        !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
     if (nonLinear)
       startNonLinearMode();
 
@@ -697,7 +694,7 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
       /// therefore, LHS has to be visited in markingMode|nonLinearMode.
       Expr::EvalResult dummy;
       bool RisNotConst =
-          !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, *m_Context);
+          !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
       if (RisNotConst)
         setMode(Mode::markingMode | Mode::nonLinearMode);
       Visit(L);
@@ -752,7 +749,7 @@ void TBRAnalyzer::VisitCallExpr(const clang::CallExpr* CE) {
   /// FIXME: Currently TBR analysis just stops here and assumes that all the
   /// variables passed by value/reference are used/used and changed. Analysis
   /// could proceed to the function to analyse data flow inside it.
-  auto* FD = CE->getDirectCallee();
+  const auto* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   setMode(Mode::markingMode | Mode::nonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
@@ -760,7 +757,7 @@ void TBRAnalyzer::VisitCallExpr(const clang::CallExpr* CE) {
     bool passByRef = false;
     if (noHiddenParam)
       passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
-    else if (i)
+    else if (i!=0)
       passByRef = FD->getParamDecl(i - 1)->getType()->isReferenceType();
     setMode(Mode::markingMode | Mode::nonLinearMode);
     Visit(arg);
@@ -806,7 +803,7 @@ void TBRAnalyzer::VisitCXXConstructExpr(const clang::CXXConstructExpr* CE) {
 }
 
 void TBRAnalyzer::VisitMemberExpr(const clang::MemberExpr* ME) {
-  setIsRequired(dyn_cast<clang::Expr>(ME));
+  setIsRequired(ME);
 }
 
 void TBRAnalyzer::VisitArraySubscriptExpr(
@@ -814,7 +811,7 @@ void TBRAnalyzer::VisitArraySubscriptExpr(
   setMode(0);
   Visit(ASE->getBase());
   resetMode();
-  setIsRequired(dyn_cast<clang::Expr>(ASE));
+  setIsRequired(ASE);
   setMode(Mode::markingMode | Mode::nonLinearMode);
   Visit(ASE->getIdx());
   resetMode();

@@ -145,11 +145,11 @@ namespace clad {
     /// Create new block.
     Stmts& beginBlock(direction d = direction::forward) {
       if (d == direction::forward)
-        m_Blocks.push_back({});
+        m_Blocks.emplace_back();
       else if (d == direction::reverse)
-        m_Reverse.push_back({});
+        m_Reverse.emplace_back();
       else
-        m_EssentialReverse.push_back({});
+        m_EssentialReverse.emplace_back();
       return getCurrentBlock(d);
     }
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
@@ -616,8 +616,6 @@ namespace clad {
 
     clang::QualType ComputeAdjointType(clang::QualType T);
     clang::QualType ComputeParamType(clang::QualType T);
-
-    std::vector<clang::Expr*> GetInnermostReturnExpr(clang::Expr* E);
   };
 } // end namespace clad
 

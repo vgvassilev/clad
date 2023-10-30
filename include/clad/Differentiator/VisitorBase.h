@@ -60,7 +60,7 @@ namespace clad {
 
     clang::Stmt* getForwSweepStmt_dx() { return m_DerivativeForForwSweep; }
 
-    clang::Expr* getRevSweepExpr() {
+    clang::Expr* getRevSweepAsExpr() {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
 

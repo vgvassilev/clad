@@ -82,7 +82,7 @@ private:
   };
 
   /// Stores all the necessary information about one variable. Fundamental type
-  /// variables need only one bool. An object/array needs a separate VarData for
+  /// variables need only one bit. An object/array needs a separate VarData for
   /// every its field/element. Reference type variables have their own type for
   /// convenience reasons and just point to the corresponding VarData.
   /// UNDEFINED is used whenever the type of a node cannot be determined.
@@ -111,13 +111,13 @@ private:
   struct VarData {
     enum VarDataType { UNDEFINED, FUND_TYPE, OBJ_TYPE, ARR_TYPE, REF_TYPE };
     union VarDataValue {
-      bool fundData;
-      /// objData, arrData are stored as pointers for VarDataValue to take
+      bool m_FundData;
+      /// m_ObjData, m_ArrData are stored as pointers for VarDataValue to take
       /// less space.
-      ObjMap* objData;
-      ArrMap* arrData;
-      Expr* refData;
-      VarDataValue() : fundData(false) {}
+      ObjMap* m_ObjData;
+      ArrMap* m_ArrData;
+      Expr* m_RefData;
+      VarDataValue() : m_FundData(false) {}
     };
     VarDataType type = UNDEFINED;
     VarDataValue val;
@@ -125,18 +125,18 @@ private:
     VarData() = default;
 
     /// Builds a VarData object (and its children) based on the provided type.
-    VarData(const QualType QT);
+    VarData(QualType QT);
 
     /// Erases all children VarData's of this VarData.
     void erase() {
       if (type == OBJ_TYPE) {
-        for (auto& pair : *val.objData)
+        for (auto& pair : *val.m_ObjData)
           pair.second.erase();
-        delete val.objData;
+        delete val.m_ObjData;
       } else if (type == ARR_TYPE) {
-        for (auto& pair : *val.arrData)
+        for (auto& pair : *val.m_ArrData)
           pair.second.erase();
-        delete val.arrData;
+        delete val.m_ArrData;
       }
     }
   };
@@ -201,8 +201,25 @@ private:
         std::unordered_map<const clang::VarDecl*, VarData>();
     VarsData* prev = nullptr;
 
-    VarsData() {}
-    VarsData(VarsData& other) : data(other.data), prev(other.prev) {}
+    VarsData() = default;
+    VarsData(const VarsData& other) = default;
+    VarsData(VarsData&& other) noexcept : data(std::move(other.data)), prev(other.prev) {}
+    VarsData& operator=(const VarsData& other) {
+      if (&data != &other.data)
+        for (auto& pair : data)
+          pair.second.erase();
+      data = other.data;
+      prev = other.prev;
+      return *this;
+    }
+    VarsData& operator=(VarsData&& other) noexcept {
+      if (&data != &other.data)
+        for (auto& pair : data)
+          pair.second.erase();
+      data = std::move(other.data);
+      prev = other.prev;
+      return *this;
+    }
 
     ~VarsData() {
       for (auto& pair : data)
@@ -234,11 +251,11 @@ private:
   /// Note: the returned VarsData contains original data from
   /// the predecessors (NOT copies). It should not be modified.
   std::unordered_map<const clang::VarDecl*, VarData*>
-  collectDataFromPredecessors(VarsData* varsData, VarsData* limit = nullptr);
+  static collectDataFromPredecessors(VarsData* varsData, VarsData* limit = nullptr);
 
   /// Finds the lowest common ancestor of two VarsData
   /// (based on the prev field in VarsData).
-  VarsData* findLowestCommonAncestor(VarsData* varsData1, VarsData* varsData2);
+  static VarsData* findLowestCommonAncestor(VarsData* varsData1, VarsData* varsData2);
 
   /// Merges mergeData into targetData. Should be called
   /// after mergeData is passed and the corresponding CFG
@@ -260,9 +277,9 @@ private:
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
-  std::vector<short> modeStack;
+  std::vector<int> modeStack;
 
-  ASTContext* m_Context;
+  ASTContext& m_Context;
 
   /// clang::CFG of the function being analysed.
   std::unique_ptr<clang::CFG> m_CFG;
@@ -275,7 +292,7 @@ private:
   std::vector<short> blockPassCounter;
 
   /// ID of the CFG block being visited.
-  unsigned curBlockID;
+  unsigned curBlockID{};
 
   /// The set of IDs of the CFG blocks that should be visited.
   std::set<unsigned> CFGQueue;
@@ -297,7 +314,7 @@ private:
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   /// Returns the VarsData of the CFG block being visited.
-  VarsData& getCurBranch() { return *blockData[curBlockID]; }
+  VarsData& getCurBlockVarsData() { return *blockData[curBlockID]; }
 
   //// Modes Setters
   /// Sets the mode manually
@@ -315,16 +332,14 @@ private:
 
 public:
   /// Constructor
-  TBRAnalyzer(ASTContext* m_Context) : m_Context(m_Context) {
+  TBRAnalyzer(ASTContext& m_Context) : m_Context(m_Context) {
     modeStack.push_back(0);
   }
 
   /// Destructor
   ~TBRAnalyzer() {
     for (auto varsData : blockData) {
-      if (varsData) {
-        delete varsData;
-      }
+      delete varsData;
     }
   }
 
@@ -340,7 +355,7 @@ public:
   /// Visitors
   void Analyze(const clang::FunctionDecl* FD);
 
-  void VisitCFGBlock(clang::CFGBlock* block);
+  void VisitCFGBlock(const clang::CFGBlock* block);
 
   void Visit(const clang::Stmt* stmt) {
     clang::ConstStmtVisitor<TBRAnalyzer, void>::Visit(stmt);
