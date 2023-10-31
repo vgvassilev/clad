@@ -83,25 +83,14 @@ private:
 
   /// Stores all the necessary information about one variable. Fundamental type
   /// variables need only one bit. An object/array needs a separate VarData for
-  /// every its field/element. Reference type variables have their own type for
-  /// convenience reasons and just point to the corresponding VarData.
-  /// UNDEFINED is used whenever the type of a node cannot be determined.
+  /// each field/element. Reference type variables store the clang::Expr* they
+  /// refer to. UNDEFINED is used whenever the type of a node cannot be determined.
 
   /// FIXME: Pointers to objects are considered OBJ_TYPE for simplicity. This
   /// approach might cause problems when the support for pointers is added.
 
-  /// FIXME: Only References to concrete variables are supported. Using
-  /// 'double& x = (cond ? a : b);' or 'double& x = arr[n*k]' (non-const index)
-  /// will lead to unpredictable behavior.
-
-  /// FIXME: Different array elements are considered different variables
-  /// which makes the analysis way more complicated (both in terms of
-  /// readability and performance) when non-constant indices are used. Moreover,
-  /// in such cases we start assuming 'arr[k]' could be any element of arr.
-  /// The only scenario where analysing elements separately would make sense is
-  /// when an element with the same constant index is changed multiple times in
-  /// a row, which seems uncommon. It's worth considering analysing arrays as
-  /// whole structures instead (just one VarData for the whole array).
+  /// FIXME: Add support for references to call expression results.
+  /// 'double& x = f(b);' is not supported.
 
   struct VarData;
   using ObjMap = std::unordered_map<const clang::FieldDecl*, VarData>;
@@ -338,9 +327,8 @@ public:
 
   /// Destructor
   ~TBRAnalyzer() {
-    for (auto varsData : blockData) {
-      delete varsData;
-    }
+    for (const auto* varsData : blockData)
+        delete varsData;
   }
 
   /// Delete copy/move operators and constructors.
