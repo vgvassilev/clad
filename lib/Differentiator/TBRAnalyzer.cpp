@@ -7,10 +7,7 @@ namespace clad {
 void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
   if (varData.type == VarData::FUND_TYPE)
     varData.val.m_FundData = isReq;
-  else if (varData.type == VarData::OBJ_TYPE)
-    for (auto& pair : *varData.val.m_ObjData)
-      setIsRequired(pair.second, isReq);
-  else if (varData.type == VarData::ARR_TYPE)
+  else if (varData.type == VarData::OBJ_TYPE || varData.type == VarData::ARR_TYPE)
     for (auto& pair : *varData.val.m_ArrData)
       setIsRequired(pair.second, isReq);
   else if (varData.type == VarData::REF_TYPE && varData.val.m_RefData)
@@ -24,8 +21,8 @@ void TBRAnalyzer::merge(VarData& targetData, VarData& mergeData) {
     targetData.val.m_FundData =
         targetData.val.m_FundData || mergeData.val.m_FundData;
   } else if (targetData.type == VarData::OBJ_TYPE) {
-    for (auto& pair : *targetData.val.m_ObjData)
-      merge(pair.second, (*mergeData.val.m_ObjData)[pair.first]);
+    for (auto& pair : *targetData.val.m_ArrData)
+      merge(pair.second, (*mergeData.val.m_ArrData)[pair.first]);
   } else if (targetData.type == VarData::ARR_TYPE) {
     /// FIXME: Currently non-constant indices are not supported in merging.
     for (auto& pair : *targetData.val.m_ArrData) {
@@ -49,11 +46,7 @@ TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
   res.type = copyData.type;
   if (copyData.type == VarData::FUND_TYPE) {
     res.val.m_FundData = copyData.val.m_FundData;
-  } else if (copyData.type == VarData::OBJ_TYPE) {
-    res.val.m_ObjData = new ObjMap();
-    for (auto& pair : *copyData.val.m_ObjData)
-      (*res.val.m_ObjData)[pair.first] = copy(pair.second);
-  } else if (copyData.type == VarData::ARR_TYPE) {
+  } else if (copyData.type == VarData::OBJ_TYPE || copyData.type == VarData::ARR_TYPE) {
     res.val.m_ArrData = new ArrMap();
     for (auto& pair : *copyData.val.m_ArrData)
       (*res.val.m_ArrData)[pair.first] = copy(pair.second);
@@ -66,11 +59,7 @@ TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
 bool TBRAnalyzer::findReq(const VarData& varData) {
   if (varData.type == VarData::FUND_TYPE)
     return varData.val.m_FundData;
-  if (varData.type == VarData::OBJ_TYPE) {
-    for (auto& pair : *varData.val.m_ObjData)
-      if (findReq(pair.second))
-        return true;
-  } else if (varData.type == VarData::ARR_TYPE) {
+  if (varData.type == VarData::OBJ_TYPE || varData.type == VarData::ARR_TYPE) {
     for (auto& pair : *varData.val.m_ArrData)
       if (findReq(pair.second))
         return true;
@@ -86,23 +75,20 @@ bool TBRAnalyzer::findReq(const VarData& varData) {
 
 void TBRAnalyzer::overlay(
     VarData& targetData,
-    llvm::SmallVector<IdxOrMember, 2>& IdxAndMemberSequence, size_t i) {
+    llvm::SmallVector<ProfileID, 2>& IDSequence, size_t i) {
   if (i == 0) {
     setIsRequired(targetData);
     return;
   }
   --i;
-  IdxOrMember& curIdxOrMember = IdxAndMemberSequence[i];
-  if (curIdxOrMember.type == IdxOrMember::IdxOrMemberType::FIELD) {
-    overlay((*targetData.val.m_ObjData)[curIdxOrMember.val.field],
-            IdxAndMemberSequence, i);
-  } else if (curIdxOrMember.type == IdxOrMember::IdxOrMemberType::INDEX) {
-    auto idx = curIdxOrMember.val.index;
-    if (eqAPInt(idx, llvm::APInt(2, -1, true)))
-      for (auto& pair : *targetData.val.m_ArrData)
-        overlay(pair.second, IdxAndMemberSequence, i);
-    else
-      overlay((*targetData.val.m_ArrData)[idx], IdxAndMemberSequence, i);
+  ProfileID& curID = IDSequence[i];
+  // non-constant indices are represented with default ID.
+  ProfileID nonConstIdxID;
+  if (curID == nonConstIdxID) {
+    for (auto& pair : *targetData.val.m_ArrData)
+      overlay(pair.second, IDSequence, i);
+  } else {
+    overlay((*targetData.val.m_ArrData)[curID], IDSequence, i);
   }
 }
 
@@ -120,7 +106,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
     if (nonConstIndexFound && !addNonConstIdx)
       return baseData;
 
-    return &(*baseData->val.m_ObjData)[FD];
+    return &(*baseData->val.m_ArrData)[getProfileID(FD)];
   }
   return nullptr;
 }
@@ -129,13 +115,12 @@ TBRAnalyzer::VarData*
 TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
                               bool addNonConstIdx) {
   const auto* idxExpr = ASE->getIdx();
-  llvm::APInt idx;
+  ProfileID idxID;
   if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr)) {
-    idx = IL->getValue();
+    idxID = getProfileID(IL);
   } else {
     nonConstIndexFound = true;
-    /// Non-const indices are represented with -1.
-    idx = llvm::APInt(2, -1, true);
+    /// Non-const indices are represented with default FoldingSetNodeID.
   }
 
   const auto* base = ASE->getBase()->IgnoreImpCasts();
@@ -150,15 +135,16 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
     return baseData;
 
   auto* baseArrMap = baseData->val.m_ArrData;
-  auto it = baseArrMap->find(idx);
+  auto it = baseArrMap->find(idxID);
 
   /// Add the current index if it was not added previously
   if (it == baseArrMap->end()) {
-    auto& idxData = (*baseArrMap)[idx];
-    /// Since -1 represents non-const indices, whenever we add a new index we
-    /// have to copy the VarData of -1's element (if an element with undefined
-    /// index was used this might be our current element).
-    idxData = copy((*baseArrMap)[llvm::APInt(2, -1, true)]);
+    auto& idxData = (*baseArrMap)[idxID];
+    /// Since default ID represents non-const indices, whenever we add a new
+    /// index we have to copy the VarData of default ID's element (if an element
+    /// with undefined index was used this might be our current element).
+    ProfileID nonConstIdxID;
+    idxData = copy((*baseArrMap)[nonConstIdxID]);
     return &idxData;
   }
 
@@ -209,7 +195,8 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
       elemType = pointerType->getPointeeType().getTypePtrOrNull();
     else
       elemType = QT->getArrayElementTypeNoTypeQual();
-    auto& idxData = (*val.m_ArrData)[llvm::APInt(2, -1, true)];
+    ProfileID nonConstIdxID;
+    auto& idxData = (*val.m_ArrData)[nonConstIdxID];
     idxData = VarData (QualType::getFromOpaquePtr(elemType));
   } else if (QT->isBuiltinType()) {
     type = VarData::FUND_TYPE;
@@ -217,18 +204,18 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
   } else if (QT->isRecordType()) {
     type = VarData::OBJ_TYPE;
     const auto* recordDecl = QT->getAs<RecordType>()->getDecl();
-    auto& newObjMap = val.m_ObjData;
-    newObjMap = new ObjMap();
+    auto& newArrMap = val.m_ArrData;
+    newArrMap = new ArrMap();
     for (const auto* field : recordDecl->fields()) {
       const auto varType = field->getType();
-      (*newObjMap)[field] = VarData(varType);
+      (*newArrMap)[getProfileID(field)] = VarData(varType);
     }
   }
 }
 
 void TBRAnalyzer::overlay(const clang::Expr* E) {
   nonConstIndexFound = false;
-  llvm::SmallVector<IdxOrMember, 2> IdxAndMemberSequence;
+  llvm::SmallVector<ProfileID, 2> IDSequence;
   const clang::DeclRefExpr* innermostDRE;
   bool cond = true;
   /// Unwrap the given expression to a vector of indices and fields.
@@ -236,13 +223,13 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
     E = E->IgnoreImplicit();
     if (const auto* ASE = dyn_cast<clang::ArraySubscriptExpr>(E)) {
       if (const auto* IL = dyn_cast<clang::IntegerLiteral>(ASE->getIdx()))
-        IdxAndMemberSequence.push_back(IdxOrMember(IL->getValue()));
+        IDSequence.push_back(getProfileID(IL));
       else
-        IdxAndMemberSequence.push_back(IdxOrMember(llvm::APInt(2, -1, true)));
+        IDSequence.push_back(ProfileID());
       E = ASE->getBase();
     } else if (const auto* ME = dyn_cast<clang::MemberExpr>(E)) {
       if (const auto* FD = dyn_cast<clang::FieldDecl>(ME->getMemberDecl()))
-        IdxAndMemberSequence.push_back(IdxOrMember(FD));
+        IDSequence.push_back(getProfileID(FD));
       E = ME->getBase();
     } else if (isa<clang::DeclRefExpr>(E)) {
       innermostDRE = dyn_cast<clang::DeclRefExpr>(E);
@@ -253,8 +240,7 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
 
   /// Overlay on all the VarData's recursively.
   if (const auto* VD = dyn_cast<clang::VarDecl>(innermostDRE->getDecl())) {
-    overlay(getCurBlockVarsData()[VD], IdxAndMemberSequence,
-            IdxAndMemberSequence.size());
+    overlay(getCurBlockVarsData()[VD], IDSequence, IDSequence.size());
   }
 }
 
@@ -571,7 +557,8 @@ void TBRAnalyzer::VisitDeclRefExpr(const DeclRefExpr* DRE) {
       addVar(VD);
   }
 
-  setIsRequired(DRE);
+  if (const auto* E = dyn_cast<clang::Expr>(DRE))
+    setIsRequired(E);
 }
 
 void TBRAnalyzer::VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE) {
@@ -803,7 +790,7 @@ void TBRAnalyzer::VisitCXXConstructExpr(const clang::CXXConstructExpr* CE) {
 }
 
 void TBRAnalyzer::VisitMemberExpr(const clang::MemberExpr* ME) {
-  setIsRequired(ME);
+  setIsRequired(dyn_cast<clang::Expr>(ME));
 }
 
 void TBRAnalyzer::VisitArraySubscriptExpr(
@@ -811,7 +798,7 @@ void TBRAnalyzer::VisitArraySubscriptExpr(
   setMode(0);
   Visit(ASE->getBase());
   resetMode();
-  setIsRequired(ASE);
+  setIsRequired(dyn_cast<clang::Expr>(ASE));
   setMode(Mode::markingMode | Mode::nonLinearMode);
   Visit(ASE->getIdx());
   resetMode();

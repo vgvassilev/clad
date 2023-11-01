@@ -16,69 +16,27 @@ namespace clad {
 
 class TBRAnalyzer : public clang::ConstStmtVisitor<TBRAnalyzer> {
 private:
-  /// Used to provide a hash function for an unordered_map with llvm::APInt
-  /// type keys.
-  struct APIntHash {
-    size_t operator()(const llvm::APInt& x) const {
-      return llvm::hash_value(x);
-    }
-  };
 
-  static bool eqAPInt(const llvm::APInt& x, const llvm::APInt& y) {
-    if (x.getBitWidth() != y.getBitWidth())
-      return false;
-    return x == y;
+  /// ProfileID is the key type for ArrMap used to represent array indices
+  /// and object fields.
+  using ProfileID = clad_compat::FoldingSetNodeID;
+
+  ProfileID getProfileID(const Expr* E) const{
+    ProfileID profID;
+    E->Profile(profID, m_Context, /* Canonical */ true);
+    return profID;
   }
 
-  struct APIntComp {
-    bool operator()(const llvm::APInt& x, const llvm::APInt& y) const {
-      return eqAPInt(x, y);
-    }
-  };
+  static ProfileID getProfileID(const FieldDecl* FD) {
+    ProfileID profID;
+    profID.AddPointer(FD);
+    return profID;
+  }
 
-  /// Just a helper struct serving as a wrapper for IdxOrMemberValue union.
-  /// Used to unwrap expressions like a[6].x.t[3]. Only used in
-  /// TBRAnalyzer::overlay().
-  struct IdxOrMember {
-    enum IdxOrMemberType { FIELD, INDEX };
-    union IdxOrMemberValue {
-      const clang::FieldDecl* field;
-      llvm::APInt index;
-      IdxOrMemberValue() : field(nullptr) {}
-      ~IdxOrMemberValue() {}
-      IdxOrMemberValue(const IdxOrMemberValue&) = delete;
-      IdxOrMemberValue& operator=(const IdxOrMemberValue&) = delete;
-      IdxOrMemberValue(const IdxOrMemberValue&&) = delete;
-      IdxOrMemberValue& operator=(const IdxOrMemberValue&&) = delete;
-    };
-    IdxOrMemberType type;
-    IdxOrMemberValue val;
-    IdxOrMember(const clang::FieldDecl* field) : type(IdxOrMemberType::FIELD) {
-      val.field = field;
+  struct ProfileIDHash {
+    size_t operator()(const ProfileID& x) const {
+      return x.ComputeHash();
     }
-    IdxOrMember(llvm::APInt&& index) : type(IdxOrMemberType::INDEX) {
-      new (&val.index) llvm::APInt(index);
-    }
-    IdxOrMember(const IdxOrMember& other) {
-      new (&val.index) llvm::APInt();
-      *this = other;
-    }
-    IdxOrMember(const IdxOrMember&& other) noexcept {
-      new (&val.index) llvm::APInt();
-      *this = other;
-    }
-    IdxOrMember& operator=(const IdxOrMember& other) {
-      type = other.type;
-      if (type == IdxOrMemberType::FIELD)
-        val.field = other.val.field;
-      else
-        val.index = other.val.index;
-      return *this;
-    }
-    IdxOrMember& operator=(const IdxOrMember&& other) noexcept {
-      return *this = other;
-    }
-    ~IdxOrMember() = default;
   };
 
   /// Stores all the necessary information about one variable. Fundamental type
@@ -93,17 +51,16 @@ private:
   /// 'double& x = f(b);' is not supported.
 
   struct VarData;
-  using ObjMap = std::unordered_map<const clang::FieldDecl*, VarData>;
   using ArrMap =
-      std::unordered_map<const llvm::APInt, VarData, APIntHash, APIntComp>;
+      std::unordered_map<const ProfileID, VarData, ProfileIDHash>;
 
   struct VarData {
     enum VarDataType { UNDEFINED, FUND_TYPE, OBJ_TYPE, ARR_TYPE, REF_TYPE };
     union VarDataValue {
       bool m_FundData;
-      /// m_ObjData, m_ArrData are stored as pointers for VarDataValue to take
+      /// m_ArrData is stored as pointers for VarDataValue to take
       /// less space.
-      ObjMap* m_ObjData;
+      /// Both arrays and and objects are modelled using m_ArrData;
       ArrMap* m_ArrData;
       Expr* m_RefData;
       VarDataValue() : m_FundData(false) {}
@@ -117,12 +74,8 @@ private:
     VarData(QualType QT);
 
     /// Erases all children VarData's of this VarData.
-    void erase() {
-      if (type == OBJ_TYPE) {
-        for (auto& pair : *val.m_ObjData)
-          pair.second.erase();
-        delete val.m_ObjData;
-      } else if (type == ARR_TYPE) {
+    void erase() const {
+      if (type == OBJ_TYPE || type == ARR_TYPE) {
         for (auto& pair : *val.m_ArrData)
           pair.second.erase();
         delete val.m_ArrData;
@@ -138,7 +91,7 @@ private:
   /// indices/members of the expression being overlaid and the index of of the
   /// current index/member.
   void overlay(VarData& targetData,
-               llvm::SmallVector<IdxOrMember, 2>& IdxAndMemberSequence,
+               llvm::SmallVector<ProfileID, 2>& IDSequence,
                size_t i);
   /// Returns true if there is at least one required to store node among
   /// child nodes.
