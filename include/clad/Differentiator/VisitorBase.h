@@ -560,7 +560,7 @@ namespace clad {
     clang::Expr* Clone(const clang::Expr* E);
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
-    clang::QualType CloneType(const clang::QualType T);
+    clang::QualType CloneType(clang::QualType T);
   };
 } // end namespace clad
 
