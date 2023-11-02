@@ -2534,11 +2534,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Here separate behaviour for record and non-record types is only
     // necessary to preserve the old tests.
     if (VD->getType()->isRecordType())
-      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit(),
                              VD->getTypeSourceInfo(), VD->getInitStyle());
     else
-      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit());
     Expr* derivedVDE = BuildDeclRef(VDDerived);
 

@@ -48,8 +48,12 @@ namespace utils {
     template<class StmtTy>
     StmtTy* Clone(const StmtTy* S);
 
-  // visitor part (not for public use)
-  // Stmt.def could be used if ABSTR_STMT is introduced
+    /// Cloning types is necessary since VariableArrayType
+    /// store a pointer to their size expression.
+    clang::QualType CloneType(const clang::QualType T);
+
+    // visitor part (not for public use)
+    // Stmt.def could be used if ABSTR_STMT is introduced
 #define DECLARE_CLONE_FN(CLASS) clang::Stmt* Visit ## CLASS(clang::CLASS *Node);
     DECLARE_CLONE_FN(BinaryOperator)
     DECLARE_CLONE_FN(UnaryOperator)
@@ -153,6 +157,10 @@ namespace utils {
     ReferencesUpdater(clang::Sema& SemaRef, clang::Scope* S,
                       const clang::FunctionDecl* FD);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    bool VisitStmt(clang::Stmt* S);
+    /// Used to update the size expression of QT
+    /// if QT is VariableArrayType.
+    void updateType(clang::QualType QT);
   };
 } // namespace utils
 } // namespace clad

@@ -301,6 +301,12 @@ namespace clad {
     return llvm::cast<Expr>(Clone(S));
   }
 
+  QualType VisitorBase::CloneType(const QualType QT) {
+    auto clonedType = m_Builder.m_NodeCloner->CloneType(QT);
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function);
+    up.updateType(clonedType);
+    return clonedType;
+  }
   Expr* VisitorBase::BuildOp(UnaryOperatorKind OpCode, Expr* E,
                              SourceLocation OpLoc) {
     if (!E)
