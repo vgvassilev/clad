@@ -50,7 +50,7 @@ namespace utils {
 
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
-    clang::QualType CloneType(const clang::QualType T);
+    clang::QualType CloneType(clang::QualType T);
 
     // visitor part (not for public use)
     // Stmt.def could be used if ABSTR_STMT is introduced

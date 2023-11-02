@@ -62,7 +62,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
   clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
-
+// NOLINTBEGIN(modernize-use-auto)
 DEFINE_CLONE_EXPR_CO11(
     BinaryOperator,
     (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getLHS()),
@@ -128,29 +128,29 @@ DEFINE_CLONE_EXPR(CompoundLiteralExpr,
 DEFINE_CREATE_EXPR(
     ImplicitCastExpr,
     (Ctx, CloneType(Node->getType()), Node->getCastKind(),
-     Clone(Node->getSubExpr()), 0,
+     Clone(Node->getSubExpr()), nullptr,
      Node->getValueKind() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node)))
 DEFINE_CREATE_EXPR(CStyleCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
                     Node->getCastKind(), Clone(Node->getSubExpr()),
-                    0 /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
+                    nullptr /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
                     Node->getTypeInfoAsWritten(), Node->getLParenLoc(),
                     Node->getRParenLoc()))
 DEFINE_CREATE_EXPR(
     CXXStaticCastExpr,
     (Ctx, CloneType(Node->getType()), Node->getValueKind(), Node->getCastKind(),
-     Clone(Node->getSubExpr()), 0,
+     Clone(Node->getSubExpr()), nullptr,
      Node->getTypeInfoAsWritten() /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(
          Node),
      Node->getOperatorLoc(), Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXDynamicCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Node->getCastKind(), Clone(Node->getSubExpr()), 0,
+                    Node->getCastKind(), Clone(Node->getSubExpr()), nullptr,
                     Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
                     Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXReinterpretCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
-                    Node->getCastKind(), Clone(Node->getSubExpr()), 0,
+                    Node->getCastKind(), Clone(Node->getSubExpr()), nullptr,
                     Node->getTypeInfoAsWritten(), Node->getOperatorLoc(),
                     Node->getRParenLoc(), Node->getAngleBrackets()))
 DEFINE_CREATE_EXPR(CXXConstCastExpr,
@@ -170,7 +170,7 @@ DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
                    (Ctx, CloneType(Node->getType()), Node->getValueKind(),
                     Node->getTypeInfoAsWritten(), Node->getCastKind(),
                     Clone(Node->getSubExpr()),
-                    0 /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
+                    nullptr /*EP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node),
                     Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
                                       Node->cleanupsHaveSideEffects(), {}))
@@ -247,8 +247,9 @@ DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                    Node->getPackIndex(), Node->isReferenceParameter()));
 #endif
 DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::SmallVector<Expr*, 4>(Node->semantics_begin(), Node->semantics_end()), Node->getResultExprIndex()))
-//BlockExpr
-//BlockDeclRefExpr
+// NOLINTEND(modernize-use-auto)
+// BlockExpr
+// BlockDeclRefExpr
 
 Stmt* StmtClone::VisitStringLiteral(StringLiteral* Node) {
   llvm::SmallVector<SourceLocation, 4> concatLocations(Node->tokloc_begin(),
@@ -543,7 +544,7 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 }
 
 void ReferencesUpdater::updateType(QualType QT) {
-  if (auto* varArrType = dyn_cast<VariableArrayType>(QT))
+  if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
 }
 
