@@ -47,7 +47,7 @@ TBRAnalyzer::VarData TBRAnalyzer::copy(VarData& copyData) {
   if (copyData.type == VarData::FUND_TYPE) {
     res.val.m_FundData = copyData.val.m_FundData;
   } else if (copyData.type == VarData::OBJ_TYPE || copyData.type == VarData::ARR_TYPE) {
-    res.val.m_ArrData = new ArrMap();
+    res.val.m_ArrData = std::unique_ptr<ArrMap>(new ArrMap());
     for (auto& pair : *copyData.val.m_ArrData)
       (*res.val.m_ArrData)[pair.first] = copy(pair.second);
   } else if (copyData.type == VarData::REF_TYPE && copyData.val.m_RefData) {
@@ -134,7 +134,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
   if (nonConstIndexFound && !addNonConstIdx)
     return baseData;
 
-  auto* baseArrMap = baseData->val.m_ArrData;
+  auto* baseArrMap = baseData->val.m_ArrData.get();
   auto it = baseArrMap->find(idxID);
 
   /// Add the current index if it was not added previously
@@ -189,7 +189,7 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
     val.m_RefData = nullptr;
   } else if (utils::isArrayOrPointerType(QT)) {
     type = VarData::ARR_TYPE;
-    val.m_ArrData = new ArrMap();
+    val.m_ArrData = std::unique_ptr<ArrMap>(new ArrMap());
     const Type* elemType;
     if (const auto* const pointerType = llvm::dyn_cast<clang::PointerType>(QT))
       elemType = pointerType->getPointeeType().getTypePtrOrNull();
@@ -205,7 +205,7 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
     type = VarData::OBJ_TYPE;
     const auto* recordDecl = QT->getAs<RecordType>()->getDecl();
     auto& newArrMap = val.m_ArrData;
-    newArrMap = new ArrMap();
+    newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
     for (const auto* field : recordDecl->fields()) {
       const auto varType = field->getType();
       (*newArrMap)[getProfileID(field)] = VarData(varType);
@@ -317,13 +317,13 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   clang::CFG::BuildOptions Options;
   m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
 
-  blockData.resize(m_CFG->size(), nullptr);
+  blockData.resize(m_CFG->size());
   blockPassCounter.resize(m_CFG->size(), 0);
 
   /// Set current block ID to the ID of entry the block.
   auto* entry = &m_CFG->getEntry();
   curBlockID = entry->getBlockID();
-  blockData[curBlockID] = new VarsData();
+  blockData[curBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
   /// If we are analysing a method, add a VarData for 'this' pointer
   /// (it is represented with nullptr).
@@ -379,14 +379,14 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock* block) {
     /// are never executed (e.g. 'if (0) {...'). Add this check for safety.
     if (!succ)
       continue;
-    auto*& varsData = blockData[succ->getBlockID()];
+    auto& varsData = blockData[succ->getBlockID()];
 
     /// Create VarsData for the succ branch if it hasn't been done previously.
     /// If the successor doesn't have a VarsData, assign it and attach the
     /// current block as previous.
     if (!varsData) {
-      varsData = new VarsData();
-      varsData->prev = blockData[block->getBlockID()];
+      varsData = std::unique_ptr<VarsData>(new VarsData());
+      varsData->prev = blockData[block->getBlockID()].get();
     }
 
     /// If this is the third (last) pass of block, it means block represents
@@ -410,8 +410,8 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock* block) {
 
     /// If the successor's previous block is not this one,
     /// perform a merge.
-    if (varsData->prev != blockData[block->getBlockID()]) {
-        merge(varsData, blockData[block->getBlockID()]);
+    if (varsData->prev != blockData[block->getBlockID()].get()) {
+        merge(varsData.get(), blockData[block->getBlockID()].get());
     }
   }
   //    llvm::errs() << "----------------\n\n";
@@ -610,18 +610,17 @@ void TBRAnalyzer::VisitConditionalOperator(
   Visit(CO->getCond());
   resetMode();
 
-  auto* elseBranch = blockData[curBlockID];
-  auto* thenBranch = new VarsData();
-  thenBranch->prev = elseBranch;
+  auto elseBranch = std::move(blockData[curBlockID]);
 
-  blockData[curBlockID] = thenBranch;
+  blockData[curBlockID] = std::unique_ptr<VarsData>(new VarsData());
+  blockData[curBlockID]->prev = elseBranch.get();
   Visit(CO->getTrueExpr());
 
-  blockData[curBlockID] = elseBranch;
-  Visit(CO->getFalseExpr());
+  auto thenBranch = std::move(blockData[curBlockID]);
+  blockData[curBlockID] = std::move(elseBranch);
+  Visit(CO->getTrueExpr());
 
-  merge(elseBranch, thenBranch);
-  delete thenBranch;
+  merge(blockData[curBlockID].get(), thenBranch.get());
 }
 
 void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {

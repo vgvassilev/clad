@@ -61,24 +61,43 @@ private:
       /// m_ArrData is stored as pointers for VarDataValue to take
       /// less space.
       /// Both arrays and and objects are modelled using m_ArrData;
-      ArrMap* m_ArrData;
+      std::unique_ptr<ArrMap> m_ArrData;
       Expr* m_RefData;
-      VarDataValue() : m_FundData(false) {}
+      VarDataValue() : m_ArrData(nullptr) {}
+      ~VarDataValue() {}
     };
     VarDataType type = UNDEFINED;
     VarDataValue val;
 
     VarData() = default;
+    VarData(const VarData& other) = delete;
+    VarData(VarData&& other) noexcept: type(other.type) {
+      *this = std::move(other);
+    }
+    VarData& operator=(const VarData& other) = delete;
+    VarData& operator=(VarData&& other) noexcept {
+      if (this!=&other) {
+        type = other.type;
+        if (type == FUND_TYPE) {
+          val.m_FundData = other.val.m_FundData;
+        } else if (type == OBJ_TYPE || type == ARR_TYPE) {
+          val.m_ArrData = std::move(other.val.m_ArrData);
+          other.val.m_ArrData = nullptr;
+        } else if (type == REF_TYPE) {
+          val.m_RefData = other.val.m_RefData;
+        }
+        other.type = UNDEFINED;
+      }
+      return *this;
+    }
 
     /// Builds a VarData object (and its children) based on the provided type.
     VarData(QualType QT);
 
     /// Erases all children VarData's of this VarData.
-    void erase() const {
+    ~VarData() {
       if (type == OBJ_TYPE || type == ARR_TYPE) {
-        for (auto& pair : *val.m_ArrData)
-          pair.second.erase();
-        delete val.m_ArrData;
+        val.m_ArrData.reset();
       }
     }
   };
@@ -139,33 +158,19 @@ private:
   /// Note: 'this' pointer does not have a declaration so nullptr is used as
   /// its key instead.
   struct VarsData {
-    std::unordered_map<const clang::VarDecl*, VarData> data =
-        std::unordered_map<const clang::VarDecl*, VarData>();
+    std::unordered_map<const clang::VarDecl*, VarData> data;
     VarsData* prev = nullptr;
 
     VarsData() = default;
     VarsData(const VarsData& other) = default;
-    VarsData(VarsData&& other) noexcept : data(std::move(other.data)), prev(other.prev) {}
-    VarsData& operator=(const VarsData& other) {
-      if (&data != &other.data)
-        for (auto& pair : data)
-          pair.second.erase();
-      data = other.data;
-      prev = other.prev;
-      return *this;
-    }
+    VarsData(VarsData&& other): data(std::move(other.data)), prev(other.prev) {}
+    VarsData& operator=(const VarsData& other) = delete;
     VarsData& operator=(VarsData&& other) noexcept {
-      if (&data != &other.data)
-        for (auto& pair : data)
-          pair.second.erase();
-      data = std::move(other.data);
-      prev = other.prev;
+      if (&data == &other.data) {
+        data = std::move(other.data);
+        prev = other.prev;
+      }
       return *this;
-    }
-
-    ~VarsData() {
-      for (auto& pair : data)
-        pair.second.erase();
     }
 
     using iterator =
@@ -174,12 +179,6 @@ private:
     iterator end() { return data.end(); }
     VarData& operator[](const clang::VarDecl* VD) { return data[VD]; }
     iterator find(const clang::VarDecl* VD) { return data.find(VD); }
-    void emplace(const clang::VarDecl* VD, VarData varsData) {
-      data.emplace(VD, varsData);
-    }
-    void emplace(std::pair<const clang::VarDecl*, VarData> pair) {
-      data.emplace(pair);
-    }
     void clear() {
         data.clear();
     }
@@ -228,7 +227,7 @@ private:
 
   /// Stores VarsData structures for CFG blocks (the indices in
   /// the vector correspond to CFG blocks' IDs)
-  std::vector<VarsData*> blockData;
+  std::vector<std::unique_ptr<VarsData>> blockData;
 
   /// Stores the number of performed passes for a given CFG block index.
   std::vector<short> blockPassCounter;
@@ -279,10 +278,7 @@ public:
   }
 
   /// Destructor
-  ~TBRAnalyzer() {
-    for (const auto* varsData : blockData)
-        delete varsData;
-  }
+  ~TBRAnalyzer() = default;
 
   /// Delete copy/move operators and constructors.
   TBRAnalyzer(const TBRAnalyzer&) = delete;
