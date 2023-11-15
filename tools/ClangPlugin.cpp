@@ -143,6 +143,12 @@ namespace clad {
       if (requests.empty())
         return true;
 
+      // FIXME: flags have to be set manually since DiffCollector's constructor
+      // does not have access to m_DO.
+      if (m_DO.EnableTBRAnalysis)
+        for (DiffRequest& request : requests)
+          request.EnableTBRAnalysis = true;
+
       // FIXME: Remove the PerformPendingInstantiations altogether. We should
       // somehow make the relevant functions referenced.
       // Instantiate all pending for instantiations templates, because we will

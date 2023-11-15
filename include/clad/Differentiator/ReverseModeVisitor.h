@@ -64,6 +64,7 @@ namespace clad {
     unsigned numParams = 0;
     bool isVectorValued = false;
     bool use_enzyme = false;
+    bool enableTBR = false;
     // FIXME: Should we make this an object instead of a pointer?
     // Downside of making it an object: We will need to include
     // 'MultiplexExternalRMVSource.h' file

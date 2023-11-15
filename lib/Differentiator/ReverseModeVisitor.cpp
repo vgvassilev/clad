@@ -292,6 +292,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
     }
 
+    // Check if DiffRequest asks for TBR analysis to be enabled
+    if (request.EnableTBRAnalysis)
+      enableTBR = true;
+
     // Check if DiffRequest asks for use of enzyme as backend
     if (request.use_enzyme)
       use_enzyme = true;
@@ -454,9 +458,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
+    if (request.EnableTBRAnalysis)
+      enableTBR = true;
     TBRAnalyzer analyzer(m_Context);
-    analyzer.Analyze(FD);
-    m_ToBeRecorded = analyzer.getResult();
+    if (enableTBR) {
+      analyzer.Analyze(FD);
+      m_ToBeRecorded = analyzer.getResult();
+    }
 
     // for (auto pair : m_ToBeRecorded) {
     //   auto line =
@@ -570,8 +578,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   void ReverseModeVisitor::DifferentiateWithClad() {
     TBRAnalyzer analyzer(m_Context);
-    analyzer.Analyze(m_Function);
-    m_ToBeRecorded = analyzer.getResult();
+    if (enableTBR) {
+      analyzer.Analyze(m_Function);
+      m_ToBeRecorded = analyzer.getResult();
+    }
 
     // for (auto pair : m_ToBeRecorded) {
     //   auto line =
@@ -1862,6 +1872,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackRequest.Mode = DiffMode::experimental_pullback;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
+        pullbackRequest.EnableTBRAnalysis = enableTBR;
         FunctionDecl* pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If
@@ -2830,7 +2841,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // We lack context to decide if this is useful to store or not. In the
     // current system that should have been decided by the parent expression.
     // FIXME: Here will be the entry point of the advanced activity analysis.
-    if (isa<DeclRefExpr>(B) || isa<ArraySubscriptExpr>(B)) {
+    if (isa<DeclRefExpr>(B) || isa<ArraySubscriptExpr>(B) || isa<MemberExpr>(B)) {
+      // If TBR analysis is off, assume E is useful to store.
+      if (!enableTBR)
+        return true;
       auto found = m_ToBeRecorded.find(B->getBeginLoc());
       return found != m_ToBeRecorded.end();
     }

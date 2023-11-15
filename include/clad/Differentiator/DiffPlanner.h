@@ -43,6 +43,8 @@ namespace clad {
     bool CallUpdateRequired = false;
     /// A flag to enable/disable diag warnings/errors during differentiation.
     bool VerboseDiags = false;
+    /// A flag to enable TBR analysis during reverse-mode differentiation.
+    bool EnableTBRAnalysis = false;
     /// Puts the derived function and its code in the diff call
     void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                     clang::Sema& SemaRef);
