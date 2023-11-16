@@ -163,7 +163,7 @@ private:
 
     VarsData() = default;
     VarsData(const VarsData& other) = default;
-    VarsData(VarsData&& other): data(std::move(other.data)), prev(other.prev) {}
+    VarsData(VarsData&& other) noexcept : data(std::move(other.data)), prev(other.prev) {}
     VarsData& operator=(const VarsData& other) = delete;
     VarsData& operator=(VarsData&& other) noexcept {
       if (&data == &other.data) {

@@ -2977,7 +2977,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this, StmtDiff{Cloned, Cloned},
                                 /*isConstant*/ isConst,
                                 /*isInsideLoop*/ false,
-                                /*needsUpdate=*/ false};
+                                /*pNeedsUpdate=*/ false};
     }
     if (isInsideLoop) {
       Expr* dummy = E;
@@ -2987,7 +2987,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this,
                                 StmtDiff{Push, Pop},
                                 /*isConstant*/ false,
-                                /*isInsideLoop*/ true, /*needsUpdate=*/ true};
+                                /*isInsideLoop*/ true, /*pNeedsUpdate=*/ true};
     }
     Expr* Ref = BuildDeclRef(GlobalStoreImpl(
         getNonConstType(E->getType(), m_Context, m_Sema), prefix));
@@ -2995,7 +2995,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return DelayedStoreResult{*this,
                               StmtDiff{Ref, Ref},
                               /*isConstant*/ false,
-                              /*isInsideLoop*/ false, /*needsUpdate=*/ true};
+                              /*isInsideLoop*/ false, /*pNeedsUpdate=*/ true};
   }
 
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
