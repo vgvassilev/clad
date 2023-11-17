@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oNestedFunctionCalls.out 2>&1 | FileCheck %s
 // RUN: ./NestedFunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oNestedFunctionCalls.out
+// RUN: ./NestedFunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -35,50 +37,38 @@ double f2(double x, double y){
 // CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     double _t6;
-// CHECK-NEXT:     double _t7;
-// CHECK-NEXT:     double _t8;
-// CHECK-NEXT:     double _t9;
-// CHECK-NEXT:     double _t10;
-// CHECK-NEXT:     double _t11;
-// CHECK-NEXT:     _t1 = x;
 // CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t3 = y;
-// CHECK-NEXT:     _t2 = y;
-// CHECK-NEXT:     _t5 = _d_x;
-// CHECK-NEXT:     _t4 = x;
-// CHECK-NEXT:     _t7 = x;
-// CHECK-NEXT:     _t6 = _d_x;
-// CHECK-NEXT:     _t9 = _d_y;
-// CHECK-NEXT:     _t8 = y;
-// CHECK-NEXT:     _t11 = y;
-// CHECK-NEXT:     _t10 = _d_y;
+// CHECK-NEXT:     _t1 = y;
+// CHECK-NEXT:     _t2 = x;
+// CHECK-NEXT:     _t3 = _d_x;
+// CHECK-NEXT:     _t4 = y;
+// CHECK-NEXT:     _t5 = _d_y;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = _d_y0.value * _t0;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         double _r1 = _t1 * _d_y0.value;
+// CHECK-NEXT:         double _r1 = x * _d_y0.value;
 // CHECK-NEXT:         * _d_x += _r1;
-// CHECK-NEXT:         double _r2 = _d_y0.value * _t2;
+// CHECK-NEXT:         double _r2 = _d_y0.value * _t1;
 // CHECK-NEXT:         * _d_y += _r2;
-// CHECK-NEXT:         double _r3 = _t3 * _d_y0.value;
+// CHECK-NEXT:         double _r3 = y * _d_y0.value;
 // CHECK-NEXT:         * _d_y += _r3;
-// CHECK-NEXT:         double _r4 = _d_y0.pushforward * _t4;
+// CHECK-NEXT:         double _r4 = _d_y0.pushforward * _t2;
 // CHECK-NEXT:         * _d__d_x += _r4;
-// CHECK-NEXT:         double _r5 = _t5 * _d_y0.pushforward;
+// CHECK-NEXT:         double _r5 = _d_x * _d_y0.pushforward;
 // CHECK-NEXT:         * _d_x += _r5;
-// CHECK-NEXT:         double _r6 = _d_y0.pushforward * _t6;
+// CHECK-NEXT:         double _r6 = _d_y0.pushforward * _t3;
 // CHECK-NEXT:         * _d_x += _r6;
-// CHECK-NEXT:         double _r7 = _t7 * _d_y0.pushforward;
+// CHECK-NEXT:         double _r7 = x * _d_y0.pushforward;
 // CHECK-NEXT:         * _d__d_x += _r7;
-// CHECK-NEXT:         double _r8 = _d_y0.pushforward * _t8;
+// CHECK-NEXT:         double _r8 = _d_y0.pushforward * _t4;
 // CHECK-NEXT:         * _d__d_y += _r8;
-// CHECK-NEXT:         double _r9 = _t9 * _d_y0.pushforward;
+// CHECK-NEXT:         double _r9 = _d_y * _d_y0.pushforward;
 // CHECK-NEXT:         * _d_y += _r9;
-// CHECK-NEXT:         double _r10 = _d_y0.pushforward * _t10;
+// CHECK-NEXT:         double _r10 = _d_y0.pushforward * _t5;
 // CHECK-NEXT:         * _d_y += _r10;
-// CHECK-NEXT:         double _r11 = _t11 * _d_y0.pushforward;
+// CHECK-NEXT:         double _r11 = y * _d_y0.pushforward;
 // CHECK-NEXT:         * _d__d_y += _r11;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -86,20 +76,12 @@ double f2(double x, double y){
 // CHECK: void f2_darg0_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
 // CHECK-NEXT:     double _d__d_x = 0;
 // CHECK-NEXT:     double _d__d_y = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
 // CHECK-NEXT:     double _d__d_ans = 0;
 // CHECK-NEXT:     double _d_ans0 = 0;
 // CHECK-NEXT:     double _d_x0 = 1;
 // CHECK-NEXT:     double _d_y0 = 0;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t1 = y;
-// CHECK-NEXT:     _t2 = _d_x0;
-// CHECK-NEXT:     _t3 = _d_y0;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(_t0, _t1, _t2, _t3);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
 // CHECK-NEXT:     double ans = _t00.value;
 // CHECK-NEXT:     goto _label0;
@@ -112,7 +94,7 @@ double f2(double x, double y){
 // CHECK-NEXT:         double _grad1 = 0.;
 // CHECK-NEXT:         double _grad2 = 0.;
 // CHECK-NEXT:         double _grad3 = 0.;
-// CHECK-NEXT:         f_pushforward_pullback(_t0, _t1, _t2, _t3, _d__t0, &_grad0, &_grad1, &_grad2, &_grad3);
+// CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_grad0, &_grad1, &_grad2, &_grad3);
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         double _r1 = _grad1;
@@ -136,20 +118,12 @@ double f2(double x, double y){
 // CHECK: void f2_darg1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
 // CHECK-NEXT:     double _d__d_x = 0;
 // CHECK-NEXT:     double _d__d_y = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
 // CHECK-NEXT:     double _d__d_ans = 0;
 // CHECK-NEXT:     double _d_ans0 = 0;
 // CHECK-NEXT:     double _d_x0 = 0;
 // CHECK-NEXT:     double _d_y0 = 1;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t1 = y;
-// CHECK-NEXT:     _t2 = _d_x0;
-// CHECK-NEXT:     _t3 = _d_y0;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(_t0, _t1, _t2, _t3);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
 // CHECK-NEXT:     double ans = _t00.value;
 // CHECK-NEXT:     goto _label0;
@@ -162,7 +136,7 @@ double f2(double x, double y){
 // CHECK-NEXT:         double _grad1 = 0.;
 // CHECK-NEXT:         double _grad2 = 0.;
 // CHECK-NEXT:         double _grad3 = 0.;
-// CHECK-NEXT:         f_pushforward_pullback(_t0, _t1, _t2, _t3, _d__t0, &_grad0, &_grad1, &_grad2, &_grad3);
+// CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_grad0, &_grad1, &_grad2, &_grad3);
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         double _r1 = _grad1;

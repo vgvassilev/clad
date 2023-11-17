@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oHessians.out 2>&1 | FileCheck %s
 // RUN: ./Hessians.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oHessians.out
+// RUN: ./Hessians.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -14,95 +16,75 @@ void f_cubed_add1_darg0_grad(double a, double b, clad::array_ref<double> _d_a, c
 //CHECK-NEXT:    double _d__d_a = 0;
 //CHECK-NEXT:    double _d__d_b = 0;
 //CHECK-NEXT:    double _t0;
-//CHECK-NEXT:    double _t1;
 //CHECK-NEXT:    double _d__t0 = 0;
+//CHECK-NEXT:    double _t1;
+//CHECK-NEXT:    double _d__t1 = 0;
 //CHECK-NEXT:    double _t2;
 //CHECK-NEXT:    double _t3;
-//CHECK-NEXT:    double _d__t1 = 0;
 //CHECK-NEXT:    double _t4;
 //CHECK-NEXT:    double _t5;
 //CHECK-NEXT:    double _t6;
 //CHECK-NEXT:    double _t7;
 //CHECK-NEXT:    double _t8;
 //CHECK-NEXT:    double _t9;
-//CHECK-NEXT:    double _t11;
-//CHECK-NEXT:    double _t12;
-//CHECK-NEXT:    double _t13;
-//CHECK-NEXT:    double _t14;
-//CHECK-NEXT:    double _t15;
-//CHECK-NEXT:    double _t16;
-//CHECK-NEXT:    double _t17;
-//CHECK-NEXT:    double _t18;
-//CHECK-NEXT:    double _t19;
-//CHECK-NEXT:    double _t20;
 //CHECK-NEXT:    double _d_a0 = 1;
 //CHECK-NEXT:    double _d_b0 = 0;
-//CHECK-NEXT:    _t1 = a;
 //CHECK-NEXT:    _t0 = a;
-//CHECK-NEXT:    double _t00 = _t1 * _t0;
-//CHECK-NEXT:    _t3 = b;
-//CHECK-NEXT:    _t2 = b;
-//CHECK-NEXT:    double _t10 = _t3 * _t2;
-//CHECK-NEXT:    _t6 = _d_a0;
-//CHECK-NEXT:    _t5 = a;
-//CHECK-NEXT:    _t8 = a;
-//CHECK-NEXT:    _t7 = _d_a0;
-//CHECK-NEXT:    _t9 = (_t6 * _t5 + _t8 * _t7);
-//CHECK-NEXT:    _t4 = a;
-//CHECK-NEXT:    _t12 = _t00;
-//CHECK-NEXT:    _t11 = _d_a0;
-//CHECK-NEXT:    _t15 = _d_b0;
-//CHECK-NEXT:    _t14 = b;
-//CHECK-NEXT:    _t17 = b;
-//CHECK-NEXT:    _t16 = _d_b0;
-//CHECK-NEXT:    _t18 = (_t15 * _t14 + _t17 * _t16);
-//CHECK-NEXT:    _t13 = b;
-//CHECK-NEXT:    _t20 = _t10;
-//CHECK-NEXT:    _t19 = _d_b0;
+//CHECK-NEXT:    double _t00 = a * _t0;
+//CHECK-NEXT:    _t1 = b;
+//CHECK-NEXT:    double _t10 = b * _t1;
+//CHECK-NEXT:    _t3 = a;
+//CHECK-NEXT:    _t4 = _d_a0;
+//CHECK-NEXT:    _t2 = a;
+//CHECK-NEXT:    _t5 = _d_a0;
+//CHECK-NEXT:    _t7 = b;
+//CHECK-NEXT:    _t8 = _d_b0;
+//CHECK-NEXT:    _t6 = b;
+//CHECK-NEXT:    _t9 = _d_b0;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r4 = 1 * _t4;
-//CHECK-NEXT:        double _r5 = _r4 * _t5;
+//CHECK-NEXT:        double _r4 = 1 * _t2;
+//CHECK-NEXT:        double _r5 = _r4 * _t3;
 //CHECK-NEXT:        _d__d_a += _r5;
-//CHECK-NEXT:        double _r6 = _t6 * _r4;
+//CHECK-NEXT:        double _r6 = _d_a0 * _r4;
 //CHECK-NEXT:        * _d_a += _r6;
-//CHECK-NEXT:        double _r7 = _r4 * _t7;
+//CHECK-NEXT:        double _r7 = _r4 * _t4;
 //CHECK-NEXT:        * _d_a += _r7;
-//CHECK-NEXT:        double _r8 = _t8 * _r4;
+//CHECK-NEXT:        double _r8 = a * _r4;
 //CHECK-NEXT:        _d__d_a += _r8;
-//CHECK-NEXT:        double _r9 = _t9 * 1;
+//CHECK-NEXT:        double _r9 = (_d_a0 * _t3 + a * _t4) * 1;
 //CHECK-NEXT:        * _d_a += _r9;
-//CHECK-NEXT:        double _r10 = 1 * _t11;
+//CHECK-NEXT:        double _r10 = 1 * _t5;
 //CHECK-NEXT:        _d__t0 += _r10;
-//CHECK-NEXT:        double _r11 = _t12 * 1;
+//CHECK-NEXT:        double _r11 = _t00 * 1;
 //CHECK-NEXT:        _d__d_a += _r11;
-//CHECK-NEXT:        double _r12 = 1 * _t13;
-//CHECK-NEXT:        double _r13 = _r12 * _t14;
+//CHECK-NEXT:        double _r12 = 1 * _t6;
+//CHECK-NEXT:        double _r13 = _r12 * _t7;
 //CHECK-NEXT:        _d__d_b += _r13;
-//CHECK-NEXT:        double _r14 = _t15 * _r12;
+//CHECK-NEXT:        double _r14 = _d_b0 * _r12;
 //CHECK-NEXT:        * _d_b += _r14;
-//CHECK-NEXT:        double _r15 = _r12 * _t16;
+//CHECK-NEXT:        double _r15 = _r12 * _t8;
 //CHECK-NEXT:        * _d_b += _r15;
-//CHECK-NEXT:        double _r16 = _t17 * _r12;
+//CHECK-NEXT:        double _r16 = b * _r12;
 //CHECK-NEXT:        _d__d_b += _r16;
-//CHECK-NEXT:        double _r17 = _t18 * 1;
+//CHECK-NEXT:        double _r17 = (_d_b0 * _t7 + b * _t8) * 1;
 //CHECK-NEXT:        * _d_b += _r17;
-//CHECK-NEXT:        double _r18 = 1 * _t19;
+//CHECK-NEXT:        double _r18 = 1 * _t9;
 //CHECK-NEXT:        _d__t1 += _r18;
-//CHECK-NEXT:        double _r19 = _t20 * 1;
+//CHECK-NEXT:        double _r19 = _t10 * 1;
 //CHECK-NEXT:        _d__d_b += _r19;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r2 = _d__t1 * _t2;
+//CHECK-NEXT:        double _r2 = _d__t1 * _t1;
 //CHECK-NEXT:        * _d_b += _r2;
-//CHECK-NEXT:        double _r3 = _t3 * _d__t1;
+//CHECK-NEXT:        double _r3 = b * _d__t1;
 //CHECK-NEXT:        * _d_b += _r3;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = _d__t0 * _t0;
 //CHECK-NEXT:        * _d_a += _r0;
-//CHECK-NEXT:        double _r1 = _t1 * _d__t0;
+//CHECK-NEXT:        double _r1 = a * _d__t0;
 //CHECK-NEXT:        * _d_a += _r1;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -112,95 +94,75 @@ void f_cubed_add1_darg1_grad(double a, double b, clad::array_ref<double> _d_a, c
 //CHECK-NEXT:    double _d__d_a = 0;
 //CHECK-NEXT:    double _d__d_b = 0;
 //CHECK-NEXT:    double _t0;
-//CHECK-NEXT:    double _t1;
 //CHECK-NEXT:    double _d__t0 = 0;
+//CHECK-NEXT:    double _t1;
+//CHECK-NEXT:    double _d__t1 = 0;
 //CHECK-NEXT:    double _t2;
 //CHECK-NEXT:    double _t3;
-//CHECK-NEXT:    double _d__t1 = 0;
 //CHECK-NEXT:    double _t4;
 //CHECK-NEXT:    double _t5;
 //CHECK-NEXT:    double _t6;
 //CHECK-NEXT:    double _t7;
 //CHECK-NEXT:    double _t8;
 //CHECK-NEXT:    double _t9;
-//CHECK-NEXT:    double _t11;
-//CHECK-NEXT:    double _t12;
-//CHECK-NEXT:    double _t13;
-//CHECK-NEXT:    double _t14;
-//CHECK-NEXT:    double _t15;
-//CHECK-NEXT:    double _t16;
-//CHECK-NEXT:    double _t17;
-//CHECK-NEXT:    double _t18;
-//CHECK-NEXT:    double _t19;
-//CHECK-NEXT:    double _t20;
 //CHECK-NEXT:    double _d_a0 = 0;
 //CHECK-NEXT:    double _d_b0 = 1;
-//CHECK-NEXT:    _t1 = a;
 //CHECK-NEXT:    _t0 = a;
-//CHECK-NEXT:    double _t00 = _t1 * _t0;
-//CHECK-NEXT:    _t3 = b;
-//CHECK-NEXT:    _t2 = b;
-//CHECK-NEXT:    double _t10 = _t3 * _t2;
-//CHECK-NEXT:    _t6 = _d_a0;
-//CHECK-NEXT:    _t5 = a;
-//CHECK-NEXT:    _t8 = a;
-//CHECK-NEXT:    _t7 = _d_a0;
-//CHECK-NEXT:    _t9 = (_t6 * _t5 + _t8 * _t7);
-//CHECK-NEXT:    _t4 = a;
-//CHECK-NEXT:    _t12 = _t00;
-//CHECK-NEXT:    _t11 = _d_a0;
-//CHECK-NEXT:    _t15 = _d_b0;
-//CHECK-NEXT:    _t14 = b;
-//CHECK-NEXT:    _t17 = b;
-//CHECK-NEXT:    _t16 = _d_b0;
-//CHECK-NEXT:    _t18 = (_t15 * _t14 + _t17 * _t16);
-//CHECK-NEXT:    _t13 = b;
-//CHECK-NEXT:    _t20 = _t10;
-//CHECK-NEXT:    _t19 = _d_b0;
+//CHECK-NEXT:    double _t00 = a * _t0;
+//CHECK-NEXT:    _t1 = b;
+//CHECK-NEXT:    double _t10 = b * _t1;
+//CHECK-NEXT:    _t3 = a;
+//CHECK-NEXT:    _t4 = _d_a0;
+//CHECK-NEXT:    _t2 = a;
+//CHECK-NEXT:    _t5 = _d_a0;
+//CHECK-NEXT:    _t7 = b;
+//CHECK-NEXT:    _t8 = _d_b0;
+//CHECK-NEXT:    _t6 = b;
+//CHECK-NEXT:    _t9 = _d_b0;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r4 = 1 * _t4;
-//CHECK-NEXT:        double _r5 = _r4 * _t5;
+//CHECK-NEXT:        double _r4 = 1 * _t2;
+//CHECK-NEXT:        double _r5 = _r4 * _t3;
 //CHECK-NEXT:        _d__d_a += _r5;
-//CHECK-NEXT:        double _r6 = _t6 * _r4;
+//CHECK-NEXT:        double _r6 = _d_a0 * _r4;
 //CHECK-NEXT:        * _d_a += _r6;
-//CHECK-NEXT:        double _r7 = _r4 * _t7;
+//CHECK-NEXT:        double _r7 = _r4 * _t4;
 //CHECK-NEXT:        * _d_a += _r7;
-//CHECK-NEXT:        double _r8 = _t8 * _r4;
+//CHECK-NEXT:        double _r8 = a * _r4;
 //CHECK-NEXT:        _d__d_a += _r8;
-//CHECK-NEXT:        double _r9 = _t9 * 1;
+//CHECK-NEXT:        double _r9 = (_d_a0 * _t3 + a * _t4) * 1;
 //CHECK-NEXT:        * _d_a += _r9;
-//CHECK-NEXT:        double _r10 = 1 * _t11;
+//CHECK-NEXT:        double _r10 = 1 * _t5;
 //CHECK-NEXT:        _d__t0 += _r10;
-//CHECK-NEXT:        double _r11 = _t12 * 1;
+//CHECK-NEXT:        double _r11 = _t00 * 1;
 //CHECK-NEXT:        _d__d_a += _r11;
-//CHECK-NEXT:        double _r12 = 1 * _t13;
-//CHECK-NEXT:        double _r13 = _r12 * _t14;
+//CHECK-NEXT:        double _r12 = 1 * _t6;
+//CHECK-NEXT:        double _r13 = _r12 * _t7;
 //CHECK-NEXT:        _d__d_b += _r13;
-//CHECK-NEXT:        double _r14 = _t15 * _r12;
+//CHECK-NEXT:        double _r14 = _d_b0 * _r12;
 //CHECK-NEXT:        * _d_b += _r14;
-//CHECK-NEXT:        double _r15 = _r12 * _t16;
+//CHECK-NEXT:        double _r15 = _r12 * _t8;
 //CHECK-NEXT:        * _d_b += _r15;
-//CHECK-NEXT:        double _r16 = _t17 * _r12;
+//CHECK-NEXT:        double _r16 = b * _r12;
 //CHECK-NEXT:        _d__d_b += _r16;
-//CHECK-NEXT:        double _r17 = _t18 * 1;
+//CHECK-NEXT:        double _r17 = (_d_b0 * _t7 + b * _t8) * 1;
 //CHECK-NEXT:        * _d_b += _r17;
-//CHECK-NEXT:        double _r18 = 1 * _t19;
+//CHECK-NEXT:        double _r18 = 1 * _t9;
 //CHECK-NEXT:        _d__t1 += _r18;
-//CHECK-NEXT:        double _r19 = _t20 * 1;
+//CHECK-NEXT:        double _r19 = _t10 * 1;
 //CHECK-NEXT:        _d__d_b += _r19;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r2 = _d__t1 * _t2;
+//CHECK-NEXT:        double _r2 = _d__t1 * _t1;
 //CHECK-NEXT:        * _d_b += _r2;
-//CHECK-NEXT:        double _r3 = _t3 * _d__t1;
+//CHECK-NEXT:        double _r3 = b * _d__t1;
 //CHECK-NEXT:        * _d_b += _r3;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = _d__t0 * _t0;
 //CHECK-NEXT:        * _d_a += _r0;
-//CHECK-NEXT:        double _r1 = _t1 * _d__t0;
+//CHECK-NEXT:        double _r1 = a * _d__t0;
 //CHECK-NEXT:        * _d_a += _r1;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}

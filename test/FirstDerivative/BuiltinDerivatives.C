@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out 2>&1 | FileCheck %s
 // RUN: ./BuiltinDerivatives.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out
+// RUN: ./BuiltinDerivatives.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -100,14 +102,12 @@ float f7(float x) {
 void f7_grad(float x, clad::array_ref<float> _d_x);
 
 // CHECK: void f7_grad(float x, clad::array_ref<float> _d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = x;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _grad0 = 0.F;
 // CHECK-NEXT:         double _grad1 = 0.;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t0, 2., 1, &_grad0, &_grad1);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(x, 2., 1, &_grad0, &_grad1);
 // CHECK-NEXT:         float _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         double _r1 = _grad1;
@@ -127,14 +127,12 @@ double f8(float x) {
 void f8_grad(float x, clad::array_ref<float> _d_x);
 
 // CHECK: void f8_grad(float x, clad::array_ref<float> _d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = x;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _grad0 = 0.F;
 // CHECK-NEXT:         int _grad1 = 0;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t0, 2, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(x, 2, 1, &_grad0, &_grad1);
 // CHECK-NEXT:         float _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         int _r1 = _grad1;
@@ -155,16 +153,12 @@ float f9(float x, float y) {
 void f9_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y);
 
 // CHECK: void f9_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     float _t1;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t1 = y;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _grad0 = 0.F;
 // CHECK-NEXT:         float _grad1 = 0.F;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t0, _t1, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_grad0, &_grad1);
 // CHECK-NEXT:         float _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         float _r1 = _grad1;
@@ -186,16 +180,12 @@ double f10(float x, int y) {
 void f10_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<int> _d_y);
 
 // CHECK: void f10_grad(float x, int y, clad::array_ref<float> _d_x, clad::array_ref<int> _d_y) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     int _t1;
-// CHECK-NEXT:     _t0 = x;
-// CHECK-NEXT:     _t1 = y;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _grad0 = 0.F;
 // CHECK-NEXT:         int _grad1 = 0;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t0, _t1, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_grad0, &_grad1);
 // CHECK-NEXT:         float _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         int _r1 = _grad1;
@@ -208,33 +198,27 @@ double f11(double x, double y) {
 }
 
 // CHECK: void f11_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     typename {{.*}} _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     _t0 = (1. - x);
-// CHECK-NEXT:     _t2 = x;
-// CHECK-NEXT:     _t3 = y - std::pow(_t2, 2);
-// CHECK-NEXT:     _t1 = std::pow(_t3, 2);
+// CHECK-NEXT:     typename {{.*}} _t0;
+// CHECK-NEXT:     _t0 = std::pow(y - std::pow(x, 2), 2);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _grad0 = 0.;
 // CHECK-NEXT:         int _grad1 = 0;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t0, 2, 1, &_grad0, &_grad1);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback((1. - x), 2, 1, &_grad0, &_grad1);
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += -_r0;
 // CHECK-NEXT:         int _r1 = _grad1;
-// CHECK-NEXT:         double _r2 = 1 * _t1;
+// CHECK-NEXT:         double _r2 = 1 * _t0;
 // CHECK-NEXT:         double _r3 = 100. * 1;
 // CHECK-NEXT:         double _grad4 = 0.;
 // CHECK-NEXT:         int _grad5 = 0;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t3, 2, _r3, &_grad4, &_grad5);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(y - std::pow(x, 2), 2, _r3, &_grad4, &_grad5);
 // CHECK-NEXT:         double _r4 = _grad4;
 // CHECK-NEXT:         * _d_y += _r4;
 // CHECK-NEXT:         double _grad2 = 0.;
 // CHECK-NEXT:         int _grad3 = 0;
-// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(_t2, 2, -_r4, &_grad2, &_grad3);
+// CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(x, 2, -_r4, &_grad2, &_grad3);
 // CHECK-NEXT:         double _r5 = _grad2;
 // CHECK-NEXT:         * _d_x += _r5;
 // CHECK-NEXT:         int _r6 = _grad3;

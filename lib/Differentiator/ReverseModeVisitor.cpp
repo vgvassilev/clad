@@ -2214,9 +2214,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (!RDelayed.isConstant) {
         Expr* dr = nullptr;
         if (dfdx()) {
-          StmtDiff LResult = GlobalStoreAndRef(LStored);
-          LStored = LResult.getExpr();
-          dr = BuildOp(BO_Mul, LResult.getExpr_dx(), dfdx());
+          dr = BuildOp(BO_Mul, Ldiff.getRevSweepAsExpr(), dfdx());
           dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);

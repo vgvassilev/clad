@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
 // RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointers.out
+// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -7,18 +9,15 @@
 double nonMemFn(double i) {
   return i*i;
 }
-
 // CHECK: void nonMemFn_grad(double i, clad::array_ref<double> _d_i) {
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     _t1 = i;
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 1 * _t0;
 // CHECK-NEXT:         * _d_i += _r0;
-// CHECK-NEXT:         double _r1 = _t1 * 1;
+// CHECK-NEXT:         double _r1 = i * 1;
 // CHECK-NEXT:         * _d_i += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

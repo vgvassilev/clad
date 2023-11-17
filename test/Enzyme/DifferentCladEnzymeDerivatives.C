@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out
+// RUN: %cladclang %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out | FileCheck %s
 // RUN: ./DifferentCladEnzymeDerivatives.out
 // CHECK-NOT: {{.*error|warning|note:.*}}
 // REQUIRES: Enzyme

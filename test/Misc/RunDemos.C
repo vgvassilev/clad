@@ -111,12 +111,14 @@
 //CHECK_FLOAT_SUM:     float _EERepl_sum0;
 //CHECK_FLOAT_SUM:     unsigned long _t0;
 //CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
+//CHECK_FLOAT_SUM:     clad::tape<float> _t1 = {};
 //CHECK_FLOAT_SUM:     clad::tape<float> _EERepl_sum1 = {};
 //CHECK_FLOAT_SUM:     float sum = 0.;
 //CHECK_FLOAT_SUM:     _EERepl_sum0 = sum;
 //CHECK_FLOAT_SUM:     _t0 = 0;
 //CHECK_FLOAT_SUM:     for (unsigned int i = 0; i < n; i++) {
 //CHECK_FLOAT_SUM:         _t0++;
+//CHECK_FLOAT_SUM:         clad::push(_t1, sum);
 //CHECK_FLOAT_SUM:         sum = sum + x;
 //CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
 //CHECK_FLOAT_SUM:     }
@@ -124,19 +126,21 @@
 //CHECK_FLOAT_SUM:   _label0:
 //CHECK_FLOAT_SUM:     _d_sum += 1;
 //CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
+//CHECK_FLOAT_SUM:         i--;
 //CHECK_FLOAT_SUM:         {
+//CHECK_FLOAT_SUM:             sum = clad::pop(_t1);
 //CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
 //CHECK_FLOAT_SUM:             _d_sum += _r_d0;
 //CHECK_FLOAT_SUM:             * _d_x += _r_d0;
 //CHECK_FLOAT_SUM:             float _r0 = clad::pop(_EERepl_sum1);
-//CHECK_FLOAT_SUM:             _delta_sum += std::abs(_r_d0 * _r0 * {{.+}});
+//CHECK_FLOAT_SUM:             _delta_sum += std::abs(_r_d0 * _r0 * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
 //CHECK_FLOAT_SUM:         }
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
+//CHECK_FLOAT_SUM:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM:     double _delta_x = 0;
-//CHECK_FLOAT_SUM:     _delta_x += std::abs(* _d_x * x * {{.+}});
-//CHECK_FLOAT_SUM:     _final_error += _delta_{{x|sum}} + _delta_{{x|sum}};
+//CHECK_FLOAT_SUM:     _delta_x += std::abs(* _d_x * x * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:     _final_error += _delta_x + _delta_sum;
 //CHECK_FLOAT_SUM: }
 
 //-----------------------------------------------------------------------------/
@@ -156,15 +160,18 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
@@ -227,8 +234,6 @@
 
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
 //CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
 //CHECK_GRADIENT_DESCENT-NEXT:     _t0 = x;
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
@@ -236,31 +241,23 @@
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = _d_y * _t0;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_1 += _r0;
-//CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = _t1 * _d_y;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = theta_1 * _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_x += _r1;
 //CHECK_GRADIENT_DESCENT-NEXT:     }
 //CHECK_GRADIENT_DESCENT-NEXT: }
 
 //CHECK_GRADIENT_DESCENT-NEXT: void cost_grad(double theta_0, double theta_1, double x, double y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t1;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t2;
 //CHECK_GRADIENT_DESCENT-NEXT:     double _d_f_x = 0;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t3;
-//CHECK_GRADIENT_DESCENT-NEXT:     double _t4;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t0 = theta_0;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t1 = theta_1;
-//CHECK_GRADIENT_DESCENT-NEXT:     _t2 = x;
-//CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(_t0, _t1, _t2);
-//CHECK_GRADIENT_DESCENT-NEXT:     _t4 = (f_x - y);
-//CHECK_GRADIENT_DESCENT-NEXT:     _t3 = (f_x - y);
+//CHECK_GRADIENT_DESCENT-NEXT:     double _t0;
+//CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(theta_0, theta_1, x);
+//CHECK_GRADIENT_DESCENT-NEXT:     _t0 = (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
-//CHECK_GRADIENT_DESCENT-NEXT:         double _r3 = 1 * _t3;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r3 = 1 * _t0;
 //CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += _r3;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_y += -_r3;
-//CHECK_GRADIENT_DESCENT-NEXT:         double _r4 = _t4 * 1;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r4 = (f_x - y) * 1;
 //CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += _r4;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_y += -_r4;
 //CHECK_GRADIENT_DESCENT-NEXT:     }
@@ -268,7 +265,7 @@
 //CHECK_GRADIENT_DESCENT-NEXT:         double _grad0 = 0.;
 //CHECK_GRADIENT_DESCENT-NEXT:         double _grad1 = 0.;
 //CHECK_GRADIENT_DESCENT-NEXT:         double _grad2 = 0.;
-//CHECK_GRADIENT_DESCENT-NEXT:         f_pullback(_t0, _t1, _t2, _d_f_x, &_grad0, &_grad1, &_grad2);
+//CHECK_GRADIENT_DESCENT-NEXT:         f_pullback(theta_0, theta_1, x, _d_f_x, &_grad0, &_grad1, &_grad2);
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = _grad0;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _r0;
 //CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = _grad1;
