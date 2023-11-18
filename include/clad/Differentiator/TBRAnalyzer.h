@@ -54,6 +54,7 @@ private:
   using ArrMap =
       std::unordered_map<const ProfileID, VarData, ProfileIDHash>;
 
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
   struct VarData {
     enum VarDataType { UNDEFINED, FUND_TYPE, OBJ_TYPE, ARR_TYPE, REF_TYPE };
     union VarDataValue {
@@ -101,6 +102,8 @@ private:
       }
     }
   };
+  // NOLINTEND(cppcoreguidelines-pro-type-union-access)
+
   /// Recursively sets all the leaves' bools to isReq.
   void setIsRequired(VarData& varData, bool isReq = true);
   /// Whenever an array element with a non-constant index is set to required

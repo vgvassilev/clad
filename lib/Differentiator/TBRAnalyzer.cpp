@@ -4,6 +4,7 @@ using namespace clang;
 
 namespace clad {
 
+// NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
 void TBRAnalyzer::setIsRequired(VarData& varData, bool isReq) {
   if (varData.type == VarData::FUND_TYPE)
     varData.val.m_FundData = isReq;
@@ -243,6 +244,7 @@ void TBRAnalyzer::overlay(const clang::Expr* E) {
     overlay(getCurBlockVarsData()[VD], IDSequence, IDSequence.size());
   }
 }
+// NOLINTEND(cppcoreguidelines-pro-type-union-access)
 
 void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
   /// If a declaration is passed a second time (meaning it is inside a loop),
@@ -598,6 +600,7 @@ void TBRAnalyzer::VisitDeclStmt(const DeclStmt* DS) {
         /// VarData of the RHS variable.
         auto returnExprs = utils::GetInnermostReturnExpr(init);
         if (VDExpr.type == VarData::REF_TYPE && !returnExprs.empty())
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
           VDExpr.val.m_RefData = returnExprs[0];
       }
     }
