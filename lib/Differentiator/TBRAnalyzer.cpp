@@ -327,11 +327,12 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   curBlockID = entry->getBlockID();
   blockData[curBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
-  /// If we are analysing a method, add a VarData for 'this' pointer
+  /// If we are analysing a non-static method, add a VarData for 'this' pointer
   /// (it is represented with nullptr).
-  if (isa<CXXMethodDecl>(FD)) {
+  const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+  if (MD && !MD->isStatic()) {
     const Type* recordType =
-        dyn_cast<CXXRecordDecl>(FD->getParent())->getTypeForDecl();
+        MD->getParent()->getTypeForDecl();
     getCurBlockVarsData()[nullptr] =
         VarData(QualType::getFromOpaquePtr(recordType));
   }
