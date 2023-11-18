@@ -601,13 +601,13 @@ namespace clad {
       return finder.Find(E);
     }
 
-    bool IsAutoOrAutoPtrType(const clang::Type* T) {
+    bool IsAutoOrAutoPtrType(const QualType T) {
       if (isa<clang::AutoType>(T))
         return true;
 
       if (const auto pointerType = dyn_cast<clang::PointerType>(T)) {
         return IsAutoOrAutoPtrType(
-            pointerType->getPointeeType().getTypePtrOrNull());
+            pointerType->getPointeeType());
       }
 
       return false;

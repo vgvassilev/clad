@@ -269,7 +269,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD) {
   else
     varType = VD->getType();
   /// If varType represents auto or auto*, get the type of init.
-  if (utils::IsAutoOrAutoPtrType(varType.getTypePtr()))
+  if (utils::IsAutoOrAutoPtrType(varType))
     varType = VD->getInit()->getType();
 
   /// FIXME: If the pointer points to an object we represent it with a

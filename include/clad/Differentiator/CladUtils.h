@@ -165,7 +165,7 @@ namespace clad {
     bool isArrayOrPointerType(const clang::QualType QT);
 
     /// Returns true if `T` is auto or auto* type, otherwise returns false.
-    bool IsAutoOrAutoPtrType(const clang::Type* T);
+    bool IsAutoOrAutoPtrType(const clang::QualType T);
 
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name);
