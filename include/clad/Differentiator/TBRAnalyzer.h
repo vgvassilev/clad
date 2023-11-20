@@ -1,7 +1,7 @@
 #ifndef CLAD_DIFFERENTIATOR_TBRANALYZER_H
 #define CLAD_DIFFERENTIATOR_TBRANALYZER_H
 
-#include "clang/AST/StmtVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CFG.h"
 
 #include "clad/Differentiator/CladUtils.h"
@@ -14,9 +14,7 @@ using namespace clang;
 
 namespace clad {
 
-class TBRAnalyzer : public clang::ConstStmtVisitor<TBRAnalyzer> {
-private:
-
+class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// ProfileID is the key type for ArrMap used to represent array indices
   /// and object fields.
   using ProfileID = clad_compat::FoldingSetNodeID;
@@ -295,37 +293,18 @@ public:
   /// Visitors
   void Analyze(const clang::FunctionDecl* FD);
 
-  void VisitCFGBlock(const clang::CFGBlock* block);
+  void VisitCFGBlock(const clang::CFGBlock& block);
 
-  void Visit(const clang::Stmt* stmt) {
-    clang::ConstStmtVisitor<TBRAnalyzer, void>::Visit(stmt);
-  }
-
-  void VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
-  void VisitBinaryOperator(const clang::BinaryOperator* BinOp);
-  void VisitCallExpr(const clang::CallExpr* CE);
-  void VisitCompoundStmt(const clang::CompoundStmt* CS);
-  void VisitConditionalOperator(const clang::ConditionalOperator* CO);
-  void VisitCXXConstructExpr(const clang::CXXConstructExpr* CE);
-  void VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
-  void VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
-  void VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
-  void VisitDeclStmt(const clang::DeclStmt* DS);
-  void VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
-  void VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
-  void VisitInitListExpr(const clang::InitListExpr* ILE);
-  void VisitMemberExpr(const clang::MemberExpr* ME);
-  void VisitParenExpr(const clang::ParenExpr* PE);
-  void VisitReturnStmt(const clang::ReturnStmt* RS);
-  void VisitUnaryOperator(const clang::UnaryOperator* UnOp);
-
-  /// FIXME: Make sure these are not necessary
-  /// Unused Visitors:
-  // void VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
-  // void VisitCXXThisExpr(const clang::CXXThisExpr* TE);
-  // void VisitFloatingLiteral(const clang::FloatingLiteral* FL);
-  // void VisitIntegerLiteral(const clang::IntegerLiteral* IL);
-  // void VisitStmt(const clang::Stmt* S);
+  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE);
+  bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
+  bool VisitCallExpr(clang::CallExpr* CE);
+  bool VisitConditionalOperator(clang::ConditionalOperator* CO);
+  bool VisitCXXConstructExpr(clang::CXXConstructExpr* CE);
+  bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+  bool VisitDeclStmt(clang::DeclStmt* DS);
+  bool VisitInitListExpr(clang::InitListExpr* ILE);
+  bool VisitMemberExpr(clang::MemberExpr* ME);
+  bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
 };
 
 } // end namespace clad
