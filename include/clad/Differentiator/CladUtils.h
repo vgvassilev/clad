@@ -316,8 +316,12 @@ namespace clad {
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
-    /// FIXME: add documentation
-    std::vector<clang::Expr*> GetInnermostReturnExpr(const clang::Expr* E);
+
+    /// Collects every DeclRefExpr, MemberExpr, ArraySubscriptExpr in an
+    /// assignment operator or a ternary if operator. This is useful to when we
+    /// need to decide what needs to be stored on tape in reverse mode.
+    void GetInnermostReturnExpr(const clang::Expr* E,
+                                llvm::SmallVectorImpl<clang::Expr*>& Exprs);
   } // namespace utils
 }
 

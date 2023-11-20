@@ -599,10 +599,11 @@ void TBRAnalyzer::VisitDeclStmt(const DeclStmt* DS) {
         auto& VDExpr = getCurBlockVarsData()[VD];
         /// if the declared variable is ref type attach its VarData to the
         /// VarData of the RHS variable.
-        auto returnExprs = utils::GetInnermostReturnExpr(init);
-        if (VDExpr.type == VarData::REF_TYPE && !returnExprs.empty())
+        llvm::SmallVector<Expr*, 4> ExprsToStore;
+        utils::GetInnermostReturnExpr(init, ExprsToStore);
+        if (VDExpr.type == VarData::REF_TYPE && !ExprsToStore.empty())
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-          VDExpr.val.m_RefData = returnExprs[0];
+          VDExpr.val.m_RefData = ExprsToStore[0];
       }
     }
   }
@@ -695,8 +696,9 @@ void TBRAnalyzer::VisitBinaryOperator(const BinaryOperator* BinOp) {
       Visit(R);
       resetMode();
     }
-    const auto returnExprs = utils::GetInnermostReturnExpr(L);
-    for (const auto* innerExpr : returnExprs) {
+    llvm::SmallVector<Expr*, 4> ExprsToStore;
+    utils::GetInnermostReturnExpr(L, ExprsToStore);
+    for (const auto* innerExpr : ExprsToStore) {
       /// Mark corresponding SourceLocation as required/not required to be
       /// stored for all expressions that could be used changed.
       markLocation(innerExpr);
@@ -726,8 +728,9 @@ void TBRAnalyzer::VisitUnaryOperator(const clang::UnaryOperator* UnOp) {
     // FIXME: this doesn't support all the possible references
     /// Mark corresponding SourceLocation as required/not required to be
     /// stored for all expressions that could be used in this operation.
-    const auto innerExprs = utils::GetInnermostReturnExpr(E);
-    for (const auto* innerExpr : innerExprs) {
+    llvm::SmallVector<Expr*, 4> ExprsToStore;
+    utils::GetInnermostReturnExpr(E, ExprsToStore);
+    for (const auto* innerExpr : ExprsToStore) {
       /// Mark corresponding SourceLocation as required/not required to be
       /// stored for all expressions that could be changed.
       markLocation(innerExpr);
@@ -754,7 +757,8 @@ void TBRAnalyzer::VisitCallExpr(const clang::CallExpr* CE) {
     resetMode();
     const auto* B = arg->IgnoreParenImpCasts();
     // FIXME: this supports only DeclRefExpr
-    const auto innerExpr = utils::GetInnermostReturnExpr(arg);
+    llvm::SmallVector<Expr*, 4> ExprsToStore;
+    utils::GetInnermostReturnExpr(arg, ExprsToStore);
     if (passByRef) {
       /// Mark SourceLocation as required to store for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {

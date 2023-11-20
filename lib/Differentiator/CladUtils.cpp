@@ -544,17 +544,18 @@ namespace clad {
       return false;
     }
 
-    std::vector<clang::Expr*> GetInnermostReturnExpr(const clang::Expr* E) {
-      struct Finder : public ConstStmtVisitor<Finder> {
-        std::vector<clang::Expr*> m_return_exprs;
+    void GetInnermostReturnExpr(const clang::Expr* E,
+                                llvm::SmallVectorImpl<clang::Expr*>& Exprs) {
+      struct Finder : public StmtVisitor<Finder> {
+        llvm::SmallVectorImpl<clang::Expr*>& m_Exprs;
 
       public:
-        std::vector<clang::Expr*> Find(const clang::Expr* E) {
+        Finder(clang::Expr* E, llvm::SmallVectorImpl<clang::Expr*>& Exprs)
+            : m_Exprs(Exprs) {
           Visit(E);
-          return m_return_exprs;
         }
 
-        void VisitBinaryOperator(const clang::BinaryOperator* BO) {
+        void VisitBinaryOperator(clang::BinaryOperator* BO) {
           if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
             Visit(BO->getLHS());
           } else if (BO->getOpcode() == clang::BO_Comma) {
@@ -564,41 +565,37 @@ namespace clad {
           }
         }
 
-        void VisitConditionalOperator(const clang::ConditionalOperator* CO) {
+        void VisitConditionalOperator(clang::ConditionalOperator* CO) {
           // FIXME: in cases like (cond ? x : y) = 2; both x and y will be
           // stored.
           Visit(CO->getTrueExpr());
           Visit(CO->getFalseExpr());
         }
 
-        void VisitUnaryOperator(const clang::UnaryOperator* UnOp) {
+        void VisitUnaryOperator(clang::UnaryOperator* UnOp) {
           auto opCode = UnOp->getOpcode();
           if (opCode == clang::UO_PreInc || opCode == clang::UO_PreDec)
             Visit(UnOp->getSubExpr());
         }
 
-        void VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
-          m_return_exprs.push_back(const_cast<clang::DeclRefExpr*>(DRE));
+        void VisitDeclRefExpr(clang::DeclRefExpr* DRE) {
+          m_Exprs.push_back(DRE);
         }
 
-        void VisitParenExpr(const clang::ParenExpr* PE) {
-          Visit(PE->getSubExpr());
+        void VisitParenExpr(clang::ParenExpr* PE) { Visit(PE->getSubExpr()); }
+
+        void VisitMemberExpr(clang::MemberExpr* ME) { m_Exprs.push_back(ME); }
+
+        void VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
+          m_Exprs.push_back(ASE);
         }
 
-        void VisitMemberExpr(const clang::MemberExpr* ME) {
-          m_return_exprs.push_back(const_cast<clang::MemberExpr*>(ME));
-        }
-
-        void VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) {
-          m_return_exprs.push_back(const_cast<clang::ArraySubscriptExpr*>(ASE));
-        }
-
-        void VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE) {
+        void VisitImplicitCastExpr(clang::ImplicitCastExpr* ICE) {
           Visit(ICE->getSubExpr());
         }
       };
-      Finder finder;
-      return finder.Find(E);
+      // FIXME: Fix the constness on the callers of this function.
+      Finder finder(const_cast<clang::Expr*>(E), Exprs);
     }
 
     bool IsAutoOrAutoPtrType(QualType T) {

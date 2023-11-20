@@ -2330,7 +2330,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Ldiff = Visit(L, dfdx());
       Stmts essentialRevBlock = EndBlockWithoutCreatingCS(direction::essential_reverse);
       auto* Lblock = endBlock(direction::reverse);
-      auto return_exprs = utils::GetInnermostReturnExpr(Ldiff.getExpr());
+      llvm::SmallVector<Expr*, 4> ExprsToStore;
+      utils::GetInnermostReturnExpr(Ldiff.getExpr(), ExprsToStore);
       if (L->HasSideEffects(m_Context)) {
         Expr* E = Ldiff.getExpr();
         auto* storeE = StoreAndRef(E, m_Context.getLValueReferenceType(E->getType()));
@@ -2368,7 +2369,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Lblock_begin = std::next(Lblock_begin);
       }
 
-      for (auto& E : return_exprs) {
+      for (auto& E : ExprsToStore) {
         auto pushPop = StoreAndRestore(E);
         addToCurrentBlock(pushPop.getExpr(), direction::forward);
         addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
