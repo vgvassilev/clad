@@ -75,18 +75,16 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
     }
     VarData& operator=(const VarData& other) = delete;
     VarData& operator=(VarData&& other) noexcept {
-      if (this!=&other) {
-        type = other.type;
-        if (type == FUND_TYPE) {
-          val.m_FundData = other.val.m_FundData;
-        } else if (type == OBJ_TYPE || type == ARR_TYPE) {
-          val.m_ArrData = std::move(other.val.m_ArrData);
-          other.val.m_ArrData = nullptr;
-        } else if (type == REF_TYPE) {
-          val.m_RefData = other.val.m_RefData;
-        }
-        other.type = UNDEFINED;
+      type = other.type;
+      if (type == FUND_TYPE) {
+        val.m_FundData = other.val.m_FundData;
+      } else if (type == OBJ_TYPE || type == ARR_TYPE) {
+        val.m_ArrData = std::move(other.val.m_ArrData);
+        other.val.m_ArrData = nullptr;
+      } else if (type == REF_TYPE) {
+        val.m_RefData = other.val.m_RefData;
       }
+      other.type = UNDEFINED;
       return *this;
     }
 
