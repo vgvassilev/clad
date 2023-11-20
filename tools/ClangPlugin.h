@@ -68,8 +68,7 @@ namespace clad {
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
             DumpDerivedAST(false), GenerateSourceFile(false),
             ValidateClangVersion(true), EnableTBRAnalysis(false),
-            CustomEstimationModel(false), PrintNumDiffErrorInfo(false),
-            CustomModelName("") {}
+            CustomEstimationModel(false), PrintNumDiffErrorInfo(false) {}
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
