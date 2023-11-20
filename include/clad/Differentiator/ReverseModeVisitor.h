@@ -140,8 +140,7 @@ namespace clad {
         return m_Blocks.back();
       else if (d == direction::reverse)
         return m_Reverse.back();
-      else
-        return m_EssentialReverse.back();
+      return m_EssentialReverse.back();
     }
     /// Create new block.
     Stmts& beginBlock(direction d = direction::forward) {
@@ -156,19 +155,18 @@ namespace clad {
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
     clang::CompoundStmt* endBlock(direction d = direction::forward) {
       if (d == direction::forward) {
-        auto CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
+        auto* CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
         m_Blocks.pop_back();
         return CS;
       } else if (d == direction::reverse) {
-        auto CS = MakeCompoundStmt(getCurrentBlock(direction::reverse));
+        auto* CS = MakeCompoundStmt(getCurrentBlock(direction::reverse));
         std::reverse(CS->body_begin(), CS->body_end());
         m_Reverse.pop_back();
         return CS;
-      } else {
-        auto CS = MakeCompoundStmt(getCurrentBlock(d));
-        m_EssentialReverse.pop_back();
-        return CS;
       }
+      auto* CS = MakeCompoundStmt(getCurrentBlock(d));
+      m_EssentialReverse.pop_back();
+      return CS;
     }
 
     Stmts EndBlockWithoutCreatingCS(direction d = direction::forward) {
