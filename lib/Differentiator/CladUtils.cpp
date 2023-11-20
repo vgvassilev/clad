@@ -279,7 +279,7 @@ namespace clad {
       return SL;
     }
 
-    bool isArrayOrPointerType(const clang::QualType QT) {
+    bool isArrayOrPointerType(clang::QualType QT) {
       return QT->isArrayType() || QT->isPointerType();
     }
 
@@ -601,7 +601,7 @@ namespace clad {
       return finder.Find(E);
     }
 
-    bool IsAutoOrAutoPtrType(const QualType T) {
+    bool IsAutoOrAutoPtrType(QualType T) {
       if (isa<clang::AutoType>(T))
         return true;
 
