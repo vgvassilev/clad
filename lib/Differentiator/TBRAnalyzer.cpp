@@ -104,7 +104,7 @@ TBRAnalyzer::VarData* TBRAnalyzer::getMemberVarData(const clang::MemberExpr* ME,
 
     /// if non-const index was found and it is not supposed to be added just
     /// return the current VarData*.
-    if (nonConstIndexFound && !addNonConstIdx)
+    if (m_NonConstIndexFound && !addNonConstIdx)
       return baseData;
 
     return &(*baseData->val.m_ArrData)[getProfileID(FD)];
@@ -120,7 +120,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
   if (const auto* IL = dyn_cast<IntegerLiteral>(idxExpr)) {
     idxID = getProfileID(IL);
   } else {
-    nonConstIndexFound = true;
+    m_NonConstIndexFound = true;
     /// Non-const indices are represented with default FoldingSetNodeID.
   }
 
@@ -132,7 +132,7 @@ TBRAnalyzer::getArrSubVarData(const clang::ArraySubscriptExpr* ASE,
 
   /// if non-const index was found and it is not supposed to be added just
   /// return the current VarData*.
-  if (nonConstIndexFound && !addNonConstIdx)
+  if (m_NonConstIndexFound && !addNonConstIdx)
     return baseData;
 
   auto* baseArrMap = baseData->val.m_ArrData.get();
@@ -215,7 +215,7 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
 }
 
 void TBRAnalyzer::overlay(const clang::Expr* E) {
-  nonConstIndexFound = false;
+  m_NonConstIndexFound = false;
   llvm::SmallVector<ProfileID, 2> IDSequence;
   const clang::DeclRefExpr* innermostDRE;
   bool cond = true;
@@ -296,21 +296,21 @@ void TBRAnalyzer::markLocation(const clang::Expr* E) {
     /// required to be stored (when passing *= operator) but then marked as not
     /// required to be stored (when passing = operator). Current method of
     /// marking locations does not allow to differentiate between these two.
-    TBRLocs.insert(E->getBeginLoc());
+    m_TBRLocs.insert(E->getBeginLoc());
   }
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
   if (!isReq ||
-      (modeStack.back() == (Mode::markingMode | Mode::nonLinearMode))) {
+      (m_ModeStack.back() == (Mode::kMarkingMode | Mode::kNonLinearMode))) {
     VarData* data = getExprVarData(E, /*addNonConstIdx=*/isReq);
-    if (data && (isReq || !nonConstIndexFound))
+    if (data && (isReq || !m_NonConstIndexFound))
       setIsRequired(*data, isReq);
     /// If an array element with a non-const element is set to required
     /// all the elements of that array should be set to required.
-    if (isReq && nonConstIndexFound)
+    if (isReq && m_NonConstIndexFound)
       overlay(E);
-    nonConstIndexFound = false;
+    m_NonConstIndexFound = false;
   }
 }
 
@@ -319,13 +319,13 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   clang::CFG::BuildOptions Options;
   m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
 
-  blockData.resize(m_CFG->size());
-  blockPassCounter.resize(m_CFG->size(), 0);
+  m_BlockData.resize(m_CFG->size());
+  m_BlockPassCounter.resize(m_CFG->size(), 0);
 
   /// Set current block ID to the ID of entry the block.
   auto* entry = &m_CFG->getEntry();
-  curBlockID = entry->getBlockID();
-  blockData[curBlockID] = std::unique_ptr<VarsData>(new VarsData());
+  m_CurBlockID = entry->getBlockID();
+  m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
 
   /// If we are analysing a non-static method, add a VarData for 'this' pointer
   /// (it is represented with nullptr).
@@ -340,18 +340,18 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
     addVar(paramsRef[i]);
   /// Add the entry block to the queue.
-  CFGQueue.insert(curBlockID);
+  m_CFGQueue.insert(m_CurBlockID);
 
   /// Visit CFG blocks in the queue until it's empty.
-  while (!CFGQueue.empty()) {
-    auto IDIter = std::prev(CFGQueue.end());
-    curBlockID = *IDIter;
-    CFGQueue.erase(IDIter);
+  while (!m_CFGQueue.empty()) {
+    auto IDIter = std::prev(m_CFGQueue.end());
+    m_CurBlockID = *IDIter;
+    m_CFGQueue.erase(IDIter);
 
-    CFGBlock& nextBlock = *getCFGBlockByID(curBlockID);
+    CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
     VisitCFGBlock(nextBlock);
   }
-  //    for (int id = curBlockID; id >= 0; --id) {
+  //    for (int id = m_CurBlockID; id >= 0; --id) {
   //        llvm::errs() << "\n-----BLOCK" << id << "-----\n\n";
   //        for (auto succ : getCFGBlockByID(id)->succs()) {
   //            if (succ)
@@ -366,7 +366,7 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
   /// loop iteration may have an effect on the next one. However, two
   /// iterations is always enough. Allow a third visit without going to
   /// successors to correctly analyse loop conditions.
-  bool notLastPass = ++blockPassCounter[block.getBlockID()] <= 2;
+  bool notLastPass = ++m_BlockPassCounter[block.getBlockID()] <= 2;
 
   /// Visit all the statements inside the block.
   for (const clang::CFGElement& Element : block) {
@@ -382,14 +382,14 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
     /// are never executed (e.g. 'if (0) {...'). Add this check for safety.
     if (!succ)
       continue;
-    auto& varsData = blockData[succ->getBlockID()];
+    auto& varsData = m_BlockData[succ->getBlockID()];
 
     /// Create VarsData for the succ branch if it hasn't been done previously.
     /// If the successor doesn't have a VarsData, assign it and attach the
     /// current block as previous.
     if (!varsData) {
       varsData = std::unique_ptr<VarsData>(new VarsData());
-      varsData->prev = blockData[block.getBlockID()].get();
+      varsData->prev = m_BlockData[block.getBlockID()].get();
     }
 
     /// If this is the third (last) pass of block, it means block represents
@@ -397,7 +397,7 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
     /// This means we should not visit the loop body anymore.
     if (notLastPass) {
         /// Add the successor to the queue.
-        CFGQueue.insert(succ->getBlockID());
+        m_CFGQueue.insert(succ->getBlockID());
 
         /// This part is necessary for loops. For other cases, this is not
         /// supposed to do anything.
@@ -405,7 +405,7 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
             /// If there is another loop condition present inside a loop,
             /// We have to set it's loop pass counter to 0 (it might be 3
             /// from the previous outer loop pass).
-            blockPassCounter[succ->getBlockID()] = 0;
+            m_BlockPassCounter[succ->getBlockID()] = 0;
             /// Remove VarsData left after the previous pass.
             varsData->clear();
         }
@@ -413,9 +413,8 @@ void TBRAnalyzer::VisitCFGBlock(const CFGBlock& block) {
 
     /// If the successor's previous block is not this one,
     /// perform a merge.
-    if (varsData->prev != blockData[block.getBlockID()].get()) {
-        merge(varsData.get(), blockData[block.getBlockID()].get());
-    }
+    if (varsData->prev != m_BlockData[block.getBlockID()].get())
+      merge(varsData.get(), m_BlockData[block.getBlockID()].get());
   }
   //    llvm::errs() << "----------------\n\n";
 }
@@ -566,7 +565,7 @@ bool TBRAnalyzer::VisitDeclStmt(DeclStmt* DS) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
       addVar(VD);
       if (clang::Expr* init = VD->getInit()) {
-        setMode(Mode::markingMode);
+        setMode(Mode::kMarkingMode);
         TraverseStmt(init);
         resetMode();
         auto& VDExpr = getCurBlockVarsData()[VD];
@@ -588,17 +587,17 @@ bool TBRAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
   TraverseStmt(CO->getCond());
   resetMode();
 
-  auto elseBranch = std::move(blockData[curBlockID]);
+  auto elseBranch = std::move(m_BlockData[m_CurBlockID]);
 
-  blockData[curBlockID] = std::unique_ptr<VarsData>(new VarsData());
-  blockData[curBlockID]->prev = elseBranch.get();
+  m_BlockData[m_CurBlockID] = std::unique_ptr<VarsData>(new VarsData());
+  m_BlockData[m_CurBlockID]->prev = elseBranch.get();
   TraverseStmt(CO->getTrueExpr());
 
-  auto thenBranch = std::move(blockData[curBlockID]);
-  blockData[curBlockID] = std::move(elseBranch);
+  auto thenBranch = std::move(m_BlockData[m_CurBlockID]);
+  m_BlockData[m_CurBlockID] = std::move(elseBranch);
   TraverseStmt(CO->getTrueExpr());
 
-  merge(blockData[curBlockID].get(), thenBranch.get());
+  merge(m_BlockData[m_CurBlockID].get(), thenBranch.get());
   return true;
 }
 
@@ -608,7 +607,7 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   Expr* R = BinOp->getRHS();
   /// Addition is not able to create any differential influence by itself so
   /// markingMode should be left as it is. Similarly, addition does not affect
-  /// linearity so nonLinearMode shouldn't be changed as well. The same applies
+  /// linearity so kNonLinearMode shouldn't be changed as well. The same applies
   /// to subtraction.
   if (opCode == BO_Add || opCode == BO_Sub) {
     TraverseStmt(L);
@@ -656,17 +655,17 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
       /// *= (/=) normally only performs a linear operation if and only if
       /// the RHS is constant. If RHS is not constant, 'x *= y' ('x /= y')
       /// represents the same operation as 'x = x * y' ('x = x / y') and,
-      /// therefore, LHS has to be visited in markingMode|nonLinearMode.
+      /// therefore, LHS has to be visited in kMarkingMode|kNonLinearMode.
       Expr::EvalResult dummy;
       bool RisNotConst =
           !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context);
       if (RisNotConst)
-        setMode(Mode::markingMode | Mode::nonLinearMode);
+        setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
       TraverseStmt(L);
       if (RisNotConst)
         resetMode();
 
-      setMode(Mode::markingMode | Mode::nonLinearMode);
+      setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
       TraverseStmt(R);
       resetMode();
     }
@@ -720,7 +719,7 @@ bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
   /// could proceed to the function to analyse data flow inside it.
   FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
-  setMode(Mode::markingMode | Mode::nonLinearMode);
+  setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
     clang::Expr* arg = CE->getArg(i);
     bool passByRef = false;
@@ -728,7 +727,7 @@ bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
       passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
     else if (i!=0)
       passByRef = FD->getParamDecl(i - 1)->getType()->isReferenceType();
-    setMode(Mode::markingMode | Mode::nonLinearMode);
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
     resetMode();
     const auto* B = arg->IgnoreParenImpCasts();
@@ -736,7 +735,7 @@ bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
     if (passByRef) {
       /// Mark SourceLocation as required to store for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
-        TBRLocs.insert(arg->getBeginLoc());
+        m_TBRLocs.insert(arg->getBeginLoc());
         setIsRequired(arg, /*isReq=*/false);
       }
     }
@@ -751,11 +750,11 @@ bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
   /// could proceed to the constructor to analyse data flow inside it.
   /// FIXME: add support for default values
   FunctionDecl* FD = CE->getConstructor();
-  setMode(Mode::markingMode | Mode::nonLinearMode);
+  setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
     auto* arg = CE->getArg(i);
     bool passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
-    setMode(Mode::markingMode | Mode::nonLinearMode);
+    setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
     resetMode();
     const auto* B = arg->IgnoreParenImpCasts();
@@ -763,7 +762,7 @@ bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
     if (passByRef) {
       /// Mark SourceLocation as required for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
-        TBRLocs.insert(arg->getBeginLoc());
+        m_TBRLocs.insert(arg->getBeginLoc());
         setIsRequired(arg, /*isReq=*/false);
       }
     }
@@ -782,14 +781,14 @@ bool TBRAnalyzer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
   TraverseStmt(ASE->getBase());
   resetMode();
   setIsRequired(dyn_cast<clang::Expr>(ASE));
-  setMode(Mode::markingMode | Mode::nonLinearMode);
+  setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   TraverseStmt(ASE->getIdx());
   resetMode();
   return true;
 }
 
 bool TBRAnalyzer::VisitInitListExpr(clang::InitListExpr* ILE) {
-  setMode(Mode::markingMode);
+  setMode(Mode::kMarkingMode);
   for (auto* init : ILE->inits())
     TraverseStmt(init);
   resetMode();

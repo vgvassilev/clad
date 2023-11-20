@@ -148,8 +148,6 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// VarData::overlay() recursively.
   void overlay(const clang::Expr* E);
 
-
-
   /// Used to store all the necessary information about variables at a
   /// particular moment.
   /// Note: the VarsData of one CFG block only stores information specific
@@ -212,14 +210,14 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   /// where it would have a differential influence and will appear non-linearly
   /// (e.g. for 'x = 2 * y;', y will not appear in the backwards pass). Hence,
   /// markingMode and nonLinearMode.
-  enum Mode { markingMode = 1, nonLinearMode = 2 };
+  enum Mode { kMarkingMode = 1, kNonLinearMode = 2 };
   /// Tells if the variable at a given location is required to store. Basically,
   /// is the result of analysis.
-  std::set<clang::SourceLocation> TBRLocs;
+  std::set<clang::SourceLocation> m_TBRLocs;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
-  std::vector<int> modeStack;
+  std::vector<int> m_ModeStack;
 
   ASTContext& m_Context;
 
@@ -228,20 +226,20 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
   /// Stores VarsData structures for CFG blocks (the indices in
   /// the vector correspond to CFG blocks' IDs)
-  std::vector<std::unique_ptr<VarsData>> blockData;
+  std::vector<std::unique_ptr<VarsData>> m_BlockData;
 
   /// Stores the number of performed passes for a given CFG block index.
-  std::vector<short> blockPassCounter;
+  std::vector<short> m_BlockPassCounter;
 
   /// ID of the CFG block being visited.
-  unsigned curBlockID{};
+  unsigned m_CurBlockID{};
 
   /// The set of IDs of the CFG blocks that should be visited.
-  std::set<unsigned> CFGQueue;
+  std::set<unsigned> m_CFGQueue;
 
   /// Set to true when a non-const index is found while analysing an
   /// array subscript expression.
-  bool nonConstIndexFound = false;
+  bool m_NonConstIndexFound = false;
 
   //// Setters
   /// Creates VarData for a new VarDecl*.
@@ -256,26 +254,26 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   void setIsRequired(const clang::Expr* E, bool isReq = true);
 
   /// Returns the VarsData of the CFG block being visited.
-  VarsData& getCurBlockVarsData() { return *blockData[curBlockID]; }
+  VarsData& getCurBlockVarsData() { return *m_BlockData[m_CurBlockID]; }
 
   //// Modes Setters
   /// Sets the mode manually
-  void setMode(int mode) { modeStack.push_back(mode); }
+  void setMode(int mode) { m_ModeStack.push_back(mode); }
   /// Sets nonLinearMode but leaves markingMode just as it was.
   void startNonLinearMode() {
-    modeStack.push_back(modeStack.back() | Mode::nonLinearMode);
+    m_ModeStack.push_back(m_ModeStack.back() | Mode::kNonLinearMode);
   }
   /// Sets markingMode but leaves nonLinearMode just as it was.
   void startMarkingMode() {
-    modeStack.push_back(Mode::markingMode | modeStack.back());
+    m_ModeStack.push_back(Mode::kMarkingMode | m_ModeStack.back());
   }
   /// Removes the last mode in the stack (retrieves the previous one).
-  void resetMode() { modeStack.pop_back(); }
+  void resetMode() { m_ModeStack.pop_back(); }
 
 public:
   /// Constructor
-  TBRAnalyzer(ASTContext& m_Context) : m_Context(m_Context) {
-    modeStack.push_back(0);
+  TBRAnalyzer(ASTContext& Context) : m_Context(Context) {
+    m_ModeStack.push_back(0);
   }
 
   /// Destructor
@@ -288,7 +286,7 @@ public:
   TBRAnalyzer& operator=(const TBRAnalyzer&&) = delete;
 
   /// Returns the result of the whole analysis
-  std::set<clang::SourceLocation> getResult() { return TBRLocs; }
+  std::set<clang::SourceLocation> getResult() { return m_TBRLocs; }
 
   /// Visitors
   void Analyze(const clang::FunctionDecl* FD);
