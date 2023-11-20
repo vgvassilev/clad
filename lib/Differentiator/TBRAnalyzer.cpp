@@ -757,8 +757,6 @@ void TBRAnalyzer::VisitCallExpr(const clang::CallExpr* CE) {
     resetMode();
     const auto* B = arg->IgnoreParenImpCasts();
     // FIXME: this supports only DeclRefExpr
-    llvm::SmallVector<Expr*, 4> ExprsToStore;
-    utils::GetInnermostReturnExpr(arg, ExprsToStore);
     if (passByRef) {
       /// Mark SourceLocation as required to store for ref-type arguments.
       if (isa<DeclRefExpr>(B) || isa<MemberExpr>(B)) {
