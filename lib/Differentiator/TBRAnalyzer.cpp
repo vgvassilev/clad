@@ -191,7 +191,7 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
   } else if (utils::isArrayOrPointerType(QT)) {
     type = VarData::ARR_TYPE;
     val.m_ArrData = std::unique_ptr<ArrMap>(new ArrMap());
-    const Type* elemType;
+    const Type* elemType = nullptr;
     if (const auto* const pointerType = llvm::dyn_cast<clang::PointerType>(QT))
       elemType = pointerType->getPointeeType().getTypePtrOrNull();
     else
@@ -217,7 +217,7 @@ TBRAnalyzer::VarData::VarData(const QualType QT) {
 void TBRAnalyzer::overlay(const clang::Expr* E) {
   m_NonConstIndexFound = false;
   llvm::SmallVector<ProfileID, 2> IDSequence;
-  const clang::DeclRefExpr* innermostDRE;
+  const clang::DeclRefExpr* innermostDRE = nullptr;
   bool cond = true;
   /// Unwrap the given expression to a vector of indices and fields.
   while (cond) {
