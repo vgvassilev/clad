@@ -554,8 +554,7 @@ bool TBRAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
       addVar(VD);
   }
 
-  if (const auto* E = dyn_cast<clang::Expr>(DRE))
-    setIsRequired(E);
+  setIsRequired(DRE);
 
   return true;
 }
@@ -772,7 +771,7 @@ bool TBRAnalyzer::VisitCXXConstructExpr(clang::CXXConstructExpr* CE) {
 }
 
 bool TBRAnalyzer::VisitMemberExpr(clang::MemberExpr* ME) {
-  setIsRequired(dyn_cast<clang::Expr>(ME));
+  setIsRequired(ME);
   return true;
 }
 
@@ -780,7 +779,7 @@ bool TBRAnalyzer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
   setMode(0);
   TraverseStmt(ASE->getBase());
   resetMode();
-  setIsRequired(dyn_cast<clang::Expr>(ASE));
+  setIsRequired(ASE);
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   TraverseStmt(ASE->getIdx());
   resetMode();
