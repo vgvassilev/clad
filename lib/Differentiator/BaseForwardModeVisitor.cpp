@@ -31,6 +31,8 @@
 
 #include "clad/Differentiator/Compatibility.h"
 
+#include <iostream>
+
 using namespace clang;
 
 namespace clad {
@@ -961,6 +963,87 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+  if (isa<CXXMemberCallExpr>(CE)) {
+    auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
+
+    if (MCE->getObjectType().getAsString().find("Kokkos::View") != std::string::npos) {
+      //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
+      return StmtDiff(Clone(CE));
+    }
+  }
+  if (isa<CXXOperatorCallExpr>(CE)) {
+    auto OCE = dyn_cast<clang::CXXOperatorCallExpr>(CE);
+    const Expr* baseOriginalE = OCE->getArg(0);
+
+    bool isKokkosViewAccess = false;
+    std::string kokkosViewName;
+    
+    if (isa<ImplicitCastExpr>(baseOriginalE)) {
+      auto SE = baseOriginalE->IgnoreImpCasts();
+      if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+        std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
+        std::cout << constructedTypeName << std::endl;
+        if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
+          isKokkosViewAccess = true;
+          kokkosViewName = DRE->getNameInfo().getName().getAsString ();
+        }
+      }
+    }
+
+    // Returning the function call and zero derivative
+    if (isKokkosViewAccess) {
+
+      llvm::SmallVector<Expr*, 4> ClonedArgs;
+      for (unsigned i = 1, e = CE->getNumArgs(); i < e; ++i)
+        ClonedArgs.push_back(Clone(CE->getArg(i)));
+
+      Expr* Call = m_Sema
+                      .ActOnCallExpr(getCurrentScope(), Clone(CE->getArg(0)),
+                                      noLoc, ClonedArgs, noLoc)
+                      .get();
+
+      // replace kokkosViewName with "_d_"+kokkosViewName
+
+      Expr* dView = Visit(CE->getArg(0)).getExpr_dx();
+
+      dView->dump();
+
+      Expr* dCall = m_Sema
+                      .ActOnCallExpr(getCurrentScope(), dView,
+                                      noLoc, ClonedArgs, noLoc)
+                      .get();
+
+      //std::cout << " kokkosViewName = " << kokkosViewName << std::endl;
+      return StmtDiff(Call, dCall);
+    }
+  }
+
+  auto SE = CE->getCallee()->IgnoreImpCasts();
+  if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+    if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+      if (FD->getQualifiedNameAsString().find("Kokkos::deep_copy") != std::string::npos) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          ClonedArgs.push_back(Clone(CE->getArg(i)));
+          ClonedDArgs.push_back(Visit(CE->getArg(i)).getExpr_dx());
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+    }
+  }
+
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
     diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
@@ -1054,6 +1137,18 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     CallArgs.push_back(argDiff.getExpr());
     if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
+      QualType CallArgTy = CallArgs.back()->getType();
+
+      std::string error_message = "Type mismatch, we might fail to instantiate a pullback with types " +
+             QualType::getAsString(CallArgTy.split(), PrintingPolicy{ {} }) + " and " +
+             QualType::getAsString(dArg->getType().split(), PrintingPolicy{ {} });
+      if (!(!dArg || m_Context.hasSameType(CallArgTy, dArg->getType()))) {
+        std::cout << error_message.c_str() << std::endl;
+        CE->dump();
+      }
+      assert((!dArg || m_Context.hasSameType(CallArgTy, dArg->getType())) &&
+             "Type mismatch, we might fail to instantiate a pullback");
+      (void)CallArgTy;
       // FIXME: What happens when dArg is nullptr?
       diffArgs.push_back(dArg);
     }
@@ -1218,6 +1313,8 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
+    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+  } else if (opKind == UnaryOperatorKind::UO_Not) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else {
     unsupportedOpWarn(UnOp->getEndLoc());
@@ -1781,10 +1878,52 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
-  for (auto arg : CE->arguments()) {
-    auto argDiff = Visit(arg);
-    clonedArgs.push_back(argDiff.getExpr());
-    derivedArgs.push_back(argDiff.getExpr_dx());
+  //CE->dump ();
+  //std::string className = CE->getStmtClassName();
+  //std::cout << className << std::endl;
+  //CE->getConstructor ()->dump();
+  //std::cout << className << std::endl;
+  //CE->getType()->dump();
+  //std::cout << CE->getType()->getAsString () << std::endl;
+  std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
+
+  // Check if we are in a Kokkos View construction.
+  if (constructedTypeName.rfind("Kokkos::View", 0) == 0) {
+    size_t runTimeDim = 0;
+    std::vector<size_t> compileTimeDims;
+    bool read = false;
+    for (size_t i = 0; i < constructedTypeName.size(); ++i) { 
+      if (read && constructedTypeName[i] == '*')
+        ++runTimeDim;
+      if (read && constructedTypeName[i] == '[')
+        compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
+      if (!read && constructedTypeName[i] == ' ')
+        read = true;
+    } 
+    //std::cout << "runTimeDim = " << runTimeDim << std::endl;
+    //std::cout << "compileTimeDim = " << compileTimeDims.size() << std::endl;
+    //for (auto compileTimeDim : compileTimeDims)
+    //  std::cout << "  compileTimeDim = " << compileTimeDim << std::endl;
+
+    size_t i = 0;
+    for (auto arg : CE->arguments()) {
+      if (i == runTimeDim + 1)
+        break;
+      auto argDiff = Visit(arg);
+      clonedArgs.push_back(argDiff.getExpr());
+      if (i==0)
+        derivedArgs.push_back(argDiff.getExpr_dx());
+      else
+        derivedArgs.push_back(argDiff.getExpr());
+      ++i;
+    }
+  }
+  else {
+    for (auto arg : CE->arguments()) {
+      auto argDiff = Visit(arg);
+      clonedArgs.push_back(argDiff.getExpr());
+      derivedArgs.push_back(argDiff.getExpr_dx());
+    }
   }
   Expr* clonedArgsE = nullptr;
   Expr* derivedArgsE = nullptr;
@@ -1952,6 +2091,34 @@ StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(
   StmtDiff BTEDiff = Visit(BTE->getSubExpr());
   return BTEDiff;
 }
+
+StmtDiff BaseForwardModeVisitor::VisitLambdaExpr(
+    const clang::LambdaExpr* LE) {
+  //for (auto TP : LE->getExplicitTemplateParameters())
+  StmtDiff LEDiff = Visit(LE->getBody());
+  return LEDiff;
+}
+
+StmtDiff BaseForwardModeVisitor::VisitValueStmt(
+    const clang::ValueStmt* VS) {
+  // This is most likely a name provided in a Kokkos::view construction
+  VS->dump ();
+  // Test if StringLiteral
+  if (isa<StringLiteral>(VS)) {
+    std::cout << "This is a StringLiteral!" << std::endl;
+    auto SL = dyn_cast<clang::StringLiteral>(VS);
+
+    std::string name_str("_d_"+ SL->getString().str());
+    StringRef name(name_str);
+
+    Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
+    VS->dump ();
+    derivedVS->dump ();
+    return {Clone(VS), derivedVS};
+  }
+  return {Clone(VS), Clone(VS)};
+}
+
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNullPtrLiteralExpr(
     const clang::CXXNullPtrLiteralExpr* NPL) {
