@@ -20,7 +20,7 @@ double test_1(double x){
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 1 * numerical_diff::forward_central_difference(tanh, _t0, 0, 1, _t0);
+//CHECK-NEXT:         double _r0 = 1 * numerical_diff::forward_central_difference((double (*)(double){{.*}})tanh, _t0, 0, 1, _t0);
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
