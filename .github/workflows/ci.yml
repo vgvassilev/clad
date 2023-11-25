@@ -511,7 +511,7 @@ jobs:
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
-        brew update
+        #brew update
         brew install llvm
         # Update openssl on osx because the current one is deprecated by python.
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
@@ -520,7 +520,7 @@ jobs:
 
         # For now Package llvm@17 is unsuported on brew, llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
-        if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 11 ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 16 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
           [ '${{ matrix.clang-runtime }}' == '9' ] && w="1" || w="0"
