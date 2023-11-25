@@ -512,7 +512,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         #brew update
-        brew install llvm
+        #brew install llvm
         # Update openssl on osx because the current one is deprecated by python.
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
@@ -541,7 +541,7 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '17' && ${{ matrix.clang-runtime }} -gt 11 ]]; then
+        if [[ '${{ matrix.clang-runtime }}' != '17' && ${{ matrix.clang-runtime }} -gt 16 ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         else
           # Remove the c++ headers that come with the llvm package from homebrew
