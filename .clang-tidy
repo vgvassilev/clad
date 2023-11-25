@@ -35,8 +35,12 @@ CheckOptions:
     value:           aNy_CasE
   - key:             readability-identifier-naming.MemberCase
     value:           aNy_CasE
-  - key:             readability-identifier-naming.MemberPrefix
+  - key:             readability-identifier-naming.PrivateMemberPrefix
     value:           'm_'
+  - key:             readability-identifier-naming.ProtectedMemberPrefix
+    value:           'm_'
+  - key:             readability-identifier-naming.PublicMemberPrefix
+    value:           ''
   - key:             readability-identifier-naming.ParameterCase
     value:           aNy_CasE
   - key:             readability-identifier-naming.UnionCase
