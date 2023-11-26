@@ -24,16 +24,6 @@ jobs:
       matrix:
 
         include:
-          - name: osx-clang-runtime9
-            os: macos-11
-            compiler: clang
-            clang-runtime: '9'
-
-          - name: osx-clang-runtime10
-            os: macos-11
-            compiler: clang
-            clang-runtime: '10'
-
           - name: osx-clang-runtime11
             os: macos-latest
             compiler: clang
@@ -512,7 +502,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         #brew update
-        #brew install llvm
+        brew install llvm
         # Update openssl on osx because the current one is deprecated by python.
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
@@ -520,7 +510,7 @@ jobs:
 
         # For now Package llvm@17 is unsuported on brew, llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
-        if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 16 ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 11 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
           w="0"
@@ -542,7 +532,7 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '17' && ${{ matrix.clang-runtime }} -gt 16 ]]; then
+        if [[ '${{ matrix.clang-runtime }}' != '17' && ${{ matrix.clang-runtime }} -gt 11 ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         else
           # Remove the c++ headers that come with the llvm package from homebrew
