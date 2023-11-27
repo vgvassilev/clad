@@ -69,11 +69,6 @@ jobs:
             compiler: msvc
             clang-runtime: '16'
 
-          - name: ubu20-gcc7-runtime8
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '8'
-
           - name: ubu20-gcc7-runtime11-analyzers
             os: ubuntu-20.04
             compiler: gcc-7
