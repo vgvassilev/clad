@@ -170,6 +170,7 @@ jobs:
             os: ubuntu-20.04
             compiler: gcc-9
             clang-runtime: '12'
+
           - name: ubu20-clang8-runtime12
             os: ubuntu-20.04
             compiler: clang-8
@@ -381,6 +382,12 @@ jobs:
             compiler: clang-15
             clang-runtime: '16'
 
+          - name: ubu22-clang15-runtime16
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '16'
+            debug_build: true
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -401,11 +408,15 @@ jobs:
         name: pr
         path: pr/
     - uses: nelonoel/branch-name@v1.0.1
-    - name: Setup default Build Type on *nux
-      if: runner.os != 'windows'
+    - name: Setup default Build Type on *nux (coverity)
+      if: ${{ (matrix.debug_build == false) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
         echo "CODE_COVERAGE=0" >> $GITHUB_ENV
+    - name: Setup default Build Type on *nux (build_debug & asserts)
+      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
+      run: |
+        echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
@@ -546,8 +557,51 @@ jobs:
         done
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+
+    - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
+      if: ${{ (matrix.debug_build == false) && (runner.os != 'windows') }}
+      uses: actions/cache/restore@v3
+      id: cache
+      with:
+        path: |
+          llvm-project
+        key: ${{ matrix.os }}-${{ matrix.compiler }}-clang-${{ matrix.clang-runtime }}.x
+    - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
+      if: ${{ (matrix.debug_build == true) && runner.os != 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      run: |
+        os="${{ matrix.os }}"
+        git clone --depth=1 -b release/${{ matrix.clang-runtime }}.x https://github.com/llvm/llvm-project.git
+        cd llvm-project
+        # Build
+        mkdir build
+        cd build
+        cmake -DLLVM_ENABLE_PROJECTS=clang          \
+              -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  \
+              -DCMAKE_BUILD_TYPE=`[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE` \
+              -DLLVM_ENABLE_ASSERTIONS=ON           \
+              -DCLANG_ENABLE_STATIC_ANALYZER=OFF    \
+              -DCLANG_ENABLE_ARCMT=OFF              \
+              -DCLANG_ENABLE_FORMAT=OFF             \
+              -DCLANG_ENABLE_BOOTSTRAP=OFF          \
+              ../llvm
+        cmake --build . --target clang clang-repl --parallel ${{ env.ncpus }}
+        cd ../../
+    - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
+      uses: actions/cache/save@v3
+      if: ${{ (matrix.debug_build == true) && runner.os != 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      with:
+        path: |
+          llvm-project
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+    - name: Set LLVM/Cling build path on Unix (debug_build==true)
+      if: ${{ (matrix.debug_build == true) && runner.os != 'windows' }}
+      run: |
+        export PATH_TO_LLVM_BUILD="$PWD/llvm-project/build"
+        echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+        pip3 install lit # LLVM lit is not part of the llvm releases...
+
     - name: Setup LLVM/Clang on Linux
-      if: runner.os == 'Linux'
+      if: {{ runner.os == 'Linux' && matrix.debug_build == false}}
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
