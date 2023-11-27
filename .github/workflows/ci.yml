@@ -24,16 +24,6 @@ jobs:
       matrix:
 
         include:
-          - name: osx-clang-runtime9
-            os: macos-11
-            compiler: clang
-            clang-runtime: '9'
-
-          - name: osx-clang-runtime10
-            os: macos-11
-            compiler: clang
-            clang-runtime: '10'
-
           - name: osx-clang-runtime11
             os: macos-latest
             compiler: clang
@@ -78,11 +68,6 @@ jobs:
             os: windows-latest
             compiler: msvc
             clang-runtime: '16'
-
-          - name: ubu20-gcc7-runtime8
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '8'
 
           - name: ubu20-gcc7-runtime11-analyzers
             os: ubuntu-20.04
@@ -511,7 +496,9 @@ jobs:
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
-        brew install llvm
+        #brew update
+        brew install --ignore-dependencies llvm
+        brew install z3
         # Update openssl on osx because the current one is deprecated by python.
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
@@ -522,7 +509,8 @@ jobs:
         if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 11 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
-          [ '${{ matrix.clang-runtime }}' == '9' ] && w="1" || w="0"
+          w="0"
+          [ '${{ matrix.clang-runtime }}' == '17' ] && w="5"
           sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.0.$w/clang+llvm-${{ matrix.clang-runtime }}.0.$w-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
           sudo rm -fr /usr/local/clang*
           sudo mv clang+llvm-${{ matrix.clang-runtime }}.0.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
