@@ -601,7 +601,7 @@ jobs:
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
     - name: Setup LLVM/Clang on Linux
-      if: {{ runner.os == 'Linux' && matrix.debug_build == false}}
+      if: {{ runner.os == 'Linux' && matrix.debug_build == false }}
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
