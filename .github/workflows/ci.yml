@@ -567,7 +567,7 @@ jobs:
           llvm-project
         key: ${{ matrix.os }}-${{ matrix.compiler }}-clang-${{ matrix.clang-runtime }}.x
     - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && runner.os != 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
       run: |
         os="${{ matrix.os }}"
         git clone --depth=1 -b release/${{ matrix.clang-runtime }}.x https://github.com/llvm/llvm-project.git
@@ -588,20 +588,20 @@ jobs:
         cd ../../
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v3
-      if: ${{ (matrix.debug_build == true) && runner.os != 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
       with:
         path: |
           llvm-project
         key: ${{ steps.cache.outputs.cache-primary-key }}
     - name: Set LLVM/Cling build path on Unix (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && runner.os != 'windows' }}
+      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
         export PATH_TO_LLVM_BUILD="$PWD/llvm-project/build"
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
     - name: Setup LLVM/Clang on Linux
-      if: {{ runner.os == 'Linux' && matrix.debug_build == false }}
+      if: ${{ runner.os == 'Linux' && matrix.debug_build == false }}
       run: |
         UNIX_DISTRO=$(lsb_release -rs)
         PATH_TO_LLVM_BUILD=/usr/lib/llvm-${{ matrix.clang-runtime }}/
