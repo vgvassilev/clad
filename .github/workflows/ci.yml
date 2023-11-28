@@ -384,7 +384,7 @@ jobs:
 
           - name: ubu22-clang15-runtime16-debug
             os: ubuntu-22.04
-            compiler: clang-16
+            compiler: clang-15
             clang-runtime: '16'
             debug_build: true
 
@@ -575,7 +575,9 @@ jobs:
         # Build
         mkdir build
         cd build
-        cmake -DLLVM_ENABLE_PROJECTS=clang          \
+        export CPU_COUNT="$(nproc --all)"
+        cmake \
+              -DLLVM_ENABLE_PROJECTS="clang"        \
               -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  \
               -DCMAKE_BUILD_TYPE=`[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE` \
               -DLLVM_ENABLE_ASSERTIONS=ON           \
@@ -583,8 +585,13 @@ jobs:
               -DCLANG_ENABLE_ARCMT=OFF              \
               -DCLANG_ENABLE_FORMAT=OFF             \
               -DCLANG_ENABLE_BOOTSTRAP=OFF          \
+              -DLLVM_ENABLE_TERMINFO=OFF            \
+              -DCLANG_INCLUDE_TESTS=OFF             \
+              -DCLANG_INCLUDE_DOCS=OFF              \
+              -DLLVM_INCLUDE_TESTS=OFF              \
+              -DLLVM_INCLUDE_DOCS=OFF               \
               ../llvm
-        cmake --build . --target clang clang-repl --parallel ${{ env.ncpus }}
+        cmake --build . --target clang --parallel ${CPU_COUNT}
         cd ../../
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v3
