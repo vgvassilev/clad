@@ -607,6 +607,10 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         pip3 install lit # LLVM lit is not part of the llvm releases...
+        vers="${compiler#*-}"
+        if [ ! -f "$PATH_TO_LLVM_BUILD/bin/FileCheck" ]; then
+          ln -s /usr/bin/FileCheck-$ver $PATH_TO_LLVM_BUILD/bin/FileCheck
+        fi
 
     - name: Setup LLVM/Clang on Linux
       if: ${{ (runner.os == 'Linux') && (matrix.debug_build != true) }}
@@ -798,7 +802,7 @@ jobs:
       if: ${{ failure() }}
       uses: mxschmitt/action-tmate@v3
       # When debugging increase to a suitable value!
-      timeout-minutes: ${{ github.event.pull_request && 100 || 20 }}
+      timeout-minutes: ${{ github.event.pull_request && 1 || 20 }}
     - name: Prepare code coverage report
       if: ${{ success() && (matrix.coverage == true) }}
       run: |
