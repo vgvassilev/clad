@@ -1,7 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out | FileCheck %s
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
 
-// REQUIRES: !asserts
+// XFAIL: asserts
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

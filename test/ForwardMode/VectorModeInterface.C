@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
-// REQUIRES: !asserts
+// XFAIL: asserts
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
