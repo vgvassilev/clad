@@ -565,7 +565,7 @@ jobs:
       with:
         path: |
           llvm-project
-        key: ${{ matrix.os }}-${{ matrix.compiler }}-clang-${{ matrix.clang-runtime }}.x
+        key: ${{ matrix.os }}-${{ matrix.clang-runtime }}.x
     - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
       run: |
