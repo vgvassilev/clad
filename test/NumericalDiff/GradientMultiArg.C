@@ -17,8 +17,6 @@ double test_1(double x, double y){
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t0 = x;
 // CHECK-NEXT:     _t1 = y;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _grad0 = 0.;
 // CHECK-NEXT:         double _grad1 = 0.;

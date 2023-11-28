@@ -19,8 +19,6 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 0 * 1;
@@ -44,8 +42,6 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 0 * 1;
@@ -69,8 +65,6 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 0 * 1;
@@ -94,8 +88,6 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 0 * 1;
@@ -118,8 +110,6 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 0 * 1;
@@ -142,8 +132,6 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t2 = z;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 1 * _t0;
 //CHECK-NEXT:           double _r1 = 0 * 1;

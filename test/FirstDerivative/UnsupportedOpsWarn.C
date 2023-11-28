@@ -19,8 +19,6 @@ int binOpWarn_1(int x){
 }
 
 // CHECK: void binOpWarn_1_grad(int x, clad::array_ref<int> _d_x) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     ;
 // CHECK-NEXT: }
 
@@ -41,8 +39,6 @@ int unOpWarn_1(int x){
 // CHECK: void unOpWarn_1_grad(int x, clad::array_ref<int> _d_x) {
 // CHECK-NEXT:     int *_d_pnt = 0;
 // CHECK-NEXT:     int *pnt = &x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     * _d_x += 1;
 // CHECK-NEXT: }
 

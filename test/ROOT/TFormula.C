@@ -47,8 +47,6 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:       _t0 = (p[0] + p[1] + p[2]);
 //CHECK-NEXT:       _t2 = -p[0];
 //CHECK-NEXT:       _t3 = p[1];
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           {{double|Double_t}} _r0 = 1 * _t0;
 //CHECK-NEXT:           {{double|Double_t}} _r1 = _t1 * 1;

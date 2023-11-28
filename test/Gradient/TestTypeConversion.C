@@ -26,8 +26,6 @@ void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         z = clad::push(_t2, z) * clad::push(_t1, a);
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     * _d_z += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         {

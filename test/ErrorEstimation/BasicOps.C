@@ -35,8 +35,6 @@ float func(float x, float y) {
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     float z = _t1 * _t0;
 //CHECK-NEXT:     _EERepl_z0 = z;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r0 = _d_z * _t0;
@@ -95,8 +93,6 @@ float func2(float x, float y) {
 //CHECK-NEXT:     _t2 = x;
 //CHECK-NEXT:     float z = _t3 / _t2;
 //CHECK-NEXT:     _EERepl_z0 = z;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r2 = _d_z / _t2;
@@ -164,8 +160,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:     float t = _t5 * _t2;
 //CHECK-NEXT:     _EERepl_t0 = t;
 //CHECK-NEXT:     _EERepl_y1 = y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_t += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r2 = _d_t * _t2;
@@ -210,8 +204,6 @@ float func4(float x, float y) { return std::pow(x, y); }
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     _ret_value0 = std::pow(_t0, _t1);
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _grad0 = 0.F;
 //CHECK-NEXT:         float _grad1 = 0.F;
@@ -248,8 +240,6 @@ float func5(float x, float y) {
 //CHECK-NEXT:     _t2 = y;
 //CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     _ret_value0 = _t2 * _t1;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r1 = 1 * _t1;
 //CHECK-NEXT:         * _d_y += _r1;
@@ -280,8 +270,6 @@ double helper(double x, double y) { return x * y; }
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     _t0 = y;
 //CHECK-NEXT:     _ret_value0 = _t1 * _t0;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = _d_y0 * _t0;
 //CHECK-NEXT:         * _d_x += _r0;
@@ -316,8 +304,6 @@ float func6(float x, float y) {
 //CHECK-NEXT:     _t4 = z;
 //CHECK-NEXT:     _t3 = z;
 //CHECK-NEXT:     _ret_value0 = _t4 * _t3;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r2 = 1 * _t3;
 //CHECK-NEXT:         _d_z += _r2;
@@ -350,8 +336,6 @@ float func7(float x) {
 //CHECK: void func7_grad(float x, clad::array_ref<float> _d_x, double &_final_error) {
 //CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     int z = x;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_z += 1;
 //CHECK-NEXT:         _d_z += 1;
@@ -372,8 +356,6 @@ double helper2(float& x) { return x * x; }
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     _ret_value0 = _t1 * _t0;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = _d_y * _t0;
 //CHECK-NEXT:         * _d_x += _r0;
@@ -400,8 +382,6 @@ float func8(float x, float y) {
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     z = y + helper2(x);
 //CHECK-NEXT:     _EERepl_z1 = z;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r_d0 = _d_z;
@@ -449,8 +429,6 @@ float func9(float x, float y) {
 //CHECK-NEXT:     _t5 = helper2(y);
 //CHECK-NEXT:     z += _t8 * _t5;
 //CHECK-NEXT:     _EERepl_z1 = z;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r_d0 = _d_z;
