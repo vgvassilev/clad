@@ -559,7 +559,7 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
     - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
-      if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
+      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       uses: actions/cache/restore@v3
       id: cache
       with:
@@ -604,6 +604,7 @@ jobs:
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
         export PATH_TO_LLVM_BUILD="$PWD/llvm-project/build"
+        echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
@@ -625,7 +626,7 @@ jobs:
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
-      if: runner.os == 'windows'
+      if: ${{ runner.os == 'windows' }}
       run: |
         C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
         $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
@@ -654,7 +655,7 @@ jobs:
         echo "CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config *nix
-      if: runner.os != 'windows'
+      if: ${{ runner.os != 'windows' }}
       run: |
         cmake --version
         $CC --version
@@ -665,7 +666,7 @@ jobs:
         echo "Building clad in `[[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE`"
         python3 --version
     - name: Display config Windows
-      if: runner.os == 'windows'
+      if: ${{ runner.os == 'windows' }}
       run: |
         cmake --version
         echo "CC=$env:CC"
