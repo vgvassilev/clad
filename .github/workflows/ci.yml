@@ -611,6 +611,8 @@ jobs:
         if [ ! -f "$PATH_TO_LLVM_BUILD/bin/FileCheck" ]; then
           ln -s /usr/bin/FileCheck-$ver $PATH_TO_LLVM_BUILD/bin/FileCheck
         fi
+      env:
+        compiler: ${{ matrix.compiler }}
 
     - name: Setup LLVM/Clang on Linux
       if: ${{ (runner.os == 'Linux') && (matrix.debug_build != true) }}
