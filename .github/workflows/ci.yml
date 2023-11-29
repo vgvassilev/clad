@@ -591,7 +591,8 @@ jobs:
               -DLLVM_INCLUDE_TESTS=OFF              \
               -DLLVM_INCLUDE_DOCS=OFF               \
               ../llvm
-        cmake --build . --target clang --parallel ${CPU_COUNT}
+        cmake --build . --target clang FileCheck --parallel ${CPU_COUNT}
+        ls -la $PATH_TO_LLVM_BUILD/bin
         cd ../../
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v3
