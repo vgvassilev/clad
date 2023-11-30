@@ -1041,6 +1041,29 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
         return StmtDiff(Call, dCall);
       }
+      if (FD->getQualifiedNameAsString().find("Kokkos::parallel_for") != std::string::npos) {
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i==0)
+            ClonedDArgs.push_back(visitedArg.getExpr());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
     }
   }
 
@@ -2090,13 +2113,6 @@ StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(
   // required, by `ActOn`/`Build` Sema functions.
   StmtDiff BTEDiff = Visit(BTE->getSubExpr());
   return BTEDiff;
-}
-
-StmtDiff BaseForwardModeVisitor::VisitLambdaExpr(
-    const clang::LambdaExpr* LE) {
-  //for (auto TP : LE->getExplicitTemplateParameters())
-  StmtDiff LEDiff = Visit(LE->getBody());
-  return LEDiff;
 }
 
 StmtDiff BaseForwardModeVisitor::VisitValueStmt(
