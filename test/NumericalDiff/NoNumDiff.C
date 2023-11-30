@@ -16,8 +16,6 @@ double func(double x) { return std::tanh(x); }
 //CHECK-NEXT: }
 
 //CHECK: void func_grad(double x, clad::array_ref<double> _d_x) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {

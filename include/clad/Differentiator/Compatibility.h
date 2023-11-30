@@ -133,6 +133,20 @@ static inline bool Expr_EvaluateAsInt(const Expr *E,
 #endif
 }
 
+// Clang 12: bool Expr::EvaluateAsConstantExpr(EvalResult &Result,
+// ConstExprUsage Usage, ASTContext &)
+// => bool Expr::EvaluateAsConstantExpr(EvalResult &Result, ASTContext &)
+
+static inline bool Expr_EvaluateAsConstantExpr(const Expr* E,
+                                               Expr::EvalResult& res,
+                                               const ASTContext& Ctx) {
+#if CLANG_VERSION_MAJOR < 12
+  return E->EvaluateAsConstantExpr(res, Expr::EvaluateForCodeGen, Ctx);
+#else
+  return E->EvaluateAsConstantExpr(res, Ctx);
+#endif
+}
+
 // Compatibility helper function for creation IfStmt.
 // Clang 8 and above use Create.
 // Clang 12 and above use two extra params.

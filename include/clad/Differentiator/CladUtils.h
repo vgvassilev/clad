@@ -28,7 +28,7 @@ namespace clad {
     std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD);
 
     /// Creates and returns a compound statement having statements as follows:
-    /// {`S`, all the statement of `initial` in sequence}    
+    /// {`S`, all the statement of `initial` in sequence}
     clang::CompoundStmt* PrependAndCreateCompoundStmt(clang::ASTContext& C,
                                                       clang::Stmt* initial,
                                                       clang::Stmt* S);
@@ -38,7 +38,7 @@ namespace clad {
     clang::CompoundStmt* AppendAndCreateCompoundStmt(clang::ASTContext& C,
                                                      clang::Stmt* initial,
                                                      clang::Stmt* S);
-    
+
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
     void EmitDiag(clang::Sema& semaRef,
@@ -126,8 +126,8 @@ namespace clad {
     ///
     /// \param S
     /// \param namespc
-    /// \param shouldExist If true, then asserts that the specified namespace 
-    /// is found. 
+    /// \param shouldExist If true, then asserts that the specified namespace
+    /// is found.
     /// \param DC
     clang::NamespaceDecl* LookupNSD(clang::Sema& S, llvm::StringRef namespc,
                                     bool shouldExist,
@@ -162,7 +162,10 @@ namespace clad {
                                               llvm::StringRef str);
 
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
-    bool isArrayOrPointerType(const clang::QualType QT);
+    bool isArrayOrPointerType(clang::QualType QT);
+
+    /// Returns true if `T` is auto or auto* type, otherwise returns false.
+    bool IsAutoOrAutoPtrType(clang::QualType T);
 
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name);
@@ -234,7 +237,7 @@ namespace clad {
 
     bool IsCladValueAndPushforwardType(clang::QualType T);
 
-    /// Returns a valid `SourceRange` to be used in places where clang 
+    /// Returns a valid `SourceRange` to be used in places where clang
     /// requires a valid `SourceRange`.
     clang::SourceRange GetValidSRange(clang::Sema& semaRef);
 
@@ -313,6 +316,14 @@ namespace clad {
     bool hasNonDifferentiableAttribute(const clang::Decl* D);
 
     bool hasNonDifferentiableAttribute(const clang::Expr* E);
+
+    /// Collects every DeclRefExpr, MemberExpr, ArraySubscriptExpr in an
+    /// assignment operator or a ternary if operator. This is useful to when we
+    /// need to decide what needs to be stored on tape in reverse mode.
+    void GetInnermostReturnExpr(const clang::Expr* E,
+                                llvm::SmallVectorImpl<clang::Expr*>& Exprs);
+
+    bool ContainsFunctionCalls(const clang::Stmt* E);
   } // namespace utils
 }
 

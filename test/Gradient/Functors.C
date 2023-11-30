@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | FileCheck %s
 // RUN: ./Functors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oFunctors.out
+// RUN: ./Functors.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -13,23 +15,15 @@ struct Experiment {
   Experiment& operator=(const Experiment& E) = default;
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<Experiment> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * i;
   // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r2 = this->x * _r0;
   // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = this->x * i * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -42,25 +36,16 @@ struct ExperimentConst {
   void setX(double val) const { x = val; }
 
   ExperimentConst& operator=(const ExperimentConst& E) = default;
-
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<ExperimentConst> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * i;
   // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r2 = this->x * _r0;
   // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = this->x * i * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -80,23 +65,15 @@ struct ExperimentVolatile {
   };
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<volatile ExperimentVolatile> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     volatile double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * i;
   // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r2 = this->x * _r0;
   // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = this->x * i * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -116,23 +93,15 @@ struct ExperimentConstVolatile {
   };
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<volatile ExperimentConstVolatile> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     volatile double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * i;
   // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r2 = this->x * _r0;
   // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = this->x * i * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -149,23 +118,15 @@ struct ExperimentNNS {
   ExperimentNNS& operator=(const ExperimentNNS& E) = default;
 
   // CHECK: void operator_call_grad(double i, double j, clad::array_ref<ExperimentNNS> _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = this->x;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * i;
   // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r2 = this->x * _r0;
   // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = this->x * i * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -225,23 +186,15 @@ int main() {
   auto lambda = [](double i, double j) { return i * i * j; };
 
   // CHECK: inline void operator_call_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = i;
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * i;
   // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r2 = i * _r0;
   // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = i * i * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -249,22 +202,14 @@ int main() {
   auto lambdaWithCapture = [&](double ii, double j) { return x * ii * j; };
 
   // CHECK: inline void operator_call_grad(double ii, double j, clad::array_ref<double> _d_ii, clad::array_ref<double> _d_j) const {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
-  // CHECK-NEXT:     double _t3;
-  // CHECK-NEXT:     _t2 = x;
-  // CHECK-NEXT:     _t1 = ii;
-  // CHECK-NEXT:     _t3 = _t2 * _t1;
-  // CHECK-NEXT:     _t0 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * _t0;
-  // CHECK-NEXT:         double _r1 = _r0 * _t1;
-  // CHECK-NEXT:         double _r2 = _t2 * _r0;
+  // CHECK-NEXT:         double _r0 = 1 * j;
+  // CHECK-NEXT:         double _r1 = _r0 * ii;
+  // CHECK-NEXT:         double _r2 = x * _r0;
   // CHECK-NEXT:         * _d_ii += _r2;
-  // CHECK-NEXT:         double _r3 = _t3 * 1;
+  // CHECK-NEXT:         double _r3 = x * ii * 1;
   // CHECK-NEXT:         * _d_j += _r3;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -319,19 +264,15 @@ int main() {
 
   // CHECK: void CallFunctor_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:     Experiment _d_E({});
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     Experiment _t2;
+  // CHECK-NEXT:     Experiment _t0;
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     _t0 = i;
-  // CHECK-NEXT:     _t1 = j;
-  // CHECK-NEXT:     _t2 = E;
+  // CHECK-NEXT:     _t0 = E;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _grad0 = 0.;
   // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         _t2.operator_call_pullback(_t0, _t1, 1, &_d_E, &_grad0, &_grad1);
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_grad0, &_grad1);
   // CHECK-NEXT:         double _r0 = _grad0;
   // CHECK-NEXT:         * _d_i += _r0;
   // CHECK-NEXT:         double _r1 = _grad1;
@@ -346,18 +287,14 @@ int main() {
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
   // CHECK: void FunctorAsArg_grad(Experiment fn, double i, double j, clad::array_ref<Experiment> _d_fn, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     Experiment _t2;
-  // CHECK-NEXT:     _t0 = i;
-  // CHECK-NEXT:     _t1 = j;
-  // CHECK-NEXT:     _t2 = fn;
+  // CHECK-NEXT:     Experiment _t0;
+  // CHECK-NEXT:     _t0 = fn;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _grad0 = 0.;
   // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         _t2.operator_call_pullback(_t0, _t1, 1, &(* _d_fn), &_grad0, &_grad1);
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &(* _d_fn), &_grad0, &_grad1);
   // CHECK-NEXT:         double _r0 = _grad0;
   // CHECK-NEXT:         * _d_i += _r0;
   // CHECK-NEXT:         double _r1 = _grad1;
@@ -373,18 +310,14 @@ int main() {
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
   // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, clad::array_ref<Experiment> _d_fn, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     Experiment _t2;
-  // CHECK-NEXT:     _t0 = i;
-  // CHECK-NEXT:     _t1 = j;
-  // CHECK-NEXT:     _t2 = fn;
+  // CHECK-NEXT:     Experiment _t0;
+  // CHECK-NEXT:     _t0 = fn;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _grad0 = 0.;
   // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         _t2.operator_call_pullback(_t0, _t1, _d_y, &(* _d_fn), &_grad0, &_grad1);
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(* _d_fn), &_grad0, &_grad1);
   // CHECK-NEXT:         double _r0 = _grad0;
   // CHECK-NEXT:         * _d_i += _r0;
   // CHECK-NEXT:         double _r1 = _grad1;
@@ -394,20 +327,14 @@ int main() {
 
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
   // CHECK-NEXT:     Experiment _d_E({});
-  // CHECK-NEXT:     Experiment _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     double _t2;
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     _t0 = E
-  // CHECK-NEXT:     _t1 = i;
-  // CHECK-NEXT:     _t2 = j;
   // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:   _label0:
+  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         Experiment _grad0;
   // CHECK-NEXT:         double _grad1 = 0.;
   // CHECK-NEXT:         double _grad2 = 0.;
-  // CHECK-NEXT:         FunctorAsArg_pullback(_t0, _t1, _t2, 1, &_grad0, &_grad1, &_grad2);
+  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_grad0, &_grad1, &_grad2);
   // CHECK-NEXT:         Experiment _r0(_grad0);
   // CHECK-NEXT:         double _r1 = _grad1;
   // CHECK-NEXT:         * _d_i += _r1;

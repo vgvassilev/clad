@@ -50,19 +50,20 @@ namespace clad {
     Stmts m_Globals;
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
+    /// Based on To-Be-Recorded analysis performed before differentiation,
+    /// tells UsefulToStoreGlobal whether a variable with a given
+    /// SourceLocation has to be stored before being changed or not.
+    std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
-    /// Stores the pop index values for arrays in reverse mode.This is required
-    /// to maintain the correct statement order when the current block has
-    /// delayed emission i.e. assignment LHS.
-    Stmts m_PopIdxValues;
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     bool isVectorValued = false;
     bool use_enzyme = false;
+    bool enableTBR = false;
     // FIXME: Should we make this an object instead of a pointer?
     // Downside of making it an object: We will need to include
     // 'MultiplexExternalRMVSource.h' file
@@ -142,23 +143,32 @@ namespace clad {
     /// Create new block.
     Stmts& beginBlock(direction d = direction::forward) {
       if (d == direction::forward)
-        m_Blocks.push_back({});
+        m_Blocks.emplace_back();
       else
-        m_Reverse.push_back({});
+        m_Reverse.emplace_back();
       return getCurrentBlock(d);
     }
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
     clang::CompoundStmt* endBlock(direction d = direction::forward) {
       if (d == direction::forward) {
-        auto CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
+        auto* CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
         m_Blocks.pop_back();
         return CS;
       } else {
-        auto CS = MakeCompoundStmt(getCurrentBlock(direction::reverse));
+        auto* CS = MakeCompoundStmt(getCurrentBlock(direction::reverse));
         std::reverse(CS->body_begin(), CS->body_end());
         m_Reverse.pop_back();
         return CS;
       }
+    }
+
+    Stmts EndBlockWithoutCreatingCS(direction d = direction::forward) {
+      auto blk = getCurrentBlock(d);
+      if (d == direction::forward)
+        m_Blocks.pop_back();
+      else
+        m_Reverse.pop_back();
+      return blk;
     }
     /// Output a statement to the current block. If Stmt is null or is an unused
     /// expression, it is not output and false is returned.
@@ -237,6 +247,10 @@ namespace clad {
     StmtDiff GlobalStoreAndRef(clang::Expr* E,
                                llvm::StringRef prefix = "_t",
                                bool force = false);
+    StmtDiff BuildPushPop(clang::Expr* E, clang::QualType Type,
+                          llvm::StringRef prefix = "_t", bool force = false);
+    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
+                             bool force = false);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
@@ -250,6 +264,12 @@ namespace clad {
       StmtDiff Result;
       bool isConstant;
       bool isInsideLoop;
+      bool needsUpdate;
+      DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
+                         bool pIsConstant, bool pIsInsideLoop,
+                         bool pNeedsUpdate = false)
+          : V(pV), Result(pResult), isConstant(pIsConstant),
+            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
       void Finalize(clang::Expr* New);
     };
 
@@ -393,7 +413,7 @@ namespace clad {
                                                clang::QualType xType);
 
     /// Allows to easily create and manage a counter for counting the number of
-    /// executed iterations of a loop. 
+    /// executed iterations of a loop.
     ///
     /// It is required to save the number of executed iterations to use the
     /// same number of iterations in the reverse pass.
@@ -412,11 +432,11 @@ namespace clad {
       /// for counter; otherwise, returns nullptr.
       clang::Expr* getPush() const { return m_Push; }
 
-      /// Returns `clad::pop(_t)` expression if clad tape is used for 
+      /// Returns `clad::pop(_t)` expression if clad tape is used for
       /// for counter; otherwise, returns nullptr.
       clang::Expr* getPop() const { return m_Pop; }
 
-      /// Returns reference to the last object of the clad tape if clad tape 
+      /// Returns reference to the last object of the clad tape if clad tape
       /// is used as the counter; otherwise returns reference to the counter
       /// variable.
       clang::Expr* getRef() const { return m_Ref; }
@@ -458,11 +478,11 @@ namespace clad {
 
     /// This class modifies forward and reverse blocks of the loop
     /// body so that `break` and `continue` statements are correctly
-    /// handled. `break` and `continue` statements are handled by 
+    /// handled. `break` and `continue` statements are handled by
     /// enclosing entire reverse block loop body in a switch statement
     /// and only executing the statements, with the help of case labels,
-    /// that were executed in the associated forward iteration. This is 
-    /// determined by keeping track of which `break`/`continue` statement 
+    /// that were executed in the associated forward iteration. This is
+    /// determined by keeping track of which `break`/`continue` statement
     /// was hit in which iteration and that in turn helps to determine which
     /// case label should be selected.
     ///
@@ -490,7 +510,7 @@ namespace clad {
       /// \note `m_ControlFlowTape` is only initialized if the body contains
       /// `continue` or `break` statement.
       std::unique_ptr<CladTapeResult> m_ControlFlowTape;
-      
+
       /// Each `break` and `continue` statement is assigned a unique number,
       /// starting from 1, that is used as the case label corresponding to that `break`/`continue`
       /// statement. `m_CaseCounter` stores the value that was used for last
@@ -529,7 +549,7 @@ namespace clad {
       /// control flow switch statement.
       clang::CaseStmt* GetNextCFCaseStmt();
 
-      /// Builds and returns `clad::push(TapeRef, m_CurrentCounter)` 
+      /// Builds and returns `clad::push(TapeRef, m_CurrentCounter)`
       /// expression, where `TapeRef` and `m_CurrentCounter` are replaced
       /// by their actual values respectively.
       clang::Stmt* CreateCFTapePushExprToCurrentCase();
@@ -552,7 +572,7 @@ namespace clad {
     void PopBreakContStmtHandler() {
       m_BreakContStmtHandlers.pop_back();
     }
-                                   
+
     /// Registers an external RMV source.
     ///
     /// Multiple external RMV source can be registered by calling this function

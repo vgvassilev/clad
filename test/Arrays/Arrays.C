@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oArrays.out 2>&1 | FileCheck %s
 // RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oArrays.out
+// RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -92,34 +94,22 @@ double const_dot_product(double x, double y, double z) {
 //CHECK:   void const_dot_product_grad(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
 //CHECK-NEXT:       clad::array<double> _d_vars(3UL);
 //CHECK-NEXT:       clad::array<double> _d_consts(3UL);
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       double _t1;
-//CHECK-NEXT:       double _t2;
-//CHECK-NEXT:       double _t3;
-//CHECK-NEXT:       double _t4;
-//CHECK-NEXT:       double _t5;
 //CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
-//CHECK-NEXT:       _t1 = vars[0];
-//CHECK-NEXT:       _t0 = consts[0];
-//CHECK-NEXT:       _t3 = vars[1];
-//CHECK-NEXT:       _t2 = consts[1];
-//CHECK-NEXT:       _t5 = vars[2];
-//CHECK-NEXT:       _t4 = consts[2];
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = 1 * _t0;
+//CHECK-NEXT:           double _r0 = 1 * consts[0];
 //CHECK-NEXT:           _d_vars[0] += _r0;
-//CHECK-NEXT:           double _r1 = _t1 * 1;
+//CHECK-NEXT:           double _r1 = vars[0] * 1;
 //CHECK-NEXT:           _d_consts[0] += _r1;
-//CHECK-NEXT:           double _r2 = 1 * _t2;
+//CHECK-NEXT:           double _r2 = 1 * consts[1];
 //CHECK-NEXT:           _d_vars[1] += _r2;
-//CHECK-NEXT:           double _r3 = _t3 * 1;
+//CHECK-NEXT:           double _r3 = vars[1] * 1;
 //CHECK-NEXT:           _d_consts[1] += _r3;
-//CHECK-NEXT:           double _r4 = 1 * _t4;
+//CHECK-NEXT:           double _r4 = 1 * consts[2];
 //CHECK-NEXT:           _d_vars[2] += _r4;
-//CHECK-NEXT:           double _r5 = _t5 * 1;
+//CHECK-NEXT:           double _r5 = vars[2] * 1;
 //CHECK-NEXT:           _d_consts[2] += _r5;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {

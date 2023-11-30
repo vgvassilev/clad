@@ -67,8 +67,8 @@ namespace clad {
       DifferentiationOptions()
           : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
             DumpDerivedAST(false), GenerateSourceFile(false),
-            ValidateClangVersion(true), CustomEstimationModel(false),
-            PrintNumDiffErrorInfo(false), CustomModelName("") {}
+            ValidateClangVersion(true), EnableTBRAnalysis(false),
+            CustomEstimationModel(false), PrintNumDiffErrorInfo(false) {}
 
       bool DumpSourceFn : 1;
       bool DumpSourceFnAST : 1;
@@ -76,6 +76,7 @@ namespace clad {
       bool DumpDerivedAST : 1;
       bool GenerateSourceFile : 1;
       bool ValidateClangVersion : 1;
+      bool EnableTBRAnalysis : 1;
       bool CustomEstimationModel : 1;
       bool PrintNumDiffErrorInfo : 1;
       std::string CustomModelName;
@@ -132,6 +133,8 @@ namespace clad {
             m_DO.GenerateSourceFile = true;
           } else if (args[i] == "-fno-validate-clang-version") {
             m_DO.ValidateClangVersion = false;
+          } else if (args[i] == "-enable-tbr") {
+            m_DO.EnableTBRAnalysis = true;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {

@@ -501,9 +501,12 @@ Stmt* StmtClone::VisitStmt(Stmt*) {
   return 0;
 }
 
-ReferencesUpdater::ReferencesUpdater(Sema& SemaRef, Scope* S,
-                                     const FunctionDecl* FD)
-    : m_Sema(SemaRef), m_CurScope(S), m_Function(FD) {}
+ReferencesUpdater::ReferencesUpdater(
+    Sema& SemaRef, Scope* S, const FunctionDecl* FD,
+    const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
+        DeclReplacements)
+    : m_Sema(SemaRef), m_CurScope(S), m_Function(FD),
+      m_DeclReplacements(DeclReplacements) {}
 
 bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // We should only update references of the declarations that were inside
@@ -511,6 +514,14 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // Original function = function that we are currently differentiating.
   if (!DRE->getDecl()->getDeclContext()->Encloses(m_Function))
     return true;
+
+  // Replace the declaration if it is present in `m_DeclReplacements`.
+  if (VarDecl* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+    auto it = m_DeclReplacements.find(VD);
+    if (it != std::end(m_DeclReplacements))
+      DRE->setDecl(it->second);
+  }
+
   DeclarationNameInfo DNI = DRE->getNameInfo();
 
   LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);

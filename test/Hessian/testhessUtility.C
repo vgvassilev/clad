@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -otesthessUtility.out 2>&1 | FileCheck %s
 // RUN: ./testhessUtility.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -otesthessUtility.out
+// RUN: ./testhessUtility.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

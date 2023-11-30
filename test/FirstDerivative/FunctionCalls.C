@@ -136,7 +136,7 @@ double test_7(double i, double j) {
 // CHECK-NEXT: double res = 0;
 // CHECK-NEXT: {
 // CHECK-NEXT:    int _d_i0 = 0;
-// CHECK-NEXT:    for (int i0 = 0; i < 5; increment_pushforward(i0, _d_i0)) {
+// CHECK-NEXT:    for (int i0 = 0; i0 < 5; increment_pushforward(i0, _d_i0)) {
 // CHECK-NEXT:      _d_res += _d_i0 * j + i0 * _d_j;
 // CHECK-NEXT:      res += i0 * j;
 // CHECK-NEXT:    }

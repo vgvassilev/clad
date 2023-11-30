@@ -5,10 +5,11 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
-#include "clad/Differentiator/Compatibility.h"
 #include "llvm/ADT/SmallVector.h"
+#include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
 namespace clad {
@@ -109,7 +110,7 @@ namespace clad {
       CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
       if (CS)
         block.append(CS->body_begin(), CS->body_end());
-      else 
+      else
         block.push_back(initial);
       auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);
@@ -183,7 +184,7 @@ namespace clad {
         if (isa<TranslationUnitDecl>(DC2))
           break;
         if (isa<LinkageSpecDecl>(DC2)) {
-          DC2 = DC2->getParent();  
+          DC2 = DC2->getParent();
           continue;
         }
         if (DC2->isInlineNamespace()) {
@@ -262,7 +263,7 @@ namespace clad {
       }
       return DC;
     }
-    
+
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();
@@ -279,7 +280,7 @@ namespace clad {
       return SL;
     }
 
-    bool isArrayOrPointerType(const clang::QualType QT) {
+    bool isArrayOrPointerType(clang::QualType QT) {
       return QT->isArrayType() || QT->isPointerType();
     }
 
@@ -355,10 +356,10 @@ namespace clad {
       QualType valueType = T;
       if (T->isPointerType())
         valueType = T->getPointeeType();
-      else if (T->isReferenceType()) 
+      else if (T->isReferenceType())
         valueType = T.getNonReferenceType();
       // FIXME: `QualType::getPointeeOrArrayElementType` loses type qualifiers.
-      else if (T->isArrayType()) 
+      else if (T->isArrayType())
         valueType =
             T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
       valueType.removeLocalConst();
@@ -437,7 +438,7 @@ namespace clad {
       else if (S)
         block.push_back(S);
     }
-    
+
     MemberExpr*
     BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
                     llvm::ArrayRef<clang::StringRef> fields) {
@@ -542,6 +543,93 @@ namespace clad {
       // If E is not a MemberExpr or CallExpr or doesn't have a
       // non-differentiable attribute
       return false;
+    }
+
+    void GetInnermostReturnExpr(const clang::Expr* E,
+                                llvm::SmallVectorImpl<clang::Expr*>& Exprs) {
+      struct Finder : public StmtVisitor<Finder> {
+        llvm::SmallVectorImpl<clang::Expr*>& m_Exprs;
+
+      public:
+        Finder(clang::Expr* E, llvm::SmallVectorImpl<clang::Expr*>& Exprs)
+            : m_Exprs(Exprs) {
+          Visit(E);
+        }
+
+        void VisitBinaryOperator(clang::BinaryOperator* BO) {
+          if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
+            Visit(BO->getLHS());
+          } else if (BO->getOpcode() == clang::BO_Comma) {
+            /**/
+          } else {
+            assert("Unexpected binary operator!!");
+          }
+        }
+
+        void VisitConditionalOperator(clang::ConditionalOperator* CO) {
+          // FIXME: in cases like (cond ? x : y) = 2; both x and y will be
+          // stored.
+          Visit(CO->getTrueExpr());
+          Visit(CO->getFalseExpr());
+        }
+
+        void VisitUnaryOperator(clang::UnaryOperator* UnOp) {
+          auto opCode = UnOp->getOpcode();
+          if (opCode == clang::UO_PreInc || opCode == clang::UO_PreDec)
+            Visit(UnOp->getSubExpr());
+          else if (opCode == UnaryOperatorKind::UO_Real ||
+                   opCode == UnaryOperatorKind::UO_Imag) {
+            /// FIXME: Considering real/imaginary part atomic is
+            /// not always correct since the subexpression can
+            /// be more complex than just a DeclRefExpr.
+            /// (e.g. `__real (n++ ? z1 : z2)`)
+            m_Exprs.push_back(UnOp);
+          }
+        }
+
+        void VisitDeclRefExpr(clang::DeclRefExpr* DRE) {
+          m_Exprs.push_back(DRE);
+        }
+
+        void VisitParenExpr(clang::ParenExpr* PE) { Visit(PE->getSubExpr()); }
+
+        void VisitMemberExpr(clang::MemberExpr* ME) { m_Exprs.push_back(ME); }
+
+        void VisitArraySubscriptExpr(clang::ArraySubscriptExpr* ASE) {
+          m_Exprs.push_back(ASE);
+        }
+
+        void VisitImplicitCastExpr(clang::ImplicitCastExpr* ICE) {
+          Visit(ICE->getSubExpr());
+        }
+      };
+      // FIXME: Fix the constness on the callers of this function.
+      Finder finder(const_cast<clang::Expr*>(E), Exprs);
+    }
+
+    bool IsAutoOrAutoPtrType(QualType T) {
+      if (isa<clang::AutoType>(T))
+        return true;
+
+      if (const auto* const pointerType = dyn_cast<clang::PointerType>(T))
+        return IsAutoOrAutoPtrType(pointerType->getPointeeType());
+
+      return false;
+    }
+
+    bool ContainsFunctionCalls(const clang::Stmt* S) {
+      class CallExprFinder : public RecursiveASTVisitor<CallExprFinder> {
+      public:
+        bool hasCallExpr = false;
+
+        bool VisitCallExpr(CallExpr* CE) {
+          hasCallExpr = true;
+          return false;
+        }
+      };
+      CallExprFinder finder;
+      finder.TraverseStmt(const_cast<Stmt*>(S));
+      return finder.hasCallExpr;
     }
   } // namespace utils
 } // namespace clad

@@ -11,12 +11,10 @@ double test_1(double x){
 //CHECK: warning: Falling back to numerical differentiation for 'log10' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 
 //CHECK: void test_1_grad(double x, clad::array_ref<double> _d_x) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 1 * numerical_diff::forward_central_difference(tanh, _t0, 0, 0, _t0);
+//CHECK-NEXT:         double _r0 = 1 * numerical_diff::forward_central_difference(tanh, x, 0, 0, x);
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }

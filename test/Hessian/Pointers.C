@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
 // RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointers.out
+// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -17,26 +19,18 @@ double nonMemFn(double i, double j) {
 // CHECK: void nonMemFn_darg0_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
 // CHECK-NEXT:     double _d__d_j = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _d_i0 = 1;
 // CHECK-NEXT:     double _d_j0 = 0;
-// CHECK-NEXT:     _t1 = _d_i0;
-// CHECK-NEXT:     _t0 = j;
-// CHECK-NEXT:     _t3 = i;
-// CHECK-NEXT:     _t2 = _d_j0;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * _t0;
+// CHECK-NEXT:         double _r0 = 1 * j;
 // CHECK-NEXT:         _d__d_i += _r0;
-// CHECK-NEXT:         double _r1 = _t1 * 1;
+// CHECK-NEXT:         double _r1 = _d_i0 * 1;
 // CHECK-NEXT:         * _d_j += _r1;
-// CHECK-NEXT:         double _r2 = 1 * _t2;
+// CHECK-NEXT:         double _r2 = 1 * _d_j0;
 // CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = _t3 * 1;
+// CHECK-NEXT:         double _r3 = i * 1;
 // CHECK-NEXT:         _d__d_j += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -50,26 +44,18 @@ double nonMemFn(double i, double j) {
 // CHECK: void nonMemFn_darg1_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
 // CHECK-NEXT:     double _d__d_j = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _d_i0 = 0;
 // CHECK-NEXT:     double _d_j0 = 1;
-// CHECK-NEXT:     _t1 = _d_i0;
-// CHECK-NEXT:     _t0 = j;
-// CHECK-NEXT:     _t3 = i;
-// CHECK-NEXT:     _t2 = _d_j0;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * _t0;
+// CHECK-NEXT:         double _r0 = 1 * j;
 // CHECK-NEXT:         _d__d_i += _r0;
-// CHECK-NEXT:         double _r1 = _t1 * 1;
+// CHECK-NEXT:         double _r1 = _d_i0 * 1;
 // CHECK-NEXT:         * _d_j += _r1;
-// CHECK-NEXT:         double _r2 = 1 * _t2;
+// CHECK-NEXT:         double _r2 = 1 * _d_j0;
 // CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = _t3 * 1;
+// CHECK-NEXT:         double _r3 = i * 1;
 // CHECK-NEXT:         _d__d_j += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

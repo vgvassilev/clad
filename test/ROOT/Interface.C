@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oInterface.out 2>&1 | FileCheck %s
 // RUN: ./Interface.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oInterface.out
+// RUN: ./Interface.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -21,16 +23,12 @@ Double_t f(Double_t* x, Double_t* p) {
 void f_grad_1(Double_t* x, Double_t* p, clad::array_ref<Double_t> _d_p);
 
 // CHECK: void f_grad_1(Double_t *x, Double_t *p, clad::array_ref<Double_t> _d_p) {
-// CHECK-NEXT:     Double_t _t0;
-// CHECK-NEXT:     Double_t _t1;
-// CHECK-NEXT:     _t1 = x[0];
-// CHECK-NEXT:     _t0 = p[1];
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p[0] += 1;
-// CHECK-NEXT:         {{double|Double_t}} _r0 = 1 * _t0;
-// CHECK-NEXT:         {{double|Double_t}} _r1 = _t1 * 1;
+// CHECK-NEXT:         {{double|Double_t}} _r0 = 1 * p[1];
+// CHECK-NEXT:         {{double|Double_t}} _r1 = x[0] * 1;
 // CHECK-NEXT:         _d_p[1] += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

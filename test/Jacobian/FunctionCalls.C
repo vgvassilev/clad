@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oFunctionCalls.out 2>&1 | FileCheck %s
 // RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oFunctionCalls.out
+// RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -14,20 +16,12 @@ void fn1(double i, double j, double* output) {
 }
 
 // CHECK: void fn1_jac(double i, double j, double *output, double *jacobianMatrix) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     _t0 = i;
-// CHECK-NEXT:     _t1 = j;
 // CHECK-NEXT:     output[0] = std::pow(i, j);
-// CHECK-NEXT:     _t2 = j;
-// CHECK-NEXT:     _t3 = i;
 // CHECK-NEXT:     output[1] = std::pow(j, i);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _jac2 = 0.;
 // CHECK-NEXT:         double _jac3 = 0.;
-// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t2, _t3, 1, &_jac2, &_jac3);
+// CHECK-NEXT:         clad::custom_derivatives::pow_pullback(j, i, 1, &_jac2, &_jac3);
 // CHECK-NEXT:         double _r2 = _jac2;
 // CHECK-NEXT:         jacobianMatrix[3UL] += _r2;
 // CHECK-NEXT:         double _r3 = _jac3;
@@ -36,7 +30,7 @@ void fn1(double i, double j, double* output) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _jac0 = 0.;
 // CHECK-NEXT:         double _jac1 = 0.;
-// CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(_t0, _t1, 1, &_jac0, &_jac1);
+// CHECK-NEXT:         clad::custom_derivatives::pow_pullback(i, j, 1, &_jac0, &_jac1);
 // CHECK-NEXT:         double _r0 = _jac0;
 // CHECK-NEXT:         jacobianMatrix[0UL] += _r0;
 // CHECK-NEXT:         double _r1 = _jac1;

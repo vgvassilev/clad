@@ -8,11 +8,12 @@
 
 #include "ConstantFolder.h"
 
+#include "TBRAnalyzer.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
-#include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
 #include "clad/Differentiator/MultiplexExternalRMVSource.h"
+#include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -38,10 +39,10 @@ namespace clad {
 
 Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                        ReverseModeVisitor& rvm) {
-  if (auto CAT = dyn_cast<ConstantArrayType>(AT))
+  if (const auto* const CAT = dyn_cast<ConstantArrayType>(AT))
     return ConstantFolder::synthesizeLiteral(context.getSizeType(), context,
                                              CAT->getSize().getZExtValue());
-  else if (auto VSAT = dyn_cast<VariableArrayType>(AT))
+  if (const auto* VSAT = dyn_cast<VariableArrayType>(AT))
     return rvm.Clone(VSAT->getSizeExpr());
 
   return nullptr;
@@ -64,45 +65,30 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::CladTapeResult
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
-    if (auto IE = dyn_cast<ImplicitCastExpr>(E)) {
-      E = IE->getSubExpr()->IgnoreImplicit();
-    }
-    QualType EQt = E->getType();
-    if (dyn_cast<ArrayType>(EQt))
-      EQt = GetCladArrayOfType(utils::GetValueType(EQt));
+    E = E->IgnoreImplicit();
     QualType TapeType =
-        GetCladTapeOfType(getNonConstType(EQt, m_Context, m_Sema));
+        GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
     Expr* TapeRef =
         BuildDeclRef(GlobalStoreImpl(TapeType, prefix, getZeroInit(TapeType)));
-    auto VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
+    auto* VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
     // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
     VD->setLocation(m_Function->getLocation());
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
-    auto PopDRE = m_Sema
-                      .BuildDeclarationNameExpr(CSS, Pop,
-                                                /*AcceptInvalidDecl=*/false)
-                      .get();
-    auto PushDRE = m_Sema
-                       .BuildDeclarationNameExpr(CSS, Push,
+    auto* PopDRE = m_Sema
+                       .BuildDeclarationNameExpr(CSS, Pop,
                                                  /*AcceptInvalidDecl=*/false)
                        .get();
+    auto* PushDRE = m_Sema
+                        .BuildDeclarationNameExpr(CSS, Push,
+                                                  /*AcceptInvalidDecl=*/false)
+                        .get();
     Expr* PopExpr =
         m_Sema.ActOnCallExpr(getCurrentScope(), PopDRE, noLoc, TapeRef, noLoc)
             .get();
-    Expr* exprToPush = E;
-    if (auto AT = dyn_cast<ArrayType>(E->getType())) {
-      Expr* init = getArraySizeExpr(AT, m_Context, *this);
-      llvm::SmallVector<Expr*, 2> pushArgs{E, init};
-      SourceLocation loc = E->getExprLoc();
-      TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(EQt, loc);
-      exprToPush =
-          m_Sema.BuildCXXTypeConstructExpr(TSI, loc, pushArgs, loc, false)
-              .get();
-    }
-    Expr* CallArgs[] = {TapeRef, exprToPush};
+    Expr* CallArgs[] = {TapeRef, E};
     Expr* PushExpr =
         m_Sema.ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, CallArgs, noLoc)
             .get();
@@ -148,7 +134,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<QualType, 16> paramTypes;
 
     // Add types for representing original function parameters.
-    for (auto PVD : m_Function->parameters())
+    for (auto* PVD : m_Function->parameters())
       paramTypes.push_back(PVD->getType());
     // Add types for representing parameter derivatives.
     // FIXME: We are assuming all function parameters are differentiable. We
@@ -163,7 +149,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                   // Cast to function pointer.
                                   gradFuncOverloadEPI);
 
-    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
         m_Builder.cloneFunction(m_Function, *this, DC, noLoc, gradientNameInfo,
@@ -181,8 +167,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     overloadParams.reserve(totalDerivedParamsSize);
     callArgs.reserve(gradientParams.size());
 
-    for (auto PVD : m_Function->parameters()) {
-      auto VD = utils::BuildParmVarDecl(
+    for (auto* PVD : m_Function->parameters()) {
+      auto* VD = utils::BuildParmVarDecl(
           m_Sema, gradientOverloadFD, PVD->getIdentifier(), PVD->getType(),
           PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
       overloadParams.push_back(VD);
@@ -197,22 +183,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // parameter represents an actual derivative of one of the function
       // original parameters.
       if (effectiveGradientIndex < gradientParams.size()) {
-        auto GVD = gradientParams[effectiveGradientIndex];
+        auto* GVD = gradientParams[effectiveGradientIndex];
         II = CreateUniqueIdentifier("_temp_" + GVD->getNameAsString());
         SC = GVD->getStorageClass();
       } else {
         II = CreateUniqueIdentifier("_d_" + std::to_string(i));
       }
-      auto PVD = utils::BuildParmVarDecl(m_Sema, gradientOverloadFD, II,
-                                         outputParamType, SC);
+      auto* PVD = utils::BuildParmVarDecl(m_Sema, gradientOverloadFD, II,
+                                          outputParamType, SC);
       overloadParams.push_back(PVD);
     }
 
-    for (auto PVD : overloadParams) {
+    for (auto* PVD : overloadParams)
       if (PVD->getIdentifier())
         m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
                                  /*AddToContext=*/false);
-    }
 
     gradientOverloadFD->setParams(overloadParams);
     gradientOverloadFD->setBody(/*B=*/nullptr);
@@ -226,10 +211,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // overloaded derived function to the correct type.
     for (std::size_t i = m_Function->getNumParams(); i < gradientParams.size();
          ++i) {
-      auto overloadParam = overloadParams[i];
-      auto gradientParam = gradientParams[i];
+      auto* overloadParam = overloadParams[i];
+      auto* gradientParam = gradientParams[i];
 
-      auto gradientVD =
+      auto* gradientVD =
           BuildVarDecl(gradientParam->getType(), gradientParam->getName(),
                        BuildDeclRef(overloadParam));
       callArgs.push_back(BuildDeclRef(gradientVD));
@@ -273,7 +258,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     DiffInputVarsInfo DVI;
     if (request.Args) {
       DVI = request.DVI;
-      for (auto dParam : DVI)
+      for (const auto& dParam : DVI)
         args.push_back(dParam.param);
     }
     else
@@ -291,6 +276,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
     }
 
+    // Check if DiffRequest asks for TBR analysis to be enabled
+    if (request.EnableTBRAnalysis)
+      enableTBR = true;
+
     // Check if DiffRequest asks for use of enzyme as backend
     if (request.use_enzyme)
       use_enzyme = true;
@@ -303,16 +292,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // If Jacobian is asked, the last parameter is the result parameter
       // and should be ignored
       if (args.size() != FD->getNumParams()-1){
-        for (auto arg : args) {
-          auto it = std::find(FD->param_begin(), FD->param_end()-1, arg);
+        for (const auto* arg : args) {
+          const auto* const it =
+              std::find(FD->param_begin(), FD->param_end() - 1, arg);
           auto idx = std::distance(FD->param_begin(), it);
           gradientName += ('_' + std::to_string(idx));
         }
       }
     }else{
       if (args.size() != FD->getNumParams()){
-        for (auto arg : args) {
-          auto it = std::find(FD->param_begin(), FD->param_end(), arg);
+        for (const auto* arg : args) {
+          const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
           auto idx = std::distance(FD->param_begin(), it);
           gradientName += ('_' + std::to_string(idx));
         }
@@ -341,7 +331,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!isVectorValued && numExtraParam == 0)
       shouldCreateOverload = true;
 
-    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+    const auto* originalFnType =
+        dyn_cast<FunctionProtoType>(m_Function->getType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
@@ -356,7 +347,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
-    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext result = m_Builder.cloneFunction(
         m_Function, *this, DC, noLoc, name, gradientFunctionType);
@@ -392,7 +383,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // Creates the ArraySubscriptExprs for the independent variables
       size_t idx = 0;
-      for (auto arg : args) {
+      for (const auto* arg : args) {
         // FIXME: fix when adding array inputs, now we are just skipping all
         // array/pointer inputs (not treating them as independent variables).
         if (utils::isArrayOrPointerType(arg->getType())) {
@@ -404,11 +395,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         auto size_type = m_Context.getSizeType();
         unsigned size_type_bits = m_Context.getIntWidth(size_type);
         // Create the idx literal.
-        auto i =
-            IntegerLiteral::Create(m_Context, llvm::APInt(size_type_bits, idx),
-                                   size_type, noLoc);
+        auto* i = IntegerLiteral::Create(
+            m_Context, llvm::APInt(size_type_bits, idx), size_type, noLoc);
         // Create the jacobianMatrix[idx] expression.
-        auto result_at_i =
+        auto* result_at_i =
             m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
                 .get();
         m_Variables[arg] = result_at_i;
@@ -453,6 +443,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
+    if (request.EnableTBRAnalysis)
+      enableTBR = true;
+    TBRAnalyzer analyzer(m_Context);
+    if (enableTBR) {
+      analyzer.Analyze(FD);
+      m_ToBeRecorded = analyzer.getResult();
+    }
+
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
@@ -480,7 +478,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);
-    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+    const auto* originalFnType =
+        dyn_cast<FunctionProtoType>(m_Function->getType());
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
@@ -533,12 +532,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (Stmt* S : m_Globals)
       addToCurrentBlock(S, direction::forward);
     // Forward pass.
-    if (auto CS = dyn_cast<CompoundStmt>(forward))
+    if (auto* CS = dyn_cast<CompoundStmt>(forward))
       for (Stmt* S : CS->body())
         addToCurrentBlock(S, direction::forward);
 
     // Reverse pass.
-    if (auto RCS = dyn_cast<CompoundStmt>(reverse))
+    if (auto* RCS = dyn_cast<CompoundStmt>(reverse))
       for (Stmt* S : RCS->body())
         addToCurrentBlock(S, direction::forward);
 
@@ -556,6 +555,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
+    TBRAnalyzer analyzer(m_Context);
+    if (enableTBR) {
+      analyzer.Analyze(m_Function);
+      m_ToBeRecorded = analyzer.getResult();
+    }
+
     llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
 
     // create derived variables for parameters which are not part of
@@ -573,7 +578,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // we do not know the correct size.
       if (utils::isArrayOrPointerType(VDDerivedType))
         continue;
-      auto VDDerived =
+      auto* VDDerived =
           BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
                        getZeroInit(VDDerivedType));
       m_Variables[param] = BuildDeclRef(VDDerived);
@@ -589,13 +594,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (Stmt* S : m_Globals)
       addToCurrentBlock(S, direction::forward);
     // Forward pass.
-    if (auto CS = dyn_cast<CompoundStmt>(Forward))
+    if (auto* CS = dyn_cast<CompoundStmt>(Forward))
       for (Stmt* S : CS->body())
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Forward, direction::forward);
     // Reverse pass.
-    if (auto RCS = dyn_cast<CompoundStmt>(Reverse))
+    if (auto* RCS = dyn_cast<CompoundStmt>(Reverse))
       for (Stmt* S : RCS->body())
         addToCurrentBlock(S, direction::forward);
     else
@@ -609,7 +614,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     unsigned numParams = m_Function->getNumParams();
     auto origParams = m_Function->parameters();
     llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
-    auto originalFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+    const auto* originalFnType =
+        dyn_cast<FunctionProtoType>(m_Function->getType());
 
     // Extract Pointer from Clad Array Ref
     llvm::SmallVector<VarDecl*, 8> cladRefParams;
@@ -622,9 +628,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       paramType = m_Context.getPointerType(
           QualType(paramType->getPointeeOrArrayElementType(), 0));
-      auto arrayRefNameExpr = BuildDeclRef(paramsRef[numParams + i]);
-      auto getPointerExpr = BuildCallExprToMemFn(arrayRefNameExpr, "ptr", {});
-      auto arrayRefToArrayStmt = BuildVarDecl(
+      auto* arrayRefNameExpr = BuildDeclRef(paramsRef[numParams + i]);
+      auto* getPointerExpr = BuildCallExprToMemFn(arrayRefNameExpr, "ptr", {});
+      auto* arrayRefToArrayStmt = BuildVarDecl(
           paramType, "d_" + paramsRef[i]->getNameAsString(), getPointerExpr);
       addToCurrentBlock(BuildDeclStmt(arrayRefToArrayStmt), direction::forward);
       cladRefParams.push_back(arrayRefToArrayStmt);
@@ -637,7 +643,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // First add the function itself as a parameter/argument
     enzymeArgs.push_back(BuildDeclRef(const_cast<FunctionDecl*>(m_Function)));
-    DeclContext* fdDeclContext =
+    auto* fdDeclContext =
         const_cast<DeclContext*>(m_Function->getDeclContext());
     enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
         fdDeclContext, noLoc, m_Function->getType()));
@@ -669,13 +675,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     llvm::SmallVector<QualType, 16> enzymeParamsType;
-    for (auto i : enzymeParams)
+    for (auto* i : enzymeParams)
       enzymeParamsType.push_back(i->getType());
 
     QualType QT;
-    if (enzymeRealParams.size()) {
+    if (!enzymeRealParams.empty()) {
       // Find the EnzymeGradient datastructure
-      auto gradDecl = LookupTemplateDeclInCladNamespace("EnzymeGradient");
+      auto* gradDecl = LookupTemplateDeclInCladNamespace("EnzymeGradient");
 
       TemplateArgumentListInfo TLI{};
       llvm::APSInt argValue(std::to_string(enzymeRealParams.size()));
@@ -703,15 +709,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Prepare the statements that assign the gradients to
     // non array/pointer type parameters of the original function
-    if (enzymeRealParams.size() != 0) {
-      auto gradDeclStmt = BuildVarDecl(QT, "grad", enzymeCall, true);
+    if (!enzymeRealParams.empty()) {
+      auto* gradDeclStmt = BuildVarDecl(QT, "grad", enzymeCall, true);
       addToCurrentBlock(BuildDeclStmt(gradDeclStmt), direction::forward);
 
       for (unsigned i = 0; i < enzymeRealParams.size(); i++) {
-        auto LHSExpr = BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsRef[i]));
+        auto* LHSExpr = BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsRef[i]));
 
-        auto ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                         BuildDeclRef(gradDeclStmt), "d_arr");
+        auto* ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                          BuildDeclRef(gradDeclStmt), "d_arr");
 
         Expr* gradIndex = dyn_cast<Expr>(
             IntegerLiteral::Create(m_Context, llvm::APSInt(std::to_string(i)),
@@ -720,7 +726,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             m_Sema.CreateBuiltinArraySubscriptExpr(ME, noLoc, gradIndex, noLoc)
                 .get();
 
-        auto assignExpr = BuildOp(BO_Assign, LHSExpr, RHSExpr);
+        auto* assignExpr = BuildOp(BO_Assign, LHSExpr, RHSExpr);
         addToCurrentBlock(assignExpr, direction::forward);
       }
     } else {
@@ -763,13 +769,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return nullptr;
     if (!isa<CompoundStmt>(S))
       return S;
-    auto CS = cast<CompoundStmt>(S);
+    auto* CS = cast<CompoundStmt>(S);
     if (CS->size() == 0)
       return nullptr;
-    else if (CS->size() == 1)
+    if (CS->size() == 1)
       return CS->body_front();
-    else
-      return CS;
+    return CS;
   }
 
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
@@ -799,7 +804,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // skip corresponding push.
       cond = StoreAndRef(condExpr.getExpr(), direction::forward, "_t",
                          /*forceDeclCreation=*/true);
-      StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond");
+      StmtDiff condPushPop = GlobalStoreAndRef(cond.getExpr(), "_cond",
+                                               /*force=*/true);
       PushCond = condPushPop.getExpr();
       PopCond = condPushPop.getExpr_dx();
     } else
@@ -860,20 +866,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (isa<CompoundStmt>(Branch)) {
         StmtDiff BranchDiff = Visit(Branch);
         return BranchDiff;
-      } else {
-        beginBlock(direction::forward);
-        if (m_ExternalSource)
-          m_ExternalSource->ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt();
-        StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr);
-        addToCurrentBlock(BranchDiff.getStmt(), direction::forward);
-
-        if (m_ExternalSource)
-          m_ExternalSource->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
-
-        Stmt* Forward = unwrapIfSingleStmt(endBlock(direction::forward));
-        Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
-        return StmtDiff(Forward, Reverse);
       }
+      beginBlock(direction::forward);
+      if (m_ExternalSource)
+        m_ExternalSource
+            ->ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt();
+      StmtDiff BranchDiff = DifferentiateSingleStmt(Branch, /*dfdS=*/nullptr);
+      addToCurrentBlock(BranchDiff.getStmt(), direction::forward);
+
+      if (m_ExternalSource)
+        m_ExternalSource
+            ->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
+
+      Stmt* Forward = unwrapIfSingleStmt(endBlock(direction::forward));
+      Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
+      return StmtDiff(Forward, Reverse);
     };
 
     StmtDiff thenDiff = VisitBranch(If->getThen());
@@ -935,8 +942,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               .get()
               .second;
 
-    auto ifTrue = CO->getTrueExpr();
-    auto ifFalse = CO->getFalseExpr();
+    auto* ifTrue = CO->getTrueExpr();
+    auto* ifFalse = CO->getFalseExpr();
 
     auto VisitBranch = [&](const Expr* Branch,
                            Expr* dfdx) -> std::pair<StmtDiff, StmtDiff> {
@@ -1031,8 +1038,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     VarDecl* condVarClone = nullptr;
     if (FS->getConditionVariable()) {
       condVarRes = DifferentiateSingleStmt(FS->getConditionVariableDeclStmt());
-      Decl* decl = cast<DeclStmt>(condVarRes.getStmt())->getSingleDecl();
-      condVarClone = cast<VarDecl>(decl);
+      if (isa<DeclStmt>(condVarRes.getStmt())) {
+        Decl* decl = cast<DeclStmt>(condVarRes.getStmt())->getSingleDecl();
+        condVarClone = cast<VarDecl>(decl);
+      }
     }
 
     // FIXME: for now we assume that cond has no differentiable effects,
@@ -1040,7 +1049,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff cond;
     if (FS->getCond())
       cond = Visit(FS->getCond());
-    auto IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
+    const auto* IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
     const Expr* inc = IDRE ? Visit(FS->getInc()).getExpr() : FS->getInc();
 
     // Differentiate the increment expression of the for loop
@@ -1053,7 +1062,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::tie(incDiff, incExprDiff) = DifferentiateSingleExpr(inc);
     Expr* incResult = nullptr;
     // If any additional statements were created, enclose them into lambda.
-    CompoundStmt* Additional = cast<CompoundStmt>(incDiff.getStmt());
+    auto* Additional = cast<CompoundStmt>(incDiff.getStmt());
     bool anyNonExpr = std::any_of(Additional->body_begin(),
                                   Additional->body_end(),
                                   [](Stmt* S) { return !isa<Expr>(S); });
@@ -1083,15 +1092,23 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                               incDiff.getStmt_dx(),
                                               /*isForLoop=*/true);
 
-    Stmt* Forward = new (m_Context) ForStmt(m_Context,
-                                            initResult.getStmt(),
-                                            cond.getExpr(),
-                                            condVarClone,
-                                            incResult,
-                                            BodyDiff.getStmt(),
-                                            noLoc,
-                                            noLoc,
-                                            noLoc);
+    /// FIXME: This part in necessary to replace local variables inside loops
+    /// with function globals and replace initializations with assignments.
+    /// This is a temporary measure to avoid the bug that arises from
+    /// overwriting local variables on different loop passes.
+    Expr* forwardCond = cond.getExpr();
+    /// If there is a declaration in the condition, `cond` will be
+    /// a DeclRefExpr of the declared variable. There is no point in
+    /// inserting it since condVarRes.getExpr() represents an assignment with
+    /// that variable on the LHS.
+    /// e.g. for condition `int x = y`,
+    /// condVarRes.getExpr() will represent `x = y`
+    if (condVarRes.getExpr() != nullptr && isa<Expr>(condVarRes.getExpr()))
+      forwardCond = cast<Expr>(condVarRes.getExpr());
+
+    Stmt* Forward = new (m_Context)
+        ForStmt(m_Context, initResult.getStmt(), forwardCond, condVarClone,
+                incResult, BodyDiff.getStmt(), noLoc, noLoc, noLoc);
 
     // Create a condition testing counter for being zero, and its decrement.
     // To match the number of iterations in the forward pass, the reverse loop
@@ -1137,7 +1154,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
-    auto dfdf = m_Pullback;
+    auto* dfdf = m_Pullback;
     if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
       ExprResult tmp = dfdf;
       dfdf = m_Sema
@@ -1180,7 +1197,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitParenExpr(const ParenExpr* PE) {
     StmtDiff subStmtDiff = Visit(PE->getSubExpr(), dfdx());
     return StmtDiff(BuildParens(subStmtDiff.getExpr()),
-                    BuildParens(subStmtDiff.getExpr_dx()));
+                    BuildParens(subStmtDiff.getExpr_dx()), nullptr,
+                    BuildParens(subStmtDiff.getRevSweepAsExpr()));
   }
 
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
@@ -1200,37 +1218,36 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
       return StmtDiff(clonedILE);
-    } else {
-      // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
-      // that represents a ValueAndPushforward type. Ideally this must be
-      // differentiated at VisitCXXConstructExpr
+    }
+    // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
+    // that represents a ValueAndPushforward type. Ideally this must be
+    // differentiated at VisitCXXConstructExpr
 #ifndef NDEBUG
-      bool isValueAndPushforward = isCladValueAndPushforwardType(ILEType);
-      assert(isValueAndPushforward &&
-             "Only InitListExpr that represents arrays or ValueAndPushforward "
-             "Object initialization is supported");
+    bool isValueAndPushforward = isCladValueAndPushforwardType(ILEType);
+    assert(isValueAndPushforward &&
+           "Only InitListExpr that represents arrays or ValueAndPushforward "
+           "Object initialization is supported");
 #endif
 
-      // Here we assume that the adjoint expression of the first element in
-      // InitList is dfdx().value and the adjoint for the second element is
-      // dfdx().pushforward. At this point the top of the Tape must contain a
-      // ValueAndPushforward object that represents derivative of the
-      // ValueAndPushforward object returned by the function whose derivative is
-      // requested.
-      Expr* dValueExpr =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), dfdx(), "value");
-      StmtDiff clonedValueEI = Visit(ILE->getInit(0), dValueExpr).getExpr();
-      clonedExprs[0] = clonedValueEI.getExpr();
+    // Here we assume that the adjoint expression of the first element in
+    // InitList is dfdx().value and the adjoint for the second element is
+    // dfdx().pushforward. At this point the top of the Tape must contain a
+    // ValueAndPushforward object that represents derivative of the
+    // ValueAndPushforward object returned by the function whose derivative is
+    // requested.
+    Expr* dValueExpr =
+        utils::BuildMemberExpr(m_Sema, getCurrentScope(), dfdx(), "value");
+    StmtDiff clonedValueEI = Visit(ILE->getInit(0), dValueExpr).getExpr();
+    clonedExprs[0] = clonedValueEI.getExpr();
 
-      Expr* dPushforwardExpr = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                      dfdx(), "pushforward");
-      Expr* clonedPushforwardEI =
-          Visit(ILE->getInit(1), dPushforwardExpr).getExpr();
-      clonedExprs[1] = clonedPushforwardEI;
+    Expr* dPushforwardExpr = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                                    dfdx(), "pushforward");
+    Expr* clonedPushforwardEI =
+        Visit(ILE->getInit(1), dPushforwardExpr).getExpr();
+    clonedExprs[1] = clonedPushforwardEI;
 
-      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      return StmtDiff(clonedILE);
-    }
+    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+    return StmtDiff(clonedILE);
   }
 
   StmtDiff
@@ -1243,27 +1260,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> reverseIndices(Indices.size());
     llvm::SmallVector<Expr*, 4> forwSweepDerivativeIndices(Indices.size());
     for (std::size_t i = 0; i < Indices.size(); i++) {
+      // FIXME: Remove redundant indices vectors.
       StmtDiff IdxDiff = Visit(Indices[i]);
-      StmtDiff IdxStored = GlobalStoreAndRef(IdxDiff.getExpr());
-      if (isInsideLoop) {
-        // Here we make sure that we are popping each time we push.
-        // Since the max no of pushes = no. of array index expressions in the
-        // loop.
-        Expr* popExpr = IdxStored.getExpr_dx();
-        VarDecl* popVal = BuildVarDecl(popExpr->getType(), "_t", popExpr,
-                                       /*DirectInit=*/true);
-        if (dfdx())
-          addToCurrentBlock(BuildDeclStmt(popVal), direction::reverse);
-        else
-          m_PopIdxValues.push_back(BuildDeclStmt(popVal));
-        IdxStored = StmtDiff(IdxStored.getExpr(), BuildDeclRef(popVal));
-      }
-      clonedIndices[i] = IdxStored.getExpr();
-      reverseIndices[i] = IdxStored.getExpr_dx();
+      clonedIndices[i] = Clone(IdxDiff.getExpr());
+      reverseIndices[i] = Clone(IdxDiff.getExpr());
       forwSweepDerivativeIndices[i] = IdxDiff.getExpr();
     }
-    auto cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
-
+    auto* cloned = BuildArraySubscript(BaseDiff.getExpr(), clonedIndices);
+    auto* valueForRevSweep =
+        BuildArraySubscript(BaseDiff.getExpr(), reverseIndices);
     Expr* target = BaseDiff.getExpr_dx();
     if (!target)
       return cloned;
@@ -1291,36 +1296,32 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       result = target;
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      auto add_assign = BuildOp(BO_AddAssign, result, dfdx());
+      auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
       // Add it to the body statements.
       addToCurrentBlock(add_assign, direction::reverse);
     }
-    return StmtDiff(cloned, result, forwSweepDerivative);
+    return StmtDiff(cloned, result, forwSweepDerivative, valueForRevSweep);
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     DeclRefExpr* clonedDRE = nullptr;
     // Check if referenced Decl was "replaced" with another identifier inside
     // the derivative
-    if (auto VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-      auto it = m_DeclReplacements.find(VD);
-      if (it != std::end(m_DeclReplacements))
-        clonedDRE = BuildDeclRef(it->second);
-      else
-        clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      clonedDRE = cast<DeclRefExpr>(Clone(DRE));
       // If current context is different than the context of the original
       // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
       // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
       // Sema::BuildDeclRefExpr is responsible for adding captured fields
       // to the underlying struct of a lambda.
       if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
-        auto referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
+        auto* referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
         clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
       }
     } else
       clonedDRE = cast<DeclRefExpr>(Clone(DRE));
 
-    if (auto decl = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
+    if (auto* decl = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       if (isVectorValued) {
         if (m_VectorOutput.size() <= outputArrayCursor)
           return StmtDiff(clonedDRE);
@@ -1332,7 +1333,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
         // Create the (jacobianMatrix[idx] += dfdx) statement.
         if (dfdx()) {
-          auto add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+          auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
           // Add it to the body statements.
           addToCurrentBlock(add_assign, direction::reverse);
         }
@@ -1504,7 +1505,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // is done to reduce cloning complexity and only clone once. The type is
         // same as the call expression as it is the type used to declare the
         // _gradX array
-        Expr* dArg;
+        Expr* dArg = nullptr;
         QualType argType = utils::GetValueType(arg->getType());
         dArg = StoreAndRef(/*E=*/nullptr, argType, direction::reverse, "_r",
                            /*forceDeclCreation=*/true);
@@ -1532,7 +1533,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       CallArgDx.push_back(argDiff.getExpr_dx());
       // Save cloned arg in a "global" variable, so that it is accessible from
       // the reverse pass.
-      StmtDiff argDiffStore = GlobalStoreAndRef(argDiff.getExpr());
+      // FIXME: At this point, we assume all the variables passed by reference
+      // may be changed since we have no way to determine otherwise.
+      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
+      // arrays are not stored.
+      StmtDiff argDiffStore;
+      if (passByRef && !argDiff.getExpr()->getType()->isArrayType())
+        argDiffStore =
+            GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
+      else
+        argDiffStore = {argDiff.getExpr(), argDiff.getExpr()};
+
       // We need to pass the actual argument in the cloned call expression,
       // instead of a temporary, for arguments passed by reference. This is
       // because, callee function may modify the argument passed as reference
@@ -1556,7 +1567,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // _t1 = a;
       // modify(a);
       // ```
-      if (passByRef) {
+      // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
+      // arrays are not stored.
+      if (passByRef && !argDiff.getExpr()->getType()->isArrayType()) {
         if (isInsideLoop) {
           // Add tape push expression. We need to explicitly add it here because
           // we cannot add it as call expression argument -- we need to pass the
@@ -1577,11 +1590,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           auto& block = getCurrentBlock(direction::reverse);
           block.insert(block.begin() + insertionPoint,
                        BuildDeclStmt(argDiffLocalVD));
+          // Restore agrs
+          auto* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
+                             BuildDeclRef(argDiffLocalVD));
+          block.insert(block.begin() + insertionPoint + 1, op);
+
           Expr* argDiffLocalE = BuildDeclRef(argDiffLocalVD);
 
-          // We added local variable to store result of `clad::pop(...)`. Thus
-          // we need to correspondingly adjust the insertion point.
-          insertionPoint += 1;
+          // We added local variable to store result of `clad::pop(...)` and
+          // restoration of the original arg. Thus we need to correspondingly
+          // adjust the insertion point.
+          insertionPoint += 2;
           // We cannot use the already existing `argDiff.getExpr()` here because
           // it will cause inconsistent pushes and pops to the clad tape.
           // FIXME: Modify `GlobalStoreAndRef` such that its functioning is
@@ -1590,6 +1609,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           Expr* newArgE = Visit(arg).getExpr();
           argDiffStore = {newArgE, argDiffLocalE};
         } else {
+          // Restore args
+          auto& block = getCurrentBlock(direction::reverse);
+          auto* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
+                             argDiffStore.getExpr());
+          block.insert(block.begin() + insertionPoint, op);
+          // We added restoration of the original arg. Thus we need to
+          // correspondingly adjust the insertion point.
+          insertionPoint += 1;
+
           argDiffStore = {argDiff.getExpr(), argDiffStore.getExpr_dx()};
         }
       }
@@ -1673,13 +1701,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
       }
 
-      for (auto argDerivative : CallArgDx) {
+      for (auto* argDerivative : CallArgDx) {
         gradVarDecl = nullptr;
         gradVarExpr = nullptr;
         gradArgExpr = nullptr;
         gradVarII = CreateUniqueIdentifier(funcPostfix());
 
-        auto PVD = FD->getParamDecl(idx);
+        const auto* PVD = FD->getParamDecl(idx);
         bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
         if (passByRef && isa<MaterializeTemporaryExpr>(CE->getArg(idx))) {
           // If the argument is a temporary variable, this means that param type
@@ -1699,7 +1727,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               isa<ConstantArrayType>(argDerivative->getType())) {
             Expr* init =
                 utils::BuildCladArrayInitByConstArray(m_Sema, argDerivative);
-            auto derivativeArrayRefVD = BuildVarDecl(
+            auto* derivativeArrayRefVD = BuildVarDecl(
                 GetCladArrayRefOfType(argDerivative->getType()
                                           ->getPointeeOrArrayElementType()
                                           ->getCanonicalTypeInternal()),
@@ -1735,6 +1763,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         idx++;
       }
       Expr* pullback = dfdx();
+
       if ((pullback == nullptr) && FD->getReturnType()->isLValueReferenceType())
         pullback = getZeroInit(FD->getReturnType().getNonReferenceType());
 
@@ -1783,11 +1812,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!OverloadedDerivedFn) {
       if (FD == m_Function && m_Mode == DiffMode::experimental_pullback) {
         // Recursive call.
-        auto selfRef =
+        auto* selfRef =
             m_Sema
-                .BuildDeclarationNameExpr(CXXScopeSpec(),
-                                          m_Derivative->getNameInfo(),
-                                          m_Derivative)
+                .BuildDeclarationNameExpr(
+                    CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
                 .get();
 
         OverloadedDerivedFn =
@@ -1809,6 +1837,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackRequest.Mode = DiffMode::experimental_pullback;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
+        pullbackRequest.EnableTBRAnalysis = enableTBR;
         FunctionDecl* pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If
@@ -1848,9 +1877,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             block.insert(block.begin(), ArgDeclStmts.begin(),
                          ArgDeclStmts.end());
             return StmtDiff(Clone(CE));
-          } else {
-            usingNumericalDiff = true;
           }
+          usingNumericalDiff = true;
         } else if (pullbackFD) {
           if (baseDiff.getExpr()) {
             Expr* baseE = baseDiff.getExpr();
@@ -1883,7 +1911,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Put Result array declaration in the function body.
         // Call the gradient, passing Result as the last Arg.
         auto& block = getCurrentBlock(direction::reverse);
-        auto it = std::begin(block) + insertionPoint;
+        auto* it = std::begin(block) + insertionPoint;
 
         // Insert the _gradX declaration statements
         it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
@@ -1920,17 +1948,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
         CE, OverloadedDerivedFn, DerivedCallArgs, ArgResultDecls, asGrad);
-
-    // FIXME: Why are we cloning args here? We already created different
-    // expressions for call to original function and call to gradient.
-    // Re-clone function arguments again, since they are required at 2 places:
-    // call to gradient and call to original function. At this point, each arg
-    // is either a simple expression or a reference to a temporary variable.
-    // Therefore cloning it has constant complexity.
-    std::transform(std::begin(CallArgs),
-                   std::end(CallArgs),
-                   std::begin(CallArgs),
-                   [this](Expr* E) { return Clone(E); });
 
     Expr* call = nullptr;
 
@@ -2019,7 +2036,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     auto opCode = UnOp->getOpcode();
+    Expr* valueForRevPass = nullptr;
     StmtDiff diff{};
+    Expr* E = UnOp->getSubExpr();
     // If it is a post-increment/decrement operator, its result is a reference
     // and we should return it.
     Expr* ResultRef = nullptr;
@@ -2027,23 +2046,41 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // xi = +xj
       // dxi/dxj = +1.0
       // df/dxj += df/dxi * dxi/dxj = df/dxi
-      diff = Visit(UnOp->getSubExpr(), dfdx());
+      diff = Visit(E, dfdx());
     else if (opCode == UO_Minus) {
       // xi = -xj
       // dxi/dxj = -1.0
       // df/dxj += df/dxi * dxi/dxj = -df/dxi
-      auto d = BuildOp(UO_Minus, dfdx());
-      diff = Visit(UnOp->getSubExpr(), d);
+      auto* d = BuildOp(UO_Minus, dfdx());
+      diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
-      diff = Visit(UnOp->getSubExpr(), dfdx());
+      diff = Visit(E, dfdx());
+      if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
+        auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
+        addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
+                          direction::reverse);
+      }
+
       ResultRef = diff.getExpr_dx();
+      valueForRevPass = diff.getRevSweepAsExpr();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
-      diff = Visit(UnOp->getSubExpr(), dfdx());
+      diff = Visit(E, dfdx());
+      if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
+        auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
+        addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
+                          direction::reverse);
+      }
+      auto op = opCode == UO_PreInc ? BinaryOperatorKind::BO_Add
+                                    : BinaryOperatorKind::BO_Sub;
+      auto* sum = BuildOp(
+          op, diff.getRevSweepAsExpr(),
+          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1));
+      valueForRevPass = utils::BuildParenExpr(m_Sema, sum);
     } else if (opCode == UnaryOperatorKind::UO_Real ||
                opCode == UnaryOperatorKind::UO_Imag) {
-      diff = VisitWithExplicitNoDfDx(UnOp->getSubExpr());
+      diff = VisitWithExplicitNoDfDx(E);
       ResultRef = BuildOp(opCode, diff.getExpr_dx());
       /// Create and add `__real r += dfdx()` expression.
       if (dfdx()) {
@@ -2062,11 +2099,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // This code snippet should be removed once reverse mode officially
       // supports pointers.
       if (opCode == UnaryOperatorKind::UO_AddrOf) {
-        if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+        if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
           if (MD->isInstance()) {
             auto thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
             if (utils::SameCanonicalType(thisType, UnOp->getType())) {
-              diff = Visit(UnOp->getSubExpr());
+              diff = Visit(E);
               Expr* cloneE =
                   BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr());
               Expr* derivedE =
@@ -2082,14 +2119,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (opCode != UO_LNot)
         unsupportedOpWarn(UnOp->getEndLoc());
 
-      Expr* subExpr = UnOp->getSubExpr();
-      if (isa<DeclRefExpr>(subExpr))
-        diff = Visit(subExpr);
+      if (isa<DeclRefExpr>(E))
+        diff = Visit(E);
       else
-        diff = StmtDiff(subExpr);
+        diff = StmtDiff(E);
     }
     Expr* op = BuildOp(opCode, diff.getExpr());
-    return StmtDiff(op, ResultRef);
+    return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
   }
 
   StmtDiff
@@ -2097,8 +2133,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto opCode = BinOp->getOpcode();
     StmtDiff Ldiff{};
     StmtDiff Rdiff{};
-    auto L = BinOp->getLHS();
-    auto R = BinOp->getRHS();
+    StmtDiff Lstored{};
+    Expr* valueForRevPass = nullptr;
+    auto* L = BinOp->getLHS();
+    auto* R = BinOp->getRHS();
     // If it is an assignment operator, its result is a reference to LHS and
     // we should return it.
     Expr* ResultRef = nullptr;
@@ -2118,7 +2156,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Ldiff = Visit(L, dfdx());
       // dxi/xr = -1.0
       // df/dxl += df/dxi * dxi/xr = -df/dxi
-      auto dr = BuildOp(UO_Minus, dfdx());
+      auto* dr = BuildOp(UO_Minus, dfdx());
       Rdiff = Visit(R, dr);
     } else if (opCode == BO_Mul) {
       // xi = xl * xr
@@ -2129,11 +2167,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // to reduce cloning complexity and only clones once. Storing it in a
       // global variable allows to save current result and make it accessible
       // in the reverse pass.
-      auto RDelayed = DelayedGlobalStoreAndRef(R);
-      StmtDiff RResult = RDelayed.Result;
+      std::unique_ptr<DelayedStoreResult> RDelayed;
+      StmtDiff RResult;
+      // If R has no side effects, it can be just cloned
+      // (no need to store it).
+      if (utils::ContainsFunctionCalls(R) || R->HasSideEffects(m_Context)) {
+        RDelayed = std::unique_ptr<DelayedStoreResult>(
+            new DelayedStoreResult(DelayedGlobalStoreAndRef(R)));
+        RResult = RDelayed->Result;
+      } else {
+        RResult = StmtDiff(Clone(R));
+      }
+
       Expr* dl = nullptr;
       if (dfdx()) {
-        dl = BuildOp(BO_Mul, dfdx(), RResult.getExpr_dx());
+        dl = BuildOp(BO_Mul, dfdx(), RResult.getRevSweepAsExpr());
         dl = StoreAndRef(dl, direction::reverse);
       }
       Ldiff = Visit(L, dl);
@@ -2141,19 +2189,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // df/dxr += df/dxi * dxi/xr = df/dxi * xl
       // Store left multiplier and assign it with L.
       Expr* LStored = Ldiff.getExpr();
-      // RDelayed.isConstant == true implies that R is a constant expression,
-      // therefore we can skip visiting it.
-      if (!RDelayed.isConstant) {
+      Expr::EvalResult dummy;
+      if (RDelayed ||
+          !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context)) {
         Expr* dr = nullptr;
         if (dfdx()) {
-          StmtDiff LResult = GlobalStoreAndRef(LStored);
-          LStored = LResult.getExpr();
-          dr = BuildOp(BO_Mul, LResult.getExpr_dx(), dfdx());
+          dr = BuildOp(BO_Mul, Ldiff.getRevSweepAsExpr(), dfdx());
           dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);
         // Assign right multiplier's variable with R.
-        RDelayed.Finalize(Rdiff.getExpr());
+        if (RDelayed)
+          RDelayed->Finalize(Rdiff.getExpr());
       }
       std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
     } else if (opCode == BO_Div) {
@@ -2173,36 +2220,34 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
       // produced instead of 1 / (R * R).
-      Expr* LStored = Ldiff.getExpr();
       if (!RDelayed.isConstant) {
         Expr* dr = nullptr;
         if (dfdx()) {
-          StmtDiff LResult = GlobalStoreAndRef(LStored);
-          LStored = LResult.getExpr();
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
-          dr = BuildOp(BO_Mul,
-                       dfdx(),
-                       BuildOp(UO_Minus,
-                               BuildOp(BO_Div, LResult.getExpr_dx(), RxR)));
+          dr =
+              BuildOp(BO_Mul, dfdx(),
+                      BuildOp(UO_Minus,
+                              BuildOp(BO_Div, Ldiff.getRevSweepAsExpr(), RxR)));
           dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);
         RDelayed.Finalize(Rdiff.getExpr());
       }
-      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
+      std::tie(Ldiff, Rdiff) =
+          std::make_pair(Ldiff.getExpr(), RResult.getExpr());
     } else if (BinOp->isAssignmentOp()) {
       if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
         diag(DiagnosticsEngine::Warning,
              BinOp->getEndLoc(),
              "derivative of an assignment attempts to assign to unassignable "
              "expr, assignment ignored");
-        auto LDRE = dyn_cast<DeclRefExpr>(L);
-        auto RDRE = dyn_cast<DeclRefExpr>(R);
+        auto* LDRE = dyn_cast<DeclRefExpr>(L);
+        auto* RDRE = dyn_cast<DeclRefExpr>(R);
 
         if (!LDRE && !RDRE)
           return Clone(BinOp);
-        Expr* LExpr = LDRE ? Visit(L).getExpr() : L;
-        Expr* RExpr = RDRE ? Visit(R).getExpr() : R;
+        Expr* LExpr = LDRE ? Visit(L).getRevSweepAsExpr() : L;
+        Expr* RExpr = RDRE ? Visit(R).getRevSweepAsExpr() : R;
 
         return BuildOp(opCode, LExpr, RExpr);
       }
@@ -2210,8 +2255,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // FIXME: Put this code into a separate subroutine and break out early
       // using return if the diff mode is not jacobian and we are not dealing
       // with the `outputArray`.
-      if (auto ASE = dyn_cast<ArraySubscriptExpr>(L)) {
-        if (auto DRE = dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
+      if (auto* ASE = dyn_cast<ArraySubscriptExpr>(L)) {
+        if (auto* DRE =
+                dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
           auto type = QualType(DRE->getType()->getPointeeOrArrayElementType(),
                                /*Quals=*/0);
           std::string DRE_str = DRE->getDecl()->getNameAsString();
@@ -2231,20 +2277,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 unsigned size_type_bits = m_Context.getIntWidth(size_type);
                 llvm::APInt idxValue(size_type_bits,
                                      i + (outputArrayCursor * numParams));
-                auto idx = IntegerLiteral::Create(m_Context, idxValue,
-                                                  size_type, noLoc);
+                auto* idx = IntegerLiteral::Create(m_Context, idxValue,
+                                                   size_type, noLoc);
                 // Create the jacobianMatrix[idx] expression.
-                auto result_at_i = m_Sema
-                                       .CreateBuiltinArraySubscriptExpr(
-                                           m_Result, noLoc, idx, noLoc)
-                                       .get();
+                auto* result_at_i = m_Sema
+                                        .CreateBuiltinArraySubscriptExpr(
+                                            m_Result, noLoc, idx, noLoc)
+                                        .get();
                 temp_m_Variables[m_IndependentVars[i]] = result_at_i;
               }
               m_VectorOutput.push_back(temp_m_Variables);
             }
 
-            auto dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                          m_Context, 1);
+            auto* dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                           m_Context, 1);
             ExprResult tmp = dfdf;
             dfdf = m_Sema
                        .ImpCastExprToType(tmp.get(), type,
@@ -2264,7 +2310,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // in Lblock
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
-      auto Lblock = endBlock(direction::reverse);
+      auto* Lblock = endBlock(direction::reverse);
+      llvm::SmallVector<Expr*, 4> ExprsToStore;
+      utils::GetInnermostReturnExpr(Ldiff.getExpr(), ExprsToStore);
+      if (L->HasSideEffects(m_Context)) {
+        Expr* E = Ldiff.getExpr();
+        auto* storeE =
+            StoreAndRef(E, m_Context.getLValueReferenceType(E->getType()));
+        Ldiff.updateStmt(storeE);
+      }
+
       Expr* LCloned = Ldiff.getExpr();
       // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
       // like (x = y) it propagates recursively, so _d_x is also returned.
@@ -2272,8 +2327,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (!AssignedDiff) {
         // If either LHS or RHS is a declaration reference, visit it to avoid
         // naming collision
-        auto LDRE = dyn_cast<DeclRefExpr>(L);
-        auto RDRE = dyn_cast<DeclRefExpr>(R);
+        auto* LDRE = dyn_cast<DeclRefExpr>(L);
+        auto* RDRE = dyn_cast<DeclRefExpr>(R);
 
         if (!LDRE && !RDRE)
           return Clone(BinOp);
@@ -2287,96 +2342,93 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // If assigned expr is dependent, first update its derivative;
       auto Lblock_begin = Lblock->body_rbegin();
       auto Lblock_end = Lblock->body_rend();
-      if (dfdx() && Lblock->size()) {
+
+      if (dfdx() && Lblock_begin != Lblock_end) {
         addToCurrentBlock(*Lblock_begin, direction::reverse);
         Lblock_begin = std::next(Lblock_begin);
       }
-      while(!m_PopIdxValues.empty())
-        addToCurrentBlock(m_PopIdxValues.pop_back_val(), direction::reverse);
+
+      for (auto& E : ExprsToStore) {
+        auto pushPop = StoreAndRestore(E);
+        addToCurrentBlock(pushPop.getExpr(), direction::forward);
+        addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
+      }
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
 
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
-      auto oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
-                                  /*forceDeclCreation=*/true);
+      auto* oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
+                                   /*forceDeclCreation=*/true);
+
       if (opCode == BO_Assign) {
         Rdiff = Visit(R, oldValue);
+        valueForRevPass = Rdiff.getRevSweepAsExpr();
       } else if (opCode == BO_AddAssign) {
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue),
                           direction::reverse);
         Rdiff = Visit(R, oldValue);
+        valueForRevPass = BuildOp(BO_Add, Rdiff.getRevSweepAsExpr(),
+                                  Ldiff.getRevSweepAsExpr());
       } else if (opCode == BO_SubAssign) {
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue),
                           direction::reverse);
         Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
+        valueForRevPass = BuildOp(BO_Sub, Rdiff.getRevSweepAsExpr(),
+                                  Ldiff.getRevSweepAsExpr());
       } else if (opCode == BO_MulAssign) {
-        auto RDelayed = DelayedGlobalStoreAndRef(R);
-        StmtDiff RResult = RDelayed.Result;
+        // Create a reference variable to keep the result of LHS, since it
+        // must be used on 2 places: when storing to a global variable
+        // accessible from the reverse pass, and when rebuilding the original
+        // expression for the forward pass. This allows to avoid executing
+        // same expression with side effects twice. E.g., on
+        //   double r = (x *= y) *= z;
+        // instead of:
+        //   _t0 = (x *= y);
+        //   double r = (x *= y) *= z;
+        // which modifies x twice, we get:
+        //   double & _ref0 = (x *= y);
+        //   _t0 = _ref0;
+        //   double r = _ref0 *= z;
+        if (isInsideLoop)
+          addToCurrentBlock(LCloned, direction::forward);
+        /// Capture all the emitted statements while visiting R
+        /// and insert them after `dl += dl * R`
+        beginBlock(direction::reverse);
+        Expr* dr = BuildOp(BO_Mul, LCloned, oldValue);
+        dr = StoreAndRef(dr, direction::reverse);
+        Rdiff = Visit(R, dr);
+        Stmts RBlock = EndBlockWithoutCreatingCS(direction::reverse);
         addToCurrentBlock(
-            BuildOp(BO_AddAssign,
-                    AssignedDiff,
-                    BuildOp(BO_Mul, oldValue, RResult.getExpr_dx())),
+            BuildOp(BO_AddAssign, AssignedDiff,
+                    BuildOp(BO_Mul, oldValue, Rdiff.getRevSweepAsExpr())),
             direction::reverse);
-        Expr* LRef = LCloned;
-        if (!RDelayed.isConstant) {
-          // Create a reference variable to keep the result of LHS, since it
-          // must be used on 2 places: when storing to a global variable
-          // accessible from the reverse pass, and when rebuilding the original
-          // expression for the forward pass. This allows to avoid executing
-          // same expression with side effects twice. E.g., on
-          //   double r = (x *= y) *= z;
-          // instead of:
-          //   _t0 = (x *= y);
-          //   double r = (x *= y) *= z;
-          // which modifies x twice, we get:
-          //   double & _ref0 = (x *= y);
-          //   _t0 = _ref0;
-          //   double r = _ref0 *= z;
-          if (LCloned->HasSideEffects(m_Context)) {
-            auto RefType = getNonConstType(L->getType(), m_Context, m_Sema);
-            LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
-                               /*forceDeclCreation=*/true);
-          }
-          StmtDiff LResult = GlobalStoreAndRef(LRef);
-          if (isInsideLoop)
-            addToCurrentBlock(LResult.getExpr(), direction::forward);
-          Expr* dr = BuildOp(BO_Mul, LResult.getExpr_dx(), oldValue);
-          dr = StoreAndRef(dr, direction::reverse);
-          Rdiff = Visit(R, dr);
-          RDelayed.Finalize(Rdiff.getExpr());
-        }
-        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
+        for (auto& S : RBlock)
+          addToCurrentBlock(S, direction::reverse);
+        valueForRevPass = BuildOp(BO_Mul, Rdiff.getRevSweepAsExpr(),
+                                  Ldiff.getRevSweepAsExpr());
+        std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, Rdiff.getExpr());
       } else if (opCode == BO_DivAssign) {
         auto RDelayed = DelayedGlobalStoreAndRef(R);
         StmtDiff RResult = RDelayed.Result;
         Expr* RStored = StoreAndRef(RResult.getExpr_dx(), direction::reverse);
-        addToCurrentBlock(BuildOp(BO_AddAssign,
-                                  AssignedDiff,
+        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
                                   BuildOp(BO_Div, oldValue, RStored)),
                           direction::reverse);
-        Expr* LRef = LCloned;
         if (!RDelayed.isConstant) {
-          if (LCloned->HasSideEffects(m_Context)) {
-            QualType RefType = m_Context.getLValueReferenceType(
-                getNonConstType(L->getType(), m_Context, m_Sema));
-            LRef = StoreAndRef(LCloned, RefType, direction::forward, "_ref",
-                               /*forceDeclCreation=*/true);
-          }
-          StmtDiff LResult = GlobalStoreAndRef(LRef);
           if (isInsideLoop)
-            addToCurrentBlock(LResult.getExpr(), direction::forward);
+            addToCurrentBlock(LCloned, direction::forward);
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
-          Expr* dr = BuildOp(
-              BO_Mul,
-              oldValue,
-              BuildOp(UO_Minus, BuildOp(BO_Div, LResult.getExpr_dx(), RxR)));
+          Expr* dr = BuildOp(BO_Mul, oldValue,
+                             BuildOp(UO_Minus, BuildOp(BO_Div, LCloned, RxR)));
           dr = StoreAndRef(dr, direction::reverse);
           Rdiff = Visit(R, dr);
           RDelayed.Finalize(Rdiff.getExpr());
         }
-        std::tie(Ldiff, Rdiff) = std::make_pair(LRef, RResult.getExpr());
+        valueForRevPass = BuildOp(BO_Div, Rdiff.getRevSweepAsExpr(),
+                                  Ldiff.getRevSweepAsExpr());
+        std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult.getExpr());
       } else
         llvm_unreachable("unknown assignment opCode");
       if (m_ExternalSource)
@@ -2388,10 +2440,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (auto it = Lblock_begin; it != Lblock_end; ++it)
         addToCurrentBlock(*it, direction::reverse);
     } else if (opCode == BO_Comma) {
-      auto zero =
+      auto* zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
       Ldiff = Visit(L, zero);
       Rdiff = Visit(R, dfdx());
+      valueForRevPass = Ldiff.getRevSweepAsExpr();
       ResultRef = Ldiff.getExpr();
     } else {
       // We should not output any warning on visiting boolean conditions
@@ -2402,8 +2455,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // If either LHS or RHS is a declaration reference, visit it to avoid
       // naming collision
-      auto LDRE = dyn_cast<DeclRefExpr>(L);
-      auto RDRE = dyn_cast<DeclRefExpr>(R);
+      auto* LDRE = dyn_cast<DeclRefExpr>(L);
+      auto* RDRE = dyn_cast<DeclRefExpr>(R);
 
       if (!LDRE && !RDRE)
         return Clone(BinOp);
@@ -2414,7 +2467,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return BuildOp(opCode, LExpr, RExpr);
     }
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
-    return StmtDiff(op, ResultRef);
+    return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
   }
 
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
@@ -2426,7 +2479,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
-    if (auto AT = dyn_cast<ArrayType>(VD->getType())) {
+    if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
       Expr* init = getArraySizeExpr(AT, m_Context, *this);
       VDDerivedInit = init;
       VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
@@ -2452,7 +2505,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Computation of hessian requires this code to be correctly
       // differentiated.
       bool specialThisDiffCase = false;
-      if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
         if (VDDerivedType->isPointerType() && MD->isInstance()) {
           specialThisDiffCase = true;
         }
@@ -2533,13 +2586,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     VarDecl* VDClone = nullptr;
     // Here separate behaviour for record and non-record types is only
     // necessary to preserve the old tests.
-    if (VD->getType()->isRecordType())
-      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
+    if (VD->getType()->isRecordType()) {
+      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit(),
                              VD->getTypeSourceInfo(), VD->getInitStyle());
-    else
+    } else {
       VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
                              initDiff.getExpr(), VD->isDirectInit());
+    }
     Expr* derivedVDE = BuildDeclRef(VDDerived);
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
@@ -2553,11 +2607,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (isInsideLoop) {
         auto tape = MakeCladTapeFor(derivedVDE);
         addToCurrentBlock(tape.Push);
-        auto reverseSweepDerivativePointerE =
+        auto* reverseSweepDerivativePointerE =
             BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
         m_LoopBlock.back().push_back(
             BuildDeclStmt(reverseSweepDerivativePointerE));
-        auto revSweepDerPointerRef =
+        auto* revSweepDerPointerRef =
             BuildDeclRef(reverseSweepDerivativePointerE);
         derivedVDE =
             BuildOp(UnaryOperatorKind::UO_Deref, revSweepDerPointerRef);
@@ -2605,6 +2659,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+    llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
     // Need to put array decls inlined.
@@ -2614,8 +2669,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // double y = x;
     // ->
     // double _d_y = _d_x; double y = x;
-    for (auto D : DS->decls()) {
-      if (auto VD = dyn_cast<VarDecl>(D)) {
+    for (auto* D : DS->decls()) {
+      if (auto* VD = dyn_cast<VarDecl>(D)) {
         VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
 
         // Check if decl's name is the same as before. The name may be changed
@@ -2638,6 +2693,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // }
         if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
           m_DeclReplacements[VD] = VDDiff.getDecl();
+
+        // FIXME: This part in necessary to replace local variables inside loops
+        // with function globals and replace initializations with
+        // assignments. This is a temporary measure to avoid the bug that arises
+        // from overwriting local variables on different loop passes.
+        if (isInsideLoop) {
+          if (VD->getType()->isBuiltinType() &&
+              !VD->getType().isConstQualified()) {
+            auto* decl = VDDiff.getDecl();
+            if (decl->getInit()) {
+              auto* declRef = BuildDeclRef(decl);
+              auto pushPop =
+                  StoreAndRestore(declRef, /*prefix=*/"_t", /*force=*/true);
+              if (pushPop.getExpr() != declRef)
+                addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
+              auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
+              inits.push_back(BuildOp(BO_Comma, pushPop.getExpr(), assignment));
+            }
+            decl->setInit(getZeroInit(VD->getType()));
+          }
+        }
+
         decls.push_back(VDDiff.getDecl());
         if (isa<VariableArrayType>(VD->getType()))
           localDeclsDiff.push_back(VDDiff.getDecl_dx());
@@ -2667,21 +2744,36 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       declsDiff.append(localDeclsDiff.begin(), localDeclsDiff.end());
       m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     }
+
+    /// FIXME: This part in necessary to replace local variables inside loops
+    /// with function globals and replace initializations with assignments.
+    /// This is a temporary measure to avoid the bug that arises from
+    /// overwriting local variables on different loop passes.
+    if (isInsideLoop) {
+      if (auto* VD = dyn_cast<VarDecl>(decls[0])) {
+        if (VD->getType()->isBuiltinType() &&
+            !VD->getType().isConstQualified()) {
+          addToBlock(DSClone, m_Globals);
+          Stmt* initAssignments = MakeCompoundStmt(inits);
+          initAssignments = unwrapIfSingleStmt(initAssignments);
+          return StmtDiff(initAssignments);
+        }
+      }
+    }
+
     return StmtDiff(DSClone);
   }
 
   StmtDiff
   ReverseModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
-    StmtDiff subExprDiff = Visit(ICE->getSubExpr(), dfdx());
     // Casts should be handled automatically when the result is used by
     // Sema::ActOn.../Build...
-    return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx(),
-                    subExprDiff.getForwSweepStmt_dx());
+    return Visit(ICE->getSubExpr(), dfdx());
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
-    auto field = ME->getMemberDecl();
+    auto* field = ME->getMemberDecl();
     assert(!isa<CXXMethodDecl>(field) &&
            "CXXMethodDecl nodes not supported yet!");
     MemberExpr* clonedME = utils::BuildMemberExpr(
@@ -2707,27 +2799,41 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
-    if (isInsideLoop)
-      return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
     if (!E)
       return false;
     // Use stricter policy when inside loops: IsEvaluatable is also true for
     // arithmetical expressions consisting of constants, e.g. (1 + 2)*3. This
     // chech is more expensive, but it doesn't make sense to push such constants
     // into stack.
-    if (isInsideLoop)
-      return !E->isEvaluatable(m_Context, Expr::SE_NoSideEffects);
+    if (isInsideLoop && E->isEvaluatable(m_Context, Expr::SE_NoSideEffects))
+      return false;
     Expr* B = E->IgnoreParenImpCasts();
     // FIXME: find a more general way to determine that or add more options.
     if (isa<FloatingLiteral>(B) || isa<IntegerLiteral>(B))
       return false;
     if (isa<UnaryOperator>(B)) {
-      auto UO = cast<UnaryOperator>(B);
+      auto* UO = cast<UnaryOperator>(B);
       auto OpKind = UO->getOpcode();
       if (OpKind == UO_Plus || OpKind == UO_Minus)
         return UsefulToStoreGlobal(UO->getSubExpr());
       return true;
     }
+    // We lack context to decide if this is useful to store or not. In the
+    // current system that should have been decided by the parent expression.
+    // FIXME: Here will be the entry point of the advanced activity analysis.
+    if (isa<DeclRefExpr>(B) || isa<ArraySubscriptExpr>(B) ||
+        isa<MemberExpr>(B)) {
+      // If TBR analysis is off, assume E is useful to store.
+      if (!enableTBR)
+        return true;
+      auto found = m_ToBeRecorded.find(B->getBeginLoc());
+      return found != m_ToBeRecorded.end();
+    }
+
+    // FIXME: Attach checkpointing.
+    if (isa<CallExpr>(B))
+      return false;
+
     return true;
   }
 
@@ -2736,7 +2842,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                Expr* init) {
     // Create identifier before going to topmost scope
     // to let Sema::LookupName see the whole scope.
-    auto identifier = CreateUniqueIdentifier(prefix);
+    auto* identifier = CreateUniqueIdentifier(prefix);
     // Save current scope and temporarily go to topmost function scope.
     llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
     assert(m_DerivativeFnScope && "must be set");
@@ -2765,24 +2871,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!force && !UsefulToStoreGlobal(E))
       return {E, E};
 
-    if (isInsideLoop) {
-      auto CladTape = MakeCladTapeFor(E);
-      Expr* Push = CladTape.Push;
-      Expr* Pop = CladTape.Pop;
-      return {Push, Pop};
+    auto pushPop = BuildPushPop(E, Type, prefix, force);
+    if (!isInsideLoop) {
+      if (E) {
+        Expr* Set = BuildOp(BO_Assign, pushPop.getExpr(), E);
+        addToCurrentBlock(Set, direction::forward);
+      }
     }
 
-    Expr* init = nullptr;
-    if (auto AT = dyn_cast<ArrayType>(Type)) {
-      init = getArraySizeExpr(AT, m_Context, *this);
-    }
-
-    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
-    if (E) {
-      Expr* Set = BuildOp(BO_Assign, Ref, E);
-      addToCurrentBlock(Set, direction::forward);
-    }
-    return {Ref, Ref};
+    return pushPop;
   }
 
   StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E,
@@ -2793,11 +2890,61 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
   }
 
+  StmtDiff ReverseModeVisitor::BuildPushPop(clang::Expr* E,
+                                            clang::QualType Type,
+                                            llvm::StringRef prefix,
+                                            bool force) {
+    if (isInsideLoop) {
+      auto CladTape = MakeCladTapeFor(Clone(E));
+      Expr* Push = CladTape.Push;
+      Expr* Pop = CladTape.Pop;
+      return {Push, Pop};
+    }
+    Expr* init = nullptr;
+    if (const auto* const AT = dyn_cast<ArrayType>(Type))
+      init = getArraySizeExpr(AT, m_Context, *this);
+
+    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
+    return {Ref, Ref};
+  }
+
+  StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
+                                               llvm::StringRef prefix,
+                                               bool force) {
+    auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
+
+    if (!force && !UsefulToStoreGlobal(E))
+      return {};
+
+    if (isInsideLoop) {
+      auto pushPop = BuildPushPop(E, Type, prefix, true);
+      auto* popAssign = BuildOp(BinaryOperatorKind::BO_Assign, Clone(E),
+                                pushPop.getExpr_dx());
+      return {pushPop.getExpr(), popAssign};
+    }
+
+    Expr* init = nullptr;
+    if (const auto* AT = dyn_cast<ArrayType>(Type))
+      init = getArraySizeExpr(AT, m_Context, *this);
+
+    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
+    if (E) {
+      Expr* Store = BuildOp(BO_Assign, Ref, Clone(E));
+      Expr* Restore = nullptr;
+      if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
+        auto* r = Clone(E);
+        Restore = BuildOp(BO_Assign, r, Ref);
+      }
+      return {Store, Restore};
+    }
+    return {};
+  }
+
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
-    if (isConstant)
+    if (isConstant || !needsUpdate)
       return;
     if (isInsideLoop) {
-      auto Push = cast<CallExpr>(Result.getExpr());
+      auto* Push = cast<CallExpr>(Result.getExpr());
       unsigned lastArg = Push->getNumArgs() - 1;
       Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
     } else {
@@ -2810,39 +2957,39 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E,
                                                llvm::StringRef prefix) {
     assert(E && "must be provided");
-    if (!UsefulToStoreGlobal(E)) {
+    if (isa<DeclRefExpr>(E) /*!UsefulToStoreGlobal(E)*/) {
       Expr* Cloned = Clone(E);
-      return DelayedStoreResult{*this,
-                                StmtDiff{Cloned, Cloned},
-                                /*isConstant*/ true,
-                                /*isInsideLoop*/ false};
+      Expr::EvalResult evalRes;
+      bool isConst =
+          clad_compat::Expr_EvaluateAsConstantExpr(E, evalRes, m_Context);
+      return DelayedStoreResult{*this, StmtDiff{Cloned, Cloned},
+                                /*isConstant*/ isConst,
+                                /*isInsideLoop*/ false,
+                                /*pNeedsUpdate=*/false};
     }
     if (isInsideLoop) {
       Expr* dummy = E;
       auto CladTape = MakeCladTapeFor(dummy);
       Expr* Push = CladTape.Push;
       Expr* Pop = CladTape.Pop;
-      return DelayedStoreResult{*this,
-                                StmtDiff{Push, Pop},
+      return DelayedStoreResult{*this, StmtDiff{Push, Pop, nullptr, Pop},
                                 /*isConstant*/ false,
-                                /*isInsideLoop*/ true};
-    } else {
-      Expr* Ref = BuildDeclRef(GlobalStoreImpl(
-          getNonConstType(E->getType(), m_Context, m_Sema), prefix));
-      // Return reference to the declaration instead of original expression.
-      return DelayedStoreResult{*this,
-                                StmtDiff{Ref, Ref},
-                                /*isConstant*/ false,
-                                /*isInsideLoop*/ false};
+                                /*isInsideLoop*/ true, /*pNeedsUpdate=*/true};
     }
+    Expr* Ref = BuildDeclRef(GlobalStoreImpl(
+        getNonConstType(E->getType(), m_Context, m_Sema), prefix));
+    // Return reference to the declaration instead of original expression.
+    return DelayedStoreResult{*this, StmtDiff{Ref, Ref},
+                              /*isConstant*/ false,
+                              /*isInsideLoop*/ false, /*pNeedsUpdate=*/true};
   }
 
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
       : m_RMV(RMV) {
     ASTContext& C = m_RMV.m_Context;
     if (RMV.isInsideLoop) {
-      auto zero = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
-                                                    /*val=*/0);
+      auto* zero = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
+                                                     /*val=*/0);
       auto counterTape = m_RMV.MakeCladTapeFor(zero);
       m_Ref = counterTape.Last();
       m_Pop = counterTape.Pop;
@@ -2878,10 +3025,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // statement.
     Sema::ConditionResult condResult;
     if (condVarDecl) {
-      Decl* condVarClone = cast<DeclStmt>(condVarRes.getStmt())
-                               ->getSingleDecl();
-      condResult = m_Sema.ActOnConditionVariable(condVarClone, noLoc,
-                                                 Sema::ConditionKind::Boolean);
+      if (condVarRes.getStmt()) {
+        if (isa<DeclStmt>(condVarRes.getStmt())) {
+          Decl* condVarClone =
+              cast<DeclStmt>(condVarRes.getStmt())->getSingleDecl();
+          condResult = m_Sema.ActOnConditionVariable(
+              condVarClone, noLoc, Sema::ConditionKind::Boolean);
+        } else {
+          condResult = m_Sema.ActOnCondition(getCurrentScope(), noLoc,
+                                             cast<Expr>(condVarRes.getStmt()),
+                                             Sema::ConditionKind::Boolean);
+        }
+      }
     } else {
       condResult = m_Sema.ActOnCondition(getCurrentScope(), noLoc, condClone,
                                          Sema::ConditionKind::Boolean);
@@ -2955,7 +3110,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                           .ActOnDoStmt(/*DoLoc=*/noLoc, bodyDiff.getStmt_dx(),
                                        /*WhileLoc=*/noLoc,
                                        /*CondLParen=*/noLoc, counterCondition,
-                                       /*RCondRParen=*/noLoc)
+                                       /*CondRParen=*/noLoc)
                           .get();
     // for do-while statement
     endScope();
@@ -2986,9 +3141,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                      Stmt* forLoopIncDiff,
                                                      bool isForLoop) {
     Expr* counterIncrement = loopCounter.getCounterIncrement();
-    auto activeBreakContHandler = PushBreakContStmtHandler();
+    auto* activeBreakContHandler = PushBreakContStmtHandler();
     activeBreakContHandler->BeginCFSwitchStmtScope();
-    m_LoopBlock.push_back({});
+    m_LoopBlock.emplace_back();
     // differentiate loop body and add loop increment expression
     // in the forward block.
     StmtDiff bodyDiff = nullptr;
@@ -3022,6 +3177,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       bodyDiff.updateStmtDx(MakeCompoundStmt(revLoopBlock));
     m_LoopBlock.pop_back();
 
+    // Increment statement in the for-loop is only executed if the iteration
+    // did not end with a break/continue statement. Therefore, forLoopIncDiff
+    // should be inside the last switch case in the reverse pass.
+    if (forLoopIncDiff) {
+      if (bodyDiff.getStmt_dx()) {
+        bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+            m_Context, bodyDiff.getStmt_dx(), forLoopIncDiff));
+      } else {
+        bodyDiff.updateStmtDx(forLoopIncDiff);
+      }
+    }
+
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
@@ -3043,7 +3210,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(counterDecrement, direction::reverse);
     addToCurrentBlock(condVarDiff, direction::reverse);
     addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
-    addToCurrentBlock(forLoopIncDiff, direction::reverse);
     bodyDiff = {bodyDiff.getStmt(),
                 unwrapIfSingleStmt(endBlock(direction::reverse))};
     return bodyDiff;
@@ -3052,7 +3218,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitContinueStmt(const ContinueStmt* CS) {
     beginBlock(direction::forward);
     Stmt* newCS = m_Sema.ActOnContinueStmt(noLoc, getCurrentScope()).get();
-    auto activeBreakContHandler = GetActiveBreakContStmtHandler();
+    auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
@@ -3064,7 +3230,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitBreakStmt(const BreakStmt* BS) {
     beginBlock(direction::forward);
     Stmt* newBS = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
-    auto activeBreakContHandler = GetActiveBreakContStmtHandler();
+    auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
@@ -3076,8 +3242,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   Expr* ReverseModeVisitor::BreakContStmtHandler::CreateSizeTLiteralExpr(
       std::size_t value) {
     ASTContext& C = m_RMV.m_Context;
-    auto literalExpr = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
-                                                         value);
+    auto* literalExpr =
+        ConstantFolder::synthesizeLiteral(C.getSizeType(), C, value);
     return literalExpr;
   }
 
@@ -3085,7 +3251,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(!m_ControlFlowTape && "InitializeCFTape() should not be called if "
                                  "m_ControlFlowTape is already initialized");
 
-    auto zeroLiteral = CreateSizeTLiteralExpr(0);
+    auto* zeroLiteral = CreateSizeTLiteralExpr(0);
     m_ControlFlowTape.reset(
         new CladTapeResult(m_RMV.MakeCladTapeFor(zeroLiteral)));
   }
@@ -3117,7 +3283,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_RMV.endScope();
 
     ++m_CaseCounter;
-    auto counterLiteral = CreateSizeTLiteralExpr(m_CaseCounter);
+    auto* counterLiteral = CreateSizeTLiteralExpr(m_CaseCounter);
     CaseStmt* CS = clad_compat::CaseStmt_Create(m_RMV.m_Context, counterLiteral,
                                                 nullptr, noLoc, noLoc, noLoc);
 
@@ -3154,10 +3320,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // and corresponding push expression for this case statement
     // at the end of the forward block to cover the case when no
     // `break`/`continue` statements are hit.
-    auto lastSC = GetNextCFCaseStmt();
-    auto pushExprToCurrentCase = CreateCFTapePushExprToCurrentCase();
+    auto* lastSC = GetNextCFCaseStmt();
+    auto* pushExprToCurrentCase = CreateCFTapePushExprToCurrentCase();
 
-    Stmt *forwBlock, *revBlock;
+    Stmt* forwBlock = nullptr;
+    Stmt* revBlock = nullptr;
 
     forwBlock = utils::AppendAndCreateCompoundStmt(m_RMV.m_Context,
                                                    bodyDiff.getStmt(),
@@ -3171,14 +3338,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto condResult = m_RMV.m_Sema.ActOnCondition(m_RMV.getCurrentScope(),
                                                   noLoc, m_ControlFlowTape->Pop,
                                                   Sema::ConditionKind::Switch);
-    SwitchStmt* CFSS = clad_compat::Sema_ActOnStartOfSwitchStmt(m_RMV.m_Sema,
-                                                                nullptr,
-                                                                condResult)
-                           .getAs<SwitchStmt>();
+    auto* CFSS = clad_compat::Sema_ActOnStartOfSwitchStmt(m_RMV.m_Sema, nullptr,
+                                                          condResult)
+                     .getAs<SwitchStmt>();
     // Registers all the switch cases
-    for (auto SC : m_SwitchCases) {
+    for (auto* SC : m_SwitchCases)
       CFSS->addSwitchCase(SC);
-    }
     m_RMV.m_Sema.ActOnFinishSwitchStmt(noLoc, CFSS, bodyDiff.getStmt_dx());
 
     bodyDiff = {bodyDiff.getStmt(), CFSS};
@@ -3201,7 +3366,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     llvm::SmallVector<Expr*, 4> clonedArgs;
-    for (auto arg : CE->arguments()) {
+    for (const auto* arg : CE->arguments()) {
       auto argDiff = Visit(arg, dfdx());
       clonedArgs.push_back(argDiff.getExpr());
     }
@@ -3216,10 +3381,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // Passing empty parenList here will silently cause 'most vexing
           // parse' issue.
           return StmtDiff();
-        } else {
-          clonedArgsE =
-              m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
         }
+        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
       }
     } else {
       clonedArgsE = clonedArgs[0];
@@ -3281,9 +3444,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::ComputeParamTypes(const DiffParams& diffParams) {
     llvm::SmallVector<clang::QualType, 8> paramTypes;
     paramTypes.reserve(m_Function->getNumParams() * 2);
-    for (auto PVD : m_Function->parameters()) {
+    for (auto* PVD : m_Function->parameters())
       paramTypes.push_back(PVD->getType());
-    }
     // TODO: Add DiffMode::experimental_pullback support here as well.
     if (m_Mode == DiffMode::reverse ||
         m_Mode == DiffMode::experimental_pullback) {
@@ -3305,7 +3467,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           paramTypes.push_back(effectiveReturnType);
       }
 
-      if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
         const CXXRecordDecl* RD = MD->getParent();
         if (MD->isInstance() && !RD->isLambda()) {
           QualType thisType =
@@ -3315,8 +3477,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
       }
 
-      for (auto PVD : m_Function->parameters()) {
-        auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
+      for (auto* PVD : m_Function->parameters()) {
+        const auto* it =
+            std::find(std::begin(diffParams), std::end(diffParams), PVD);
         if (it != std::end(diffParams))
           paramTypes.push_back(ComputeParamType(PVD->getType()));
       }
@@ -3331,9 +3494,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   llvm::SmallVector<clang::ParmVarDecl*, 8>
   ReverseModeVisitor::BuildParams(DiffParams& diffParams) {
-    llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
+    llvm::SmallVector<clang::ParmVarDecl*, 8> params;
+    llvm::SmallVector<clang::ParmVarDecl*, 8> paramDerivatives;
     params.reserve(m_Function->getNumParams() + diffParams.size());
-    auto derivativeFnType = cast<FunctionProtoType>(m_Derivative->getType());
+    const auto* derivativeFnType =
+        cast<FunctionProtoType>(m_Derivative->getType());
     std::size_t dParamTypesIdx = m_Function->getNumParams();
 
     if (m_Mode == DiffMode::experimental_pullback &&
@@ -3341,10 +3506,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       ++dParamTypesIdx;
     }
 
-    if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
       const CXXRecordDecl* RD = MD->getParent();
       if (!isVectorValued && MD->isInstance() && !RD->isLambda()) {
-        auto thisDerivativePVD = utils::BuildParmVarDecl(
+        auto* thisDerivativePVD = utils::BuildParmVarDecl(
             m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"),
             derivativeFnType->getParamType(dParamTypesIdx));
         paramDerivatives.push_back(thisDerivativePVD);
@@ -3362,8 +3527,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
 
-    for (auto PVD : m_Function->parameters()) {
-      auto newPVD = utils::BuildParmVarDecl(
+    for (auto* PVD : m_Function->parameters()) {
+      auto* newPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
           PVD->getStorageClass(), /*DefArg=*/nullptr, PVD->getTypeSourceInfo());
       params.push_back(newPVD);
@@ -3372,7 +3537,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
 
-      auto it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
+      auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
       if (it != std::end(diffParams)) {
         *it = newPVD;
         if (m_Mode == DiffMode::reverse ||
@@ -3380,8 +3545,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
           IdentifierInfo* dII =
               CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
-          auto dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, dII, dType,
-                                              PVD->getStorageClass());
+          auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, dII, dType,
+                                               PVD->getStorageClass());
           paramDerivatives.push_back(dPVD);
           ++dParamTypesIdx;
 
@@ -3426,7 +3591,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_Mode == DiffMode::jacobian) {
       IdentifierInfo* II = CreateUniqueIdentifier("jacobianMatrix");
       // FIXME: Why are we taking storageClass of `params.front()`?
-      auto dPVD = utils::BuildParmVarDecl(
+      auto* dPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, II,
           derivativeFnType->getParamType(dParamTypesIdx),
           params.front()->getStorageClass());
