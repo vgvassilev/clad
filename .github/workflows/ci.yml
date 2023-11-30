@@ -694,11 +694,17 @@ jobs:
       if: ${{ runner.os != 'windows' }}
       run: |
         mkdir obj && cd obj
+        if [[ ${{ matrix.debug_build }} == "true" ]]; then
+          external_lit='-DLLVM_EXTERNAL_LIT="`which lit`"'
+        else
+          external_lit=''
+        fi
+        echo "external_lit='${external_lit}'"
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
           -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCODE_COVERAGE=${CODE_COVERAGE}  \
-          -DLLVM_EXTERNAL_LIT="`which lit`" \
+          ${external_lit} \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
 
