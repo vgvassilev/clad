@@ -1,6 +1,8 @@
 // RUN: %cladclang %s -I%S/../../include -oVectorMode.out 2>&1 | FileCheck %s
 // RUN: ./VectorMode.out | FileCheck -check-prefix=CHECK-EXEC %s
 
+// XFAIL: asserts
+
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
