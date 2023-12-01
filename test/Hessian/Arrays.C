@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oArrays.out 2>&1 | FileCheck %s
 // RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oArrays.out
+// RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

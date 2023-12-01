@@ -84,7 +84,8 @@ namespace clad {
   }
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
-    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function);
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function,
+                                m_DeclReplacements);
     up.TraverseStmt(InSubtree);
   }
 
@@ -168,9 +169,10 @@ namespace clad {
   }
 
   DeclStmt* VisitorBase::BuildDeclStmt(Decl* D) {
-    Stmt* DS =
-        m_Sema.ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D), noLoc, noLoc)
-            .get();
+    Stmt* DS = m_Sema
+                   .ActOnDeclStmt(m_Sema.ConvertDeclToDeclGroup(D),
+                                  D->getBeginLoc(), D->getEndLoc())
+                   .get();
     return cast<DeclStmt>(DS);
   }
 
@@ -184,7 +186,7 @@ namespace clad {
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
-        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, noLoc, SS)));
+        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, D->getBeginLoc(), SS)));
   }
 
   IdentifierInfo*
@@ -303,7 +305,8 @@ namespace clad {
 
   QualType VisitorBase::CloneType(const QualType QT) {
     auto clonedType = m_Builder.m_NodeCloner->CloneType(QT);
-    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function);
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function,
+                                m_DeclReplacements);
     up.updateType(clonedType);
     return clonedType;
   }

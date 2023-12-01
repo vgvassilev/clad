@@ -83,33 +83,9 @@ void ErrorEstimationHandler::BuildFinalErrorStmt() {
 void ErrorEstimationHandler::AddErrorStmtToBlock(Expr* var, Expr* deltaVar,
                                                  Expr* errorExpr,
                                                  bool isInsideLoop /*=false*/) {
+
   if (auto ASE = dyn_cast<ArraySubscriptExpr>(var)) {
-    // If inside loop, the index has been pushed twice
-    // (once by ArraySubscriptExpr and the second time by us)
-    // pop and store it in a temporary variable to reuse later.
-    // FIXME: build add assign into he same expression i.e.
-    // _final_error += _delta_arr[pop(_t0)] += <-Error Expr->
-    // to avoid storage of the pop value.
-    Expr* popVal = ASE->getIdx();
-    if (isInsideLoop) {
-      LookupResult& Pop = m_RMV->GetCladTapePop();
-      CXXScopeSpec CSS;
-      CSS.Extend(m_RMV->m_Context, m_RMV->GetCladNamespace(), noLoc, noLoc);
-      auto PopDRE = m_RMV->m_Sema
-                        .BuildDeclarationNameExpr(CSS, Pop,
-                                                  /*AcceptInvalidDecl=*/false)
-                        .get();
-      Expr* tapeRef = dyn_cast<CallExpr>(popVal)->getArg(0);
-      popVal = m_RMV->m_Sema
-                   .ActOnCallExpr(m_RMV->getCurrentScope(), PopDRE, noLoc,
-                                  tapeRef, noLoc)
-                   .get();
-      popVal = m_RMV->StoreAndRef(popVal, direction::reverse);
-    }
-    // If the variable declration refers to an array element
-    // create the suitable _delta_arr[i] (because we have not done
-    // this before).
-    deltaVar = getArraySubscriptExpr(deltaVar, popVal);
+    deltaVar = getArraySubscriptExpr(deltaVar, ASE->getIdx());
     m_RMV->addToCurrentBlock(m_RMV->BuildOp(BO_AddAssign, deltaVar, errorExpr),
                              direction::reverse);
     // immediately emit fin_err += delta_[].

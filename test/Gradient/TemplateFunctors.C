@@ -1,5 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | FileCheck %s
 // RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oTemplateFunctors.out
+// RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -13,31 +15,19 @@ template <typename T> struct Experiment {
 };
 
 // CHECK: void operator_call_grad(double i, double j, clad::array_ref<Experiment<double> > _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     _t2 = this->x;
-// CHECK-NEXT:     _t1 = i;
-// CHECK-NEXT:     _t3 = _t2 * _t1;
-// CHECK-NEXT:     _t0 = i;
-// CHECK-NEXT:     _t5 = this->y;
-// CHECK-NEXT:     _t4 = j;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * _t0;
-// CHECK-NEXT:         double _r1 = _r0 * _t1;
+// CHECK-NEXT:         double _r0 = 1 * i;
+// CHECK-NEXT:         double _r1 = _r0 * i;
 // CHECK-NEXT:         (* _d_this).x += _r1;
-// CHECK-NEXT:         double _r2 = _t2 * _r0;
+// CHECK-NEXT:         double _r2 = this->x * _r0;
 // CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = _t3 * 1;
+// CHECK-NEXT:         double _r3 = this->x * i * 1;
 // CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         double _r4 = 1 * _t4;
+// CHECK-NEXT:         double _r4 = 1 * j;
 // CHECK-NEXT:         (* _d_this).y += _r4;
-// CHECK-NEXT:         double _r5 = _t5 * 1;
+// CHECK-NEXT:         double _r5 = this->y * 1;
 // CHECK-NEXT:         * _d_j += _r5;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -53,45 +43,25 @@ template <> struct Experiment<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<Experiment<long double> > _d_this, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) {
-// CHECK-NEXT:     long double _t0;
-// CHECK-NEXT:     long double _t1;
-// CHECK-NEXT:     long double _t2;
-// CHECK-NEXT:     long double _t3;
-// CHECK-NEXT:     long double _t4;
-// CHECK-NEXT:     long double _t5;
-// CHECK-NEXT:     long double _t6;
-// CHECK-NEXT:     long double _t7;
-// CHECK-NEXT:     long double _t8;
-// CHECK-NEXT:     long double _t9;
-// CHECK-NEXT:     _t3 = this->x;
-// CHECK-NEXT:     _t2 = i;
-// CHECK-NEXT:     _t4 = _t3 * _t2;
-// CHECK-NEXT:     _t1 = i;
-// CHECK-NEXT:     _t5 = _t4 * _t1;
-// CHECK-NEXT:     _t0 = j;
-// CHECK-NEXT:     _t8 = this->y;
-// CHECK-NEXT:     _t7 = j;
-// CHECK-NEXT:     _t9 = _t8 * _t7;
-// CHECK-NEXT:     _t6 = i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         long double _r0 = 1 * _t0;
-// CHECK-NEXT:         long double _r1 = _r0 * _t1;
-// CHECK-NEXT:         long double _r2 = _r1 * _t2;
+// CHECK-NEXT:         long double _r0 = 1 * j;
+// CHECK-NEXT:         long double _r1 = _r0 * i;
+// CHECK-NEXT:         long double _r2 = _r1 * i;
 // CHECK-NEXT:         (* _d_this).x += _r2;
-// CHECK-NEXT:         long double _r3 = _t3 * _r1;
+// CHECK-NEXT:         long double _r3 = this->x * _r1;
 // CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         long double _r4 = _t4 * _r0;
+// CHECK-NEXT:         long double _r4 = this->x * i * _r0;
 // CHECK-NEXT:         * _d_i += _r4;
-// CHECK-NEXT:         long double _r5 = _t5 * 1;
+// CHECK-NEXT:         long double _r5 = this->x * i * i * 1;
 // CHECK-NEXT:         * _d_j += _r5;
-// CHECK-NEXT:         long double _r6 = 1 * _t6;
-// CHECK-NEXT:         long double _r7 = _r6 * _t7;
+// CHECK-NEXT:         long double _r6 = 1 * i;
+// CHECK-NEXT:         long double _r7 = _r6 * j;
 // CHECK-NEXT:         (* _d_this).y += _r7;
-// CHECK-NEXT:         long double _r8 = _t8 * _r6;
+// CHECK-NEXT:         long double _r8 = this->y * _r6;
 // CHECK-NEXT:         * _d_j += _r8;
-// CHECK-NEXT:         long double _r9 = _t9 * 1;
+// CHECK-NEXT:         long double _r9 = this->y * j * 1;
 // CHECK-NEXT:         * _d_i += _r9;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -105,31 +75,19 @@ template <typename T> struct ExperimentConstVolatile {
 };
 
 // CHECK: void operator_call_grad(double i, double j, clad::array_ref<volatile ExperimentConstVolatile<double> > _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     volatile double _t2;
-// CHECK-NEXT:     double _t3;
-// CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     volatile double _t5;
-// CHECK-NEXT:     _t2 = this->x;
-// CHECK-NEXT:     _t1 = i;
-// CHECK-NEXT:     _t3 = _t2 * _t1;
-// CHECK-NEXT:     _t0 = i;
-// CHECK-NEXT:     _t5 = this->y;
-// CHECK-NEXT:     _t4 = j;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * _t0;
-// CHECK-NEXT:         double _r1 = _r0 * _t1;
+// CHECK-NEXT:         double _r0 = 1 * i;
+// CHECK-NEXT:         double _r1 = _r0 * i;
 // CHECK-NEXT:         (* _d_this).x += _r1;
-// CHECK-NEXT:         double _r2 = _t2 * _r0;
+// CHECK-NEXT:         double _r2 = this->x * _r0;
 // CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = _t3 * 1;
+// CHECK-NEXT:         double _r3 = this->x * i * 1;
 // CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         double _r4 = 1 * _t4;
+// CHECK-NEXT:         double _r4 = 1 * j;
 // CHECK-NEXT:         (* _d_this).y += _r4;
-// CHECK-NEXT:         double _r5 = _t5 * 1;
+// CHECK-NEXT:         double _r5 = this->y * 1;
 // CHECK-NEXT:         * _d_j += _r5;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -145,45 +103,25 @@ template <> struct ExperimentConstVolatile<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<volatile ExperimentConstVolatile<long double> > _d_this, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) const volatile {
-// CHECK-NEXT:     long double _t0;
-// CHECK-NEXT:     long double _t1;
-// CHECK-NEXT:     long double _t2;
-// CHECK-NEXT:     volatile long double _t3;
-// CHECK-NEXT:     long double _t4;
-// CHECK-NEXT:     long double _t5;
-// CHECK-NEXT:     long double _t6;
-// CHECK-NEXT:     long double _t7;
-// CHECK-NEXT:     volatile long double _t8;
-// CHECK-NEXT:     long double _t9;
-// CHECK-NEXT:     _t3 = this->x;
-// CHECK-NEXT:     _t2 = i;
-// CHECK-NEXT:     _t4 = _t3 * _t2;
-// CHECK-NEXT:     _t1 = i;
-// CHECK-NEXT:     _t5 = _t4 * _t1;
-// CHECK-NEXT:     _t0 = j;
-// CHECK-NEXT:     _t8 = this->y;
-// CHECK-NEXT:     _t7 = j;
-// CHECK-NEXT:     _t9 = _t8 * _t7;
-// CHECK-NEXT:     _t6 = i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         long double _r0 = 1 * _t0;
-// CHECK-NEXT:         long double _r1 = _r0 * _t1;
-// CHECK-NEXT:         long double _r2 = _r1 * _t2;
+// CHECK-NEXT:         long double _r0 = 1 * j;
+// CHECK-NEXT:         long double _r1 = _r0 * i;
+// CHECK-NEXT:         long double _r2 = _r1 * i;
 // CHECK-NEXT:         (* _d_this).x += _r2;
-// CHECK-NEXT:         long double _r3 = _t3 * _r1;
+// CHECK-NEXT:         long double _r3 = this->x * _r1;
 // CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         long double _r4 = _t4 * _r0;
+// CHECK-NEXT:         long double _r4 = this->x * i * _r0;
 // CHECK-NEXT:         * _d_i += _r4;
-// CHECK-NEXT:         long double _r5 = _t5 * 1;
+// CHECK-NEXT:         long double _r5 = this->x * i * i * 1;
 // CHECK-NEXT:         * _d_j += _r5;
-// CHECK-NEXT:         long double _r6 = 1 * _t6;
-// CHECK-NEXT:         long double _r7 = _r6 * _t7;
+// CHECK-NEXT:         long double _r6 = 1 * i;
+// CHECK-NEXT:         long double _r7 = _r6 * j;
 // CHECK-NEXT:         (* _d_this).y += _r7;
-// CHECK-NEXT:         long double _r8 = _t8 * _r6;
+// CHECK-NEXT:         long double _r8 = this->y * _r6;
 // CHECK-NEXT:         * _d_j += _r8;
-// CHECK-NEXT:         long double _r9 = _t9 * 1;
+// CHECK-NEXT:         long double _r9 = this->y * j * 1;
 // CHECK-NEXT:         * _d_i += _r9;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

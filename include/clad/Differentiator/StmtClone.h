@@ -15,6 +15,7 @@
 #include "clang/Sema/Scope.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include <unordered_map>
 
 namespace clang {
   class Stmt;
@@ -153,9 +154,13 @@ namespace utils {
     clang::Sema& m_Sema; // We don't own.
     clang::Scope* m_CurScope; // We don't own.
     const clang::FunctionDecl* m_Function; // We don't own.
+    const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
+        m_DeclReplacements; // We don't own.
   public:
-    ReferencesUpdater(clang::Sema& SemaRef, clang::Scope* S,
-                      const clang::FunctionDecl* FD);
+    ReferencesUpdater(
+        clang::Sema& SemaRef, clang::Scope* S, const clang::FunctionDecl* FD,
+        const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
+            DeclReplacements);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitStmt(clang::Stmt* S);
     /// Used to update the size expression of QT
