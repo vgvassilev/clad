@@ -8,6 +8,7 @@ enum class DiffMode {
   vector_forward_mode,
   experimental_pushforward,
   experimental_pullback,
+  experimental_vector_pushforward,
   reverse,
   hessian,
   jacobian,

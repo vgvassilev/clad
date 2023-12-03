@@ -144,6 +144,28 @@ double test_7(double i, double j) {
 // CHECK-NEXT: return _d_res;
 // CHECK-NEXT: }
 
+enum E {A, B, C};
+double func_with_enum(double x, E e) {
+  return x*x;
+}
+
+double test_8(double x) {
+  E e;
+  return func_with_enum(x, e);
+}
+
+// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x) {
+// CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
+
+// CHECK: double test_8_darg0(double x) {
+// CHECK-NEXT: double _d_x = 1;
+// CHECK-NEXT: E _d_e;
+// CHECK-NEXT: E e;
+// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<double, double> _t0 = func_with_enum_pushforward(x, e, _d_x);
+// CHECK-NEXT: return _t0.pushforward;
+// CHECK-NEXT: }
+
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
@@ -152,6 +174,7 @@ int main () {
   clad::differentiate(test_5, 0);
   clad::differentiate(test_6, "x");
   clad::differentiate(test_7, "i");
+  clad::differentiate(test_8, "x");
 
   return 0;
 }

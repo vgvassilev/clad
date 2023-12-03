@@ -18,13 +18,14 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
-#include "clad/Differentiator/ForwardModeVisitor.h"
 #include "clad/Differentiator/HessianModeVisitor.h"
 #include "clad/Differentiator/JacobianModeVisitor.h"
+#include "clad/Differentiator/PushForwardModeVisitor.h"
 #include "clad/Differentiator/ReverseModeForwPassVisitor.h"
 #include "clad/Differentiator/ReverseModeVisitor.h"
 #include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
+#include "clad/Differentiator/VectorPushForwardModeVisitor.h"
 
 #include <algorithm>
 
@@ -209,11 +210,14 @@ namespace clad {
       BaseForwardModeVisitor V(*this);
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::experimental_pushforward) {
-      ForwardModeVisitor V(*this);
+      PushForwardModeVisitor V(*this);
       result = V.DerivePushforward(FD, request);
     } else if (request.Mode == DiffMode::vector_forward_mode) {
       VectorForwardModeVisitor V(*this);
       result = V.DeriveVectorMode(FD, request);
+    } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
+      VectorPushForwardModeVisitor V(*this);
+      result = V.DerivePushforward(FD, request);
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this);
       result = V.Derive(FD, request);

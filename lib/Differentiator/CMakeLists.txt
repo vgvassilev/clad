@@ -27,15 +27,16 @@ add_llvm_library(cladDifferentiator
   DiffPlanner.cpp
   ErrorEstimator.cpp
   EstimationModel.cpp
-  ForwardModeVisitor.cpp
   HessianModeVisitor.cpp
   JacobianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
+  PushForwardModeVisitor.cpp
   ReverseModeForwPassVisitor.cpp
   ReverseModeVisitor.cpp
   TBRAnalyzer.cpp
   StmtClone.cpp
   VectorForwardModeVisitor.cpp
+  VectorPushForwardModeVisitor.cpp
   Version.cpp
   VisitorBase.cpp
   ${version_inc}
