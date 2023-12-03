@@ -325,10 +325,14 @@ namespace clad {
   }
 
   Expr* VisitorBase::getZeroInit(QualType T) {
-    if (T->isScalarType())
-      return ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-    else
-      return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
+    // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
+    if (T->isScalarType()) {
+      ExprResult Zero =
+          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+      CastKind CK = m_Sema.PrepareScalarCast(Zero, T);
+      return m_Sema.ImpCastExprToType(Zero.get(), T, CK).get();
+    }
+    return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
   }
 
   std::pair<const clang::Expr*, llvm::SmallVector<const clang::Expr*, 4>>
