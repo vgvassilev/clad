@@ -388,6 +388,12 @@ jobs:
             clang-runtime: '16'
             debug_build: true
 
+          - name: ubuntu-clang15-runtime16-doc
+            os: ubuntu-latest
+            compiler: clang-15
+            clang-runtime: '16'
+            doc_build: true
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -395,7 +401,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.11
     - name: Save PR Info
       if: ${{ matrix.coverage == true }}
       run: |
@@ -779,6 +785,25 @@ jobs:
         done
 
         cd ..
+    - name: Test build sphinx & doxygen documentation
+      if: ${{ (matrix.doc_build == true) }}
+      run: |
+        sudo apt-get install -y doxygen graphviz
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        mkdir -p obj && cd obj
+        cmake \
+          -DClang_DIR="$PATH_TO_LLVM_BUILD" \
+          -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
+          -DCLAD_INCLUDE_DOCS=ON            \
+          -DCLAD_ENABLE_DOXYGEN=ON          \
+          -DCLAD_ENABLE_SPHINX=ON           \
+          -DCMAKE_INSTALL_PREFIX=../inst    \
+          -DCMAKE_BUILD_TYPE=Debug          \
+          -DLLVM_EXTERNAL_LIT="`which lit`" \
+          ..
+        cmake --build . --target sphinx-clad -- -j4
+        cmake --build . --target doxygen-clad -- -j4
     - name: Failed job config
       if: ${{ failure() && runner.os != 'windows' }}
       env:

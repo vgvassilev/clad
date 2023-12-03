@@ -65,7 +65,7 @@ An example that demonstrates the usage of
    int main() {
      // differentiate 'fn' w.r.t 'x'.
      auto d_fn_1 = clad::differentiate(fn, "x");
-  
+
      // computes derivative of 'fn' w.r.t 'x' when (x, y) = (3, 4).
      std::cout<<d_fn_1.execute(3, 4)<<"\n"; // prints 6
    }
@@ -77,8 +77,8 @@ equivalent::
 
   clad::differentiate(fn, "x");
 
-and:: 
-  
+and::
+
   clad::differentiate(fn, 0);
 
 The derived function is executed by calling the ``.execute`` method on the associated ``clad::CladFunction`` object. 

@@ -9,12 +9,12 @@ Linux (Ubuntu)
 
 .. code-block:: bash
 
-  sudo apt install clang-11 libclang-11-dev llvm-11-tools llvm-11-dev
-  sudo -H pip install lit
-  git clone https://github.com/vgvassilev/clad.git clad
-  mkdir build_dir inst; cd build_dir
-  cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
-  make && make install
+   sudo apt install clang-11 libclang-11-dev llvm-11-tools llvm-11-dev
+   sudo -H pip install lit
+   git clone https://github.com/vgvassilev/clad.git clad
+   mkdir build_dir inst; cd build_dir
+   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
+   make && make install
 
 
 Instructions to build documentation
@@ -27,7 +27,7 @@ This will also install the correct version of `sphinx` :
 
 .. code-block:: bash
 
-  pip install -r requirements.txt
+   pip install -r requirements.txt
 
 Make sure `doxygen` is installed if you want to build the internal documentation : 
 
@@ -40,8 +40,8 @@ To build clad and its documentation, use the following CMake command:
 
 .. code-block:: bash
 
-  cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCLAD_INCLUDE_DOCS=ON -DCLAD_ENABLE_DOXYGEN=ON -DCLAD_ENABLE_SPHINX=ON -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
-  make sphinx-clad doxygen-clad
+   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCLAD_INCLUDE_DOCS=ON -DCLAD_ENABLE_DOXYGEN=ON -DCLAD_ENABLE_SPHINX=ON -DCMAKE_INSTALL_PREFIX=../inst -DCMAKE_BUILD_TYPE=Debug -DLLVM_EXTERNAL_LIT="``which lit``"
+   make sphinx-clad doxygen-clad
 
 The built user documentation can be found in `build/docs/userDocs/build`; 
 while the built internal documentation can be found in `build/docs/internalDocs/build`.
@@ -61,16 +61,16 @@ In brief, debug build of LLVM with Clang enabled can be built using the followin
 instructions:
 
 .. code-block:: bash
-  
-  sudo -H pip install lit
-  git clone https://github.com/llvm/llvm-project.git
-  cd llvm-project
-  git checkout release/12.x
-  cd ../
-  mkdir obj inst
-  cd obj
-  cmake ../llvm-project/llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
-  make install
+
+   sudo -H pip install lit
+   git clone https://github.com/llvm/llvm-project.git
+   cd llvm-project
+   git checkout release/12.x
+   cd ../
+   mkdir obj inst
+   cd obj
+   cmake ../llvm-project/llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
+   make install
 
 Please note that it is recommended to have at least 16 GB of total memory (RAM + swap) to build LLVM in debug mode.
 
@@ -98,7 +98,7 @@ After incorporating all of these tweaks, the CMake command should look like this
 
 .. code-block:: bash
 
-  cmake -G Ninja /path/to/llvm-project/llvm -DLLVM_USE_LINKER=gold -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DBUILD_SHARED_LIBS=On -DLLVM_USE_SPLIT_DWARF=On -DLLVM_OPTIMIZED_TABLEGEN=On -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
+   cmake -G Ninja /path/to/llvm-project/llvm -DLLVM_USE_LINKER=gold -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DBUILD_SHARED_LIBS=On -DLLVM_USE_SPLIT_DWARF=On -DLLVM_OPTIMIZED_TABLEGEN=On -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
 
 Clad Internal Documentation
 =================================
@@ -159,50 +159,50 @@ For example,
 
 .. code-block:: bash
 
-  clang++ -g hello-world.cpp -fsyntax-only -v
+   clang++ -g hello-world.cpp -fsyntax-only -v
 
 This command will give output similar to
 
 .. code-block:: bash
 
-  Ubuntu clang version 11.1.0-6
-  Target: x86_64-pc-linux-gnu
-  Thread model: posix
-  InstalledDir: /home/parth/Programs/bin
-  Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/11
-  Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/11
-  Candidate multilib: .;@m64
-  Selected multilib: .;@m64
-   (in-process)
-   "/usr/lib/llvm-11/bin/clang" -cc1 -triple x86_64-pc-linux-gnu 
-   -fsyntax-only -disable-free -disable-llvm-verifier -discard-value-names
-   -main-file-name hello-world.cpp -mrelocation-model static 
-   -mframe-pointer=all -fmath-errno -fno-rounding-math -mconstructor-aliases 
-   -munwind-tables -target-cpu x86-64 -fno-split-dwarf-inlining 
-   -debug-info-kind=limited -dwarf-version=4 -debugger-tuning=gdb 
-   -v -resource-dir /usr/lib/llvm-11/lib/clang/11.1.0 
-   -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11 
-   -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11 
-   -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11 
-   -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11/backward 
-   -internal-isystem /usr/local/include -internal-isystem /usr/lib/llvm-11/lib/clang/11.1.0/include 
-   -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include 
-   -internal-externc-isystem /usr/include -fdeprecated-macro -fdebug-compilation-dir /home/parth 
-   -ferror-limit 19 -fgnuc-version=4.2.1 -fcxx-exceptions -fexceptions -faddrsig -x c++ hello-world.cpp
-  
-  clang -cc1 version 11.1.0 based upon LLVM 11.1.0 default target x86_64-pc-linux-gnu
-  ignoring nonexistent directory "/include"
-  ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11"
-  #include "..." search starts here:
-  #include <...> search starts here:
-   /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11
-   /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11
-   /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11/backward
-   /usr/local/include
-   /usr/lib/llvm-11/lib/clang/11.1.0/include
-   /usr/include/x86_64-linux-gnu
-   /usr/include
-  End of search list.
+   Ubuntu clang version 11.1.0-6
+   Target: x86_64-pc-linux-gnu
+   Thread model: posix
+   InstalledDir: /home/parth/Programs/bin
+   Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/11
+   Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/11
+   Candidate multilib: .;@m64
+   Selected multilib: .;@m64
+    (in-process)
+    "/usr/lib/llvm-11/bin/clang" -cc1 -triple x86_64-pc-linux-gnu 
+    -fsyntax-only -disable-free -disable-llvm-verifier -discard-value-names
+    -main-file-name hello-world.cpp -mrelocation-model static 
+    -mframe-pointer=all -fmath-errno -fno-rounding-math -mconstructor-aliases 
+    -munwind-tables -target-cpu x86-64 -fno-split-dwarf-inlining 
+    -debug-info-kind=limited -dwarf-version=4 -debugger-tuning=gdb 
+    -v -resource-dir /usr/lib/llvm-11/lib/clang/11.1.0 
+    -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11 
+    -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11 
+    -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11 
+    -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11/backward 
+    -internal-isystem /usr/local/include -internal-isystem /usr/lib/llvm-11/lib/clang/11.1.0/include 
+    -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include 
+    -internal-externc-isystem /usr/include -fdeprecated-macro -fdebug-compilation-dir /home/parth 
+    -ferror-limit 19 -fgnuc-version=4.2.1 -fcxx-exceptions -fexceptions -faddrsig -x c++ hello-world.cpp
+   
+   clang -cc1 version 11.1.0 based upon LLVM 11.1.0 default target x86_64-pc-linux-gnu
+   ignoring nonexistent directory "/include"
+   ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11"
+   #include "..." search starts here:
+   #include <...> search starts here:
+    /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11
+    /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/x86_64-linux-gnu/c++/11
+    /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/11/backward
+    /usr/local/include
+    /usr/lib/llvm-11/lib/clang/11.1.0/include
+    /usr/include/x86_64-linux-gnu
+    /usr/include
+   End of search list.
 
 With the compiler invocation command in hand, we are ready to debug the compiler. 
 
@@ -210,10 +210,10 @@ A typical example that demonstrates debugging of a program using ``lldb``
 
 .. code-block:: bash
 
-  lldb clang
-  # set breakpoints
-  breakpoint set -n "clang::Sema::BuildDeclRefExpr"
-  process launch -- {compiler-invocation-arguments}
+   lldb clang
+   # set breakpoints
+   breakpoint set -n "clang::Sema::BuildDeclRefExpr"
+   process launch -- {compiler-invocation-arguments}
 
 Replace ``{compiler-invocation-arguments}`` with the compiler invocation arguments
 obtained by executing the Clang driver command with ``-v`` option.

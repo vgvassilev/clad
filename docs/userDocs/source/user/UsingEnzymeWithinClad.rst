@@ -35,7 +35,7 @@ something like this
 
 .. code-block:: bash
 
-    cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11
+   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11
     -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="``which lit``"
     -DENABLE_ENZYME_BACKEND=On
 
