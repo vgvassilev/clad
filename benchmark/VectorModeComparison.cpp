@@ -59,37 +59,14 @@ static void BM_ReverseModeWeightedSum(benchmark::State& state) {
   double sum = 0;
   for (auto _ : state) {
     grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i) {
       sum += dinp[i] + dweights[i];
+      dinp[i] = 0;
+      dweights[i] = 0;
+    }
   }
 }
 BENCHMARK(BM_ReverseModeWeightedSum);
-
-// Benchmark enzyme's reverse mode for weighted sum.
-static void BM_EnzymeReverseModeWeightedSum(benchmark::State& state) {
-  auto grad = clad::gradient<clad::opts::use_enzyme>(weightedSum, "p, w");
-  constexpr int n = 5;
-
-  double inputs[n];
-  double weights[n];
-  for (int i = 0; i < n; ++i) {
-    inputs[i] = i + 1;
-    weights[i] = 1.0 / (double)(i + 1);
-  }
-
-  double dinp[n];
-  double dweights[n];
-  clad::array_ref<double> dinp_ref(dinp, n);
-  clad::array_ref<double> dweights_ref(dweights, n);
-
-  double sum = 0;
-  for (auto _ : state) {
-    grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
-    for (int i = 0; i < n; ++i)
-      sum += dinp[i] + dweights[i];
-  }
-}
-BENCHMARK(BM_EnzymeReverseModeWeightedSum);
 
 // Benchmark vector forward mode for weighted sum.
 static void BM_VectorForwardModeWeightedSum(benchmark::State& state) {
@@ -112,8 +89,11 @@ static void BM_VectorForwardModeWeightedSum(benchmark::State& state) {
   double sum = 0;
   for (auto _ : state) {
     vm_grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i) {
       sum += dinp[i] + dweights[i];
+      dinp[i] = 0;
+      dweights[i] = 0;
+    }
   }
 }
 BENCHMARK(BM_VectorForwardModeWeightedSum);
