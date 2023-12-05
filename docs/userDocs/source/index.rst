@@ -70,7 +70,7 @@ Features
   automatic differentiation is not feasible.
 
 
-.. comment
+.. comment::
 
    .. todo::
 
