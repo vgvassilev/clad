@@ -89,6 +89,7 @@ The User Guide
    user/reference
    user/tutorials
    user/UsingEnzymeWithinClad
+   user/UsingVectorMode.rst
    user/FAQ
    user/DevelopersDocumentation
    user/FloatingPointErrorEstimation
