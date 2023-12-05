@@ -13,6 +13,8 @@ API reference
 
 ------------------
 
+   .. _api_reference_clad_differentiate:
+
    .. cpp:function:: template<class Fn>\
                   CladFunction differentiate(Fn fn, const char* args)
 

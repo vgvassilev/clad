@@ -803,7 +803,6 @@ jobs:
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j4
-        exit 1
     - name: Failed job config
       if: ${{ failure() && runner.os != 'windows' }}
       env:
