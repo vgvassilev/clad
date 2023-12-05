@@ -802,8 +802,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug          \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           ..
-        cmake --build . --target sphinx-clad -- -j4
-        cmake --build . --target doxygen-clad -- -j4
+        cmake --build . --target sphinx-clad doxygen-clad -- -j4
     - name: Failed job config
       if: ${{ failure() && runner.os != 'windows' }}
       env:
