@@ -2,8 +2,8 @@ Using Vector Mode for Differentiation
 **************************************
 
 .. note::
-    This feature is still under development and may result in unexpected
-    behavior. Please report any issues you find.
+   This feature is still under development and may result in unexpected
+   behavior. Please report any issues you find.
 
 For forward mode AD, the restriction is that the function can be only be
 differentiated with respect to a single input variable. However, in many cases,

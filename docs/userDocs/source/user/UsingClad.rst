@@ -65,7 +65,7 @@ An example that demonstrates the usage of
    int main() {
      // differentiate 'fn' w.r.t 'x'.
      auto d_fn_1 = clad::differentiate(fn, "x");
-  
+
      // computes derivative of 'fn' w.r.t 'x' when (x, y) = (3, 4).
      std::cout<<d_fn_1.execute(3, 4)<<"\n"; // prints 6
    }
@@ -77,8 +77,8 @@ equivalent::
 
   clad::differentiate(fn, "x");
 
-and:: 
-  
+and::
+
   clad::differentiate(fn, 0);
 
 The derived function is executed by calling the ``.execute`` method on the associated ``clad::CladFunction`` object. 
@@ -600,7 +600,7 @@ When Clad will encounter a function ``FNAME``, it will first search for a
 suitable custom derivative function definition within the custom_derivatives namespace. 
 Provided no definition was found, Clad will proceed to automatically derive the function.
 
-Please read :ref:`Pushforward and Pullback Functions` section to get better understanding 
+Please read `Pushforward and Pullback Functions` section to get better understanding 
 of them.
 
 .. note::
@@ -658,7 +658,7 @@ Numerical Differentiation Fallback
 In the cases that Clad is unable to differentiate a function by itself or cannot see the function's definition, it will 
 numerically differentiate the function. Clad uses the `Five-Point Stencil Method <https://en.wikipedia.org/wiki/Five-point_stencil>`_ 
 with support for differentiating most scalar or array (pointer) types. For a comprehensive demo on numerically 
-differentiating custom/user-defined types, you can checkout the following `demo <https://github.com/vgvassilev/clad/blob/master/demos/CustomTypeNumDiff.cpp>`_.   
+differentiating custom/user-defined types, you can checkout the following `demo <https://github.com/vgvassilev/clad/blob/master/demos/CustomTypeNumDiff.cpp>`__.
 
 This default behavior can be disabled by passing the `-DCLAD_NO_NUM_DIFF` flag during the compilation of 
 your programs. This will cause Clad to fail and error out if it encounters something non-differentiable. 
@@ -700,7 +700,7 @@ function `double f(double, double)` example usage is described below::
 
 The above example generates the floating point error estimation code using an in-built taylor approximation model. 
 However, Clad is capable of using any user defined custom model, for information on how to use you own custom model, 
-please visit this `demo <https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel>`_. 
+please visit this `demo <https://github.com/vgvassilev/clad/tree/master/demos/ErrorEstimation/CustomModel>`__.
 This `tutorial <https://compiler-research.org/tutorials/fp_error_estimation_clad_tutorial/>`_
 provides a comprehensive guide on building your own custom models and understanding the working behind the error 
 estimation framework.

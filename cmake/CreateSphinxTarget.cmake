@@ -16,7 +16,7 @@ function(create_sphinx_target)
 
   add_custom_target(${SPHINX_TARGET_NAME}
                     COMMAND
-                    ${SPHINX_EXECUTABLE} -b html -d ${SPHINX_DOC_TREE_DIR} -q ${SPHINX_SOURCE_DIR} ${SPHINX_BUILD_DIR}
+                    ${SPHINX_EXECUTABLE} -W --keep-going -b html -d ${SPHINX_DOC_TREE_DIR} ${SPHINX_SOURCE_DIR} ${SPHINX_BUILD_DIR}
                     COMMENT
                     "Generating sphinx user documentation into \"${SPHINX_BUILD_DIR}\""
                     VERBATIM
