@@ -378,7 +378,7 @@ double fn10_darg0(double x, size_t n);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         size_t _d_count = 0;
 // CHECK-NEXT:         size_t _d_max_count = _d_n;
-// CHECK-NEXT:         for (size_t count = 0; max_count; ++count) {
+// CHECK-NEXT:         for (size_t count = 0; {{.*}}max_count{{.*}}; ++count) {
 // CHECK-NEXT:             if (count >= max_count)
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             {

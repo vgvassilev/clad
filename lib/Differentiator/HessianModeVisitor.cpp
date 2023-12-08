@@ -228,7 +228,8 @@ namespace clad {
     // Create the gradient function declaration.
     DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                           getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
 
     DeclWithContext result = m_Builder.cloneFunction(

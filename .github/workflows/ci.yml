@@ -54,6 +54,11 @@ jobs:
             compiler: clang
             clang-runtime: '16'
 
+          - name: osx-clang-runtime17
+            os: macos-latest
+            compiler: clang
+            clang-runtime: '17'
+
           - name: win-msvc-runtime14
             os: windows-latest
             compiler: msvc
@@ -394,6 +399,10 @@ jobs:
             clang-runtime: '16'
             doc_build: true
 
+          - name: ubu22-clang16-runtime17
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '17'
     steps:
     - uses: actions/checkout@v3
       with:

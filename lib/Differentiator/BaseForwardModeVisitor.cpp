@@ -165,7 +165,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   SourceLocation loc{m_Function->getLocation()};
   DeclarationNameInfo name(II, loc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
@@ -426,7 +426,8 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   QualType derivedFnType = m_Context.getFunctionType(
       returnType, paramTypes, originalFnType->getExtProtoInfo());
   llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> saveScope(m_CurScope);
+  llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
+                                         getEnclosingNamespaceOrTUScope());
   auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
 

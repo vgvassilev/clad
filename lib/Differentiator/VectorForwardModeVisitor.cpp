@@ -117,7 +117,7 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
 
   // Function declaration scope
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+  llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
              Scope::DeclScope);
   m_Sema.PushFunctionScope();

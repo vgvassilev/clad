@@ -44,6 +44,10 @@ namespace clad {
         ignoreExpr, ignoreLoc, ignoreRange, ignoreRange, m_Context);
   }
 
+  bool VisitorBase::addToCurrentBlock(Stmt* S) {
+    return addToBlock(S, getCurrentBlock());
+  }
+
   bool VisitorBase::addToBlock(Stmt* S, Stmts& block) {
     if (!S)
       return false;
@@ -55,8 +59,69 @@ namespace clad {
     return true;
   }
 
-  bool VisitorBase::addToCurrentBlock(Stmt* S) {
-    return addToBlock(S, getCurrentBlock());
+  // A facility allowing us to access the private member CurScope of the Sema
+  // object using standard-conforming C++.
+  namespace {
+  template <typename Tag, typename Tag::type M> struct Rob {
+    friend typename Tag::type get(Tag) { return M; }
+  };
+
+  template <typename Tag, typename Member> struct TagBase {
+    using type = Member;
+#ifdef MSVC
+#pragma warning(push, 0)
+#endif // MSVC
+#pragma GCC diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
+#pragma GCC diagnostic ignored "-Wnon-template-friend"
+    friend type get(Tag);
+#pragma GCC diagnostic pop
+#ifdef MSVC
+#pragma warning(pop)
+#endif // MSVC
+  };
+
+  // Tag used to access Sema::CurScope.
+  using namespace clang;
+  struct Sema_CurScope : TagBase<Sema_CurScope, Scope * Sema::*> {};
+  template struct Rob<Sema_CurScope, &Sema::CurScope>;
+  } // namespace
+
+  clang::Scope*& VisitorBase::getCurrentScope() {
+    return m_Sema.*get(Sema_CurScope());
+  }
+
+  void VisitorBase::setCurrentScope(clang::Scope* S) {
+    m_Sema.*get(Sema_CurScope()) = S;
+    assert(getEnclosingNamespaceOrTUScope() && "Lost path to base.");
+  }
+
+  clang::Scope* VisitorBase::getEnclosingNamespaceOrTUScope() {
+    auto isNamespaceOrTUScope = [](const clang::Scope* S) {
+      if (clang::DeclContext* DC = S->getEntity())
+        return DC->isFileContext();
+      return false;
+    };
+    clang::Scope* InnermostFileScope = getCurrentScope();
+    while (InnermostFileScope && !isNamespaceOrTUScope(InnermostFileScope))
+      InnermostFileScope = InnermostFileScope->getParent();
+
+    return InnermostFileScope;
+  }
+
+  void VisitorBase::beginScope(unsigned ScopeFlags) {
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    auto* S = new clang::Scope(getCurrentScope(), ScopeFlags, m_Sema.Diags);
+    setCurrentScope(S);
+  }
+
+  void VisitorBase::endScope() {
+    // This will remove all the decls in the scope from the IdResolver.
+    m_Sema.ActOnPopScope(noLoc, getCurrentScope());
+    clang::Scope* oldScope = getCurrentScope();
+    setCurrentScope(oldScope->getParent());
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    delete oldScope;
   }
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,

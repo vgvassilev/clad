@@ -39,7 +39,8 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
                                           sourceFnType->getExtProtoInfo());
 
   llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-  llvm::SaveAndRestore<Scope*> saveScope(m_CurScope);
+  llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
+                                         getEnclosingNamespaceOrTUScope());
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
 
