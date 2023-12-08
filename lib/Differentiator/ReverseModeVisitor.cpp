@@ -1304,7 +1304,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    DeclRefExpr* clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    auto* clonedDRE = cast<DeclRefExpr>(Clone(DRE));
     // Check if referenced Decl was "replaced" with another identifier inside
     // the derivative
     if (auto* VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
