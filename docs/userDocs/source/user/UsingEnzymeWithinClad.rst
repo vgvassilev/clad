@@ -29,15 +29,15 @@ section describes how Enzyme can be used within Clad.
 Configuring Clad to use Enzyme
 =================================
 To enable the use of enzyme within Clad, one needs to configure Clad to use
-Enzyme. This can be done by adding the flag ``-DENABLE_ENZYME_BACKEND=On`` to
-cmake while configuring Clad build. Thus the overall cmake command should look
-something like this
+Enzyme. This can be done by adding the flag ``-DCLAD_ENABLE_ENZYME_BACKEND=On``
+to cmake while configuring Clad build. Thus the overall cmake command should
+look something like this
 
 .. code-block:: bash
 
    cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11
     -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="``which lit``"
-    -DENABLE_ENZYME_BACKEND=On
+    -DCLAD_ENABLE_ENZYME_BACKEND=On
 
 This flag instructs the build system to download and build Enzyme. Then it is
 linked as a static library to Clad.
