@@ -214,6 +214,14 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   derivedFD->setParams(paramsRef);
   derivedFD->setBody(nullptr);
 
+  //AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
+  //if (A &&
+  //    (A->getAnnotation().equals("KOKKOS_INLINE_FUNCTION") || A->getAnnotation().equals("KOKKOS_FUNCTION"))) {
+  //      std::cout << "This is a Kokkos function!" << std::endl;
+  //      //derivedFD->addAttr(A);
+  //      derivedFD->dump();
+  //    }
+
   // Function body scope
   beginScope(Scope::FnScope | Scope::DeclScope);
   m_DerivativeFnScope = getCurrentScope();
@@ -1026,8 +1034,33 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         llvm::SmallVector<Expr*, 4> ClonedArgs;
         llvm::SmallVector<Expr*, 4> ClonedDArgs;
         for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
-          ClonedArgs.push_back(Clone(CE->getArg(i)));
-          ClonedDArgs.push_back(Visit(CE->getArg(i)).getExpr_dx());
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          ClonedDArgs.push_back(visitedArg.getExpr_dx());
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+      if (FD->getQualifiedNameAsString().find("Kokkos::subview") != std::string::npos) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i==0)
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr());
         }
 
         Expr* Call = m_Sema
