@@ -103,9 +103,8 @@ namespace clad {
     VisitorBase(DerivativeBuilder& builder)
         : m_Builder(builder), m_Sema(builder.m_Sema),
           m_CladPlugin(builder.m_CladPlugin), m_Context(builder.m_Context),
-          m_CurScope(m_Sema.TUScope), m_DerivativeFnScope(nullptr),
-          m_DerivativeInFlight(false), m_Derivative(nullptr),
-          m_Function(nullptr) {}
+          m_DerivativeFnScope(nullptr), m_DerivativeInFlight(false),
+          m_Derivative(nullptr), m_Function(nullptr) {}
 
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
 
@@ -114,7 +113,6 @@ namespace clad {
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
     /// Current Scope at the point of visiting.
-    clang::Scope* m_CurScope;
     /// Pointer to the topmost Scope in the created derivative function.
     clang::Scope* m_DerivativeFnScope;
     bool m_DerivativeInFlight;
@@ -148,10 +146,12 @@ namespace clad {
     // FIXME: Fix this inconsistency, by making `this` pointer derivative
     // expression to be of object type in the reverse mode as well.
     clang::Expr* m_ThisExprDerivative = nullptr;
+
     /// A function used to wrap result of visiting E in a lambda. Returns a call
     /// to the built lambda. Func is a functor that will be invoked inside
     /// lambda scope and block. Statements inside lambda are expected to be
     /// added by addToCurrentBlock from func invocation.
+    // FIXME: This will become problematic when we try to support C.
     template <typename F>
     static clang::Expr* wrapInLambda(VisitorBase& V, clang::Sema& S,
                                      const clang::Expr* E, F&& func) {
@@ -168,11 +168,26 @@ namespace clad {
       clang::Declarator D(DS,
                           CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
                           CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
+#if CLANG_VERSION_MAJOR > 16
+      V.beginScope(clang::Scope::LambdaScope | clang::Scope::DeclScope |
+                   clang::Scope::FunctionDeclarationScope |
+                   clang::Scope::FunctionPrototypeScope);
+#endif // CLANG_VERSION_MAJOR
       S.PushLambdaScope();
+#if CLANG_VERSION_MAJOR > 16
+      S.ActOnLambdaExpressionAfterIntroducer(Intro, V.getCurrentScope());
+
+      S.ActOnLambdaClosureParameters(V.getCurrentScope(), /*ParamInfo=*/{});
+#endif // CLANG_VERSION_MAJOR
+
       V.beginScope(clang::Scope::BlockScope | clang::Scope::FnScope |
-                   clang::Scope::DeclScope);
+                   clang::Scope::DeclScope | clang::Scope::CompoundStmtScope);
       S.ActOnStartOfLambdaDefinition(Intro, D,
                    clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(V.getCurrentScope(), DS));
+#if CLANG_VERSION_MAJOR > 16
+      V.endScope();
+#endif // CLANG_VERSION_MAJOR
+
       V.beginBlock();
       func();
       clang::CompoundStmt* body = V.endBlock();
@@ -211,22 +226,17 @@ namespace clad {
     bool addToBlock(clang::Stmt* S, Stmts& block);
 
     /// Get a current scope.
-    clang::Scope* getCurrentScope() { return m_CurScope; }
+    /// FIXME: Remove the pointer-ref
+    // clang::Scope* getCurrentScope() { return m_Sema.getCurScope(); }
+    clang::Scope*& getCurrentScope();
+    void setCurrentScope(clang::Scope* S);
+    /// Returns the innermost enclosing file context which can be either a
+    /// namespace or the TU scope.
+    clang::Scope* getEnclosingNamespaceOrTUScope();
+
     /// Enters a new scope.
-    void beginScope(unsigned ScopeFlags) {
-      // FIXME: since Sema::CurScope is private, we cannot access it and have
-      // to use separate member variable m_CurScope. The only options to set
-      // CurScope of Sema seemt to be through Parser or ContextAndScopeRAII.
-      m_CurScope =
-          new clang::Scope(getCurrentScope(), ScopeFlags, m_Sema.Diags);
-    }
-    void endScope() {
-      // This will remove all the decls in the scope from the IdResolver.
-      m_Sema.ActOnPopScope(noLoc, m_CurScope);
-      auto oldScope = m_CurScope;
-      m_CurScope = oldScope->getParent();
-      delete oldScope;
-    }
+    void beginScope(unsigned ScopeFlags);
+    void endScope();
 
     /// A shorthand to simplify syntax for creation of new expressions.
     /// This function uses m_Sema.BuildUnOp internally to build unary

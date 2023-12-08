@@ -346,7 +346,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
+                                           getEnclosingNamespaceOrTUScope());
     auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext result = m_Builder.cloneFunction(
@@ -488,7 +489,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_Context.VoidTy, paramTypes, originalFnType->getExtProtoInfo());
 
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<Scope*> saveScope(m_CurScope);
+    llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
+                                           getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
 
     DeclWithContext fnBuildRes = m_Builder.cloneFunction(
@@ -2838,9 +2840,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // to let Sema::LookupName see the whole scope.
     auto* identifier = CreateUniqueIdentifier(prefix);
     // Save current scope and temporarily go to topmost function scope.
-    llvm::SaveAndRestore<Scope*> SaveScope(m_CurScope);
+    llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
     assert(m_DerivativeFnScope && "must be set");
-    m_CurScope = m_DerivativeFnScope;
+    setCurrentScope(m_DerivativeFnScope);
 
     VarDecl* Var = nullptr;
     if (isa<ArrayType>(Type)) {
