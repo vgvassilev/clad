@@ -92,18 +92,15 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   ## Find supported Clang
 
   if (DEFINED CLANG_VERSION)
-    if (CLANG_VERSION VERSION_GREATER_EQUAL CLANG_VERSION_UPPER_BOUND)
-      set(CLANG_VERSION ${CLANG_VERSION_UPPER_BOUND})
-    endif()
-    if (CLANG_VERSION VERSION_LESS CLANG_MIN_SUPPORTED)
-      set(CLANG_VERSION ${CLANG_MIN_SUPPORTED})
-    endif()
+    message(FATAL_ERROR "Clang's configuration is not versioned. Please set LLVM_VERSION instead.")
+  endif(DEFINED CLANG_VERSION)
 
-    if (DEFINED Clang_DIR)
-       set(extra_hints HINTS ${Clang_DIR} "${Clang_DIR}/lib/cmake/clang" "${Clang_DIR}/cmake")
-    endif()
-
-    find_package(Clang ${CLANG_VERSION} REQUIRED CONFIG ${extra_hints})
+  # We have specified -DLLVM_VERSION and we must find matching clang. However,
+  # ClangConfig.cmake is not versioned and we will need to work harder to find
+  # the correct package.
+  if (DEFINED LLVM_VERSION AND NOT DEFINED Clang_DIR)
+    set(extra_hints HINTS ${Clang_DIR} "${LLVM_BINARY_DIR}/lib/cmake/clang" "${LLVM_BINARY_DIR}/cmake")
+    find_package(Clang REQUIRED CONFIG ${extra_hints} NO_DEFAULT_PATH)
   endif()
 
   if (NOT Clang_FOUND AND DEFINED Clang_DIR)
