@@ -18,6 +18,10 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   # Add Enzyme as a backend.
   if (ENABLE_ENZYME_BACKEND)
 
+    if (LLVM_VERSION_MAJOR VERSION_LESS 9 OR LLVM_VERSION_MAJOR VERSION_GREATER 12)
+      message(FATAL_ERROR "The enzyme backend is supported only in LLVM versions 9 to 12")
+    endif()
+
     if (NOT UNIX)
       message(FATAL_ERROR "The enzyme backend is only supported on Unix platforms")
     endif()
@@ -40,7 +44,8 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
       )
 
     # Set build byproducts only needed by Ninja.
-    set(_enzyme_static_archive_name ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}${CMAKE_STATIC_LIBRARY_PREFIX}LLVMEnzyme-${CLANG_VERSION_MAJOR}${CMAKE_STATIC_LIBRARY_SUFFIX})
+    set(_enzyme_static_target EnzymeStatic-${CLANG_VERSION_MAJOR})
+    set(_enzyme_static_archive_name ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}${CMAKE_STATIC_LIBRARY_PREFIX}${_enzyme_static_target}${CMAKE_STATIC_LIBRARY_SUFFIX})
     if("${CMAKE_GENERATOR}" STREQUAL "Ninja")
       set(ENZYME_BYPRODUCTS ${_enzyme_static_archive_name})
     endif()
@@ -48,9 +53,9 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     ExternalProject_Add(
       Enzyme
       GIT_REPOSITORY https://github.com/wsmoses/Enzyme
-      GIT_TAG v0.0.36
+      GIT_TAG v0.0.95
       GIT_SHALLOW 1 # Do not clone the history
-      PATCH_COMMAND ${_enzyme_patch_command}
+      PATCH_COMMAND #${_enzyme_patch_command}
       UPDATE_COMMAND ""
       CMAKE_ARGS -G ${CMAKE_GENERATOR}
                  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
@@ -61,14 +66,13 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
                  -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}
                  -DLLVM_DIR=${LLVM_DIR}
                  -DENZYME_CLANG=OFF
-                 -DENZYME_BUILD_STATIC_ONLY=On
-                 -DENZYME_ENABLE_BENCHMARKS=Off
+                 -DENZYME_STATIC_LIB=On
                  -DLLVM_EXTERNAL_LIT=${LLVM_EXTERNAL_LIT}
       SOURCE_SUBDIR enzyme
-      BUILD_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} -- -j8
+      BUILD_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target ${_enzyme_static_target} -- -j8
       #TEST_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target check-enzyme
       #TEST_BEFORE_INSTALL 1
-      INSTALL_COMMAND ${CMAKE_COMMAND} --install .
+      INSTALL_COMMAND ${CMAKE_COMMAND} --build . --config ${_enzyme_build_type} --target install-${_enzyme_static_target} -- -j8
       BUILD_BYPRODUCTS ${ENZYME_BYPRODUCTS}
       ${_enzyme_cmake_logging_settings}
       DEPENDS LLVMSupport
