@@ -16,7 +16,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   target_link_libraries(clad PRIVATE cladDifferentiator)
 
   # Add Enzyme as a backend.
-  if (ENABLE_ENZYME_BACKEND)
+  if (CLAD_ENABLE_ENZYME_BACKEND)
 
     if (LLVM_VERSION_MAJOR VERSION_LESS 9 OR LLVM_VERSION_MAJOR VERSION_GREATER 12)
       message(FATAL_ERROR "The enzyme backend is supported only in LLVM versions 9 to 12")
@@ -94,6 +94,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     target_link_libraries(clad PUBLIC ${_enzyme_link_flags})
 
     add_dependencies(clad LLVMEnzyme)
-  endif(ENABLE_ENZYME_BACKEND)
+  endif(CLAD_ENABLE_ENZYME_BACKEND)
 endif()
 set_source_files_properties(ClangPlugin.cpp PROPERTIES COMPILE_DEFINITIONS CLANG_MAJOR_VERSION="${CLANG_VERSION_MAJOR}")
