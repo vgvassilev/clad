@@ -1304,33 +1304,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    DeclRefExpr* clonedDRE = nullptr;
+    auto* clonedDRE = cast<DeclRefExpr>(Clone(DRE));
     // Check if referenced Decl was "replaced" with another identifier inside
     // the derivative
-    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-      clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    if (auto* VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       // If current context is different than the context of the original
       // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
       // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
       // Sema::BuildDeclRefExpr is responsible for adding captured fields
       // to the underlying struct of a lambda.
-      if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
-        auto* referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
-        clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
-      }
-    } else
-      clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+      if (VD->getDeclContext() != m_Sema.CurContext)
+        clonedDRE = cast<DeclRefExpr>(BuildDeclRef(VD));
 
-    if (auto* decl = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
       if (isVectorValued) {
         if (m_VectorOutput.size() <= outputArrayCursor)
           return StmtDiff(clonedDRE);
 
-        auto it = m_VectorOutput[outputArrayCursor].find(decl);
-        if (it == std::end(m_VectorOutput[outputArrayCursor])) {
-          // Is not an independent variable, ignored.
-          return StmtDiff(clonedDRE);
-        }
+        auto it = m_VectorOutput[outputArrayCursor].find(VD);
+        if (it == std::end(m_VectorOutput[outputArrayCursor]))
+          return StmtDiff(clonedDRE); // Not an independent variable, ignored.
+
         // Create the (jacobianMatrix[idx] += dfdx) statement.
         if (dfdx()) {
           auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
@@ -1339,7 +1332,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
       } else {
         // Check DeclRefExpr is a reference to an independent variable.
-        auto it = m_Variables.find(decl);
+        auto it = m_Variables.find(VD);
         if (it == std::end(m_Variables)) {
           // Is not an independent variable, ignored.
           return StmtDiff(clonedDRE);
@@ -1348,7 +1341,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (dfdx()) {
           // FIXME: not sure if this is generic.
           // Don't update derivatives of non-record types.
-          if (!decl->getType()->isRecordType()) {
+          if (!VD->getType()->isRecordType()) {
             auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
             // Add it to the body statements.
             addToCurrentBlock(add_assign, direction::reverse);
