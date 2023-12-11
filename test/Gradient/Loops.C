@@ -198,6 +198,55 @@ double f5(double x){
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
+double f_const_local(double x) {
+  double res = 0;
+  for (int i = 0; i < 3; ++i) {
+    const double n = x + i;
+    res += x * n;
+  }
+  return res;
+} // == 3x^2 + 3x
+
+//CHECK:   void f_const_local_grad(double x, clad::array_ref<double> _d_x) {
+//CHECK-NEXT:    double _d_res = 0;
+//CHECK-NEXT:    unsigned long _t0;
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:    double _d_n = 0;
+//CHECK-NEXT:    double n = 0;
+//CHECK-NEXT:    clad::tape<double> _t2 = {};
+//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    _t0 = 0;
+//CHECK-NEXT:    for (int i = 0; i < 3; ++i) {
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        clad::push(_t1, n) , n = x + i;
+//CHECK-NEXT:        clad::push(_t2, res);
+//CHECK-NEXT:        res += x * n;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    goto _label0;
+//CHECK-NEXT:  _label0:
+//CHECK-NEXT:    _d_res += 1;
+//CHECK-NEXT:    for (; _t0; _t0--) {
+//CHECK-NEXT:        --i;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            res = clad::pop(_t2);
+//CHECK-NEXT:            double _r_d0 = _d_res;
+//CHECK-NEXT:            _d_res += _r_d0;
+//CHECK-NEXT:            double _r0 = _r_d0 * n;
+//CHECK-NEXT:            * _d_x += _r0;
+//CHECK-NEXT:            double _r1 = x * _r_d0;
+//CHECK-NEXT:            _d_n += _r1;
+//CHECK-NEXT:            _d_res -= _r_d0;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        {
+//CHECK-NEXT:            * _d_x += _d_n;
+//CHECK-NEXT:            _d_i += _d_n;
+//CHECK-NEXT:            _d_n = 0;
+//CHECK-NEXT:            n = clad::pop(_t1);
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 double f_sum(double *p, int n) {
   double s = 0;
   for (int i = 0; i < n; i++)
@@ -1715,6 +1764,7 @@ int main() {
   TEST(f3, 3); // CHECK-EXEC: {6.00}
   TEST(f4, 3); // CHECK-EXEC: {27.00}
   TEST(f5, 3); // CHECK-EXEC: {1.00}
+  TEST(f_const_local, 3); // CHECK-EXEC: {21.00}
 
   double p[] = { 1, 2, 3, 4, 5 };
 
