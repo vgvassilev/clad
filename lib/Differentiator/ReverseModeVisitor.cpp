@@ -2692,9 +2692,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // assignments. This is a temporary measure to avoid the bug that arises
         // from overwriting local variables on different loop passes.
         if (isInsideLoop) {
-          if (VD->getType()->isBuiltinType() &&
-              !VD->getType().isConstQualified()) {
+          if (VD->getType()->isBuiltinType()) {
             auto* decl = VDDiff.getDecl();
+            /// The same variable will be assigned with new values every
+            /// loop iteration so the const qualifier must be dropped.
+            if (decl->getType().isConstQualified()) {
+              QualType nonConstType =
+                  getNonConstType(decl->getType(), m_Context, m_Sema);
+              decl->setType(nonConstType);
+            }
             if (decl->getInit()) {
               auto* declRef = BuildDeclRef(decl);
               auto pushPop =
@@ -2744,8 +2750,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     /// overwriting local variables on different loop passes.
     if (isInsideLoop) {
       if (auto* VD = dyn_cast<VarDecl>(decls[0])) {
-        if (VD->getType()->isBuiltinType() &&
-            !VD->getType().isConstQualified()) {
+        if (VD->getType()->isBuiltinType()) {
           addToBlock(DSClone, m_Globals);
           Stmt* initAssignments = MakeCompoundStmt(inits);
           initAssignments = unwrapIfSingleStmt(initAssignments);
