@@ -17,6 +17,7 @@ double f_1(double x, double y, double z) {
 //CHECK:   void f_1_grad(double x, double y, double z, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += 0 * 1;
 //CHECK-NEXT:           * _d_y += 1 * 1;
@@ -30,6 +31,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += 0 * 1;
 //CHECK-NEXT:           _d_y += 1 * 1;
@@ -43,6 +45,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_x += 0 * 1;
 //CHECK-NEXT:           * _d_y += 1 * 1;
@@ -56,6 +59,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _d_y = 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_x += 0 * 1;
 //CHECK-NEXT:           _d_y += 1 * 1;
@@ -68,6 +72,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += 0 * 1;
 //CHECK-NEXT:           * _d_y += 1 * 1;
@@ -80,6 +85,7 @@ double f_1(double x, double y, double z) {
 //CHECK-NEXT:       double _d_x = 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_x += 0 * 1;
 //CHECK-NEXT:           * _d_y += 1 * 1;

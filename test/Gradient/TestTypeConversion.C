@@ -22,24 +22,33 @@ void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
+// CHECK-NEXT:     int _t2;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 1; i < a; i++) {
-// CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, z);
-// CHECK-NEXT:         z = z * a;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int i = 1;
+// CHECK-NEXT:         for (; i < a; i++) {
+// CHECK-NEXT:             _t0++;
+// CHECK-NEXT:             clad::push(_t1, z);
+// CHECK-NEXT:             z = z * a;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t2 = i;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     * _d_z += 1;
-// CHECK-NEXT:     for (; _t0; _t0--) {
-// CHECK-NEXT:         i--;
-// CHECK-NEXT:         {
-// CHECK-NEXT:             z = clad::pop(_t1);
-// CHECK-NEXT:             float _r_d0 = * _d_z;
-// CHECK-NEXT:             * _d_z += _r_d0 * a;
-// CHECK-NEXT:             * _d_a += z * _r_d0;
-// CHECK-NEXT:             * _d_z -= _r_d0;
-// CHECK-NEXT:             * _d_z;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int i = _t2;
+// CHECK-NEXT:         for (; _t0; _t0--) {
+// CHECK-NEXT:             i--;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 z = clad::pop(_t1);
+// CHECK-NEXT:                 float _r_d0 = * _d_z;
+// CHECK-NEXT:                 * _d_z += _r_d0 * a;
+// CHECK-NEXT:                 * _d_a += z * _r_d0;
+// CHECK-NEXT:                 * _d_z -= _r_d0;
+// CHECK-NEXT:                 * _d_z;
+// CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

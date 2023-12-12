@@ -562,6 +562,10 @@ void ErrorEstimationHandler::ActAfterProcessingStmtInVisitCompoundStmt() {
   EmitErrorEstimationStmts(direction::reverse);
 }
 
+void ErrorEstimationHandler::ActBeforeDifferentiatingLoopCondition() {
+  m_ShouldEmit.push(true);
+}
+
 void ErrorEstimationHandler::
     ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt() {
   m_ShouldEmit.push(true);

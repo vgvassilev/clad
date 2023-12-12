@@ -29,6 +29,7 @@ float func(float x, float y) {
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _EERepl_temp1;
 //CHECK-NEXT:     float _t2;
+//CHECK-NEXT:     float _t3;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _cond0 = x > y;
 //CHECK-NEXT:     if (_cond0) {
@@ -43,10 +44,12 @@ float func(float x, float y) {
 //CHECK-NEXT:         _EERepl_temp1 = temp;
 //CHECK-NEXT:         _t2 = x;
 //CHECK-NEXT:         x = y;
+//CHECK-NEXT:         _t3 = temp;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _ret_value0 = x + y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         * _d_x += 1;
 //CHECK-NEXT:         * _d_y += 1;
@@ -62,6 +65,7 @@ float func(float x, float y) {
 //CHECK-NEXT:             * _d_y;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     } else {
+//CHECK-NEXT:         float temp = _t3;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             x = _t2;
 //CHECK-NEXT:             float _r_d2 = * _d_x;
@@ -110,18 +114,21 @@ float func2(float x) {
 //CHECK-NEXT:         _ret_value0 = x * x;
 //CHECK-NEXT:         goto _label1;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     if (_cond0)
+//CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:         ;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             * _d_x += 1;
 //CHECK-NEXT:             * _d_x += 1;
 //CHECK-NEXT:         }
-//CHECK-NEXT:     else
+//CHECK-NEXT:     } else {
 //CHECK-NEXT:       _label1:
+//CHECK-NEXT:         ;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             * _d_x += 1 * x;
 //CHECK-NEXT:             * _d_x += x * 1;
 //CHECK-NEXT:         }
+//CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         * _d_x += _d_z * x;
 //CHECK-NEXT:         * _d_x += x * _d_z;
@@ -141,6 +148,7 @@ float func3(float x, float y) { return x > 30 ? x * y : x + y; }
 //CHECK-NEXT:     _ret_value0 = _cond0 ? x * y : x + y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         * _d_x += 1 * y;
 //CHECK-NEXT:         * _d_y += x * 1;
@@ -180,6 +188,7 @@ float func4(float x, float y) {
 //CHECK-NEXT:     _ret_value0 = y / x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         * _d_y += 1 / x;
 //CHECK-NEXT:         float _r0 = 1 * -y / (x * x);

@@ -127,7 +127,8 @@ namespace clad {
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     VarDecl::InitializationStyle IS,
+                                     bool pushOnScopeChains) {
 
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
@@ -144,7 +145,8 @@ namespace clad {
     }
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
-    m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
+    if (pushOnScopeChains)
+      m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
     return VD;
   }
 

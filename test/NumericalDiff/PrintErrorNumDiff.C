@@ -19,6 +19,7 @@ double test_1(double x){
 //CHECK: void test_1_grad(double x, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 1 * numerical_diff::forward_central_difference(tanh, x, 0, 1, x);
 //CHECK-NEXT:         * _d_x += _r0;

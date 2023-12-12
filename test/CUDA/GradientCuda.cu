@@ -35,57 +35,66 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     double _t2;
+//CHECK-NEXT:     int _t2;
 //CHECK-NEXT:     double _t3;
 //CHECK-NEXT:     double _t4;
 //CHECK-NEXT:     double _t5;
 //CHECK-NEXT:     double _t6;
+//CHECK-NEXT:     double _t7;
 //CHECK-NEXT:     double t = 0;
 //CHECK-NEXT:     _t0 = 0;
-//CHECK-NEXT:     for (int i = 0; i < dim; i++) {
-//CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, t);
-//CHECK-NEXT:         t += (x[i] - p[i]) * (x[i] - p[i]);
+//CHECK-NEXT:     {
+//CHECK-NEXT:         int i = 0;
+//CHECK-NEXT:         for (; i < dim; i++) {
+//CHECK-NEXT:             _t0++;
+//CHECK-NEXT:             clad::push(_t1, t);
+//CHECK-NEXT:             t += (x[i] - p[i]) * (x[i] - p[i]);
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _t2 = i;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _t2 = t;
-//CHECK-NEXT:     _t3 = (2 * sigma * sigma);
-//CHECK-NEXT:     t = -t / _t3;
-//CHECK-NEXT:     _t6 = std::pow(2 * 3.1415926535897931, -dim / 2.);
-//CHECK-NEXT:     _t5 = std::pow(sigma, -0.5);
-//CHECK-NEXT:     _t4 = std::exp(t);
+//CHECK-NEXT:     _t3 = t;
+//CHECK-NEXT:     _t4 = (2 * sigma * sigma);
+//CHECK-NEXT:     t = -t / _t4;
+//CHECK-NEXT:     _t7 = std::pow(2 * 3.1415926535897931, -dim / 2.);
+//CHECK-NEXT:     _t6 = std::pow(sigma, -0.5);
+//CHECK-NEXT:     _t5 = std::exp(t);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _grad0 = 0.;
 //CHECK-NEXT:         double _grad1 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t4 * _t5, &_grad0, &_grad1);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t5 * _t6, &_grad0, &_grad1);
 //CHECK-NEXT:         double _r1 = _grad0;
 //CHECK-NEXT:         double _r2 = _grad1;
 //CHECK-NEXT:         _d_dim += -_r2 / 2.;
 //CHECK-NEXT:         double _grad2 = 0.;
 //CHECK-NEXT:         double _grad3 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, _t6 * 1 * _t4, &_grad2, &_grad3);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, _t7 * 1 * _t5, &_grad2, &_grad3);
 //CHECK-NEXT:         double _r3 = _grad2;
 //CHECK-NEXT:         _d_sigma += _r3;
 //CHECK-NEXT:         double _r4 = _grad3;
-//CHECK-NEXT:         double _r5 = _t6 * _t5 * 1 * clad::custom_derivatives::exp_pushforward(t, 1.).pushforward;
+//CHECK-NEXT:         double _r5 = _t7 * _t6 * 1 * clad::custom_derivatives::exp_pushforward(t, 1.).pushforward;
 //CHECK-NEXT:         _d_t += _r5;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
-//CHECK-NEXT:         t = _t2;
+//CHECK-NEXT:         t = _t3;
 //CHECK-NEXT:         double _r_d1 = _d_t;
-//CHECK-NEXT:         _d_t += -_r_d1 / _t3;
-//CHECK-NEXT:         double _r0 = _r_d1 * --t / (_t3 * _t3);
+//CHECK-NEXT:         _d_t += -_r_d1 / _t4;
+//CHECK-NEXT:         double _r0 = _r_d1 * --t / (_t4 * _t4);
 //CHECK-NEXT:         _d_sigma += 2 * _r0 * sigma;
 //CHECK-NEXT:         _d_sigma += 2 * sigma * _r0;
 //CHECK-NEXT:         _d_t -= _r_d1;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     for (; _t0; _t0--) {
-//CHECK-NEXT:         i--;
-//CHECK-NEXT:         t = clad::pop(_t1);
-//CHECK-NEXT:         double _r_d0 = _d_t;
-//CHECK-NEXT:         _d_p[i] += -_r_d0 * (x[i] - p[i]);
-//CHECK-NEXT:         _d_p[i] += -(x[i] - p[i]) * _r_d0;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         int i = _t2;
+//CHECK-NEXT:         for (; _t0; _t0--) {
+//CHECK-NEXT:             i--;
+//CHECK-NEXT:             t = clad::pop(_t1);
+//CHECK-NEXT:             double _r_d0 = _d_t;
+//CHECK-NEXT:             _d_p[i] += -_r_d0 * (x[i] - p[i]);
+//CHECK-NEXT:             _d_p[i] += -(x[i] - p[i]) * _r_d0;
+//CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 

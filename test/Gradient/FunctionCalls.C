@@ -33,6 +33,7 @@ double fn1(float i) {
 // CHECK-NEXT:     double a = res * i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_a += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_res += _d_a * i;
@@ -64,6 +65,7 @@ double modify1(double& i, double& j) {
 // CHECK-NEXT:     double res = i + j;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         * _d_i += _d_res;
@@ -109,6 +111,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     temp = modify1(i, j);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     * _d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t3;
@@ -177,6 +180,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     update1(i, j);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     * _d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t2;
@@ -207,30 +211,39 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     int _t2;
+// CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     float res = 0;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
-// CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, res);
-// CHECK-NEXT:         res += arr[i];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int i = 0;
+// CHECK-NEXT:         for (; i < n; ++i) {
+// CHECK-NEXT:             _t0++;
+// CHECK-NEXT:             clad::push(_t1, res);
+// CHECK-NEXT:             res += arr[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t2 = i;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _t2 = arr[0];
+// CHECK-NEXT:     _t3 = arr[0];
 // CHECK-NEXT:     arr[0] += 10 * arr[0];
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         arr[0] = _t2;
+// CHECK-NEXT:         arr[0] = _t3;
 // CHECK-NEXT:         double _r_d1 = _d_arr[0];
 // CHECK-NEXT:         _d_arr[0] += 10 * _r_d1;
 // CHECK-NEXT:         _d_arr[0];
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (; _t0; _t0--) {
-// CHECK-NEXT:         --i;
-// CHECK-NEXT:         res = clad::pop(_t1);
-// CHECK-NEXT:         float _r_d0 = _d_res;
-// CHECK-NEXT:         _d_arr[i] += _r_d0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int i = _t2;
+// CHECK-NEXT:         for (; _t0; _t0--) {
+// CHECK-NEXT:             --i;
+// CHECK-NEXT:             res = clad::pop(_t1);
+// CHECK-NEXT:             float _r_d0 = _d_res;
+// CHECK-NEXT:             _d_arr[i] += _r_d0;
+// CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -269,33 +282,42 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     int _t5;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = res;
 // CHECK-NEXT:     _t1 = arr;
 // CHECK-NEXT:     res += sum(arr, n);
 // CHECK-NEXT:     _t2 = 0;
-// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
-// CHECK-NEXT:         _t2++;
-// CHECK-NEXT:         clad::push(_t3, arr[i]);
-// CHECK-NEXT:         twice(arr[i]);
-// CHECK-NEXT:         clad::push(_t4, res);
-// CHECK-NEXT:         res += arr[i];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int i = 0;
+// CHECK-NEXT:         for (; i < n; ++i) {
+// CHECK-NEXT:             _t2++;
+// CHECK-NEXT:             clad::push(_t3, arr[i]);
+// CHECK-NEXT:             twice(arr[i]);
+// CHECK-NEXT:             clad::push(_t4, res);
+// CHECK-NEXT:             res += arr[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t5 = i;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     for (; _t2; _t2--) {
-// CHECK-NEXT:         --i;
-// CHECK-NEXT:         {
-// CHECK-NEXT:             res = clad::pop(_t4);
-// CHECK-NEXT:             double _r_d1 = _d_res;
-// CHECK-NEXT:             _d_arr[i] += _r_d1;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         {
-// CHECK-NEXT:             double _r3 = clad::pop(_t3);
-// CHECK-NEXT:             arr[i] = _r3;
-// CHECK-NEXT:             twice_pullback(_r3, &_d_arr[i]);
-// CHECK-NEXT:             double _r2 = _d_arr[i];
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int i = _t5;
+// CHECK-NEXT:         for (; _t2; _t2--) {
+// CHECK-NEXT:             --i;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 res = clad::pop(_t4);
+// CHECK-NEXT:                 double _r_d1 = _d_res;
+// CHECK-NEXT:                 _d_arr[i] += _r_d1;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 double _r3 = clad::pop(_t3);
+// CHECK-NEXT:                 arr[i] = _r3;
+// CHECK-NEXT:                 twice_pullback(_r3, &_d_arr[i]);
+// CHECK-NEXT:                 double _r2 = _d_arr[i];
+// CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -344,6 +366,7 @@ double fn5(double* arr, int n) {
 // CHECK-NEXT:     double temp = modify2(arr);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_arr[0] += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         arr = _t0;
@@ -378,6 +401,7 @@ double fn7(double i, double j) {
 // CHECK: void fn6_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         * _d_i += 1 * j;
 // CHECK-NEXT:         * _d_j += i * 1;
@@ -393,6 +417,7 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     * _d_i += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_i0 = _t0;
@@ -432,6 +457,7 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     l += 9 * i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         * _d_i += 1;
 // CHECK-NEXT:         * _d_j += 1;
@@ -469,6 +495,7 @@ double fn8(double x, double y) {
 // CHECK-NEXT:     _t0 = std::max(1., 2.);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         * _d_x += 1 * _t0 * _t1 * y;
 // CHECK-NEXT:         * _d_y += x * 1 * _t0 * _t1;
@@ -484,6 +511,7 @@ double custom_max(const double& a, const double& b) {
 // CHECK-NEXT:     _cond0 = a > b;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     if (_cond0)
 // CHECK-NEXT:         * _d_a += _d_y;
 // CHECK-NEXT:     else
@@ -499,6 +527,7 @@ double fn9(double x, double y) {
 // CHECK-NEXT:    _t0 = y;
 // CHECK-NEXT:    goto _label0;
 // CHECK-NEXT:  _label0:
+// CHECK-NEXT:    ;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        y = _t0;
 // CHECK-NEXT:        double _grad0 = 0.;
@@ -538,6 +567,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    out = std::clamp(out, 3., 7.);
 // CHECK-NEXT:    goto _label0;
 // CHECK-NEXT:  _label0:
+// CHECK-NEXT:    ;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        _d_out += 1 * y;
 // CHECK-NEXT:        * _d_y += out * 1;
@@ -609,6 +639,7 @@ double fn11(double x, double y) {
 // CHECK-NEXT:    _t1 = y;
 // CHECK-NEXT:    goto _label0;
 // CHECK-NEXT:  _label0:
+// CHECK-NEXT:    ;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        x = _t0;
 // CHECK-NEXT:        y = _t1;

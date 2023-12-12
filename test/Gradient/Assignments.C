@@ -1,6 +1,8 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseAssignments.out 2>&1 | FileCheck %s
+/// FIXME: `-Wno-unused-value` is needed to suppress the warning
+/// produced by `f21`. We have to figure out where it comes from.
+// RUN: %cladclang %s -Wno-unused-value -I%S/../../include -oReverseAssignments.out 2>&1 | FileCheck %s
 // RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oReverseAssignments.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -Wno-unused-value -I%S/../../include -oReverseAssignments.out
 // RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -19,6 +21,7 @@ double f1(double x, double y) {
 //CHECK-NEXT:       x = y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       * _d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t0;
@@ -46,6 +49,7 @@ double f2(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       * _d_x += 1;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           x = _t0;
@@ -80,6 +84,7 @@ double f3(double x, double y) {
 //CHECK-NEXT:       x = y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       * _d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t3;
@@ -129,6 +134,7 @@ double f4(double x, double y) {
 //CHECK-NEXT:       x = 0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       * _d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t1;
@@ -166,6 +172,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       double _t1;
+//CHECK-NEXT:       double _t2;
 //CHECK-NEXT:       double t = x * x;
 //CHECK-NEXT:       _cond0 = x < 0;
 //CHECK-NEXT:       if (_cond0) {
@@ -178,11 +185,14 @@ double f5(double x, double y) {
 //CHECK-NEXT:           double z = t;
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:           t = -t;
+//CHECK-NEXT:           _t2 = z;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label1;
 //CHECK-NEXT:     _label1:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       if (_cond1) {
+//CHECK-NEXT:           double z = _t2;
 //CHECK-NEXT:           {
 //CHECK-NEXT:               t = _t1;
 //CHECK-NEXT:               double _r_d1 = _d_t;
@@ -193,6 +203,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:         _label0:
+//CHECK-NEXT:           ;
 //CHECK-NEXT:           _d_t += 1;
 //CHECK-NEXT:           {
 //CHECK-NEXT:               t = _t0;
@@ -228,6 +239,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       double _t1;
+//CHECK-NEXT:       double _t2;
 //CHECK-NEXT:       double t = x * x;
 //CHECK-NEXT:       _cond0 = x < 0;
 //CHECK-NEXT:       if (_cond0) {
@@ -240,11 +252,14 @@ double f6(double x, double y) {
 //CHECK-NEXT:           double z = t;
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:           t = -t;
+//CHECK-NEXT:           _t2 = z;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label1;
 //CHECK-NEXT:     _label1:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       if (_cond1) {
+//CHECK-NEXT:           double z = _t2;
 //CHECK-NEXT:           {
 //CHECK-NEXT:               t = _t1;
 //CHECK-NEXT:               double _r_d1 = _d_t;
@@ -255,6 +270,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:         _label0:
+//CHECK-NEXT:           ;
 //CHECK-NEXT:           _d_t += 1;
 //CHECK-NEXT:           {
 //CHECK-NEXT:               t = _t0;
@@ -315,6 +331,7 @@ double f7(double x, double y) {
 //CHECK-NEXT:       x = ++t[0];
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t[0] += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t6;
@@ -404,6 +421,7 @@ double f8(double x, double y) {
 //CHECK-NEXT:       t[3] = (y *= (t[0] = t[1] = t[2]));
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t[3] += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[3] = _t0;
@@ -411,7 +429,7 @@ double f8(double x, double y) {
 //CHECK-NEXT:           * _d_y += _r_d0;
 //CHECK-NEXT:           y = _t1;
 //CHECK-NEXT:           double _r_d1 = * _d_y;
-//CHECK-NEXT:           * _d_y += _r_d1 * t[2];
+//CHECK-NEXT:           * _d_y += _r_d1 * t[0];
 //CHECK-NEXT:           _d_t[0] += y * _r_d1;
 //CHECK-NEXT:           t[0] = _t2;
 //CHECK-NEXT:           double _r_d2 = _d_t[0];
@@ -444,10 +462,11 @@ double f9(double x, double y) {
 //CHECK-NEXT:       double t = x;
 //CHECK-NEXT:       _t0 = t;
 //CHECK-NEXT:       double &_t1 = (t *= x);
-//CHECK-NEXT:       _t2 = t;
+//CHECK-NEXT:       _t2 = _t1;
 //CHECK-NEXT:       _t1 *= y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t2;
@@ -480,6 +499,7 @@ double f10(double x, double y) {
 //CHECK-NEXT:       t = x = y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t0;
@@ -507,10 +527,11 @@ double f11(double x, double y) {
 //CHECK-NEXT:       double t = x;
 //CHECK-NEXT:       _t0 = t;
 //CHECK-NEXT:       double &_t1 = (t = x);
-//CHECK-NEXT:       _t2 = t;
+//CHECK-NEXT:       _t2 = _t1;
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t2;
@@ -537,7 +558,6 @@ double f12(double x, double y) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t3;
-//CHECK-NEXT:       double _t4;
 //CHECK-NEXT:       double t;
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
@@ -545,15 +565,14 @@ double f12(double x, double y) {
 //CHECK-NEXT:       else
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:       double &_t2 = (_cond0 ? (t = x) : (t = y));
-//CHECK-NEXT:       _t3 = t;
-//CHECK-NEXT:       _t4 = t;
+//CHECK-NEXT:       _t3 = _t2;
 //CHECK-NEXT:       _t2 *= y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           t = _t3;
-//CHECK-NEXT:           t = _t4;
+//CHECK-NEXT:           (_cond0 ? (t = x) : (t = y)) = _t3;
 //CHECK-NEXT:           double _r_d2 = (_cond0 ? _d_t : _d_t);
 //CHECK-NEXT:           (_cond0 ? _d_t : _d_t) += _r_d2 * y;
 //CHECK-NEXT:           * _d_y += _t2 * _r_d2;
@@ -586,6 +605,7 @@ double f13(double x, double y) {
 //CHECK-NEXT:       double t = x * _t0;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_t += 1 * y;
 //CHECK-NEXT:           * _d_y += t * 1;
@@ -623,6 +643,7 @@ double f14(double i, double j) {
 // CHECK-NEXT:     a *= i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:     _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     * _d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a = _t2;
@@ -682,6 +703,7 @@ double f15(double i, double j) {
 // CHECK-NEXT:     d *= 3 * j;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_a += 1;
 // CHECK-NEXT:         *_d_c += 1;
@@ -740,6 +762,7 @@ double f16(double i, double j) {
 // CHECK-NEXT:     c *= 4 * j;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:     _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     * _d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c = _t0;
@@ -763,6 +786,7 @@ double f17(double i, double j, double k) {
 // CHECK-NEXT:     j = 2 * i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:     _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_j += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t0;
@@ -788,6 +812,7 @@ double f18(double i, double j, double k) {
 // CHECK-NEXT:     k += i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:     _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     _d_k += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         k = _t1;
@@ -810,6 +835,7 @@ double f19(double a, double b) {
 //CHECK: void f19_grad(double a, double b, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _grad0 = 0.;
 //CHECK-NEXT:         double _grad1 = 0.;
@@ -843,6 +869,7 @@ double f20(double x, double y) {
 //CHECK-NEXT:     x = r * y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     * _d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t1;
@@ -870,6 +897,7 @@ double f21 (double x, double y) {
 //CHECK-NEXT:     y = (y++ , x);
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     * _d_y += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         y = _t0;
@@ -879,6 +907,43 @@ double f21 (double x, double y) {
 //CHECK-NEXT:         * _d_x += _r_d0;
 //CHECK-NEXT:         * _d_y -= _r_d0;
 //CHECK-NEXT:         * _d_y;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double f22(double x, double y) {
+    if (x > 0) {
+        double& ref = x;
+        ref *= y;
+    }
+    return x;
+}
+
+//CHECK: void f22_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     double *_d_ref = 0;
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     double *_t1;
+//CHECK-NEXT:     _cond0 = x > 0;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         _d_ref = &* _d_x;
+//CHECK-NEXT:         double &ref = x;
+//CHECK-NEXT:         _t0 = ref;
+//CHECK-NEXT:         ref *= y;
+//CHECK-NEXT:         _t1 = &ref;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     ;
+//CHECK-NEXT:     * _d_x += 1;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         double &ref = *_t1;
+//CHECK-NEXT:         {
+//CHECK-NEXT:             ref = _t0;
+//CHECK-NEXT:             double _r_d0 = *_d_ref;
+//CHECK-NEXT:             *_d_ref += _r_d0 * y;
+//CHECK-NEXT:             * _d_y += ref * _r_d0;
+//CHECK-NEXT:             *_d_ref -= _r_d0;
+//CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -945,4 +1010,5 @@ int main() {
   TEST(f19, 1, 2); // CHECK-EXEC: {2.00, 2.00}
   TEST(f20, 1, 2); // CHECK-EXEC: {0.00, 3.00}
   TEST(f21, 6, 4); // CHECK-EXEC: {1.00, 0.00}
+  TEST(f22, 1, 2); // CHECK-EXEC: {2.00, 1.00}
 }

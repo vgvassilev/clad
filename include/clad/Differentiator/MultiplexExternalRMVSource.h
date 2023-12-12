@@ -41,6 +41,7 @@ public:
   void ActAfterProcessingStmtInVisitCompoundStmt() override;
   void ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt() override;
   void ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt() override;
+  void ActBeforeDifferentiatingLoopCondition() override;
   void ActBeforeDifferentiatingLoopInitStmt() override;
   void ActBeforeDifferentiatingSingleStmtLoopBody() override;
   void ActAfterProcessingSingleStmtBodyInVisitForLoop() override;

@@ -119,11 +119,11 @@ namespace clad {
     CompoundStmt* AppendAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
                                               Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;
-      assert(isa<CompoundStmt>(initial) &&
-             "initial should be of type `clang::CompoundStmt`");
       CompoundStmt* CS = dyn_cast<CompoundStmt>(initial);
       if (CS)
         block.append(CS->body_begin(), CS->body_end());
+      else
+        block.push_back(initial);
       block.push_back(S);
       auto stmtsRef = clad_compat::makeArrayRef(block.begin(), block.end());
       return clad_compat::CompoundStmt_Create(C, stmtsRef /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS), noLoc, noLoc);

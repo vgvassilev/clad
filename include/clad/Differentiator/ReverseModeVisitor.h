@@ -41,6 +41,11 @@ namespace clad {
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
+    /// Accumulates local variables for all visited blocks.
+    std::vector<std::map<clang::VarDecl*, clang::VarDecl*>> m_Locals;
+    /// Stores all expressions used as placeholders which have to be
+    /// reset later.
+    std::set<const clang::Expr*> m_Placeholders;
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
@@ -51,7 +56,7 @@ namespace clad {
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
     /// Based on To-Be-Recorded analysis performed before differentiation,
-    /// tells UsefulToStoreGlobal whether a variable with a given
+    /// tells isToBeRecorded whether a variable with a given
     /// SourceLocation has to be stored before being changed or not.
     std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
@@ -142,15 +147,18 @@ namespace clad {
     }
     /// Create new block.
     Stmts& beginBlock(direction d = direction::forward) {
-      if (d == direction::forward)
+      if (d == direction::forward) {
         m_Blocks.emplace_back();
-      else
+        m_Locals.emplace_back();
+      } else {
         m_Reverse.emplace_back();
+      }
       return getCurrentBlock(d);
     }
     /// Remove the block from the stack, wrap it in CompoundStmt and return it.
     clang::CompoundStmt* endBlock(direction d = direction::forward) {
       if (d == direction::forward) {
+        EmitReverseSweepDeclarations();
         auto* CS = MakeCompoundStmt(getCurrentBlock(direction::forward));
         m_Blocks.pop_back();
         return CS;
@@ -164,12 +172,31 @@ namespace clad {
 
     Stmts EndBlockWithoutCreatingCS(direction d = direction::forward) {
       auto blk = getCurrentBlock(d);
-      if (d == direction::forward)
+      if (d == direction::forward) {
         m_Blocks.pop_back();
-      else
+        EmitReverseSweepDeclarations();
+      } else
         m_Reverse.pop_back();
       return blk;
     }
+
+    clang::Expr* Clone(const clang::Expr* E) {
+      // Placeholders should not be cloned since otherwise we will not be able
+      // to find and replace them later.
+      if (m_Placeholders.find(E) != m_Placeholders.end())
+        return const_cast<clang::Expr*>(E);
+      return VisitorBase::Clone(E);
+    }
+
+    clang::Stmt* Clone(const clang::Stmt* E) { return VisitorBase::Clone(E); }
+
+    /// Emits declarations in the reverse sweep of variables that were declared
+    /// locally inside some blocks in the forward sweep. Needs to be called
+    /// after all of the usages of the variable in the reverse sweep since
+    /// the declaration should come before the usages when the statement order
+    /// is reversed.
+    void EmitReverseSweepDeclarations(bool endCurBlock = true);
+
     /// Output a statement to the current block. If Stmt is null or is an unused
     /// expression, it is not output and false is returned.
     bool addToCurrentBlock(clang::Stmt* S, direction d = direction::forward) {
@@ -222,6 +249,10 @@ namespace clad {
     /// This is the central point for checkpointing.
     bool ShouldRecompute(const clang::Expr* E);
 
+    /// For a given location, tells if the corresponding expression should
+    /// be stored in the forward pass and then restored in the reverse pass.
+    bool isToBeRecorded(clang::SourceLocation loc);
+
     /// Builds a variable declaration and stores it in the function
     /// global scope.
     ///
@@ -253,8 +284,11 @@ namespace clad {
                                bool force = false);
     StmtDiff BuildPushPop(clang::Expr* E, clang::QualType Type,
                           llvm::StringRef prefix = "_t", bool force = false);
-    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool force = false);
+    StmtDiff StoreAndRestore(StmtDiff SD, llvm::StringRef prefix = "_t",
+                             clang::SourceLocation loc = {});
+    StmtDiff StoreAndRestore(StmtDiff SD, clang::QualType Type,
+                             llvm::StringRef prefix = "_t",
+                             clang::SourceLocation loc = {});
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
@@ -266,15 +300,15 @@ namespace clad {
     struct DelayedStoreResult {
       ReverseModeVisitor& V;
       StmtDiff Result;
-      bool isConstant;
       bool isInsideLoop;
       bool needsUpdate;
+      clang::Expr* Placeholder;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
-                         bool pIsConstant, bool pIsInsideLoop,
-                         bool pNeedsUpdate = false)
-          : V(pV), Result(pResult), isConstant(pIsConstant),
-            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
-      void Finalize(clang::Expr* New);
+                         bool pIsInsideLoop, bool pNeedsUpdate = false,
+                         clang::Expr* pPlaceholder = nullptr)
+          : V(pV), Result(pResult), isInsideLoop(pIsInsideLoop),
+            needsUpdate(pNeedsUpdate), Placeholder(pPlaceholder) {}
+      void Finalize(StmtDiff New);
     };
 
     /// Sometimes (e.g. when visiting multiplication/division operator), we
@@ -286,7 +320,8 @@ namespace clad {
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
     /// original (uncloned) expression.
     DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
-                                                llvm::StringRef prefix = "_t");
+                                                llvm::StringRef prefix = "_t",
+                                                bool forceNoRecompute = false);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;
@@ -311,6 +346,9 @@ namespace clad {
     /// \returns A struct containg necessary call expressions for the built
     /// tape
     CladTapeResult MakeCladTapeFor(clang::Expr* E,
+                                   llvm::StringRef prefix = "_t");
+
+    CladTapeResult MakeCladTapeFor(clang::Expr* E, clang::QualType type,
                                    llvm::StringRef prefix = "_t");
 
   public:
@@ -468,20 +506,18 @@ namespace clad {
     /// Helper function to differentiate a loop body.
     ///
     ///\param[in] body body of the loop
+    ///\param[in] cond condition of the loop
     ///\param[in] loopCounter associated `LoopCounter` object of the loop.
-    ///\param[in] condVarDiff derived statements of the condition
-    /// variable, if any.
     ///\param[in] forLoopIncDiff derived statements of the `for` loop
     /// increment statement, if any.
     ///\param[in] isForLoop should be true if we are differentiating a `for`
     /// loop body; otherwise false.
-    ///\returns {forward pass statements, reverse pass statements} for the loop
-    /// body.
-    StmtDiff DifferentiateLoopBody(const clang::Stmt* body,
-                                   LoopCounter& loopCounter,
-                                   clang::Stmt* condVarDifff = nullptr,
-                                   clang::Stmt* forLoopIncDiff = nullptr,
-                                   bool isForLoop = false);
+    ///\returns {differentiated loop body, differentiated loop condition}
+    std::pair<StmtDiff, StmtDiff>
+    DifferentiateLoopBody(const clang::Stmt* body, const clang::Stmt* cond,
+                          LoopCounter& loopCounter,
+                          clang::Stmt* forLoopIncDiff = nullptr,
+                          bool isForLoop = false);
 
     /// This class modifies forward and reverse blocks of the loop
     /// body so that `break` and `continue` statements are correctly

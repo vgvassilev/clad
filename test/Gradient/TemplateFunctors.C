@@ -17,6 +17,7 @@ template <typename T> struct Experiment {
 // CHECK: void operator_call_grad(double i, double j, clad::array_ref<Experiment<double> > _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (* _d_this).x += 1 * i * i;
 // CHECK-NEXT:         * _d_i += this->x * 1 * i;
@@ -39,6 +40,7 @@ template <> struct Experiment<long double> {
 // CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<Experiment<long double> > _d_this, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (* _d_this).x += 1 * j * i * i;
 // CHECK-NEXT:         * _d_i += this->x * 1 * j * i;
@@ -63,6 +65,7 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK-NEXT:     _t0 = this->x * i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (* _d_this).x += 1 * i * i;
 // CHECK-NEXT:         * _d_i += this->x * 1 * i;
@@ -89,6 +92,7 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK-NEXT:     _t1 = this->y * j;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (* _d_this).x += 1 * j * i * i;
 // CHECK-NEXT:         * _d_i += this->x * 1 * j * i;

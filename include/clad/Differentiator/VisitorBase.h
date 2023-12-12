@@ -289,12 +289,14 @@ namespace clad {
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
     /// \returns The newly built variable declaration.
-    clang::VarDecl*
-    BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
-                 clang::Expr* Init = nullptr, bool DirectInit = false,
-                 clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildVarDecl(clang::QualType Type,
+                                 clang::IdentifierInfo* Identifier,
+                                 clang::Expr* Init = nullptr,
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr,
+                                 clang::VarDecl::InitializationStyle IS =
+                                     clang::VarDecl::InitializationStyle::CInit,
+                                 bool pushOnScopeChains = true);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.

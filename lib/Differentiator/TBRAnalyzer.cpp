@@ -295,17 +295,7 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
 }
 
 void TBRAnalyzer::markLocation(const clang::Expr* E) {
-  VarData* data = getExprVarData(E);
-  if (!data || findReq(*data)) {
-    // FIXME: If any of the data's child nodes are required to store then data
-    // itself is stored. We might add an option to store separate fields.
-    // FIXME: Sometimes one location might correspond to multiple stores.  For
-    // example, in ``(x*=y)=u`` x's location will first be marked as required to
-    // be stored (when passing *= operator) but then marked as not required to
-    // be stored (when passing = operator). Current method of marking locations
-    // does not allow to differentiate between these two.
-    m_TBRLocs.insert(E->getBeginLoc());
-  }
+  m_TBRLocs.insert(E->getBeginLoc());
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
@@ -701,17 +691,27 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
       TraverseStmt(R);
       resetMode();
     }
+    // FIXME: For now, pointers are not analysed correctly with TBR analysis
+    // so we always consider them useful to store.
+    if (L->getType()->isPointerType()) {
+      markLocation(L);
+      return true;
+    }
     llvm::SmallVector<Expr*, 4> ExprsToStore;
     utils::GetInnermostReturnExpr(L, ExprsToStore);
+    bool hasToBeSetReq = false;
     for (const auto* innerExpr : ExprsToStore) {
-      // Mark corresponding SourceLocation as required/not required to be
-      // stored for all expressions that could be used changed.
-      markLocation(innerExpr);
+      // If at least one of ExprsToStore has to be stored,
+      // mark L as useful to store.
+      if (VarData* data = getExprVarData(innerExpr))
+        hasToBeSetReq = hasToBeSetReq || findReq(*data);
       // Set them to not required to store because the values were changed.
       // (if some value was not changed, this could only happen if it was
       // already not required to store).
       setIsRequired(innerExpr, /*isReq=*/false);
     }
+    if (hasToBeSetReq)
+      markLocation(L);
   } else if (opCode == BO_Comma) {
     setMode(0);
     TraverseStmt(L);
@@ -731,21 +731,31 @@ bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
   TraverseStmt(E);
   if (opCode == UO_PostInc || opCode == UO_PostDec || opCode == UO_PreInc ||
       opCode == UO_PreDec) {
+    // FIXME: For now, pointers are not analysed correctly with TBR analysis
+    // so we always consider them useful to store.
+    if (E->getType()->isPointerType()) {
+      markLocation(E);
+      return true;
+    }
     // FIXME: this doesn't support all the possible references
     // Mark corresponding SourceLocation as required/not required to be
     // stored for all expressions that could be used in this operation.
     llvm::SmallVector<Expr*, 4> ExprsToStore;
     utils::GetInnermostReturnExpr(E, ExprsToStore);
     for (const auto* innerExpr : ExprsToStore) {
-      // Mark corresponding SourceLocation as required/not required to be
-      // stored for all expressions that could be changed.
-      markLocation(innerExpr);
+      // If at least one of ExprsToStore has to be stored,
+      // mark L as useful to store.
+      if (VarData* data = getExprVarData(innerExpr))
+        if (findReq(*data)) {
+          markLocation(E);
+          break;
+        }
     }
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member
   // expressions. However, it is not clear where the FieldDecls of real and
   // imaginary parts should be deduced from (their names might be
-  // compiler-specific).  So for now we visit the whole subexpression.
+  // compiler-specific). So for now we visit the whole subexpression.
   return true;
 }
 

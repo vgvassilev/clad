@@ -114,28 +114,37 @@
 //CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
 //CHECK_FLOAT_SUM:     clad::tape<float> _t1 = {};
 //CHECK_FLOAT_SUM:     clad::tape<float> _EERepl_sum1 = {};
+//CHECK_FLOAT_SUM:     unsigned int _t2;
 //CHECK_FLOAT_SUM:     float sum = 0.;
 //CHECK_FLOAT_SUM:     _EERepl_sum0 = sum;
 //CHECK_FLOAT_SUM:     _t0 = 0;
-//CHECK_FLOAT_SUM:     for (unsigned int i = 0; i < n; i++) {
-//CHECK_FLOAT_SUM:         _t0++;
-//CHECK_FLOAT_SUM:         clad::push(_t1, sum);
-//CHECK_FLOAT_SUM:         sum = sum + x;
-//CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
+//CHECK_FLOAT_SUM:     {
+//CHECK_FLOAT_SUM:         unsigned int i = 0;
+//CHECK_FLOAT_SUM:         for (; i < n; i++) {
+//CHECK_FLOAT_SUM:             _t0++;
+//CHECK_FLOAT_SUM:             clad::push(_t1, sum);
+//CHECK_FLOAT_SUM:             sum = sum + x;
+//CHECK_FLOAT_SUM:             clad::push(_EERepl_sum1, sum);
+//CHECK_FLOAT_SUM:         }
+//CHECK_FLOAT_SUM:         _t2 = i;
 //CHECK_FLOAT_SUM:     }
 //CHECK_FLOAT_SUM:     goto _label0;
 //CHECK_FLOAT_SUM:   _label0:
+//CHECK_FLOAT_SUM:     ;
 //CHECK_FLOAT_SUM:     _d_sum += 1;
-//CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
-//CHECK_FLOAT_SUM:         i--;
-//CHECK_FLOAT_SUM:         {
-//CHECK_FLOAT_SUM:             sum = clad::pop(_t1);
-//CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
-//CHECK_FLOAT_SUM:             _d_sum += _r_d0;
-//CHECK_FLOAT_SUM:             * _d_x += _r_d0;
-//CHECK_FLOAT_SUM:             float _r0 = clad::pop(_EERepl_sum1);
-//CHECK_FLOAT_SUM:             _delta_sum += std::abs(_r_d0 * _r0 * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
+//CHECK_FLOAT_SUM:     {
+//CHECK_FLOAT_SUM:         unsigned int i = _t2;
+//CHECK_FLOAT_SUM:         for (; _t0; _t0--) {
+//CHECK_FLOAT_SUM:             i--;
+//CHECK_FLOAT_SUM:             {
+//CHECK_FLOAT_SUM:                 sum = clad::pop(_t1);
+//CHECK_FLOAT_SUM:                 float _r_d0 = _d_sum;
+//CHECK_FLOAT_SUM:                 _d_sum += _r_d0;
+//CHECK_FLOAT_SUM:                 * _d_x += _r_d0;
+//CHECK_FLOAT_SUM:                 float _r0 = clad::pop(_EERepl_sum1);
+//CHECK_FLOAT_SUM:                 _delta_sum += std::abs(_r_d0 * _r0 * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:                 _d_sum -= _r_d0;
+//CHECK_FLOAT_SUM:             }
 //CHECK_FLOAT_SUM:         }
 //CHECK_FLOAT_SUM:     }
 //CHECK_FLOAT_SUM:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * 1.1920928955078125E-7);
@@ -170,6 +179,7 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    ;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
@@ -212,6 +222,7 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
+// CHECK_PRINT_MODEL_EXEC-NEXT:    ;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        z = _t0;
@@ -239,6 +250,7 @@
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, clad::array_ref<double> _d_theta_0, clad::array_ref<double> _d_theta_1, clad::array_ref<double> _d_x) {
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
+//CHECK_GRADIENT_DESCENT-NEXT:     ;
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_1 += _d_y * x;
@@ -251,6 +263,7 @@
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(theta_0, theta_1, x);
 //CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
 //CHECK_GRADIENT_DESCENT-NEXT:   _label0:
+//CHECK_GRADIENT_DESCENT-NEXT:     ;
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += 1 * (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_y += -1 * (f_x - y);

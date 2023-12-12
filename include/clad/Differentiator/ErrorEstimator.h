@@ -255,6 +255,7 @@ public:
   void ActOnEndOfDerivedFnBody() override;
   void ActBeforeDifferentiatingStmtInVisitCompoundStmt() override;
   void ActAfterProcessingStmtInVisitCompoundStmt() override;
+  void ActBeforeDifferentiatingLoopCondition() override;
   void ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt() override;
   void ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt() override;
   void ActBeforeDifferentiatingLoopInitStmt() override;

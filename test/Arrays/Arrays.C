@@ -98,6 +98,7 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_vars[0] += 1 * consts[0];
 //CHECK-NEXT:           _d_consts[0] += vars[0] * 1;

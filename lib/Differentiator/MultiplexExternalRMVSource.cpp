@@ -120,6 +120,11 @@ void MultiplexExternalRMVSource::
   }
 }
 
+void MultiplexExternalRMVSource::ActBeforeDifferentiatingLoopCondition() {
+  for (auto* source : m_Sources)
+    source->ActBeforeDifferentiatingLoopCondition();
+}
+
 void MultiplexExternalRMVSource::ActBeforeDifferentiatingLoopInitStmt() {
   for (auto source : m_Sources) {
     source->ActBeforeDifferentiatingLoopInitStmt();

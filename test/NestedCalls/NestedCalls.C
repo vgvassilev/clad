@@ -42,6 +42,7 @@ double f(double x, double y) {
 //CHECK:   void sq_pullback(double x, double _d_y, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += _d_y * x;
 //CHECK-NEXT:           * _d_x += x * _d_y;
@@ -51,6 +52,7 @@ double f(double x, double y) {
 //CHECK:   void one_pullback(double x, double _d_y, clad::array_ref<double> _d_x) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _grad0 = 0.;
 //CHECK-NEXT:           sq_pullback(std::sin(x), _d_y, &_grad0);
@@ -70,6 +72,7 @@ double f(double x, double y) {
 //CHECK-NEXT:       double t = one(x);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_t += 1 * y;
 //CHECK-NEXT:           * _d_y += t * 1;

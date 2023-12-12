@@ -106,6 +106,9 @@ public:
   /// branch in `VisitBranch` lambda in
   virtual void ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt() {}
 
+  /// This is called just before differentiating loop conditions.
+  virtual void ActBeforeDifferentiatingLoopCondition() {}
+
   /// This is called just before differentiating init statement of loops.
   virtual void ActBeforeDifferentiatingLoopInitStmt() {}
 

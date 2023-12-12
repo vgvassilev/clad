@@ -43,6 +43,7 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK:   void TFormula_example_grad_1(Double_t *x, Double_t *p, clad::array_ref<Double_t> _d_p) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
+//CHECK-NEXT:       ;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_p[0] += x[0] * 1;
 //CHECK-NEXT:           _d_p[1] += x[0] * 1;

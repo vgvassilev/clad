@@ -13,6 +13,7 @@ double foo(double x, double y){
 // CHECK: void foo_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         * _d_x += 1 * y;
 // CHECK-NEXT:         * _d_y += x * 1;
