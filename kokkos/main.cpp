@@ -4,6 +4,12 @@
 #include "lambda_reduction.hpp"
 #include "lambda_reduction_subview.hpp"
 
+//#define use_generated_file
+
+#ifdef use_generated_file
+#include "generated/Derivatives.cpp"
+#endif
+
 int main(int argc, char* argv[]) {
   Kokkos::initialize(argc, argv);
   {
@@ -19,6 +25,7 @@ int main(int argc, char* argv[]) {
     std::cout << weightedDotProduct_1(A, x, y) << std::endl;
     std::cout << weightedDotProduct_2(A, x, y) << std::endl;
 
+#ifndef use_generated_file
     auto f_dx_exe = clad::differentiate(f, "x");
     auto f_grad_exe = clad::gradient(f);
     // Any of the two below will generate an "error: Attempted differentiation w.r.t. member 'x' which is not of real type."
@@ -31,7 +38,12 @@ int main(int argc, char* argv[]) {
     // After this call, dx and dy will store the derivatives of x and y respectively.
     f_grad_exe.execute(3., 4., &dx, &dy);
     std::cout << "dx: " << dx << ' ' << "dy: " << dy << std::endl;
-
+#else
+    double dx = 0, dy = 0;
+    std::cout << f_darg0(3.,4.) << std::endl;
+    f_grad(3., 4., &dx, &dy);
+    std::cout << "dx: " << dx << ' ' << "dy: " << dy << std::endl;
+#endif
   }
   Kokkos::finalize();
 

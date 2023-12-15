@@ -22,7 +22,10 @@ double f(double x, double y) {
 
   double tmp = x * x + y;
 
-  a(0,0) = tmp;
+  const int i = 0;
+  const int j = 0;
+
+  a(i,j) = tmp;
 
   //Kokkos::deep_copy(a, 0);
 
@@ -32,5 +35,5 @@ double f(double x, double y) {
 
   //Kokkos::parallel_for(N1n, functor);
 
-  return a(0,0);
+  return a(i,j);
 }
