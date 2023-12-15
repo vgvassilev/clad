@@ -362,6 +362,7 @@ namespace clad {
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitValueStmt(const clang::ValueStmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.

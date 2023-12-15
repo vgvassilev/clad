@@ -20,13 +20,17 @@ double f(double x, double y) {
 
   Kokkos::View<double *[N2], Kokkos::LayoutLeft> a("a", N1);
 
-  Kokkos::deep_copy(a, 0);
+  double tmp = x * x + y;
+
+  a(0,0) = tmp;
+
+  //Kokkos::deep_copy(a, 0);
 
   size_t N1n = a.extent(0);
 
-  ParallelFunctor functor(a,x,y);
+  //ParallelFunctor functor(a,x,y);
 
-  Kokkos::parallel_for(N1n, functor);
+  //Kokkos::parallel_for(N1n, functor);
 
-  return a(0,0);
+  return tmp;
 }

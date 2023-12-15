@@ -19,10 +19,18 @@ int main(int argc, char* argv[]) {
     std::cout << weightedDotProduct_1(A, x, y) << std::endl;
     std::cout << weightedDotProduct_2(A, x, y) << std::endl;
 
-    auto f_dx = clad::differentiate(f, "x");
+    auto f_dx_exe = clad::differentiate(f, "x");
+    auto f_grad_exe = clad::gradient(f);
     // Any of the two below will generate an "error: Attempted differentiation w.r.t. member 'x' which is not of real type."
     //auto weightedDotProduct_1_dx = clad::differentiate(weightedDotProduct_1<typeof(A),typeof(x),typeof(y)>, "x");
     //auto weightedDotProduct_2_dx = clad::differentiate(weightedDotProduct_2<typeof(A),typeof(x),typeof(y)>, "x");
+
+    std::cout << f_dx_exe.execute(3.,4.) << std::endl;
+
+    double dx = 0, dy = 0;
+    // After this call, dx and dy will store the derivatives of x and y respectively.
+    f_grad_exe.execute(3., 4., &dx, &dy);
+    std::cout << "dx: " << dx << ' ' << "dy: " << dy << std::endl;
 
   }
   Kokkos::finalize();

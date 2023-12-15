@@ -36,6 +36,8 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#include <iostream>
+
 using namespace clang;
 
 namespace clad {
@@ -748,6 +750,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff ReverseModeVisitor::VisitValueStmt(
+      const clang::ValueStmt* VS) {
+    // This is most likely a name provided in a Kokkos::view construction
+    //VS->dump ();
+    // Test if StringLiteral
+    if (isa<StringLiteral>(VS)) {
+      //std::cout << "This is a StringLiteral!" << std::endl;
+      auto SL = dyn_cast<clang::StringLiteral>(VS);
+
+      std::string name_str("_d_"+ SL->getString().str());
+      StringRef name(name_str);
+
+      Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
+      //VS->dump ();
+      //derivedVS->dump ();
+      return {Clone(VS), derivedVS};
+    }
+    return {Clone(VS), Clone(VS)};
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -1175,18 +1197,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
+    std::cout << "return type is " << type.getAsString() << std::endl;
+    if (type.getAsString().find("Kokkos::View") != std::string::npos) {
+      std::cout << "return value is a view!" << std::endl;
+    }
     auto* dfdf = m_Pullback;
     if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
+      std::cout << "isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf) is true" << std::endl;
       ExprResult tmp = dfdf;
       dfdf = m_Sema
                  .ImpCastExprToType(tmp.get(), type,
                                     m_Sema.PrepareScalarCast(tmp, type))
                  .get();
     }
+    else
+      std::cout << "isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf) is false" << std::endl;
     auto ReturnResult = DifferentiateSingleExpr(value, dfdf);
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
+    Reverse->dump();
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
     // skipped. We create a label in the reverse pass and jump to it via goto.
@@ -1375,6 +1405,60 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    if (isa<CXXMemberCallExpr>(CE)) {
+      auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
+
+      if (MCE->getObjectType().getAsString().find("Kokkos::View") != std::string::npos) {
+        //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
+        return StmtDiff(Clone(CE));
+      }
+    }
+    if (isa<CXXOperatorCallExpr>(CE)) {
+      auto OCE = dyn_cast<clang::CXXOperatorCallExpr>(CE);
+      const Expr* baseOriginalE = OCE->getArg(0);
+
+      bool isKokkosViewAccess = false;
+      std::string kokkosViewName;
+      
+      if (isa<ImplicitCastExpr>(baseOriginalE)) {
+        auto SE = baseOriginalE->IgnoreImpCasts();
+        if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+          std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
+          //std::cout << constructedTypeName << std::endl;
+          if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
+            isKokkosViewAccess = true;
+            kokkosViewName = DRE->getNameInfo().getName().getAsString ();
+          }
+        }
+      }
+
+      // Returning the function call and zero derivative
+      if (isKokkosViewAccess) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        for (unsigned i = 1, e = CE->getNumArgs(); i < e; ++i)
+          ClonedArgs.push_back(Clone(CE->getArg(i)));
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getArg(0)),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+
+        // replace kokkosViewName with "_d_"+kokkosViewName
+
+        Expr* dView = Visit(CE->getArg(0)).getExpr_dx();
+
+        dView->dump();
+
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), dView,
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+
+        //std::cout << " kokkosViewName = " << kokkosViewName << std::endl;
+        return StmtDiff(Call, dCall);
+      }
+    }
     const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning,
@@ -2574,9 +2658,54 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VD->getType()->isPointerType();
 
+
+    std::string constructedTypeName = QualType::getAsString(VD->getType().split(), PrintingPolicy{ {} });
+    if (constructedTypeName.rfind("Kokkos::View", 0) == 0) {
+      size_t runTimeDim = 0;
+      std::vector<size_t> compileTimeDims;
+      bool read = false;
+      for (size_t i = 0; i < constructedTypeName.size(); ++i) { 
+        if (read && constructedTypeName[i] == '*')
+          ++runTimeDim;
+        if (read && constructedTypeName[i] == '[')
+          compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
+        if (!read && constructedTypeName[i] == ' ')
+          read = true;
+      }
+      size_t i = 0;
+      if (isa<CXXConstructExpr>(VD->getInit())) {
+        auto CE = dyn_cast<CXXConstructExpr>(VD->getInit());
+        llvm::SmallVector<Expr*, 4> clonedArgs;
+        for (auto arg : CE->arguments()) {
+          if (i == runTimeDim + 1)
+            break;
+          auto argDiff = Visit(arg, dfdx());
+          if (i == 0)
+            clonedArgs.push_back(argDiff.getExpr_dx());
+          else
+            clonedArgs.push_back(argDiff.getExpr());
+          ++i;
+        }
+        //VDDerivedInit = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
+
+        VDDerivedInit =
+            m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+
+
+        if (VDDerivedType->isRecordType())
+          VDDerived =
+              BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                          VDDerivedInit, VD->isDirectInit(),
+                          m_Context.getTrivialTypeSourceInfo(VDDerivedType),
+                          VD->getInitStyle());
+        else
+          VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                                  VDDerivedInit);
+      }
+
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
-    if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
+    } else if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
       VDDerivedInit = getArraySizeExpr(AT, m_Context, *this);
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit, false,
@@ -3708,9 +3837,33 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     llvm::SmallVector<Expr*, 4> clonedArgs;
-    for (const auto* arg : CE->arguments()) {
-      auto argDiff = Visit(arg, dfdx());
-      clonedArgs.push_back(argDiff.getExpr());
+    std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
+    if (constructedTypeName.rfind("Kokkos::View", 0) == 0) {
+      size_t runTimeDim = 0;
+      std::vector<size_t> compileTimeDims;
+      bool read = false;
+      for (size_t i = 0; i < constructedTypeName.size(); ++i) { 
+        if (read && constructedTypeName[i] == '*')
+          ++runTimeDim;
+        if (read && constructedTypeName[i] == '[')
+          compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
+        if (!read && constructedTypeName[i] == ' ')
+          read = true;
+      }
+      size_t i = 0;
+      for (auto arg : CE->arguments()) {
+        if (i == runTimeDim + 1)
+          break;
+        auto argDiff = Visit(arg, dfdx());
+        clonedArgs.push_back(argDiff.getExpr());
+        ++i;
+      }
+    }
+    else {
+      for (const auto* arg : CE->arguments()) {
+        auto argDiff = Visit(arg, dfdx());
+        clonedArgs.push_back(argDiff.getExpr());
+      }
     }
     Expr* clonedArgsE = nullptr;
 
