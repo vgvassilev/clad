@@ -1461,6 +1461,93 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         return StmtDiff(Call, dCall);
       }
     }
+  auto SE = CE->getCallee()->IgnoreImpCasts();
+  if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+    if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+      if (FD->getQualifiedNameAsString().find("Kokkos::deep_copy") != std::string::npos) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i), dfdx());
+          ClonedArgs.push_back(visitedArg.getExpr());
+          ClonedDArgs.push_back(visitedArg.getExpr_dx());
+          std::cout << "Kokkos::deep_copy visitedArg.getExpr()->dump() start with i = " << i << std::endl;
+          visitedArg.getExpr()->dump();
+          std::cout << "Kokkos::deep_copy visitedArg.getExpr()->dump() end with i = " << i << std::endl;
+          std::cout << "Kokkos::deep_copy visitedArg.getExpr_dx()->dump() start with i = " << i << std::endl;
+          visitedArg.getExpr_dx()->dump();
+          std::cout << "Kokkos::deep_copy visitedArg.getExpr_dx()->dump() end with i = " << i << std::endl;
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+      if (FD->getQualifiedNameAsString().find("Kokkos::subview") != std::string::npos) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i==0)
+            ClonedDArgs.push_back(visitedArg.getExpr());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr());
+
+          std::cout << "Kokkos::subview visitedArg.getExpr()->dump() start with i = " << i << std::endl;
+          visitedArg.getExpr()->dump();
+          std::cout << "Kokkos::subview visitedArg.getExpr()->dump() end with i = " << i << std::endl;
+          std::cout << "Kokkos::subview visitedArg.getExpr_dx()->dump() start with i = " << i << std::endl;
+          visitedArg.getExpr_dx()->dump();
+          std::cout << "Kokkos::subview visitedArg.getExpr_dx()->dump() end with i = " << i << std::endl;
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+      if (FD->getQualifiedNameAsString().find("Kokkos::parallel_for") != std::string::npos) {
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i==0)
+            ClonedDArgs.push_back(visitedArg.getExpr());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+    }
+  }
+
     const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning,
@@ -2681,14 +2768,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         for (auto arg : CE->arguments()) {
           if (i == runTimeDim + 1)
             break;
-          auto argDiff = Visit(arg, dfdx());
+          auto argDiff = Visit(arg);
           if (i == 0)
             clonedArgs.push_back(argDiff.getExpr_dx());
           else
             clonedArgs.push_back(argDiff.getExpr());
           ++i;
         }
-        //VDDerivedInit = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
 
         VDDerivedInit =
             m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();

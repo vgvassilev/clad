@@ -13,6 +13,10 @@ inline double f_darg0(double x, double y) {
     const int i = 0;
     const int _d_j = 0;
     const int j = 0;
+    double _d_zero = 0.;
+    double zero = 0.;
+    Kokkos::deep_copy(_d_a, _d_zero, nullptr);
+    Kokkos::deep_copy(a, zero, nullptr);
     _d_a(i, j) = _d_tmp;
     a(i, j) = tmp;
     size_t _d_N1n;
@@ -28,6 +32,7 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     double _d_tmp = 0;
     int _d_i = 0;
     int _d_j = 0;
+    double _d_zero = 0;
     size_t _d_N1n = 0;
     const int N1 = 4;
     const int N2 = 4;
@@ -37,6 +42,8 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     double tmp = _t1 * _t0 + y;
     const int i = 0;
     const int j = 0;
+    double zero = 0.;
+    Kokkos::deep_copy(a, zero, nullptr);
     a(i, j) = tmp;
     size_t N1n = a.extent(0);
     goto _label0;
@@ -48,6 +55,7 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
         _d_a(i, j) -= _r_d0;
         _d_a(i, j);
     }
+    Kokkos::deep_copy(_d_a, _d_zero, nullptr);
     {
         double _r0 = _d_tmp * _t0;
         * _d_x += _r0;

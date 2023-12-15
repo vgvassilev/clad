@@ -25,9 +25,12 @@ double f(double x, double y) {
   const int i = 0;
   const int j = 0;
 
-  a(i,j) = tmp;
+  double zero = 0.;
+  Kokkos::deep_copy(a, zero);
+  //Kokkos::deep_copy(a, 0); does not work
+  //auto a_row_0 = Kokkos::subview( a, 0, Kokkos::ALL );
 
-  //Kokkos::deep_copy(a, 0);
+  a(i,j) = tmp;
 
   size_t N1n = a.extent(0);
 
