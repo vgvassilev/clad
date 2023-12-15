@@ -1216,7 +1216,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
-    Reverse->dump();
     // If the original function returns at this point, some part of the reverse
     // pass (corresponding to other branches that do not return here) must be
     // skipped. We create a label in the reverse pass and jump to it via goto.
@@ -1446,15 +1445,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
         // replace kokkosViewName with "_d_"+kokkosViewName
 
-        Expr* dView = Visit(CE->getArg(0)).getExpr_dx();
-
-        dView->dump();
+        auto visited = Visit(CE->getArg(0), dfdx());
+        Expr* dView = visited.getExpr_dx();
 
         Expr* dCall = m_Sema
                         .ActOnCallExpr(getCurrentScope(), dView,
                                         noLoc, ClonedArgs, noLoc)
                         .get();
 
+        if (dfdx()) {
+          Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
+          addToCurrentBlock(add_assign, direction::reverse);
+        }
         //std::cout << " kokkosViewName = " << kokkosViewName << std::endl;
         return StmtDiff(Call, dCall);
       }

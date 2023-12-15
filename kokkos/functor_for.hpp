@@ -32,5 +32,5 @@ double f(double x, double y) {
 
   //Kokkos::parallel_for(N1n, functor);
 
-  return tmp;
+  return a(0,0);
 }
