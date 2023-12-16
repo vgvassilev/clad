@@ -1,3 +1,22 @@
+
+namespace kokkos_builtin_derivative {
+
+template <typename ViewtypeA>
+void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
+  double tmp_sum = sum;
+  sum = 0.;
+  //to be updated to be rank independent
+  Kokkos::parallel_reduce( A.extent(0), KOKKOS_LAMBDA ( int i, typename ViewtypeA::value_type &update ) {
+    
+    for ( int j = 0; j < A.extent(1); ++j ) {
+      update += A( i, j );
+    }
+  }, sum );
+  sum += tmp_sum;
+}
+
+}
+
 template <typename VT>
 struct ParallelFunctor {
   VT a;
@@ -12,6 +31,10 @@ struct ParallelFunctor {
 };
 
 
+double f2(double x, double y) {
+ return x; 
+}
+
 KOKKOS_INLINE_FUNCTION
 double f(double x, double y) {
 
@@ -19,6 +42,7 @@ double f(double x, double y) {
   constexpr int N2 = 4;
 
   Kokkos::View<double *[N2], Kokkos::LayoutLeft> a("a", N1);
+  Kokkos::View<double *[N2], Kokkos::LayoutLeft> b("b", N1);
 
   double tmp = x * x + y;
 
@@ -26,17 +50,28 @@ double f(double x, double y) {
   const int j = 0;
 
   double zero = 0.;
-  Kokkos::deep_copy(a, zero);
-  //Kokkos::deep_copy(a, 0); does not work
+  //Kokkos::deep_copy(a, tmp);
   //auto a_row_0 = Kokkos::subview( a, 0, Kokkos::ALL );
 
-  a(i,j) = tmp;
+  //b(i,j) = tmp;
 
-  size_t N1n = a.extent(0);
+  //Kokkos::deep_copy(a, tmp);
+  //Kokkos::deep_copy(a, tmp);
+
+  //Kokkos::deep_copy(a, x);
+  Kokkos::deep_copy(b, x * x + y);
+  Kokkos::deep_copy(a, b);
+
+  //a(i,j) = x;
+  //a(i,j) = x * x + y;
+
+  //size_t N1n = a.extent(0);
 
   //ParallelFunctor functor(a,x,y);
 
   //Kokkos::parallel_for(N1n, functor);
+
+ // double sum = f2(x, y);
 
   return a(i,j);
 }
