@@ -1487,44 +1487,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
         auto visitedArg_0 = Visit(CE->getArg(0), dfdx());
         auto visitedArg_1 = Visit(CE->getArg(1), dfdx());
-        auto visitedArg_2 = Visit(CE->getArg(2), dfdx());
+        //auto visitedArg_2 = Visit(CE->getArg(2), dfdx());
+
+        ClonedArgs.push_back(visitedArg_0.getExpr());
+        ClonedArgs.push_back(visitedArg_1.getExpr());
 
         ClonedDArgsZero.push_back(visitedArg_0.getExpr_dx());
         auto zero =
           ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
         ClonedDArgsZero.push_back(zero);
-        ClonedDArgsZero.push_back(visitedArg_2.getExpr_dx());
+
+        Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
+        Expr* kokkos_builtin_derivative_parallel_sum = utils::GetUnresolvedLookup(m_Sema, m_Context, "kokkos_builtin_derivative", "parallel_sum");
 
         if (viewToView) {
-          ClonedArgs.push_back(visitedArg_0.getExpr());
-          ClonedArgs.push_back(visitedArg_1.getExpr());
           ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
           ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
 
-          NamespaceDecl* DC = utils::LookupNSD(m_Sema, "Kokkos", /*shouldExist=*/true);
-
-          CXXScopeSpec SS;
-
-          utils::BuildNNS(m_Sema, DC, SS);
-          IdentifierInfo* II = &m_Context.Idents.get("deep_copy");
-
-          DeclarationName name(II);
-          DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
-
-          LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-          m_Sema.LookupQualifiedName(R, DC);
-          
-          Expr* UnresolvedLookup =
-              m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
-
           Expr* Call =
-              m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedArgs, noLoc).get();
+              m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedArgs, noLoc).get();
 
           Expr* dCall =
-              m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgs, noLoc).get();
+              m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgs, noLoc).get();
 
           Expr* dCallZero =
-              m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgsZero, noLoc).get();
+              m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgsZero, noLoc).get();
 
 
           addToCurrentBlock(dCall, direction::reverse);
@@ -1533,55 +1520,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           return StmtDiff(Call);
         }
         else {
-          ClonedArgs.push_back(visitedArg_0.getExpr());
-          ClonedArgs.push_back(visitedArg_1.getExpr());
-          ClonedArgs.push_back(visitedArg_2.getExpr());
           if (visitedArg_1.getExpr_dx()) {
             ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
             ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
 
             Expr* Call = m_Sema
-                            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                            .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
                                             noLoc, ClonedArgs, noLoc)
                             .get();
                             
             // Here we need to do:
             // visitedArg_1.getExpr_dx() = parallel_sum(visitedArg_0.getExpr_dx());
 
-            NamespaceDecl* DC = utils::LookupNSD(m_Sema, "kokkos_builtin_derivative", /*shouldExist=*/true);
+            Expr* dCall =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
 
-            CXXScopeSpec SS;
+            Expr* dCallZero = m_Sema
+                            .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
+                                            noLoc, ClonedDArgsZero, noLoc)
+                            .get();
 
-            utils::BuildNNS(m_Sema, DC, SS);
-            IdentifierInfo* II = &m_Context.Idents.get("parallel_sum");
+            addToCurrentBlock(dCall, direction::reverse);
+            addToCurrentBlock(dCallZero, direction::reverse);
 
-            DeclarationName name(II);
-            DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
-
-            LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-            m_Sema.LookupQualifiedName(R, DC);
-            if (!R.empty()) {
-              Expr* UnresolvedLookup =
-                  m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
-
-              Expr* dCall =
-                  m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgs, noLoc).get();
-
-              Expr* dCallZero = m_Sema
-                              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                              noLoc, ClonedDArgsZero, noLoc)
-                              .get();
-
-              addToCurrentBlock(dCall, direction::reverse);
-              addToCurrentBlock(dCallZero, direction::reverse);
-
-              return StmtDiff(Call);
-            }
-
+            return StmtDiff(Call);
           } else {
-            //ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
-            //ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
-            //beginBlock(direction::reverse);
 
             QualType argResultValueType =
                 utils::GetValueType(visitedArg_1.getExpr()->getType())
@@ -1591,9 +1554,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
             VarDecl* argDerivativeVar = BuildVarDecl(argResultValueType, CreateUniqueIdentifier("_r"), visitedArg_1.getExpr_dx());
             Expr*  argDerivative = BuildDeclRef(argDerivativeVar);
-            //Expr*  argDerivative = StoreAndRef(visitedArg_1.getExpr_dx(), argResultValueType,
-            //                  direction::reverse, "_r",
-            //                  /*forceDeclCreation=*/true);
 
             llvm::SmallVector<VarDecl*, 16> ArgResultDecls{};
             ArgResultDecls.push_back(
@@ -1602,100 +1562,76 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             llvm::SmallVector<DeclStmt*, 16> ArgDeclStmts{};
 
             Expr* Call = m_Sema
-                            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                            .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
                                             noLoc, ClonedArgs, noLoc)
                             .get();
                             
             // Here we need to do:
             // visitedArg_1.getExpr_dx() = parallel_sum(visitedArg_0.getExpr_dx());
 
-            NamespaceDecl* DC = utils::LookupNSD(m_Sema, "kokkos_builtin_derivative", /*shouldExist=*/true);
+            llvm::SmallVector<std::pair<VarDecl*, Expr*>, 4> argResultsAndGrads;
 
-            CXXScopeSpec SS;
+            VarDecl* gradVarDecl = nullptr;
+            Expr* gradVarExpr = nullptr;
+            IdentifierInfo* gradVarII = nullptr;
 
-            utils::BuildNNS(m_Sema, DC, SS);
-            IdentifierInfo* II = &m_Context.Idents.get("parallel_sum");
-
-            DeclarationName name(II);
-            DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
-
-            LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-            m_Sema.LookupQualifiedName(R, DC);
-            if (!R.empty()) {
-              Expr* UnresolvedLookup =
-                  m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
-
-              llvm::SmallVector<std::pair<VarDecl*, Expr*>, 4> argResultsAndGrads;
-
-              VarDecl* gradVarDecl = nullptr;
-              Expr* gradVarExpr = nullptr;
-              //gradArgExprExpr* gradArgExpr = nullptr;
-              IdentifierInfo* gradVarII = nullptr;
+            {
+              gradVarII = CreateUniqueIdentifier(funcPostfix());
 
               {
-                gradVarII = CreateUniqueIdentifier(funcPostfix());
-
-                {
-                  // Declare: diffArgType _grad;
-                  Expr* initVal = nullptr;
-                  if (!visitedArg_1.getExpr()->getType()->isRecordType()) {
-                    // If the argument is not a class type, then initialize the grad
-                    // variable with 0.
-                    initVal =
-                        ConstantFolder::synthesizeLiteral(visitedArg_1.getExpr()->getType(), m_Context, 0);
-                  }
-                  //gradVarDecl = BuildVarDecl(PVD->getType(), gradVarII, visitedArg_1.getExpr());
-                  gradVarDecl = BuildVarDecl(visitedArg_1.getExpr()->getType(), gradVarII, initVal);
-                  // Pass the address of the declared variable
-                  gradVarExpr = BuildDeclRef(gradVarDecl);
-                  //gradArgExpr =
-                  //    BuildOp(UO_AddrOf, gradVarExpr, m_Function->getLocation());
-                  argResultsAndGrads.push_back({ArgResultDecls[0], gradVarExpr});
-                  ArgDeclStmts.push_back(BuildDeclStmt(gradVarDecl));
+                // Declare: diffArgType _grad;
+                Expr* initVal = nullptr;
+                if (!visitedArg_1.getExpr()->getType()->isRecordType()) {
+                  // If the argument is not a class type, then initialize the grad
+                  // variable with 0.
+                  initVal =
+                      ConstantFolder::synthesizeLiteral(visitedArg_1.getExpr()->getType(), m_Context, 0);
                 }
+                gradVarDecl = BuildVarDecl(visitedArg_1.getExpr()->getType(), gradVarII, initVal);
+                // Pass the address of the declared variable
+                gradVarExpr = BuildDeclRef(gradVarDecl);
+                argResultsAndGrads.push_back({ArgResultDecls[0], gradVarExpr});
+                ArgDeclStmts.push_back(BuildDeclStmt(gradVarDecl));
               }
-
-              //ClonedDArgs.push_back(argResultsAndGrads[0].second);
-              //ClonedDArgs.push_back(BuildDeclRef(ArgResultDecls[0]));
-              ClonedDArgs.push_back(BuildDeclRef(gradVarDecl));
-              ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
-
-              Expr* dCall =
-                  m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgs, noLoc).get();
-
-              Expr* dCallZero = m_Sema
-                              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                              noLoc, ClonedDArgsZero, noLoc)
-                              .get();
-
-              auto& block = getCurrentBlock(direction::reverse);
-              std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
-              auto it = std::begin(block) + insertionPoint;
-
-              // Insert the _gradX declaration statements
-              it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
-              it += ArgDeclStmts.size();
-
-              it = block.insert(it, dCall);
-              it += 1;
-              it = block.insert(it, dCallZero);
-              it += 1;
-
-              it = block.insert(it, BuildDeclStmt(argDerivativeVar));
-              
-              for (auto resAndGrad : argResultsAndGrads) {
-                VarDecl* argRes = resAndGrad.first;
-                Expr* grad = resAndGrad.second;
-                argRes->dump();
-                grad->dump();
-                PerformImplicitConversionAndAssign(argRes, grad);
-              }   
-
-              Visit(CE->getArg(1), argDerivative);
-              //Stmt* Reverse = endBlock(direction::reverse);
-
-              return StmtDiff(Call);
             }
+
+            ClonedDArgs.push_back(BuildDeclRef(gradVarDecl));
+            ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+
+            Expr* dCall =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
+
+            Expr* dCallZero = m_Sema
+                            .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
+                                            noLoc, ClonedDArgsZero, noLoc)
+                            .get();
+
+            auto& block = getCurrentBlock(direction::reverse);
+            std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
+            auto it = std::begin(block) + insertionPoint;
+
+            // Insert the _gradX declaration statements
+            it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
+            it += ArgDeclStmts.size();
+
+            it = block.insert(it, dCall);
+            it += 1;
+            it = block.insert(it, dCallZero);
+            it += 1;
+
+            it = block.insert(it, BuildDeclStmt(argDerivativeVar));
+            
+            for (auto resAndGrad : argResultsAndGrads) {
+              VarDecl* argRes = resAndGrad.first;
+              Expr* grad = resAndGrad.second;
+              argRes->dump();
+              grad->dump();
+              PerformImplicitConversionAndAssign(argRes, grad);
+            }   
+
+            Visit(CE->getArg(1), argDerivative);
+
+            return StmtDiff(Call);
           }
         }
       }

@@ -264,6 +264,23 @@ namespace clad {
       return DC;
     }
 
+    clang::Expr* GetUnresolvedLookup(Sema& S, ASTContext& C, std::string NS, std::string FN) {
+        NamespaceDecl* DC = utils::LookupNSD(S, NS, /*shouldExist=*/true);
+
+        CXXScopeSpec SS;
+
+        utils::BuildNNS(S, DC, SS);
+        IdentifierInfo* II = &C.Idents.get(FN);
+
+        DeclarationName name(II);
+        DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(S));
+
+        LookupResult R(S, DNInfo, Sema::LookupOrdinaryName);
+        S.LookupQualifiedName(R, DC);
+        
+        return S.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+    }
+    
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();

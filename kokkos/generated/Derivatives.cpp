@@ -54,12 +54,12 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     const int i = 0;
     const int j = 0;
     double zero = 0.;
-    Kokkos::deep_copy(a, tmp, nullptr);
-    Kokkos::deep_copy(a, x, nullptr);
+    Kokkos::deep_copy(a, tmp);
+    Kokkos::deep_copy(a, x);
     _t2 = x;
     _t4 = x;
     _t3 = x;
-    Kokkos::deep_copy(b, x * _t2 + y, nullptr);
+    Kokkos::deep_copy(b, x * _t2 + y);
     Kokkos::deep_copy(a, b);
     size_t N1n = a.extent(0);
     goto _label0;
@@ -67,12 +67,12 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     _d_a(i, j) += 1;
     {
         Kokkos::deep_copy(_d_b, _d_a);
-        Kokkos::deep_copy(_d_a, 0., nullptr);
+        Kokkos::deep_copy(_d_a, 0.);
     }
     {
         double _grad0 = 0.;
         kokkos_builtin_derivative::parallel_sum(_grad0, _d_b);
-        Kokkos::deep_copy(_d_b, 0., nullptr);
+        Kokkos::deep_copy(_d_b, 0.);
         double _r2 = _grad0;
         double _r3 = _r2 * _t3;
         * _d_x += _r3;
@@ -82,11 +82,11 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     }
     {
         kokkos_builtin_derivative::parallel_sum(* _d_x, _d_a);
-        Kokkos::deep_copy(_d_a, 0., nullptr);
+        Kokkos::deep_copy(_d_a, 0.);
     }
     {
         kokkos_builtin_derivative::parallel_sum(_d_tmp, _d_a);
-        Kokkos::deep_copy(_d_a, 0., nullptr);
+        Kokkos::deep_copy(_d_a, 0.);
     }
     {
         double _r0 = _d_tmp * _t0;

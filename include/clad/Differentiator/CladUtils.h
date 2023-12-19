@@ -153,6 +153,11 @@ namespace clad {
     clang::DeclContext* GetOutermostDC(clang::Sema& semaRef,
                                        clang::DeclContext* DC);
 
+    clang::Expr* GetUnresolvedLookup(clang::Sema& semaRef,
+                                     clang::ASTContext& C,
+                                     std::string NS,
+                                     std::string FN);
+
     /// Creates a `StringLiteral` node to represent string literal
     /// "`str`".
     ///
