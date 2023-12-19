@@ -1346,52 +1346,6 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   }
 }
 
-/// Computes effective derivative operands. It should be used when operands
-/// might be of pointer types.
-///
-/// In the trivial case, both operands are of non-pointer types, and the
-/// effective derivative operands are `LDiff.getExpr_dx()` and
-/// `RDiff.getExpr_dx()` respectively.
-///
-/// Integers used in pointer arithmetic should be considered
-/// non-differentiable entities. For example:
-///
-/// ```
-/// p + i;
-/// ```
-///
-/// Derived statement should be:
-///
-/// ```
-/// _d_p + i;
-/// ```
-///
-/// instead of:
-///
-/// ```
-/// _d_p + _d_i;
-/// ```
-///
-/// Therefore, effective derived expression of `i` is `i` instead of `_d_i`.
-///
-/// This functions sets `derivedL` and `derivedR` arguments to effective
-/// derived expressions.
-static void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
-                                      clang::Expr*& derivedL,
-                                      clang::Expr*& derivedR) {
-  derivedL = LDiff.getExpr_dx();
-  derivedR = RDiff.getExpr_dx();
-  if (utils::isArrayOrPointerType(LDiff.getExpr_dx()->getType()) &&
-      !utils::isArrayOrPointerType(RDiff.getExpr_dx()->getType())) {
-    derivedL = LDiff.getExpr_dx();
-    derivedR = RDiff.getExpr();
-  } else if (utils::isArrayOrPointerType(RDiff.getExpr_dx()->getType()) &&
-             !utils::isArrayOrPointerType(LDiff.getExpr_dx()->getType())) {
-    derivedL = LDiff.getExpr();
-    derivedR = RDiff.getExpr_dx();
-  }
-}
-
 StmtDiff
 BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   StmtDiff Ldiff = Visit(BinOp->getLHS());

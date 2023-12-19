@@ -1338,7 +1338,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Create the (_d_param[idx] += dfdx) statement.
         if (dfdx()) {
           // FIXME: not sure if this is generic.
-          // Don't update derivatives of non-record types.
+          // Don't update derivatives of record types.
           if (!VD->getType()->isRecordType()) {
             auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
             // Add it to the body statements.
@@ -2033,6 +2033,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If it is a post-increment/decrement operator, its result is a reference
     // and we should return it.
     Expr* ResultRef = nullptr;
+
+    // For increment/decrement of pointer, perform the same on the
+    // derivative pointer also.
+    bool isPointerOp = E->getType()->isPointerType();
+
     if (opCode == UO_Plus)
       // xi = +xj
       // dxi/dxj = +1.0
@@ -2046,22 +2051,36 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       diff = Visit(E, d);
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(E, dfdx());
+      Expr* diff_dx = diff.getExpr_dx();
+      if (isPointerOp && isCladArrayType(diff_dx->getType()))
+        diff_dx = BuildArrayRefPtrRefExpr(diff_dx);
+      if (isPointerOp)
+        addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
       if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
         auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
+        if (isPointerOp)
+          addToCurrentBlock(BuildOp(op, diff_dx), direction::reverse);
       }
 
-      ResultRef = diff.getExpr_dx();
+      ResultRef = diff_dx;
       valueForRevPass = diff.getRevSweepAsExpr();
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       diff = Visit(E, dfdx());
+      Expr* diff_dx = diff.getExpr_dx();
+      if (isPointerOp && isCladArrayType(diff_dx->getType()))
+        diff_dx = BuildArrayRefPtrRefExpr(diff_dx);
+      if (isPointerOp)
+        addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
       if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
         auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
+        if (isPointerOp)
+          addToCurrentBlock(BuildOp(op, diff_dx), direction::reverse);
       }
       auto op = opCode == UO_PreInc ? BinaryOperatorKind::BO_Add
                                     : BinaryOperatorKind::BO_Sub;
@@ -2079,35 +2098,40 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Add it to the body statements.
         addToCurrentBlock(add_assign, direction::reverse);
       }
-    } else {
-      // FIXME: This is not adding 'address-of' operator support.
-      // This is just making this special case differentiable that is required
-      // for computing hessian:
-      // ```
-      // Class _d_this_obj;
-      // Class* _d_this = &_d_this_obj;
-      // ```
-      // This code snippet should be removed once reverse mode officially
-      // supports pointers.
-      if (opCode == UnaryOperatorKind::UO_AddrOf) {
-        if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
-          if (MD->isInstance()) {
-            auto thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
-            if (utils::SameCanonicalType(thisType, UnOp->getType())) {
-              diff = Visit(E);
-              Expr* cloneE =
-                  BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr());
-              Expr* derivedE =
-                  BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr_dx());
-              return {cloneE, derivedE};
-            }
-          }
+    } else if (opCode == UnaryOperatorKind::UO_AddrOf) {
+      diff = Visit(E);
+      Expr* cloneE = BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr());
+      Expr* derivedE = BuildOp(UnaryOperatorKind::UO_AddrOf, diff.getExpr_dx());
+      return {cloneE, derivedE};
+    } else if (opCode == UnaryOperatorKind::UO_Deref) {
+      diff = Visit(E);
+      Expr* cloneE = BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr());
+      Expr* diff_dx = diff.getExpr_dx();
+      bool specialDThisCase = false;
+      Expr* derivedE = nullptr;
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+        if (MD->isInstance() && !diff_dx->getType()->isPointerType())
+          specialDThisCase = true; // _d_this is already dereferenced.
+      }
+      if (specialDThisCase)
+        derivedE = diff_dx;
+      else {
+        derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
+        // Create the (target += dfdx) statement.
+        if (dfdx()) {
+          auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
+          // Add it to the body statements.
+          addToCurrentBlock(add_assign, direction::reverse);
         }
       }
-      // We should not output any warning on visiting boolean conditions
-      // FIXME: We should support boolean differentiation or ignore it
-      // completely
+      return {cloneE, derivedE};
+    } else {
       if (opCode != UO_LNot)
+        // We should only output warnings on visiting boolean conditions
+        // when it is related to some indepdendent variable and causes
+        // discontinuity in the function space.
+        // FIXME: We should support boolean differentiation or ignore it
+        // completely
         unsupportedOpWarn(UnOp->getEndLoc());
 
       if (isa<DeclRefExpr>(E))
@@ -2131,6 +2155,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If it is an assignment operator, its result is a reference to LHS and
     // we should return it.
     Expr* ResultRef = nullptr;
+
+    bool isPointerOp =
+        L->getType()->isPointerType() || R->getType()->isPointerType();
 
     if (opCode == BO_Add) {
       // xi = xl + xr
@@ -2307,6 +2334,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto* Lblock = endBlock(direction::reverse);
       llvm::SmallVector<Expr*, 4> ExprsToStore;
       utils::GetInnermostReturnExpr(Ldiff.getExpr(), ExprsToStore);
+
+      // We need to store values of derivative pointer variables in forward pass
+      // and restore them in reverse pass.
+      if (isPointerOp) {
+        Expr* Edx = Ldiff.getExpr_dx();
+        ExprsToStore.push_back(Edx);
+      }
+
       if (L->HasSideEffects(m_Context)) {
         Expr* E = Ldiff.getExpr();
         auto* storeE =
@@ -2353,20 +2388,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
-      auto* oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
-                                   /*forceDeclCreation=*/true);
+      clang::Expr* oldValue = nullptr;
+
+      // For pointer types, no need to store old derivatives.
+      if (!isPointerOp)
+        oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
+                               /*forceDeclCreation=*/true);
 
       if (opCode == BO_Assign) {
         Rdiff = Visit(R, oldValue);
         valueForRevPass = Rdiff.getRevSweepAsExpr();
       } else if (opCode == BO_AddAssign) {
         Rdiff = Visit(R, oldValue);
-        valueForRevPass = BuildOp(BO_Add, Rdiff.getRevSweepAsExpr(),
-                                  Ldiff.getRevSweepAsExpr());
+        if (!isPointerOp)
+          valueForRevPass = BuildOp(BO_Add, Rdiff.getRevSweepAsExpr(),
+                                    Ldiff.getRevSweepAsExpr());
       } else if (opCode == BO_SubAssign) {
         Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
-        valueForRevPass = BuildOp(BO_Sub, Rdiff.getRevSweepAsExpr(),
-                                  Ldiff.getRevSweepAsExpr());
+        if (!isPointerOp)
+          valueForRevPass = BuildOp(BO_Sub, Rdiff.getRevSweepAsExpr(),
+                                    Ldiff.getRevSweepAsExpr());
       } else if (opCode == BO_MulAssign) {
         // Create a reference variable to keep the result of LHS, since it
         // must be used on 2 places: when storing to a global variable
@@ -2459,6 +2500,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return BuildOp(opCode, LExpr, RExpr);
     }
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
+
+    // For pointer types.
+    if (isPointerOp) {
+      if (opCode == BO_Add || opCode == BO_Sub) {
+        Expr* derivedL = nullptr;
+        Expr* derivedR = nullptr;
+        ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
+        if (opCode == BO_Sub)
+          derivedR = BuildParens(derivedR);
+        return StmtDiff(op, BuildOp(opCode, derivedL, derivedR), nullptr,
+                        valueForRevPass);
+      }
+      if (opCode == BO_Assign || opCode == BO_AddAssign ||
+          opCode == BO_SubAssign) {
+        Expr* derivedL = nullptr;
+        Expr* derivedR = nullptr;
+        ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
+        addToCurrentBlock(BuildOp(opCode, derivedL, derivedR),
+                          direction::forward);
+      }
+    }
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
   }
 
@@ -2468,6 +2530,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto VDDerivedType = ComputeAdjointType(VD->getType());
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
+    bool isPointerType = VD->getType()->isPointerType();
 
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
@@ -2528,6 +2591,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (initDiff.getExpr_dx())
           VDDerivedInit = initDiff.getExpr_dx();
       }
+      // if VD is a pointer type, then the initial value is set to the derived
+      // expression of the corresponding pointer type.
+      else if (isPointerType && VD->getInit()) {
+        initDiff = Visit(VD->getInit());
+        VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
+        // If it's a pointer to a constant type, then remove the constness.
+        if (VD->getType()->getPointeeType().isConstQualified()) {
+          // first extract the pointee type
+          auto pointeeType = VD->getType()->getPointeeType();
+          // then remove the constness
+          pointeeType.removeLocalConst();
+          // then create a new pointer type with the new pointee type
+          VDDerivedType = m_Context.getPointerType(pointeeType);
+        }
+        VDDerivedInit = getZeroInit(VDDerivedType);
+      }
       // Here separate behaviour for record and non-record types is only
       // necessary to preserve the old tests.
       if (VDDerivedType->isRecordType())
@@ -2545,7 +2624,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
     // need to call `Visit` since non-local variables are not differentiated.
-    if (!isDerivativeOfRefType) {
+    if (!isDerivativeOfRefType && !isPointerType) {
       Expr* derivedE = BuildDeclRef(VDDerived);
       initDiff = StmtDiff{};
       if (VD->getInit()) {
@@ -2609,6 +2688,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             BuildOp(UnaryOperatorKind::UO_Deref, revSweepDerPointerRef);
       } else {
         derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
+      }
+    }
+    if (isPointerType) {
+      Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
+                                        derivedVDE, initDiff.getExpr_dx());
+      addToCurrentBlock(assignDerivativeE, direction::forward);
+      if (isInsideLoop) {
+        auto tape = MakeCladTapeFor(derivedVDE);
+        addToCurrentBlock(tape.Push);
+        auto* reverseSweepDerivativePointerE =
+            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
+        m_LoopBlock.back().push_back(
+            BuildDeclStmt(reverseSweepDerivativePointerE));
+        derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
       }
     }
     m_Variables.emplace(VDClone, derivedVDE);
@@ -2826,6 +2919,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         isa<MemberExpr>(B)) {
       // If TBR analysis is off, assume E is useful to store.
       if (!enableTBR)
+        return true;
+      // FIXME: currently, we allow all pointer operations to be stored.
+      // This is not correct, but we need to implement a more advanced analysis
+      // to determine which pointer operations are useful to store.
+      if (E->getType()->isPointerType())
         return true;
       auto found = m_ToBeRecorded.find(B->getBeginLoc());
       return found != m_ToBeRecorded.end();

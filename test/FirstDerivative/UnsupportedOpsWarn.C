@@ -34,23 +34,9 @@ int unOpWarn_0(int x){
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: }
 
-int unOpWarn_1(int x){
-    auto pnt = &x;  // expected-warning {{attempt to differentiate unsupported operator, ignored.}}
-    return x;
-}
-
-// CHECK: void unOpWarn_1_grad(int x, clad::array_ref<int> _d_x) {
-// CHECK-NEXT:     int *_d_pnt = 0;
-// CHECK-NEXT:     int *pnt = &x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     * _d_x += 1;
-// CHECK-NEXT: }
-
 int main(){
 
     clad::differentiate(binOpWarn_0, 0);
     clad::gradient(binOpWarn_1);
     clad::differentiate(unOpWarn_0, 0);
-    clad::gradient(unOpWarn_1);
 }

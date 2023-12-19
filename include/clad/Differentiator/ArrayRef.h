@@ -22,7 +22,7 @@ private:
 
 public:
   /// Delete default constructor
-  array_ref() = delete;
+  array_ref() = default;
   /// Constructor to store the pointer to and size of an array supplied by the
   /// user
   CUDA_HOST_DEVICE array_ref(T* arr, std::size_t size)
@@ -33,6 +33,9 @@ public:
   /// Constructor for clad::array types
   CUDA_HOST_DEVICE array_ref(array<T>& a) : m_arr(a.ptr()), m_size(a.size()) {}
 
+  /// Operator for conversion from array_ref<T> to T*.
+  CUDA_HOST_DEVICE operator T*() { return m_arr; }
+
   template <typename U>
   CUDA_HOST_DEVICE array_ref<T>& operator=(const array<U>& a) {
     assert(m_size == a.size());
@@ -40,9 +43,16 @@ public:
       m_arr[i] = a[i];
     return *this;
   }
+  template <typename U>
+  CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
+    m_arr = a.ptr();
+    m_size = a.size();
+    return *this;
+  }
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   CUDA_HOST_DEVICE T* ptr() const { return m_arr; }
+  CUDA_HOST_DEVICE T*& ptr_ref() { return m_arr; }
   /// Returns an array_ref to a part of the underlying array starting at
   /// offset and having the specified size
   CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset, std::size_t size) {

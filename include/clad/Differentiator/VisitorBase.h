@@ -527,6 +527,9 @@ namespace clad {
     /// Creates the expression Base.size() for the given Base expr. The Base
     /// expr must be of clad::array_ref<T> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
+    /// Creates the expression Base.ptr_ref() for the given Base expr. The Base
+    /// expr must be of clad::array_ref<T> type
+    clang::Expr* BuildArrayRefPtrRefExpr(clang::Expr* Base);
     /// Checks if the type is of clad::ValueAndPushforward<T,U> type
     bool isCladValueAndPushforwardType(clang::QualType QT);
     /// Creates the expression Base.slice(Args) for the given Base expr and Args
@@ -591,6 +594,40 @@ namespace clad {
     /// Cloning types is necessary since VariableArrayType
     /// store a pointer to their size expression.
     clang::QualType CloneType(clang::QualType T);
+
+    /// Computes effective derivative operands. It should be used when operands
+    /// might be of pointer types.
+    ///
+    /// In the trivial case, both operands are of non-pointer types, and the
+    /// effective derivative operands are `LDiff.getExpr_dx()` and
+    /// `RDiff.getExpr_dx()` respectively.
+    ///
+    /// Integers used in pointer arithmetic should be considered
+    /// non-differentiable entities. For example:
+    ///
+    /// ```
+    /// p + i;
+    /// ```
+    ///
+    /// Derived statement should be:
+    ///
+    /// ```
+    /// _d_p + i;
+    /// ```
+    ///
+    /// instead of:
+    ///
+    /// ```
+    /// _d_p + _d_i;
+    /// ```
+    ///
+    /// Therefore, effective derived expression of `i` is `i` instead of `_d_i`.
+    ///
+    /// This functions sets `derivedL` and `derivedR` arguments to effective
+    /// derived expressions.
+    void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
+                                   clang::Expr*& derivedL,
+                                   clang::Expr*& derivedR);
   };
 } // end namespace clad
 

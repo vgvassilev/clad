@@ -1,8 +1,9 @@
 // RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
 // RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointers.out
-// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
+
+// FIXME: This test does not work with enable-tbr flag, because the
+// current implementation of TBR analysis doesn't support pointers.
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -16,6 +17,322 @@ double nonMemFn(double i) {
 // CHECK-NEXT:         * _d_i += 1 * i;
 // CHECK-NEXT:         * _d_i += i * 1;
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double minimalPointer(double x) {
+  double* const p = &x;
+  *p = (*p)*(*p);
+  return *p; // x*x
+}
+
+// CHECK: void minimalPointer_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:     double *_d_p = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _d_p = &* _d_x;
+// CHECK-NEXT:     double *const p = &x;
+// CHECK-NEXT:     _t0 = *p;
+// CHECK-NEXT:     *p = *p * (*p);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     *_d_p += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *p = _t0;
+// CHECK-NEXT:         double _r_d0 = *_d_p;
+// CHECK-NEXT:         *_d_p += _r_d0 * (*p);
+// CHECK-NEXT:         *_d_p += *p * _r_d0;
+// CHECK-NEXT:         *_d_p -= _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double arrayPointer(const double* arr) {
+  const double *p = arr;
+  p = p + 1;
+  double sum = *p;
+  p++;
+  sum += (*p)*2;
+  p += 1;
+  sum += (*p)*4;
+  ++p;
+  sum += (*p)*3;
+  p -= 2;
+  p = p - 2;
+  sum += 5 * (*p);
+  return sum; // 5*arr[0] + arr[1] + 2*arr[2] + 4*arr[3] + 3*arr[4]
+}
+
+// CHECK: void arrayPointer_grad(const double *arr, clad::array_ref<double> _d_arr) {
+// CHECK-NEXT:     double *_d_p = 0;
+// CHECK-NEXT:     const double *_t0;
+// CHECK-NEXT:     double *_t1;
+// CHECK-NEXT:     double _d_sum = 0;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     const double *_t3;
+// CHECK-NEXT:     double *_t4;
+// CHECK-NEXT:     double _t5;
+// CHECK-NEXT:     double _t6;
+// CHECK-NEXT:     const double *_t7;
+// CHECK-NEXT:     double *_t8;
+// CHECK-NEXT:     const double *_t9;
+// CHECK-NEXT:     double *_t10;
+// CHECK-NEXT:     double _t11;
+// CHECK-NEXT:     _d_p = _d_arr;
+// CHECK-NEXT:     const double *p = arr;
+// CHECK-NEXT:     _t0 = p;
+// CHECK-NEXT:     _t1 = _d_p;
+// CHECK-NEXT:     _d_p = _d_p + 1;
+// CHECK-NEXT:     p = p + 1;
+// CHECK-NEXT:     double sum = *p;
+// CHECK-NEXT:     _d_p++;
+// CHECK-NEXT:     p++;
+// CHECK-NEXT:     _t2 = sum;
+// CHECK-NEXT:     sum += *p * 2;
+// CHECK-NEXT:     _t3 = p;
+// CHECK-NEXT:     _t4 = _d_p;
+// CHECK-NEXT:     _d_p += 1;
+// CHECK-NEXT:     p += 1;
+// CHECK-NEXT:     _t5 = sum;
+// CHECK-NEXT:     sum += *p * 4;
+// CHECK-NEXT:     ++_d_p;
+// CHECK-NEXT:     ++p;
+// CHECK-NEXT:     _t6 = sum;
+// CHECK-NEXT:     sum += *p * 3;
+// CHECK-NEXT:     _t7 = p;
+// CHECK-NEXT:     _t8 = _d_p;
+// CHECK-NEXT:     _d_p -= 2;
+// CHECK-NEXT:     p -= 2;
+// CHECK-NEXT:     _t9 = p;
+// CHECK-NEXT:     _t10 = _d_p;
+// CHECK-NEXT:     _d_p = _d_p - 2;
+// CHECK-NEXT:     p = p - 2;
+// CHECK-NEXT:     _t11 = sum;
+// CHECK-NEXT:     sum += 5 * (*p);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t11;
+// CHECK-NEXT:         double _r_d3 = _d_sum;
+// CHECK-NEXT:         *_d_p += 5 * _r_d3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p = _t9;
+// CHECK-NEXT:         _d_p = _t10;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p = _t7;
+// CHECK-NEXT:         _d_p = _t8;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t6;
+// CHECK-NEXT:         double _r_d2 = _d_sum;
+// CHECK-NEXT:         *_d_p += _r_d2 * 3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         --p;
+// CHECK-NEXT:         --_d_p;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t5;
+// CHECK-NEXT:         double _r_d1 = _d_sum;
+// CHECK-NEXT:         *_d_p += _r_d1 * 4;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p = _t3;
+// CHECK-NEXT:         _d_p = _t4;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t2;
+// CHECK-NEXT:         double _r_d0 = _d_sum;
+// CHECK-NEXT:         *_d_p += _r_d0 * 2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p--;
+// CHECK-NEXT:         _d_p--;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_p += _d_sum;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p = _t0;
+// CHECK-NEXT:         _d_p = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double pointerParam(const double* arr, size_t n) {
+  double sum = 0;
+  for (size_t i=0; i < n; ++i) {
+    size_t* j = &i;
+    sum += arr[0] * (*j);
+    arr = arr + 1;
+  }
+  return sum;
+}
+
+// CHECK: void pointerParam_grad_0(const double *arr, size_t n, clad::array_ref<double> _d_arr) {
+// CHECK-NEXT:     size_t _d_n = 0;
+// CHECK-NEXT:     double _d_sum = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     size_t _d_i = 0;
+// CHECK-NEXT:     clad::tape<size_t *> _t1 = {};
+// CHECK-NEXT:     size_t *_d_j = 0;
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     clad::tape<const double *> _t4 = {};
+// CHECK-NEXT:     clad::tape<clad::array_ref<double> > _t5 = {};
+// CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (size_t i = 0; i < n; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         _d_j = &_d_i;
+// CHECK-NEXT:         clad::push(_t1, _d_j);
+// CHECK-NEXT:         size_t *j = &i;
+// CHECK-NEXT:         clad::push(_t3, sum);
+// CHECK-NEXT:         sum += arr[0] * (*j);
+// CHECK-NEXT:         clad::push(_t4, arr);
+// CHECK-NEXT:         clad::push(_t5, _d_arr);
+// CHECK-NEXT:         _d_arr.ptr_ref() = _d_arr.ptr_ref() + 1;
+// CHECK-NEXT:         arr = arr + 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         size_t *_t2 = clad::pop(_t1);
+// CHECK-NEXT:         {
+// CHECK-NEXT:             arr = clad::pop(_t4);
+// CHECK-NEXT:             _d_arr = clad::pop(_t5);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             sum = clad::pop(_t3);
+// CHECK-NEXT:             double _r_d0 = _d_sum;
+// CHECK-NEXT:             _d_arr[0] += _r_d0 * (*j);
+// CHECK-NEXT:             *_t2 += arr[0] * _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double pointerMultipleParams(const double* a, const double* b) {
+  double sum = b[2];
+  b = a;
+  a = 1+a;
+  ++b;
+  sum += a[0] + b[0]; // += 2*a[1]
+  b++; a++;
+  sum += a[0] + b[0]; // += 2*a[2]
+  b--; a--;
+  sum += a[0] + b[0]; // += 2*a[1]
+  --b; --a;
+  sum += a[0] + b[0]; // += 2*a[0]
+  return sum; // 2*a[0] + 4*a[1] + 2*a[2] + b[2]
+}
+
+// CHECK: void pointerMultipleParams_grad(const double *a, const double *b, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
+// CHECK-NEXT:     double _d_sum = 0;
+// CHECK-NEXT:     const double *_t0;
+// CHECK-NEXT:     clad::array_ref<double> _t1;
+// CHECK-NEXT:     const double *_t2;
+// CHECK-NEXT:     clad::array_ref<double> _t3;
+// CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _t5;
+// CHECK-NEXT:     double _t6;
+// CHECK-NEXT:     double _t7;
+// CHECK-NEXT:     double sum = b[2];
+// CHECK-NEXT:     _t0 = b;
+// CHECK-NEXT:     _t1 = _d_b;
+// CHECK-NEXT:     _d_b.ptr_ref() = _d_a.ptr_ref();
+// CHECK-NEXT:     b = a;
+// CHECK-NEXT:     _t2 = a;
+// CHECK-NEXT:     _t3 = _d_a;
+// CHECK-NEXT:     _d_a.ptr_ref() = 1 + _d_a.ptr_ref();
+// CHECK-NEXT:     a = 1 + a;
+// CHECK-NEXT:     ++_d_b.ptr_ref();
+// CHECK-NEXT:     ++b;
+// CHECK-NEXT:     _t4 = sum;
+// CHECK-NEXT:     sum += a[0] + b[0];
+// CHECK-NEXT:     _d_b.ptr_ref()++;
+// CHECK-NEXT:     b++;
+// CHECK-NEXT:     _d_a.ptr_ref()++;
+// CHECK-NEXT:     a++;
+// CHECK-NEXT:     _t5 = sum;
+// CHECK-NEXT:     sum += a[0] + b[0];
+// CHECK-NEXT:     _d_b.ptr_ref()--;
+// CHECK-NEXT:     b--;
+// CHECK-NEXT:     _d_a.ptr_ref()--;
+// CHECK-NEXT:     a--;
+// CHECK-NEXT:     _t6 = sum;
+// CHECK-NEXT:     sum += a[0] + b[0];
+// CHECK-NEXT:     --_d_b.ptr_ref();
+// CHECK-NEXT:     --b;
+// CHECK-NEXT:     --_d_a.ptr_ref();
+// CHECK-NEXT:     --a;
+// CHECK-NEXT:     _t7 = sum;
+// CHECK-NEXT:     sum += a[0] + b[0];
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t7;
+// CHECK-NEXT:         double _r_d3 = _d_sum;
+// CHECK-NEXT:         _d_a[0] += _r_d3;
+// CHECK-NEXT:         _d_b[0] += _r_d3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         ++a;
+// CHECK-NEXT:         ++_d_a.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         ++b;
+// CHECK-NEXT:         ++_d_b.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t6;
+// CHECK-NEXT:         double _r_d2 = _d_sum;
+// CHECK-NEXT:         _d_a[0] += _r_d2;
+// CHECK-NEXT:         _d_b[0] += _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a++;
+// CHECK-NEXT:         _d_a.ptr_ref()++;
+// CHECK-NEXT:         _d_a.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         b++;
+// CHECK-NEXT:         _d_b.ptr_ref()++;
+// CHECK-NEXT:         _d_b.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t5;
+// CHECK-NEXT:         double _r_d1 = _d_sum;
+// CHECK-NEXT:         _d_a[0] += _r_d1;
+// CHECK-NEXT:         _d_b[0] += _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a--;
+// CHECK-NEXT:         _d_a.ptr_ref()--;
+// CHECK-NEXT:         _d_a.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         b--;
+// CHECK-NEXT:         _d_b.ptr_ref()--;
+// CHECK-NEXT:         _d_b.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         sum = _t4;
+// CHECK-NEXT:         double _r_d0 = _d_sum;
+// CHECK-NEXT:         _d_a[0] += _r_d0;
+// CHECK-NEXT:         _d_b[0] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         --b;
+// CHECK-NEXT:         --_d_b.ptr_ref();
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         a = _t2;
+// CHECK-NEXT:         _d_a = _t3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         b = _t0;
+// CHECK-NEXT:         _d_b = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_b[2] += _d_sum;
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\
@@ -87,4 +404,29 @@ int main() {
   NON_MEM_FN_TEST(d_nonMemFnReinterpretCast); // CHECK-EXEC: 10.00
 
   NON_MEM_FN_TEST(d_nonMemFnCStyleCast); // CHECK-EXEC: 10.00
+
+  // Pointer operation tests.
+  auto d_minimalPointer = clad::gradient(minimalPointer, "x");
+  NON_MEM_FN_TEST(d_minimalPointer); // CHECK-EXEC: 10.00
+
+  auto d_arrayPointer = clad::gradient(arrayPointer, "arr");
+  double arr[5] = {1, 2, 3, 4, 5};
+  double d_arr[5] = {0, 0, 0, 0, 0};
+  clad::array_ref<double> d_arr_ref(d_arr, 5);
+  d_arrayPointer.execute(arr, d_arr_ref);
+  printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 5.00 1.00 2.00 4.00 3.00
+
+  auto d_pointerParam = clad::gradient(pointerParam, "arr");
+  d_arr[0] = d_arr[1] = d_arr[2] = d_arr[3] = d_arr[4] = 0;
+  d_pointerParam.execute(arr, 5, d_arr_ref);
+  printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 0.00 1.00 2.00 3.00 4.00
+
+  auto d_pointerMultipleParams = clad::gradient(pointerMultipleParams);
+  double b_arr[5] = {1, 2, 3, 4, 5};
+  double d_b_arr[5] = {0, 0, 0, 0, 0};
+  clad::array_ref<double> d_b_arr_ref(d_b_arr, 5);
+  d_arr[0] = d_arr[1] = d_arr[2] = d_arr[3] = d_arr[4] = 0;
+  d_pointerMultipleParams.execute(arr, b_arr, d_arr_ref, d_b_arr_ref);
+  printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 2.00 4.00 2.00 0.00 0.00
+  printf("%.2f %.2f %.2f %.2f %.2f\n", d_b_arr[0], d_b_arr[1], d_b_arr[2], d_b_arr[3], d_b_arr[4]); // CHECK-EXEC: 0.00 0.00 1.00 0.00 0.00
 }
