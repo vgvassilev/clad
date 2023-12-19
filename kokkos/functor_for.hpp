@@ -54,11 +54,9 @@ double f(double x, double y) {
   //auto a_row_0 = Kokkos::subview( a, 0, Kokkos::ALL );
 
   //b(i,j) = tmp;
+  Kokkos::deep_copy(a, tmp);
 
-  //Kokkos::deep_copy(a, tmp);
-  //Kokkos::deep_copy(a, tmp);
-
-  //Kokkos::deep_copy(a, x);
+  Kokkos::deep_copy(a, x);
   Kokkos::deep_copy(b, x * x + y);
   Kokkos::deep_copy(a, b);
 
