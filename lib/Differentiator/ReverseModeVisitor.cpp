@@ -753,7 +753,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitValueStmt(
       const clang::ValueStmt* VS) {
     // This is most likely a name provided in a Kokkos::view construction
+    //std::cout << "VisitValueStmt VS->dump start" << std::endl;
     //VS->dump ();
+    //std::cout << "VisitValueStmt VS->dump end" << std::endl;
     // Test if StringLiteral
     if (isa<StringLiteral>(VS)) {
       //std::cout << "This is a StringLiteral!" << std::endl;
@@ -1496,19 +1498,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (viewToView) {
           ClonedArgs.push_back(visitedArg_0.getExpr());
           ClonedArgs.push_back(visitedArg_1.getExpr());
-          ClonedArgs.push_back(visitedArg_2.getExpr());
           ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
           ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
-          ClonedDArgs.push_back(visitedArg_2.getExpr_dx());
-
-          Expr* Call = m_Sema
-                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                          noLoc, ClonedArgs, noLoc)
-                          .get();
-          Expr* dCall = m_Sema
-                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                          noLoc, ClonedDArgs, noLoc)
-                          .get();
 
           NamespaceDecl* DC = utils::LookupNSD(m_Sema, "Kokkos", /*shouldExist=*/true);
 
@@ -1525,6 +1516,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           
           Expr* UnresolvedLookup =
               m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+          Expr* Call =
+              m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedArgs, noLoc).get();
+
+          Expr* dCall =
+              m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgs, noLoc).get();
 
           Expr* dCallZero =
               m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgsZero, noLoc).get();

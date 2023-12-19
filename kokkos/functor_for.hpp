@@ -50,26 +50,19 @@ double f(double x, double y) {
   const int j = 0;
 
   double zero = 0.;
-  //Kokkos::deep_copy(a, tmp);
   //auto a_row_0 = Kokkos::subview( a, 0, Kokkos::ALL );
 
-  //b(i,j) = tmp;
   Kokkos::deep_copy(a, tmp);
 
   Kokkos::deep_copy(a, x);
   Kokkos::deep_copy(b, x * x + y);
   Kokkos::deep_copy(a, b);
 
-  //a(i,j) = x;
-  //a(i,j) = x * x + y;
-
-  //size_t N1n = a.extent(0);
+  size_t N1n = a.extent(0);
 
   //ParallelFunctor functor(a,x,y);
 
   //Kokkos::parallel_for(N1n, functor);
-
- // double sum = f2(x, y);
 
   return a(i,j);
 }

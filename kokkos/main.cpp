@@ -42,9 +42,11 @@ int main(int argc, char* argv[]) {
     assert(dx==dx_f && "error");
 #else
     double dx = 0, dy = 0;
-    std::cout << f_darg0(3.,4.) << std::endl;
+    double dx_f = f_darg0(3.,4.);
+    std::cout << "dx: " << dx_f << std::endl;
     f_grad(3., 4., &dx, &dy);
     std::cout << "dx: " << dx << ' ' << "dy: " << dy << std::endl;
+    assert(dx==dx_f && "error");
 #endif
   }
   Kokkos::finalize();

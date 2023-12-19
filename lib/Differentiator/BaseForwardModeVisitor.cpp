@@ -1033,20 +1033,35 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
         llvm::SmallVector<Expr*, 4> ClonedArgs;
         llvm::SmallVector<Expr*, 4> ClonedDArgs;
-        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
-          auto visitedArg = Visit(CE->getArg(i));
-          ClonedArgs.push_back(visitedArg.getExpr());
-          ClonedDArgs.push_back(visitedArg.getExpr_dx());
-        }
 
-        Expr* Call = m_Sema
-                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                        noLoc, ClonedArgs, noLoc)
-                        .get();
-        Expr* dCall = m_Sema
-                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                        noLoc, ClonedDArgs, noLoc)
-                        .get();
+        auto visitedArg_0 = Visit(CE->getArg(0));
+        auto visitedArg_1 = Visit(CE->getArg(1));
+        ClonedArgs.push_back(visitedArg_0.getExpr());
+        ClonedArgs.push_back(visitedArg_1.getExpr());
+        ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+        ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
+
+        NamespaceDecl* DC = utils::LookupNSD(m_Sema, "Kokkos", /*shouldExist=*/true);
+
+        CXXScopeSpec SS;
+
+        utils::BuildNNS(m_Sema, DC, SS);
+        IdentifierInfo* II = &m_Context.Idents.get("deep_copy");
+
+        DeclarationName name(II);
+        DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
+
+        LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
+        m_Sema.LookupQualifiedName(R, DC);
+        
+        Expr* UnresolvedLookup =
+            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+        Expr* Call =
+            m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedArgs, noLoc).get();
+
+        Expr* dCall =
+            m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgs, noLoc).get();
 
         return StmtDiff(Call, dCall);
       }
