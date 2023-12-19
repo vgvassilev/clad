@@ -1,34 +1,3 @@
-inline double f_darg0(double x, double y) {
-    double _d_x = 1;
-    double _d_y = 0;
-    const int _d_N1 = 0;
-    const int N1 = 4;
-    const int _d_N2 = 0;
-    const int N2 = 4;
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> _d_a("_d_a", N1);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> _d_b("_d_b", N1);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> b("b", N1);
-    double _d_tmp = _d_x * x + x * _d_x + _d_y;
-    double tmp = x * x + y;
-    const int _d_i = 0;
-    const int i = 0;
-    const int _d_j = 0;
-    const int j = 0;
-    double _d_zero = 0.;
-    double zero = 0.;
-    Kokkos::deep_copy(_d_a, _d_tmp);
-    Kokkos::deep_copy(a, tmp);
-    Kokkos::deep_copy(_d_a, _d_x);
-    Kokkos::deep_copy(a, x);
-    Kokkos::deep_copy(_d_b, _d_x * x + x * _d_x + _d_y);
-    Kokkos::deep_copy(b, x * x + y);
-    Kokkos::deep_copy(_d_a, _d_b);
-    Kokkos::deep_copy(a, b);
-    size_t _d_N1n;
-    size_t N1n = a.extent(0);
-    return _d_a(i, j);
-}
 inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
     int _d_N1 = 0;
     int _d_N2 = 0;
@@ -44,6 +13,7 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     double _t3;
     double _t4;
     size_t _d_N1n = 0;
+    double _d_sum = 0;
     const int N1 = 4;
     const int N2 = 4;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
@@ -62,9 +32,12 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     Kokkos::deep_copy(b, x * _t2 + y);
     Kokkos::deep_copy(a, b);
     size_t N1n = a.extent(0);
+    double sum;
+    kokkos_builtin_derivative::parallel_sum(sum, a);
     goto _label0;
   _label0:
-    _d_a(i, j) += 1;
+    _d_sum += 1;
+    Kokkos::deep_copy(_d_a, _d_sum);
     {
         Kokkos::deep_copy(_d_b, _d_a);
         Kokkos::deep_copy(_d_a, 0.);

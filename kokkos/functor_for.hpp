@@ -64,5 +64,8 @@ double f(double x, double y) {
 
   //Kokkos::parallel_for(N1n, functor);
 
-  return a(i,j);
+  double sum;
+  kokkos_builtin_derivative::parallel_sum(sum, a);
+
+  return sum;
 }

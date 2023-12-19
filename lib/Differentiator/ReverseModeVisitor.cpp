@@ -769,6 +769,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       //derivedVS->dump ();
       return {Clone(VS), derivedVS};
     }
+    if (isa<CXXBindTemporaryExpr>(VS)) {
+      std::cout << "This is probably a view!" << std::endl;
+      auto CBTE = dyn_cast<CXXBindTemporaryExpr>(VS);
+
+      auto tmp = Visit(CBTE->getSubExpr());
+
+      std::cout << "Start dump probably a view!" << std::endl;
+      tmp.getExpr()->dump();
+      tmp.getExpr_dx()->dump();
+      std::cout << "End dump probably a view!" << std::endl;
+
+      return tmp;
+    }
     return {Clone(VS), Clone(VS)};
   }
 
@@ -1414,7 +1427,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           return constructedTypeName.find("Kokkos::View") != std::string::npos;
         }
       }
-    return constructedTypeName.rfind("Kokkos::View", 0) == 0;
+    return constructedTypeName.find("Kokkos::View") != std::string::npos;
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
@@ -1478,6 +1491,32 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   auto SE = CE->getCallee()->IgnoreImpCasts();
   if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
     if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+      if (FD->getQualifiedNameAsString().find("kokkos_builtin_derivative::parallel_sum") != std::string::npos) {
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+        auto visitedArg_0 = Visit(CE->getArg(0), dfdx());
+        auto visitedArg_1 = Visit(CE->getArg(1), dfdx());
+
+        ClonedArgs.push_back(visitedArg_0.getExpr());
+        ClonedArgs.push_back(visitedArg_1.getExpr());
+
+        ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
+        ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+
+        Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
+        Expr* kokkos_builtin_derivative_parallel_sum = utils::GetUnresolvedLookup(m_Sema, m_Context, "kokkos_builtin_derivative", "parallel_sum");
+
+        Expr* Call =
+            m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedArgs, noLoc).get();
+
+        Expr* dCall =
+            m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgs, noLoc).get();
+
+        addToCurrentBlock(dCall, direction::reverse);
+        
+        return StmtDiff(Call);
+      }
       if (FD->getQualifiedNameAsString().find("Kokkos::deep_copy") != std::string::npos) {
 
         llvm::SmallVector<Expr*, 4> ClonedArgs;
@@ -2893,7 +2932,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
 
     std::string constructedTypeName = QualType::getAsString(VD->getType().split(), PrintingPolicy{ {} });
-    if (constructedTypeName.rfind("Kokkos::View", 0) == 0) {
+    if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;
@@ -4069,8 +4108,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     llvm::SmallVector<Expr*, 4> clonedArgs;
+    llvm::SmallVector<Expr*, 4> clonedDArgs;
     std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
-    if (constructedTypeName.rfind("Kokkos::View", 0) == 0) {
+    if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;
@@ -4088,7 +4128,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           break;
         auto argDiff = Visit(arg, dfdx());
         clonedArgs.push_back(argDiff.getExpr());
+        clonedDArgs.push_back(argDiff.getExpr_dx());
         ++i;
+      }
+      if (CE->getNumArgs() == 1) {
+        return StmtDiff(clonedArgs[0], clonedDArgs[0]);
       }
     }
     else {
