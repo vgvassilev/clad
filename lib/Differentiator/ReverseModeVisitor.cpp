@@ -1208,12 +1208,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Clone(NPE), Clone(NPE));
   }
 
+  bool isKokkosView(const std::string constructedTypeName){
+    return constructedTypeName.find("Kokkos::View") == 0 || constructedTypeName.find("class Kokkos::View") == 0;
+    //return constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("<class Kokkos::View") == std::string::npos;
+  }
+
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     std::cout << "return type is " << type.getAsString() << std::endl;
-    if (type.getAsString().find("Kokkos::View") != std::string::npos) {
+    if (isKokkosView(type.getAsString())) {
       std::cout << "return value is a view!" << std::endl;
     }
     auto* dfdf = m_Pullback;
@@ -1419,22 +1424,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   bool isKokkosView(const Expr* E) {
-    std::string constructedTypeName = QualType::getAsString(E->getType().split(), PrintingPolicy{ {} });
       if (isa<ImplicitCastExpr>(E)) {
         auto SE = E->IgnoreImpCasts();
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
-          std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
-          return constructedTypeName.find("Kokkos::View") != std::string::npos;
+          return isKokkosView(QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} }));
         }
       }
-    return constructedTypeName.find("Kokkos::View") != std::string::npos;
+    return isKokkosView(QualType::getAsString(E->getType().split(), PrintingPolicy{ {} }));
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     if (isa<CXXMemberCallExpr>(CE)) {
       auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
-      if (MCE->getObjectType().getAsString().find("Kokkos::View") != std::string::npos) {
+      if (isKokkosView(MCE->getObjectType().getAsString())) {
         //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
         return StmtDiff(Clone(CE));
       }
@@ -1451,7 +1454,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
           std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
           //std::cout << constructedTypeName << std::endl;
-          if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
+          if (isKokkosView(constructedTypeName)) {
             isKokkosViewAccess = true;
             kokkosViewName = DRE->getNameInfo().getName().getAsString ();
           }
@@ -2932,7 +2935,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
 
     std::string constructedTypeName = QualType::getAsString(VD->getType().split(), PrintingPolicy{ {} });
-    if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
+    if (isKokkosView(constructedTypeName)) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;
@@ -4136,7 +4139,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> clonedArgs;
     llvm::SmallVector<Expr*, 4> clonedDArgs;
     std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
-    if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
+    if (isKokkosView(constructedTypeName)) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;
