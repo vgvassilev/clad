@@ -15,6 +15,17 @@ void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
   sum += tmp_sum;
 }
 
+template <typename ViewtypeA>
+void parallel_sum(ViewtypeA A, const typename ViewtypeA::value_type b) {
+
+  Kokkos::parallel_for( A.extent(0), KOKKOS_LAMBDA ( int i) {
+    
+    for ( int j = 0; j < A.extent(1); ++j ) {
+      A( i, j ) += b;
+    }
+  });
+}
+
 }
 
 template <typename VT>
@@ -49,23 +60,18 @@ double f(double x, double y) {
   const int i = 0;
   const int j = 0;
 
-  double zero = 0.;
-  //auto a_row_0 = Kokkos::subview( a, 0, Kokkos::ALL );
-
   Kokkos::deep_copy(a, tmp);
 
   Kokkos::deep_copy(a, x);
   Kokkos::deep_copy(b, x * x + y);
   Kokkos::deep_copy(a, b);
 
-  size_t N1n = a.extent(0);
-
-  //ParallelFunctor functor(a,x,y);
-
-  //Kokkos::parallel_for(N1n, functor);
-
   double sum;
-  kokkos_builtin_derivative::parallel_sum(sum, a);
+  auto a_row_0 = Kokkos::subview( a, Kokkos::make_pair(0, 2), Kokkos::ALL );
+  
+  sum = a_row_0(0,0);
+  kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
+  //sum = a_row_0(0,0);
 
   return sum;
 }

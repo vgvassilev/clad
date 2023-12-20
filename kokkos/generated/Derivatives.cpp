@@ -8,12 +8,11 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     double _d_tmp = 0;
     int _d_i = 0;
     int _d_j = 0;
-    double _d_zero = 0;
     double _t2;
     double _t3;
     double _t4;
-    size_t _d_N1n = 0;
     double _d_sum = 0;
+    Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), ALL);
     const int N1 = 4;
     const int N2 = 4;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
@@ -23,7 +22,6 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     double tmp = _t1 * _t0 + y;
     const int i = 0;
     const int j = 0;
-    double zero = 0.;
     Kokkos::deep_copy(a, tmp);
     Kokkos::deep_copy(a, x);
     _t2 = x;
@@ -31,13 +29,19 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     _t3 = x;
     Kokkos::deep_copy(b, x * _t2 + y);
     Kokkos::deep_copy(a, b);
-    size_t N1n = a.extent(0);
     double sum;
-    kokkos_builtin_derivative::parallel_sum(sum, a);
+    Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), ALL);
+    sum = a_row_0(0, 0);
+    kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
     goto _label0;
   _label0:
     _d_sum += 1;
-    Kokkos::deep_copy(_d_a, _d_sum);
+    kokkos_builtin_derivative::parallel_sum(_d_a_row_0, _d_sum);
+    {
+        double _r_d0 = _d_sum;
+        _d_a_row_0(0, 0) += _r_d0;
+        _d_sum -= _r_d0;
+    }
     {
         Kokkos::deep_copy(_d_b, _d_a);
         Kokkos::deep_copy(_d_a, 0.);
