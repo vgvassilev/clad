@@ -11,6 +11,58 @@
 #include "generated/Derivatives.cpp"
 #endif
 
+template <typename ViewtypeA, typename CladFunctionType>
+typename ViewtypeA::value_type solve(ViewtypeA A, typename ViewtypeA::value_type (*objective)(ViewtypeA), CladFunctionType gradient) {
+  ViewtypeA gradA("gradA", A.extent(0), A.extent(1));
+  ViewtypeA tmp("tmp", A.extent(0), A.extent(1));
+
+  std::vector<typename ViewtypeA::value_type> objective_history;
+
+  int n_iterations = 10;
+  int n_line_search = 10;
+
+  double epsilon_min = 0.;
+  double epsilon_tmp = 0.;
+  double epsilon_max = 4000.;
+  double epsilon_delta = (epsilon_max-epsilon_min)/n_line_search;
+
+  typename ViewtypeA::value_type obj_min = objective(A);
+
+  objective_history.push_back(obj_min);
+
+  for (int i = 0; i < n_iterations; ++i) {
+
+    gradient.execute(A, &gradA);
+
+    epsilon_min = 0.;
+
+    for (int j = 0; j < n_line_search; ++j) {
+      epsilon_tmp = epsilon_delta * (j+1);
+      Kokkos::parallel_for( A.extent(0), KOKKOS_LAMBDA ( int i) {
+        
+        for ( int j = 0; j < A.extent(1); ++j ) {
+          tmp( i, j ) = A( i, j ) - epsilon_tmp * gradA( i, j );
+        }
+      });
+
+      typename ViewtypeA::value_type obj_tmp = objective(tmp);
+
+      if ( obj_tmp < obj_min) {
+        obj_min = obj_tmp;
+        epsilon_min = epsilon_tmp;
+      }
+    }
+
+    objective_history.push_back(obj_min);
+  }
+
+
+  for (int i = 0; i < n_iterations + 1; ++i) {
+    std::cout << "Objective value " << objective_history[i] << " iteration " << i << std::endl;
+  }
+  return obj_min;
+}
+
 int main(int argc, char* argv[]) {
   Kokkos::initialize(argc, argv);
   {
@@ -57,6 +109,8 @@ int main(int argc, char* argv[]) {
     // After this call, dx and dy will store the derivatives of x and y respectively.
     f_grad_exe.execute(3., 4., &dx, &dy);
     f_view_grad_exe.execute(A, &dA);
+
+    solve(A, &f_view, f_view_grad_exe);
 #else
   #ifdef use_forward_mode
     dx_f = f_darg0(3.,4.);
