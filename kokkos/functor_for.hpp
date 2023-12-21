@@ -46,6 +46,24 @@ double f2(double x, double y) {
  return x; 
 }
 
+template <typename ViewtypeA>
+KOKKOS_INLINE_FUNCTION
+double f_view(ViewtypeA a) {
+  double sum;
+  auto a_row_0 = Kokkos::subview( a, Kokkos::make_pair(0, 2), Kokkos::ALL );
+  
+  sum = a_row_0(0,0);
+  kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
+  return 1e-6*sum*sum;
+}
+
+template <typename ViewtypeA>
+KOKKOS_INLINE_FUNCTION
+void f_view_2(ViewtypeA a, double tmp) {
+  Kokkos::deep_copy(a, tmp);
+}
+
+
 KOKKOS_INLINE_FUNCTION
 double f(double x, double y) {
 
@@ -60,6 +78,10 @@ double f(double x, double y) {
   const int i = 0;
   const int j = 0;
 
+  // These 2 lines do not work. Is it because nothing is returned by f_view_2?
+  //f_view_2(a, tmp); 
+  //return f_view(a);
+
   Kokkos::deep_copy(a, tmp);
 
   Kokkos::deep_copy(a, x);
@@ -71,7 +93,6 @@ double f(double x, double y) {
   
   sum = a_row_0(0,0);
   kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
-  //sum = a_row_0(0,0);
 
-  return sum;
+  return f_view(a);
 }

@@ -1218,7 +1218,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     std::cout << "return type is " << type.getAsString() << std::endl;
-    if (isKokkosView(type.getAsString())) {
+    if (utils::IsKokkosView(type.getAsString())) {
       std::cout << "return value is a view!" << std::endl;
     }
     auto* dfdf = m_Pullback;
@@ -1427,17 +1427,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (isa<ImplicitCastExpr>(E)) {
         auto SE = E->IgnoreImpCasts();
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
-          return isKokkosView(QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} }));
+          return utils::IsKokkosView(QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} }));
         }
       }
-    return isKokkosView(QualType::getAsString(E->getType().split(), PrintingPolicy{ {} }));
+    return utils::IsKokkosView(QualType::getAsString(E->getType().split(), PrintingPolicy{ {} }));
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     if (isa<CXXMemberCallExpr>(CE)) {
       auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
-      if (isKokkosView(MCE->getObjectType().getAsString())) {
+      if (utils::IsKokkosView(MCE->getObjectType().getAsString())) {
         //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
         return StmtDiff(Clone(CE));
       }
@@ -1454,7 +1454,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
           std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
           //std::cout << constructedTypeName << std::endl;
-          if (isKokkosView(constructedTypeName)) {
+          if (utils::IsKokkosView(constructedTypeName)) {
             isKokkosViewAccess = true;
             kokkosViewName = DRE->getNameInfo().getName().getAsString ();
           }
@@ -2015,8 +2015,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         !isa<CXXMethodDecl>(FD)) {
       std::string customPushforward = FD->getNameAsString() + "_pushforward";
       auto pushforwardCallArgs = DerivedCallArgs;
-      pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
-          DerivedCallArgs.front()->getType(), m_Context, 1));
+      if (utils::IsKokkosView(DerivedCallArgs.front()->getType())) {
+        // KL: Is it useful? 
+        pushforwardCallArgs.push_back(DerivedCallArgs.front());
+      }
+      else {
+        pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
+            DerivedCallArgs.front()->getType(), m_Context, 1));
+      }
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPushforward, pushforwardCallArgs, getCurrentScope(),
@@ -2935,7 +2941,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
 
     std::string constructedTypeName = QualType::getAsString(VD->getType().split(), PrintingPolicy{ {} });
-    if (isKokkosView(constructedTypeName)) {
+    if (utils::IsKokkosView(constructedTypeName)) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;
@@ -4139,7 +4145,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> clonedArgs;
     llvm::SmallVector<Expr*, 4> clonedDArgs;
     std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
-    if (isKokkosView(constructedTypeName)) {
+    if (utils::IsKokkosView(constructedTypeName)) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;

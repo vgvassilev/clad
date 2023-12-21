@@ -974,7 +974,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (isa<CXXMemberCallExpr>(CE)) {
     auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
-    if (MCE->getObjectType().getAsString().find("Kokkos::View") != std::string::npos) {
+    if (utils::IsKokkosView(MCE->getObjectType().getAsString())) {
       //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
       return StmtDiff(Clone(CE));
     }
@@ -991,7 +991,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
         std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
         std::cout << constructedTypeName << std::endl;
-        if (constructedTypeName.find("Kokkos::View") != std::string::npos) {
+        if (utils::IsKokkosView(constructedTypeName)) {
           isKokkosViewAccess = true;
           kokkosViewName = DRE->getNameInfo().getName().getAsString ();
         }

@@ -317,8 +317,17 @@ namespace clad {
       return false;
     }
 
+    bool IsKokkosView(const std::string constructedTypeName){
+      return constructedTypeName.find("Kokkos::View") == 0 || constructedTypeName.find("class Kokkos::View") == 0;
+      //return constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("<class Kokkos::View") == std::string::npos;
+    }
+
+    bool IsKokkosView(QualType QT) {
+      return IsKokkosView( QualType::getAsString(QT.split(), PrintingPolicy{ {} }) );
+    }
+
     bool IsReferenceOrPointerType(QualType T) {
-      return T->isReferenceType() || isArrayOrPointerType(T);
+      return T->isReferenceType() || isArrayOrPointerType(T) || IsKokkosView(T);
     }
 
     bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {

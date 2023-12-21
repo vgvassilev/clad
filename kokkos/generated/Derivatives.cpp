@@ -1,3 +1,33 @@
+inline void f_view_pullback(Kokkos::View<double *[4], Kokkos::LayoutLeft> a, double _d_y, clad::array_ref<View<double *[4], LayoutLeft> > _d_a) {
+    double _d_sum = 0;
+    Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _d_a_row_0 = Kokkos::subview((* _d_a), Kokkos::make_pair(0, 2), ALL);
+    double _t0;
+    double _t1;
+    double _t2;
+    double sum;
+    Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), ALL);
+    sum = a_row_0(0, 0);
+    kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
+    _t1 = sum;
+    _t2 = 9.9999999999999995E-7 * _t1;
+    _t0 = sum;
+    goto _label0;
+  _label0:
+    {
+        double _r0 = _d_y * _t0;
+        double _r1 = _r0 * _t1;
+        double _r2 = 9.9999999999999995E-7 * _r0;
+        _d_sum += _r2;
+        double _r3 = _t2 * _d_y;
+        _d_sum += _r3;
+    }
+    kokkos_builtin_derivative::parallel_sum(_d_a_row_0, _d_sum);
+    {
+        double _r_d0 = _d_sum;
+        _d_a_row_0(0, 0) += _r_d0;
+        _d_sum -= _r_d0;
+    }
+}
 inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
     int _d_N1 = 0;
     int _d_N2 = 0;
@@ -13,6 +43,7 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     double _t4;
     double _d_sum = 0;
     Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), ALL);
+    Kokkos::View<double *[4], Kokkos::LayoutLeft> _t5;
     const int N1 = 4;
     const int N2 = 4;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
@@ -33,9 +64,13 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
     Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), ALL);
     sum = a_row_0(0, 0);
     kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
+    _t5 = a;
     goto _label0;
   _label0:
-    _d_sum += 1;
+    {
+        f_view_pullback(_t5, 1, &_d_a);
+        Kokkos::View<double *[4], Kokkos::LayoutLeft> _r5 = _d_a;
+    }
     kokkos_builtin_derivative::parallel_sum(_d_a_row_0, _d_sum);
     {
         double _r_d0 = _d_sum;

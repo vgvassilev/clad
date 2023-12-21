@@ -179,6 +179,12 @@ namespace clad {
     /// otherwise returns false.
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
 
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::View type.
+    bool IsKokkosView(const std::string constructedTypeName);
+
+    /// Returns true if `T` is a Kokkos::View type.
+    bool IsKokkosView(clang::QualType T);
+
     /// Returns true if `T` is a reference, pointer or array type.
     ///
     /// \note Please note that this function returns true for array types as
