@@ -92,7 +92,6 @@ double f(double x, double y) {
   auto a_row_0 = Kokkos::subview( a, Kokkos::make_pair(0, 2), Kokkos::ALL );
   
   sum = a_row_0(0,0);
-  kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
 
-  return f_view(a);
+  return sum*sum;
 }

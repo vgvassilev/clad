@@ -5,7 +5,7 @@
 #include "lambda_reduction_subview.hpp"
 
 //#define use_generated_file
-//#define use_forward_mode
+#define use_forward_mode
 
 #ifdef use_generated_file
 #include "generated/Derivatives.cpp"

@@ -1041,27 +1041,13 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
         ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
 
-        NamespaceDecl* DC = utils::LookupNSD(m_Sema, "Kokkos", /*shouldExist=*/true);
-
-        CXXScopeSpec SS;
-
-        utils::BuildNNS(m_Sema, DC, SS);
-        IdentifierInfo* II = &m_Context.Idents.get("deep_copy");
-
-        DeclarationName name(II);
-        DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
-
-        LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
-        m_Sema.LookupQualifiedName(R, DC);
-        
-        Expr* UnresolvedLookup =
-            m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+        Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
 
         Expr* Call =
-            m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedArgs, noLoc).get();
+            m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedArgs, noLoc).get();
 
         Expr* dCall =
-            m_Sema.ActOnCallExpr(getCurrentScope(), UnresolvedLookup, noLoc, ClonedDArgs, noLoc).get();
+            m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgs, noLoc).get();
 
         return StmtDiff(Call, dCall);
       }
