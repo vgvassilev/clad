@@ -750,37 +750,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Clone(S));
   }
 
-  StmtDiff ReverseModeVisitor::VisitValueStmt(
-      const clang::ValueStmt* VS) {
-    // This is most likely a name provided in a Kokkos::view construction
-    //std::cout << "VisitValueStmt VS->dump start" << std::endl;
-    //VS->dump ();
-    //std::cout << "VisitValueStmt VS->dump end" << std::endl;
+  StmtDiff ReverseModeVisitor::VisitValueStmt(const clang::ValueStmt* VS) {
     // Test if StringLiteral
     if (isa<StringLiteral>(VS)) {
-      //std::cout << "This is a StringLiteral!" << std::endl;
       auto SL = dyn_cast<clang::StringLiteral>(VS);
 
       std::string name_str("_d_"+ SL->getString().str());
       StringRef name(name_str);
 
       Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
-      //VS->dump ();
-      //derivedVS->dump ();
+
       return {Clone(VS), derivedVS};
     }
     if (isa<CXXBindTemporaryExpr>(VS)) {
-      //std::cout << "This is probably a view!" << std::endl;
       auto CBTE = dyn_cast<CXXBindTemporaryExpr>(VS);
 
-      auto tmp = Visit(CBTE->getSubExpr());
-
-      //std::cout << "Start dump probably a view!" << std::endl;
-      //tmp.getExpr()->dump();
-      //tmp.getExpr_dx()->dump();
-      //std::cout << "End dump probably a view!" << std::endl;
-
-      return tmp;
+      return Visit(CBTE->getSubExpr());
     }
     return {Clone(VS), Clone(VS)};
   }
@@ -1217,21 +1202,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
-    std::cout << "return type is " << type.getAsString() << std::endl;
+    
     if (utils::IsKokkosView(type.getAsString())) {
       std::cout << "return value is a view!" << std::endl;
     }
     auto* dfdf = m_Pullback;
     if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
-      std::cout << "isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf) is true" << std::endl;
       ExprResult tmp = dfdf;
       dfdf = m_Sema
                  .ImpCastExprToType(tmp.get(), type,
                                     m_Sema.PrepareScalarCast(tmp, type))
                  .get();
     }
-    else
-      std::cout << "isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf) is false" << std::endl;
     auto ReturnResult = DifferentiateSingleExpr(value, dfdf);
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
@@ -1438,7 +1420,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
       if (utils::IsKokkosView(MCE->getObjectType().getAsString())) {
-        //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
+        // Member function called from a Kokkos::View; nothing to do here
         return StmtDiff(Clone(CE));
       }
     }
@@ -1452,9 +1434,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (isa<ImplicitCastExpr>(baseOriginalE)) {
         auto SE = baseOriginalE->IgnoreImpCasts();
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
-          std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
-          //std::cout << constructedTypeName << std::endl;
-          if (utils::IsKokkosView(constructedTypeName)) {
+          if (utils::IsKokkosView(DRE->getType())) {
             isKokkosViewAccess = true;
             kokkosViewName = DRE->getNameInfo().getName().getAsString ();
           }
@@ -1487,7 +1467,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
           addToCurrentBlock(add_assign, direction::reverse);
         }
-        //std::cout << " kokkosViewName = " << kokkosViewName << std::endl;
         return StmtDiff(Call, dCall);
       }
     }
@@ -1507,7 +1486,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
           ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
 
-          //Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
           Expr* kokkos_builtin_derivative_parallel_sum = utils::GetUnresolvedLookup(m_Sema, m_Context, "kokkos_builtin_derivative", "parallel_sum");
 
           Expr* Call =
@@ -1666,8 +1644,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               for (auto resAndGrad : argResultsAndGrads) {
                 VarDecl* argRes = resAndGrad.first;
                 Expr* grad = resAndGrad.second;
-                argRes->dump();
-                grad->dump();
                 PerformImplicitConversionAndAssign(argRes, grad);
               }   
 
@@ -1688,13 +1664,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               ClonedDArgs.push_back(visitedArg.getExpr_dx());
             else
               ClonedDArgs.push_back(visitedArg.getExpr());
-
-            std::cout << "Kokkos::subview visitedArg.getExpr()->dump() start with i = " << i << std::endl;
-            visitedArg.getExpr()->dump();
-            std::cout << "Kokkos::subview visitedArg.getExpr()->dump() end with i = " << i << std::endl;
-            std::cout << "Kokkos::subview visitedArg.getExpr_dx()->dump() start with i = " << i << std::endl;
-            visitedArg.getExpr_dx()->dump();
-            std::cout << "Kokkos::subview visitedArg.getExpr_dx()->dump() end with i = " << i << std::endl;
           }
 
           Expr* Call = m_Sema
@@ -4162,11 +4131,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (i == runTimeDim + 1)
           break;
         auto argDiff = Visit(arg, dfdx());
-
-        std::cout << "Start dump argDiff i = " << i << std::endl;
-        argDiff.getExpr()->dump();
-        argDiff.getExpr_dx()->dump();
-        std::cout << "End dump argDiff i = " << i << std::endl;
 
         clonedArgs.push_back(argDiff.getExpr());
         clonedDArgs.push_back(argDiff.getExpr_dx());

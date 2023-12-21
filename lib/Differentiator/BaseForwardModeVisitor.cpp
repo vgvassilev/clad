@@ -2151,19 +2151,14 @@ StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(
 
 StmtDiff BaseForwardModeVisitor::VisitValueStmt(
     const clang::ValueStmt* VS) {
-  // This is most likely a name provided in a Kokkos::view construction
-  VS->dump ();
   // Test if StringLiteral
   if (isa<StringLiteral>(VS)) {
-    std::cout << "This is a StringLiteral!" << std::endl;
     auto SL = dyn_cast<clang::StringLiteral>(VS);
 
     std::string name_str("_d_"+ SL->getString().str());
     StringRef name(name_str);
 
     Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
-    VS->dump ();
-    derivedVS->dump ();
     return {Clone(VS), derivedVS};
   }
   return {Clone(VS), Clone(VS)};
