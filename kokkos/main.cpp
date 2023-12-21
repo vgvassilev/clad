@@ -15,6 +15,7 @@ int main(int argc, char* argv[]) {
   Kokkos::initialize(argc, argv);
   {
     Kokkos::View<double **> A("A", 10, 10);
+    Kokkos::View<double **> dA("dA", 10, 10);
     Kokkos::View<double *> x("x", 10);
     Kokkos::View<double *> y("y", 10);
 
@@ -25,6 +26,8 @@ int main(int argc, char* argv[]) {
     std::cout << f(3.,4.) << std::endl;
     std::cout << weightedDotProduct_1(A, x, y) << std::endl;
     std::cout << weightedDotProduct_2(A, x, y) << std::endl;
+
+    std::cout << f_view(A) << std::endl;
 
     double epsilon = 1e-6;
 
@@ -42,16 +45,18 @@ int main(int argc, char* argv[]) {
 #ifndef use_generated_file
   #ifdef use_forward_mode
     auto f_dx_exe = clad::differentiate(f, "x");
-  #endif
-    auto f_grad_exe = clad::gradient(f);
     // Any of the two below will generate an "error: Attempted differentiation w.r.t. member 'x' which is not of real type."
     //auto weightedDotProduct_1_dx = clad::differentiate(weightedDotProduct_1<typeof(A),typeof(x),typeof(y)>, "x");
     //auto weightedDotProduct_2_dx = clad::differentiate(weightedDotProduct_2<typeof(A),typeof(x),typeof(y)>, "x");
+  #endif
+    auto f_grad_exe = clad::gradient(f);
+    auto f_view_grad_exe = clad::gradient(f_view<Kokkos::View<double **>>);
   #ifdef use_forward_mode
     dx_f = f_dx_exe.execute(3.,4.);
   #endif
     // After this call, dx and dy will store the derivatives of x and y respectively.
     f_grad_exe.execute(3., 4., &dx, &dy);
+    f_view_grad_exe.execute(A, &dA);
 #else
   #ifdef use_forward_mode
     dx_f = f_darg0(3.,4.);
