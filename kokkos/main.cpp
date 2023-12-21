@@ -8,7 +8,7 @@
 #define use_forward_mode
 
 #ifdef use_generated_file
-#include "generated/Derivatives.cpp"
+#include "generated/Derivatives.hpp"
 #endif
 
 template <typename ViewtypeA, typename CladFunctionType>
