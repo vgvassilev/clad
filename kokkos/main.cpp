@@ -3,6 +3,7 @@
 #include "functor_for.hpp"
 #include "lambda_reduction.hpp"
 #include "lambda_reduction_subview.hpp"
+#include <chrono>
 
 //#define use_generated_file
 #define use_forward_mode
@@ -73,10 +74,11 @@ typename ViewtypeA::value_type solve(ViewtypeA A, typename ViewtypeA::value_type
 int main(int argc, char* argv[]) {
   Kokkos::initialize(argc, argv);
   {
-    Kokkos::View<double **> A("A", 10, 10);
-    Kokkos::View<double **> dA("dA", 10, 10);
-    Kokkos::View<double *> x("x", 10);
-    Kokkos::View<double *> y("y", 10);
+    constexpr int N = 100;
+    Kokkos::View<double **> A("A", N, N);
+    Kokkos::View<double **> dA("dA", N, N);
+    Kokkos::View<double *> x("x", N);
+    Kokkos::View<double *> y("y", N);
 
     Kokkos::deep_copy(A, 3);
     Kokkos::deep_copy(x, 2);
@@ -86,7 +88,10 @@ int main(int argc, char* argv[]) {
     std::cout << weightedDotProduct_1(A, x, y) << std::endl;
     std::cout << weightedDotProduct_2(A, x, y) << std::endl;
 
-    std::cout << f_view(A) << std::endl;
+    auto t0_f_view = std::chrono::high_resolution_clock::now();
+    double obj = f_view(A);
+    auto t1_f_view = std::chrono::high_resolution_clock::now();
+    std::cout << obj << std::endl;
 
     double epsilon = 1e-6;
 
@@ -115,7 +120,10 @@ int main(int argc, char* argv[]) {
   #endif
     // After this call, dx and dy will store the derivatives of x and y respectively.
     f_grad_exe.execute(3., 4., &dx, &dy);
+
+    auto t0_f_view_grad = std::chrono::high_resolution_clock::now();
     f_view_grad_exe.execute(A, &dA);
+    auto t1_f_view_grad = std::chrono::high_resolution_clock::now();
 
     solve(A, &f_view, f_view_grad_exe);
 #else
@@ -123,7 +131,17 @@ int main(int argc, char* argv[]) {
     dx_f = f_darg0(3.,4.);
   #endif
     f_grad(3., 4., &dx, &dy);
+
+    auto t0_f_view_grad = std::chrono::high_resolution_clock::now();
+    f_view_grad<Kokkos::View<double **>>(A, &dA);
+    auto t1_f_view_grad = std::chrono::high_resolution_clock::now();
 #endif
+
+  double time_f_view = (t1_f_view-t0_f_view).count()*1E-9 ;
+  double time_f_view_grad = (t1_f_view_grad-t0_f_view_grad).count()*1E-9 ;
+  std::cout << " f_view took "<< time_f_view <<" second(s)."<< std::endl;
+  std::cout << " f_view_grad took "<< time_f_view_grad <<" second(s)."<< std::endl;
+  std::cout << " f_view_grad took "<< time_f_view_grad/time_f_view <<" the wall-clock time of f_view."<< std::endl;
 
   #ifdef use_forward_mode
     std::cout << "dx: " << dx_f << std::endl;
