@@ -23,7 +23,7 @@ typename ViewtypeA::value_type solve(ViewtypeA A, typename ViewtypeA::value_type
 
   double epsilon_min = 0.;
   double epsilon_tmp = 0.;
-  double epsilon_max = 4000.;
+  double epsilon_max = 1000.;
   double epsilon_delta = (epsilon_max-epsilon_min)/n_line_search;
 
   typename ViewtypeA::value_type obj_min = objective(A);
@@ -52,6 +52,13 @@ typename ViewtypeA::value_type solve(ViewtypeA A, typename ViewtypeA::value_type
         epsilon_min = epsilon_tmp;
       }
     }
+
+    Kokkos::parallel_for( A.extent(0), KOKKOS_LAMBDA ( int i) {
+      
+      for ( int j = 0; j < A.extent(1); ++j ) {
+        A( i, j ) -= epsilon_min * gradA( i, j );
+      }
+    });
 
     objective_history.push_back(obj_min);
   }
