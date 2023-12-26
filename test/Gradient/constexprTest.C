@@ -19,13 +19,9 @@ constexpr double mul (double a, double b, double c) {
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = _d_result * c;
-//CHECK-NEXT:        double _r1 = _r0 * b;
-//CHECK-NEXT:        * _d_a += _r1;
-//CHECK-NEXT:        double _r2 = a * _r0;
-//CHECK-NEXT:        * _d_b += _r2;
-//CHECK-NEXT:        double _r3 = a * b * _d_result;
-//CHECK-NEXT:        * _d_c += _r3;
+//CHECK-NEXT:        * _d_a += _d_result * c * b;
+//CHECK-NEXT:        * _d_b += a * _d_result * c;
+//CHECK-NEXT:        * _d_c += a * b * _d_result;
 //CHECK-NEXT:    }
 //CHECK-NEXT: }
 
@@ -46,18 +42,12 @@ constexpr double fn( double a, double b, double c) {
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = _d_result * 100;
-//CHECK-NEXT:        double _r1 = _r0 * (a + b);
-//CHECK-NEXT:        double _r2 = _r1 / _t0;
-//CHECK-NEXT:        double _r3 = _r2 * b;
-//CHECK-NEXT:        * _d_a += _r3;
-//CHECK-NEXT:        double _r4 = a * _r2;
-//CHECK-NEXT:        * _d_b += _r4;
-//CHECK-NEXT:        double _r5 = _r1 * -a * b / (_t0 * _t0);
-//CHECK-NEXT:        * _d_c += _r5;
-//CHECK-NEXT:        double _r6 = a * b / _t0 * _r0;
-//CHECK-NEXT:        * _d_a += _r6;
-//CHECK-NEXT:        * _d_b += _r6;
+//CHECK-NEXT:        * _d_a += _d_result * 100 * (a + b) / _t0 * b;
+//CHECK-NEXT:        * _d_b += a * _d_result * 100 * (a + b) / _t0;
+//CHECK-NEXT:        double _r0 = _d_result * 100 * (a + b) * -a * b / (_t0 * _t0);
+//CHECK-NEXT:        * _d_c += _r0;
+//CHECK-NEXT:        * _d_a += a * b / _t0 * _d_result * 100;
+//CHECK-NEXT:        * _d_b += a * b / _t0 * _d_result * 100;
 //CHECK-NEXT:        * _d_c += _d_result;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}

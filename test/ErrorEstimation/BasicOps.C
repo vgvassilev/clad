@@ -39,10 +39,8 @@ float func(float x, float y) {
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r0 = _d_z * x;
-//CHECK-NEXT:         * _d_y += _r0;
-//CHECK-NEXT:         float _r1 = y * _d_z;
-//CHECK-NEXT:         * _d_x += _r1;
+//CHECK-NEXT:         * _d_y += _d_z * x;
+//CHECK-NEXT:         * _d_x += y * _d_z;
 //CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
@@ -98,10 +96,9 @@ float func2(float x, float y) {
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r2 = _d_z / _t1;
-//CHECK-NEXT:         * _d_y += _r2;
-//CHECK-NEXT:         float _r3 = _d_z * -y / (_t1 * _t1);
-//CHECK-NEXT:         * _d_x += _r3;
+//CHECK-NEXT:         * _d_y += _d_z / _t1;
+//CHECK-NEXT:         float _r0 = _d_z * -y / (_t1 * _t1);
+//CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
@@ -109,10 +106,8 @@ float func2(float x, float y) {
 //CHECK-NEXT:         float _r_d0 = * _d_x;
 //CHECK-NEXT:         * _d_x += _r_d0;
 //CHECK-NEXT:         * _d_y += -_r_d0;
-//CHECK-NEXT:         float _r0 = -_r_d0 * y;
-//CHECK-NEXT:         * _d_y += _r0;
-//CHECK-NEXT:         float _r1 = y * -_r_d0;
-//CHECK-NEXT:         * _d_y += _r1;
+//CHECK-NEXT:         * _d_y += -_r_d0 * y;
+//CHECK-NEXT:         * _d_y += y * -_r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
@@ -162,13 +157,9 @@ float func3(float x, float y) {
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_t += 1;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r2 = _d_t * _t1;
-//CHECK-NEXT:         float _r3 = _r2 * z;
-//CHECK-NEXT:         * _d_x += _r3;
-//CHECK-NEXT:         float _r4 = x * _r2;
-//CHECK-NEXT:         _d_z += _r4;
-//CHECK-NEXT:         float _r5 = x * z * _d_t;
-//CHECK-NEXT:         * _d_y += _r5;
+//CHECK-NEXT:         * _d_x += _d_t * _t1 * z;
+//CHECK-NEXT:         _d_z += x * _d_t * _t1;
+//CHECK-NEXT:         * _d_y += x * z * _d_t;
 //CHECK-NEXT:         y = _t2;
 //CHECK-NEXT:         float _r_d1 = * _d_y;
 //CHECK-NEXT:         * _d_x += _r_d1;
@@ -183,10 +174,8 @@ float func3(float x, float y) {
 //CHECK-NEXT:         float _r_d0 = * _d_x;
 //CHECK-NEXT:         * _d_x += _r_d0;
 //CHECK-NEXT:         * _d_y += -_r_d0;
-//CHECK-NEXT:         float _r0 = -_r_d0 * y;
-//CHECK-NEXT:         * _d_y += _r0;
-//CHECK-NEXT:         float _r1 = y * -_r_d0;
-//CHECK-NEXT:         * _d_y += _r1;
+//CHECK-NEXT:         * _d_y += -_r_d0 * y;
+//CHECK-NEXT:         * _d_y += y * -_r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
@@ -239,10 +228,8 @@ float func5(float x, float y) {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r1 = 1 * y;
-//CHECK-NEXT:         * _d_y += _r1;
-//CHECK-NEXT:         float _r2 = y * 1;
-//CHECK-NEXT:         * _d_y += _r2;
+//CHECK-NEXT:         * _d_y += 1 * y;
+//CHECK-NEXT:         * _d_y += y * 1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         y = _t0;
@@ -268,10 +255,8 @@ double helper(double x, double y) { return x * y; }
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = _d_y0 * y;
-//CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         double _r1 = x * _d_y0;
-//CHECK-NEXT:         * _d_y += _r1;
+//CHECK-NEXT:         * _d_x += _d_y0 * y;
+//CHECK-NEXT:         * _d_y += x * _d_y0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});
@@ -296,10 +281,8 @@ float func6(float x, float y) {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r2 = 1 * z;
-//CHECK-NEXT:         _d_z += _r2;
-//CHECK-NEXT:         float _r3 = z * 1;
-//CHECK-NEXT:         _d_z += _r3;
+//CHECK-NEXT:         _d_z += 1 * z;
+//CHECK-NEXT:         _d_z += z * 1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _grad0 = 0.;
@@ -348,10 +331,8 @@ double helper2(float& x) { return x * x; }
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = _d_y * x;
-//CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         double _r1 = x * _d_y;
-//CHECK-NEXT:         * _d_x += _r1;
+//CHECK-NEXT:         * _d_x += _d_y * x;
+//CHECK-NEXT:         * _d_x += x * _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(1. * _ret_value0 * {{.+}});
 //CHECK-NEXT: }
@@ -428,21 +409,17 @@ float func9(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         z = _t3;
 //CHECK-NEXT:         float _r_d0 = _d_z;
-//CHECK-NEXT:         _d_z += _r_d0;
-//CHECK-NEXT:         double _r3 = _r_d0 * _t4;
 //CHECK-NEXT:         x = _t5;
 //CHECK-NEXT:         double _t6 = 0;
-//CHECK-NEXT:         helper2_pullback(_t5, _r3, &* _d_x, _t6);
-//CHECK-NEXT:         float _r4 = * _d_x;
-//CHECK-NEXT:         double _r5 = helper2(x) * _r_d0;
+//CHECK-NEXT:         helper2_pullback(_t5, _r_d0 * _t4, &* _d_x, _t6);
+//CHECK-NEXT:         float _r3 = * _d_x;
 //CHECK-NEXT:         y = _t7;
 //CHECK-NEXT:         double _t8 = 0;
-//CHECK-NEXT:         helper2_pullback(_t7, _r5, &* _d_y, _t8);
-//CHECK-NEXT:         float _r6 = * _d_y;
+//CHECK-NEXT:         helper2_pullback(_t7, helper2(x) * _r_d0, &* _d_y, _t8);
+//CHECK-NEXT:         float _r4 = * _d_y;
 //CHECK-NEXT:         _delta_z += _t6 + _t8;
-//CHECK-NEXT:         _final_error += std::abs(_r6 * _t7 * {{.+}});
-//CHECK-NEXT:         _final_error += std::abs(_r4 * _t5 * {{.+}});
-//CHECK-NEXT:         _d_z -= _r_d0;
+//CHECK-NEXT:         _final_error += std::abs(_r4 * _t7 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(_r3 * _t5 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _grad0 = 0.;

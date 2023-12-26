@@ -91,20 +91,16 @@ double f3(double x, double y) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           y = _t2;
 //CHECK-NEXT:           double _r_d2 = * _d_y;
-//CHECK-NEXT:           double _r2 = _r_d2 * x;
-//CHECK-NEXT:           * _d_x += _r2;
-//CHECK-NEXT:           double _r3 = x * _r_d2;
-//CHECK-NEXT:           * _d_x += _r3;
+//CHECK-NEXT:           * _d_x += _r_d2 * x;
+//CHECK-NEXT:           * _d_x += x * _r_d2;
 //CHECK-NEXT:           * _d_y -= _r_d2;
 //CHECK-NEXT:           * _d_y;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t1;
 //CHECK-NEXT:           double _r_d1 = * _d_x;
-//CHECK-NEXT:           double _r0 = _r_d1 * x;
-//CHECK-NEXT:           * _d_x += _r0;
-//CHECK-NEXT:           double _r1 = x * _r_d1;
-//CHECK-NEXT:           * _d_x += _r1;
+//CHECK-NEXT:           * _d_x += _r_d1 * x;
+//CHECK-NEXT:           * _d_x += x * _r_d1;
 //CHECK-NEXT:           * _d_x -= _r_d1;
 //CHECK-NEXT:           * _d_x;
 //CHECK-NEXT:       }
@@ -206,10 +202,8 @@ double f5(double x, double y) {
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = _d_t * x;
-//CHECK-NEXT:           * _d_x += _r0;
-//CHECK-NEXT:           double _r1 = x * _d_t;
-//CHECK-NEXT:           * _d_x += _r1;
+//CHECK-NEXT:           * _d_x += _d_t * x;
+//CHECK-NEXT:           * _d_x += x * _d_t;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -270,10 +264,8 @@ double f6(double x, double y) {
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = _d_t * x;
-//CHECK-NEXT:           * _d_x += _r0;
-//CHECK-NEXT:           double _r1 = x * _d_t;
-//CHECK-NEXT:           * _d_x += _r1;
+//CHECK-NEXT:           * _d_x += _d_t * x;
+//CHECK-NEXT:           * _d_x += x * _d_t;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -337,17 +329,15 @@ double f7(double x, double y) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[0] = _t6;
 //CHECK-NEXT:           double _r_d5 = _d_t[0];
-//CHECK-NEXT:           _d_t[0] += _r_d5;
 //CHECK-NEXT:           _d_t[1] += -_r_d5;
-//CHECK-NEXT:           _d_t[0] -= _r_d5;
 //CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[0] = _t4;
 //CHECK-NEXT:           double _r_d4 = _d_t[0];
 //CHECK-NEXT:           _d_t[0] += _r_d4 / _t5;
-//CHECK-NEXT:           double _r3 = _r_d4 * -t[0] / (_t5 * _t5);
-//CHECK-NEXT:           _d_t[1] += _r3;
+//CHECK-NEXT:           double _r0 = _r_d4 * -t[0] / (_t5 * _t5);
+//CHECK-NEXT:           _d_t[1] += _r0;
 //CHECK-NEXT:           _d_t[0] -= _r_d4;
 //CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
@@ -355,17 +345,14 @@ double f7(double x, double y) {
 //CHECK-NEXT:           t[0] = _t3;
 //CHECK-NEXT:           double _r_d3 = _d_t[0];
 //CHECK-NEXT:           _d_t[0] += _r_d3 * t[1];
-//CHECK-NEXT:           double _r2 = t[0] * _r_d3;
-//CHECK-NEXT:           _d_t[1] += _r2;
+//CHECK-NEXT:           _d_t[1] += t[0] * _r_d3;
 //CHECK-NEXT:           _d_t[0] -= _r_d3;
 //CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[0] = _t2;
 //CHECK-NEXT:           double _r_d2 = _d_t[0];
-//CHECK-NEXT:           _d_t[0] += _r_d2;
 //CHECK-NEXT:           _d_t[1] += _r_d2;
-//CHECK-NEXT:           _d_t[0] -= _r_d2;
 //CHECK-NEXT:           _d_t[0];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
@@ -394,10 +381,8 @@ double f7(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += _d_t[1];
-//CHECK-NEXT:           double _r0 = _d_t[2] * x;
-//CHECK-NEXT:           * _d_x += _r0;
-//CHECK-NEXT:           double _r1 = x * _d_t[2];
-//CHECK-NEXT:           * _d_x += _r1;
+//CHECK-NEXT:           * _d_x += _d_t[2] * x;
+//CHECK-NEXT:           * _d_x += x * _d_t[2];
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -429,8 +414,7 @@ double f8(double x, double y) {
 //CHECK-NEXT:           y = _t1;
 //CHECK-NEXT:           double _r_d1 = * _d_y;
 //CHECK-NEXT:           * _d_y += _r_d1 * t[2];
-//CHECK-NEXT:           double _r0 = y * _r_d1;
-//CHECK-NEXT:           _d_t[0] += _r0;
+//CHECK-NEXT:           _d_t[0] += y * _r_d1;
 //CHECK-NEXT:           t[0] = _t2;
 //CHECK-NEXT:           double _r_d2 = _d_t[0];
 //CHECK-NEXT:           _d_t[1] += _r_d2;
@@ -471,14 +455,12 @@ double f9(double x, double y) {
 //CHECK-NEXT:           t = _t2;
 //CHECK-NEXT:           double _r_d1 = _d_t;
 //CHECK-NEXT:           _d_t += _r_d1 * y;
-//CHECK-NEXT:           double _r1 = _t1 * _r_d1;
-//CHECK-NEXT:           * _d_y += _r1;
+//CHECK-NEXT:           * _d_y += _t1 * _r_d1;
 //CHECK-NEXT:           _d_t -= _r_d1;
 //CHECK-NEXT:           t = _t0;
 //CHECK-NEXT:           double _r_d0 = _d_t;
 //CHECK-NEXT:           _d_t += _r_d0 * x;
-//CHECK-NEXT:           double _r0 = t * _r_d0;
-//CHECK-NEXT:           * _d_x += _r0;
+//CHECK-NEXT:           * _d_x += t * _r_d0;
 //CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       * _d_x += _d_t;
@@ -576,8 +558,7 @@ double f12(double x, double y) {
 //CHECK-NEXT:           t = _t4;
 //CHECK-NEXT:           double _r_d2 = (_cond0 ? _d_t : _d_t);
 //CHECK-NEXT:           (_cond0 ? _d_t : _d_t) += _r_d2 * y;
-//CHECK-NEXT:           double _r0 = _t2 * _r_d2;
-//CHECK-NEXT:           * _d_y += _r0;
+//CHECK-NEXT:           * _d_y += _t2 * _r_d2;
 //CHECK-NEXT:           (_cond0 ? _d_t : _d_t) -= _r_d2;
 //CHECK-NEXT:           if (_cond0) {
 //CHECK-NEXT:               t = _t0;
@@ -608,16 +589,12 @@ double f13(double x, double y) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:       _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r2 = 1 * y;
-//CHECK-NEXT:           _d_t += _r2;
-//CHECK-NEXT:           double _r3 = t * 1;
-//CHECK-NEXT:           * _d_y += _r3;
+//CHECK-NEXT:           _d_t += 1 * y;
+//CHECK-NEXT:           * _d_y += t * 1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = _d_t * _t0;
-//CHECK-NEXT:           * _d_x += _r0;
-//CHECK-NEXT:           double _r1 = x * _d_t;
-//CHECK-NEXT:           * _d_y += _r1;
+//CHECK-NEXT:           * _d_x += _d_t * _t0;
+//CHECK-NEXT:           * _d_y += x * _d_t;
 //CHECK-NEXT:           y = _t1;
 //CHECK-NEXT:           double _r_d0 = * _d_y;
 //CHECK-NEXT:           * _d_x += _r_d0;
@@ -653,23 +630,18 @@ double f14(double i, double j) {
 // CHECK-NEXT:         a = _t2;
 // CHECK-NEXT:         double _r_d2 = *_d_a;
 // CHECK-NEXT:         *_d_a += _r_d2 * i;
-// CHECK-NEXT:         double _r2 = a * _r_d2;
-// CHECK-NEXT:         * _d_i += _r2;
+// CHECK-NEXT:         * _d_i += a * _r_d2;
 // CHECK-NEXT:         *_d_a -= _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a = _t1;
 // CHECK-NEXT:         double _r_d1 = *_d_a;
-// CHECK-NEXT:         *_d_a += _r_d1;
 // CHECK-NEXT:         * _d_i += _r_d1;
-// CHECK-NEXT:         *_d_a -= _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_a;
-// CHECK-NEXT:         double _r0 = _r_d0 * i;
-// CHECK-NEXT:         double _r1 = 2 * _r_d0;
-// CHECK-NEXT:         * _d_i += _r1;
+// CHECK-NEXT:         * _d_i += 2 * _r_d0;
 // CHECK-NEXT:         *_d_a -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -721,43 +693,29 @@ double f15(double i, double j) {
 // CHECK-NEXT:         d = _t3;
 // CHECK-NEXT:         double _r_d3 = *_d_d;
 // CHECK-NEXT:         *_d_d += _r_d3 * 3 * j;
-// CHECK-NEXT:         double _r7 = d * _r_d3;
-// CHECK-NEXT:         double _r8 = _r7 * j;
-// CHECK-NEXT:         double _r9 = 3 * _r7;
-// CHECK-NEXT:         * _d_j += _r9;
+// CHECK-NEXT:         * _d_j += 3 * d * _r_d3;
 // CHECK-NEXT:         *_d_d -= _r_d3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c = _t2;
 // CHECK-NEXT:         double _r_d2 = *_d_c;
-// CHECK-NEXT:         *_d_c += _r_d2;
-// CHECK-NEXT:         double _r5 = _r_d2 * i;
-// CHECK-NEXT:         double _r6 = 3 * _r_d2;
-// CHECK-NEXT:         * _d_i += _r6;
-// CHECK-NEXT:         *_d_c -= _r_d2;
+// CHECK-NEXT:         * _d_i += 3 * _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         b = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_b;
-// CHECK-NEXT:         _d_b += _r_d1;
-// CHECK-NEXT:         double _r3 = _r_d1 * i;
-// CHECK-NEXT:         double _r4 = 2 * _r_d1;
-// CHECK-NEXT:         * _d_i += _r4;
-// CHECK-NEXT:         _d_b -= _r_d1;
+// CHECK-NEXT:         * _d_i += 2 * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_a;
 // CHECK-NEXT:         *_d_a += _r_d0 * i;
-// CHECK-NEXT:         double _r2 = a * _r_d0;
-// CHECK-NEXT:         * _d_i += _r2;
+// CHECK-NEXT:         * _d_i += a * _r_d0;
 // CHECK-NEXT:         *_d_a -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = _d_b * j;
-// CHECK-NEXT:         * _d_i += _r0;
-// CHECK-NEXT:         double _r1 = i * _d_b;
-// CHECK-NEXT:         * _d_j += _r1;
+// CHECK-NEXT:         * _d_i += _d_b * j;
+// CHECK-NEXT:         * _d_j += i * _d_b;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -789,10 +747,7 @@ double f16(double i, double j) {
 // CHECK-NEXT:         c = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_c;
 // CHECK-NEXT:         *_d_c += _r_d0 * 4 * j;
-// CHECK-NEXT:         double _r0 = c * _r_d0;
-// CHECK-NEXT:         double _r1 = _r0 * j;
-// CHECK-NEXT:         double _r2 = 4 * _r0;
-// CHECK-NEXT:         * _d_j += _r2;
+// CHECK-NEXT:         * _d_j += 4 * c * _r_d0;
 // CHECK-NEXT:         *_d_c -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -814,9 +769,7 @@ double f17(double i, double j, double k) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_j;
-// CHECK-NEXT:         double _r0 = _r_d0 * i;
-// CHECK-NEXT:         double _r1 = 2 * _r_d0;
-// CHECK-NEXT:         * _d_i += _r1;
+// CHECK-NEXT:         * _d_i += 2 * _r_d0;
 // CHECK-NEXT:         _d_j -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -841,19 +794,13 @@ double f18(double i, double j, double k) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         k = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_k;
-// CHECK-NEXT:         _d_k += _r_d1;
 // CHECK-NEXT:         * _d_i += _r_d1;
-// CHECK-NEXT:         _d_k -= _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         k = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_k;
-// CHECK-NEXT:         double _r0 = _r_d0 * i;
-// CHECK-NEXT:         double _r1 = 2 * _r_d0;
-// CHECK-NEXT:         * _d_i += _r1;
-// CHECK-NEXT:         double _r2 = _r_d0 * j;
-// CHECK-NEXT:         double _r3 = 2 * _r_d0;
-// CHECK-NEXT:         * _d_j += _r3;
+// CHECK-NEXT:         * _d_i += 2 * _r_d0;
+// CHECK-NEXT:         * _d_j += 2 * _r_d0;
 // CHECK-NEXT:         _d_k -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -902,10 +849,8 @@ double f20(double x, double y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _r_d1 = * _d_x;
-//CHECK-NEXT:         double _r0 = _r_d1 * y;
-//CHECK-NEXT:         *_d_r += _r0;
-//CHECK-NEXT:         double _r1 = r * _r_d1;
-//CHECK-NEXT:         * _d_y += _r1;
+//CHECK-NEXT:         *_d_r += _r_d1 * y;
+//CHECK-NEXT:         * _d_y += r * _r_d1;
 //CHECK-NEXT:         * _d_x -= _r_d1;
 //CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }

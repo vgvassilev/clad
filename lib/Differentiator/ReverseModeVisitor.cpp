@@ -2173,10 +2173,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
 
       Expr* dl = nullptr;
-      if (dfdx()) {
+      if (dfdx())
         dl = BuildOp(BO_Mul, dfdx(), RResult.getRevSweepAsExpr());
-        dl = StoreAndRef(dl, direction::reverse);
-      }
       Ldiff = Visit(L, dl);
       // dxi/xr = xl
       // df/dxr += df/dxi * dxi/xr = df/dxi * xl
@@ -2186,10 +2184,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (RDelayed ||
           !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context)) {
         Expr* dr = nullptr;
-        if (dfdx()) {
+        if (dfdx())
           dr = BuildOp(BO_Mul, Ldiff.getRevSweepAsExpr(), dfdx());
-          dr = StoreAndRef(dr, direction::reverse);
-        }
         Rdiff = Visit(R, dr);
         // Assign right multiplier's variable with R.
         if (RDelayed)
@@ -2204,10 +2200,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       StmtDiff RResult = RDelayed.Result;
       Expr* RStored = StoreAndRef(RResult.getExpr_dx(), direction::reverse);
       Expr* dl = nullptr;
-      if (dfdx()) {
+      if (dfdx())
         dl = BuildOp(BO_Div, dfdx(), RStored);
-        dl = StoreAndRef(dl, direction::reverse);
-      }
       Ldiff = Visit(L, dl);
       // dxi/xr = -xl / (xr * xr)
       // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
@@ -2359,14 +2353,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Rdiff = Visit(R, oldValue);
         valueForRevPass = Rdiff.getRevSweepAsExpr();
       } else if (opCode == BO_AddAssign) {
-        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue),
-                          direction::reverse);
         Rdiff = Visit(R, oldValue);
         valueForRevPass = BuildOp(BO_Add, Rdiff.getRevSweepAsExpr(),
                                   Ldiff.getRevSweepAsExpr());
       } else if (opCode == BO_SubAssign) {
-        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff, oldValue),
-                          direction::reverse);
         Rdiff = Visit(R, BuildOp(UO_Minus, oldValue));
         valueForRevPass = BuildOp(BO_Sub, Rdiff.getRevSweepAsExpr(),
                                   Ldiff.getRevSweepAsExpr());
@@ -2390,7 +2380,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         /// and insert them after `dl += dl * R`
         beginBlock(direction::reverse);
         Expr* dr = BuildOp(BO_Mul, LCloned, oldValue);
-        dr = StoreAndRef(dr, direction::reverse);
         Rdiff = Visit(R, dr);
         Stmts RBlock = EndBlockWithoutCreatingCS(direction::reverse);
         addToCurrentBlock(
@@ -2428,7 +2417,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_ExternalSource->ActBeforeFinalisingAssignOp(LCloned, oldValue);
 
       // Update the derivative.
-      addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue), direction::reverse);
+      if (opCode != BO_SubAssign && opCode != BO_AddAssign)
+        addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue),
+                          direction::reverse);
       // Output statements from Visit(L).
       for (auto it = Lblock_begin; it != Lblock_end; ++it)
         addToCurrentBlock(*it, direction::reverse);

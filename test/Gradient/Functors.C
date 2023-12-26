@@ -18,13 +18,9 @@ struct Experiment {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = this->x * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = this->x * i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * j * i;
+  // CHECK-NEXT:         * _d_i += this->x * 1 * j;
+  // CHECK-NEXT:         * _d_j += this->x * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -40,13 +36,9 @@ struct ExperimentConst {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = this->x * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = this->x * i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * j * i;
+  // CHECK-NEXT:         * _d_i += this->x * 1 * j;
+  // CHECK-NEXT:         * _d_j += this->x * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -68,13 +60,9 @@ struct ExperimentVolatile {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = this->x * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = this->x * i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * j * i;
+  // CHECK-NEXT:         * _d_i += this->x * 1 * j;
+  // CHECK-NEXT:         * _d_j += this->x * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -96,13 +84,9 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = this->x * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = this->x * i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * j * i;
+  // CHECK-NEXT:         * _d_i += this->x * 1 * j;
+  // CHECK-NEXT:         * _d_j += this->x * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -121,13 +105,9 @@ struct ExperimentNNS {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r1;
-  // CHECK-NEXT:         double _r2 = this->x * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = this->x * i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * j * i;
+  // CHECK-NEXT:         * _d_i += this->x * 1 * j;
+  // CHECK-NEXT:         * _d_j += this->x * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -189,13 +169,9 @@ int main() {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * i;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = i * _r0;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         * _d_i += 1 * j * i;
+  // CHECK-NEXT:         * _d_i += i * 1 * j;
+  // CHECK-NEXT:         * _d_j += i * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -205,12 +181,8 @@ int main() {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * j;
-  // CHECK-NEXT:         double _r1 = _r0 * ii;
-  // CHECK-NEXT:         double _r2 = x * _r0;
-  // CHECK-NEXT:         * _d_ii += _r2;
-  // CHECK-NEXT:         double _r3 = x * ii * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         * _d_ii += x * 1 * j;
+  // CHECK-NEXT:         * _d_j += x * ii * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 

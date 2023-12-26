@@ -28,15 +28,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -46,15 +42,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -66,15 +58,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -86,15 +74,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -104,15 +88,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -124,15 +104,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -144,15 +120,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -164,15 +136,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -182,15 +150,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -202,15 +166,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -222,15 +182,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -242,15 +198,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -262,15 +214,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -282,15 +230,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -302,15 +246,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -322,15 +262,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -342,15 +278,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -362,15 +294,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -382,15 +310,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -402,15 +326,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -422,15 +342,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -442,15 +358,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -462,15 +374,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -482,15 +390,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         * _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         * _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -501,15 +405,11 @@ public:
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:   _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:         (* _d_this).x += _r0;
-  // CHECK-NEXT:         (* _d_this).y += _r0;
-  // CHECK-NEXT:         double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = 1 * j;
-  // CHECK-NEXT:         * _d_i += _r2;
-  // CHECK-NEXT:         double _r3 = i * 1;
-  // CHECK-NEXT:         _d_j += _r3;
+  // CHECK-NEXT:         (* _d_this).x += 1 * i;
+  // CHECK-NEXT:         (* _d_this).y += 1 * i;
+  // CHECK-NEXT:         * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:         * _d_i += 1 * j;
+  // CHECK-NEXT:         _d_j += i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -562,13 +462,9 @@ double fn(double i,double j) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * j;
-// CHECK-NEXT:         double _r1 = _r0 * i;
-// CHECK-NEXT:         * _d_i += _r1;
-// CHECK-NEXT:         double _r2 = i * _r0;
-// CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = i * i * 1;
-// CHECK-NEXT:         * _d_j += _r3;
+// CHECK-NEXT:         * _d_i += 1 * j * i;
+// CHECK-NEXT:         * _d_i += i * 1 * j;
+// CHECK-NEXT:         * _d_j += i * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -644,9 +540,7 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
 // CHECK-NEXT:         double _r_d0 = (* _d_this).x;
-// CHECK-NEXT:         (* _d_this).x += _r_d0;
 // CHECK-NEXT:         * _d_value += _r_d0;
-// CHECK-NEXT:         (* _d_this).x -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -687,8 +581,6 @@ double fn4(SimpleFunctions& v) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
 // CHECK-NEXT:         double _r_d0 = (* _d_this).x;
-// CHECK-NEXT:         (* _d_this).x += _r_d0;
-// CHECK-NEXT:         (* _d_this).x -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -765,15 +657,11 @@ int main() {
   // CHECK-NEXT:       goto _label0;
   // CHECK-NEXT:       _label0:
   // CHECK-NEXT:       {
-  // CHECK-NEXT:           double _r0 = 1 * i;
-  // CHECK-NEXT:           (* _d_this).x += _r0;
-  // CHECK-NEXT:           (* _d_this).y += _r0;
-  // CHECK-NEXT:           double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:           * _d_i += _r1;
-  // CHECK-NEXT:           double _r2 = 1 * j;
-  // CHECK-NEXT:           * _d_i += _r2;
-  // CHECK-NEXT:           double _r3 = i * 1;
-  // CHECK-NEXT:           _d_j += _r3;
+  // CHECK-NEXT:           (* _d_this).x += 1 * i;
+  // CHECK-NEXT:           (* _d_this).y += 1 * i;
+  // CHECK-NEXT:           * _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:           * _d_i += 1 * j;
+  // CHECK-NEXT:           _d_j += i * 1;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }
 
@@ -784,15 +672,11 @@ int main() {
   // CHECK-NEXT:       goto _label0;
   // CHECK-NEXT:       _label0:
   // CHECK-NEXT:       {
-  // CHECK-NEXT:         double _r0 = 1 * i;
-  // CHECK-NEXT:           (* _d_this).x += _r0;
-  // CHECK-NEXT:           (* _d_this).y += _r0;
-  // CHECK-NEXT:           double _r1 = (this->x + this->y) * 1;
-  // CHECK-NEXT:           _d_i += _r1;
-  // CHECK-NEXT:           double _r2 = 1 * j;
-  // CHECK-NEXT:           _d_i += _r2;
-  // CHECK-NEXT:           double _r3 = i * 1;
-  // CHECK-NEXT:           * _d_j += _r3;
+  // CHECK-NEXT:           (* _d_this).x += 1 * i;
+  // CHECK-NEXT:           (* _d_this).y += 1 * i;
+  // CHECK-NEXT:           _d_i += (this->x + this->y) * 1;
+  // CHECK-NEXT:           _d_i += 1 * j;
+  // CHECK-NEXT:           * _d_j += i * 1;
   // CHECK-NEXT:       }
   // CHECK-NEXT:   }
 

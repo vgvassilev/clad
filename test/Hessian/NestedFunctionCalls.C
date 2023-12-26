@@ -34,30 +34,18 @@ double f2(double x, double y){
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = _d_y0.value * x;
-// CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         double _r1 = x * _d_y0.value;
-// CHECK-NEXT:         * _d_x += _r1;
-// CHECK-NEXT:         double _r2 = _d_y0.value * y;
-// CHECK-NEXT:         * _d_y += _r2;
-// CHECK-NEXT:         double _r3 = y * _d_y0.value;
-// CHECK-NEXT:         * _d_y += _r3;
-// CHECK-NEXT:         double _r4 = _d_y0.pushforward * x;
-// CHECK-NEXT:         * _d__d_x += _r4;
-// CHECK-NEXT:         double _r5 = _d_x * _d_y0.pushforward;
-// CHECK-NEXT:         * _d_x += _r5;
-// CHECK-NEXT:         double _r6 = _d_y0.pushforward * _d_x;
-// CHECK-NEXT:         * _d_x += _r6;
-// CHECK-NEXT:         double _r7 = x * _d_y0.pushforward;
-// CHECK-NEXT:         * _d__d_x += _r7;
-// CHECK-NEXT:         double _r8 = _d_y0.pushforward * y;
-// CHECK-NEXT:         * _d__d_y += _r8;
-// CHECK-NEXT:         double _r9 = _d_y * _d_y0.pushforward;
-// CHECK-NEXT:         * _d_y += _r9;
-// CHECK-NEXT:         double _r10 = _d_y0.pushforward * _d_y;
-// CHECK-NEXT:         * _d_y += _r10;
-// CHECK-NEXT:         double _r11 = y * _d_y0.pushforward;
-// CHECK-NEXT:         * _d__d_y += _r11;
+// CHECK-NEXT:         * _d_x += _d_y0.value * x;
+// CHECK-NEXT:         * _d_x += x * _d_y0.value;
+// CHECK-NEXT:         * _d_y += _d_y0.value * y;
+// CHECK-NEXT:         * _d_y += y * _d_y0.value;
+// CHECK-NEXT:         * _d__d_x += _d_y0.pushforward * x;
+// CHECK-NEXT:         * _d_x += _d_x * _d_y0.pushforward;
+// CHECK-NEXT:         * _d_x += _d_y0.pushforward * _d_x;
+// CHECK-NEXT:         * _d__d_x += x * _d_y0.pushforward;
+// CHECK-NEXT:         * _d__d_y += _d_y0.pushforward * y;
+// CHECK-NEXT:         * _d_y += _d_y * _d_y0.pushforward;
+// CHECK-NEXT:         * _d_y += _d_y0.pushforward * _d_y;
+// CHECK-NEXT:         * _d__d_y += y * _d_y0.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

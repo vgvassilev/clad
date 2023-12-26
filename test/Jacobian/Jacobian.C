@@ -20,40 +20,23 @@ void f_1_jac(double a, double b, double c, double output[], double *_result);
 //CHECK-NEXT:  output[1] = a * a * a + b * b * b;
 //CHECK-NEXT:  output[2] = c * c * 10 - a * a;
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r12 = 1 * 10;
-//CHECK-NEXT:    double _r13 = _r12 * c;
-//CHECK-NEXT:    jacobianMatrix[8UL] += _r13;
-//CHECK-NEXT:    double _r14 = c * _r12;
-//CHECK-NEXT:    jacobianMatrix[8UL] += _r14;
-//CHECK-NEXT:    double _r15 = -1 * a;
-//CHECK-NEXT:    jacobianMatrix[6UL] += _r15;
-//CHECK-NEXT:    double _r16 = a * -1;
-//CHECK-NEXT:    jacobianMatrix[6UL] += _r16;
+//CHECK-NEXT:    jacobianMatrix[8UL] += 1 * 10 * c;
+//CHECK-NEXT:    jacobianMatrix[8UL] += c * 1 * 10;
+//CHECK-NEXT:    jacobianMatrix[6UL] += -1 * a;
+//CHECK-NEXT:    jacobianMatrix[6UL] += a * -1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r4 = 1 * a;
-//CHECK-NEXT:    double _r5 = _r4 * a;
-//CHECK-NEXT:    jacobianMatrix[3UL] += _r5;
-//CHECK-NEXT:    double _r6 = a * _r4;
-//CHECK-NEXT:    jacobianMatrix[3UL] += _r6;
-//CHECK-NEXT:    double _r7 = a * a * 1;
-//CHECK-NEXT:    jacobianMatrix[3UL] += _r7;
-//CHECK-NEXT:    double _r8 = 1 * b;
-//CHECK-NEXT:    double _r9 = _r8 * b;
-//CHECK-NEXT:    jacobianMatrix[4UL] += _r9;
-//CHECK-NEXT:    double _r10 = b * _r8;
-//CHECK-NEXT:    jacobianMatrix[4UL] += _r10;
-//CHECK-NEXT:    double _r11 = b * b * 1;
-//CHECK-NEXT:    jacobianMatrix[4UL] += _r11;
+//CHECK-NEXT:    jacobianMatrix[3UL] += 1 * a * a;
+//CHECK-NEXT:    jacobianMatrix[3UL] += a * 1 * a;
+//CHECK-NEXT:    jacobianMatrix[3UL] += a * a * 1;
+//CHECK-NEXT:    jacobianMatrix[4UL] += 1 * b * b;
+//CHECK-NEXT:    jacobianMatrix[4UL] += b * 1 * b;
+//CHECK-NEXT:    jacobianMatrix[4UL] += b * b * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r0 = 1 * a;
-//CHECK-NEXT:    double _r1 = _r0 * a;
-//CHECK-NEXT:    jacobianMatrix[0UL] += _r1;
-//CHECK-NEXT:    double _r2 = a * _r0;
-//CHECK-NEXT:    jacobianMatrix[0UL] += _r2;
-//CHECK-NEXT:    double _r3 = a * a * 1;
-//CHECK-NEXT:    jacobianMatrix[0UL] += _r3;
+//CHECK-NEXT:    jacobianMatrix[0UL] += 1 * a * a;
+//CHECK-NEXT:    jacobianMatrix[0UL] += a * 1 * a;
+//CHECK-NEXT:    jacobianMatrix[0UL] += a * a * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:}
 
@@ -74,22 +57,16 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  _result[1] = sin(y) * constant;
 //CHECK-NEXT:  _result[2] = sin(z) * constant;
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r6 = 1 * constant;
-//CHECK-NEXT:    double _r7 = _r6 * clad::custom_derivatives::sin_pushforward(z, 1.).pushforward;
-//CHECK-NEXT:    jacobianMatrix[8UL] += _r7;
-//CHECK-NEXT:    double _r8 = sin(z) * 1;
+//CHECK-NEXT:    double _r2 = 1 * constant * clad::custom_derivatives::sin_pushforward(z, 1.).pushforward;
+//CHECK-NEXT:    jacobianMatrix[8UL] += _r2;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r3 = 1 * constant;
-//CHECK-NEXT:    double _r4 = _r3 * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
-//CHECK-NEXT:    jacobianMatrix[4UL] += _r4;
-//CHECK-NEXT:    double _r5 = sin(y) * 1;
+//CHECK-NEXT:    double _r1 = 1 * constant * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
+//CHECK-NEXT:    jacobianMatrix[4UL] += _r1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r0 = 1 * constant;
-//CHECK-NEXT:    double _r1 = _r0 * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
-//CHECK-NEXT:    jacobianMatrix[0UL] += _r1;
-//CHECK-NEXT:    double _r2 = sin(x) * 1;
+//CHECK-NEXT:    double _r0 = 1 * constant * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:    jacobianMatrix[0UL] += _r0;
 //CHECK-NEXT:  }
 //CHECK-NEXT:}
 
@@ -98,10 +75,8 @@ double multiply(double x, double y) { return x * y; }
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = _d_y0 * y;
-//CHECK-NEXT:        * _d_x += _r0;
-//CHECK-NEXT:        double _r1 = x * _d_y0;
-//CHECK-NEXT:        * _d_y += _r1;
+//CHECK-NEXT:        * _d_x += _d_y0 * y;
+//CHECK-NEXT:        * _d_y += x * _d_y0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -121,37 +96,31 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:    _result[1] = multiply(y, z) * constant;
 //CHECK-NEXT:    _result[2] = multiply(z, x) * constant;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r8 = 1 * constant;
 //CHECK-NEXT:        double _jac4 = 0.;
 //CHECK-NEXT:        double _jac5 = 0.;
-//CHECK-NEXT:        multiply_pullback(z, x, _r8, &_jac4, &_jac5);
-//CHECK-NEXT:        double _r9 = _jac4;
-//CHECK-NEXT:        jacobianMatrix[8UL] += _r9;
-//CHECK-NEXT:        double _r10 = _jac5;
-//CHECK-NEXT:        jacobianMatrix[6UL] += _r10;
-//CHECK-NEXT:        double _r11 = multiply(z, x) * 1;
+//CHECK-NEXT:        multiply_pullback(z, x, 1 * constant, &_jac4, &_jac5);
+//CHECK-NEXT:        double _r4 = _jac4;
+//CHECK-NEXT:        jacobianMatrix[8UL] += _r4;
+//CHECK-NEXT:        double _r5 = _jac5;
+//CHECK-NEXT:        jacobianMatrix[6UL] += _r5;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r4 = 1 * constant;
 //CHECK-NEXT:        double _jac2 = 0.;
 //CHECK-NEXT:        double _jac3 = 0.;
-//CHECK-NEXT:        multiply_pullback(y, z, _r4, &_jac2, &_jac3);
-//CHECK-NEXT:        double _r5 = _jac2;
-//CHECK-NEXT:        jacobianMatrix[4UL] += _r5;
-//CHECK-NEXT:        double _r6 = _jac3;
-//CHECK-NEXT:        jacobianMatrix[5UL] += _r6;
-//CHECK-NEXT:        double _r7 = multiply(y, z) * 1;
+//CHECK-NEXT:        multiply_pullback(y, z, 1 * constant, &_jac2, &_jac3);
+//CHECK-NEXT:        double _r2 = _jac2;
+//CHECK-NEXT:        jacobianMatrix[4UL] += _r2;
+//CHECK-NEXT:        double _r3 = _jac3;
+//CHECK-NEXT:        jacobianMatrix[5UL] += _r3;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = 1 * constant;
 //CHECK-NEXT:        double _jac0 = 0.;
 //CHECK-NEXT:        double _jac1 = 0.;
-//CHECK-NEXT:        multiply_pullback(x, y, _r0, &_jac0, &_jac1);
-//CHECK-NEXT:        double _r1 = _jac0;
-//CHECK-NEXT:        jacobianMatrix[0UL] += _r1;
-//CHECK-NEXT:        double _r2 = _jac1;
-//CHECK-NEXT:        jacobianMatrix[1UL] += _r2;
-//CHECK-NEXT:        double _r3 = multiply(x, y) * 1;
+//CHECK-NEXT:        multiply_pullback(x, y, 1 * constant, &_jac0, &_jac1);
+//CHECK-NEXT:        double _r0 = _jac0;
+//CHECK-NEXT:        jacobianMatrix[0UL] += _r0;
+//CHECK-NEXT:        double _r1 = _jac1;
+//CHECK-NEXT:        jacobianMatrix[1UL] += _r1;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -163,35 +132,19 @@ void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMa
 // CHECK-NEXT:  output[1] = a * a * a + b * b * b;
 // CHECK-NEXT:  output[2] = c * c * 10 - a * a;
 // CHECK-NEXT:  {
-// CHECK-NEXT:    double _r12 = 1 * 10;
-// CHECK-NEXT:    double _r13 = _r12 * c;
-// CHECK-NEXT:    double _r14 = c * _r12;
-// CHECK-NEXT:    double _r15 = -1 * a;
-// CHECK-NEXT:    jacobianMatrix[2UL] += _r15;
-// CHECK-NEXT:    double _r16 = a * -1;
-// CHECK-NEXT:    jacobianMatrix[2UL] += _r16;
+// CHECK-NEXT:    jacobianMatrix[2UL] += -1 * a;
+// CHECK-NEXT:    jacobianMatrix[2UL] += a * -1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:  {
-// CHECK-NEXT:    double _r4 = 1 * a;
-// CHECK-NEXT:    double _r5 = _r4 * a;
-// CHECK-NEXT:    jacobianMatrix[1UL] += _r5;
-// CHECK-NEXT:    double _r6 = a * _r4;
-// CHECK-NEXT:    jacobianMatrix[1UL] += _r6;
-// CHECK-NEXT:    double _r7 = a * a * 1;
-// CHECK-NEXT:    jacobianMatrix[1UL] += _r7;
-// CHECK-NEXT:    double _r8 = 1 * b;
-// CHECK-NEXT:    double _r9 = _r8 * b;
-// CHECK-NEXT:    double _r10 = b * _r8;
-// CHECK-NEXT:    double _r11 = b * b * 1;
+// CHECK-NEXT:    jacobianMatrix[1UL] += 1 * a * a;
+// CHECK-NEXT:    jacobianMatrix[1UL] += a * 1 * a;
+// CHECK-NEXT:    jacobianMatrix[1UL] += a * a * 1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:  {
-// CHECK-NEXT:    double _r0 = 1 * a;
-// CHECK-NEXT:    double _r1 = _r0 * a;
-// CHECK-NEXT:    jacobianMatrix[0UL] += _r1;
-// CHECK-NEXT:    double _r2 = a * _r0;
-// CHECK-NEXT:    jacobianMatrix[0UL] += _r2;
-// CHECK-NEXT:    double _r3 = a * a * 1;
-// CHECK-NEXT:    jacobianMatrix[0UL] += _r3;
+// CHECK-NEXT:    jacobianMatrix[0UL] += 1 * a * a;
+// CHECK-NEXT:    jacobianMatrix[0UL] += a * 1 * a;
+
+// CHECK-NEXT:    jacobianMatrix[0UL] += a * a * 1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:}
 

@@ -67,14 +67,10 @@ float func2(float x, int y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = * _d_x;
-//CHECK-NEXT:         float _r0 = _r_d0 * x;
-//CHECK-NEXT:         * _d_y += _r0;
-//CHECK-NEXT:         float _r1 = y * _r_d0;
-//CHECK-NEXT:         * _d_x += _r1;
-//CHECK-NEXT:         float _r2 = _r_d0 * x;
-//CHECK-NEXT:         * _d_x += _r2;
-//CHECK-NEXT:         float _r3 = x * _r_d0;
-//CHECK-NEXT:         * _d_x += _r3;
+//CHECK-NEXT:         * _d_y += _r_d0 * x;
+//CHECK-NEXT:         * _d_x += y * _r_d0;
+//CHECK-NEXT:         * _d_x += _r_d0 * x;
+//CHECK-NEXT:         * _d_x += x * _r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_x;
@@ -195,10 +191,8 @@ float func7(float x, float y) { return (x * y); }
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r0 = 1 * y;
-//CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         float _r1 = x * 1;
-//CHECK-NEXT:         * _d_y += _r1;
+//CHECK-NEXT:         * _d_x += 1 * y;
+//CHECK-NEXT:         * _d_y += x * 1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});

@@ -20,26 +20,12 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     output[0] = this->x * this->y * i * j;
 // CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r6 = 1 * j;
-// CHECK-NEXT:         double _r7 = _r6 * i;
-// CHECK-NEXT:         double _r8 = _r7 * this->y;
-// CHECK-NEXT:         double _r9 = _r8 * this->x;
-// CHECK-NEXT:         double _r10 = 2 * _r8;
-// CHECK-NEXT:         double _r11 = 2 * this->x * _r7;
-// CHECK-NEXT:         double _r12 = 2 * this->x * this->y * _r6;
-// CHECK-NEXT:         jacobianMatrix[2UL] += _r12;
-// CHECK-NEXT:         double _r13 = 2 * this->x * this->y * i * 1;
-// CHECK-NEXT:         jacobianMatrix[3UL] += _r13;
+// CHECK-NEXT:         jacobianMatrix[2UL] += 2 * this->x * this->y * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[3UL] += 2 * this->x * this->y * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * j;
-// CHECK-NEXT:         double _r1 = _r0 * i;
-// CHECK-NEXT:         double _r2 = _r1 * this->y;
-// CHECK-NEXT:         double _r3 = this->x * _r1;
-// CHECK-NEXT:         double _r4 = this->x * this->y * _r0;
-// CHECK-NEXT:         jacobianMatrix[0UL] += _r4;
-// CHECK-NEXT:         double _r5 = this->x * this->y * i * 1;
-// CHECK-NEXT:         jacobianMatrix[1UL] += _r5;
+// CHECK-NEXT:         jacobianMatrix[0UL] += this->x * this->y * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[1UL] += this->x * this->y * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -57,32 +43,14 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     output[0] = this->x * this->y * i * i * j;
 // CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * i * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         long double _r8 = 1 * j;
-// CHECK-NEXT:         long double _r9 = _r8 * i;
-// CHECK-NEXT:         long double _r10 = _r9 * i;
-// CHECK-NEXT:         long double _r11 = _r10 * this->y;
-// CHECK-NEXT:         long double _r12 = _r11 * this->x;
-// CHECK-NEXT:         long double _r13 = 2 * _r11;
-// CHECK-NEXT:         long double _r14 = 2 * this->x * _r10;
-// CHECK-NEXT:         long double _r15 = 2 * this->x * this->y * _r9;
-// CHECK-NEXT:         jacobianMatrix[2UL] += _r15;
-// CHECK-NEXT:         long double _r16 = 2 * this->x * this->y * i * _r8;
-// CHECK-NEXT:         jacobianMatrix[2UL] += _r16;
-// CHECK-NEXT:         long double _r17 = 2 * this->x * this->y * i * i * 1;
-// CHECK-NEXT:         jacobianMatrix[3UL] += _r17;
+// CHECK-NEXT:         jacobianMatrix[2UL] += 2 * this->x * this->y * 1 * j * i;
+// CHECK-NEXT:         jacobianMatrix[2UL] += 2 * this->x * this->y * i * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[3UL] += 2 * this->x * this->y * i * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         long double _r0 = 1 * j;
-// CHECK-NEXT:         long double _r1 = _r0 * i;
-// CHECK-NEXT:         long double _r2 = _r1 * i;
-// CHECK-NEXT:         long double _r3 = _r2 * this->y;
-// CHECK-NEXT:         long double _r4 = this->x * _r2;
-// CHECK-NEXT:         long double _r5 = this->x * this->y * _r1;
-// CHECK-NEXT:         jacobianMatrix[0UL] += _r5;
-// CHECK-NEXT:         long double _r6 = this->x * this->y * i * _r0;
-// CHECK-NEXT:         jacobianMatrix[0UL] += _r6;
-// CHECK-NEXT:         long double _r7 = this->x * this->y * i * i * 1;
-// CHECK-NEXT:         jacobianMatrix[1UL] += _r7;
+// CHECK-NEXT:         jacobianMatrix[0UL] += this->x * this->y * 1 * j * i;
+// CHECK-NEXT:         jacobianMatrix[0UL] += this->x * this->y * i * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[1UL] += this->x * this->y * i * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
