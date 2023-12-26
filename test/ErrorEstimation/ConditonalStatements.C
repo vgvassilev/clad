@@ -55,10 +55,8 @@ float func(float x, float y) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             y = _t0;
 //CHECK-NEXT:             float _r_d0 = * _d_y;
-//CHECK-NEXT:             float _r0 = _r_d0 * x;
-//CHECK-NEXT:             * _d_y += _r0;
-//CHECK-NEXT:             float _r1 = y * _r_d0;
-//CHECK-NEXT:             * _d_x += _r1;
+//CHECK-NEXT:             * _d_y += _r_d0 * x;
+//CHECK-NEXT:             * _d_x += y * _r_d0;
 //CHECK-NEXT:             _delta_y += std::abs(_r_d0 * _EERepl_y1 * {{.+}});
 //CHECK-NEXT:             * _d_y -= _r_d0;
 //CHECK-NEXT:             * _d_y;
@@ -74,10 +72,8 @@ float func(float x, float y) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             temp = _t1;
 //CHECK-NEXT:             float _r_d1 = _d_temp;
-//CHECK-NEXT:             float _r2 = _r_d1 * y;
-//CHECK-NEXT:             * _d_y += _r2;
-//CHECK-NEXT:             float _r3 = y * _r_d1;
-//CHECK-NEXT:             * _d_y += _r3;
+//CHECK-NEXT:             * _d_y += _r_d1 * y;
+//CHECK-NEXT:             * _d_y += y * _r_d1;
 //CHECK-NEXT:             _delta_temp += std::abs(_r_d1 * _EERepl_temp1 * {{.+}});
 //CHECK-NEXT:             _d_temp -= _r_d1;
 //CHECK-NEXT:         }
@@ -123,16 +119,12 @@ float func2(float x) {
 //CHECK-NEXT:     else
 //CHECK-NEXT:       _label1:
 //CHECK-NEXT:         {
-//CHECK-NEXT:             float _r2 = 1 * x;
-//CHECK-NEXT:             * _d_x += _r2;
-//CHECK-NEXT:             float _r3 = x * 1;
-//CHECK-NEXT:             * _d_x += _r3;
+//CHECK-NEXT:             * _d_x += 1 * x;
+//CHECK-NEXT:             * _d_x += x * 1;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r0 = _d_z * x;
-//CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         float _r1 = x * _d_z;
-//CHECK-NEXT:         * _d_x += _r1;
+//CHECK-NEXT:         * _d_x += _d_z * x;
+//CHECK-NEXT:         * _d_x += x * _d_z;
 //CHECK-NEXT:         _delta_z += std::abs(_d_z * _EERepl_z0 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
@@ -150,10 +142,8 @@ float func3(float x, float y) { return x > 30 ? x * y : x + y; }
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     if (_cond0) {
-//CHECK-NEXT:         float _r0 = 1 * y;
-//CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         float _r1 = x * 1;
-//CHECK-NEXT:         * _d_y += _r1;
+//CHECK-NEXT:         * _d_x += 1 * y;
+//CHECK-NEXT:         * _d_y += x * 1;
 //CHECK-NEXT:     } else {
 //CHECK-NEXT:         * _d_x += 1;
 //CHECK-NEXT:         * _d_y += 1;
@@ -193,24 +183,20 @@ float func4(float x, float y) {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _r1 = 1 / _t2;
-//CHECK-NEXT:         * _d_y += _r1;
-//CHECK-NEXT:         float _r2 = 1 * -y / (_t2 * _t2);
-//CHECK-NEXT:         * _d_x += _r2;
+//CHECK-NEXT:         * _d_y += 1 / _t2;
+//CHECK-NEXT:         float _r0 = 1 * -y / (_t2 * _t2);
+//CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         if (_cond0) {
 //CHECK-NEXT:             x = _t0;
 //CHECK-NEXT:             float _r_d0 = * _d_x;
-//CHECK-NEXT:             * _d_x += _r_d0;
 //CHECK-NEXT:             _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:             * _d_x -= _r_d0;
 //CHECK-NEXT:         } else {
 //CHECK-NEXT:             x = _t1;
 //CHECK-NEXT:             float _r_d1 = * _d_x;
 //CHECK-NEXT:             * _d_x += _r_d1 * x;
-//CHECK-NEXT:             float _r0 = x * _r_d1;
-//CHECK-NEXT:             * _d_x += _r0;
+//CHECK-NEXT:             * _d_x += x * _r_d1;
 //CHECK-NEXT:             _delta_x += std::abs(_r_d1 * _EERepl_x2 * {{.+}});
 //CHECK-NEXT:             * _d_x -= _r_d1;
 //CHECK-NEXT:         }

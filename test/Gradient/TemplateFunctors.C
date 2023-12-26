@@ -18,17 +18,11 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * i;
-// CHECK-NEXT:         double _r1 = _r0 * i;
-// CHECK-NEXT:         (* _d_this).x += _r1;
-// CHECK-NEXT:         double _r2 = this->x * _r0;
-// CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = this->x * i * 1;
-// CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         double _r4 = 1 * j;
-// CHECK-NEXT:         (* _d_this).y += _r4;
-// CHECK-NEXT:         double _r5 = this->y * 1;
-// CHECK-NEXT:         * _d_j += _r5;
+// CHECK-NEXT:         (* _d_this).x += 1 * i * i;
+// CHECK-NEXT:         * _d_i += this->x * 1 * i;
+// CHECK-NEXT:         * _d_i += this->x * i * 1;
+// CHECK-NEXT:         (* _d_this).y += 1 * j;
+// CHECK-NEXT:         * _d_j += this->y * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -46,23 +40,13 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         long double _r0 = 1 * j;
-// CHECK-NEXT:         long double _r1 = _r0 * i;
-// CHECK-NEXT:         long double _r2 = _r1 * i;
-// CHECK-NEXT:         (* _d_this).x += _r2;
-// CHECK-NEXT:         long double _r3 = this->x * _r1;
-// CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         long double _r4 = this->x * i * _r0;
-// CHECK-NEXT:         * _d_i += _r4;
-// CHECK-NEXT:         long double _r5 = this->x * i * i * 1;
-// CHECK-NEXT:         * _d_j += _r5;
-// CHECK-NEXT:         long double _r6 = 1 * i;
-// CHECK-NEXT:         long double _r7 = _r6 * j;
-// CHECK-NEXT:         (* _d_this).y += _r7;
-// CHECK-NEXT:         long double _r8 = this->y * _r6;
-// CHECK-NEXT:         * _d_j += _r8;
-// CHECK-NEXT:         long double _r9 = this->y * j * 1;
-// CHECK-NEXT:         * _d_i += _r9;
+// CHECK-NEXT:         (* _d_this).x += 1 * j * i * i;
+// CHECK-NEXT:         * _d_i += this->x * 1 * j * i;
+// CHECK-NEXT:         * _d_i += this->x * i * 1 * j;
+// CHECK-NEXT:         * _d_j += this->x * i * i * 1;
+// CHECK-NEXT:         (* _d_this).y += 1 * i * j;
+// CHECK-NEXT:         * _d_j += this->y * 1 * i;
+// CHECK-NEXT:         * _d_i += this->y * j * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -78,17 +62,11 @@ template <typename T> struct ExperimentConstVolatile {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 1 * i;
-// CHECK-NEXT:         double _r1 = _r0 * i;
-// CHECK-NEXT:         (* _d_this).x += _r1;
-// CHECK-NEXT:         double _r2 = this->x * _r0;
-// CHECK-NEXT:         * _d_i += _r2;
-// CHECK-NEXT:         double _r3 = this->x * i * 1;
-// CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         double _r4 = 1 * j;
-// CHECK-NEXT:         (* _d_this).y += _r4;
-// CHECK-NEXT:         double _r5 = this->y * 1;
-// CHECK-NEXT:         * _d_j += _r5;
+// CHECK-NEXT:         (* _d_this).x += 1 * i * i;
+// CHECK-NEXT:         * _d_i += this->x * 1 * i;
+// CHECK-NEXT:         * _d_i += this->x * i * 1;
+// CHECK-NEXT:         (* _d_this).y += 1 * j;
+// CHECK-NEXT:         * _d_j += this->y * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -106,23 +84,13 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         long double _r0 = 1 * j;
-// CHECK-NEXT:         long double _r1 = _r0 * i;
-// CHECK-NEXT:         long double _r2 = _r1 * i;
-// CHECK-NEXT:         (* _d_this).x += _r2;
-// CHECK-NEXT:         long double _r3 = this->x * _r1;
-// CHECK-NEXT:         * _d_i += _r3;
-// CHECK-NEXT:         long double _r4 = this->x * i * _r0;
-// CHECK-NEXT:         * _d_i += _r4;
-// CHECK-NEXT:         long double _r5 = this->x * i * i * 1;
-// CHECK-NEXT:         * _d_j += _r5;
-// CHECK-NEXT:         long double _r6 = 1 * i;
-// CHECK-NEXT:         long double _r7 = _r6 * j;
-// CHECK-NEXT:         (* _d_this).y += _r7;
-// CHECK-NEXT:         long double _r8 = this->y * _r6;
-// CHECK-NEXT:         * _d_j += _r8;
-// CHECK-NEXT:         long double _r9 = this->y * j * 1;
-// CHECK-NEXT:         * _d_i += _r9;
+// CHECK-NEXT:         (* _d_this).x += 1 * j * i * i;
+// CHECK-NEXT:         * _d_i += this->x * 1 * j * i;
+// CHECK-NEXT:         * _d_i += this->x * i * 1 * j;
+// CHECK-NEXT:         * _d_j += this->x * i * i * 1;
+// CHECK-NEXT:         (* _d_this).y += 1 * i * j;
+// CHECK-NEXT:         * _d_j += this->y * 1 * i;
+// CHECK-NEXT:         * _d_i += this->y * j * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

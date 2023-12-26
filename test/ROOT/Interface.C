@@ -27,9 +27,7 @@ void f_grad_1(Double_t* x, Double_t* p, clad::array_ref<Double_t> _d_p);
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p[0] += 1;
-// CHECK-NEXT:         {{double|Double_t}} _r0 = 1 * p[1];
-// CHECK-NEXT:         {{double|Double_t}} _r1 = x[0] * 1;
-// CHECK-NEXT:         _d_p[1] += _r1;
+// CHECK-NEXT:         _d_p[1] += x[0] * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

@@ -39,11 +39,9 @@ float func(float* p, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             float _r_d0 = _d_sum;
-//CHECK-NEXT:             _d_sum += _r_d0;
 //CHECK-NEXT:             _d_p[i] += _r_d0;
 //CHECK-NEXT:             float _r0 = clad::pop(_EERepl_sum1);
 //CHECK-NEXT:             _delta_sum += std::abs(_r_d0 * _r0 * {{.+}});
-//CHECK-NEXT:             _d_sum -= _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
@@ -101,19 +99,17 @@ float func2(float x) {
 //CHECK-NEXT:             float _r_d0 = _d_z;
 //CHECK-NEXT:             _d_m += _r_d0;
 //CHECK-NEXT:             _d_m += _r_d0;
-//CHECK-NEXT:             float _r3 = clad::pop(_EERepl_z1);
-//CHECK-NEXT:             _delta_z += std::abs(_r_d0 * _r3 * {{.+}});
+//CHECK-NEXT:             float _r1 = clad::pop(_EERepl_z1);
+//CHECK-NEXT:             _delta_z += std::abs(_r_d0 * _r1 * {{.+}});
 //CHECK-NEXT:             _d_z -= _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
-//CHECK-NEXT:             float _r0 = _d_m * x;
-//CHECK-NEXT:             * _d_x += _r0;
-//CHECK-NEXT:             float _r1 = x * _d_m;
-//CHECK-NEXT:             * _d_x += _r1;
+//CHECK-NEXT:             * _d_x += _d_m * x;
+//CHECK-NEXT:             * _d_x += x * _d_m;
 //CHECK-NEXT:             _d_m = 0;
 //CHECK-NEXT:             m = clad::pop(_t1);
-//CHECK-NEXT:             float _r2 = clad::pop(_EERepl_m0);
-//CHECK-NEXT:             _delta_m += std::abs(_d_m * _r2 * {{.+}});
+//CHECK-NEXT:             float _r0 = clad::pop(_EERepl_m0);
+//CHECK-NEXT:             _delta_m += std::abs(_d_m * _r0 * {{.+}});
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
@@ -164,10 +160,8 @@ float func3(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         arr[1] = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_arr[1];
-//CHECK-NEXT:         double _r0 = _r_d1 * x;
-//CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         double _r1 = x * _r_d1;
-//CHECK-NEXT:         * _d_x += _r1;
+//CHECK-NEXT:         * _d_x += _r_d1 * x;
+//CHECK-NEXT:         * _d_x += x * _r_d1;
 //CHECK-NEXT:         _delta_arr[1] += std::abs(_r_d1 * _EERepl_arr1 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_arr[1];
 //CHECK-NEXT:         _d_arr[1] -= _r_d1;
@@ -234,21 +228,17 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t2);
 //CHECK-NEXT:             float _r_d1 = _d_sum;
-//CHECK-NEXT:             _d_sum += _r_d1;
 //CHECK-NEXT:             _d_x[i] += _r_d1;
 //CHECK-NEXT:             float _r1 = clad::pop(_EERepl_sum1);
 //CHECK-NEXT:             _delta_sum += std::abs(_r_d1 * _r1 * {{.+}});
-//CHECK-NEXT:             _d_sum -= _r_d1;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             x[i] = clad::pop(_t1);
 //CHECK-NEXT:             float _r_d0 = _d_x[i];
-//CHECK-NEXT:             _d_x[i] += _r_d0;
 //CHECK-NEXT:             _d_y[i] += _r_d0;
 //CHECK-NEXT:             float _r0 = clad::pop(_EERepl_x1);
 //CHECK-NEXT:             _delta_x[i] += std::abs(_r_d0 * _r0 * {{.+}});
 //CHECK-NEXT:             _final_error += _delta_x[i];
-//CHECK-NEXT:             _d_x[i] -= _r_d0;
 //CHECK-NEXT:             _d_x[i];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -310,14 +300,10 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         output[2] = _t2;
 //CHECK-NEXT:         double _r_d2 = _d_output[2];
-//CHECK-NEXT:         double _r8 = _r_d2 * y[1];
-//CHECK-NEXT:         _d_x[0] += _r8;
-//CHECK-NEXT:         double _r9 = x[0] * _r_d2;
-//CHECK-NEXT:         _d_y[1] += _r9;
-//CHECK-NEXT:         double _r10 = -_r_d2 * x[1];
-//CHECK-NEXT:         _d_y[0] += _r10;
-//CHECK-NEXT:         double _r11 = y[0] * -_r_d2;
-//CHECK-NEXT:         _d_x[1] += _r11;
+//CHECK-NEXT:         _d_x[0] += _r_d2 * y[1];
+//CHECK-NEXT:         _d_y[1] += x[0] * _r_d2;
+//CHECK-NEXT:         _d_y[0] += -_r_d2 * x[1];
+//CHECK-NEXT:         _d_x[1] += y[0] * -_r_d2;
 //CHECK-NEXT:         _delta_output[2] += std::abs(_r_d2 * _EERepl_output3 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_output[2];
 //CHECK-NEXT:         _d_output[2] -= _r_d2;
@@ -326,14 +312,10 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         output[1] = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_output[1];
-//CHECK-NEXT:         double _r4 = _r_d1 * y[0];
-//CHECK-NEXT:         _d_x[2] += _r4;
-//CHECK-NEXT:         double _r5 = x[2] * _r_d1;
-//CHECK-NEXT:         _d_y[0] += _r5;
-//CHECK-NEXT:         double _r6 = -_r_d1 * y[2];
-//CHECK-NEXT:         _d_x[0] += _r6;
-//CHECK-NEXT:         double _r7 = x[0] * -_r_d1;
-//CHECK-NEXT:         _d_y[2] += _r7;
+//CHECK-NEXT:         _d_x[2] += _r_d1 * y[0];
+//CHECK-NEXT:         _d_y[0] += x[2] * _r_d1;
+//CHECK-NEXT:         _d_x[0] += -_r_d1 * y[2];
+//CHECK-NEXT:         _d_y[2] += x[0] * -_r_d1;
 //CHECK-NEXT:         _delta_output[1] += std::abs(_r_d1 * _EERepl_output2 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_output[1];
 //CHECK-NEXT:         _d_output[1] -= _r_d1;
@@ -342,14 +324,10 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         output[0] = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_output[0];
-//CHECK-NEXT:         double _r0 = _r_d0 * y[2];
-//CHECK-NEXT:         _d_x[1] += _r0;
-//CHECK-NEXT:         double _r1 = x[1] * _r_d0;
-//CHECK-NEXT:         _d_y[2] += _r1;
-//CHECK-NEXT:         double _r2 = -_r_d0 * y[1];
-//CHECK-NEXT:         _d_x[2] += _r2;
-//CHECK-NEXT:         double _r3 = x[2] * -_r_d0;
-//CHECK-NEXT:         _d_y[1] += _r3;
+//CHECK-NEXT:         _d_x[1] += _r_d0 * y[2];
+//CHECK-NEXT:         _d_y[2] += x[1] * _r_d0;
+//CHECK-NEXT:         _d_x[2] += -_r_d0 * y[1];
+//CHECK-NEXT:         _d_y[1] += x[2] * -_r_d0;
 //CHECK-NEXT:         _delta_output[0] += std::abs(_r_d0 * _EERepl_output1 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_output[0];
 //CHECK-NEXT:         _d_output[0] -= _r_d0;

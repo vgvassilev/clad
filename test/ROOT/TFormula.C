@@ -44,15 +44,13 @@ void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           {{double|Double_t}} _r0 = 1 * (p[0] + p[1] + p[2]);
-//CHECK-NEXT:           {{double|Double_t}} _r1 = x[0] * 1;
-//CHECK-NEXT:           _d_p[0] += _r1;
+//CHECK-NEXT:           _d_p[0] += x[0] * 1;
+//CHECK-NEXT:           _d_p[1] += x[0] * 1;
+//CHECK-NEXT:           _d_p[2] += x[0] * 1;
+//CHECK-NEXT:           Double_t _r0 = 1 * clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], 1.).pushforward;
+//CHECK-NEXT:           _d_p[0] += -_r0;
+//CHECK-NEXT:           Double_t _r1 = 1 * clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 1.).pushforward;
 //CHECK-NEXT:           _d_p[1] += _r1;
-//CHECK-NEXT:           _d_p[2] += _r1;
-//CHECK-NEXT:           Double_t _r2 = 1 * clad::custom_derivatives{{(::std)?}}::TMath::Exp_pushforward(-p[0], 1.).pushforward;
-//CHECK-NEXT:           _d_p[0] += -_r2;
-//CHECK-NEXT:           Double_t _r3 = 1 * clad::custom_derivatives{{(::std)?}}::TMath::Abs_pushforward(p[1], 1.).pushforward;
-//CHECK-NEXT:           _d_p[1] += _r3;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 

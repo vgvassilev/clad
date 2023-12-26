@@ -40,12 +40,10 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
-//CHECK-NEXT:             _d_sum += _r_d0;
 //CHECK-NEXT:             _d_f[i] += _r_d0;
 //CHECK-NEXT:             _d_f[i - 1] += _r_d0;
 //CHECK-NEXT:             double _r0 = clad::pop(_EERepl_sum1);
 //CHECK-NEXT:             _delta_sum += std::abs(_r_d0 * _r0 * {{.+}});
-//CHECK-NEXT:             _d_sum -= _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
@@ -103,14 +101,10 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:                 j--;
 //CHECK-NEXT:                 sum = clad::pop(_t3);
 //CHECK-NEXT:                 double _r_d0 = _d_sum;
-//CHECK-NEXT:                 _d_sum += _r_d0;
-//CHECK-NEXT:                 double _r0 = _r_d0 * b[j];
-//CHECK-NEXT:                 _d_a[i] += _r0;
-//CHECK-NEXT:                 double _r1 = a[i] * _r_d0;
-//CHECK-NEXT:                 _d_b[j] += _r1;
-//CHECK-NEXT:                 double _r2 = clad::pop(_EERepl_sum1);
-//CHECK-NEXT:                 _delta_sum += std::abs(_r_d0 * _r2 * {{.+}});
-//CHECK-NEXT:                 _d_sum -= _r_d0;
+//CHECK-NEXT:                 _d_a[i] += _r_d0 * b[j];
+//CHECK-NEXT:                 _d_b[j] += a[i] * _r_d0;
+//CHECK-NEXT:                 double _r0 = clad::pop(_EERepl_sum1);
+//CHECK-NEXT:                 _delta_sum += std::abs(_r_d0 * _r0 * {{.+}});
 //CHECK-NEXT:             }
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 _d_j = 0;
@@ -171,15 +165,12 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
-//CHECK-NEXT:             _d_sum += _r_d0;
 //CHECK-NEXT:             float _r0 = clad::pop(_t2);
-//CHECK-NEXT:             double _r1 = _r_d0 / _r0;
-//CHECK-NEXT:             _d_a[i] += _r1;
-//CHECK-NEXT:             double _r2 = _r_d0 * -a[i] / (_r0 * _r0);
-//CHECK-NEXT:             _d_b[i] += _r2;
-//CHECK-NEXT:             double _r3 = clad::pop(_EERepl_sum1);
-//CHECK-NEXT:             _delta_sum += std::abs(_r_d0 * _r3 * {{.+}});
-//CHECK-NEXT:             _d_sum -= _r_d0;
+//CHECK-NEXT:             _d_a[i] += _r_d0 / _r0;
+//CHECK-NEXT:             double _r1 = _r_d0 * -a[i] / (_r0 * _r0);
+//CHECK-NEXT:             _d_b[i] += _r1;
+//CHECK-NEXT:             double _r2 = clad::pop(_EERepl_sum1);
+//CHECK-NEXT:             _delta_sum += std::abs(_r_d0 * _r2 * {{.+}});
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});

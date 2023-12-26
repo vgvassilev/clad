@@ -99,18 +99,12 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = 1 * consts[0];
-//CHECK-NEXT:           _d_vars[0] += _r0;
-//CHECK-NEXT:           double _r1 = vars[0] * 1;
-//CHECK-NEXT:           _d_consts[0] += _r1;
-//CHECK-NEXT:           double _r2 = 1 * consts[1];
-//CHECK-NEXT:           _d_vars[1] += _r2;
-//CHECK-NEXT:           double _r3 = vars[1] * 1;
-//CHECK-NEXT:           _d_consts[1] += _r3;
-//CHECK-NEXT:           double _r4 = 1 * consts[2];
-//CHECK-NEXT:           _d_vars[2] += _r4;
-//CHECK-NEXT:           double _r5 = vars[2] * 1;
-//CHECK-NEXT:           _d_consts[2] += _r5;
+//CHECK-NEXT:           _d_vars[0] += 1 * consts[0];
+//CHECK-NEXT:           _d_consts[0] += vars[0] * 1;
+//CHECK-NEXT:           _d_vars[1] += 1 * consts[1];
+//CHECK-NEXT:           _d_consts[1] += vars[1] * 1;
+//CHECK-NEXT:           _d_vars[2] += 1 * consts[2];
+//CHECK-NEXT:           _d_consts[2] += vars[2] * 1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           * _d_x += _d_vars[0];
