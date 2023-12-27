@@ -33,21 +33,19 @@ constexpr double fn( double a, double b, double c) {
 
 //CHECK: constexpr void fn_grad(double a, double b, double c, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b, clad::array_ref<double> _d_c) {
 //CHECK-NEXT:    double _d_val = 0;
-//CHECK-NEXT:    double _t0;
 //CHECK-NEXT:    double _d_result = 0;
 //CHECK-NEXT:    double val = 98.;
-//CHECK-NEXT:    _t0 = c;
-//CHECK-NEXT:    double result = a * b / _t0 * (a + b) * 100 + c;
+//CHECK-NEXT:    double result = a * b / c * (a + b) * 100 + c;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        * _d_a += _d_result * 100 * (a + b) / _t0 * b;
-//CHECK-NEXT:        * _d_b += a * _d_result * 100 * (a + b) / _t0;
-//CHECK-NEXT:        double _r0 = _d_result * 100 * (a + b) * -a * b / (_t0 * _t0);
+//CHECK-NEXT:        * _d_a += _d_result * 100 * (a + b) / c * b;
+//CHECK-NEXT:        * _d_b += a * _d_result * 100 * (a + b) / c;
+//CHECK-NEXT:        double _r0 = _d_result * 100 * (a + b) * -a * b / (c * c);
 //CHECK-NEXT:        * _d_c += _r0;
-//CHECK-NEXT:        * _d_a += a * b / _t0 * _d_result * 100;
-//CHECK-NEXT:        * _d_b += a * b / _t0 * _d_result * 100;
+//CHECK-NEXT:        * _d_a += a * b / c * _d_result * 100;
+//CHECK-NEXT:        * _d_b += a * b / c * _d_result * 100;
 //CHECK-NEXT:        * _d_c += _d_result;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}

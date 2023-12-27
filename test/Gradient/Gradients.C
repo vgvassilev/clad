@@ -121,13 +121,11 @@ double f_div1(double x, double y) {
 }
 
 //CHECK:   void f_div1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           * _d_x += 1 / _t0;
-//CHECK-NEXT:           double _r0 = 1 * -x / (_t0 * _t0);
+//CHECK-NEXT:           * _d_x += 1 / y;
+//CHECK-NEXT:           double _r0 = 1 * -x / (y * y);
 //CHECK-NEXT:           * _d_y += _r0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -152,13 +150,38 @@ double f_div2(double x, double y) {
 
 void f_div2_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
 
+double f_div3(double x, double y) {
+    return (x = y) / (y * y);
+}
+
+//CHECK: void f_div3_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     double _t1;
+//CHECK-NEXT:     double _t2;
+//CHECK-NEXT:     _t1 = x;
+//CHECK-NEXT:     _t2 = (x = y);
+//CHECK-NEXT:     _t0 = (y * y);
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     {
+//CHECK-NEXT:         * _d_x += 1 / _t0;
+//CHECK-NEXT:         x = _t1;
+//CHECK-NEXT:         double _r_d0 = * _d_x;
+//CHECK-NEXT:         * _d_y += _r_d0;
+//CHECK-NEXT:         * _d_x -= _r_d0;
+//CHECK-NEXT:         double _r0 = 1 * -_t2 / (_t0 * _t0);
+//CHECK-NEXT:         * _d_y += _r0 * y;
+//CHECK-NEXT:         * _d_y += y * _r0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+void f_div3_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
+
 double f_c(double x, double y) {
   return -x*y + (x + y)*(x/y) - x*x;
 }
 
 //CHECK:   void f_c_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = y;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -166,8 +189,8 @@ double f_c(double x, double y) {
 //CHECK-NEXT:           * _d_y += -x * 1;
 //CHECK-NEXT:           * _d_x += 1 * (x / y);
 //CHECK-NEXT:           * _d_y += 1 * (x / y);
-//CHECK-NEXT:           * _d_x += (x + y) * 1 / _t0;
-//CHECK-NEXT:           double _r0 = (x + y) * 1 * -x / (_t0 * _t0);
+//CHECK-NEXT:           * _d_x += (x + y) * 1 / y;
+//CHECK-NEXT:           double _r0 = (x + y) * 1 * -x / (y * y);
 //CHECK-NEXT:           * _d_y += _r0;
 //CHECK-NEXT:           * _d_x += -1 * x;
 //CHECK-NEXT:           * _d_x += x * -1;
@@ -418,14 +441,12 @@ void f_norm_grad(double x,
                  double* _d_z,
                  double* _d_d);
 //CHECK:   void f_norm_grad(double x, double y, double z, double d, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d_z, clad::array_ref<double> _d_d) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = d;
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _grad4 = 0.;
 //CHECK-NEXT:           double _grad5 = 0.;
-//CHECK-NEXT:           clad::custom_derivatives::pow_pullback(sum_of_powers(x, y, z, d), 1 / _t0, 1, &_grad4, &_grad5);
+//CHECK-NEXT:           clad::custom_derivatives::pow_pullback(sum_of_powers(x, y, z, d), 1 / d, 1, &_grad4, &_grad5);
 //CHECK-NEXT:           double _r0 = _grad4;
 //CHECK-NEXT:           double _grad0 = 0.;
 //CHECK-NEXT:           double _grad1 = 0.;
@@ -441,7 +462,7 @@ void f_norm_grad(double x,
 //CHECK-NEXT:           double _r4 = _grad3;
 //CHECK-NEXT:           * _d_d += _r4;
 //CHECK-NEXT:           double _r5 = _grad5;
-//CHECK-NEXT:           double _r6 = _r5 * -1 / (_t0 * _t0);
+//CHECK-NEXT:           double _r6 = _r5 * -1 / (d * d);
 //CHECK-NEXT:           * _d_d += _r6;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -452,6 +473,8 @@ double f_sin(double x, double y) {
 
 void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
 //CHECK:   void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK-NEXT:       double _t0;
+//CHECK-NEXT:       _t0 = (std::sin(x) + std::sin(y));
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -459,8 +482,8 @@ void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_re
 //CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:           double _r1 = 1 * (x + y) * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
 //CHECK-NEXT:           * _d_y += _r1;
-//CHECK-NEXT:           * _d_x += (std::sin(x) + std::sin(y)) * 1;
-//CHECK-NEXT:           * _d_y += (std::sin(x) + std::sin(y)) * 1;
+//CHECK-NEXT:           * _d_x += _t0 * 1;
+//CHECK-NEXT:           * _d_y += _t0 * 1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -738,6 +761,7 @@ int main() {
   TEST(f_mult2, 1, 1); // CHECK-EXEC: Result is = {12.00, 12.00}
   TEST(f_div1, 1, 1); // CHECK-EXEC: Result is = {1.00, -1.00}
   TEST(f_div2, 1, 1); // CHECK-EXEC: Result is = {0.75, -0.75}
+  TEST(f_div3, 1, 1); // CHECK-EXEC: Result is = {0.00, -1.00}
   TEST(f_c, 1, 1); // CHECK-EXEC: Result is = {0.00, -2.00}
   TEST(f_rosenbrock, 1, 1); // CHECK-EXEC: Result is = {0.00, 0.00}
   TEST(f_cond1, 3, 2); // CHECK-EXEC: Result is = {1.00, 0.00}

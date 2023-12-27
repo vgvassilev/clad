@@ -2162,7 +2162,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       StmtDiff RResult;
       // If R has no side effects, it can be just cloned
       // (no need to store it).
-      if (utils::ContainsFunctionCalls(R) || R->HasSideEffects(m_Context)) {
+      if (!ShouldRecompute(R)) {
         RDelayed = std::unique_ptr<DelayedStoreResult>(
             new DelayedStoreResult(DelayedGlobalStoreAndRef(R)));
         RResult = RDelayed->Result;
@@ -2177,30 +2177,39 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // dxi/xr = xl
       // df/dxr += df/dxi * dxi/xr = df/dxi * xl
       // Store left multiplier and assign it with L.
-      Expr* LStored = Ldiff.getExpr();
+      StmtDiff LStored = Ldiff;
+      if (!ShouldRecompute(LStored.getExpr()))
+        LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
+                                    /*force=*/true);
       Expr::EvalResult dummy;
       if (RDelayed ||
           !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context)) {
         Expr* dr = nullptr;
         if (dfdx())
-          dr = BuildOp(BO_Mul, Ldiff.getRevSweepAsExpr(), dfdx());
+          dr = BuildOp(BO_Mul, LStored.getRevSweepAsExpr(), dfdx());
         Rdiff = Visit(R, dr);
         // Assign right multiplier's variable with R.
         if (RDelayed)
           RDelayed->Finalize(Rdiff.getExpr());
       }
-      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult.getExpr());
+      std::tie(Ldiff, Rdiff) =
+          std::make_pair(LStored.getExpr(), RResult.getExpr());
     } else if (opCode == BO_Div) {
       // xi = xl / xr
       // dxi/xl = 1 / xr
       // df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
       auto RDelayed = DelayedGlobalStoreAndRef(R);
       StmtDiff RResult = RDelayed.Result;
-      Expr* RStored = StoreAndRef(RResult.getExpr_dx(), direction::reverse);
+      Expr* RStored =
+          StoreAndRef(RResult.getRevSweepAsExpr(), direction::reverse);
       Expr* dl = nullptr;
       if (dfdx())
         dl = BuildOp(BO_Div, dfdx(), RStored);
       Ldiff = Visit(L, dl);
+      StmtDiff LStored = Ldiff;
+      if (!ShouldRecompute(LStored.getExpr()))
+        LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
+                                    /*force=*/true);
       // dxi/xr = -xl / (xr * xr)
       // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
@@ -2209,17 +2218,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Expr* dr = nullptr;
         if (dfdx()) {
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
-          dr =
-              BuildOp(BO_Mul, dfdx(),
-                      BuildOp(UO_Minus,
-                              BuildOp(BO_Div, Ldiff.getRevSweepAsExpr(), RxR)));
+          dr = BuildOp(
+              BO_Mul, dfdx(),
+              BuildOp(UO_Minus,
+                      BuildOp(BO_Div, LStored.getRevSweepAsExpr(), RxR)));
           dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);
         RDelayed.Finalize(Rdiff.getExpr());
       }
       std::tie(Ldiff, Rdiff) =
-          std::make_pair(Ldiff.getExpr(), RResult.getExpr());
+          std::make_pair(LStored.getExpr(), RResult.getExpr());
     } else if (BinOp->isAssignmentOp()) {
       if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
         diag(DiagnosticsEngine::Warning,
@@ -2392,7 +2401,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       } else if (opCode == BO_DivAssign) {
         auto RDelayed = DelayedGlobalStoreAndRef(R);
         StmtDiff RResult = RDelayed.Result;
-        Expr* RStored = StoreAndRef(RResult.getExpr_dx(), direction::reverse);
+        Expr* RStored =
+            StoreAndRef(RResult.getRevSweepAsExpr(), direction::reverse);
         addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
                                   BuildOp(BO_Div, oldValue, RStored)),
                           direction::reverse);
@@ -2785,6 +2795,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
   }
 
+  bool ReverseModeVisitor::ShouldRecompute(const Expr* E) {
+    return !(utils::ContainsFunctionCalls(E) || E->HasSideEffects(m_Context));
+  }
+
   bool ReverseModeVisitor::UsefulToStoreGlobal(Expr* E) {
     if (!E)
       return false;
@@ -2944,12 +2958,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E,
                                                llvm::StringRef prefix) {
     assert(E && "must be provided");
-    if (isa<DeclRefExpr>(E) /*!UsefulToStoreGlobal(E)*/) {
-      Expr* Cloned = Clone(E);
+    if (!UsefulToStore(E)) {
+      StmtDiff Ediff = Visit(E);
       Expr::EvalResult evalRes;
       bool isConst =
           clad_compat::Expr_EvaluateAsConstantExpr(E, evalRes, m_Context);
-      return DelayedStoreResult{*this, StmtDiff{Cloned, Cloned},
+      return DelayedStoreResult{*this, Ediff,
                                 /*isConstant*/ isConst,
                                 /*isInsideLoop*/ false,
                                 /*pNeedsUpdate=*/false};
@@ -2959,14 +2973,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto CladTape = MakeCladTapeFor(dummy);
       Expr* Push = CladTape.Push;
       Expr* Pop = CladTape.Pop;
-      return DelayedStoreResult{*this, StmtDiff{Push, Pop, nullptr, Pop},
+      return DelayedStoreResult{*this, StmtDiff{Push, nullptr, nullptr, Pop},
                                 /*isConstant*/ false,
                                 /*isInsideLoop*/ true, /*pNeedsUpdate=*/true};
     }
     Expr* Ref = BuildDeclRef(GlobalStoreImpl(
         getNonConstType(E->getType(), m_Context, m_Sema), prefix));
     // Return reference to the declaration instead of original expression.
-    return DelayedStoreResult{*this, StmtDiff{Ref, Ref},
+    return DelayedStoreResult{*this, StmtDiff{Ref, nullptr, nullptr, Ref},
                               /*isConstant*/ false,
                               /*isInsideLoop*/ false, /*pNeedsUpdate=*/true};
   }

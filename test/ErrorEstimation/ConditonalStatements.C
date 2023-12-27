@@ -168,7 +168,6 @@ float func4(float x, float y) {
 //CHECK-NEXT:     float _EERepl_x1;
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _EERepl_x2;
-//CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _cond0 = !x;
 //CHECK-NEXT:     if (_cond0)
@@ -178,13 +177,12 @@ float func4(float x, float y) {
 //CHECK-NEXT:     _cond0 ? (x += 1) : (x *= x);
 //CHECK-NEXT:     _EERepl_x2 = x;
 //CHECK-NEXT:     _EERepl_x1 = x;
-//CHECK-NEXT:     _t2 = x;
-//CHECK-NEXT:     _ret_value0 = y / _t2;
+//CHECK-NEXT:     _ret_value0 = y / x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         * _d_y += 1 / _t2;
-//CHECK-NEXT:         float _r0 = 1 * -y / (_t2 * _t2);
+//CHECK-NEXT:         * _d_y += 1 / x;
+//CHECK-NEXT:         float _r0 = 1 * -y / (x * x);
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {

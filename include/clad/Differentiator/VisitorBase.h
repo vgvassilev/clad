@@ -363,6 +363,10 @@ namespace clad {
                              bool forceDeclCreation = false,
                              clang::VarDecl::InitializationStyle IS =
                                  clang::VarDecl::InitializationStyle::CInit);
+    /// For an expr E, decides if it is useful to store it in a temporary
+    /// variable and replace E's further usage by a reference to that variable
+    /// to avoid recomputation.
+    static bool UsefulToStore(clang::Expr* E);
     /// A flag for silencing warnings/errors output by diag function.
     bool silenceDiags = false;
     /// Shorthand to issues a warning or error.

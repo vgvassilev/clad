@@ -323,7 +323,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
   double gaus = 1./std::sqrt(std::pow(2*M_PI, n) * sigma) * std::exp(power);
   return std::log(gaus);
 }
-//CHECK-NEXT: void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, clad::array_ref<double> _d_p) {
+//CHECK: void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, clad::array_ref<double> _d_p) {
 //CHECK-NEXT:     double _d_n = 0;
 //CHECK-NEXT:     double _d_sigma = 0;
 //CHECK-NEXT:     double _d_power = 0;
@@ -335,6 +335,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:     double _t4;
 //CHECK-NEXT:     double _t5;
 //CHECK-NEXT:     double _t6;
+//CHECK-NEXT:     double _t7;
 //CHECK-NEXT:     double _d_gaus = 0;
 //CHECK-NEXT:     double power = 0;
 //CHECK-NEXT:     _t0 = 0;
@@ -347,7 +348,8 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:     _t4 = sq(sigma);
 //CHECK-NEXT:     _t3 = (2 * _t4);
 //CHECK-NEXT:     power = -power / _t3;
-//CHECK-NEXT:     _t6 = std::sqrt(std::pow(2 * 3.1415926535897931, n) * sigma);
+//CHECK-NEXT:     _t7 = std::pow(2 * 3.1415926535897931, n);
+//CHECK-NEXT:     _t6 = std::sqrt(_t7 * sigma);
 //CHECK-NEXT:     _t5 = std::exp(power);
 //CHECK-NEXT:     double gaus = 1. / _t6 * _t5;
 //CHECK-NEXT:     goto _label0;
@@ -358,14 +360,14 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r3 = _d_gaus * _t5 * -1. / (_t6 * _t6);
-//CHECK-NEXT:         double _r4 = _r3 * clad::custom_derivatives::sqrt_pushforward(std::pow(2 * 3.1415926535897931, n) * sigma, 1.).pushforward;
+//CHECK-NEXT:         double _r4 = _r3 * clad::custom_derivatives::sqrt_pushforward(_t7 * sigma, 1.).pushforward;
 //CHECK-NEXT:         double _grad2 = 0.;
 //CHECK-NEXT:         double _grad3 = 0.;
 //CHECK-NEXT:         clad::custom_derivatives::pow_pullback(2 * 3.1415926535897931, n, _r4 * sigma, &_grad2, &_grad3);
 //CHECK-NEXT:         double _r5 = _grad2;
 //CHECK-NEXT:         double _r6 = _grad3;
 //CHECK-NEXT:         _d_n += _r6;
-//CHECK-NEXT:         _d_sigma += std::pow(2 * 3.1415926535897931, n) * _r4;
+//CHECK-NEXT:         _d_sigma += _t7 * _r4;
 //CHECK-NEXT:         double _r7 = 1. / _t6 * _d_gaus * clad::custom_derivatives::exp_pushforward(power, 1.).pushforward;
 //CHECK-NEXT:         _d_power += _r7;
 //CHECK-NEXT:     }
@@ -1563,34 +1565,32 @@ double f_loop_init_var(double lower, double upper) {
 // CHECK: void f_loop_init_var_grad(double lower, double upper, clad::array_ref<double> _d_lower, clad::array_ref<double> _d_upper) {
 // CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double _d_num_points = 0;
-// CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _d_interval = 0;
-// CHECK-NEXT:     unsigned long _t1;
+// CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
-// CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     double num_points = 10000;
-// CHECK-NEXT:     _t0 = num_points;
-// CHECK-NEXT:     double interval = (upper - lower) / _t0;
-// CHECK-NEXT:     _t1 = 0;
-// CHECK-NEXT:     for (double x = lower; x <= upper; clad::push(_t2, x) , (x += interval)) {
-// CHECK-NEXT:         _t1++;
-// CHECK-NEXT:         clad::push(_t3, sum);
+// CHECK-NEXT:     double interval = (upper - lower) / num_points;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (double x = lower; x <= upper; clad::push(_t1, x) , (x += interval)) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t2, sum);
 // CHECK-NEXT:         sum += x * x * interval;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         for (; _t1; _t1--) {
+// CHECK-NEXT:         for (; _t0; _t0--) {
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 x = clad::pop(_t2);
+// CHECK-NEXT:                 x = clad::pop(_t1);
 // CHECK-NEXT:                 double _r_d0 = _d_x;
 // CHECK-NEXT:                 _d_interval += _r_d0;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 sum = clad::pop(_t3);
+// CHECK-NEXT:                 sum = clad::pop(_t2);
 // CHECK-NEXT:                 double _r_d1 = _d_sum;
 // CHECK-NEXT:                 _d_x += _r_d1 * interval * x;
 // CHECK-NEXT:                 _d_x += x * _r_d1 * interval;
@@ -1600,9 +1600,9 @@ double f_loop_init_var(double lower, double upper) {
 // CHECK-NEXT:         * _d_lower += _d_x;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         * _d_upper += _d_interval / _t0;
-// CHECK-NEXT:         * _d_lower += -_d_interval / _t0;
-// CHECK-NEXT:         double _r0 = _d_interval * -(upper - lower) / (_t0 * _t0);
+// CHECK-NEXT:         * _d_upper += _d_interval / num_points;
+// CHECK-NEXT:         * _d_lower += -_d_interval / num_points;
+// CHECK-NEXT:         double _r0 = _d_interval * -(upper - lower) / (num_points * num_points);
 // CHECK-NEXT:         _d_num_points += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

@@ -72,17 +72,21 @@ struct ExperimentVolatile {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) volatile {
+  // CHECK-NEXT:     double _t0;
+  // CHECK-NEXT:     double _t1;
+  // CHECK-NEXT:     _t0 = this->x * i;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     _t1 = this->y * i;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[2UL] += this->y * 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[3UL] += this->y * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[3UL] += this->y * i * j * 1;
+  // CHECK-NEXT:         jacobianMatrix[3UL] += _t1 * 1 * j;
+  // CHECK-NEXT:         jacobianMatrix[3UL] += _t1 * j * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[0UL] += this->x * 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[0UL] += this->x * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[1UL] += this->x * i * i * 1;
+  // CHECK-NEXT:         jacobianMatrix[0UL] += _t0 * 1 * j;
+  // CHECK-NEXT:         jacobianMatrix[1UL] += _t0 * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
@@ -99,17 +103,21 @@ struct ExperimentConstVolatile {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const volatile {
+  // CHECK-NEXT:     double _t0;
+  // CHECK-NEXT:     double _t1;
+  // CHECK-NEXT:     _t0 = this->x * i;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     _t1 = this->y * i;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[2UL] += this->y * 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[3UL] += this->y * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[3UL] += this->y * i * j * 1;
+  // CHECK-NEXT:         jacobianMatrix[3UL] += _t1 * 1 * j;
+  // CHECK-NEXT:         jacobianMatrix[3UL] += _t1 * j * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[0UL] += this->x * 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[0UL] += this->x * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[1UL] += this->x * i * i * 1;
+  // CHECK-NEXT:         jacobianMatrix[0UL] += _t0 * 1 * j;
+  // CHECK-NEXT:         jacobianMatrix[1UL] += _t0 * i * 1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 };
