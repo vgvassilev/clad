@@ -50,7 +50,7 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     _t2 = t;
 //CHECK-NEXT:     _t3 = (2 * sigma * sigma);
 //CHECK-NEXT:     t = -t / _t3;
-//CHECK-NEXT:     _t6 = 2.;
+//CHECK-NEXT:     _t6 = std::pow(2 * 3.1415926535897931, -dim / 2.);
 //CHECK-NEXT:     _t5 = std::pow(sigma, -0.5);
 //CHECK-NEXT:     _t4 = std::exp(t);
 //CHECK-NEXT:     goto _label0;
@@ -58,19 +58,18 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _grad0 = 0.;
 //CHECK-NEXT:         double _grad1 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / _t6, 1 * _t4 * _t5, &_grad0, &_grad1);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t4 * _t5, &_grad0, &_grad1);
 //CHECK-NEXT:         double _r1 = _grad0;
 //CHECK-NEXT:         double _r2 = _grad1;
-//CHECK-NEXT:         _d_dim += -_r2 / _t6;
-//CHECK-NEXT:         double _r3 = _r2 * --dim / (_t6 * _t6);
+//CHECK-NEXT:         _d_dim += -_r2 / 2.;
 //CHECK-NEXT:         double _grad2 = 0.;
 //CHECK-NEXT:         double _grad3 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, std::pow(2 * 3.1415926535897931, -dim / _t6) * 1 * _t4, &_grad2, &_grad3);
-//CHECK-NEXT:         double _r4 = _grad2;
-//CHECK-NEXT:         _d_sigma += _r4;
-//CHECK-NEXT:         double _r5 = _grad3;
-//CHECK-NEXT:         double _r6 = std::pow(2 * 3.1415926535897931, -dim / _t6) * _t5 * 1 * clad::custom_derivatives::exp_pushforward(t, 1.).pushforward;
-//CHECK-NEXT:         _d_t += _r6;
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, _t6 * 1 * _t4, &_grad2, &_grad3);
+//CHECK-NEXT:         double _r3 = _grad2;
+//CHECK-NEXT:         _d_sigma += _r3;
+//CHECK-NEXT:         double _r4 = _grad3;
+//CHECK-NEXT:         double _r5 = _t6 * _t5 * 1 * clad::custom_derivatives::exp_pushforward(t, 1.).pushforward;
+//CHECK-NEXT:         _d_t += _r5;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         t = _t2;

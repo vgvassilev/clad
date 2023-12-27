@@ -294,7 +294,6 @@ double f7(double x, double y) {
 //CHECK-NEXT:       double _t4;
 //CHECK-NEXT:       double _t5;
 //CHECK-NEXT:       double _t6;
-//CHECK-NEXT:       double _t7;
 //CHECK-NEXT:       double t[3] = {1, x, x * x};
 //CHECK-NEXT:       t[0]++;
 //CHECK-NEXT:       t[0]--;
@@ -309,17 +308,16 @@ double f7(double x, double y) {
 //CHECK-NEXT:       _t3 = t[0];
 //CHECK-NEXT:       t[0] *= t[1];
 //CHECK-NEXT:       _t4 = t[0];
-//CHECK-NEXT:       _t5 = t[1];
-//CHECK-NEXT:       t[0] /= _t5;
-//CHECK-NEXT:       _t6 = t[0];
+//CHECK-NEXT:       t[0] /= t[1];
+//CHECK-NEXT:       _t5 = t[0];
 //CHECK-NEXT:       t[0] -= t[1];
-//CHECK-NEXT:       _t7 = x;
+//CHECK-NEXT:       _t6 = x;
 //CHECK-NEXT:       x = ++t[0];
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_t[0] += 1;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           x = _t7;
+//CHECK-NEXT:           x = _t6;
 //CHECK-NEXT:           double _r_d6 = * _d_x;
 //CHECK-NEXT:           _d_t[0] += _r_d6;
 //CHECK-NEXT:           --t[0];
@@ -327,7 +325,7 @@ double f7(double x, double y) {
 //CHECK-NEXT:           * _d_x;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           t[0] = _t6;
+//CHECK-NEXT:           t[0] = _t5;
 //CHECK-NEXT:           double _r_d5 = _d_t[0];
 //CHECK-NEXT:           _d_t[1] += -_r_d5;
 //CHECK-NEXT:           _d_t[0];
@@ -335,8 +333,8 @@ double f7(double x, double y) {
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[0] = _t4;
 //CHECK-NEXT:           double _r_d4 = _d_t[0];
-//CHECK-NEXT:           _d_t[0] += _r_d4 / _t5;
-//CHECK-NEXT:           double _r0 = _r_d4 * -t[0] / (_t5 * _t5);
+//CHECK-NEXT:           _d_t[0] += _r_d4 / t[1];
+//CHECK-NEXT:           double _r0 = _r_d4 * -t[0] / (t[1] * t[1]);
 //CHECK-NEXT:           _d_t[1] += _r0;
 //CHECK-NEXT:           _d_t[0] -= _r_d4;
 //CHECK-NEXT:           _d_t[0];

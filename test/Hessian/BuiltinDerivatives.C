@@ -21,6 +21,8 @@ float f1(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void sin_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_d_x) {
+// CHECK-NEXT:     float _t0;
+// CHECK-NEXT:     _t0 = ::std::cos(x);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -28,7 +30,7 @@ float f1(float x) {
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         float _r1 = _d_y.pushforward * d_x * clad::custom_derivatives{{(::std)?}}::cos_pushforward(x, 1.F).pushforward;
 // CHECK-NEXT:         * _d_x += _r1;
-// CHECK-NEXT:         * _d_d_x += ::std::cos(x) * _d_y.pushforward;
+// CHECK-NEXT:         * _d_d_x += _t0 * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -94,6 +96,8 @@ float f2(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_d_x) {
+// CHECK-NEXT:     float _t0;
+// CHECK-NEXT:     _t0 = ::std::exp(x);
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -101,7 +105,7 @@ float f2(float x) {
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         float _r1 = _d_y.pushforward * d_x * clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, 1.F).pushforward;
 // CHECK-NEXT:         * _d_x += _r1;
-// CHECK-NEXT:         * _d_d_x += ::std::exp(x) * _d_y.pushforward;
+// CHECK-NEXT:         * _d_d_x += _t0 * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -140,16 +144,14 @@ float f3(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void log_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_d_x) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = x;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = _d_y.value * clad::custom_derivatives{{(::std)?}}::log_pushforward(x, 1.F).pushforward;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         double _r1 = _d_y.pushforward * d_x * -1. / (_t0 * _t0);
+// CHECK-NEXT:         double _r1 = _d_y.pushforward * d_x * -1. / (x * x);
 // CHECK-NEXT:         * _d_x += _r1;
-// CHECK-NEXT:         * _d_d_x += (1. / _t0) * _d_y.pushforward;
+// CHECK-NEXT:         * _d_d_x += (1. / x) * _d_y.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -194,14 +196,16 @@ float f4(float x) {
 // CHECK-NEXT:     float _cond0;
 // CHECK-NEXT:     float _t1;
 // CHECK-NEXT:     float _t2;
+// CHECK-NEXT:     float _t3;
 // CHECK-NEXT:     float val = ::std::pow(x, exponent);
 // CHECK-NEXT:     _t0 = ::std::pow(x, exponent - 1);
 // CHECK-NEXT:     float derivative = (exponent * _t0) * d_x;
 // CHECK-NEXT:     _cond0 = d_exponent;
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         _t1 = derivative;
+// CHECK-NEXT:         _t3 = ::std::pow(x, exponent);
 // CHECK-NEXT:         _t2 = ::std::log(x);
-// CHECK-NEXT:         derivative += (::std::pow(x, exponent) * _t2) * d_exponent;
+// CHECK-NEXT:         derivative += (_t3 * _t2) * d_exponent;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -219,9 +223,9 @@ float f4(float x) {
 // CHECK-NEXT:         * _d_x += _r4;
 // CHECK-NEXT:         float _r5 = _grad5;
 // CHECK-NEXT:         * _d_exponent += _r5;
-// CHECK-NEXT:         float _r6 = ::std::pow(x, exponent) * _r_d0 * d_exponent * clad::custom_derivatives{{(::std)?}}::log_pushforward(x, 1.F).pushforward;
+// CHECK-NEXT:         float _r6 = _t3 * _r_d0 * d_exponent * clad::custom_derivatives{{(::std)?}}::log_pushforward(x, 1.F).pushforward;
 // CHECK-NEXT:         * _d_x += _r6;
-// CHECK-NEXT:         * _d_d_exponent += (::std::pow(x, exponent) * _t2) * _r_d0;
+// CHECK-NEXT:         * _d_d_exponent += (_t3 * _t2) * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         * _d_exponent += _d_derivative * d_x * _t0;

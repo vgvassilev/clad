@@ -247,10 +247,7 @@ namespace clad {
     return StoreAndRef(E, Type, block, prefix, forceDeclCreation, IS);
   }
 
-  /// For an expr E, decides if it is useful to store it in a temporary variable
-  /// and replace E's further usage by a reference to that variable to avoid
-  /// recomputiation.
-  static bool UsefulToStore(Expr* E) {
+  bool VisitorBase::UsefulToStore(Expr* E) {
     if (!E)
       return false;
     Expr* B = E->IgnoreParenImpCasts();
