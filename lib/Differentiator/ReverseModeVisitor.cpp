@@ -815,9 +815,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (Stmt*& S : cond.getBothStmts())
       if (S)
         S = m_Sema
-                .ActOnCondition(m_CurScope,
-                                noLoc,
-                                cast<Expr>(S),
+                .ActOnCondition(getCurrentScope(), noLoc, cast<Expr>(S),
                                 Sema::ConditionKind::Boolean)
                 .get()
                 .second;
@@ -935,9 +933,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // StmtDiff.
     for (Stmt*& S : cond.getBothStmts())
       S = m_Sema
-              .ActOnCondition(m_CurScope,
-                              noLoc,
-                              cast<Expr>(S),
+              .ActOnCondition(getCurrentScope(), noLoc, cast<Expr>(S),
                               Sema::ConditionKind::Boolean)
               .get()
               .second;

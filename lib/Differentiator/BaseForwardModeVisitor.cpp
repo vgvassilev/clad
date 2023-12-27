@@ -625,11 +625,11 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
   StmtDiff ifFalseDiff = Visit(CO->getFalseExpr());
 
   cond = StoreAndRef(cond);
-  cond =
-      m_Sema
-          .ActOnCondition(m_CurScope, noLoc, cond, Sema::ConditionKind::Boolean)
-          .get()
-          .second;
+  cond = m_Sema
+             .ActOnCondition(getCurrentScope(), noLoc, cond,
+                             Sema::ConditionKind::Boolean)
+             .get()
+             .second;
 
   Expr* condExpr =
       m_Sema
@@ -737,7 +737,8 @@ StmtDiff BaseForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
   Stmt* returnStmt =
-      m_Sema.ActOnReturnStmt(noLoc, retValDiff.getExpr_dx(), m_CurScope).get();
+      m_Sema.ActOnReturnStmt(noLoc, retValDiff.getExpr_dx(), getCurrentScope())
+          .get();
   return StmtDiff(returnStmt);
 }
 
