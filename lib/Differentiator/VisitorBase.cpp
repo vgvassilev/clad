@@ -125,7 +125,7 @@ namespace clad {
     NamespaceDecl* NDecl = clad_compat::NamespaceDecl_Create(
         m_Context, m_Sema.CurContext, isInline, noLoc, noLoc, II, PrevNS);
     if (II)
-      m_Sema.PushOnScopeChains(NDecl, m_CurScope);
+      m_Sema.PushOnScopeChains(NDecl, getCurrentScope());
     else {
       // Link the anonymous namespace into its parent.
       // From Sema::ActOnStartNamespaceDef:
@@ -152,7 +152,7 @@ namespace clad {
     }
     // Namespace scope and declcontext. Must be exited by the user.
     beginScope(Scope::DeclScope);
-    m_Sema.PushDeclContext(m_CurScope, NDecl);
+    m_Sema.PushDeclContext(getCurrentScope(), NDecl);
     return NDecl;
   }
 
@@ -206,7 +206,7 @@ namespace clad {
       IdentifierInfo* name = &m_Context.Idents.get(nameBase.str() + idStr);
       LookupResult R(
           m_Sema, DeclarationName(name), noLoc, Sema::LookupOrdinaryName);
-      m_Sema.LookupName(R, m_CurScope, /*AllowBuiltinCreation*/ false);
+      m_Sema.LookupName(R, getCurrentScope(), /*AllowBuiltinCreation*/ false);
       if (R.empty()) {
         return name;
       } else {

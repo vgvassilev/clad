@@ -453,7 +453,8 @@ namespace clad {
 
       /// Returns `ConditionResult` object for the counter.
       clang::Sema::ConditionResult getCounterConditionResult() {
-        return m_RMV.m_Sema.ActOnCondition(m_RMV.m_CurScope, noLoc, m_Ref,
+        return m_RMV.m_Sema.ActOnCondition(m_RMV.getCurrentScope(), noLoc,
+                                           m_Ref,
                                            clang::Sema::ConditionKind::Boolean);
       }
     };
