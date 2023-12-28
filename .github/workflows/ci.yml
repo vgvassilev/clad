@@ -530,13 +530,13 @@ jobs:
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
         PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
 
-        # For now Package llvm@17 is unsuported on brew, llvm <=@11 are deprecated or deleted.
+        # For now Package llvm@18 is unsuported on brew, llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
-        if [[ '${{ matrix.clang-runtime }}' == '17' || ${{ matrix.clang-runtime }} -le 11 ]]; then
+        if [[ '${{ matrix.clang-runtime }}' == '18' || ${{ matrix.clang-runtime }} -le 11 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
           w="0"
-          [ '${{ matrix.clang-runtime }}' == '17' ] && w="5"
+          [ '${{ matrix.clang-runtime }}' == '17' ] && w="6"
           sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.0.$w/clang+llvm-${{ matrix.clang-runtime }}.0.$w-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
           sudo rm -fr /usr/local/clang*
           sudo mv clang+llvm-${{ matrix.clang-runtime }}.0.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
@@ -553,7 +553,7 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '17' && ${{ matrix.clang-runtime }} -gt 11 ]]; then
+        if [[ '${{ matrix.clang-runtime }}' != '18' && ${{ matrix.clang-runtime }} -gt 11 ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         else
           # Remove the c++ headers that come with the llvm package from homebrew
