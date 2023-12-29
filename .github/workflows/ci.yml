@@ -403,6 +403,19 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-16
             clang-runtime: '17'
+
+          # Оld, still supported versions
+
+          - name: ubu20-gcc9-runtime7
+            os: ubuntu-20.04
+            compiler: gcc-9
+            clang-runtime: '7'
+
+          - name: ubu20-gcc9-runtime8
+            os: ubuntu-20.04
+            compiler: gcc-9
+            clang-runtime: '8'
+
     steps:
     - uses: actions/checkout@v3
       with:
