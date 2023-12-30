@@ -243,7 +243,7 @@ namespace clad {
       // Find the builtin derivatives/numerical diff namespace
       DeclarationName Name = &C.Idents.get(namespc);
       LookupResult R(S, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     clad_compat::Sema_ForVisibleRedeclaration);
+                     Sema::ForVisibleRedeclaration);
       S.LookupQualifiedName(R, DC,
                             /*allowBuiltinCreation*/ false);
       if (!shouldExist && R.empty())
