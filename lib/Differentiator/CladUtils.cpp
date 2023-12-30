@@ -584,7 +584,8 @@ namespace clad {
             /// be more complex than just a DeclRefExpr.
             /// (e.g. `__real (n++ ? z1 : z2)`)
             m_Exprs.push_back(UnOp);
-          }
+          } else if (opCode == UnaryOperatorKind::UO_Deref)
+            m_Exprs.push_back(UnOp);
         }
 
         void VisitDeclRefExpr(clang::DeclRefExpr* DRE) {
