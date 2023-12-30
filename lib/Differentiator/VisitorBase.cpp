@@ -168,11 +168,8 @@ namespace clad {
     NamespaceDecl* PrevNS = nullptr;
     // From Sema::ActOnStartNamespaceDef:
     if (II) {
-      LookupResult R(m_Sema,
-                     II,
-                     noLoc,
-                     Sema::LookupOrdinaryName,
-                     clad_compat::Sema_ForVisibleRedeclaration);
+      LookupResult R(m_Sema, II, noLoc, Sema::LookupOrdinaryName,
+                     Sema::ForVisibleRedeclaration);
       m_Sema.LookupQualifiedName(R, m_Sema.CurContext->getRedeclContext());
       NamedDecl* FoundDecl =
           R.isSingleResult() ? R.getRepresentativeDecl() : nullptr;
@@ -423,11 +420,8 @@ namespace clad {
     if (Result)
       return Result;
     DeclarationName CladName = &m_Context.Idents.get("clad");
-    LookupResult CladR(m_Sema,
-                       CladName,
-                       noLoc,
-                       Sema::LookupNamespaceName,
-                       clad_compat::Sema_ForVisibleRedeclaration);
+    LookupResult CladR(m_Sema, CladName, noLoc, Sema::LookupNamespaceName,
+                       Sema::ForVisibleRedeclaration);
     m_Sema.LookupQualifiedName(CladR, m_Context.getTranslationUnitDecl());
     assert(!CladR.empty() && "cannot find clad namespace");
     Result = cast<NamespaceDecl>(CladR.getFoundDecl());
@@ -440,11 +434,8 @@ namespace clad {
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
     DeclarationName TapeName = &m_Context.Idents.get(ClassName);
-    LookupResult TapeR(m_Sema,
-                       TapeName,
-                       noLoc,
-                       Sema::LookupUsingDeclName,
-                       clad_compat::Sema_ForVisibleRedeclaration);
+    LookupResult TapeR(m_Sema, TapeName, noLoc, Sema::LookupUsingDeclName,
+                       Sema::ForVisibleRedeclaration);
     m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
     assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
            "cannot find clad::tape");

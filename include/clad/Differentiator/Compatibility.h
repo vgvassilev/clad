@@ -21,33 +21,17 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
-// Compatibility helper function for creation CompoundStmt. Clang 6 and above use Create.
-// Clang 15
+// Compatibility helper function for creation CompoundStmt.
 // Clang 15 and above use a extra param FPFeatures in CompoundStmt::Create.
 
 static inline bool SourceManager_isPointWithin(const SourceManager& SM,
                                                SourceLocation Loc,
                                                SourceLocation B,
                                                SourceLocation E) {
-#if CLANG_VERSION_MAJOR == 5
-  return Loc == B || Loc == E || (SM.isBeforeInTranslationUnit(B, Loc) &&
-                                  SM.isBeforeInTranslationUnit(Loc, E));
-#elif CLANG_VERSION_MAJOR >= 6
   return SM.isPointWithin(Loc, B, E);
-#endif
 }
 
-#if CLANG_VERSION_MAJOR == 5
-#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam(Node) /**/
-#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS) /**/
-#define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FP) /**/
-static inline CompoundStmt* CompoundStmt_Create(
-        const ASTContext &Ctx, ArrayRef<Stmt *> Stmts,
-        SourceLocation LB, SourceLocation RB)
-{
-   return new (Ctx) CompoundStmt(Ctx, Stmts, LB, RB);
-}
-#elif CLANG_VERSION_MAJOR < 15
+#if CLANG_VERSION_MAJOR < 15
 #define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam(Node) /**/
 #define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam1(CS) /**/
 #define CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FP) /**/
@@ -87,31 +71,10 @@ NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
 }
 #endif
 
-// Clang 6 rename Sema::ForRedeclaration to Sema::ForVisibleRedeclaration
-
-#if CLANG_VERSION_MAJOR == 5
-   const auto Sema_ForVisibleRedeclaration = Sema::ForRedeclaration;
-#elif CLANG_VERSION_MAJOR >= 6
-   const auto Sema_ForVisibleRedeclaration = Sema::ForVisibleRedeclaration;
-#endif
-
-
-// Clang 6 rename Declarator to DeclaratorContext, but Declarator is used
-// as name for another class.
-
-#if CLANG_VERSION_MAJOR == 5
-   using DeclaratorContext = Declarator;
-#elif CLANG_VERSION_MAJOR >= 6
-   using DeclaratorContext = DeclaratorContext;
-#endif
-
-
 // Clang 7 add one extra param in UnaryOperator constructor.
 
-#if CLANG_VERSION_MAJOR < 7
-   #define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 7
-   #define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams ,Node->canOverflow()
+#if CLANG_VERSION_MAJOR >= 7
+#define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams , Node->canOverflow()
 #endif
 
 
