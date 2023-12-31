@@ -23,7 +23,7 @@ Clad consists of 4 primary automatic differentiation functions:
 
 - ``clad::differentiate`` -- Primary forward mode automatic differentiation
 - ``clad::gradient`` -- Primary reverse mode automatic differentiation
-- ``clad::hessian``
+- ``clad::hessian``  
 - ``clad::jacobian``
 
 Each of these functions will be explored in this guide.
@@ -217,9 +217,25 @@ Few important things to note about ``clad::hessian``:
   by the derived function. The hessian matrix array size should at least be as big as the size 
   required to store the hessian matrix. Passing an array less than the required size will result in undefined behaviour.
 
-.. todo::
+Consider the case of the input being an array we need to specify the array index 
+that needs to be differentiated even when we want to differentiate w.r.t entire array.
 
-   Add details for computing hessian of array ranges.
+.. code-block:: cpp
+  
+ #include "clad/Differentiator/Differentiator.h"
+
+ double fn(double x, double arr[2]) { return x * arr[0] * arr[1]; }
+
+ int main() {
+
+   auto fn_hessian = clad::hessian(fn, "x, arr[0:1]");
+
+   // We have 3 independent variables thus we require space of 9.
+   double mat_fn[9] = {0};
+   clad::array_ref<double> mat_fn_ref(mat_fn, 9);
+   double num[2] = {1, 2};
+   fn_hessian.execute(3, num, mat_fn_ref);
+ }
 
 Jacobian Computation
 ----------------------
