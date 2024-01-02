@@ -1,0 +1,8 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+config.llvm_libs_dir = "@LLVM_LIBS_DIR@"
+config.shlibdir = "@SHLIBDIR@"
+config.clad_obj_root = "@CLAD_BINARY_DIR@"
+config.llvm_build_mode = "@LLVM_BUILD_MODE@"
+
+lit_config.load_config(config, "@CLAD_SOURCE_DIR@/test/Unit/lit.cfg.py")
