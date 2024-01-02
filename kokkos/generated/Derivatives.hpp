@@ -115,12 +115,12 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
 }
 template <typename type_a> 
 void f_view_grad(type_a a, type_a _d_a) {
-    double _d_sum = 0;
+    typename type_a::value_type _d_sum = 0;
     auto _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    double _t0;
-    double _t1;
+    typename type_a::value_type _t0;
+    typename type_a::value_type _t1;
     double _t2;
-    double sum;
+    typename type_a::value_type sum;
     auto a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), Kokkos::ALL);
     kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
     _t1 = sum;

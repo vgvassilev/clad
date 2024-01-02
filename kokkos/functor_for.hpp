@@ -3,7 +3,7 @@ namespace kokkos_builtin_derivative {
 
 template <typename ViewtypeA>
 void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
-  double tmp_sum = sum;
+  typename ViewtypeA::value_type tmp_sum = sum;
   sum = 0.;
 
   const int s0 = A.stride(0);
@@ -106,8 +106,8 @@ double f2(double x, double y) {
 }
 
 template <typename ViewtypeA>
-double f_view(ViewtypeA a) {
-  double sum;
+typename ViewtypeA::value_type f_view(ViewtypeA a) {
+  typename ViewtypeA::value_type sum;
   auto a_row_0 = Kokkos::subview( a, Kokkos::make_pair(0, 2), Kokkos::ALL );
   //auto h_a_row_0 = Kokkos::create_mirror_view(a_row_0); //create_mirror_view_and_copy
   //Kokkos::deep_copy(h_a_row_0, a_row_0);

@@ -22,7 +22,7 @@ def useAutoInSubview(stringIn):
     return stringOut
 
 def useKokkosNamespace(stringIn):
-    return stringIn.replace(' ALL', ' Kokkos::ALL').replace('<View', '<Kokkos::View')
+    return stringIn.replace(' ALL', ' Kokkos::ALL').replace('<View', '<Kokkos::View').replace(' View', ' Kokkos::View')
 
 def getFunctionLineIDs(linesIn, fucntionName):
     index0 = -1
