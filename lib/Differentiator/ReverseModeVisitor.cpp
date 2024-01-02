@@ -1653,7 +1653,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             }
           }
         }
-        if (FD->getQualifiedNameAsString().find("Kokkos::subview") != std::string::npos) {
+        if (FD->getQualifiedNameAsString().find("Kokkos::subview") != std::string::npos || FD->getQualifiedNameAsString().find("Kokkos::create_mirror_view") != std::string::npos) {
 
           llvm::SmallVector<Expr*, 4> ClonedArgs;
           llvm::SmallVector<Expr*, 4> ClonedDArgs;

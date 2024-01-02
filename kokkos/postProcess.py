@@ -6,7 +6,7 @@ def replaceKokkosInlineFunction(stringIn):
     return stringIn.replace(string_old, string_new)
 
 def useAutoInSubview(stringIn):
-    if stringIn.find('Kokkos::subview') == -1 and stringIn.find('Kokkos::create_mirror_view') == -1:
+    if stringIn.find('= Kokkos::subview') == -1 and stringIn.find('= Kokkos::create_mirror_view') == -1:
         return stringIn
     index_eq = stringIn.find('=') - 1
     for index in range(1, index_eq):

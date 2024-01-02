@@ -112,6 +112,8 @@ typename ViewtypeA::value_type f_view(ViewtypeA a) {
   //auto h_a_row_0 = Kokkos::create_mirror_view(a_row_0); //create_mirror_view_and_copy
   //Kokkos::deep_copy(h_a_row_0, a_row_0);
   //sum = h_a_row_0(0,0);
+  //kokkos_builtin_derivative::parallel_sum(sum,  Kokkos::subview(a_row_0,0,0));
+  //sum = 10 * sum * sum * sum;
   kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
   return 1e-6*sum*sum;
 }
