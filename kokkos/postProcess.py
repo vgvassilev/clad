@@ -6,7 +6,7 @@ def replaceKokkosInlineFunction(stringIn):
     return stringIn.replace(string_old, string_new)
 
 def useAutoInSubview(stringIn):
-    if stringIn.find('Kokkos::subview') == -1:
+    if stringIn.find('Kokkos::subview') == -1 and stringIn.find('Kokkos::create_mirror_view') == -1:
         return stringIn
     index_eq = stringIn.find('=') - 1
     for index in range(1, index_eq):
@@ -87,6 +87,23 @@ def swapTypeForTemplate(linesIn, fucntionName, variableName, index0=-1, index1=-
 
     for index in range(index0, index1):
         linesIn[index] = linesIn[index].replace(typeVar, template)
+
+    # Get the _d_ names and replace the clad::array_ref<Kokkos::view> by Kokkos::view directly.
+    derivativeVarNames = []
+    while linesIn[index0].find('clad::array_ref<' + template + ' >') != -1:
+        indexVarName0 = linesIn[index0].find('clad::array_ref<' + template + ' >') + len('clad::array_ref<' + template + ' >') + 1
+        for indexVarName in range(indexVarName0, len(linesIn[index0])):
+            if linesIn[index0][indexVarName] == ',':
+                indexVarName1 = indexVarName
+                break
+            if linesIn[index0][indexVarName] == ')':
+                indexVarName1 = indexVarName
+                break
+        derivativeVarNames.append(linesIn[index0][indexVarName0:indexVarName1])
+        linesIn[index0] = linesIn[index0].replace('clad::array_ref<' + template + ' >', template)
+    for index in range(index0, index1):
+        for derivativeVarName in derivativeVarNames:
+            linesIn[index] = linesIn[index].replace('(* ' + derivativeVarName + ')', derivativeVarName)
 
 
 def transform(filenameIn, filenameOut):

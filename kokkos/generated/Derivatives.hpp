@@ -1,4 +1,4 @@
-KOKKOS_INLINE_FUNCTION double f_darg0(double x, double y) {
+double f_darg0(double x, double y) {
     double _d_x = 1;
     double _d_y = 0;
     const int _d_N1 = 0;
@@ -31,7 +31,7 @@ KOKKOS_INLINE_FUNCTION double f_darg0(double x, double y) {
     sum = a_row_0(0, 0);
     return _d_sum * sum + sum * _d_sum;
 }
-KOKKOS_INLINE_FUNCTION void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
     const int N1 = 4;
     int _d_N1 = 0;
     int _d_N2 = 0;
@@ -114,15 +114,14 @@ KOKKOS_INLINE_FUNCTION void f_grad(double x, double y, clad::array_ref<double> _
     }
 }
 template <typename type_a> 
-KOKKOS_INLINE_FUNCTION void f_view_grad(type_a a, clad::array_ref<type_a > _d_a) {
+void f_view_grad(type_a a, type_a _d_a) {
     double _d_sum = 0;
-    auto _d_a_row_0 = Kokkos::subview((* _d_a), Kokkos::make_pair(0, 2), Kokkos::ALL);
+    auto _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), Kokkos::ALL);
     double _t0;
     double _t1;
     double _t2;
     double sum;
     auto a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    sum = a_row_0(0, 0);
     kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
     _t1 = sum;
     _t2 = 9.9999999999999995E-7 * _t1;
@@ -138,9 +137,4 @@ KOKKOS_INLINE_FUNCTION void f_view_grad(type_a a, clad::array_ref<type_a > _d_a)
         _d_sum += _r3;
     }
     kokkos_builtin_derivative::parallel_sum(_d_a_row_0, _d_sum);
-    {
-        double _r_d0 = _d_sum;
-        _d_a_row_0(0, 0) += _r_d0;
-        _d_sum -= _r_d0;
-    }
 }

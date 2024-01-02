@@ -1,4 +1,4 @@
-inline double f_darg0(double x, double y) {
+double f_darg0(double x, double y) {
     double _d_x = 1;
     double _d_y = 0;
     const int _d_N1 = 0;
@@ -31,7 +31,7 @@ inline double f_darg0(double x, double y) {
     sum = a_row_0(0, 0);
     return _d_sum * sum + sum * _d_sum;
 }
-inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
     int _d_N1 = 0;
     int _d_N2 = 0;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> _d_a("_d_a", N1);
@@ -113,7 +113,7 @@ inline void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array
         * _d_y += _d_tmp;
     }
 }
-inline void f_view_grad(Kokkos::View<double **> a, clad::array_ref<View<double **> > _d_a) {
+void f_view_grad(Kokkos::View<double **> a, clad::array_ref<View<double **> > _d_a) {
     double _d_sum = 0;
     Kokkos::View<double **, LayoutRight, Device<Serial, HostSpace>, MemoryTraits<0> > _d_a_row_0 = Kokkos::subview((* _d_a), Kokkos::make_pair(0, 2), ALL);
     double _t0;
@@ -121,7 +121,6 @@ inline void f_view_grad(Kokkos::View<double **> a, clad::array_ref<View<double *
     double _t2;
     double sum;
     Kokkos::View<double **, LayoutRight, Device<Serial, HostSpace>, MemoryTraits<0> > a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), ALL);
-    sum = a_row_0(0, 0);
     kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
     _t1 = sum;
     _t2 = 9.9999999999999995E-7 * _t1;
@@ -137,9 +136,4 @@ inline void f_view_grad(Kokkos::View<double **> a, clad::array_ref<View<double *
         _d_sum += _r3;
     }
     kokkos_builtin_derivative::parallel_sum(_d_a_row_0, _d_sum);
-    {
-        double _r_d0 = _d_sum;
-        _d_a_row_0(0, 0) += _r_d0;
-        _d_sum -= _r_d0;
-    }
 }
