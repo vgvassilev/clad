@@ -27,20 +27,20 @@ template <typename T, typename U> struct ValueAndAdjoint {
 };
 
   /// \returns the size of a c-style string
-  CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
-    unsigned int count;
-    const char* code_copy = code;
-    #ifdef __CUDACC__
-      count = 0;
-      while (*code_copy != '\0') {
-        count++;
-        code_copy++;
-      }
-    #else
-      count = strlen(code_copy);
-    #endif
-    return count;
+inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
+  unsigned int count;
+  const char* code_copy = code;
+#ifdef __CUDACC__
+  count = 0;
+  while (*code_copy != '\0') {
+    count++;
+    code_copy++;
   }
+#else
+  count = strlen(code_copy);
+#endif
+  return count;
+}
 
   /// Tape type used for storing values in reverse-mode AD inside loops.
   template <typename T>
