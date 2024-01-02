@@ -73,7 +73,10 @@ namespace numerical_diff {
 
   /// A buffer manager to request for buffer space
   /// while forwarding reference/pointer args to the target function.
-  ManageBufferSpace bufferManager;
+  inline ManageBufferSpace& getBufferManager() {
+    static ManageBufferSpace bufMan;
+    return bufMan;
+  }
 
   /// The precision to do the numerical differentiation calculations in.
   using precision = double;
@@ -87,7 +90,7 @@ namespace numerical_diff {
   /// \param[in] \c h The h to make representable.
   ///
   /// \returns A value of h that does not result in catastrohic cancellation.
-  precision make_h_representable(precision x, precision h) {
+  inline precision make_h_representable(precision x, precision h) {
     precision xph = x + h;
     precision dx = xph - x;
 
@@ -104,7 +107,7 @@ namespace numerical_diff {
   /// \param[in] \c arg The input argument to adjust and get h for.
   ///
   /// \returns A calculated and adjusted h value.
-  precision get_h(precision arg) {
+  inline precision get_h(precision arg) {
     // First get a suitable h value, we do all of this in elevated precision
     // (default double). Maximum error in h = eps^4/5
     precision h = std::pow(11.25 * std::numeric_limits<precision>::epsilon(),
@@ -126,8 +129,8 @@ namespace numerical_diff {
   ///  belongs.
   /// \param[in] \c arrPos The position of the array element
   /// (-1 if parameter is scalar) to which the error belongs.
-  void printError(precision derivError, precision evalError, unsigned paramPos,
-                  int arrPos = -1) {
+  inline void printError(precision derivError, precision evalError,
+                         unsigned paramPos, int arrPos = -1) {
     if (arrPos != -1)
       printf("\nError Report for parameter at position %d and index %d:\n",
              paramPos, arrPos);
@@ -227,7 +230,7 @@ namespace numerical_diff {
     // this is required to make sure that we are retuning a deep copy
     // that is valid throughout the scope of the central_diff function.
     // Temp is system owned.
-    T* temp = bufferManager.make_buffer_space<T>(n);
+    T* temp = getBufferManager().make_buffer_space<T>(n);
     // deepcopy
     for (std::size_t j = 0; j < n; j++) {
       temp[j] = arg[j];
@@ -318,7 +321,7 @@ namespace numerical_diff {
 
         // five-point stencil formula = (4f[x+h, x-h] - f[x+2h, x-2h])/3
         _grad[i][j] = 4.0 * xf1 / 3.0 - xf2 / 3.0;
-        bufferManager.free_buffer();
+        getBufferManager().free_buffer();
       }
     }
   }

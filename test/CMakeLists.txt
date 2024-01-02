@@ -29,6 +29,13 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
   )
 
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
+  )
+
 option(CLANG_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
 if(CLANG_TEST_USE_VG)
   set(CLANG_TEST_EXTRA_ARGS ${CLANG_TEST_EXTRA_ARGS} "--vg")
@@ -42,6 +49,12 @@ endif()
 
 set(CLAD_TEST_PARAMS
   clad_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
+  )
+
+# Unit tests
+list(APPEND CLAD_TEST_DEPS CladUnitTests)
+list(APPEND CLAD_TEST_PARAMS
+  clad_site_config=${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg
   )
 
 add_custom_target(clad-test-depends DEPENDS ${CLAD_TEST_DEPS})

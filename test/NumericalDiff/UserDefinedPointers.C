@@ -39,7 +39,7 @@ myStruct* updateIndexParamValue(myStruct* arg,
                                std::size_t idx, std::size_t currIdx,
                                int multiplier, numerical_diff::precision &h_val,
                                std::size_t n = 0, std::size_t i = 0) {
-  myStruct* temp = numerical_diff::bufferManager
+  myStruct* temp = numerical_diff::getBufferManager()
                        .make_buffer_space<myStruct>(1, true, arg->data,
                                                     arg->effect);
   if (idx == currIdx) {

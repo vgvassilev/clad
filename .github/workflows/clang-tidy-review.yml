@@ -28,7 +28,7 @@ jobs:
         with:
           build_dir: build
           apt_packages: libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev
-          exclude: "test/*,unittests/*benchmark/*,demos/*"
+          exclude: "test/*,unittests/*,benchmark/*,demos/*"
           split_workflow: true
           cmake_command: >
             pip install cmake lit &&

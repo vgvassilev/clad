@@ -54,16 +54,10 @@ constexpr unsigned GetBitmaskedOpts(unsigned const first, Opts... opts) {
 // Define trap function that is a CUDA compatible replacement for
 // exit(int code) function
 #ifdef __CUDACC__
-__device__ void trap(int code) {
-  asm("trap;");
-}
-__host__ void trap(int code) {
-  exit(code);
-}
+inline __device__ void trap(int code) { asm("trap;"); }
+inline __host__ void trap(int code) { exit(code); }
 #else
-void trap(int code) {
-  exit(code);
-}
+inline void trap(int code) { exit(code); }
 #endif
 
 #ifdef  __CUDACC__
