@@ -22,7 +22,10 @@ def useAutoInSubview(stringIn):
     return stringOut
 
 def useKokkosNamespace(stringIn):
-    return stringIn.replace(' ALL', ' Kokkos::ALL').replace('<View', '<Kokkos::View').replace(' View', ' Kokkos::View')
+    kokkosKeywords = ['ALL', 'View', 'LayoutLeft', 'LayoutRight', 'Device', 'Serial', 'HostSpace', 'MemoryTraits']
+    for kokkosKeyword in kokkosKeywords:
+        stringIn = stringIn.replace(' '+kokkosKeyword, ' Kokkos::'+kokkosKeyword).replace('<'+kokkosKeyword, '<Kokkos::'+kokkosKeyword)
+    return stringIn
 
 def getFunctionLineIDs(linesIn, fucntionName):
     index0 = -1
@@ -120,6 +123,7 @@ def transform(filenameIn, filenameOut):
         linesIn[i] = useKokkosNamespace(linesIn[i])
 
     swapTypeForTemplate(linesIn, 'f_view_grad', 'a')
+    swapTypeForTemplate(linesIn, 'f_view_pullback', 'a')
 
     for line in linesIn:
         fileOut.write(line)

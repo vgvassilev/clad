@@ -6,7 +6,7 @@
 #include <chrono>
 
 //#define use_generated_file
-#define use_forward_mode
+//#define use_forward_mode
 
 #ifdef use_generated_file
 #include "generated/Derivatives.hpp"

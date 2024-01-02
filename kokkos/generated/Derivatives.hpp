@@ -1,35 +1,27 @@
-double f_darg0(double x, double y) {
-    double _d_x = 1;
-    double _d_y = 0;
-    const int _d_N1 = 0;
-    const int N1 = 4;
-    const int _d_N2 = 0;
-    const int N2 = 4;
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> _d_a("_d_a", N1);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> _d_b("_d_b", N1);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft> b("b", N1);
-    double _d_tmp = _d_x * x + x * _d_x + _d_y;
-    double tmp = x * x + y;
-    const int _d_i = 0;
-    const int i = 0;
-    const int _d_j = 0;
-    const int j = 0;
-    Kokkos::deep_copy(_d_a, _d_tmp);
-    Kokkos::deep_copy(a, tmp);
-    Kokkos::deep_copy(_d_a, _d_x);
-    Kokkos::deep_copy(a, x);
-    Kokkos::deep_copy(_d_b, _d_x * x + x * _d_x + _d_y);
-    Kokkos::deep_copy(b, x * x + y);
-    Kokkos::deep_copy(_d_a, _d_b);
-    Kokkos::deep_copy(a, b);
-    double _d_sum;
-    double sum;
+template <typename type_a> 
+void f_view_pullback(type_a a, typename type_a::value_type _d_y, type_a _d_a) {
+    typename type_a::value_type _d_sum = 0;
     auto _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), Kokkos::ALL);
+    typename type_a::value_type _t0;
+    typename type_a::value_type _t1;
+    double _t2;
+    typename type_a::value_type sum;
     auto a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    _d_sum = _d_a_row_0(0, 0);
-    sum = a_row_0(0, 0);
-    return _d_sum * sum + sum * _d_sum;
+    kokkos_builtin_derivative::parallel_sum(sum, a_row_0);
+    _t1 = sum;
+    _t2 = 9.9999999999999995E-7 * _t1;
+    _t0 = sum;
+    goto _label0;
+  _label0:
+    {
+        double _r0 = _d_y * _t0;
+        double _r1 = _r0 * _t1;
+        double _r2 = 9.9999999999999995E-7 * _r0;
+        _d_sum += _r2;
+        double _r3 = _t2 * _d_y;
+        _d_sum += _r3;
+    }
+    kokkos_builtin_derivative::parallel_sum(_d_a_row_0, _d_sum);
 }
 void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
     const int N1 = 4;
@@ -47,8 +39,7 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     double _t4;
     double _d_sum = 0;
     auto _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    double _t5;
-    double _t6;
+    Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > _t5;
     const int N2 = 4;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
     Kokkos::View<double *[4], Kokkos::LayoutLeft> b("b", N1);
@@ -66,21 +57,12 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     Kokkos::deep_copy(a, b);
     double sum;
     auto a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    sum = a_row_0(0, 0);
-    _t6 = sum;
-    _t5 = sum;
+    _t5 = a_row_0;
     goto _label0;
   _label0:
     {
-        double _r5 = 1 * _t5;
-        _d_sum += _r5;
-        double _r6 = _t6 * 1;
-        _d_sum += _r6;
-    }
-    {
-        double _r_d0 = _d_sum;
-        _d_a_row_0(0, 0) += _r_d0;
-        _d_sum -= _r_d0;
+        f_view_pullback(_t5, 1, &_d_a_row_0);
+        Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > _r5 = _d_a_row_0;
     }
     {
         Kokkos::deep_copy(_d_b, _d_a);

@@ -150,7 +150,5 @@ double f(double x, double y) {
   double sum;
   auto a_row_0 = Kokkos::subview( a, Kokkos::make_pair(0, 2), Kokkos::ALL );
   
-  sum = a_row_0(0,0);
-
-  return sum*sum;
+  return f_view(a_row_0);
 }
