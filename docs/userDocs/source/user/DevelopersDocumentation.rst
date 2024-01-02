@@ -232,7 +232,8 @@ and sometimes it may not be even feasible to replicate the GitHub runner environ
 For cases like these, we can directly ssh into the Github runner and debug the codebase 
 there itself, thus saving a lot of time in replicating the Github runner environment.
 
-To ssh into the GitHub runner on which tests are failing, increase the value of 
+To ssh into the GitHub runner on which tests are failing, click on re-run actions
+and select the debug logging checkbox. If necessary increase the value of
 ``timeout-minutes`` key in ``.github/workflows/ci.yml`` to a suitable value for 
 debugging --  30 - 60 minutes should generally be enough.
 
