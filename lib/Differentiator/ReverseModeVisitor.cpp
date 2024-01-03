@@ -27,6 +27,7 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
+#include "clang/Sema/ScopeInfo.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -770,6 +771,239 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {Clone(VS), Clone(VS)};
   }
 
+
+  StmtDiff ReverseModeVisitor::VisitLambdaExpr(const clang::LambdaExpr* LE) {
+
+    const Stmt* body = LE->getBody();
+    //Stmt* reverseBody
+    auto bodyV = Visit(body);
+
+    /*
+    std::cout << " bodyV.getStmt() dump start " << std::endl;
+    bodyV.getStmt()->dump();
+    std::cout << " bodyV.getStmt() dump end " << std::endl;
+    std::cout << " bodyV.getStmt_dx() dump start " << std::endl;
+    bodyV.getStmt_dx()->dump();
+    std::cout << " bodyV.getStmt_dx() dump end " << std::endl;
+
+    std::cout << " body dump start " << std::endl;
+    body->dump();
+    std::cout << " body dump end " << std::endl;
+    */
+
+    auto children_iterator_range = LE->children();
+
+    std::vector<Expr *> children_Exp;
+    std::vector<Expr *> children_Exp_dx;
+
+    for (auto children : children_iterator_range) {
+      auto children_expr = const_cast<clang::Expr*>(dyn_cast<clang::Expr>(children));
+      if (children_expr) {
+        auto children_exprV = Visit(children_expr);
+        /*
+        std::cout << " children dump start " << std::endl;
+        children->dump();
+        std::cout << " children dump end " << std::endl;
+        */
+        children_Exp.push_back(children_exprV.getExpr());
+        children_Exp_dx.push_back(children_exprV.getExpr());
+        children_Exp_dx.push_back(children_exprV.getExpr_dx());
+
+        /*
+        std::cout << " children_expr dump start " << std::endl;
+        children_expr->dump();
+        std::cout << " children_expr dump end " << std::endl;
+        std::cout << " children_exprV.getExpr() dump start " << std::endl;
+        children_exprV.getExpr()->dump();
+        std::cout << " children_exprV.getExpr() dump end " << std::endl;
+        std::cout << " children_exprV.getExpr_dx() dump start " << std::endl;
+        children_exprV.getExpr_dx()->dump();
+        std::cout << " children_exprV.getExpr_dx() dump end " << std::endl;
+        */
+      }
+      //else {
+        /*
+        std::cout << " children body dump start " << std::endl;
+        children->dump();
+        std::cout << " children body dump end " << std::endl;
+        */
+
+        //auto children_body = Visit(children);
+
+        /*
+        std::cout << " children_body.getExpr() dump start " << std::endl;
+        children_body.getStmt()->dump();
+        std::cout << " children_body.getExpr() dump end " << std::endl;
+        std::cout << " children_body.getExpr_dx() dump start " << std::endl;
+        children_body.getStmt_dx()->dump();
+        std::cout << " children_body.getExpr_dx() dump end " << std::endl;
+        */
+      //}
+    }
+
+    llvm::ArrayRef<Expr*> childrenRef_Exp =
+        clad_compat::makeArrayRef(children_Exp.data(), children_Exp.size());
+
+    llvm::ArrayRef<Expr*> childrenRef_Exp_dx =
+        clad_compat::makeArrayRef(children_Exp_dx.data(), children_Exp_dx.size());
+
+    //std::cout << " children_Exp.size() = " << children_Exp.size() << std::endl;
+
+    auto forwardLambdaClass = LE->getLambdaClass();
+    //auto reverseLambdaClass = LE->getLambdaClass();
+    //reverseLambdaClass->CallOperator = bodyV.getStmt_dx();
+    //auto reverseLambdaClass = CXXRecordDecl::CreateLambda (m_Context, 
+    //  forwardLambdaClass->getDeclContext(), 
+    //  forwardLambdaClass->getLambdaTypeInfo (), // can be set
+    //  forwardLambdaClass->getLocation(),
+    //  forwardLambdaClass->isDependentLambda (), 
+    //  forwardLambdaClass->isGenericLambda (), 
+    //  forwardLambdaClass->getLambdaCaptureDefault ());
+
+    /*
+    std::cout << " forwardLambdaClass start dump" << std::endl;
+    forwardLambdaClass->dump();
+    std::cout << " forwardLambdaClass end dump" << std::endl;
+
+    std::cout << " reverseLambdaClass start dump" << std::endl;
+    reverseLambdaClass->dump();
+    std::cout << " reverseLambdaClass end dump" << std::endl;
+    */
+
+    auto forwardLE = LambdaExpr::Create(m_Context,
+                              forwardLambdaClass,
+                              LE->getIntroducerRange(),
+                              LE->getCaptureDefault(),
+                              LE->getCaptureDefaultLoc(),
+                              LE->hasExplicitParameters(),
+                              LE->hasExplicitResultType(),
+                              childrenRef_Exp,
+                              LE->getEndLoc(),
+                              false);
+
+    //auto reverseLE = LambdaExpr::Create(m_Context,
+    //                          reverseLambdaClass,
+    //                          LE->getIntroducerRange(),
+    //                          LE->getCaptureDefault(),
+    //                          LE->getCaptureDefaultLoc(),
+    //                          LE->hasExplicitParameters(),
+    //                          LE->hasExplicitResultType(),
+    //                          childrenRef_Exp_dx,
+    //                          LE->getEndLoc(),
+    //                          false);
+
+    clang::Expr  * reverseLE;
+    {
+      clang::LambdaIntroducer Intro;
+      Intro.Default = forwardLambdaClass->getLambdaCaptureDefault ();
+      Intro.Range.setBegin(bodyV.getStmt_dx()->getBeginLoc());
+      Intro.Range.setEnd(bodyV.getStmt_dx()->getEndLoc());
+
+      clang::AttributeFactory AttrFactory;
+      const clang::DeclSpec DS(AttrFactory);
+      clang::Declarator D(DS,
+                          CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
+                          CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
+      clang::sema::LambdaScopeInfo * LSI = m_Sema.PushLambdaScope();
+      beginScope(clang::Scope::BlockScope | clang::Scope::FnScope |
+                   clang::Scope::DeclScope);
+      m_Sema.ActOnStartOfLambdaDefinition(Intro, D,
+                   clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(getCurrentScope(), DS));
+
+      //beginBlock();
+      //addToCurrentBlock(bodyV.getStmt_dx(), direction::reverse);
+      //endBlock();
+      //clang::Expr* lambda =
+      //    m_Sema.ActOnLambdaExpr(noLoc, bodyV.getStmt_dx(), getCurrentScope()).get();
+
+      //clang::sema::LambdaScopeInfo LSI = *cast<clang::sema::LambdaScopeInfo>(m_Sema.FunctionScopes.back());
+
+      //clang::sema::LambdaScopeInfo LSI = m_Sema.RebuildLambdaScopeInfo(LE);
+
+      //for (auto Var : children_iterator_range)
+      //  LSI.addCapture(Var, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
+      //              /*isNested=*/false, noLoc, SourceLocation(),
+      //              Var->getType(), /*Invalid=*/false);
+
+      //for (auto Var : childrenRef_Exp)
+      //  LSI.addCapture(Var, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
+      //              /*isNested=*/false, noLoc, SourceLocation(),
+      //              Var->getType(), /*Invalid=*/false);
+
+
+      //LSI->Lambda = forwardLambdaClass;
+
+      m_Sema.buildLambdaScope(LSI, 
+                              //bodyV.getStmt_dx(),
+                              LE->getCallOperator(),
+                              LE->getIntroducerRange(),
+                              LE->getCaptureDefault(),
+                              LE->getCaptureDefaultLoc(),
+                              LE->hasExplicitParameters(),
+                              LE->hasExplicitResultType(),
+                              LE->isMutable()); 
+      
+      m_Sema.ActOnFinishFunctionBody(LSI->CallOperator, bodyV.getStmt_dx());
+      clang::Expr* lambda = m_Sema.BuildLambdaExpr(noLoc, noLoc, LSI).get();
+      endScope();
+      //reverseLE = m_Sema.ActOnCallExpr(getCurrentScope(), lambda, noLoc, {}, noLoc).get();
+
+      /*
+      std::cout << " lambda start dump" << std::endl;
+
+      lambda->dump();
+
+      std::cout << " lambda end dump" << std::endl;
+      */
+      auto reverseLambdaClassNew = dyn_cast<LambdaExpr>(dyn_cast<CXXBindTemporaryExpr>(lambda)->getSubExpr())->getLambdaClass();
+      /*
+      std::cout << " forwardLambdaClass start dump" << std::endl;
+
+      forwardLambdaClass->dump();
+
+      std::cout << " forwardLambdaClass end dump" << std::endl;
+
+      std::cout << " reverseLambdaClassNew start dump" << std::endl;
+
+      reverseLambdaClassNew->dump();
+
+      std::cout << " reverseLambdaClassNew end dump" << std::endl;
+      */
+      reverseLE = LambdaExpr::Create(m_Context,
+                                reverseLambdaClassNew, //forwardLambdaClass,//dyn_cast<LambdaExpr>(lambda)->getLambdaClass(),
+                                LE->getIntroducerRange(),
+                                LE->getCaptureDefault(),
+                                LE->getCaptureDefaultLoc(),
+                                LE->hasExplicitParameters(),
+                                LE->hasExplicitResultType(),
+                                childrenRef_Exp_dx,
+                                LE->getEndLoc(),
+                                false);
+
+    }
+
+    //auto reverseLE = m_Sema.ActOnLambdaExpr(noLoc, bodyV.getStmt_dx(), getCurrentScope()).get();
+
+    /*
+    std::cout << " forwardLE start dump" << std::endl;
+
+    forwardLE->dump();
+
+    std::cout << " forwardLE end dump" << std::endl;
+
+    std::cout << " reverseLE start dump" << std::endl;
+
+    reverseLE->dump();
+
+    std::cout << " reverseLE end dump" << std::endl;
+
+    std::cout << " LE->getLambdaClass() start dump" << std::endl;
+    LE->getLambdaClass()->dump();
+    std::cout << " LE->getLambdaClass() end dump" << std::endl;
+    */
+    return {forwardLE, reverseLE};
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -1416,6 +1650,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    //std::cout << " CE dump start" << std::endl;
+    //CE->dump();
+    //std::cout << " CE dump end" << std::endl;
     if (isa<CXXMemberCallExpr>(CE)) {
       auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
@@ -1429,17 +1666,39 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       const Expr* baseOriginalE = OCE->getArg(0);
 
       bool isKokkosViewAccess = false;
-      std::string kokkosViewName;
+      //std::string kokkosViewName;
+
+      //std::cout << " OCE dump start" << std::endl;
+      //OCE->dump();
+      //std::cout << " OCE dump start" << std::endl;
       
+      //std::cout << " baseOriginalE dump start" << std::endl;
+      //baseOriginalE->dump();
+      //std::cout << " baseOriginalE dump start" << std::endl;
+
       if (isa<ImplicitCastExpr>(baseOriginalE)) {
+        //std::cout << "true 1" << std::endl;
         auto SE = baseOriginalE->IgnoreImpCasts();
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+          //std::cout << "true 2" << std::endl;
           if (utils::IsKokkosView(DRE->getType())) {
+            //std::cout << "true 3" << std::endl;
             isKokkosViewAccess = true;
-            kokkosViewName = DRE->getNameInfo().getName().getAsString ();
+            //kokkosViewName = DRE->getNameInfo().getName().getAsString ();
           }
         }
       }
+      if (auto DRE = dyn_cast<DeclRefExpr>(baseOriginalE)) {
+        //std::cout << "true 2" << std::endl;
+        //DRE->getType()->dump();
+        if (utils::IsKokkosView(DRE->getType())) {
+          //std::cout << "true 3" << std::endl;
+          isKokkosViewAccess = true;
+          //kokkosViewName = DRE->getNameInfo().getName().getAsString ();
+        }
+        isKokkosViewAccess = true;
+      }
+      //std::cout << " isKokkosViewAccess = " << isKokkosViewAccess << std::endl;
 
       // Returning the function call and zero derivative
       if (isKokkosViewAccess) {
@@ -1681,7 +1940,24 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           llvm::SmallVector<Expr*, 4> ClonedArgs;
           llvm::SmallVector<Expr*, 4> ClonedDArgs;
           for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
-            auto visitedArg = Visit(CE->getArg(i));
+            //std::cout << "Start CE->getArg("<<i<<")->dump()" << std::endl;
+            //CE->getArg(i)->dump();
+            //std::cout << "end CE->getArg("<<i<<")->dump()" << std::endl;
+
+            auto arg = CE->getArg(i);
+            if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
+              arg = clad_compat::GetSubExpr(MTE);
+
+            if (const auto* ICE = dyn_cast<ImplicitCastExpr>(arg))
+              arg = ICE->getSubExpr();
+            
+            if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(arg))
+              arg = BTE->getSubExpr();
+              
+            if (isa<LambdaExpr>(arg))
+              std::cout << " is a lambda " << std::endl;
+
+            auto visitedArg = Visit(arg);
             ClonedArgs.push_back(visitedArg.getExpr());
             if (i==0)
               ClonedDArgs.push_back(visitedArg.getExpr());

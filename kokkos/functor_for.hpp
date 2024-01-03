@@ -56,12 +56,15 @@ double f(double x, double y) {
 
   Kokkos::deep_copy(a, x);
   Kokkos::deep_copy(b, x * x + y);
-  Kokkos::deep_copy(a, b);
+  //Kokkos::deep_copy(a, b);
 
-  //Kokkos::parallel_for( 2, KOKKOS_LAMBDA ( int j) {
-  //  //printf("work item %d\n", j);
-  //  a(j,0) = b(j,0);
-  //});
+  Kokkos::parallel_for( b.extent(0), KOKKOS_LAMBDA ( const int j0) {
+    b(j0,0) += j0*3.53;
+  });
+
+  Kokkos::parallel_for( a.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
+    a(j1,0) += b(j1+1,0)*6.89 + b(j1,1);
+  });
 
   double sum;
   auto a_row_0 = Kokkos::subview( a, Kokkos::make_pair(0, 2), Kokkos::ALL );

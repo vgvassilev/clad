@@ -5,6 +5,13 @@ def replaceKokkosInlineFunction(stringIn):
     string_new = 'KOKKOS_INLINE_FUNCTION'
     return stringIn.replace(string_old, string_new)
 
+def replaceKokkosLambda(stringIn):
+    if stringIn.find('Kokkos::parallel_for') == -1 and stringIn.find('Kokkos::parallel_reduce') == -1:
+        return stringIn
+    string_old = '[=]'
+    string_new = 'KOKKOS_LAMBDA'
+    return stringIn.replace(string_old, string_new)
+
 def useAutoInSubview(stringIn):
     if stringIn.find('= Kokkos::subview') == -1 and stringIn.find('= Kokkos::create_mirror_view') == -1:
         return stringIn
@@ -108,6 +115,10 @@ def swapTypeForTemplate(linesIn, fucntionName, variableName, index0=-1, index1=-
         for derivativeVarName in derivativeVarNames:
             linesIn[index] = linesIn[index].replace('(* ' + derivativeVarName + ')', derivativeVarName)
 
+    for index in range(0, len(linesIn)):
+        #to be improved!
+        if linesIn[index].find(fucntionName) != -1 and linesIn[index].find(';') != -1:
+            linesIn[index] = linesIn[index].replace('&', '')
 
 def transform(filenameIn, filenameOut):
 
@@ -119,6 +130,7 @@ def transform(filenameIn, filenameOut):
 
     for i in range(0, len(linesIn)):
         linesIn[i] = replaceKokkosInlineFunction(linesIn[i])
+        linesIn[i] = replaceKokkosLambda(linesIn[i])
         linesIn[i] = useAutoInSubview(linesIn[i])
         linesIn[i] = useKokkosNamespace(linesIn[i])
 

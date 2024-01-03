@@ -134,7 +134,7 @@ int main(int argc, char* argv[]) {
     f_grad(3., 4., &dx, &dy);
 
     auto t0_f_view_grad = std::chrono::high_resolution_clock::now();
-    f_view_grad<Kokkos::View<double **>>(A, &dA);
+    f_view_grad<Kokkos::View<double **>>(A, dA);
     auto t1_f_view_grad = std::chrono::high_resolution_clock::now();
 #endif
 
