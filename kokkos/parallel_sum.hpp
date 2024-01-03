@@ -20,7 +20,7 @@ template <class Viewtype, class Layout, typename iType>
 struct ViewSum<Viewtype, Layout, 1, iType> {
 
   template<class ExecSpace, class ResultT>
-  static auto execute(ResultT& result, const Viewtype& v, const ExecSpace space = ExecSpace()) {
+  static void execute(ResultT& result, const Viewtype& v, const ExecSpace space = ExecSpace()) {
 
     using policy_type = Kokkos::RangePolicy<ExecSpace, Kokkos::IndexType<iType>>;
     using value_type  = typename Viewtype::value_type;
@@ -45,7 +45,7 @@ template <class Viewtype, class Layout, typename iType>
 struct ViewSum<Viewtype, Layout, 2, iType> {
 
   template<class ExecSpace, class ResultT>
-  static auto execute(ResultT& result, const Viewtype& v, const ExecSpace space = ExecSpace()) {
+  static void execute(ResultT& result, const Viewtype& v, const ExecSpace space = ExecSpace()) {
 
     static const Kokkos::Iterate outer_iteration_pattern =
         Kokkos::layout_iterate_type_selector<Layout>::outer_iteration_pattern;
@@ -78,7 +78,7 @@ template <class Viewtype, class Layout, typename iType>
 struct ViewSum<Viewtype, Layout, 3, iType> {
 
   template<class ExecSpace, class ResultT>
-  static auto execute(ResultT& result, const Viewtype& v, const ExecSpace space = ExecSpace()) {
+  static void execute(ResultT& result, const Viewtype& v, const ExecSpace space = ExecSpace()) {
 
     static const Kokkos::Iterate outer_iteration_pattern =
         Kokkos::layout_iterate_type_selector<Layout>::outer_iteration_pattern;
@@ -124,7 +124,7 @@ template <class Viewtype, class Layout, typename iType>
 struct ViewAdd<Viewtype, Layout, 1, iType> {
 
   template<class ExecSpace, class ResultT>
-  static auto execute(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
+  static void execute(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
 
     using policy_type = Kokkos::RangePolicy<ExecSpace, Kokkos::IndexType<iType>>;
 
@@ -142,7 +142,7 @@ template <class Viewtype, class Layout, typename iType>
 struct ViewAdd<Viewtype, Layout, 2, iType> {
 
   template<class ExecSpace, class ResultT>
-  static auto execute(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
+  static void execute(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
 
     static const Kokkos::Iterate outer_iteration_pattern =
         Kokkos::layout_iterate_type_selector<Layout>::outer_iteration_pattern;
@@ -168,7 +168,7 @@ template <class Viewtype, class Layout, typename iType>
 struct ViewAdd<Viewtype, Layout, 3, iType> {
 
   template<class ExecSpace, class ResultT>
-  static auto execute(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
+  static void execute(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
 
     static const Kokkos::Iterate outer_iteration_pattern =
         Kokkos::layout_iterate_type_selector<Layout>::outer_iteration_pattern;
