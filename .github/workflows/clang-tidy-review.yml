@@ -27,11 +27,13 @@ jobs:
         id: review
         with:
           build_dir: build
-          exclude: "test/*,benchmark/*,demos/*"
+          apt_packages: libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev
+          exclude: "test/*,unittests/*benchmark/*,demos/*"
           split_workflow: true
           cmake_command: >
             pip install cmake lit &&
             cmake --version &&
+            git config --global --add safe.directory /github/workspace &&
             cmake . -B build -DLLVM_DIR="$GITHUB_WORKSPACE/llvm"
             -DClang_DIR="$GITHUB_WORKSPACE/llvm"
             -DCMAKE_BUILD_TYPE="Release"
