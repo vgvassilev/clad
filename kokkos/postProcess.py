@@ -136,6 +136,7 @@ def transform(filenameIn, filenameOut):
 
     swapTypeForTemplate(linesIn, 'f_view_grad', 'a')
     swapTypeForTemplate(linesIn, 'f_view_pullback', 'a')
+    swapTypeForTemplate(linesIn, 'f_multilevel_grad', 'x')
 
     for line in linesIn:
         fileOut.write(line)

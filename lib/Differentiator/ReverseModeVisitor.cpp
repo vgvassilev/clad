@@ -3199,8 +3199,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           read = true;
       }
       size_t i = 0;
-      if (isa<CXXConstructExpr>(VD->getInit())) {
-        auto CE = dyn_cast<CXXConstructExpr>(VD->getInit());
+      if (isa<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts())) {
+        auto CE = dyn_cast<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts());
         llvm::SmallVector<Expr*, 4> clonedArgs;
         for (auto arg : CE->arguments()) {
           if (i == runTimeDim + 1)

@@ -6,7 +6,7 @@
 #include "lambda_reduction_subview.hpp"
 #include <chrono>
 
-//#define use_generated_file
+#define use_generated_file
 //#define use_forward_mode
 
 #ifdef use_generated_file
@@ -115,6 +115,8 @@ int main(int argc, char* argv[]) {
     //auto weightedDotProduct_2_dx = clad::differentiate(weightedDotProduct_2<typeof(A),typeof(x),typeof(y)>, "x");
   #endif
     auto f_grad_exe = clad::gradient(f);
+    
+    auto f_multilevel_grad_exe = clad::gradient(f_multilevel<Kokkos::View<double *>>);
     auto f_view_grad_exe = clad::gradient(f_view<Kokkos::View<double **>>);
   #ifdef use_forward_mode
     dx_f = f_dx_exe.execute(3.,4.);

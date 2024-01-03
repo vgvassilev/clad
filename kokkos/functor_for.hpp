@@ -29,6 +29,34 @@ typename ViewtypeA::value_type f_view(ViewtypeA a) {
   return 1e-6*sum*sum;
 }
 
+
+template <typename ViewtypeX>
+typename ViewtypeX::value_type f_multilevel(ViewtypeX x) {
+  typename ViewtypeX::value_type mean_x, sum;
+  kokkos_builtin_derivative::parallel_sum(mean_x, x);
+
+  ViewtypeX y("y", x.extent(0));
+
+  Kokkos::parallel_for( x.extent(0), KOKKOS_LAMBDA ( const int j0) {
+    x(j0) = 3*x(j0) - mean_x;
+  });
+
+  Kokkos::parallel_for( x.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
+    //if (j1 != x.extent(0)-1) // does not work yet
+      y(j1+1) = 2.6*x(j1);
+    //else
+    //  y(j1) = 2.6*x(0);
+  });
+
+  const int n_max = 10;
+  const int n = x.extent(0) > n_max ? n_max : x.extent(0);
+
+  auto x_n_rows = Kokkos::subview( x, Kokkos::make_pair(0, n));
+  kokkos_builtin_derivative::parallel_sum(sum, x_n_rows);
+  return sum;
+}
+
+
 template <typename ViewtypeA>
 void f_view_2(ViewtypeA a, double tmp) {
   Kokkos::deep_copy(a, tmp);
