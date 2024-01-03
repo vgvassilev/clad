@@ -1,5 +1,6 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <Kokkos_Core.hpp>
+#include "parallel_sum.hpp"
 #include "functor_for.hpp"
 #include "lambda_reduction.hpp"
 #include "lambda_reduction_subview.hpp"
