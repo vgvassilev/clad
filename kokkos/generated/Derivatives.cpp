@@ -116,7 +116,7 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     }
 }
 void f_multilevel_grad(Kokkos::View<double *> x, clad::array_ref<View<double *> > _d_x) {
-    typename View<double *>::value_type _d_mean_x = 0, _d_sum = 0;
+    typename View<double *>::value_type _d_sum = 0;
     Kokkos::View<double *> _d_y("_d_y", x.extent(0));
     double _t0;
     double _t1;
@@ -124,11 +124,10 @@ void f_multilevel_grad(Kokkos::View<double *> x, clad::array_ref<View<double *> 
     bool _cond0;
     int _d_n = 0;
     Kokkos::View<double *, LayoutRight, Device<Serial, HostSpace>, MemoryTraits<0> > _d_x_n_rows = Kokkos::subview((* _d_x), Kokkos::make_pair(0, n));
-    typename View<double *>::value_type mean_x, sum;
-    kokkos_builtin_derivative::parallel_sum(mean_x, x);
+    typename View<double *>::value_type sum;
     Kokkos::View<double *> y("y", x.extent(0));
     Kokkos::parallel_for(x.extent(0), [=](const int j0) {
-        x(j0) = 3 * x(j0) - mean_x;
+        x(j0) = 3 * x(j0);
     });
     Kokkos::parallel_for(x.extent(0) - 1, [=](const int j1) {
         y(j1 + 1) = 2.6000000000000001 * x(j1);
@@ -160,12 +159,10 @@ void f_multilevel_grad(Kokkos::View<double *> x, clad::array_ref<View<double *> 
             double _r0 = _r_d0 * _t0;
             double _r1 = 3 * _r_d0;
             (* _d_x)(j0) += _r1;
-            _d_mean_x += -_r_d0;
             (* _d_x)(j0) -= _r_d0;
             (* _d_x)(j0);
         }
     });
-    kokkos_builtin_derivative::parallel_sum((* _d_x), _d_mean_x);
 }
 void f_view_grad(Kokkos::View<double **> a, clad::array_ref<View<double **> > _d_a) {
     typename View<double **>::value_type _d_sum = 0;

@@ -32,13 +32,14 @@ typename ViewtypeA::value_type f_view(ViewtypeA a) {
 
 template <typename ViewtypeX>
 typename ViewtypeX::value_type f_multilevel(ViewtypeX x) {
-  typename ViewtypeX::value_type mean_x, sum;
-  kokkos_builtin_derivative::parallel_sum(mean_x, x);
+  typename ViewtypeX::value_type sum;
+  //kokkos_builtin_derivative::parallel_sum(mean_x, x);
 
   ViewtypeX y("y", x.extent(0));
 
   Kokkos::parallel_for( x.extent(0), KOKKOS_LAMBDA ( const int j0) {
-    x(j0) = 3*x(j0) - mean_x;
+    x(j0) = 3*x(j0);
+    //x(j0) = 3*x(j0) - mean_x;
   });
 
   Kokkos::parallel_for( x.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
