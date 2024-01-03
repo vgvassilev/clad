@@ -4,9 +4,9 @@ namespace kokkos_builtin_derivative {
 
 /* Things to do:
 
-- use span_is_contiguous corner case (regardless of the rank)
+- use span_is_contiguous corner case (regardless of the rank): done
 - check the span of the thing, do we need more than int32.
-- deduce iterate base on layout: done?
+- deduce iterate base on layout: done
 - If you give me an execution space: non-blocking (in theory) (use an unmaged view if scalar argument)
 - If no execution space: blocking.
 */
@@ -108,13 +108,6 @@ struct ViewSum<Viewtype, Layout, 3, iType> {
   }
 };
 
-
-template <typename ViewtypeA>
-void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
-  ViewSum<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(sum, A);
-}
-
-
 // Parallel add
 
 template <class Viewtype, class Layout, int Rank = Viewtype::rank(), typename iType = int>
@@ -192,10 +185,46 @@ struct ViewAdd<Viewtype, Layout, 3, iType> {
 };
 
 
+template <typename ViewtypeA>
+void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
+  if (A.span_is_contiguous()) {
+
+    using ViewTypeFlat = Kokkos::View<
+        typename ViewtypeA::value_type*, Kokkos::LayoutRight,
+        Kokkos::Device<typename ViewtypeA::execution_space,
+                      std::conditional_t<ViewtypeA::rank == 0,
+                                          typename ViewtypeA::memory_space,
+                                          Kokkos::AnonymousSpace>>,
+        Kokkos::MemoryTraits<0>>;
+
+    ViewTypeFlat A_flat(A.data(), A.size());
+    ViewSum<ViewTypeFlat, Kokkos::LayoutRight, 1, int>::template execute<typename ViewTypeFlat::execution_space>(sum, A_flat);
+    return;
+  }
+
+  ViewSum<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(sum, A);
+  return;
+}
 
 template <typename ViewtypeA>
 void parallel_sum(ViewtypeA A, const typename ViewtypeA::value_type b) {
+  if (A.span_is_contiguous()) {
+
+    using ViewTypeFlat = Kokkos::View<
+        typename ViewtypeA::value_type*, Kokkos::LayoutRight,
+        Kokkos::Device<typename ViewtypeA::execution_space,
+                      std::conditional_t<ViewtypeA::rank == 0,
+                                          typename ViewtypeA::memory_space,
+                                          Kokkos::AnonymousSpace>>,
+        Kokkos::MemoryTraits<0>>;
+
+    ViewTypeFlat A_flat(A.data(), A.size());
+    ViewAdd<ViewTypeFlat, Kokkos::LayoutRight, 1, int>::template execute<typename ViewTypeFlat::execution_space>(A_flat, b);
+    return;
+  }
+
   ViewAdd<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(A, b);
+  return;
 }
 
 }
