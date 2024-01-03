@@ -7,8 +7,8 @@ namespace kokkos_builtin_derivative {
 - use span_is_contiguous corner case (regardless of the rank): done
 - check the span of the thing, do we need more than int32.
 - deduce iterate base on layout: done
-- If you give me an execution space: non-blocking (in theory) (use an unmaged view if scalar argument)
-- If no execution space: blocking.
+- If you give me an execution space: non-blocking (in theory) (use an unmaged view if scalar argument): done
+- If no execution space: blocking: done
 */
 
 // Parallel sum:
@@ -187,6 +187,7 @@ struct ViewAdd<Viewtype, Layout, 3, iType> {
 
 template <typename ViewtypeA>
 void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
+  Kokkos::fence("parallel_sum: pre sum fence");
   if (A.span_is_contiguous()) {
 
     using ViewTypeFlat = Kokkos::View<
@@ -199,15 +200,38 @@ void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
 
     ViewTypeFlat A_flat(A.data(), A.size());
     ViewSum<ViewTypeFlat, Kokkos::LayoutRight, 1, int>::template execute<typename ViewTypeFlat::execution_space>(sum, A_flat);
-    return;
   }
+  else {
+    ViewSum<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(sum, A);
+  }
+  Kokkos::fence("parallel_sum: post sum fence");
+}
 
-  ViewSum<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(sum, A);
-  return;
+template <class ExecSpace, typename ViewtypeA>
+void parallel_sum(const ExecSpace& space, typename ViewtypeA::value_type &sum, const ViewtypeA A) {
+  space.fence("parallel_sum: pre sum fence");
+  if (A.span_is_contiguous()) {
+
+    using ViewTypeFlat = Kokkos::View<
+        typename ViewtypeA::value_type*, Kokkos::LayoutRight,
+        Kokkos::Device<typename ViewtypeA::execution_space,
+                      std::conditional_t<ViewtypeA::rank == 0,
+                                          typename ViewtypeA::memory_space,
+                                          Kokkos::AnonymousSpace>>,
+        Kokkos::MemoryTraits<0>>;
+
+    ViewTypeFlat A_flat(A.data(), A.size());
+    ViewSum<ViewTypeFlat, Kokkos::LayoutRight, 1, int>::template execute<typename ViewTypeFlat::execution_space>(sum, A_flat, space);
+  }
+  else {
+    ViewSum<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<ExecSpace>(sum, A, space);
+  }
+  space.fence("parallel_sum: post sum fence");
 }
 
 template <typename ViewtypeA>
 void parallel_sum(ViewtypeA A, const typename ViewtypeA::value_type b) {
+  Kokkos::fence("parallel_sum: pre add fence");
   if (A.span_is_contiguous()) {
 
     using ViewTypeFlat = Kokkos::View<
@@ -220,11 +244,33 @@ void parallel_sum(ViewtypeA A, const typename ViewtypeA::value_type b) {
 
     ViewTypeFlat A_flat(A.data(), A.size());
     ViewAdd<ViewTypeFlat, Kokkos::LayoutRight, 1, int>::template execute<typename ViewTypeFlat::execution_space>(A_flat, b);
-    return;
   }
+  else {
+    ViewAdd<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(A, b);
+  }
+  Kokkos::fence("parallel_sum: post add fence");
+}
 
-  ViewAdd<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<typename ViewtypeA::execution_space>(A, b);
-  return;
+template <class ExecSpace, typename ViewtypeA>
+void parallel_sum(const ExecSpace& space, ViewtypeA A, const typename ViewtypeA::value_type b) {
+  space.fence("parallel_sum: pre add fence");
+  if (A.span_is_contiguous()) {
+
+    using ViewTypeFlat = Kokkos::View<
+        typename ViewtypeA::value_type*, Kokkos::LayoutRight,
+        Kokkos::Device<typename ViewtypeA::execution_space,
+                      std::conditional_t<ViewtypeA::rank == 0,
+                                          typename ViewtypeA::memory_space,
+                                          Kokkos::AnonymousSpace>>,
+        Kokkos::MemoryTraits<0>>;
+
+    ViewTypeFlat A_flat(A.data(), A.size());
+    ViewAdd<ViewTypeFlat, Kokkos::LayoutRight, 1, int>::template execute<typename ViewTypeFlat::execution_space>(A_flat, b, space);
+  }
+  else {
+    ViewAdd<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<ExecSpace>(A, b, space);
+  }
+  space.fence("parallel_sum: post add fence");
 }
 
 }
