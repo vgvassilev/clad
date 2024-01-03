@@ -32,6 +32,7 @@ jobs:
           cmake_command: >
             pip install cmake lit &&
             cmake --version &&
+            git config --global --add safe.directory /github/workspace &&
             cmake . -B build -DLLVM_DIR="$GITHUB_WORKSPACE/llvm"
             -DClang_DIR="$GITHUB_WORKSPACE/llvm"
             -DCMAKE_BUILD_TYPE="Release"
