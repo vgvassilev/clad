@@ -193,8 +193,8 @@ endif()
 
 ## Code Coverage Configuration
 add_library(coverage_config INTERFACE)
-option(CODE_COVERAGE "Enable coverage reporting" OFF)
-if(CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+option(CLAD_CODE_COVERAGE "Enable coverage reporting" OFF)
+if(CLAD_CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
   if(NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
     message(FATAL_ERROR "CodeCov enabled on non-debug build!")
