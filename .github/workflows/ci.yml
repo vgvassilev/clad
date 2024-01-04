@@ -440,7 +440,7 @@ jobs:
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
-        echo "CODE_COVERAGE=0" >> $GITHUB_ENV
+        echo "CLAD_CODE_COVERAGE=0" >> $GITHUB_ENV
     - name: Setup default Build Type on *nux (build_debug & asserts)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
@@ -449,9 +449,9 @@ jobs:
       if: runner.os == 'windows'
       run: |
         $env:BUILD_TYPE="Release"
-        $env:CODE_COVERAGE="0"
+        $env:CLAD_CODE_COVERAGE="0"
         echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
-        echo "CODE_COVERAGE=0" >> $env:GITHUB_ENV
+        echo "CLAD_CODE_COVERAGE=0" >> $env:GITHUB_ENV
     - name: Download Coverity Build Tool - Linux
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
@@ -686,7 +686,7 @@ jobs:
       if: ${{ (matrix.coverage == true) }}
       run: |
         sudo apt install lcov
-        echo "CODE_COVERAGE=1" >> $GITHUB_ENV
+        echo "CLAD_CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config *nix
       if: ${{ runner.os != 'windows' }}
@@ -725,7 +725,7 @@ jobs:
         cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
           -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
-          -DCODE_COVERAGE=${CODE_COVERAGE}  \
+          -DCLAD_CODE_COVERAGE=${CLAD_CODE_COVERAGE}  \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
@@ -740,13 +740,13 @@ jobs:
         {
           $env:BUILD_TYPE="RelWithDebInfo"
         }
-        if ( "$env:CODE_COVERAGE" -eq "" )
+        if ( "$env:CLAD_CODE_COVERAGE" -eq "" )
         {
-          $env:CODE_COVERAGE="0"
+          $env:CLAD_CODE_COVERAGE="0"
         }
         ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
         $lit = @(which lit)
-        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCODE_COVERAGE="$env:CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . --config Release
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
