@@ -2,7 +2,6 @@ set(CTEST_BUILD_NAME ${ROOT_ARCHITECTURE}-${CMAKE_BUILD_TYPE})
 enable_testing()
 
 include(GoogleBenchmark)
-include(AddCladBenchmark)
 
 CB_ADD_GBENCHMARK(Simple Simple.cpp)
 CB_ADD_GBENCHMARK(AlgorithmicComplexity AlgorithmicComplexity.cpp)

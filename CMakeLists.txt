@@ -296,6 +296,7 @@ if (CLAD_INCLUDE_DOCS)
 endif()
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
+  include(AddClad)
   add_subdirectory(unittests)
   add_subdirectory(test)
   add_subdirectory(demos/ErrorEstimation/CustomModel)
