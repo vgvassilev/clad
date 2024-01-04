@@ -5,7 +5,6 @@ set_target_properties(CladUnitTests PROPERTIES FOLDER "Clad tests")
 if (NOT TARGET gtest)
   include(CladGoogleTest)
 endif()
-include(AddCladBenchmark)
 
 # add_clad_unittest(test_dirname file1.cpp file2.cpp)
 #
