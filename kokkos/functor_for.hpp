@@ -88,7 +88,7 @@ double f(double x, double y) {
   //Kokkos::deep_copy(a, b);
 
   Kokkos::parallel_for( b.extent(0), KOKKOS_LAMBDA ( const int j0) {
-    b(j0,0) += j0*3.53;
+    b(j0,0) += 3.53;
   });
 
   Kokkos::parallel_for( a.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
