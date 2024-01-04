@@ -74,9 +74,6 @@ double f(double x, double y) {
 
   double tmp = x * x + y;
 
-  const int i = 0;
-  const int j = 0;
-
   // These 2 lines do not work. Is it because nothing is returned by f_view_2?
   //f_view_2(a, tmp); 
   //return f_view(a);

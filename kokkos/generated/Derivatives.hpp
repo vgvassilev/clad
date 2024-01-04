@@ -32,8 +32,6 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     double _t0;
     double _t1;
     double _d_tmp = 0;
-    int _d_i = 0;
-    int _d_j = 0;
     double _t2;
     double _t3;
     double _t4;
@@ -46,8 +44,6 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     _t1 = x;
     _t0 = x;
     double tmp = _t1 * _t0 + y;
-    const int i = 0;
-    const int j = 0;
     Kokkos::deep_copy(a, tmp);
     Kokkos::deep_copy(a, x);
     _t2 = x;
