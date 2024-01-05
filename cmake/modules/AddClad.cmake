@@ -10,9 +10,6 @@ string(REPLACE "/" "" CURRENT_REPO_COMMIT ${CURRENT_REPO_COMMIT})
 set_property(DIRECTORY APPEND PROPERTY
              CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/HEAD")
 
-# Change the default compiler to the clang which we run clad upon.
-set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
-
 #-------------------------------------------------------------------------------
 # function ENABLE_CLAD_FOR_EXECUTABLE(<executable>
 #   DEPENDS dependencies...

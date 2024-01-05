@@ -295,8 +295,20 @@ if (CLAD_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()
 
+
 if (NOT CLAD_BUILD_STATIC_ONLY)
   include(AddClad)
+
+  if (CLAD_ENABLE_BENCHMARKS)
+    include(GoogleBenchmark)
+  endif(CLAD_ENABLE_BENCHMARKS)
+
+  # Change the default compiler to the clang which we run clad upon. Our unittests
+  # need to use a supported by clad compiler. Note that's a huge hack and it is
+  # not guaranteed to work with cmake.
+  set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
+  set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
+
   add_subdirectory(unittests)
   add_subdirectory(test)
   add_subdirectory(demos/ErrorEstimation/CustomModel)
@@ -307,6 +319,8 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
+  # Restore the default compiler.
+  set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell
