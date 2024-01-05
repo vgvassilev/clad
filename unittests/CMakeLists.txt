@@ -11,6 +11,7 @@ endif()
 # Will compile the list of files together and link against clad.
 # Produces a binary named 'basename(test_dirname)'.
 function(add_clad_unittest test_dirname)
+
   add_unittest(CladUnitTests ${test_dirname} ${ARGN})
 
   # Remove the llvm_gtest_* coming from add_unittest.
@@ -32,4 +33,3 @@ function(add_clad_unittest test_dirname)
 endfunction()
 
 add_subdirectory(Basic)
-
