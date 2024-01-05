@@ -9,6 +9,11 @@ string(REPLACE "${GCC_COVERAGE_COMPILE_FLAGS}" "" CMAKE_SHARED_LIBRARY_CREATE_CX
 string(REPLACE "${GCC_COVERAGE_LINK_FLAGS}" "" CMAKE_EXE_LINKER_FLAGS_NOCOV "${CMAKE_EXE_LINKER_FLAGS}")
 string(REPLACE "${GCC_COVERAGE_LINK_FLAGS}" "" CMAKE_SHARED_LINKER_FLAGS_NOCOV "${CMAKE_SHARED_LINKER_FLAGS}")
 
+# ExternalProject_Add does not like unescaped quotes in CMAKE_ARGS.
+string(REPLACE "\"" "\\\"" ESCAPED_CMAKE_CXX_FLAGS_NOCOV "${CMAKE_CXX_FLAGS_NOCOV}")
+string(REPLACE "\"" "\\\"" ESCAPED_CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+
+include(ExternalProject)
 #---Find and install google benchmark
 ExternalProject_Add(
   googlebenchmark
