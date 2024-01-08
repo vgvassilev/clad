@@ -818,8 +818,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     {
       clang::LambdaIntroducer Intro;
       Intro.Default = forwardLambdaClass->getLambdaCaptureDefault ();
-      Intro.Range.setBegin(bodyV.getStmt_dx()->getBeginLoc());
-      Intro.Range.setEnd(bodyV.getStmt_dx()->getEndLoc());
+      Intro.Range.setBegin(LE->getBeginLoc());
+      Intro.Range.setEnd(LE->getEndLoc());
 
       clang::AttributeFactory AttrFactory;
       const clang::DeclSpec DS(AttrFactory);
@@ -832,9 +832,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Sema.ActOnStartOfLambdaDefinition(Intro, D,
                    clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(getCurrentScope(), DS));
 
-
-      //for (auto Var : children_iterator_range)
-      //  LSI.addCapture(Var, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
+      //beginBlock();
+      ////addToCurrentBlock(bodyV.getStmt_dx());
+      ////addToCurrentBlock(LE->getCallOperator());
+      //clang::CompoundStmt* body_tmp = endBlock();
+      //clang::Expr* lambda =
+      //    m_Sema.ActOnLambdaExpr(noLoc, bodyV.getStmt_dx(), getCurrentScope()).get();      
+      //endScope();
+      //return {forwardLE, forwardLE};
+      //  LSI->addCapture(Var, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
       //              /*isNested=*/false, noLoc, SourceLocation(),
       //              Var->getType(), /*Invalid=*/false);
 
@@ -846,25 +852,73 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       //LSI->Lambda = forwardLambdaClass;
 
+      LSI->CallOperator = LE->getCallOperator();
+
+      FunctionDecl *FD = LSI->CallOperator->getAsFunction();
+      FD->setBody(bodyV.getStmt_dx());
+
+      //std::cout << "dump LE->getCallOperator()->getParent()" << std::endl;
+      //LE->getCallOperator()->getParent()->dump();
+      //std::cout << "LE->getCallOperator()->getParent()->capture_size() = " << LE->getCallOperator()->getParent()->capture_size() << std::endl;
+
+      //std::cout << "dump LSI->CallOperator->getParent()" << std::endl;
+      //LSI->CallOperator->getParent()->dump();
+      //std::cout << "LSI->CallOperator->getParent()->capture_size() = " << LSI->CallOperator->getParent()->capture_size() << std::endl;
+
+
+      std::vector<LambdaCapture> children_LC_Exp_dx;
+
+      for (auto children_expr : children_Exp_dx) {
+        if (isa<DeclRefExpr>(children_expr)) {
+          auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(children_expr)->getDecl());
+          children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+        }
+        else {
+          if(isa<ParenExpr>(children_expr)) {
+            auto PE = dyn_cast<ParenExpr>(children_expr);
+            auto OCE = dyn_cast<CXXOperatorCallExpr>(PE->getSubExpr());
+
+            auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(OCE->getArg(0))->getDecl());
+            children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+          }
+        }
+      }
+
+      llvm::ArrayRef<LambdaCapture> childrenRef_LC_Exp_dx =
+          clad_compat::makeArrayRef(children_LC_Exp_dx.data(), children_LC_Exp_dx.size());
+
+      LSI->CallOperator->getParent()->setCaptures(m_Context, childrenRef_LC_Exp_dx);
+
       m_Sema.buildLambdaScope(LSI, 
                               //bodyV.getStmt_dx(),
-                              LE->getCallOperator(),
+                              LSI->CallOperator,
                               LE->getIntroducerRange(),
                               LE->getCaptureDefault(),
                               LE->getCaptureDefaultLoc(),
                               LE->hasExplicitParameters(),
                               LE->hasExplicitResultType(),
                               LE->isMutable()); 
-      
-      FunctionDecl *FD = LSI->CallOperator->getAsFunction();
-      FD->setBody(bodyV.getStmt_dx());
-      clang::Expr* lambda = m_Sema.BuildLambdaExpr(noLoc, noLoc, LSI).get();
+
+      //for (auto Var : children_Exp_dx) {
+      //  auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(Var)->getDecl());
+      //  LSI->addCapture(VD, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
+      //              /*isNested=*/false, noLoc, SourceLocation(),
+      //              VD->getType(), /*Invalid=*/false);
+      //}
+
+      //std::cout << "dump 2 LSI->CallOperator->getParent()" << std::endl;
+      //LSI->CallOperator->getParent()->dump();
+      //std::cout << "LSI->CallOperator->getParent()->capture_size() = " << LSI->CallOperator->getParent()->capture_size() << std::endl;
+
+      //clang::Expr* lambda = m_Sema.BuildLambdaExpr(noLoc, noLoc, LSI).get();
       endScope();
 
+      //std::cout << "dump LSI->Lambda" << std::endl;
+      //LSI->Lambda->dump();
 
-      auto reverseLambdaClassNew = dyn_cast<LambdaExpr>(dyn_cast<CXXBindTemporaryExpr>(lambda)->getSubExpr())->getLambdaClass();
+      //auto reverseLambdaClassNew = dyn_cast<LambdaExpr>(dyn_cast<CXXBindTemporaryExpr>(lambda)->getSubExpr())->getLambdaClass();
       reverseLE = LambdaExpr::Create(m_Context,
-                                reverseLambdaClassNew,
+                                LSI->Lambda,
                                 LE->getIntroducerRange(),
                                 LE->getCaptureDefault(),
                                 LE->getCaptureDefaultLoc(),
