@@ -404,6 +404,12 @@ jobs:
             compiler: clang-16
             clang-runtime: '17'
 
+          - name: ubu22-clang16-runtime17-kokkos
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '17'
+            extra_packages: 'libtrilinos-kokkos-dev'
+
           # Оld, still supported versions
 
           - name: ubu20-gcc9-runtime7
@@ -474,7 +480,12 @@ jobs:
           echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
         fi
-        sudo apt install llvm-${{ matrix.clang-runtime }}-dev llvm-${{ matrix.clang-runtime }}-tools clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
+        sudo apt install llvm-${{ matrix.clang-runtime }}-dev \
+                         llvm-${{ matrix.clang-runtime }}-tools \
+                         clang-${{ matrix.clang-runtime }} \
+                         libclang-${{ matrix.clang-runtime }}-dev \
+                         ${{ matrix.extra_packages }}
+
     - name: Setup compiler on Linux
       if: runner.os == 'Linux'
       run: |

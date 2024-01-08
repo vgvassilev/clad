@@ -33,3 +33,8 @@ function(add_clad_unittest test_dirname)
 endfunction()
 
 add_subdirectory(Basic)
+
+find_package(Kokkos)
+if (Kokkos_FOUND)
+  add_subdirectory(Kokkos)
+endif(Kokkos_FOUND)

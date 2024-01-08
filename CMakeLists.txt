@@ -307,7 +307,11 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   # need to use a supported by clad compiler. Note that's a huge hack and it is
   # not guaranteed to work with cmake.
   set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
+  set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
+
   set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
+  # Filter some unsupported flags by clang.
+  string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
   add_subdirectory(unittests)
   add_subdirectory(test)
@@ -321,6 +325,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
 
   # Restore the default compiler.
   set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
+  set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell
