@@ -774,6 +774,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const clang::LambdaExpr* LE) {
 
+    // Save the isInsideLoop value (we may be inside another loop).
+    //llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
+    //isInsideLoop = true;
+
     const Stmt* body = LE->getBody();
     //Stmt* reverseBody
     auto bodyV = Visit(body);
@@ -832,38 +836,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Sema.ActOnStartOfLambdaDefinition(Intro, D,
                    clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(getCurrentScope(), DS));
 
-      //beginBlock();
-      ////addToCurrentBlock(bodyV.getStmt_dx());
-      ////addToCurrentBlock(LE->getCallOperator());
-      //clang::CompoundStmt* body_tmp = endBlock();
-      //clang::Expr* lambda =
-      //    m_Sema.ActOnLambdaExpr(noLoc, bodyV.getStmt_dx(), getCurrentScope()).get();      
-      //endScope();
-      //return {forwardLE, forwardLE};
-      //  LSI->addCapture(Var, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
-      //              /*isNested=*/false, noLoc, SourceLocation(),
-      //              Var->getType(), /*Invalid=*/false);
-
-      //for (auto Var : childrenRef_Exp)
-      //  LSI.addCapture(Var, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
-      //              /*isNested=*/false, noLoc, SourceLocation(),
-      //              Var->getType(), /*Invalid=*/false);
+      // needed for CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams
+      //clad::VisitorBase& VB = *this;
+      //
+      //LSI->CallOperator = CXXMethodDecl::Create(m_Context, LE->getCallOperator()->getParent(),
+      //                               noLoc,
+      //                               DNI,
+      //                               LE->getCallOperator()->getType(), LE->getCallOperator()->getTypeSourceInfo(),
+      //                               LE->getCallOperator()->getStorageClass(),
+      //                               LE->getCallOperator()->isInlineSpecified(),
+      //                               clad_compat::Function_GetConstexprKind(LE->getCallOperator()),
+      //                               noLoc
+      //                               CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(LE->getCallOperator()->getTrailingRequiresClause()));
 
 
-      //LSI->Lambda = forwardLambdaClass;
-
+      // This will replace the calloperator of the forward mode in the AST 
       LSI->CallOperator = LE->getCallOperator();
 
       FunctionDecl *FD = LSI->CallOperator->getAsFunction();
       FD->setBody(bodyV.getStmt_dx());
-
-      //std::cout << "dump LE->getCallOperator()->getParent()" << std::endl;
-      //LE->getCallOperator()->getParent()->dump();
-      //std::cout << "LE->getCallOperator()->getParent()->capture_size() = " << LE->getCallOperator()->getParent()->capture_size() << std::endl;
-
-      //std::cout << "dump LSI->CallOperator->getParent()" << std::endl;
-      //LSI->CallOperator->getParent()->dump();
-      //std::cout << "LSI->CallOperator->getParent()->capture_size() = " << LSI->CallOperator->getParent()->capture_size() << std::endl;
 
 
       std::vector<LambdaCapture> children_LC_Exp_dx;
@@ -899,24 +890,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                               LE->hasExplicitResultType(),
                               LE->isMutable()); 
 
-      //for (auto Var : children_Exp_dx) {
-      //  auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(Var)->getDecl());
-      //  LSI->addCapture(VD, /*isBlock=*/false, forwardLambdaClass->getLambdaCaptureDefault (),
-      //              /*isNested=*/false, noLoc, SourceLocation(),
-      //              VD->getType(), /*Invalid=*/false);
-      //}
-
-      //std::cout << "dump 2 LSI->CallOperator->getParent()" << std::endl;
-      //LSI->CallOperator->getParent()->dump();
-      //std::cout << "LSI->CallOperator->getParent()->capture_size() = " << LSI->CallOperator->getParent()->capture_size() << std::endl;
-
-      //clang::Expr* lambda = m_Sema.BuildLambdaExpr(noLoc, noLoc, LSI).get();
-      endScope();
-
-      //std::cout << "dump LSI->Lambda" << std::endl;
-      //LSI->Lambda->dump();
-
-      //auto reverseLambdaClassNew = dyn_cast<LambdaExpr>(dyn_cast<CXXBindTemporaryExpr>(lambda)->getSubExpr())->getLambdaClass();
       reverseLE = LambdaExpr::Create(m_Context,
                                 LSI->Lambda,
                                 LE->getIntroducerRange(),
@@ -928,6 +901,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                 LE->getEndLoc(),
                                 false);
 
+      endScope();
     }
 
     return {forwardLE, reverseLE};
@@ -1883,8 +1857,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(arg))
               arg = BTE->getSubExpr();
               
-            if (isa<LambdaExpr>(arg))
-              std::cout << " is a lambda " << std::endl;
+            //if (isa<LambdaExpr>(arg))
+            //  std::cout << " is a lambda " << std::endl;
 
             auto visitedArg = Visit(arg);
             ClonedArgs.push_back(visitedArg.getExpr());
