@@ -39,6 +39,8 @@
 
 #include <iostream>
 
+#include "clad/Differentiator/KokkosViewAccessVisitor.h"
+
 using namespace clang;
 
 namespace clad {
@@ -774,9 +776,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const clang::LambdaExpr* LE) {
 
-    // Save the isInsideLoop value (we may be inside another loop).
-    //llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
-    //isInsideLoop = true;
+    llvm::SaveAndRestore<bool> SaveIsInsideParallelRegion(isInsideParallelRegion);
+    isInsideParallelRegion = true;
 
     const Stmt* body = LE->getBody();
     //Stmt* reverseBody
@@ -3599,6 +3600,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
     if (!force && !UsefulToStoreGlobal(E))
       return {E, E};
+    
+    if (isInsideParallelRegion) {
+      auto kVAV = KokkosViewAccessVisitor();
+      kVAV.Visit(E);
+
+      auto CladTape = MakeCladTapeFor(E);
+      Expr* Push = CladTape.Push;
+      Expr* Pop = CladTape.Pop;
+      return {Push, Pop};
+    }
 
     auto pushPop = BuildPushPop(E, Type, prefix, force);
     if (!isInsideLoop) {
