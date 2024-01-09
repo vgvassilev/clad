@@ -47,19 +47,22 @@ def getFunctionLineIDs(linesIn, fucntionName):
 
 def getVariableDeclLineID(linesIn, variableName, index0, index1):
     for index in range(index0, index1):
+        if linesIn[index].find('=') == -1 and linesIn[index].find(' ' + variableName + ';') != -1:
+            return index
+    for index in range(index0, index1):
         if linesIn[index].find(' ' + variableName + ' =') != -1:
             return index
     return 0
 
 
-def swapLinesForVariableDecl(linesIn, fucntionName, variableName, index0=-1, index1=-1):
+def swapLinesForVariableDecl(linesIn, fucntionName, variableName, numLines=1, index0=-1, index1=-1):
     if index0 == -1 or index1 == -1:
         index0, index1 = getFunctionLineIDs(linesIn, fucntionName)
     indexVar = getVariableDeclLineID(linesIn, variableName, index0, index1)
-    tmpLine = linesIn[indexVar]
+    tmpLine = linesIn[indexVar:indexVar+numLines]
     for index in range(0, indexVar-index0):
-        linesIn[indexVar-index] = linesIn[indexVar-index-1]
-    linesIn[index0+1] = tmpLine
+        linesIn[indexVar-index+numLines-1] = linesIn[indexVar-index-1]
+    linesIn[index0+1:index0+1+numLines] = tmpLine
 
 
 def getType(linesIn, fucntionName, variableName, index0=-1, index1=-1):
@@ -127,6 +130,8 @@ def transform(filenameIn, filenameOut):
     fileOut = open(filenameOut, "w")
 
     swapLinesForVariableDecl(linesIn, 'f_grad', 'N1')
+    swapLinesForVariableDecl(linesIn, 'f_multilevel_grad', 'n_max', 3)
+    swapLinesForVariableDecl(linesIn, 'f_multilevel_grad', '_cond0')
 
     for i in range(0, len(linesIn)):
         linesIn[i] = replaceKokkosInlineFunction(linesIn[i])

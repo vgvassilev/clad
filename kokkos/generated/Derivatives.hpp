@@ -113,16 +113,16 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
 }
 template <typename type_x> 
 void f_multilevel_grad(type_x x, type_x _d_x) {
+    bool _cond0;
+    const int n_max = 10;
+    _cond0 = x.extent(0) > n_max;
+    const int n = _cond0 ? n_max : x.extent(0);
     typename type_x::value_type _d_sum = 0;
     type_x _d_y("_d_y", x.extent(0));
     double _t0;
     double _t1;
     int _d_n_max = 0;
-    bool _cond0;
     int _d_n = 0;
-    const int n_max = 10;
-    _cond0 = x.extent(0) > n_max;
-    const int n = _cond0 ? n_max : x.extent(0);
     auto _d_x_n_rows = Kokkos::subview(_d_x, Kokkos::make_pair(0, n));
     typename type_x::value_type sum;
     type_x y("y", x.extent(0));
