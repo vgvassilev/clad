@@ -94,7 +94,7 @@ double f(double x, double y) {
   });
 
   Kokkos::parallel_for( a.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
-    a(j1,0) += b(j1+1,0)*6.89 + b(j1,1);// + pow(b(j1,1));
+    a(j1,0) += b(j1+1,0)*6.89 + b(j1,1) + pow(b(j1,1) + b(j1+1,0));
   });
 
   double sum;

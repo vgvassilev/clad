@@ -1,3 +1,17 @@
+inline void pow_pullback(double a, double _d_y, clad::array_ref<double> _d_a) {
+    double _t0;
+    double _t1;
+    _t1 = a;
+    _t0 = a;
+    goto _label0;
+  _label0:
+    {
+        double _r0 = _d_y * _t0;
+        * _d_a += _r0;
+        double _r1 = _t1 * _d_y;
+        * _d_a += _r1;
+    }
+}
 void f_view_pullback(Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > a, typename View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> >::value_type _d_y, clad::array_ref<View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > > _d_a) {
     typename View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> >::value_type _d_sum = 0;
     Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _d_a_row_0 = Kokkos::subview((* _d_a), Kokkos::make_pair(0, 2), ALL);
@@ -35,7 +49,7 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     double _t4;
     double _d_sum = 0;
     Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), ALL);
-    Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _t5;
+    Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _t6;
     const int N1 = 4;
     const int N2 = 4;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
@@ -52,29 +66,38 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     Kokkos::parallel_for(b.extent(0), [=](const int j0) {
         b(j0, 0) += 3.5299999999999998;
     });
+    const Kokkos::View<double *[4], Kokkos::LayoutLeft> _t5 = b;
     Kokkos::parallel_for(a.extent(0) - 1, [=](const int j1) {
-        a(j1, 0) += b(j1 + 1, 0) * 6.8899999999999997 + b(j1, 1);
+        a(j1, 0) += b(j1 + 1, 0) * 6.8899999999999997 + b(j1, 1) + pow(b(j1, 1) + b(j1 + 1, 0));
     });
     double sum;
     Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), ALL);
-    _t5 = a_row_0;
+    _t6 = a_row_0;
     goto _label0;
   _label0:
     {
-        f_view_pullback(_t5, 1, &_d_a_row_0);
-        Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _r6 = _d_a_row_0;
+        f_view_pullback(_t6, 1, &_d_a_row_0);
+        Kokkos::View<double *[4], LayoutLeft, Device<Serial, HostSpace>, MemoryTraits<0> > _r7 = _d_a_row_0;
     }
-    Kokkos::parallel_for(a.extent(0) - 1, [=](const int j1) {
-        {
-            double _r_d1 = _d_a(j1, 0);
-            _d_a(j1, 0) += _r_d1;
-            double _r5 = _r_d1 * 6.8899999999999997;
-            _d_b(j1 + 1, 0) += _r5;
-            _d_b(j1, 1) += _r_d1;
-            _d_a(j1, 0) -= _r_d1;
-            _d_a(j1, 0);
-        }
-    });
+    {
+        Kokkos::deep_copy(b, _t5);
+        Kokkos::parallel_for(a.extent(0) - 1, [=](const int j1) {
+            {
+                double _r_d1 = _d_a(j1, 0);
+                _d_a(j1, 0) += _r_d1;
+                double _r5 = _r_d1 * 6.8899999999999997;
+                _d_b(j1 + 1, 0) += _r5;
+                _d_b(j1, 1) += _r_d1;
+                double _grad1 = 0.;
+                pow_pullback(b(j1, 1) + b(j1 + 1, 0), _r_d1, &_grad1);
+                double _r6 = _grad1;
+                _d_b(j1, 1) += _r6;
+                _d_b(j1 + 1, 0) += _r6;
+                _d_a(j1, 0) -= _r_d1;
+                _d_a(j1, 0);
+            }
+        });
+    }
     Kokkos::parallel_for(b.extent(0), [=](const int j0) {
         {
             double _r_d0 = _d_b(j0, 0);
