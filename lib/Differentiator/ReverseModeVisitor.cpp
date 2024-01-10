@@ -780,6 +780,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     isInsideParallelRegion = true;
 
     const Stmt* body = LE->getBody();
+
+    auto kVAV = KokkosViewAccessVisitor();
+    kVAV.Visit(body, false);
+
+    std::cout << "This Lambda access those views ";
+    for (auto view_name : kVAV.view_names) {
+      std::cout << view_name << " ";
+    }
+    std::cout << std::endl;
+
+    //std::cout << "This Lambda has those accesses "<< std::endl;
+    //for (auto view_access : kVAV.view_accesses) {
+    //  view_access->dump();
+    //}
+    //std::cout << std::endl;
+
     //Stmt* reverseBody
     auto bodyV = Visit(body);
 
@@ -3603,7 +3619,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     
     if (isInsideParallelRegion) {
       auto kVAV = KokkosViewAccessVisitor();
-      kVAV.Visit(E);
+      kVAV.Visit(E, true);
 
       auto CladTape = MakeCladTapeFor(E);
       Expr* Push = CladTape.Push;
