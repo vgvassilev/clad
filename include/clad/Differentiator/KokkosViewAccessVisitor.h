@@ -39,6 +39,7 @@ namespace clad {
 
               if(!std::count(view_names.begin(), view_names.end(), name)) {
                 view_names.push_back(name);
+                view_DeclRefExpr.push_back(DRE);
               }
             }
             return;
@@ -50,6 +51,7 @@ namespace clad {
       }
 
       std::vector<std::string> view_names;
+      std::vector<const clang::DeclRefExpr*> view_DeclRefExpr;
       std::vector<const clang::CXXOperatorCallExpr*> view_accesses;
   };
 } // end namespace clad

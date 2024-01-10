@@ -781,15 +781,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     const Stmt* body = LE->getBody();
 
-    auto kVAV = KokkosViewAccessVisitor();
-    kVAV.Visit(body, false);
-
-    std::cout << "This Lambda access those views ";
-    for (auto view_name : kVAV.view_names) {
-      std::cout << view_name << " ";
-    }
-    std::cout << std::endl;
-
     //std::cout << "This Lambda has those accesses "<< std::endl;
     //for (auto view_access : kVAV.view_accesses) {
     //  view_access->dump();
@@ -1859,6 +1850,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (FD->getQualifiedNameAsString().find("Kokkos::parallel_for") != std::string::npos) {
           llvm::SmallVector<Expr*, 4> ClonedArgs;
           llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+          auto kVAV = KokkosViewAccessVisitor();
+
           for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
             //std::cout << "Start CE->getArg("<<i<<")->dump()" << std::endl;
             //CE->getArg(i)->dump();
@@ -1874,8 +1868,36 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(arg))
               arg = BTE->getSubExpr();
               
-            //if (isa<LambdaExpr>(arg))
-            //  std::cout << " is a lambda " << std::endl;
+            if (isa<LambdaExpr>(arg)) {
+              kVAV.Visit(dyn_cast<LambdaExpr>(arg)->getBody(), false);
+
+              for (auto DRE : kVAV.view_DeclRefExpr) {
+                VarDecl* recordedView = BuildVarDecl(DRE->getType(), "_t", const_cast<DeclRefExpr*>(DRE), /*DirectInit=*/true);
+                addToCurrentBlock(BuildDeclStmt(recordedView), direction::forward);
+
+
+                Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
+
+                //llvm::SmallVector<Expr*, 4> ClonedDCArgs;
+                llvm::SmallVector<Expr*, 4> ClonedDDCArgs;
+
+                //ClonedDCArgs.push_back(BuildDeclRef(recordedView));
+                //ClonedDCArgs.push_back(const_cast<DeclRefExpr*>(DRE));
+
+                ClonedDDCArgs.push_back(const_cast<DeclRefExpr*>(DRE));
+                ClonedDDCArgs.push_back(BuildDeclRef(recordedView));
+
+                //Expr* CallDC =
+                //    m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDCArgs, noLoc).get();
+
+                Expr* CallDDC =
+                    m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDDCArgs, noLoc).get();
+
+                //addToCurrentBlock(CallDC, direction::forward);
+                addToCurrentBlock(CallDDC, direction::reverse);
+              }
+            }
+              
 
             auto visitedArg = Visit(arg);
             ClonedArgs.push_back(visitedArg.getExpr());
@@ -3616,15 +3638,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
     if (!force && !UsefulToStoreGlobal(E))
       return {E, E};
-    
-    if (isInsideParallelRegion) {
-      auto kVAV = KokkosViewAccessVisitor();
-      kVAV.Visit(E, true);
 
-      auto CladTape = MakeCladTapeFor(E);
-      Expr* Push = CladTape.Push;
-      Expr* Pop = CladTape.Pop;
-      return {Push, Pop};
+    if (isInsideParallelRegion) {
+      return {E, E};
     }
 
     auto pushPop = BuildPushPop(E, Type, prefix, force);
