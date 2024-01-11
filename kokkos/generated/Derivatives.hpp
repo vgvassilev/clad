@@ -51,7 +51,7 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     double _t4;
     double _d_sum = 0;
     auto _d_a_row_0 = Kokkos::subview(_d_a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > _t6;
+    Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > _t7;
     const int N2 = 4;
     Kokkos::View<double *[4], Kokkos::LayoutLeft> a("a", N1);
     Kokkos::View<double *[4], Kokkos::LayoutLeft> b("b", N1);
@@ -68,20 +68,22 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
         b(j0, 0) += 3.5299999999999998;
     });
     const Kokkos::View<double *[4], Kokkos::LayoutLeft> _t5 = b;
+    const Kokkos::View<double *[4], Kokkos::LayoutLeft> _t6 = a;
     Kokkos::parallel_for(a.extent(0) - 1, KOKKOS_LAMBDA(const int j1) {
-        a(j1, 0) += b(j1 + 1, 0) * 6.8899999999999997 + b(j1, 1) + pow(b(j1, 1) + b(j1 + 1, 0));
+        a(j1, 0) += b(j1 + 1, 0) * 6.8899999999999997 + b(j1, 1) + pow(b(j1, 1) + a(j1, 1) + b(j1 + 1, 0) * b(j1 + 1, 0) * a(j1, 2));
     });
     double sum;
     auto a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), Kokkos::ALL);
-    _t6 = a_row_0;
+    _t7 = a_row_0;
     goto _label0;
   _label0:
     {
-        f_view_pullback(_t6, 1, _d_a_row_0);
-        Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > _r7 = _d_a_row_0;
+        f_view_pullback(_t7, 1, _d_a_row_0);
+        Kokkos::View<double *[4], Kokkos::LayoutLeft, Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>, Kokkos::MemoryTraits<0> > _r11 = _d_a_row_0;
     }
     {
         Kokkos::deep_copy(b, _t5);
+        Kokkos::deep_copy(a, _t6);
         Kokkos::parallel_for(a.extent(0) - 1, KOKKOS_LAMBDA(const int j1) {
             {
                 double _r_d1 = _d_a(j1, 0);
@@ -90,10 +92,17 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
                 _d_b(j1 + 1, 0) += _r5;
                 _d_b(j1, 1) += _r_d1;
                 double _grad1 = 0.;
-                pow_pullback(b(j1, 1) + b(j1 + 1, 0), _r_d1, &_grad1);
+                pow_pullback(b(j1, 1) + a(j1, 1) + b(j1 + 1, 0) * b(j1 + 1, 0) * a(j1, 2), _r_d1, &_grad1);
                 double _r6 = _grad1;
                 _d_b(j1, 1) += _r6;
-                _d_b(j1 + 1, 0) += _r6;
+                _d_a(j1, 1) += _r6;
+                double _r7 = _r6 * a(j1, 2);
+                double _r8 = _r7 * b(j1 + 1, 0);
+                _d_b(j1 + 1, 0) += _r8;
+                double _r9 = b(j1 + 1, 0) * _r7;
+                _d_b(j1 + 1, 0) += _r9;
+                double _r10 = b(j1 + 1, 0) * b(j1 + 1, 0) * _r6;
+                _d_a(j1, 2) += _r10;
                 _d_a(j1, 0) -= _r_d1;
                 _d_a(j1, 0);
             }
@@ -142,41 +151,59 @@ void f_multilevel_grad(type_x x, type_x _d_x) {
     const int n = _cond0 ? n_max : x.extent(0);
     typename type_x::value_type _d_sum = 0;
     type_x _d_y("_d_y", x.extent(0));
-    double _t0;
-    double _t1;
     int _d_n_max = 0;
     int _d_n = 0;
-    auto _d_x_n_rows = Kokkos::subview(_d_x, Kokkos::make_pair(0, n));
+    auto _d_y_n_rows = Kokkos::subview(_d_y, Kokkos::make_pair(0, n));
     typename type_x::value_type sum;
     type_x y("y", x.extent(0));
     Kokkos::parallel_for(x.extent(0), KOKKOS_LAMBDA(const int j0) {
         x(j0) = 3 * x(j0);
     });
+    const type_x _t0 = x;
     Kokkos::parallel_for(x.extent(0) - 1, KOKKOS_LAMBDA(const int j1) {
-        y(j1 + 1) = 2.6000000000000001 * x(j1);
+        if (j1 != x.extent(0) - 1)
+            y(j1 + 1) = 2.6000000000000001 * x(j1) * x(j1);
+        else
+            y(j1) = 2.6000000000000001 * x(0) * x(0);
     });
-    auto x_n_rows = Kokkos::subview(x, Kokkos::make_pair(0, n));
-    kokkos_builtin_derivative::parallel_sum(sum, x_n_rows);
+    auto y_n_rows = Kokkos::subview(y, Kokkos::make_pair(0, n));
+    kokkos_builtin_derivative::parallel_sum(sum, y_n_rows);
     goto _label0;
   _label0:
     _d_sum += 1;
-    kokkos_builtin_derivative::parallel_sum(_d_x_n_rows, _d_sum);
+    kokkos_builtin_derivative::parallel_sum(_d_y_n_rows, _d_sum);
     if (_cond0)
         _d_n_max += _d_n;
-    Kokkos::parallel_for(x.extent(0) - 1, KOKKOS_LAMBDA(const int j1) {
-        {
-            double _r_d1 = _d_y(j1 + 1);
-            double _r2 = _r_d1 * _t1;
-            double _r3 = 2.6000000000000001 * _r_d1;
-            _d_x(j1) += _r3;
-            _d_y(j1 + 1) -= _r_d1;
-            _d_y(j1 + 1);
-        }
-    });
+    {
+        Kokkos::deep_copy(x, _t0);
+        Kokkos::parallel_for(x.extent(0) - 1, KOKKOS_LAMBDA(const int j1) {
+            if (j1 != x.extent(0) - 1) {
+                double _r_d1 = _d_y(j1 + 1);
+                double _r2 = _r_d1 * x(j1);
+                double _r3 = _r2 * x(j1);
+                double _r4 = 2.6000000000000001 * _r2;
+                _d_x(j1) += _r4;
+                double _r5 = 2.6000000000000001 * x(j1) * _r_d1;
+                _d_x(j1) += _r5;
+                _d_y(j1 + 1) -= _r_d1;
+                _d_y(j1 + 1);
+            } else {
+                double _r_d2 = _d_y(j1);
+                double _r6 = _r_d2 * x(0);
+                double _r7 = _r6 * x(0);
+                double _r8 = 2.6000000000000001 * _r6;
+                _d_x(0) += _r8;
+                double _r9 = 2.6000000000000001 * x(0) * _r_d2;
+                _d_x(0) += _r9;
+                _d_y(j1) -= _r_d2;
+                _d_y(j1);
+            }
+        });
+    }
     Kokkos::parallel_for(x.extent(0), KOKKOS_LAMBDA(const int j0) {
         {
             double _r_d0 = _d_x(j0);
-            double _r0 = _r_d0 * _t0;
+            double _r0 = _r_d0 * x(j0);
             double _r1 = 3 * _r_d0;
             _d_x(j0) += _r1;
             _d_x(j0) -= _r_d0;

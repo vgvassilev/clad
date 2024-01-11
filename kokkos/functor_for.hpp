@@ -43,17 +43,17 @@ typename ViewtypeX::value_type f_multilevel(ViewtypeX x) {
   });
 
   Kokkos::parallel_for( x.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
-    //if (j1 != x.extent(0)-1) // does not work yet
-      y(j1+1) = 2.6*x(j1);
-    //else
-    //  y(j1) = 2.6*x(0);
+    if (j1 != x.extent(0)-1)
+      y(j1+1) = 2.6*x(j1)*x(j1);
+    else
+      y(j1) = 2.6*x(0)*x(0);
   });
 
   const int n_max = 10;
   const int n = x.extent(0) > n_max ? n_max : x.extent(0);
 
-  auto x_n_rows = Kokkos::subview( x, Kokkos::make_pair(0, n));
-  kokkos_builtin_derivative::parallel_sum(sum, x_n_rows);
+  auto y_n_rows = Kokkos::subview( y, Kokkos::make_pair(0, n));
+  kokkos_builtin_derivative::parallel_sum(sum, y_n_rows);
   return sum;
 }
 
@@ -94,7 +94,7 @@ double f(double x, double y) {
   });
 
   Kokkos::parallel_for( a.extent(0)-1, KOKKOS_LAMBDA ( const int j1) {
-    a(j1,0) += b(j1+1,0)*6.89 + b(j1,1) + pow(b(j1,1) + b(j1+1,0));
+    a(j1,0) += b(j1+1,0)*6.89 + b(j1,1) + pow(b(j1,1) + a(j1,1) + b(j1+1,0) * b(j1+1,0) * a(j1,2));
   });
 
   double sum;

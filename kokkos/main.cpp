@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
   #ifdef use_forward_mode
     assert(dx==dx_f && "error");
   #endif
-    assert(std::abs(dx-dx_f_FD)<tolerance && "error");
+    assert((std::abs(dx-dx_f_FD)/std::abs(dx_f_FD))<tolerance && "error");
   }
   Kokkos::finalize();
 
