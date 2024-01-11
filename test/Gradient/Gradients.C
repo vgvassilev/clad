@@ -740,6 +740,27 @@ double fn_global_var_use(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn_increment_in_return(double i, double j) {
+  double temp = i;
+  return (++i) * temp; // (i+1)*i
+}
+void fn_increment_in_return_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j);
+
+// CHECK: void fn_increment_in_return_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double _d_temp = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double temp = i;
+// CHECK-NEXT:     _t0 = ++i;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         * _d_i += 1 * temp;
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         _d_temp += _t0 * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     * _d_i += _d_temp;
+// CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -789,4 +810,6 @@ int main() {
   INIT_GRADIENT(fn_global_var_use);
   double d_i, d_j;
   TEST_GRADIENT(fn_global_var_use, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {7.00, 0.00}
+
+  TEST(fn_increment_in_return, 3, 2); // CHECK-EXEC: Result is = {7.00, 0.00}
 }
