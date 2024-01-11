@@ -3713,7 +3713,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
-    if (isConstant || !needsUpdate)
+    if (isConstant || isInsideParallelRegion || !needsUpdate)
       return;
     if (isInsideLoop) {
       auto* Push = cast<CallExpr>(Result.getExpr());
@@ -3737,7 +3737,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this, Ediff,
                                 /*isConstant*/ isConst,
                                 /*isInsideLoop*/ false,
-                                /*pNeedsUpdate=*/false};
+                                /*pNeedsUpdate=*/false,
+                                /*isInsideParallelRegion*/ false};
     }
     if (isInsideLoop) {
       Expr* dummy = E;
@@ -3746,7 +3747,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* Pop = CladTape.Pop;
       return DelayedStoreResult{*this, StmtDiff{Push, nullptr, nullptr, Pop},
                                 /*isConstant*/ false,
-                                /*isInsideLoop*/ true, /*pNeedsUpdate=*/true};
+                                /*isInsideLoop*/ true,
+                                /*pNeedsUpdate=*/ false,
+                                /*isInsideParallelRegion*/ false};
+    } else if (isInsideParallelRegion) {
+      Expr* Cloned = Clone(E);
+      return DelayedStoreResult{*this,
+                                StmtDiff{Cloned, Cloned},
+                                /*isConstant*/ false,
+                                /*isInsideLoop*/ false,
+                                /*pNeedsUpdate=*/ false,
+                                /*isInsideParallelRegion*/ true};
+    } else {
+      Expr* Ref = BuildDeclRef(GlobalStoreImpl(
+          getNonConstType(E->getType(), m_Context, m_Sema), prefix));
+      // Return reference to the declaration instead of original expression.
+      return DelayedStoreResult{*this,
+                                StmtDiff{Ref, Ref},
+                                /*isConstant*/ false,
+                                /*isInsideLoop*/ false,
+                                /*pNeedsUpdate=*/ true,
+                                /*isInsideParallelRegion*/ false};
     }
     Expr* Ref = BuildDeclRef(GlobalStoreImpl(
         getNonConstType(E->getType(), m_Context, m_Sema), prefix));

@@ -271,11 +271,14 @@ namespace clad {
       bool isConstant;
       bool isInsideLoop;
       bool needsUpdate;
+      bool isInsideParallelRegion;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
                          bool pIsConstant, bool pIsInsideLoop,
-                         bool pNeedsUpdate = false)
+                         bool pNeedsUpdate = false,
+                         bool pIsInsideParallelRegion = false)
           : V(pV), Result(pResult), isConstant(pIsConstant),
-            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
+            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate), 
+            isInsideParallelRegion(pIsInsideParallelRegion) {}
       void Finalize(clang::Expr* New);
     };
 
