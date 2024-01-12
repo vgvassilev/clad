@@ -11,6 +11,7 @@
 #include "clad/Differentiator/VisitorBase.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/KokkosViewAccessVisitor.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -44,6 +45,9 @@ namespace clad {
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
+    // Used to pass a Kokkos view access visitor to further nodes
+    /// in the Visit method.
+    clad::KokkosViewAccessVisitor * m_KVAV;
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.

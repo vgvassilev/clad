@@ -39,8 +39,6 @@
 
 #include <iostream>
 
-#include "clad/Differentiator/KokkosViewAccessVisitor.h"
-
 using namespace clang;
 
 namespace clad {
@@ -104,7 +102,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder), m_Result(nullptr) {}
+      : VisitorBase(builder), m_Result(nullptr) {
+      m_KVAV = new KokkosViewAccessVisitor(m_Sema);
+      }
 
   ReverseModeVisitor::~ReverseModeVisitor() {
     if (m_ExternalSource) {
@@ -115,6 +115,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Free the external sources multiplexer since we own this resource.
       delete m_ExternalSource;
     }
+    delete m_KVAV;
   }
 
   FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
@@ -1634,6 +1635,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                         .get();
 
         if (dfdx()) {
+          //Expr* kokkos_atomic_add = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "atomic_add");
+          //llvm::SmallVector<Expr*, 4> AtomicAddArgs;
+          //AtomicAddArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, dCall));
+          //AtomicAddArgs.push_back(dfdx());
+          //Expr* add_assign =
+          //    m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_atomic_add, noLoc, AtomicAddArgs, noLoc).get();
           Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
           addToCurrentBlock(add_assign, direction::reverse);
         }
@@ -1851,8 +1858,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           llvm::SmallVector<Expr*, 4> ClonedArgs;
           llvm::SmallVector<Expr*, 4> ClonedDArgs;
 
-          auto kVAV = KokkosViewAccessVisitor();
-
           for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
             //std::cout << "Start CE->getArg("<<i<<")->dump()" << std::endl;
             //CE->getArg(i)->dump();
@@ -1869,9 +1874,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               arg = BTE->getSubExpr();
               
             if (isa<LambdaExpr>(arg)) {
-              kVAV.Visit(dyn_cast<LambdaExpr>(arg)->getBody(), false);
+              m_KVAV->clear();
+              m_KVAV->Visit(dyn_cast<LambdaExpr>(arg)->getBody(), false);
 
-              for (auto DRE : kVAV.view_DeclRefExpr) {
+              for (auto DRE : m_KVAV->view_DeclRefExpr) {
                 VarDecl* recordedView = BuildVarDecl(DRE->getType(), "_t", const_cast<DeclRefExpr*>(DRE), /*DirectInit=*/true);
                 addToCurrentBlock(BuildDeclStmt(recordedView), direction::forward);
 
@@ -1896,6 +1902,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 //addToCurrentBlock(CallDC, direction::forward);
                 addToCurrentBlock(CallDDC, direction::reverse);
               }
+
+              auto CMD = dyn_cast<LambdaExpr>(arg)->getCallOperator();
+
+              std::vector<clang::ParmVarDecl*> params;
+              
+              for (size_t iParam = 0; iParam < CMD->getNumParams(); ++iParam) {
+                params.push_back(CMD->getParamDecl(iParam));
+              }
+
+              m_KVAV->VisitViewAccesses(params);
             }
               
 
