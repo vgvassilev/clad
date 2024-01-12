@@ -190,9 +190,9 @@ void f_multilevel_grad(Kokkos::View<double *> x, clad::array_ref<View<double *> 
                 double _r6 = _r_d2 * x(0);
                 double _r7 = _r6 * x(0);
                 double _r8 = 2.6000000000000001 * _r6;
-                (* _d_x)(0) += _r8;
+                Kokkos::atomic_add(&(* _d_x)(0), _r8);
                 double _r9 = 2.6000000000000001 * x(0) * _r_d2;
-                (* _d_x)(0) += _r9;
+                Kokkos::atomic_add(&(* _d_x)(0), _r9);
                 _d_y(j1) -= _r_d2;
                 _d_y(j1);
             }
