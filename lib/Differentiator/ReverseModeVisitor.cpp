@@ -1635,14 +1635,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                         .get();
 
         if (dfdx()) {
-          //Expr* kokkos_atomic_add = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "atomic_add");
-          //llvm::SmallVector<Expr*, 4> AtomicAddArgs;
-          //AtomicAddArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, dCall));
-          //AtomicAddArgs.push_back(dfdx());
-          //Expr* add_assign =
-          //    m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_atomic_add, noLoc, AtomicAddArgs, noLoc).get();
-          Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
-          addToCurrentBlock(add_assign, direction::reverse);
+          if (m_KVAV->isAccessThreadSafe(dyn_cast<CXXOperatorCallExpr>(Call))) {
+            Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
+          else {
+            Expr* kokkos_atomic_add = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "atomic_add");
+            llvm::SmallVector<Expr*, 4> AtomicAddArgs;
+            AtomicAddArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, dCall));
+            AtomicAddArgs.push_back(dfdx());
+            Expr* add_assign =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_atomic_add, noLoc, AtomicAddArgs, noLoc).get();
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
         }
         return StmtDiff(Call, dCall);
       }

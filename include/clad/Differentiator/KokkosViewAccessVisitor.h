@@ -23,7 +23,9 @@ namespace clad {
             std::string constructedTypeName = OCE->getDirectCallee()->getQualifiedNameAsString();
 
             if(constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("::operator()") != std::string::npos) {
+
               view_accesses.push_back(OCE);
+              view_accesses_location.push_back(OCE->getBeginLoc());
             }
           }
           else {
@@ -84,11 +86,22 @@ namespace clad {
         }
       }
 
+      bool isAccessThreadSafe(const clang::CXXOperatorCallExpr* view_access) {
+        for (size_t i = 0; i < view_accesses_location.size(); ++i) {
+          if (view_access->getBeginLoc() == view_accesses_location[i])
+            return view_accesses_is_thread_safe[i];
+        }
+        unsigned diagID = semaRef.Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, "The view access has not been visited yet. ");
+        clang::Sema::SemaDiagnosticBuilder stream = semaRef.Diag(view_access->getBeginLoc(), diagID);
+        return false;
+      }
+
       void clear() {
         view_names.clear();
         view_DeclRefExpr.clear();
         view_accesses_is_thread_safe.clear();
         view_accesses.clear();
+        view_accesses_location.clear();
       }
 
       clang::Sema& semaRef;
@@ -96,6 +109,7 @@ namespace clad {
       std::vector<const clang::DeclRefExpr*> view_DeclRefExpr;
       std::vector<bool> view_accesses_is_thread_safe;
       std::vector<const clang::CXXOperatorCallExpr*> view_accesses;
+      std::vector<const clang::SourceLocation> view_accesses_location;
   };
 } // end namespace clad
 
