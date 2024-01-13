@@ -70,7 +70,7 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
     const Kokkos::View<double *[4], Kokkos::LayoutLeft> _t5 = b;
     const Kokkos::View<double *[4], Kokkos::LayoutLeft> _t6 = a;
     Kokkos::parallel_for(a.extent(0) - 1, KOKKOS_LAMBDA(const int j1) {
-        a(j1, 0) += b(j1 + 1, 0) * 6.8899999999999997 + b(j1, 1) + pow(b(j1, 1) + a(j1, 1) + b(j1 + 1, 0) * b(j1 + 1, 0) * a(j1, 2));
+        a(j1, 0) += b(j1 + 1, 0) * 6.8899999999999997 + b(j1, 0) + pow(b(j1, 1) + a(j1, 1) + b(j1 + 1, 0) * b(j1 + 1, 0) * a(j1, 2));
     });
     double sum;
     auto a_row_0 = Kokkos::subview(a, Kokkos::make_pair(0, 2), Kokkos::ALL);
@@ -89,8 +89,8 @@ void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<do
                 double _r_d1 = _d_a(j1, 0);
                 _d_a(j1, 0) += _r_d1;
                 double _r5 = _r_d1 * 6.8899999999999997;
-                _d_b(j1 + 1, 0) += _r5;
-                _d_b(j1, 1) += _r_d1;
+                Kokkos::atomic_add(&_d_b(j1 + 1, 0), _r5);
+                Kokkos::atomic_add(&_d_b(j1, 0), _r_d1);
                 double _grad1 = 0.;
                 pow_pullback(b(j1, 1) + a(j1, 1) + b(j1 + 1, 0) * b(j1 + 1, 0) * a(j1, 2), _r_d1, &_grad1);
                 double _r6 = _grad1;
