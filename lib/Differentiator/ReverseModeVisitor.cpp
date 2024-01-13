@@ -103,7 +103,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder)
       : VisitorBase(builder), m_Result(nullptr) {
-      m_KVAV = new KokkosViewAccessVisitor(m_Sema);
+      m_KVAV = new KokkosViewAccessVisitor(m_Sema, m_Context);
       }
 
   ReverseModeVisitor::~ReverseModeVisitor() {

@@ -8,12 +8,13 @@
 #define CLAD_KOKKOS_VIEW_ACCESS_VISITOR_H
 
 #include "clad/Differentiator/CladUtils.h"
+//#include "clang/lib/StaticAnalyzer/Checkers/IdenticalExprChecker.cpp"
 
 namespace clad {
 
   class KokkosViewAccessVisitor {
     public:
-      KokkosViewAccessVisitor (clang::Sema& _semaRef) : semaRef(_semaRef) {}
+      KokkosViewAccessVisitor (clang::Sema& _semaRef, clang::ASTContext& _m_Context) : semaRef(_semaRef), m_Context(_m_Context) {}
 
       void Visit(const clang::Stmt *Node, bool record_view_names = false) {
         if (llvm::isa<clang::CallExpr>(Node)) {
@@ -84,6 +85,62 @@ namespace clad {
         for (size_t i = 0; i < view_accesses.size(); ++i) {
           view_accesses_is_thread_safe.push_back(VisitViewAccess(view_accesses[i], params));
         }
+        // Check if two view accesses could be similar for two different param
+        // instance.
+        for (size_t i = 0; i < view_accesses.size(); ++i) {
+          if (!view_accesses_is_thread_safe[i])
+            continue;
+          std::string name_i = dyn_cast<clang::DeclRefExpr>(view_accesses[i]->getArg(0))->getNameInfo().getName().getAsString();
+          for (size_t j = i+1; j < view_accesses.size(); ++j) {
+
+            // If the two views have different name, continue
+            std::string name_j = dyn_cast<clang::DeclRefExpr>(view_accesses[j]->getArg(0))->getNameInfo().getName().getAsString();
+            if (name_i != name_j)
+              continue;
+            
+            bool updated_thread_safe = true;
+            bool all_other_same_args = true;
+
+            for (size_t i_arg = 1; i_arg < view_accesses[i]->getNumArgs(); ++i_arg) {
+              bool include_param = false;
+              for (auto PVD : params) {
+                if (VisitViewAccess(view_accesses[i]->getArg(i_arg), PVD) && VisitViewAccess(view_accesses[j]->getArg(i_arg), PVD)) {
+                  include_param = true;
+                  if (view_accesses[i]->getArg(i_arg) != view_accesses[j]->getArg(i_arg)) {
+                    updated_thread_safe = false;
+                  }
+                }
+              }
+              if (!include_param) {
+                if (view_accesses[i]->getArg(i_arg) != view_accesses[j]->getArg(i_arg)) {
+                  all_other_same_args = false;
+                }
+              }   
+            }
+
+            if (all_other_same_args) {
+              if (view_accesses_is_thread_safe[i]) {
+
+                if (!updated_thread_safe) {
+                  {
+                    unsigned diagID1 = semaRef.Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, 
+                    "The view access might not be thread safe in reverse mode -- continued");
+                    clang::Sema::SemaDiagnosticBuilder stream1 = semaRef.Diag(view_accesses[i]->getBeginLoc(), diagID1);
+                  }
+                  {
+                    unsigned diagID2 = semaRef.Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, 
+                    "continued -- due to this view access; an atomic will be required for the reverse mode. ");
+                    clang::Sema::SemaDiagnosticBuilder stream2 = semaRef.Diag(view_accesses[j]->getBeginLoc(), diagID2);
+                  }
+                }
+
+                view_accesses_is_thread_safe[i] = updated_thread_safe;
+              }
+              if (view_accesses_is_thread_safe[j])
+                view_accesses_is_thread_safe[j] = updated_thread_safe;
+            }
+          }
+        }
       }
 
       bool isAccessThreadSafe(const clang::CXXOperatorCallExpr* view_access) {
@@ -105,6 +162,7 @@ namespace clad {
       }
 
       clang::Sema& semaRef;
+      clang::ASTContext& m_Context;
       std::vector<std::string> view_names;
       std::vector<const clang::DeclRefExpr*> view_DeclRefExpr;
       std::vector<bool> view_accesses_is_thread_safe;
