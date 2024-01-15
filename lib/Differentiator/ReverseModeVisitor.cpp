@@ -739,8 +739,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diag(
-        DiagnosticsEngine::Warning,
-        S->getBeginLoc(),
+        DiagnosticsEngine::Warning, S->getBeginLoc(),
         "attempted to differentiate unsupported statement, no changes applied");
     // Unknown stmt, just clone it.
     return StmtDiff(Clone(S));
@@ -3497,6 +3496,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // required by `ActOn`/`Build` Sema functions.
     StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE), dfdx());
     return MTEDiff;
+  }
+
+  StmtDiff ReverseModeVisitor::VisitSubstNonTypeTemplateParmExpr(
+      const clang::SubstNonTypeTemplateParmExpr* NTTP) {
+    return Visit(NTTP->getReplacement());
   }
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,

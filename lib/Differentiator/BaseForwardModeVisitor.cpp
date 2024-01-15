@@ -2081,4 +2081,9 @@ StmtDiff BaseForwardModeVisitor::VisitPseudoObjectExpr(
   return {Clone(POE),
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0)};
 }
+
+StmtDiff BaseForwardModeVisitor::VisitSubstNonTypeTemplateParmExpr(
+    const clang::SubstNonTypeTemplateParmExpr* NTTP) {
+  return Visit(NTTP->getReplacement());
+}
 } // end namespace clad

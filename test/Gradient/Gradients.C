@@ -761,6 +761,27 @@ void fn_increment_in_return_grad(double i, double j, clad::array_ref<double> _d_
 // CHECK-NEXT:     * _d_i += _d_temp;
 // CHECK-NEXT: }
 
+template<size_t N>
+double fn_template_non_type(double x) {
+  const size_t maxN = 53;
+  const size_t m = maxN < N ? maxN : N;
+  return x*m;
+}
+
+// CHECK: void fn_template_non_type_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:     size_t _d_maxN = 0;
+// CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     size_t _d_m = 0;
+// CHECK-NEXT:     const size_t maxN = 53;
+// CHECK-NEXT:     _cond0 = maxN < 15UL;
+// CHECK-NEXT:     const size_t m = _cond0 ? maxN : 15UL;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     * _d_x += 1 * m;
+// CHECK-NEXT:     if (_cond0)
+// CHECK-NEXT:         _d_maxN += _d_m;
+// CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -812,4 +833,9 @@ int main() {
   TEST_GRADIENT(fn_global_var_use, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {7.00, 0.00}
 
   TEST(fn_increment_in_return, 3, 2); // CHECK-EXEC: Result is = {7.00, 0.00}
+
+  auto fn_template_non_type_dx = clad::gradient(fn_template_non_type<15>);
+  double x = 5, dx = 0;
+  fn_template_non_type_dx.execute(x, &dx);
+  printf("Result is = %.2f\n", dx); // CHECK-EXEC: Result is = 15.00
 }

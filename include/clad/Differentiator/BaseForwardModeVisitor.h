@@ -102,6 +102,8 @@ public:
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
   StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
+  StmtDiff VisitSubstNonTypeTemplateParmExpr(
+      const clang::SubstNonTypeTemplateParmExpr* NTTP);
 
   virtual clang::QualType
   GetPushForwardDerivativeType(clang::QualType ParamType);
