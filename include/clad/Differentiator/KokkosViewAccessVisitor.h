@@ -279,16 +279,42 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
         for (size_t i = 0; i < view_accesses.size(); ++i) {
           view_accesses_is_thread_safe.push_back(VisitViewAccess(view_accesses[i], params));
         }
+        // Check for nested view accesses:
+        for (size_t i = 0; i < view_accesses.size(); ++i) {
+          for (size_t i_arg = 1; i_arg < view_accesses[i]->getNumArgs(); ++i_arg) {
+            
+              if (llvm::isa<clang::CXXOperatorCallExpr>(view_accesses[i]->getArg(i_arg))) {
+                auto OCE = llvm::dyn_cast<clang::CXXOperatorCallExpr>(view_accesses[i]->getArg(i_arg));
+
+                std::string constructedTypeName = OCE->getDirectCallee()->getQualifiedNameAsString();
+
+                if(constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("::operator()") != std::string::npos) {
+                  view_accesses_is_thread_safe[i] = false;
+                  {
+                    unsigned diagID1 = semaRef.Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, 
+                    "The view access has a nested view access-- continued");
+                    clang::Sema::SemaDiagnosticBuilder stream1 = semaRef.Diag(view_accesses[i]->getBeginLoc(), diagID1);
+                  }
+                  {
+                    unsigned diagID2 = semaRef.Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, 
+                    "continued -- here; an atomic will be required for the reverse mode. ");
+                    clang::Sema::SemaDiagnosticBuilder stream2 = semaRef.Diag(view_accesses[i]->getArg(i_arg)->getBeginLoc(), diagID2);
+                  }
+                  break;
+                }
+              }
+          }
+        }
         // Check if two view accesses could be similar for two different param
         // instance.
         for (size_t i = 0; i < view_accesses.size(); ++i) {
           if (!view_accesses_is_thread_safe[i])
             continue;
-          std::string name_i = dyn_cast<clang::DeclRefExpr>(view_accesses[i]->getArg(0))->getNameInfo().getName().getAsString();
+          std::string name_i = llvm::dyn_cast<clang::DeclRefExpr>(view_accesses[i]->getArg(0))->getNameInfo().getName().getAsString();
           for (size_t j = i+1; j < view_accesses.size(); ++j) {
 
             // If the two views have different name, continue
-            std::string name_j = dyn_cast<clang::DeclRefExpr>(view_accesses[j]->getArg(0))->getNameInfo().getName().getAsString();
+            std::string name_j = llvm::dyn_cast<clang::DeclRefExpr>(view_accesses[j]->getArg(0))->getNameInfo().getName().getAsString();
             if (name_i != name_j)
               continue;
             
