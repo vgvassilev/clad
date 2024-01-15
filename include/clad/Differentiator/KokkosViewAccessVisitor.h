@@ -208,9 +208,10 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
 
   class KokkosViewAccessVisitor {
     public:
-      KokkosViewAccessVisitor (clang::Sema& _semaRef, clang::ASTContext& _m_Context) : semaRef(_semaRef), m_Context(_m_Context) {}
-
-      void Visit(const clang::Stmt *Node, bool record_view_names = false) {
+      KokkosViewAccessVisitor (clang::Sema& _semaRef, clang::ASTContext& _m_Context) : 
+        semaRef(_semaRef), m_Context(_m_Context) {}
+      
+      void Visit(const clang::Stmt *Node, bool record_view_names = false, bool RHS = true) {
         if (llvm::isa<clang::CallExpr>(Node)) {
           if (llvm::isa<clang::CXXOperatorCallExpr>(Node)) {
             auto OCE = llvm::dyn_cast<clang::CXXOperatorCallExpr>(Node);
@@ -221,6 +222,7 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
 
               view_accesses.push_back(OCE);
               view_accesses_location.push_back(OCE->getBeginLoc());
+              view_accesses_RHS.push_back(RHS);
             }
           }
           else {
@@ -243,6 +245,11 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
             }
             return;
           }
+        }
+        if (llvm::isa<clang::BinaryOperator>(Node) && llvm::dyn_cast<clang::BinaryOperator>(Node)->isAssignmentOp()) {
+          Visit(llvm::dyn_cast<clang::BinaryOperator>(Node)->getLHS(),record_view_names,false);
+          Visit(llvm::dyn_cast<clang::BinaryOperator>(Node)->getRHS(),record_view_names,RHS);
+          return;
         }
 
         for (const clang::Stmt *SubStmt : Node->children())
@@ -277,7 +284,10 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
 
       void VisitViewAccesses(std::vector<clang::ParmVarDecl*> params) {
         for (size_t i = 0; i < view_accesses.size(); ++i) {
-          view_accesses_is_thread_safe.push_back(VisitViewAccess(view_accesses[i], params));
+          if (view_accesses_RHS[i])
+            view_accesses_is_thread_safe.push_back(VisitViewAccess(view_accesses[i], params));
+          else
+            view_accesses_is_thread_safe.push_back(false);
         }
         // Check for nested view accesses:
         for (size_t i = 0; i < view_accesses.size(); ++i) {
@@ -378,6 +388,7 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
         view_DeclRefExpr.clear();
         view_accesses_is_thread_safe.clear();
         view_accesses.clear();
+        view_accesses_RHS.clear();
         view_accesses_location.clear();
       }
 
@@ -387,6 +398,7 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
       std::vector<const clang::DeclRefExpr*> view_DeclRefExpr;
       std::vector<bool> view_accesses_is_thread_safe;
       std::vector<const clang::CXXOperatorCallExpr*> view_accesses;
+      std::vector<bool> view_accesses_RHS;
       std::vector<const clang::SourceLocation> view_accesses_location;
   };
 } // end namespace clad
