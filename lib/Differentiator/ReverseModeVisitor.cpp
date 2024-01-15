@@ -868,9 +868,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       LSI->CallOperator->setAccess(CMD->getAccess());
       */
 
+      // The following lines will modify the body of the
+      // LambdaExpr 0x16051c540
+      // |-CXXRecordDecl 0x1409e2eb0  implicit class definition
+      // | |-CXXMethodDecl 0x1409e2ff0  used constexpr operator() 'void (const int) const' inline
+      // of the forward lambda but not its CompoundStmtBody (which are supposed to be consistent I think).
+      //
+      // However, the CompoundStmtBody and the body of the operator above for the reverse lambda are consistent.
+      //
+      // The generated C++ file seems to be fine as it seems to use the CompoundStmtBody.
       LSI->CallOperator = LE->getCallOperator();
       FunctionDecl *FD = LSI->CallOperator->getAsFunction();
       FD->setBody(bodyV.getStmt_dx());
+
+      //LE->getCallOperator()->getAsFunction()->setBody(bodyV.getStmt_dx());
+      //LE->getLambdaClass()->getLambdaCallOperator()->getAsFunction()->setBody(bodyV.getStmt_dx());
 
 
       std::vector<LambdaCapture> children_LC_Exp_dx;
@@ -919,6 +931,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                 childrenRef_Exp_dx,
                                 LE->getEndLoc(),
                                 false);
+
+      //std::cout << "forwardLE->dump()" << std::endl;
+      //forwardLE->dump();
+      //std::cout << "reverseLE->dump()" << std::endl;
+      //reverseLE->dump();
 
       endScope();
     }
