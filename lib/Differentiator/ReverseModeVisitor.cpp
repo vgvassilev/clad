@@ -782,13 +782,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     const Stmt* body = LE->getBody();
 
-    //std::cout << "This Lambda has those accesses "<< std::endl;
-    //for (auto view_access : kVAV.view_accesses) {
-    //  view_access->dump();
-    //}
-    //std::cout << std::endl;
-
-    //Stmt* reverseBody
     auto bodyV = Visit(body);
 
     auto children_iterator_range = LE->children();
@@ -1881,6 +1874,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             if (isa<LambdaExpr>(arg)) {
               m_KVAV->clear();
               m_KVAV->Visit(dyn_cast<LambdaExpr>(arg)->getBody(), false);
+
+              Sema::CodeSynthesisContext Ctx;
+              Ctx.Entity = dyn_cast<LambdaExpr>(arg)->getCallOperator();
+              m_Sema.pushCodeSynthesisContext(Ctx);
 
               for (auto DRE : m_KVAV->view_DeclRefExpr) {
                 VarDecl* recordedView = BuildVarDecl(DRE->getType(), "_t", const_cast<DeclRefExpr*>(DRE), /*DirectInit=*/true);
