@@ -793,9 +793,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto children_expr = const_cast<clang::Expr*>(dyn_cast<clang::Expr>(children));
       if (children_expr) {
         auto children_exprV = Visit(children_expr);
-        children_Exp.push_back(children_exprV.getExpr());
-        children_Exp_dx.push_back(children_exprV.getExpr());
-        children_Exp_dx.push_back(children_exprV.getExpr_dx());
+        children_Exp.push_back(children_expr);
+
+        auto children_expr_copy = dyn_cast<CXXConstructExpr>(Clone(children_expr));
+        children_expr_copy->setArg(0, children_exprV.getExpr_dx());
+
+        children_Exp_dx.push_back(children_expr);
+        children_Exp_dx.push_back(children_expr_copy);
 
       }
     }
@@ -862,13 +866,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::vector<LambdaCapture> children_LC_Exp_dx;
 
       for (auto children_expr : children_Exp_dx) {
-        if (isa<DeclRefExpr>(children_expr)) {
-          auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(children_expr)->getDecl());
-          children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
-        }
-        else {
-          if(isa<ParenExpr>(children_expr)) {
-            auto PE = dyn_cast<ParenExpr>(children_expr);
+        if(isa<CXXConstructExpr>(children_expr)) {
+
+          auto tmp = dyn_cast<CXXConstructExpr>(children_expr)->getArg(0)->IgnoreImpCasts();
+
+          if (isa<DeclRefExpr>(tmp)) {
+            auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(tmp)->getDecl());
+            children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+          }
+          if(isa<ParenExpr>(tmp)) {
+            auto PE = dyn_cast<ParenExpr>(tmp);
             auto OCE = dyn_cast<CXXOperatorCallExpr>(PE->getSubExpr());
 
             auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(OCE->getArg(0))->getDecl());
