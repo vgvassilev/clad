@@ -824,7 +824,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                               false);
 
 
-    clang::Expr  * reverseLE;
+    clang::LambdaExpr  * reverseLE;
     {
       clang::LambdaIntroducer Intro;
       Intro.Default = forwardLambdaClass->getLambdaCaptureDefault ();
@@ -842,23 +842,33 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Sema.ActOnStartOfLambdaDefinition(Intro, D,
                    clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(getCurrentScope(), DS));
 
+      /*
       // needed for CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams
-      //clad::VisitorBase& VB = *this;
-      //
-      //LSI->CallOperator = CXXMethodDecl::Create(m_Context, LE->getCallOperator()->getParent(),
-      //                               noLoc,
-      //                               DNI,
-      //                               LE->getCallOperator()->getType(), LE->getCallOperator()->getTypeSourceInfo(),
-      //                               LE->getCallOperator()->getStorageClass(),
-      //                               LE->getCallOperator()->isInlineSpecified(),
-      //                               clad_compat::Function_GetConstexprKind(LE->getCallOperator()),
-      //                               noLoc
-      //                               CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(LE->getCallOperator()->getTrailingRequiresClause()));
+      clad::VisitorBase& VB = *this;
 
+      auto DNI = utils::BuildDeclarationNameInfo(m_Sema, "operator_pullback");
 
-      // This will replace the calloperator of the forward mode in the AST 
+      CXXMethodDecl* CMD = LE->getCallOperator();
+      DeclContext* DC = const_cast<DeclContext*>(CMD->getDeclContext());
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+
+      DNI = CMD->getNameInfo();
+
+      LSI->CallOperator = CXXMethodDecl::Create(m_Context,
+                                                CXXRD, 
+                                                noLoc,
+                                                DNI,
+                                                CMD->getType(), 
+                                                CMD->getTypeSourceInfo(),
+                                                CMD->getStorageClass(),
+                                                CMD->isInlineSpecified(),
+                                                clad_compat::Function_GetConstexprKind(CMD),
+                                                noLoc
+                                                CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(CMD->getTrailingRequiresClause()));
+      LSI->CallOperator->setAccess(CMD->getAccess());
+      */
+
       LSI->CallOperator = LE->getCallOperator();
-
       FunctionDecl *FD = LSI->CallOperator->getAsFunction();
       FD->setBody(bodyV.getStmt_dx());
 
