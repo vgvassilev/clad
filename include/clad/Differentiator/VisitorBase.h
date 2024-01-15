@@ -320,14 +320,14 @@ namespace clad {
     /// \n Variable declaration cannot be added to code directly, instead we
     /// have to build a declaration staement.
     /// \param[in] D The declaration to build a declaration statement from.
-    /// \returns The declration statement expression corresponding to the input
+    /// \returns The declaration statement expression corresponding to the input
     /// variable declaration.
     clang::DeclStmt* BuildDeclStmt(clang::Decl* D);
     /// Wraps a set of declarations in a DeclStmt.
     /// \n This function is useful to wrap multiple variable declarations in one
     /// single declaration statement.
     /// \param[in] D The declarations to build a declaration statement from.
-    /// \returns The declration statemetn expression corresponding to the input
+    /// \returns The declaration statement expression corresponding to the input
     /// variable declaration.
     clang::DeclStmt* BuildDeclStmt(llvm::MutableArrayRef<clang::Decl*> DS);
 

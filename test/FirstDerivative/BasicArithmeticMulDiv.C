@@ -104,6 +104,23 @@ double m_10(double x, bool flag) {
 // CHECK-NEXT:   return flag ? (((_d_x = _d_x * 2 + x * 0) , (x *= 2)) , (_d_x * x + x * _d_x)) : (((_d_x += 0) , (x += 1)) , (_d_x * x + x * _d_x));
 // CHECK-NEXT: }
 
+template<size_t N>
+double m_11(double x) {
+  const size_t maxN = 53;
+  const size_t m = maxN < N ? maxN : N;
+  return x*m;
+}
+
+// CHECK: double m_11_darg0(double x) {
+// CHECK-NEXT:   double _d_x = 1;
+// CHECK-NEXT:   const size_t _d_maxN = 0;
+// CHECK-NEXT:   const size_t maxN = 53;
+// CHECK-NEXT:   bool _t0 = maxN < 64UL;
+// CHECK-NEXT:   const size_t _d_m = _t0 ? _d_maxN : 0UL;
+// CHECK-NEXT:   const size_t m = _t0 ? maxN : 64UL;
+// CHECK-NEXT:   return _d_x * m + x * _d_m;
+// CHECK-NEXT: }
+
 int d_1(int x) {
   int y = 4;
   return y / y; // == 0
@@ -190,6 +207,7 @@ double m_7_darg0(double x);
 double m_8_darg0(double x);
 double m_9_darg0(double x);
 double m_10_darg0(double x, bool flag);
+double m_11_darg0(double x);
 int d_1_darg0(int x);
 int d_2_darg0(int x);
 int d_3_darg0(int x);
@@ -229,6 +247,9 @@ int main () {
   clad::differentiate(m_10, 0);
   printf("Result is = %f\n", m_10_darg0(1, true)); // CHECK-EXEC: Result is = 8
   printf("Result is = %f\n", m_10_darg0(1, false)); // CHECK-EXEC: Result is = 4
+
+  clad::differentiate(m_11<64>, 0);
+  printf("Result is = %f\n", m_11_darg0(1)); // CHECK-EXEC: Result is = 53
 
   clad::differentiate(d_1, 0);
   printf("Result is = %d\n", d_1_darg0(1)); // CHECK-EXEC: Result is = 0
