@@ -792,15 +792,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (auto children : children_iterator_range) {
       auto children_expr = const_cast<clang::Expr*>(dyn_cast<clang::Expr>(children));
       if (children_expr) {
-        auto children_exprV = Visit(children_expr);
         children_Exp.push_back(children_expr);
 
-        auto children_expr_copy = dyn_cast<CXXConstructExpr>(Clone(children_expr));
-        children_expr_copy->setArg(0, children_exprV.getExpr_dx());
-
         children_Exp_dx.push_back(children_expr);
-        children_Exp_dx.push_back(children_expr_copy);
 
+        if(isa<CXXConstructExpr>(children_expr)) {
+          std::string constructedTypeName = QualType::getAsString(dyn_cast<CXXConstructExpr>(children_expr)->getType().split(), PrintingPolicy{ {} });
+          if (!utils::IsKokkosTeamPolicy(constructedTypeName) && !utils::IsKokkosRange(constructedTypeName) && !utils::IsKokkosMember(constructedTypeName)) {
+            auto children_exprV = Visit(children_expr);
+            auto children_expr_copy = dyn_cast<CXXConstructExpr>(Clone(children_expr));
+            children_expr_copy->setArg(0, children_exprV.getExpr_dx());
+            children_Exp_dx.push_back(children_expr_copy);
+          }
+        }
+        else if(isa<DeclRefExpr>(children_expr)) {
+
+        }
+        else {
+          auto children_exprV = Visit(children_expr);
+          if (children_exprV.getExpr_dx()) {
+            children_Exp_dx.push_back(children_exprV.getExpr_dx());
+          }
+        }
       }
     }
 
@@ -904,7 +917,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
           }
         }
+        if (isa<DeclRefExpr>(children_expr)) {
+            auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(children_expr)->getDecl());
+            children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+        }
       }
+      assert(children_Exp_dx.size() == children_LC_Exp_dx.size() && "Wrong number of captures");
 
       llvm::ArrayRef<LambdaCapture> childrenRef_LC_Exp_dx =
           clad_compat::makeArrayRef(children_LC_Exp_dx.data(), children_LC_Exp_dx.size());
@@ -1599,6 +1617,45 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Member function called from a Kokkos::View; nothing to do here
         return StmtDiff(Clone(CE));
       }
+      if (utils::IsKokkosTeamPolicy(MCE->getObjectType().getAsString())) {
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+        for (size_t i = 0; i < MCE->getNumArgs(); ++i) {
+          auto visitedArg = Visit(MCE->getArg(i));
+
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i == 0)
+            ClonedDArgs.push_back(visitedArg.getExpr());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+        }
+
+        auto tmp = Visit(CE->getCallee());
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), tmp.getExpr(),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), tmp.getExpr_dx(),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+        
+        // We need to set the scratch pad sizes BEFORE the policy is used.
+        addToCurrentBlock(dCall, direction::forward);
+
+        return StmtDiff(Call, nullptr);
+      }
+      if (utils::IsKokkosRange(MCE->getObjectType().getAsString()) || utils::IsKokkosMember(MCE->getObjectType().getAsString())) {
+        auto result = const_cast<CXXMemberCallExpr*>(MCE);
+        //CXXMemberCallExpr* result = dyn_cast<CXXMemberCallExpr>(Clone(MCE));
+        for (size_t i = 0; i < result->getNumArgs(); ++i)
+          result->setArg(i, Visit(result->getArg(i)).getExpr());
+
+        return StmtDiff(result, nullptr);
+      }
     }
     if (isa<CXXOperatorCallExpr>(CE)) {
       auto OCE = dyn_cast<clang::CXXOperatorCallExpr>(CE);
@@ -1886,6 +1943,65 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
           return StmtDiff(Call, dCall);
         }
+        if (FD->getQualifiedNameAsString().find("Kokkos::PerTeam") != std::string::npos || FD->getQualifiedNameAsString().find("Kokkos::PerThread") != std::string::npos) {
+          // What we do here depends whether we are in a parallel region or not.
+          if (!isInsideParallelRegion) {
+            llvm::SmallVector<Expr*, 4> ClonedArgs;
+            llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+            ClonedArgs.push_back(Clone(CE->getArg(0)));
+
+            auto val2 = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 2);
+            ClonedDArgs.push_back(BuildOp(clang::BO_Mul, 
+              val2, 
+              Clone(CE->getArg(0))));
+
+            Expr* Call = m_Sema
+                            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                            noLoc, ClonedArgs, noLoc)
+                            .get();
+
+            Expr* dCall = m_Sema
+                            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                            noLoc, ClonedDArgs, noLoc)
+                            .get();
+
+            return StmtDiff(Call, dCall);
+          }
+          else {
+            return StmtDiff(Clone(CE), Clone(CE));
+          }
+        }
+        if (FD->getQualifiedNameAsString().find("Kokkos::single") != std::string::npos) {
+          llvm::SmallVector<Expr*, 4> ClonedArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+          for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+            auto arg = CE->getArg(i);
+
+            if (i==0) {
+              ClonedArgs.push_back(const_cast<Expr*>(arg));
+              ClonedDArgs.push_back(const_cast<Expr*>(arg));
+            }
+            else {
+              auto visitedArg = Visit(arg);
+              ClonedArgs.push_back(visitedArg.getExpr());
+              ClonedDArgs.push_back(visitedArg.getExpr_dx());
+            }
+          }
+
+          Expr* Call = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedArgs, noLoc)
+                          .get();
+
+          Expr* dCall = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedDArgs, noLoc)
+                          .get();
+
+          return StmtDiff(Call, dCall);          
+        }
         if (FD->getQualifiedNameAsString().find("Kokkos::parallel_for") != std::string::npos) {
           llvm::SmallVector<Expr*, 4> ClonedArgs;
           llvm::SmallVector<Expr*, 4> ClonedDArgs;
@@ -1905,7 +2021,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(arg))
               arg = BTE->getSubExpr();
               
-            if (isa<LambdaExpr>(arg)) {
+            if (isa<LambdaExpr>(arg) && !isInsideParallelRegion) {
               m_KVAV->clear();
               m_KVAV->Visit(dyn_cast<LambdaExpr>(arg)->getBody(), false);
 
@@ -1951,12 +2067,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             }
               
 
-            auto visitedArg = Visit(arg);
-            ClonedArgs.push_back(visitedArg.getExpr());
-            if (i==0)
-              ClonedDArgs.push_back(visitedArg.getExpr());
-            else
+            bool copyArg = i==0;
+            
+            if (copyArg) {
+              if (isa<DeclRefExpr>(arg))
+                copyArg = false;
+            }
+
+            if (copyArg) {
+              ClonedArgs.push_back(const_cast<Expr*>(arg));
+              ClonedDArgs.push_back(const_cast<Expr*>(arg));
+            }
+            else {
+              auto visitedArg = Visit(arg);
+              ClonedArgs.push_back(visitedArg.getExpr());
               ClonedDArgs.push_back(visitedArg.getExpr_dx());
+            }
           }
 
           Expr* Call = m_Sema
@@ -3585,8 +3711,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
     auto* field = ME->getMemberDecl();
-    assert(!isa<CXXMethodDecl>(field) &&
-           "CXXMethodDecl nodes not supported yet!");
+    //assert(!isa<CXXMethodDecl>(field) &&
+    //       "CXXMethodDecl nodes not supported yet!");
     MemberExpr* clonedME = utils::BuildMemberExpr(
         m_Sema, getCurrentScope(), baseDiff.getExpr(), field->getName());
     if (!baseDiff.getExpr_dx())
@@ -4409,7 +4535,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 4> clonedArgs;
     llvm::SmallVector<Expr*, 4> clonedDArgs;
     std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
-    if (utils::IsKokkosView(constructedTypeName)) {
+    if (utils::IsKokkosTeamPolicy(constructedTypeName)) {
+      return {Clone(CE), Clone(CE)};
+    }
+    else if (utils::IsKokkosRange(constructedTypeName)) {
+      return {Clone(CE), Clone(CE)};
+    }
+    else if (utils::IsKokkosMember(constructedTypeName)) {
+      return {Clone(CE), Clone(CE)};
+    }
+    else if (utils::IsKokkosView(constructedTypeName)) {
       size_t runTimeDim = 0;
       std::vector<size_t> compileTimeDims;
       bool read = false;

@@ -179,6 +179,15 @@ namespace clad {
     /// otherwise returns false.
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
 
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamPolicy type.
+    bool IsKokkosTeamPolicy(const std::string constructedTypeName);
+
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamThreadRange, Kokkos::ThreadVectorRange, or Kokkos::TeamVectorRange type.
+    bool IsKokkosRange(const std::string constructedTypeName);
+
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::Member type.
+    bool IsKokkosMember(const std::string constructedTypeName);
+
     /// Returns true if `constructedTypeName` is a string describing Kokkos::View type.
     bool IsKokkosView(const std::string constructedTypeName);
 

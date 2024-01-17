@@ -317,8 +317,33 @@ namespace clad {
       return false;
     }
 
+    bool IsKokkosTeamPolicy(const std::string constructedTypeName) {
+      return constructedTypeName.find("Kokkos::TeamPolicy") == 0 
+      || constructedTypeName.find("class Kokkos::TeamPolicy") == 0 
+      || constructedTypeName.find("const class Kokkos::TeamPolicy") == 0;
+    }
+
+    bool IsKokkosRange(const std::string constructedTypeName) {
+      return constructedTypeName.find("Kokkos::TeamVectorRange") == 0 
+      || constructedTypeName.find("class Kokkos::TeamVectorRange") == 0 
+      || constructedTypeName.find("const class Kokkos::TeamVectorRange") == 0
+      || constructedTypeName.find("Kokkos::TeamThreadRange") == 0 
+      || constructedTypeName.find("class Kokkos::TeamThreadRange") == 0 
+      || constructedTypeName.find("const class Kokkos::TeamThreadRange") == 0
+      || constructedTypeName.find("Kokkos::ThreadVectorRange") == 0 
+      || constructedTypeName.find("class Kokkos::ThreadVectorRange") == 0 
+      || constructedTypeName.find("const class Kokkos::ThreadVectorRange") == 0;
+    }
+
+    bool IsKokkosMember(const std::string constructedTypeName) {
+      return constructedTypeName.find("member_type") != -1;
+    }
+
     bool IsKokkosView(const std::string constructedTypeName) {
-      return constructedTypeName.find("Kokkos::View") == 0 || constructedTypeName.find("class Kokkos::View") == 0 || constructedTypeName.find("const class Kokkos::View") == 0;
+      return constructedTypeName.find("Kokkos::View") == 0
+       || constructedTypeName.find("class Kokkos::View") == 0
+       || constructedTypeName.find("const Kokkos::View") == 0
+       || constructedTypeName.find("const class Kokkos::View") == 0;
       //return constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("<class Kokkos::View") == std::string::npos;
     }
 
