@@ -344,7 +344,6 @@ namespace clad {
        || constructedTypeName.find("class Kokkos::View") == 0
        || constructedTypeName.find("const Kokkos::View") == 0
        || constructedTypeName.find("const class Kokkos::View") == 0;
-      //return constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("<class Kokkos::View") == std::string::npos;
     }
 
     bool IsKokkosView(QualType QT) {

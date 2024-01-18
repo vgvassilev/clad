@@ -45,7 +45,7 @@ namespace clad {
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
-    // Used to pass a Kokkos view access visitor to further nodes
+    /// Used to pass a Kokkos view access visitor to further nodes
     /// in the Visit method.
     clad::KokkosViewAccessVisitor * m_KVAV;
     /// A sequence of DeclStmts containing "tape" variable declarations

@@ -690,9 +690,6 @@ namespace clad {
   }
 
   QualType VisitorBase::GetCladArrayRefOfType(clang::QualType T) {
-    //KL: needed ?
-    //if (utils::IsKokkosView(T))
-    //  return T;
     return InstantiateTemplate(GetCladArrayRefDecl(), {T});
   }
 

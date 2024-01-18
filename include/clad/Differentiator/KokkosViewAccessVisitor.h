@@ -218,7 +218,8 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
 
             std::string constructedTypeName = OCE->getDirectCallee()->getQualifiedNameAsString();
 
-            if(constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("::operator()") != std::string::npos) {
+            if(constructedTypeName.find("Kokkos::View") != std::string::npos 
+              && constructedTypeName.find("::operator()") != std::string::npos) {
 
               view_accesses.push_back(OCE);
               view_accesses_location.push_back(OCE->getBeginLoc());
@@ -298,7 +299,8 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
 
                 std::string constructedTypeName = OCE->getDirectCallee()->getQualifiedNameAsString();
 
-                if(constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("::operator()") != std::string::npos) {
+                if(constructedTypeName.find("Kokkos::View") != std::string::npos 
+                  && constructedTypeName.find("::operator()") != std::string::npos) {
                   view_accesses_is_thread_safe[i] = false;
                   {
                     unsigned diagID1 = semaRef.Diags.getCustomDiagID(clang::DiagnosticsEngine::Warning, 

@@ -31,8 +31,6 @@
 
 #include "clad/Differentiator/Compatibility.h"
 
-#include <iostream>
-
 using namespace clang;
 
 namespace clad {
@@ -213,14 +211,6 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
       clad_compat::makeArrayRef(params.data(), params.size());
   derivedFD->setParams(paramsRef);
   derivedFD->setBody(nullptr);
-
-  //AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-  //if (A &&
-  //    (A->getAnnotation().equals("KOKKOS_INLINE_FUNCTION") || A->getAnnotation().equals("KOKKOS_FUNCTION"))) {
-  //      std::cout << "This is a Kokkos function!" << std::endl;
-  //      //derivedFD->addAttr(A);
-  //      derivedFD->dump();
-  //    }
 
   // Function body scope
   beginScope(Scope::FnScope | Scope::DeclScope);
@@ -975,7 +965,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
     if (utils::IsKokkosView(MCE->getObjectType().getAsString())) {
-      //std::cout << "Member function called from a Kokkos::View; nothing to do here" << std::endl;
+      //Member function called from a Kokkos::View; nothing to do here
       return StmtDiff(Clone(CE));
     }
   }
@@ -990,7 +980,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       auto SE = baseOriginalE->IgnoreImpCasts();
       if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
         std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
-        std::cout << constructedTypeName << std::endl;
         if (utils::IsKokkosView(constructedTypeName)) {
           isKokkosViewAccess = true;
           kokkosViewName = DRE->getNameInfo().getName().getAsString ();
@@ -1021,7 +1010,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                                       noLoc, ClonedArgs, noLoc)
                       .get();
 
-      //std::cout << " kokkosViewName = " << kokkosViewName << std::endl;
       return StmtDiff(Call, dCall);
     }
   }
@@ -1195,14 +1183,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
       QualType CallArgTy = CallArgs.back()->getType();
-
-      std::string error_message = "Type mismatch, we might fail to instantiate a pullback with types " +
-             QualType::getAsString(CallArgTy.split(), PrintingPolicy{ {} }) + " and " +
-             QualType::getAsString(dArg->getType().split(), PrintingPolicy{ {} });
-      if (!(!dArg || m_Context.hasSameType(CallArgTy, dArg->getType()))) {
-        std::cout << error_message.c_str() << std::endl;
-        CE->dump();
-      }
       assert((!dArg || m_Context.hasSameType(CallArgTy, dArg->getType())) &&
              "Type mismatch, we might fail to instantiate a pullback");
       (void)CallArgTy;
@@ -1935,13 +1915,6 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
-  //CE->dump ();
-  //std::string className = CE->getStmtClassName();
-  //std::cout << className << std::endl;
-  //CE->getConstructor ()->dump();
-  //std::cout << className << std::endl;
-  //CE->getType()->dump();
-  //std::cout << CE->getType()->getAsString () << std::endl;
   std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
 
   // Check if we are in a Kokkos View construction.
@@ -1956,11 +1929,7 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
         compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
       if (!read && constructedTypeName[i] == ' ')
         read = true;
-    } 
-    //std::cout << "runTimeDim = " << runTimeDim << std::endl;
-    //std::cout << "compileTimeDim = " << compileTimeDims.size() << std::endl;
-    //for (auto compileTimeDim : compileTimeDims)
-    //  std::cout << "  compileTimeDim = " << compileTimeDim << std::endl;
+    }
 
     size_t i = 0;
     for (auto arg : CE->arguments()) {
@@ -2158,7 +2127,8 @@ StmtDiff BaseForwardModeVisitor::VisitValueStmt(
     std::string name_str("_d_"+ SL->getString().str());
     StringRef name(name_str);
 
-    Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
+    Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, 
+      SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
     return {Clone(VS), derivedVS};
   }
   return {Clone(VS), Clone(VS)};

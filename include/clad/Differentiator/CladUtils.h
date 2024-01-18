@@ -182,7 +182,8 @@ namespace clad {
     /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamPolicy type.
     bool IsKokkosTeamPolicy(const std::string constructedTypeName);
 
-    /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamThreadRange, Kokkos::ThreadVectorRange, or Kokkos::TeamVectorRange type.
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamThreadRange,
+    /// Kokkos::ThreadVectorRange, or Kokkos::TeamVectorRange type.
     bool IsKokkosRange(const std::string constructedTypeName);
 
     /// Returns true if `constructedTypeName` is a string describing Kokkos::Member type.

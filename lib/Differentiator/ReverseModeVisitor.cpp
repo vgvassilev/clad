@@ -37,8 +37,6 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
-#include <iostream>
-
 using namespace clang;
 
 namespace clad {
@@ -762,7 +760,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::string name_str("_d_"+ SL->getString().str());
       StringRef name(name_str);
 
-      Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
+      Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name,
+        SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
 
       return {Clone(VS), derivedVS};
     }
@@ -949,11 +948,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                 childrenRef_Exp_dx,
                                 LE->getEndLoc(),
                                 false);
-
-      //std::cout << "forwardLE->dump()" << std::endl;
-      //forwardLE->dump();
-      //std::cout << "reverseLE->dump()" << std::endl;
-      //reverseLE->dump();
 
       endScope();
     }
@@ -1398,6 +1392,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::cout << "return value is a view!" << std::endl;
     }
     auto* dfdf = m_Pullback;
+
     if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
       ExprResult tmp = dfdf;
       dfdf = m_Sema
@@ -1607,9 +1602,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
-    //std::cout << " CE dump start" << std::endl;
-    //CE->dump();
-    //std::cout << " CE dump end" << std::endl;
     if (isa<CXXMemberCallExpr>(CE)) {
       auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
 
@@ -1662,39 +1654,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       const Expr* baseOriginalE = OCE->getArg(0);
 
       bool isKokkosViewAccess = false;
-      //std::string kokkosViewName;
-
-      //std::cout << " OCE dump start" << std::endl;
-      //OCE->dump();
-      //std::cout << " OCE dump start" << std::endl;
-      
-      //std::cout << " baseOriginalE dump start" << std::endl;
-      //baseOriginalE->dump();
-      //std::cout << " baseOriginalE dump start" << std::endl;
 
       if (isa<ImplicitCastExpr>(baseOriginalE)) {
-        //std::cout << "true 1" << std::endl;
         auto SE = baseOriginalE->IgnoreImpCasts();
         if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
-          //std::cout << "true 2" << std::endl;
           if (utils::IsKokkosView(DRE->getType())) {
-            //std::cout << "true 3" << std::endl;
             isKokkosViewAccess = true;
-            //kokkosViewName = DRE->getNameInfo().getName().getAsString ();
           }
         }
       }
       if (auto DRE = dyn_cast<DeclRefExpr>(baseOriginalE)) {
-        //std::cout << "true 2" << std::endl;
-        //DRE->getType()->dump();
         if (utils::IsKokkosView(DRE->getType())) {
-          //std::cout << "true 3" << std::endl;
           isKokkosViewAccess = true;
-          //kokkosViewName = DRE->getNameInfo().getName().getAsString ();
         }
         isKokkosViewAccess = true;
       }
-      //std::cout << " isKokkosViewAccess = " << isKokkosViewAccess << std::endl;
 
       // Returning the function call and zero derivative
       if (isKokkosViewAccess) {
@@ -1707,8 +1681,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                         .ActOnCallExpr(getCurrentScope(), Clone(CE->getArg(0)),
                                         noLoc, ClonedArgs, noLoc)
                         .get();
-
-        // replace kokkosViewName with "_d_"+kokkosViewName
 
         auto visited = Visit(CE->getArg(0), dfdx());
         Expr* dView = visited.getExpr_dx();
@@ -1773,7 +1745,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
           auto visitedArg_0 = Visit(CE->getArg(0), dfdx());
           auto visitedArg_1 = Visit(CE->getArg(1), dfdx());
-          //auto visitedArg_2 = Visit(CE->getArg(2), dfdx());
 
           ClonedArgs.push_back(visitedArg_0.getExpr());
           ClonedArgs.push_back(visitedArg_1.getExpr());
@@ -2007,10 +1978,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           llvm::SmallVector<Expr*, 4> ClonedDArgs;
 
           for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
-            //std::cout << "Start CE->getArg("<<i<<")->dump()" << std::endl;
-            //CE->getArg(i)->dump();
-            //std::cout << "end CE->getArg("<<i<<")->dump()" << std::endl;
-
             auto arg = CE->getArg(i);
             if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
               arg = clad_compat::GetSubExpr(MTE);
@@ -2381,7 +2348,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::string customPushforward = FD->getNameAsString() + "_pushforward";
       auto pushforwardCallArgs = DerivedCallArgs;
       if (utils::IsKokkosView(DerivedCallArgs.front()->getType())) {
-        // KL: Is it useful? 
         pushforwardCallArgs.push_back(DerivedCallArgs.front());
       }
       else {
