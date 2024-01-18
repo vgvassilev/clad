@@ -1662,7 +1662,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (utils::IsKokkosView(DRE->getType())) {
           isKokkosViewAccess = true;
         }
-        isKokkosViewAccess = true;
       }
 
       // Returning the function call and zero derivative
