@@ -426,7 +426,9 @@ DEFINE_CLONE_STMT(ForStmt, (Ctx, Clone(Node->getInit()), Clone(Node->getCond()),
                             Node->getForLoc(), Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CLONE_STMT(ContinueStmt, (Node->getContinueLoc()))
 DEFINE_CLONE_STMT(BreakStmt, (Node->getBreakLoc()))
-DEFINE_CLONE_STMT(CXXCatchStmt, (Node->getCatchLoc(), static_cast<VarDecl*>(CloneDecl(Node->getExceptionDecl())), Clone(Node->getHandlerBlock())))
+DEFINE_CLONE_STMT(CXXCatchStmt, (Node->getCatchLoc(),
+                                 CloneDeclOrNull(Node->getExceptionDecl()),
+                                 Clone(Node->getHandlerBlock())))
 
 Stmt* StmtClone::VisitCXXTryStmt(CXXTryStmt* Node) {
   llvm::SmallVector<Stmt*, 4> CatchStmts(std::max(1u, Node->getNumHandlers()));
