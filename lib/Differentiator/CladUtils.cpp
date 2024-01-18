@@ -336,7 +336,7 @@ namespace clad {
     }
 
     bool IsKokkosMember(const std::string constructedTypeName) {
-      return constructedTypeName.find("member_type") != -1;
+      return constructedTypeName.find("member_type") != (size_t) -1;
     }
 
     bool IsKokkosView(const std::string constructedTypeName) {
