@@ -1387,12 +1387,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
-    
-    if (utils::IsKokkosView(type.getAsString())) {
-      std::cout << "return value is a view!" << std::endl;
-    }
     auto* dfdf = m_Pullback;
-
     if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
       ExprResult tmp = dfdf;
       dfdf = m_Sema
@@ -3881,7 +3876,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this, Ediff,
                                 /*isConstant*/ isConst,
                                 /*isInsideLoop*/ false,
-                                /*pNeedsUpdate=*/false,
+                                /*pNeedsUpdate=*/ false,
                                 /*isInsideParallelRegion*/ false};
     }
     if (isInsideLoop) {
@@ -3918,7 +3913,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Return reference to the declaration instead of original expression.
     return DelayedStoreResult{*this, StmtDiff{Ref, nullptr, nullptr, Ref},
                               /*isConstant*/ false,
-                              /*isInsideLoop*/ false, /*pNeedsUpdate=*/true};
+                              /*isInsideLoop*/ false, 
+                              /*pNeedsUpdate=*/ true,
+                              /*isInsideParallelRegion=*/ false};
   }
 
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)

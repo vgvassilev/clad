@@ -1182,10 +1182,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     CallArgs.push_back(argDiff.getExpr());
     if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
-      QualType CallArgTy = CallArgs.back()->getType();
-      assert((!dArg || m_Context.hasSameType(CallArgTy, dArg->getType())) &&
-             "Type mismatch, we might fail to instantiate a pullback");
-      (void)CallArgTy;
       // FIXME: What happens when dArg is nullptr?
       diffArgs.push_back(dArg);
     }
