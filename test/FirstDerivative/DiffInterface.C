@@ -75,6 +75,9 @@ int f_try_catch(int x)
   catch (int) {
     return 0;
   }
+  catch (...) {
+    return 1;
+  }
 
 // CHECK: int f_try_catch_darg0(int x) {
 // CHECK-NEXT:    int _d_x = 1;
@@ -82,6 +85,8 @@ int f_try_catch(int x)
 // CHECK-NEXT:        return x;
 // CHECK-NEXT:    } catch (int) {
 // CHECK-NEXT:        return 0;
+// CHECK-NEXT:    } catch (...) {
+// CHECK-NEXT:        return 1;
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
