@@ -1685,7 +1685,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                         .get();
 
         if (dfdx()) {
-          if (m_KVAV->isAccessThreadSafe(dyn_cast<CXXOperatorCallExpr>(Call))) {
+          if (!isInsideParallelRegion || m_KVAV->isAccessThreadSafe(dyn_cast<CXXOperatorCallExpr>(Call))) {
             Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
             addToCurrentBlock(add_assign, direction::reverse);
           }

@@ -1003,8 +1003,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
       Expr* dView = Visit(CE->getArg(0)).getExpr_dx();
 
-      dView->dump();
-
       Expr* dCall = m_Sema
                       .ActOnCallExpr(getCurrentScope(), dView,
                                       noLoc, ClonedArgs, noLoc)
