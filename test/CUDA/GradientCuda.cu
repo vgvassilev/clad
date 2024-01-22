@@ -74,11 +74,11 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     {
 //CHECK-NEXT:         t = _t2;
 //CHECK-NEXT:         double _r_d1 = _d_t;
+//CHECK-NEXT:         _d_t -= _r_d1;
 //CHECK-NEXT:         _d_t += -_r_d1 / _t3;
 //CHECK-NEXT:         double _r0 = _r_d1 * --t / (_t3 * _t3);
 //CHECK-NEXT:         _d_sigma += 2 * _r0 * sigma;
 //CHECK-NEXT:         _d_sigma += 2 * sigma * _r0;
-//CHECK-NEXT:         _d_t -= _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
