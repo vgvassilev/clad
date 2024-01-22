@@ -38,9 +38,9 @@ double minimalPointer(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_p;
+// CHECK-NEXT:         *_d_p -= _r_d0;
 // CHECK-NEXT:         *_d_p += _r_d0 * (*p);
 // CHECK-NEXT:         *_d_p += *p * _r_d0;
-// CHECK-NEXT:         *_d_p -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

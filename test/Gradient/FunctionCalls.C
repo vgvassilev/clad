@@ -113,22 +113,22 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t3;
 // CHECK-NEXT:         double _r_d1 = _d_temp;
+// CHECK-NEXT:         _d_temp -= _r_d1;
 // CHECK-NEXT:         i = _t4;
 // CHECK-NEXT:         j = _t5;
 // CHECK-NEXT:         modify1_pullback(_t4, _t5, _r_d1, &* _d_i, &* _d_j);
 // CHECK-NEXT:         double _r2 = * _d_i;
 // CHECK-NEXT:         double _r3 = * _d_j;
-// CHECK-NEXT:         _d_temp -= _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_temp;
+// CHECK-NEXT:         _d_temp -= _r_d0;
 // CHECK-NEXT:         i = _t1;
 // CHECK-NEXT:         j = _t2;
 // CHECK-NEXT:         modify1_pullback(_t1, _t2, _r_d0, &* _d_i, &* _d_j);
 // CHECK-NEXT:         double _r0 = * _d_i;
 // CHECK-NEXT:         double _r1 = * _d_j;
-// CHECK-NEXT:         _d_temp -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -245,8 +245,8 @@ void twice(double& d) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         d = _t0;
 // CHECK-NEXT:         double _r_d0 = * _d_d;
-// CHECK-NEXT:         * _d_d += 2 * _r_d0;
 // CHECK-NEXT:         * _d_d -= _r_d0;
+// CHECK-NEXT:         * _d_d += 2 * _r_d0;
 // CHECK-NEXT:         * _d_d;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -325,9 +325,9 @@ double modify2(double* arr) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         arr[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_arr[0];
+// CHECK-NEXT:         _d_arr[0] -= _r_d0;
 // CHECK-NEXT:         _d_arr[0] += 5 * _r_d0;
 // CHECK-NEXT:         _d_arr[1] += _r_d0;
-// CHECK-NEXT:         _d_arr[0] -= _r_d0;
 // CHECK-NEXT:         _d_arr[0];
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -545,6 +545,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t4;
 // CHECK-NEXT:        double _r_d2 = _d_out;
+// CHECK-NEXT:        _d_out -= _r_d2;
 // CHECK-NEXT:        out = _t5;
 // CHECK-NEXT:        double _grad5 = 0.;
 // CHECK-NEXT:        double _grad6 = 0.;
@@ -552,27 +553,26 @@ double fn10(double x, double y) {
 // CHECK-NEXT:        double _r4 = _d_out;
 // CHECK-NEXT:        double _r5 = _grad5;
 // CHECK-NEXT:        double _r6 = _grad6;
-// CHECK-NEXT:        _d_out -= _r_d2;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t2;
 // CHECK-NEXT:        double _r_d1 = _d_out;
+// CHECK-NEXT:        _d_out -= _r_d1;
 // CHECK-NEXT:        out = _t3;
 // CHECK-NEXT:        double _grad3 = 0.;
 // CHECK-NEXT:        clad::custom_derivatives::std::min_pullback(_t3, 10., _r_d1, &_d_out, &_grad3);
 // CHECK-NEXT:        double _r2 = _d_out;
 // CHECK-NEXT:        double _r3 = _grad3;
-// CHECK-NEXT:        _d_out -= _r_d1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t0;
 // CHECK-NEXT:        double _r_d0 = _d_out;
+// CHECK-NEXT:        _d_out -= _r_d0;
 // CHECK-NEXT:        out = _t1;
 // CHECK-NEXT:        double _grad1 = 0.;
 // CHECK-NEXT:        clad::custom_derivatives::std::max_pullback(_t1, 0., _r_d0, &_d_out, &_grad1);
 // CHECK-NEXT:        double _r0 = _d_out;
 // CHECK-NEXT:        double _r1 = _grad1;
-// CHECK-NEXT:        _d_out -= _r_d0;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    * _d_x += _d_out;
 // CHECK-NEXT: }
