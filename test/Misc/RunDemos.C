@@ -131,11 +131,11 @@
 //CHECK_FLOAT_SUM:         {
 //CHECK_FLOAT_SUM:             sum = clad::pop(_t1);
 //CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
+//CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
 //CHECK_FLOAT_SUM:             _d_sum += _r_d0;
 //CHECK_FLOAT_SUM:             * _d_x += _r_d0;
 //CHECK_FLOAT_SUM:             float _r0 = clad::pop(_EERepl_sum1);
 //CHECK_FLOAT_SUM:             _delta_sum += std::abs(_r_d0 * _r0 * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
 //CHECK_FLOAT_SUM:         }
 //CHECK_FLOAT_SUM:     }
 //CHECK_FLOAT_SUM:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * 1.1920928955078125E-7);
@@ -174,10 +174,10 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _delta_z += _r_d0 * _EERepl_z1;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_x = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _delta_x += * _d_x * x;
@@ -216,10 +216,10 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
+// CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _delta_z += clad::getErrorVal(_r_d0, _EERepl_z1, "z");
-// CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    }
 // CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_x = 0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _delta_x += clad::getErrorVal(* _d_x, x, "x");
