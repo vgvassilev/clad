@@ -1759,7 +1759,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedArgs, noLoc).get();
 
             Expr* dCall =
-                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgs, noLoc).get();
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
 
             Expr* dCallZero =
                 m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgsZero, noLoc).get();

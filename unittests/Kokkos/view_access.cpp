@@ -35,7 +35,7 @@ double f_2(double x, double y) {
 
   Kokkos::deep_copy(a, 3*x+y);
   b(0,0) = x;
-  //Kokkos::deep_copy(b, a);
+  Kokkos::deep_copy(b, a);
 
   b(0,0) += a(0,0) * b(0,0);
 

@@ -122,6 +122,20 @@ struct ViewAdd<Viewtype, Layout, 1, iType> {
                 v(i0) += update;
         });
   }
+
+  template<class ExecSpace, class ResultT>
+  static void executeView(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
+
+    using policy_type = Kokkos::RangePolicy<ExecSpace, Kokkos::IndexType<iType>>;
+
+    Kokkos::parallel_for(
+        "ViewAdd-1D",
+        policy_type(space, 0, v.extent(0)),
+        KOKKOS_LAMBDA (
+            const iType& i0) {
+                v(i0) += update(i0);
+        });
+  }
 };
 
 template <class Viewtype, class Layout, typename iType>
@@ -146,6 +160,28 @@ struct ViewAdd<Viewtype, Layout, 2, iType> {
             const iType& i0, 
             const iType& i1) {
                 v(i0, i1) += update;
+        });
+  }
+
+  template<class ExecSpace, class ResultT>
+  static void executeView(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
+
+    static const Kokkos::Iterate outer_iteration_pattern =
+        Kokkos::layout_iterate_type_selector<Layout>::outer_iteration_pattern;
+    static const Kokkos::Iterate inner_iteration_pattern =
+        Kokkos::layout_iterate_type_selector<Layout>::inner_iteration_pattern;
+    using iterate_type =
+        Kokkos::Rank<2, outer_iteration_pattern, inner_iteration_pattern>;
+    using policy_type =
+        Kokkos::MDRangePolicy<ExecSpace, iterate_type, Kokkos::IndexType<iType>>;
+
+    Kokkos::parallel_for(
+        "ViewAdd-2D",
+        policy_type(space, {0, 0}, {v.extent(0), v.extent(1)}),
+        KOKKOS_LAMBDA (
+            const iType& i0, 
+            const iType& i1) {
+                v(i0, i1) += update(i0, i1);
         });
   }
 };
@@ -175,11 +211,35 @@ struct ViewAdd<Viewtype, Layout, 3, iType> {
                 v(i0, i1, i2) += update;
         });
   }
+
+  template<class ExecSpace, class ResultT>
+  static void executeView(const Viewtype& v, ResultT& update, const ExecSpace space = ExecSpace()) {
+
+    static const Kokkos::Iterate outer_iteration_pattern =
+        Kokkos::layout_iterate_type_selector<Layout>::outer_iteration_pattern;
+    static const Kokkos::Iterate inner_iteration_pattern =
+        Kokkos::layout_iterate_type_selector<Layout>::inner_iteration_pattern;
+    using iterate_type =
+        Kokkos::Rank<3, outer_iteration_pattern, inner_iteration_pattern>;
+    using policy_type =
+        Kokkos::MDRangePolicy<ExecSpace, iterate_type, Kokkos::IndexType<iType>>;
+
+    Kokkos::parallel_for(
+        "ViewAdd-3D",
+        policy_type(space, {0, 0}, {v.extent(0), v.extent(1), v.extent(2)}),
+        KOKKOS_LAMBDA (
+            const iType& i0, 
+            const iType& i1,
+            const iType& i2) {
+                v(i0, i1, i2) += update(i0, i1, i2);
+        });
+  }
 };
 
 
-template <typename ViewtypeA>
-void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
+template <class DT, class... DP>
+void parallel_sum(typename Kokkos::ViewTraits<DT, DP...>::value_type &sum, const Kokkos::View<DT, DP...> A) {
+  using ViewtypeA = Kokkos::View<DT, DP...>;
   Kokkos::fence("parallel_sum: pre sum fence");
   if (A.span_is_contiguous()) {
 
@@ -200,8 +260,9 @@ void parallel_sum(typename ViewtypeA::value_type &sum, const ViewtypeA A) {
   Kokkos::fence("parallel_sum: post sum fence");
 }
 
-template <class ExecSpace, typename ViewtypeA>
-void parallel_sum(const ExecSpace& space, typename ViewtypeA::value_type &sum, const ViewtypeA A) {
+template <class ExecSpace, class DT, class... DP>
+void parallel_sum(const ExecSpace& space, typename Kokkos::ViewTraits<DT, DP...>::value_type &sum, const Kokkos::View<DT, DP...> A) {
+  using ViewtypeA = Kokkos::View<DT, DP...>;
   space.fence("parallel_sum: pre sum fence");
   if (A.span_is_contiguous()) {
 
@@ -222,8 +283,9 @@ void parallel_sum(const ExecSpace& space, typename ViewtypeA::value_type &sum, c
   space.fence("parallel_sum: post sum fence");
 }
 
-template <typename ViewtypeA>
-void parallel_sum(ViewtypeA A, const typename ViewtypeA::value_type b) {
+template <class DT, class... DP>
+void parallel_sum(Kokkos::View<DT, DP...> A, typename Kokkos::ViewTraits<DT, DP...>::const_value_type b) {
+  using ViewtypeA = Kokkos::View<DT, DP...>;
   Kokkos::fence("parallel_sum: pre add fence");
   if (A.span_is_contiguous()) {
 
@@ -244,8 +306,9 @@ void parallel_sum(ViewtypeA A, const typename ViewtypeA::value_type b) {
   Kokkos::fence("parallel_sum: post add fence");
 }
 
-template <class ExecSpace, typename ViewtypeA>
-void parallel_sum(const ExecSpace& space, ViewtypeA A, const typename ViewtypeA::value_type b) {
+template <class ExecSpace, class DT, class... DP>
+void parallel_sum(const ExecSpace& space, Kokkos::View<DT, DP...> A, typename Kokkos::ViewTraits<DT, DP...>::const_value_type b) {
+  using ViewtypeA = Kokkos::View<DT, DP...>;
   space.fence("parallel_sum: pre add fence");
   if (A.span_is_contiguous()) {
 
@@ -264,6 +327,17 @@ void parallel_sum(const ExecSpace& space, ViewtypeA A, const typename ViewtypeA:
     ViewAdd<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template execute<ExecSpace>(A, b, space);
   }
   space.fence("parallel_sum: post add fence");
+}
+
+template <class DT, class... DP, class ST, class... SP>
+void parallel_sum(Kokkos::View<DT, DP...> A, const Kokkos::View<ST, SP...> B) {
+  using ViewtypeA = Kokkos::View<DT, DP...>;
+  using ViewtypeA = Kokkos::View<ST, SP...>;
+  Kokkos::fence("parallel_sum: pre add fence");
+
+  ViewAdd<ViewtypeA, typename ViewtypeA::array_layout, ViewtypeA::rank, int>::template executeView<typename ViewtypeA::execution_space>(A, B);
+
+  Kokkos::fence("parallel_sum: post add fence");
 }
 
 }
