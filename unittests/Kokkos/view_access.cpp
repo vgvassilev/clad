@@ -70,7 +70,8 @@ TEST(view_access, test_2) {
   f_grad_exe.execute(3., 4., &dx, &dy);
   EXPECT_NEAR(f_x.execute(3, 4),dx,tolerance*dx);
 
+  double dx_2, dy_2;
   auto f_2_grad_exe = clad::gradient(f_2);
-  //f_2_grad_exe.execute(3., 4., &dx, &dy);
-  //EXPECT_NEAR(f_2_x.execute(3, 4),dx,tolerance*dx);
+  f_2_grad_exe.execute(3., 4., &dx_2, &dy_2);
+  EXPECT_NEAR(f_2_x.execute(3, 4),dx_2,tolerance*dx_2);
 }
