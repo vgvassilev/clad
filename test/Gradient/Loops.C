@@ -35,9 +35,9 @@ double f1(double x) {
 //CHECK-NEXT:           i--;
 //CHECK-NEXT:           t = clad::pop(_t1);
 //CHECK-NEXT:           double _r_d0 = _d_t;
+//CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:           _d_t += _r_d0 * x;
 //CHECK-NEXT:           * _d_x += t * _r_d0;
-//CHECK-NEXT:           _d_t -= _r_d0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -78,9 +78,9 @@ double f2(double x) {
 //CHECK-NEXT:               j--;
 //CHECK-NEXT:               t = clad::pop(_t3);
 //CHECK-NEXT:               double _r_d0 = _d_t;
+//CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:               _d_t += _r_d0 * x;
 //CHECK-NEXT:               * _d_x += t * _r_d0;
-//CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:           {
 //CHECK-NEXT:               _d_j = 0;
@@ -130,9 +130,9 @@ double f3(double x) {
 //CHECK-NEXT:           {
 //CHECK-NEXT:               t = clad::pop(_t1);
 //CHECK-NEXT:               double _r_d0 = _d_t;
+//CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:               _d_t += _r_d0 * x;
 //CHECK-NEXT:               * _d_x += t * _r_d0;
-//CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -162,9 +162,9 @@ double f4(double x) {
 //CHECK-NEXT:           {
 //CHECK-NEXT:               t = clad::pop(_t1);
 //CHECK-NEXT:               double _r_d0 = _d_t;
+//CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:               _d_t += _r_d0 * x;
 //CHECK-NEXT:               * _d_x += t * _r_d0;
-//CHECK-NEXT:               _d_t -= _r_d0;
 //CHECK-NEXT:           }
 //CHECK-NEXT:           i--;
 //CHECK-NEXT:       }
@@ -374,13 +374,13 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         power = _t2;
 //CHECK-NEXT:         double _r_d1 = _d_power;
+//CHECK-NEXT:         _d_power -= _r_d1;
 //CHECK-NEXT:         _d_power += -_r_d1 / _t3;
 //CHECK-NEXT:         double _r1 = _r_d1 * --power / (_t3 * _t3);
 //CHECK-NEXT:         double _grad1 = 0.;
 //CHECK-NEXT:         sq_pullback(sigma, 2 * _r1, &_grad1);
 //CHECK-NEXT:         double _r2 = _grad1;
 //CHECK-NEXT:         _d_sigma += _r2;
-//CHECK-NEXT:         _d_power -= _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -669,11 +669,11 @@ double fn9(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         counter = _t0;
 // CHECK-NEXT:         int _r_d0 = _d_counter;
+// CHECK-NEXT:         _d_counter -= _r_d0;
 // CHECK-NEXT:         _d_counter_again += _r_d0;
 // CHECK-NEXT:         counter_again = _t1;
 // CHECK-NEXT:         int _r_d1 = _d_counter_again;
 // CHECK-NEXT:         _d_counter_again -= _r_d1;
-// CHECK-NEXT:         _d_counter -= _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

@@ -167,8 +167,8 @@ double f_div3(double x, double y) {
 //CHECK-NEXT:         * _d_x += 1 / _t0;
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _r_d0 = * _d_x;
-//CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         * _d_x -= _r_d0;
+//CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         double _r0 = 1 * -_t2 / (_t0 * _t0);
 //CHECK-NEXT:         * _d_y += _r0 * y;
 //CHECK-NEXT:         * _d_y += y * _r0;
@@ -309,9 +309,9 @@ double f_cond4(double x, double y) {
 //CHECK-NEXT:           {
 //CHECK-NEXT:               y = _t0;
 //CHECK-NEXT:               double _r_d0 = * _d_y;
+//CHECK-NEXT:               * _d_y -= _r_d0;
 //CHECK-NEXT:               _d_arr[i] += _r_d0 * x;
 //CHECK-NEXT:               * _d_x += arr[i] * _r_d0;
-//CHECK-NEXT:               * _d_y -= _r_d0;
 //CHECK-NEXT:               * _d_y;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
