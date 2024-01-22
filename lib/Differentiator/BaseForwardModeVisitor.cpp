@@ -1345,8 +1345,6 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
-  } else if (opKind == UnaryOperatorKind::UO_Not) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else {
     unsupportedOpWarn(UnOp->getEndLoc());
     auto zero =
@@ -1912,7 +1910,7 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
 
   // Check if we are in a Kokkos View construction.
-  if (constructedTypeName.rfind("Kokkos::View", 0) == 0) {
+  if (utils::IsKokkosView(constructedTypeName)) {
     size_t runTimeDim = 0;
     std::vector<size_t> compileTimeDims;
     bool read = false;
@@ -1929,12 +1927,20 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     for (auto arg : CE->arguments()) {
       if (i == runTimeDim + 1)
         break;
-      auto argDiff = Visit(arg);
-      clonedArgs.push_back(argDiff.getExpr());
-      if (i==0)
-        derivedArgs.push_back(argDiff.getExpr_dx());
-      else
-        derivedArgs.push_back(argDiff.getExpr());
+      clonedArgs.push_back(Clone(arg));
+      if(isa<clang::StringLiteral>(arg)) {
+        // Prepend the label of the view with "_d_".
+        // This is a very specific case and not a general derivation of a string.
+        auto SL = dyn_cast<clang::StringLiteral>(arg);
+        std::string name_str("_d_"+ SL->getString().str());
+        StringRef name(name_str);
+
+        derivedArgs.push_back(StringLiteral::Create(m_Sema.getASTContext(), name, 
+          SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc()));
+      }
+      else {
+        derivedArgs.push_back(Clone(arg));
+      }
       ++i;
     }
   }
@@ -2111,23 +2117,6 @@ StmtDiff BaseForwardModeVisitor::VisitCXXBindTemporaryExpr(
   StmtDiff BTEDiff = Visit(BTE->getSubExpr());
   return BTEDiff;
 }
-
-StmtDiff BaseForwardModeVisitor::VisitValueStmt(
-    const clang::ValueStmt* VS) {
-  // Test if StringLiteral
-  if (isa<StringLiteral>(VS)) {
-    auto SL = dyn_cast<clang::StringLiteral>(VS);
-
-    std::string name_str("_d_"+ SL->getString().str());
-    StringRef name(name_str);
-
-    Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name, 
-      SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
-    return {Clone(VS), derivedVS};
-  }
-  return {Clone(VS), Clone(VS)};
-}
-
 
 StmtDiff BaseForwardModeVisitor::VisitCXXNullPtrLiteralExpr(
     const clang::CXXNullPtrLiteralExpr* NPL) {

@@ -100,7 +100,6 @@ public:
   StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* CSE);
   StmtDiff VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
   StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
-  StmtDiff VisitValueStmt(const clang::ValueStmt* VS);
   StmtDiff VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPL);
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);

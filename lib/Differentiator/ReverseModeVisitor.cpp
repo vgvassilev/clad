@@ -753,18 +753,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitValueStmt(const clang::ValueStmt* VS) {
-    // Test if StringLiteral
-    if (isa<StringLiteral>(VS)) {
-      auto SL = dyn_cast<clang::StringLiteral>(VS);
-
-      std::string name_str("_d_"+ SL->getString().str());
-      StringRef name(name_str);
-
-      Expr* derivedVS = StringLiteral::Create(m_Sema.getASTContext(), name,
-        SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc());
-
-      return {Clone(VS), derivedVS};
-    }
     if (isa<CXXBindTemporaryExpr>(VS)) {
       auto CBTE = dyn_cast<CXXBindTemporaryExpr>(VS);
 
@@ -3285,11 +3273,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         for (auto arg : CE->arguments()) {
           if (i == runTimeDim + 1)
             break;
-          auto argDiff = Visit(arg);
-          if (i == 0)
-            clonedArgs.push_back(argDiff.getExpr_dx());
-          else
-            clonedArgs.push_back(argDiff.getExpr());
+          if(isa<clang::StringLiteral>(arg)) {
+            // Prepend the label of the view with "_d_".
+            // This is a very specific case and not a general derivation of a string.
+            auto SL = dyn_cast<clang::StringLiteral>(arg);
+            std::string name_str("_d_"+ SL->getString().str());
+            StringRef name(name_str);
+
+            clonedArgs.push_back(StringLiteral::Create(m_Sema.getASTContext(), name, 
+              SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc()));
+          }
+          else {
+            clonedArgs.push_back(Clone(arg));
+          }
           ++i;
         }
 
