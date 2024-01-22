@@ -3329,7 +3329,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           assert(false &&
                 "Not supported yet!");
       }
+    } else if (utils::IsKokkosTeamPolicy(constructedTypeName)) {
+      if (isa<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts())) {
+        auto CE = dyn_cast<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts());
+        llvm::SmallVector<Expr*, 4> clonedArgs;
+        for (auto arg : CE->arguments()) {
+          clonedArgs.push_back(Clone(arg));
+        }
 
+        VDDerivedInit =
+            m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+
+
+        VDDerived =
+            BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                        VDDerivedInit, VD->isDirectInit(),
+                        m_Context.getTrivialTypeSourceInfo(VDDerivedType),
+                        VD->getInitStyle());
+      }
+    }
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     } else if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
