@@ -277,7 +277,23 @@ namespace clad {
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
 
     clang::Expr* BuildParens(clang::Expr* E);
-
+    /// Builds variable declaration to be used inside the derivative
+    /// body.
+    /// \param[in] Type The type of variable declaration to build.
+    /// \param[in] Identifier The identifier information for the variable
+    /// declaration.
+    /// \param[in] Init The initalization expression to assign to the variable
+    ///  declaration.
+    /// \param[in] DirectInit A check for if the initialization expression is a
+    /// C style initalization.
+    /// \param[in] TSI The type source information of the variable declaration.
+    /// \returns The newly built variable declaration.
+    clang::VarDecl*
+    BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
+                 clang::Scope* scope, clang::Expr* Init = nullptr,
+                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
+                 clang::VarDecl::InitializationStyle IS =
+                     clang::VarDecl::InitializationStyle::CInit);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -311,6 +327,14 @@ namespace clad {
                  clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
                      clang::VarDecl::InitializationStyle::CInit);
+    /// Builds variable declaration to be used inside the derivative
+    /// body in the derivative function global scope.
+    clang::VarDecl*
+    BuildGlobalVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
+                       clang::Expr* Init = nullptr, bool DirectInit = false,
+                       clang::TypeSourceInfo* TSI = nullptr,
+                       clang::VarDecl::InitializationStyle IS =
+                           clang::VarDecl::InitializationStyle::CInit);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.

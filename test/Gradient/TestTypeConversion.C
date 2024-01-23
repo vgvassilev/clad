@@ -21,9 +21,10 @@ void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::
 // CHECK: void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::array_ref<int> _d_a) {
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 1; i < a; i++) {
+// CHECK-NEXT:     for (i = 1; i < a; i++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, z);
 // CHECK-NEXT:         z = z * a;

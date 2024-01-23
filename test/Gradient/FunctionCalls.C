@@ -206,11 +206,12 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     float res = 0;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += arr[i];
@@ -266,6 +267,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double *_t1;
 // CHECK-NEXT:     unsigned long _t2;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
 // CHECK-NEXT:     double res = 0;
@@ -273,7 +275,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     _t1 = arr;
 // CHECK-NEXT:     res += sum(arr, n);
 // CHECK-NEXT:     _t2 = 0;
-// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t2++;
 // CHECK-NEXT:         clad::push(_t3, arr[i]);
 // CHECK-NEXT:         twice(arr[i]);

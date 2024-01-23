@@ -21,12 +21,13 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     double _EERepl_sum0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     clad::tape<double> _EERepl_sum1 = {};
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     _EERepl_sum0 = sum;
 //CHECK-NEXT:     _t0 = 0;
-//CHECK-NEXT:     for (int i = 1; i < n; i++) {
+//CHECK-NEXT:     for (i = 1; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += f[i] + f[i - 1];
@@ -48,10 +49,10 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
 //CHECK-NEXT:     clad::array<float> _delta_f(_d_f.size());
-//CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     for (; i < _d_f.size(); i++) {
-//CHECK-NEXT:         double _t2 = std::abs(_d_f[i] * f[i] * {{.+}});
-//CHECK-NEXT:         _delta_f[i] += _t2;
+//CHECK-NEXT:     int i0 = 0;
+//CHECK-NEXT:     for (; i0 < _d_f.size(); i0++) {
+//CHECK-NEXT:         double _t2 = std::abs(_d_f[i0] * f[i0] * {{.+}});
+//CHECK-NEXT:         _delta_f[i0] += _t2;
 //CHECK-NEXT:         _final_error += _t2;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += _delta_sum;
@@ -72,6 +73,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     double _EERepl_sum0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
 //CHECK-NEXT:     clad::tape<int> _t2 = {};
 //CHECK-NEXT:     int _d_j = 0;
@@ -81,7 +83,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     _EERepl_sum0 = sum;
 //CHECK-NEXT:     _t0 = 0;
-//CHECK-NEXT:     for (int i = 0; i < n; i++) {
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, 0UL);
 //CHECK-NEXT:         for (clad::push(_t2, j) , j = 0; j < n; j++) {
@@ -115,17 +117,17 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
 //CHECK-NEXT:     clad::array<float> _delta_a(_d_a.size());
-//CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     for (; i < _d_a.size(); i++) {
-//CHECK-NEXT:         double _t4 = std::abs(_d_a[i] * a[i] * {{.+}});
-//CHECK-NEXT:         _delta_a[i] += _t4;
+//CHECK-NEXT:     int i0 = 0;
+//CHECK-NEXT:     for (; i0 < _d_a.size(); i0++) {
+//CHECK-NEXT:         double _t4 = std::abs(_d_a[i0] * a[i0] * {{.+}});
+//CHECK-NEXT:         _delta_a[i0] += _t4;
 //CHECK-NEXT:         _final_error += _t4;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     clad::array<float> _delta_b(_d_b.size());
-//CHECK-NEXT:     i = 0;
-//CHECK-NEXT:     for (; i < _d_b.size(); i++) {
-//CHECK-NEXT:         double _t5 = std::abs(_d_b[i] * b[i] * {{.+}});
-//CHECK-NEXT:         _delta_b[i] += _t5;
+//CHECK-NEXT:     i0 = 0;
+//CHECK-NEXT:     for (; i0 < _d_b.size(); i0++) {
+//CHECK-NEXT:         double _t5 = std::abs(_d_b[i0] * b[i0] * {{.+}});
+//CHECK-NEXT:         _delta_b[i0] += _t5;
 //CHECK-NEXT:         _final_error += _t5;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += _delta_sum;
@@ -145,12 +147,13 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     double _EERepl_sum0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     clad::tape<double> _EERepl_sum1 = {};
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     _EERepl_sum0 = sum;
 //CHECK-NEXT:     _t0 = 0;
-//CHECK-NEXT:     for (int i = 0; i < n; i++) {
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += a[i] / b[i];
@@ -173,17 +176,17 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
 //CHECK-NEXT:     clad::array<float> _delta_a(_d_a.size());
-//CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     for (; i < _d_a.size(); i++) {
-//CHECK-NEXT:         double _t2 = std::abs(_d_a[i] * a[i] * {{.+}});
-//CHECK-NEXT:         _delta_a[i] += _t2;
+//CHECK-NEXT:     int i0 = 0;
+//CHECK-NEXT:     for (; i0 < _d_a.size(); i0++) {
+//CHECK-NEXT:         double _t2 = std::abs(_d_a[i0] * a[i0] * {{.+}});
+//CHECK-NEXT:         _delta_a[i0] += _t2;
 //CHECK-NEXT:         _final_error += _t2;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     clad::array<float> _delta_b(_d_b.size());
-//CHECK-NEXT:     i = 0;
-//CHECK-NEXT:     for (; i < _d_b.size(); i++) {
-//CHECK-NEXT:         double _t3 = std::abs(_d_b[i] * b[i] * {{.+}});
-//CHECK-NEXT:         _delta_b[i] += _t3;
+//CHECK-NEXT:     i0 = 0;
+//CHECK-NEXT:     for (; i0 < _d_b.size(); i0++) {
+//CHECK-NEXT:         double _t3 = std::abs(_d_b[i0] * b[i0] * {{.+}});
+//CHECK-NEXT:         _delta_b[i0] += _t3;
 //CHECK-NEXT:         _final_error += _t3;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += _delta_sum;

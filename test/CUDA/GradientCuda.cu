@@ -34,6 +34,7 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     double _d_t = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _t2;
 //CHECK-NEXT:     double _t3;
@@ -42,7 +43,7 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     double _t6;
 //CHECK-NEXT:     double t = 0;
 //CHECK-NEXT:     _t0 = 0;
-//CHECK-NEXT:     for (int i = 0; i < dim; i++) {
+//CHECK-NEXT:     for (i = 0; i < dim; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, t);
 //CHECK-NEXT:         t += (x[i] - p[i]) * (x[i] - p[i]);

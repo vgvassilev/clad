@@ -23,8 +23,8 @@ private:
   std::size_t m_size = 0;
 
 public:
-  /// Delete default constructor
-  array() = delete;
+  /// Default constructor
+  array() = default;
   /// Constructor to create an array of the specified size
   CUDA_HOST_DEVICE array(std::size_t size)
       : m_arr(new T[size]{static_cast<T>(0)}), m_size(size) {}
@@ -81,6 +81,12 @@ public:
   }
 
   CUDA_HOST_DEVICE array<T>& operator=(const array<T>& arr) {
+    if (m_size < arr.m_size) {
+      delete[] m_arr;
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      m_arr = new T[arr.m_size];
+      m_size = arr.m_size;
+    }
     (*this) = arr.m_arr;
     return *this;
   }

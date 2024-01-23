@@ -60,10 +60,11 @@ double sum(Tangent& t) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += t.data[i];
@@ -90,10 +91,11 @@ double sum(double *data) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += data[i];
@@ -369,9 +371,10 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK: void updateTo_pullback(double d, clad::array_ref<Tangent> _d_this, clad::array_ref<double> _d_d) {
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, this->data[i]);
 // CHECK-NEXT:         this->data[i] = d;
@@ -421,6 +424,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<dcomplex> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
@@ -429,7 +433,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     Tangent _t6;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         clad::push(_t2, c);

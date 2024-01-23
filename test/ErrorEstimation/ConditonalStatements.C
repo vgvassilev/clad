@@ -26,6 +26,7 @@ float func(float x, float y) {
 //CHECK-NEXT:     float _d_temp = 0;
 //CHECK-NEXT:     double _delta_temp = 0;
 //CHECK-NEXT:     float _EERepl_temp0;
+//CHECK-NEXT:     float temp = 0;
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _EERepl_temp1;
 //CHECK-NEXT:     float _t2;
@@ -36,7 +37,7 @@ float func(float x, float y) {
 //CHECK-NEXT:         y = y * x;
 //CHECK-NEXT:         _EERepl_y1 = y;
 //CHECK-NEXT:     } else {
-//CHECK-NEXT:         float temp = y;
+//CHECK-NEXT:         temp = y;
 //CHECK-NEXT:         _EERepl_temp0 = temp;
 //CHECK-NEXT:         _t1 = temp;
 //CHECK-NEXT:         temp = y * y;
@@ -77,7 +78,10 @@ float func(float x, float y) {
 //CHECK-NEXT:             * _d_y += y * _r_d1;
 //CHECK-NEXT:             _delta_temp += std::abs(_r_d1 * _EERepl_temp1 * {{.+}});
 //CHECK-NEXT:         }
-//CHECK-NEXT:         * _d_y += _d_temp;
+//CHECK-NEXT:         {
+//CHECK-NEXT:             * _d_y += _d_temp;
+//CHECK-NEXT:             _delta_temp += std::abs(_d_temp * _EERepl_temp0 * {{.+}});
+//CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});

@@ -701,9 +701,10 @@ float running_sum(float* p, int n) {
 // CHECK: void running_sum_grad(float *p, int n, clad::array_ref<float> _d_p, clad::array_ref<int> _d_n) {
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 1; i < n; i++) {
+// CHECK-NEXT:     for (i = 1; i < n; i++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, p[i]);
 // CHECK-NEXT:         p[i] += p[i - 1];
