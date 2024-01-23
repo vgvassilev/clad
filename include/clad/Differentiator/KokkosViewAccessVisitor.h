@@ -401,7 +401,7 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
       std::vector<bool> view_accesses_is_thread_safe;
       std::vector<const clang::CXXOperatorCallExpr*> view_accesses;
       std::vector<bool> view_accesses_RHS;
-      std::vector<const clang::SourceLocation> view_accesses_location;
+      std::vector<clang::SourceLocation> view_accesses_location;
   };
 } // end namespace clad
 
