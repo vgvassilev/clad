@@ -215,8 +215,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto* gradientParam = gradientParams[i];
 
       auto* gradientVD =
-          BuildVarDecl(gradientParam->getType(), gradientParam->getName(),
-                       BuildDeclRef(overloadParam));
+          BuildGlobalVarDecl(gradientParam->getType(), gradientParam->getName(),
+                             BuildDeclRef(overloadParam));
       callArgs.push_back(BuildDeclRef(gradientVD));
       addToCurrentBlock(BuildDeclStmt(gradientVD));
     }
@@ -581,8 +581,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (utils::isArrayOrPointerType(VDDerivedType))
         continue;
       auto* VDDerived =
-          BuildVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                       getZeroInit(VDDerivedType));
+          BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
+                             getZeroInit(VDDerivedType));
       m_Variables[param] = BuildDeclRef(VDDerived);
       addToBlock(BuildDeclStmt(VDDerived), m_Globals);
     }
@@ -746,7 +746,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
-    beginScope(Scope::DeclScope);
+    int scopeFlags = Scope::DeclScope;
+    // If this is the outermost compound statement of the function,
+    // propagate the function scope.
+    if (getCurrentScope() == m_DerivativeFnScope)
+      scopeFlags |= Scope::FnScope;
+    beginScope(scopeFlags);
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
     for (Stmt* S : CS->body()) {
@@ -1271,26 +1276,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return cloned;
     Expr* result = nullptr;
     Expr* forwSweepDerivative = nullptr;
-    if (utils::isArrayOrPointerType(target->getType())) {
-      // Create the target[idx] expression.
-      result = BuildArraySubscript(target, reverseIndices);
-      forwSweepDerivative =
-          BuildArraySubscript(target, forwSweepDerivativeIndices);
-    }
-    else if (isCladArrayType(target->getType())) {
-      result = m_Sema
-                   .ActOnArraySubscriptExpr(getCurrentScope(), target,
-                                            ASE->getExprLoc(),
-                                            reverseIndices.back(), noLoc)
-                   .get();
-      forwSweepDerivative =
-          m_Sema
-              .ActOnArraySubscriptExpr(getCurrentScope(), target,
-                                       ASE->getExprLoc(),
-                                       forwSweepDerivativeIndices.back(), noLoc)
-              .get();
-    } else
-      result = target;
+    // Create the target[idx] expression.
+    result = BuildArraySubscript(target, reverseIndices);
+    forwSweepDerivative =
+        BuildArraySubscript(target, forwSweepDerivativeIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
@@ -1301,10 +1290,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
-    auto* clonedDRE = cast<DeclRefExpr>(Clone(DRE));
+    Expr* clonedDRE = Clone(DRE);
     // Check if referenced Decl was "replaced" with another identifier inside
     // the derivative
-    if (auto* VD = dyn_cast<VarDecl>(clonedDRE->getDecl())) {
+    if (auto* VD = dyn_cast<VarDecl>(cast<DeclRefExpr>(clonedDRE)->getDecl())) {
       // If current context is different than the context of the original
       // declaration (e.g. we are inside lambda), rebuild the DeclRefExpr
       // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
@@ -1312,7 +1301,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // to the underlying struct of a lambda.
       if (VD->getDeclContext() != m_Sema.CurContext)
         clonedDRE = cast<DeclRefExpr>(BuildDeclRef(VD));
-
+      // This case happens when ref-type variables have to become function
+      // global. Ref-type declarations cannot be moved to the function global
+      // scope because they can't be separated from their inits.
+      if (DRE->getDecl()->getType()->isReferenceType() &&
+          clonedDRE->getType()->isPointerType())
+        clonedDRE = BuildOp(UO_Deref, clonedDRE);
       if (isVectorValued) {
         if (m_VectorOutput.size() <= outputArrayCursor)
           return StmtDiff(clonedDRE);
@@ -2530,7 +2524,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff;
     Expr* VDDerivedInit = nullptr;
+    // Local declarations are promoted to the function global scope. This
+    // procedure is done to make declarations visible in the reverse sweep.
+    // The reverse_mode_forward_pass mode does not have a reverse pass so
+    // declarations don't have to be moved to the function global scope.
+    bool promoteToFnScope = !getCurrentScope()->isFunctionScope() &&
+                            m_Mode != DiffMode::reverse_mode_forward_pass;
     auto VDDerivedType = ComputeAdjointType(VD->getType());
+    auto VDCloneType = CloneType(VD->getType());
+    // If the cloned declaration is moved to the function global scope,
+    // change its type for the corresponding adjoint type.
+    if (promoteToFnScope)
+      VDCloneType = VDDerivedType;
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VD->getType()->isPointerType();
@@ -2538,11 +2543,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
-      Expr* init = getArraySizeExpr(AT, m_Context, *this);
-      VDDerivedInit = init;
-      VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                               VDDerivedInit, false, nullptr,
-                               clang::VarDecl::InitializationStyle::CallInit);
+      VDDerivedInit = getArraySizeExpr(AT, m_Context, *this);
+      VDDerived = BuildGlobalVarDecl(
+          VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit, false,
+          nullptr, clang::VarDecl::InitializationStyle::CallInit);
+      // If an array-type declaration is promoted to function global,
+      // its type is changed for clad::array. In that case we should
+      // initialize it with its size the same way the derived variable
+      // is initialized.
+      if (promoteToFnScope)
+        initDiff = VDDerivedInit;
     } else {
       // If VD is a reference to a local variable, then the initial value is set
       // to the derived variable of the corresponding local variable.
@@ -2610,17 +2620,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
         VDDerivedInit = getZeroInit(VDDerivedType);
       }
-      // Here separate behaviour for record and non-record types is only
-      // necessary to preserve the old tests.
-      if (VDDerivedType->isRecordType())
-        VDDerived =
-            BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                         VDDerivedInit, VD->isDirectInit(),
-                         m_Context.getTrivialTypeSourceInfo(VDDerivedType),
-                         VD->getInitStyle());
-      else
-        VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                                 VDDerivedInit);
+      VDDerived =
+          BuildGlobalVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                             VDDerivedInit, false, nullptr, VD->getInitStyle());
     }
 
     // If `VD` is a reference to a local variable, then it is already
@@ -2629,7 +2631,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // need to call `Visit` since non-local variables are not differentiated.
     if (!isDerivativeOfRefType && !isPointerType) {
       Expr* derivedE = BuildDeclRef(VDDerived);
-      initDiff = StmtDiff{};
       if (VD->getInit()) {
         if (isa<CXXConstructExpr>(VD->getInit()))
           initDiff = Visit(VD->getInit());
@@ -2658,16 +2659,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
     VarDecl* VDClone = nullptr;
-    // Here separate behaviour for record and non-record types is only
-    // necessary to preserve the old tests.
-    if (VD->getType()->isRecordType()) {
-      VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
-                             initDiff.getExpr(), VD->isDirectInit(),
-                             VD->getTypeSourceInfo(), VD->getInitStyle());
-    } else {
-      VDClone = BuildVarDecl(CloneType(VD->getType()), VD->getNameAsString(),
-                             initDiff.getExpr(), VD->isDirectInit());
-    }
     Expr* derivedVDE = BuildDeclRef(VDDerived);
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
@@ -2679,20 +2670,30 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                           initDiff.getForwSweepExpr_dx()));
       addToCurrentBlock(assignDerivativeE);
       if (isInsideLoop) {
-        auto tape = MakeCladTapeFor(derivedVDE);
-        addToCurrentBlock(tape.Push);
-        auto* reverseSweepDerivativePointerE =
-            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
-        m_LoopBlock.back().push_back(
-            BuildDeclStmt(reverseSweepDerivativePointerE));
-        auto* revSweepDerPointerRef =
-            BuildDeclRef(reverseSweepDerivativePointerE);
-        derivedVDE =
-            BuildOp(UnaryOperatorKind::UO_Deref, revSweepDerPointerRef);
-      } else {
-        derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
+        StmtDiff pushPop =
+            StoreAndRestore(derivedVDE, /*prefix=*/"_t", /*force=*/true);
+        addToCurrentBlock(pushPop.getExpr(), direction::forward);
+        m_LoopBlock.back().push_back(pushPop.getExpr_dx());
       }
+      derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
     }
+
+    // If a ref-type declaration is promoted to function global scope,
+    // it's replaced with a pointer and should be initialized with the
+    // address of the cloned init. e.g.
+    // double& ref = x;
+    // ->
+    // double* ref;
+    // ref = &x;
+    if (isDerivativeOfRefType && promoteToFnScope)
+      VDClone = BuildGlobalVarDecl(
+          VDCloneType, VD->getNameAsString(),
+          BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
+          VD->isDirectInit());
+    else
+      VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+                                   initDiff.getExpr(), VD->isDirectInit(),
+                                   nullptr, VD->getInitStyle());
     if (isPointerType) {
       Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
                                         derivedVDE, initDiff.getExpr_dx());
@@ -2752,6 +2753,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Decl*, 4> declsDiff;
     // Need to put array decls inlined.
     llvm::SmallVector<Decl*, 4> localDeclsDiff;
+    // reverse_mode_forward_pass does not have a reverse pass so declarations
+    // don't have to be moved to the function global scope.
+    bool promoteToFnScope = !getCurrentScope()->isFunctionScope() &&
+                            m_Mode != DiffMode::reverse_mode_forward_pass;
     // For each variable declaration v, create another declaration _d_v to
     // store derivatives for potential reassignments. E.g.
     // double y = x;
@@ -2776,36 +2781,47 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         //   double _d_y = _d_x; // produced as a derivative for y
         //   double y = x;
         //   double _d__d_y = _d_x;
-        //   double _d_y = x; // copied from original funcion, collides with
+        //   double _d_y = x; // copied from original function, collides with
         //   _d_y
         // }
-        if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
+        if (VDDiff.getDecl()->getDeclName() != VD->getDeclName() ||
+            VD->getType() != VDDiff.getDecl()->getType())
           m_DeclReplacements[VD] = VDDiff.getDecl();
 
-        // FIXME: This part in necessary to replace local variables inside loops
-        // with function globals and replace initializations with
-        // assignments. This is a temporary measure to avoid the bug that arises
-        // from overwriting local variables on different loop passes.
-        if (isInsideLoop) {
-          if (VD->getType()->isBuiltinType()) {
-            auto* decl = VDDiff.getDecl();
-            /// The same variable will be assigned with new values every
-            /// loop iteration so the const qualifier must be dropped.
-            if (decl->getType().isConstQualified()) {
-              QualType nonConstType =
-                  getNonConstType(decl->getType(), m_Context, m_Sema);
-              decl->setType(nonConstType);
-            }
-            if (decl->getInit()) {
-              auto* declRef = BuildDeclRef(decl);
+        // Here, we move the declaration to the function global scope.
+        // Initialization is replaced with an assignment operation at the same
+        // place as the original declaration. This procedure is done to make the
+        // declaration visible in the reverse sweep. The variable is stored
+        // before the assignment in case its value is overwritten in a loop.
+        // e.g.
+        // while (cond) {
+        //   double x = k * n;
+        // ...
+        // ->
+        // double x;
+        // clad::tape<double> _t0 = {};
+        // while (cond) {
+        //   clad::push(_t0, x), x = k * n;
+        // ...
+        if (promoteToFnScope) {
+          auto* decl = VDDiff.getDecl();
+          if (VD->getInit()) {
+            auto* declRef = BuildDeclRef(decl);
+            auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
+            if (isInsideLoop) {
               auto pushPop =
                   StoreAndRestore(declRef, /*prefix=*/"_t", /*force=*/true);
               if (pushPop.getExpr() != declRef)
                 addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
-              auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
-              inits.push_back(BuildOp(BO_Comma, pushPop.getExpr(), assignment));
+              assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
             }
-            decl->setInit(getZeroInit(VD->getType()));
+            inits.push_back(assignment);
+            if (isa<ArrayType>(VD->getType())) {
+              decl->setInitStyle(VarDecl::InitializationStyle::CallInit);
+              decl->setInit(Clone(VDDiff.getDecl_dx()->getInit()));
+            } else {
+              decl->setInit(getZeroInit(VD->getType()));
+            }
           }
         }
 
@@ -2839,19 +2855,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActBeforeFinalizingVisitDeclStmt(decls, declsDiff);
     }
 
-    /// FIXME: This part in necessary to replace local variables inside loops
-    /// with function globals and replace initializations with assignments.
-    /// This is a temporary measure to avoid the bug that arises from
-    /// overwriting local variables on different loop passes.
-    if (isInsideLoop) {
-      if (auto* VD = dyn_cast<VarDecl>(decls[0])) {
-        if (VD->getType()->isBuiltinType()) {
-          addToBlock(DSClone, m_Globals);
-          Stmt* initAssignments = MakeCompoundStmt(inits);
-          initAssignments = unwrapIfSingleStmt(initAssignments);
-          return StmtDiff(initAssignments);
-        }
-      }
+    // This part in necessary to replace local variables inside loops
+    // with function globals and replace initializations with assignments.
+    if (promoteToFnScope) {
+      addToBlock(DSClone, m_Globals);
+      Stmt* initAssignments = MakeCompoundStmt(inits);
+      initAssignments = unwrapIfSingleStmt(initAssignments);
+      return StmtDiff(initAssignments);
     }
 
     return StmtDiff(DSClone);

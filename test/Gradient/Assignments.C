@@ -165,6 +165,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       double _d_z = 0;
+//CHECK-NEXT:       double z = 0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double t = x * x;
 //CHECK-NEXT:       _cond0 = x < 0;
@@ -175,7 +176,7 @@ double f5(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       _cond1 = y < 0;
 //CHECK-NEXT:       if (_cond1) {
-//CHECK-NEXT:           double z = t;
+//CHECK-NEXT:           z = t;
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:           t = -t;
 //CHECK-NEXT:       }
@@ -227,6 +228,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       bool _cond1;
 //CHECK-NEXT:       double _d_z = 0;
+//CHECK-NEXT:       double z = 0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double t = x * x;
 //CHECK-NEXT:       _cond0 = x < 0;
@@ -237,7 +239,7 @@ double f6(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:       _cond1 = y < 0;
 //CHECK-NEXT:       if (_cond1) {
-//CHECK-NEXT:           double z = t;
+//CHECK-NEXT:           z = t;
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:           t = -t;
 //CHECK-NEXT:       }

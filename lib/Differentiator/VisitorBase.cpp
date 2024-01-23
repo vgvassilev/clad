@@ -123,12 +123,17 @@ namespace clad {
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     delete oldScope;
   }
-
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
                                      VarDecl::InitializationStyle IS) {
-
+    return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
+                        TSI, IS);
+  }
+  VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
+                                     Scope* Scope, Expr* Init, bool DirectInit,
+                                     TypeSourceInfo* TSI,
+                                     VarDecl::InitializationStyle IS) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
     auto VD =
@@ -144,7 +149,7 @@ namespace clad {
     }
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
-    m_Sema.PushOnScopeChains(VD, getCurrentScope(), /*AddToContext*/ false);
+    m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
     return VD;
   }
 
@@ -160,6 +165,14 @@ namespace clad {
                                      VarDecl::InitializationStyle IS) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
                         TSI, IS);
+  }
+
+  VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
+                                           llvm::StringRef prefix, Expr* Init,
+                                           bool DirectInit, TypeSourceInfo* TSI,
+                                           VarDecl::InitializationStyle IS) {
+    return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
+                        m_DerivativeFnScope, Init, DirectInit, TSI, IS);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -409,9 +422,19 @@ namespace clad {
   Expr* VisitorBase::BuildArraySubscript(
       Expr* Base, const llvm::SmallVectorImpl<clang::Expr*>& Indices) {
     Expr* result = Base;
-    for (Expr* I : Indices)
-      result =
-          m_Sema.CreateBuiltinArraySubscriptExpr(result, noLoc, I, noLoc).get();
+    SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+    if (utils::isArrayOrPointerType(Base->getType())) {
+      for (Expr* I : Indices)
+        result =
+            m_Sema.CreateBuiltinArraySubscriptExpr(result, fakeLoc, I, fakeLoc)
+                .get();
+    } else {
+      Expr* idx = Indices.back();
+      result = m_Sema
+                   .ActOnArraySubscriptExpr(getCurrentScope(), Base, fakeLoc,
+                                            idx, fakeLoc)
+                   .get();
+    }
     return result;
   }
 

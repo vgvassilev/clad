@@ -520,8 +520,12 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // Replace the declaration if it is present in `m_DeclReplacements`.
   if (VarDecl* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
     auto it = m_DeclReplacements.find(VD);
-    if (it != std::end(m_DeclReplacements))
+    if (it != std::end(m_DeclReplacements)) {
       DRE->setDecl(it->second);
+      QualType NonRefQT = it->second->getType().getNonReferenceType();
+      if (NonRefQT != DRE->getType())
+        DRE->setType(NonRefQT);
+    }
   }
 
   DeclarationNameInfo DNI = DRE->getNameInfo();
