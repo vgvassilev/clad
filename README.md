@@ -297,7 +297,7 @@ Clone and build Clad:
 git clone https://github.com/vgvassilev/clad.git
 cd clad
 mkdir build && cd build
-cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DClang_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
 make -j8 clad
 ```
 
