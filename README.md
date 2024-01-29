@@ -272,18 +272,38 @@ cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/llvm -DClang_DIR=/o
 make && make install
 make check-clad
 ```
-###  Building from source LLVM, Clang and Clad (development environment)
+###  Developer Build - LLVM, Clang and Clad from source:
 ```
-sudo -H pip install lit
-git clone https://github.com/llvm/llvm-project.git src
-cd src; git checkout llvmorg-13.0.0
-cd llvm/tools
-git clone https://github.com/vgvassilev/clad.git clad
-cd ../../../
-mkdir obj inst
-cd obj
-cmake -S ../src/llvm -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst 
-make && make install
+pip3 install lit
+```
+Clone the LLVM project and checkout the required LLVM version (Currently supported versions 7.x - 17.x)
+
+```
+git clone https://github.com/llvm/llvm-project.git
+cd llvm-project
+git checkout llvmorg-16.0.0
+```
+Build Clang:
+```
+mkdir build && cd build
+cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="DEBUG" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
+cmake --build . --target clang --parallel $(nproc --all)
+make -j8 check-clang # this installs llvm-config required by lit
+cd ../..
+```
+
+Clone and build Clad:
+```
+git clone https://github.com/vgvassilev/clad.git
+cd clad
+mkdir build && cd build
+cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DClang_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+make -j8 clad
+```
+
+Run the Clad tests:
+```
+make -j8 check-clad
 ```
 
 ## Further reading
