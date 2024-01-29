@@ -272,7 +272,7 @@ cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/llvm -DClang_DIR=/o
 make && make install
 make check-clad
 ```
-###  Developer Build - LLVM, Clang and Clad from source:
+###  Developer Environment - Build LLVM, Clang and Clad from source:
 ```
 pip3 install lit
 ```
