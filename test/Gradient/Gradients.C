@@ -717,7 +717,6 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:             p[i] = clad::pop(_t1);
 // CHECK-NEXT:             float _r_d0 = _d_p[i];
 // CHECK-NEXT:             _d_p[i - 1] += _r_d0;
-// CHECK-NEXT:             _d_p[i];
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

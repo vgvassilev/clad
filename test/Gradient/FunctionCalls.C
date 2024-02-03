@@ -224,7 +224,6 @@ float sum(double* arr, int n) {
 // CHECK-NEXT:         arr[0] = _t2;
 // CHECK-NEXT:         double _r_d1 = _d_arr[0];
 // CHECK-NEXT:         _d_arr[0] += 10 * _r_d1;
-// CHECK-NEXT:         _d_arr[0];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
@@ -328,7 +327,6 @@ double modify2(double* arr) {
 // CHECK-NEXT:         _d_arr[0] -= _r_d0;
 // CHECK-NEXT:         _d_arr[0] += 5 * _r_d0;
 // CHECK-NEXT:         _d_arr[1] += _r_d0;
-// CHECK-NEXT:         _d_arr[0];
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
