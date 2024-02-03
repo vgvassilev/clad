@@ -35,6 +35,8 @@ public:
 
   /// Operator for conversion from array_ref<T> to T*.
   CUDA_HOST_DEVICE operator T*() { return m_arr; }
+  /// Operator for conversion from array_ref<T> to const T*.
+  CUDA_HOST_DEVICE operator const T*() const { return m_arr; }
 
   template <typename U>
   CUDA_HOST_DEVICE array_ref<T>& operator=(const array<U>& a) {
@@ -61,10 +63,6 @@ public:
            "inside the array size.");
     return array_ref<T>(&m_arr[offset], size);
   }
-  /// Returns the reference to the location at the index of the underlying
-  /// array
-  CUDA_HOST_DEVICE T& operator[](std::size_t i) { return m_arr[i]; }
-  CUDA_HOST_DEVICE const T& operator[](std::size_t i) const { return m_arr[i]; }
   /// Returns the reference to the underlying array
   CUDA_HOST_DEVICE T& operator*() { return *m_arr; }
 

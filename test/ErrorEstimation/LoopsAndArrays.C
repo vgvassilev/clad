@@ -239,7 +239,6 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:             float _r0 = clad::pop(_EERepl_x1);
 //CHECK-NEXT:             _delta_x[i] += std::abs(_r_d0 * _r0 * {{.+}});
 //CHECK-NEXT:             _final_error += _delta_x[i];
-//CHECK-NEXT:             _d_x[i];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * {{.+}});
@@ -307,7 +306,6 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _d_x[1] += y[0] * -_r_d2;
 //CHECK-NEXT:         _delta_output[2] += std::abs(_r_d2 * _EERepl_output3 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_output[2];
-//CHECK-NEXT:         _d_output[2];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         output[1] = _t1;
@@ -319,7 +317,6 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _d_y[2] += x[0] * -_r_d1;
 //CHECK-NEXT:         _delta_output[1] += std::abs(_r_d1 * _EERepl_output2 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_output[1];
-//CHECK-NEXT:         _d_output[1];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         output[0] = _t0;
@@ -331,7 +328,6 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _d_y[1] += x[2] * -_r_d0;
 //CHECK-NEXT:         _delta_output[0] += std::abs(_r_d0 * _EERepl_output1 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_output[0];
-//CHECK-NEXT:         _d_output[0];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     clad::array<double> _delta_x(_d_x.size());
 //CHECK-NEXT:     int i = 0;

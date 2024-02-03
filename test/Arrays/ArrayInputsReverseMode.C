@@ -98,7 +98,6 @@ float func(float* a, float* b) {
 //CHECK-NEXT:             _d_a[i] -= _r_d0;
 //CHECK-NEXT:             _d_a[i] += _r_d0 * b[i];
 //CHECK-NEXT:             _d_b[i] += a[i] * _r_d0;
-//CHECK-NEXT:             _d_a[i];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -440,7 +439,6 @@ double func8(double i, double *arr, int n) {
 //CHECK-NEXT:         arr[0] = _t3;
 //CHECK-NEXT:         double _r_d2 = _d_arr[0];
 //CHECK-NEXT:         _d_arr[0] -= _r_d2;
-//CHECK-NEXT:         _d_arr[0];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         res = _t1;
@@ -460,7 +458,6 @@ double func8(double i, double *arr, int n) {
 //CHECK-NEXT:         arr[0] = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_arr[0];
 //CHECK-NEXT:         _d_arr[0] -= _r_d0;
-//CHECK-NEXT:         _d_arr[0];
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
