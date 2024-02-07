@@ -1147,6 +1147,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return Clone(BL);
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitCharacterLiteral(const CharacterLiteral* CL) {
+    return Clone(CL);
+  }
+
+  StmtDiff ReverseModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
+    return StmtDiff(Clone(SL), StringLiteral::Create(
+                                   m_Context, "", SL->getKind(), SL->isPascal(),
+                                   SL->getType(), utils::GetValidSLoc(m_Sema)));
+  }
+
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
@@ -1386,7 +1397,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // subexpression.
         if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
           arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
-        if (!isa<FloatingLiteral>(arg) && !isa<IntegerLiteral>(arg)) {
+        if (!arg->isEvaluatable(m_Context)) {
           allArgsAreConstantLiterals = false;
           break;
         }
