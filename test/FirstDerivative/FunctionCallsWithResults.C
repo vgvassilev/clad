@@ -170,10 +170,6 @@ double nonRealParamFn(const char* a, const char* b = nullptr) {
   return 1;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> nonRealParamFn_pushforward(const char *a, const char *b, const char *_d_a, const char *_d_b) {
-// CHECK-NEXT:     return {1, 0};
-// CHECK-NEXT: }
-
 double fn4(double i, double j) {
   double res = nonRealParamFn(0, 0);
   res += i;
@@ -183,9 +179,8 @@ double fn4(double i, double j) {
 // CHECK: double fn4_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = nonRealParamFn_pushforward(0, 0, 0, 0);
-// CHECK-NEXT:     double _d_res = _t0.pushforward;
-// CHECK-NEXT:     double res = _t0.value;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double res = nonRealParamFn(0, 0);
 // CHECK-NEXT:     _d_res += _d_i;
 // CHECK-NEXT:     res += i;
 // CHECK-NEXT:     return _d_res;
@@ -294,10 +289,21 @@ double sum(double* arr, int n) {
 // CHECK-NEXT:     return {val, _d_val};
 // CHECK-NEXT: }
 
+double check_and_return(double x, char c) {
+  if (c == 'a')
+    return x;
+  return 1;
+}
+// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c) {
+// CHECK-NEXT:   if (c == 'a')
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT:   return {1, 0};
+// CHECK-NEXT: }
+
 double fn8(double i, double j) {
   double arr[5] = {};
   modifyArr(arr, 5, i*j);
-  return sum(arr, 5) * std::tanh(1.0);
+  return check_and_return(sum(arr, 5), 'a') * std::tanh(1.0);
 }
 
 // CHECK: double fn8_darg0(double i, double j) {
@@ -307,9 +313,10 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     double arr[5] = {};
 // CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
-// CHECK-NEXT:     double &_t1 = _t0.value; 
-// CHECK-NEXT:     double _t2 = std::tanh(1.); 
-// CHECK-NEXT:     return _t0.pushforward * _t2 + _t1 * 0; 
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward, 0);
+// CHECK-NEXT:     double &_t2 = _t1.value;
+// CHECK-NEXT:     double _t3 = std::tanh(1.);
+// CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0;
 // CHECK-NEXT: }
 
 float test_1_darg0(float x);
