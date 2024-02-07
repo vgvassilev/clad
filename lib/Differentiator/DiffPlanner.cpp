@@ -562,10 +562,13 @@ namespace clad {
         // bitmask_opts is a template pack of unsigned integers, so we need to
         // do bitwise or of all the values to get the final value.
         unsigned bitmasked_opts_value = 0;
-        for (auto const& arg :
-             FD->getTemplateSpecializationArgs()->get(0).pack_elements()) {
-          bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
-        }
+        const auto template_arg = FD->getTemplateSpecializationArgs()->get(0);
+        if (template_arg.getKind() == TemplateArgument::Pack)
+          for (const auto& arg :
+               FD->getTemplateSpecializationArgs()->get(0).pack_elements())
+            bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
+        else
+          bitmasked_opts_value = template_arg.getAsIntegral().getExtValue();
         unsigned derivative_order =
             clad::GetDerivativeOrder(bitmasked_opts_value);
         if (derivative_order == 0) {
@@ -602,13 +605,15 @@ namespace clad {
         // bitmask_opts is a template pack of unsigned integers, so we need to
         // do bitwise or of all the values to get the final value.
         unsigned bitmasked_opts_value = 0;
-        for (auto const& arg :
-             FD->getTemplateSpecializationArgs()->get(0).pack_elements()) {
-          bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
-        }
-        if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme)) {
+        const auto template_arg = FD->getTemplateSpecializationArgs()->get(0);
+        if (template_arg.getKind() == TemplateArgument::Pack)
+          for (const auto& arg :
+               FD->getTemplateSpecializationArgs()->get(0).pack_elements())
+            bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
+        else
+          bitmasked_opts_value = template_arg.getAsIntegral().getExtValue();
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
           request.use_enzyme = true;
-        }
         // reverse vector mode is not yet supported.
         if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
           utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,

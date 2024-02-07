@@ -83,7 +83,9 @@ Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
       Ctx, Node->getQualifierLoc(), Node->getTemplateKeywordLoc(),
       Node->getDecl(), Node->refersToEnclosingVariableOrCapture(),
       Node->getNameInfo(), CloneType(Node->getType()), Node->getValueKind(),
-      Node->getFoundDecl(), &TAListInfo);
+      Node->getFoundDecl(),
+      &TAListInfo CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+          Node->isNonOdrUse()));
 }
 DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
@@ -227,6 +229,9 @@ DEFINE_CLONE_EXPR(VAArgExpr,
                    Node->getWrittenTypeInfo(), Node->getRParenLoc(),
                    CloneType(Node->getType()), Node->isMicrosoftABI()))
 DEFINE_CLONE_EXPR(ImplicitValueInitExpr, (CloneType(Node->getType())))
+DEFINE_CLONE_EXPR(CXXScalarValueInitExpr,
+                  (CloneType(Node->getType()), Node->getTypeSourceInfo(),
+                   Node->getRParenLoc()))
 DEFINE_CLONE_EXPR(ExtVectorElementExpr, (Node->getType(), Node->getValueKind(), Clone(Node->getBase()), Node->getAccessor(), Node->getAccessorLoc()))
 DEFINE_CLONE_EXPR(CXXBoolLiteralExpr, (Node->getValue(), Node->getType(), Node->getSourceRange().getBegin()))
 DEFINE_CLONE_EXPR(CXXNullPtrLiteralExpr, (Node->getType(), Node->getSourceRange().getBegin()))
@@ -429,6 +434,10 @@ DEFINE_CLONE_STMT(BreakStmt, (Node->getBreakLoc()))
 DEFINE_CLONE_STMT(CXXCatchStmt, (Node->getCatchLoc(),
                                  CloneDeclOrNull(Node->getExceptionDecl()),
                                  Clone(Node->getHandlerBlock())))
+
+#if CLANG_VERSION_MAJOR > 8
+DEFINE_CLONE_STMT(ValueStmt, (Node->getStmtClass()))
+#endif
 
 Stmt* StmtClone::VisitCXXTryStmt(CXXTryStmt* Node) {
   llvm::SmallVector<Stmt*, 4> CatchStmts(std::max(1u, Node->getNumHandlers()));

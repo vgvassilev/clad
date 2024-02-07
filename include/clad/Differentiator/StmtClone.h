@@ -121,11 +121,16 @@ namespace utils {
     DECLARE_CLONE_FN(MaterializeTemporaryExpr)
     DECLARE_CLONE_FN(PseudoObjectExpr)
     DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
+    DECLARE_CLONE_FN(CXXScalarValueInitExpr)
     // `ConstantExpr` node is only available after clang 7.
     #if CLANG_VERSION_MAJOR > 7
     DECLARE_CLONE_FN(ConstantExpr)
     #endif
-    
+#if CLANG_VERSION_MAJOR > 8
+    // `ValueStmt` node is only available after clang 8.
+    DECLARE_CLONE_FN(ValueStmt)
+#endif
+
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
 
