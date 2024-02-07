@@ -935,14 +935,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
   QualType T = IL->getType();
   llvm::APInt zero(m_Context.getIntWidth(T), /*value*/ 0);
-  auto constant0 = IntegerLiteral::Create(m_Context, zero, T, noLoc);
+  auto* constant0 = IntegerLiteral::Create(m_Context, zero, T, noLoc);
   return StmtDiff(Clone(IL), constant0);
 }
 
 StmtDiff
 BaseForwardModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
   llvm::APFloat zero = llvm::APFloat::getZero(FL->getSemantics());
-  auto constant0 =
+  auto* constant0 =
       FloatingLiteral::Create(m_Context, zero, true, FL->getType(), noLoc);
   return StmtDiff(Clone(FL), constant0);
 }
@@ -1108,7 +1108,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
         // subexpression.
         if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
           arg = clad_compat::GetSubExpr(MTE);
-        if (!isa<FloatingLiteral>(arg) && !isa<IntegerLiteral>(arg)) {
+        if (!arg->isEvaluatable(m_Context)) {
           allArgsAreConstantLiterals = false;
           break;
         }
@@ -1455,9 +1455,24 @@ BaseForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
 StmtDiff
 BaseForwardModeVisitor::VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr* BL) {
   llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/ 0);
-  auto constant0 =
+  auto* constant0 =
       IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
   return StmtDiff(Clone(BL), constant0);
+}
+
+StmtDiff
+BaseForwardModeVisitor::VisitCharacterLiteral(const CharacterLiteral* CL) {
+  llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/ 0);
+  auto* constant0 =
+      IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
+  return StmtDiff(Clone(CL), constant0);
+}
+
+StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
+  llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/ 0);
+  auto* constant0 =
+      IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
+  return StmtDiff(Clone(SL), constant0);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
@@ -1926,15 +1941,16 @@ StmtDiff BaseForwardModeVisitor::VisitCXXStaticCastExpr(
 StmtDiff BaseForwardModeVisitor::VisitCXXFunctionalCastExpr(
     const clang::CXXFunctionalCastExpr* FCE) {
   StmtDiff castExprDiff = Visit(FCE->getSubExpr());
+  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
   Expr* clonedFCE = m_Sema
                         .BuildCXXFunctionalCastExpr(
-                            FCE->getTypeInfoAsWritten(), FCE->getType(), noLoc,
-                            castExprDiff.getExpr(), noLoc)
+                            FCE->getTypeInfoAsWritten(), FCE->getType(),
+                            fakeLoc, castExprDiff.getExpr(), fakeLoc)
                         .get();
   Expr* derivedFCE = m_Sema
                          .BuildCXXFunctionalCastExpr(
-                             FCE->getTypeInfoAsWritten(), FCE->getType(), noLoc,
-                             castExprDiff.getExpr_dx(), noLoc)
+                             FCE->getTypeInfoAsWritten(), FCE->getType(),
+                             fakeLoc, castExprDiff.getExpr_dx(), fakeLoc)
                          .get();
   return {clonedFCE, derivedFCE};
 }
