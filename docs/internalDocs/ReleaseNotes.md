@@ -21,41 +21,55 @@ described first.
 External Dependencies
 ---------------------
 
-* Clad now works with clang-5.0 to clang-17
+* Clad now works with clang-7 to clang-17
 
-
-Forward Mode & Reverse Mode
----------------------------
-*
 
 Forward Mode
 ------------
-*
+* Make forward vector mode more robust:
+  * Implement dedicated clad::matrix class
+  * Add support for array arguments
+  * Add support for call expressions
+* Add support for the 'non_differentiable' attribute
 
 Reverse Mode
 ------------
-*
-
-CUDA
-----
-*
-
-Error Estimation
-----------------
-*
+* Fix computation of higher order functions
+* Introduce experimental To-Be-Recorded Analysis in Clad
+* Improve storing of LHS/RHS in multiplication/division operators
+* Add initial support for pointers
+* Improve the overall performance by reducing the tape storage
 
 Misc
 ----
-*
+* Add support for `std::min`, `std::max` and `std::clamp` functions
+* Fix strong symbol definitions in Differentiator.h
 
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
-
- <!---Get release bugs
- git log v1.2..master | grep 'Fixes|Closes'
- --->
+[49](https://github.com/vgvassilev/clad/issues/49)
+[86](https://github.com/vgvassilev/clad/issues/86)
+[197](https://github.com/vgvassilev/clad/issues/197)
+[275](https://github.com/vgvassilev/clad/issues/275)
+[314](https://github.com/vgvassilev/clad/issues/314)
+[429](https://github.com/vgvassilev/clad/issues/429)
+[439](https://github.com/vgvassilev/clad/issues/439)
+[441](https://github.com/vgvassilev/clad/issues/441)
+[465](https://github.com/vgvassilev/clad/issues/465)
+[606](https://github.com/vgvassilev/clad/issues/606)
+[620](https://github.com/vgvassilev/clad/issues/620)
+[650](https://github.com/vgvassilev/clad/issues/650)
+[655](https://github.com/vgvassilev/clad/issues/655)
+[660](https://github.com/vgvassilev/clad/issues/660)
+[664](https://github.com/vgvassilev/clad/issues/664)
+[667](https://github.com/vgvassilev/clad/issues/667)
+[669](https://github.com/vgvassilev/clad/issues/669)
+[672](https://github.com/vgvassilev/clad/issues/672)
+[676](https://github.com/vgvassilev/clad/issues/676)
+[681](https://github.com/vgvassilev/clad/issues/681)
+[687](https://github.com/vgvassilev/clad/issues/687)
+[689](https://github.com/vgvassilev/clad/issues/689)
 
 Special Kudos
 =============
@@ -67,7 +81,14 @@ FirstName LastName (#commits)
 
 A B (N)
 
-<!---Find contributor list for this release
- git log --pretty=format:"%an"  v1.2...master | sort | uniq -c | sort -rn |\
-   sed -E 's,^ *([0-9]+) (.*)$,\2 \(\1\),'
---->
+Vaibhav Thakkar (43)
+Vassil Vassilev (26)
+Alexander Penev (8)
+petro.zarytskyi (6)
+dependabot[bot] (4)
+Parth (2)
+Rishabh Bali (1)
+QuillPusher (1)
+Krishna-13-cyber (1)
+daemondzh (1)
+Aaron Jomy (1)
