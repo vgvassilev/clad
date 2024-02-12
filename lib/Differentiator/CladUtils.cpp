@@ -634,7 +634,7 @@ namespace clad {
     }
 
     void SetSwitchCaseSubStmt(SwitchCase* SC, Stmt* subStmt) {
-      if (auto *caseStmt = dyn_cast<CaseStmt>(SC))
+      if (auto* caseStmt = dyn_cast<CaseStmt>(SC))
         caseStmt->setSubStmt(subStmt);
       else
         cast<DefaultStmt>(SC)->setSubStmt(subStmt);

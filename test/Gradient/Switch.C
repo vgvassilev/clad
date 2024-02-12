@@ -134,6 +134,7 @@ double fn2(double i, double j) {
 // CHECK: void fn2_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
+// CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
@@ -144,7 +145,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     double _t6;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         int count = 2;
+// CHECK-NEXT:         count = 2;
 // CHECK-NEXT:         _cond0 = count;
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             _t0 = res;
@@ -395,6 +396,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
 // CHECK-NEXT:     int _d_counter = 0;
+// CHECK-NEXT:     int counter = 0;
 // CHECK-NEXT:     unsigned long _t2;
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double res = 0;
@@ -411,7 +413,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
 // CHECK-NEXT:               case 1:
-// CHECK-NEXT:                 int counter = 2;
+// CHECK-NEXT:                 counter = 2;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             _t2 = 0;
 // CHECK-NEXT:             while (counter--)
@@ -481,12 +483,13 @@ double fn5(double i, double j) {
 // CHECK: void fn5_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
+// CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         int count = 1;
+// CHECK-NEXT:         count = 1;
 // CHECK-NEXT:         _cond0 = count;
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:           case 1:
@@ -595,13 +598,14 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<int> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<unsigned long> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             switch (clad::push(_cond0, i)) {

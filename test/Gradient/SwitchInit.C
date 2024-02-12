@@ -19,6 +19,7 @@ double fn1(double i, double j) {
 // CHECK: void fn1_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
+// CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
@@ -27,7 +28,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         int count = 1;
+// CHECK-NEXT:         count = 1;
 // CHECK-NEXT:         _cond0 = count;
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {

@@ -3317,10 +3317,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       condExpr = GlobalStoreAndRef(condDiff.getExpr(), "_cond").getExpr();
     }
 
-    auto *activeBreakContHandler = PushBreakContStmtHandler(
+    auto* activeBreakContHandler = PushBreakContStmtHandler(
         /*forSwitchStmt=*/true);
     activeBreakContHandler->BeginCFSwitchStmtScope();
-    auto *SSData = PushSwitchStmtInfo();
+    auto* SSData = PushSwitchStmtInfo();
 
     if (isInsideLoop)
       SSData->switchStmtCond = condTape->Last();
@@ -3371,8 +3371,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // ```
     if (SSData->defaultIfBreakExpr) {
       Expr* breakCond = nullptr;
-      for (auto *SC : SSData->cases) {
-        if (auto *CS = dyn_cast<CaseStmt>(SC)) {
+      for (auto* SC : SSData->cases) {
+        if (auto* CS = dyn_cast<CaseStmt>(SC)) {
           if (breakCond) {
             breakCond = BuildOp(BinaryOperatorKind::BO_LAnd, breakCond,
                                 BuildOp(BinaryOperatorKind::BO_NE,
@@ -3423,13 +3423,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitCaseStmt(const CaseStmt* CS) {
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
-    auto SSData = GetActiveSwitchStmtInfo();
+    SwitchStmtInfo* SSData = GetActiveSwitchStmtInfo();
 
     Expr* lhsClone = (CS->getLHS() ? Clone(CS->getLHS()) : nullptr);
     Expr* rhsClone = (CS->getRHS() ? Clone(CS->getRHS()) : nullptr);
 
-    auto *newSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(), lhsClone,
-                                              rhsClone, noLoc, noLoc, noLoc);
+    auto* newSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(), lhsClone,
+                                               rhsClone, noLoc, noLoc, noLoc);
 
     Expr* ifCond = BuildOp(BinaryOperatorKind::BO_EQ, newSC->getLHS(),
                            SSData->switchStmtCond);
