@@ -324,7 +324,9 @@ namespace clad {
                                 llvm::SmallVectorImpl<clang::Expr*>& Exprs);
 
     bool ContainsFunctionCalls(const clang::Stmt* E);
-  } // namespace utils
-}
+
+    void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
+    } // namespace utils
+    } // namespace clad
 
 #endif

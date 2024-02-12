@@ -9,6 +9,7 @@
 #include "ConstantFolder.h"
 
 #include "TBRAnalyzer.h"
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/ExternalRMVSource.h"
@@ -17,7 +18,9 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -3258,6 +3261,211 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {forwardDS, reverseBlock};
   }
 
+  // Basic idea used for differentiating switch statement is that in the reverse
+  // pass, processing of the differentiated statments of the switch statement
+  // body should start either from a `break` statement or from the last
+  // statement of the switch statement body and always end at a switch
+  // case/default statement.
+  //
+  // Therefore, here we keep track of which `break` was hit in the forward pass,
+  // or if we no `break` statement was hit at all in a variable or clad tape.
+  // This information is further used by an auxilliary switch statement in the
+  // reverse pass to jump the execution to the correct point (that is,
+  // differentiated statement of the statement just before the `break` statement
+  // that was hit in the forward pass)
+  StmtDiff ReverseModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
+    // Scope and blocks for the compound statement that encloses the switch
+    // statement in both the forward and the reverse pass. Block is required
+    // for handling condition variable and switch-init statement.
+    beginScope(Scope::DeclScope);
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
+
+    // Handles switch init statement
+    if (SS->getInit()) {
+      StmtDiff switchInitDiff = DifferentiateSingleStmt(SS->getInit());
+      addToCurrentBlock(switchInitDiff.getStmt(), direction::forward);
+      addToCurrentBlock(switchInitDiff.getStmt_dx(), direction::reverse);
+    }
+
+    // Handles condition variable
+    if (SS->getConditionVariable()) {
+      StmtDiff condVarDiff =
+          DifferentiateSingleStmt(SS->getConditionVariableDeclStmt());
+      addToCurrentBlock(condVarDiff.getStmt(), direction::forward);
+      addToCurrentBlock(condVarDiff.getStmt_dx(), direction::reverse);
+    }
+
+    StmtDiff condDiff = DifferentiateSingleStmt(SS->getCond());
+    addToCurrentBlock(condDiff.getStmt(), direction::forward);
+    addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
+    Expr* condExpr = nullptr;
+    clad_compat::llvm_Optional<CladTapeResult> condTape;
+
+    if (isInsideLoop) {
+      // If we are inside a loop, condition will be stored and used as follows:
+      //
+      // forward block:
+      // switch (clad::push(..., cond)) { ... }
+      //
+      // reverse block:
+      // switch (...) { ... }
+      // clad::pop(...);
+      condTape.emplace(MakeCladTapeFor(condDiff.getExpr(), "_cond"));
+      condExpr = condTape->Push;
+    } else {
+      condExpr = GlobalStoreAndRef(condDiff.getExpr(), "_cond").getExpr();
+    }
+
+    auto* activeBreakContHandler = PushBreakContStmtHandler(
+        /*forSwitchStmt=*/true);
+    activeBreakContHandler->BeginCFSwitchStmtScope();
+    auto* SSData = PushSwitchStmtInfo();
+
+    if (isInsideLoop)
+      SSData->switchStmtCond = condTape->Last();
+    else
+      SSData->switchStmtCond = condExpr;
+
+    // scope for the switch statement body.
+    beginScope(Scope::DeclScope);
+
+    const Stmt* body = SS->getBody();
+    StmtDiff bodyDiff = nullptr;
+    if (isa<CompoundStmt>(body))
+      bodyDiff = Visit(body);
+    else
+      bodyDiff = DifferentiateSingleStmt(body);
+
+    // Each switch case statement of the original function gets transformed to
+    // an if condition in the reverse pass. The if condition decides at runtime
+    // whether the processing of the differentiated statements of the switch
+    // statement body should stop or continue. This is based on the fact that
+    // processing of statements of switch statement body always starts at a case
+    // statement. For example,
+    // ```
+    // case 3:
+    // ```
+    // gets transformed to,
+    //
+    // ```
+    // if (3 == _cond)
+    //   break;
+    // ```
+    //
+    // This kind of if expression cannot by easily formed for the default
+    // statement, thus, we instead compare value of the switch condition with
+    // the values of all the case statements to determine if the default
+    // statement was selected in the forward pass.
+    // Therefore,
+    //
+    // ```
+    // default:
+    // ```
+    //
+    // will get transformed to something like,
+    //
+    // ```
+    // if (_cond != 1 && _cond != 2 && _cond != 3)
+    //   break;
+    // ```
+    if (SSData->defaultIfBreakExpr) {
+      Expr* breakCond = nullptr;
+      for (auto* SC : SSData->cases) {
+        if (auto* CS = dyn_cast<CaseStmt>(SC)) {
+          if (breakCond) {
+            breakCond = BuildOp(BinaryOperatorKind::BO_LAnd, breakCond,
+                                BuildOp(BinaryOperatorKind::BO_NE,
+                                        SSData->switchStmtCond, CS->getLHS()));
+          } else {
+            breakCond = BuildOp(BinaryOperatorKind::BO_NE,
+                                SSData->switchStmtCond, CS->getLHS());
+          }
+        }
+      }
+      if (!breakCond)
+        breakCond = m_Sema.ActOnCXXBoolLiteral(noLoc, tok::kw_true).get();
+      SSData->defaultIfBreakExpr->setCond(breakCond);
+    }
+
+    activeBreakContHandler->EndCFSwitchStmtScope();
+
+    // If switch statement contains no cases, then, no statement of the switch
+    // statement body will be processed in both the forward and the reverse
+    // pass. Thus, we do not need to add them in the differentiated function.
+    if (!(SSData->cases.empty())) {
+      Sema::ConditionResult condRes = m_Sema.ActOnCondition(
+          getCurrentScope(), noLoc, condExpr, Sema::ConditionKind::Switch);
+      SwitchStmt* forwardSS =
+          clad_compat::Sema_ActOnStartOfSwitchStmt(m_Sema, nullptr, condRes)
+              .getAs<SwitchStmt>();
+      activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
+
+      // Registers all the cases to the switch statement.
+      for (auto* SC : SSData->cases)
+        forwardSS->addSwitchCase(SC);
+
+      forwardSS =
+          m_Sema.ActOnFinishSwitchStmt(noLoc, forwardSS, bodyDiff.getStmt())
+              .getAs<SwitchStmt>();
+
+      addToCurrentBlock(forwardSS, direction::forward);
+      if (isInsideLoop)
+        addToCurrentBlock(condTape->Pop, direction::reverse);
+      addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
+    }
+
+    PopBreakContStmtHandler();
+    PopSwitchStmtInfo();
+    return {endBlock(direction::forward), endBlock(direction::reverse)};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCaseStmt(const CaseStmt* CS) {
+    beginBlock(direction::forward);
+    beginBlock(direction::reverse);
+    SwitchStmtInfo* SSData = GetActiveSwitchStmtInfo();
+
+    Expr* lhsClone = (CS->getLHS() ? Clone(CS->getLHS()) : nullptr);
+    Expr* rhsClone = (CS->getRHS() ? Clone(CS->getRHS()) : nullptr);
+
+    auto* newSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(), lhsClone,
+                                               rhsClone, noLoc, noLoc, noLoc);
+
+    Expr* ifCond = BuildOp(BinaryOperatorKind::BO_EQ, newSC->getLHS(),
+                           SSData->switchStmtCond);
+    Stmt* ifThen = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    Stmt* ifBreakExpr = clad_compat::IfStmt_Create(
+        m_Context, noLoc, false, nullptr, nullptr, ifCond, noLoc, noLoc, ifThen,
+        noLoc, nullptr);
+    SSData->cases.push_back(newSC);
+    addToCurrentBlock(ifBreakExpr, direction::reverse);
+    addToCurrentBlock(newSC, direction::forward);
+    auto diff = DifferentiateSingleStmt(CS->getSubStmt());
+    utils::SetSwitchCaseSubStmt(newSC, diff.getStmt());
+    addToCurrentBlock(diff.getStmt_dx(), direction::reverse);
+    return {endBlock(direction::forward), endBlock(direction::reverse)};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitDefaultStmt(const DefaultStmt* DS) {
+    beginBlock(direction::reverse);
+    beginBlock(direction::forward);
+    auto* SSData = GetActiveSwitchStmtInfo();
+    auto* newDefaultStmt =
+        new (m_Sema.getASTContext()) DefaultStmt(noLoc, noLoc, nullptr);
+    Stmt* ifThen = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+    Stmt* ifBreakExpr = clad_compat::IfStmt_Create(
+        m_Context, noLoc, false, nullptr, nullptr, nullptr, noLoc, noLoc,
+        ifThen, noLoc, nullptr);
+    SSData->cases.push_back(newDefaultStmt);
+    SSData->defaultIfBreakExpr = cast<IfStmt>(ifBreakExpr);
+    addToCurrentBlock(ifBreakExpr, direction::reverse);
+    addToCurrentBlock(newDefaultStmt, direction::forward);
+    auto diff = DifferentiateSingleStmt(DS->getSubStmt());
+    utils::SetSwitchCaseSubStmt(newDefaultStmt, diff.getStmt());
+    addToCurrentBlock(diff.getStmt_dx(), direction::reverse);
+    return {endBlock(direction::forward), endBlock(direction::reverse)};
+  }
+
   StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
                                                      LoopCounter& loopCounter,
                                                      Stmt* condVarDiff,
@@ -3401,10 +3609,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   CaseStmt* ReverseModeVisitor::BreakContStmtHandler::GetNextCFCaseStmt() {
-    // End scope for currenly active case statement, if any.
-    if (!m_SwitchCases.empty())
-      m_RMV.endScope();
-
     ++m_CaseCounter;
     auto* counterLiteral = CreateSizeTLiteralExpr(m_CaseCounter);
     CaseStmt* CS = clad_compat::CaseStmt_Create(m_RMV.m_Context, counterLiteral,
@@ -3418,8 +3622,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // corresponding next statements.
     CS->setSubStmt(m_RMV.m_Sema.ActOnNullStmt(noLoc).get());
 
-    // begin scope for the new active switch case statement.
-    m_RMV.beginScope(Scope::DeclScope);
     m_SwitchCases.push_back(CS);
     return CS;
   }
@@ -3433,11 +3635,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   void ReverseModeVisitor::BreakContStmtHandler::UpdateForwAndRevBlocks(
       StmtDiff& bodyDiff) {
-    if (m_SwitchCases.empty())
+    if (m_SwitchCases.empty() && !m_IsInvokedBySwitchStmt)
       return;
-
-    // end scope for last switch case.
-    m_RMV.endScope();
 
     // Add case statement in the beginning of the reverse block
     // and corresponding push expression for this case statement
