@@ -408,7 +408,8 @@ jobs:
             os: ubuntu-22.04
             compiler: clang-16
             clang-runtime: '17'
-            extra_packages: 'libtrilinos-kokkos-dev'
+            extra_packages: 'libtrilinos-kokkos-dev ninja-build'
+            extra_cmake_options: '-G Ninja'
 
           # Оld, still supported versions
 

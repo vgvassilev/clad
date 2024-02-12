@@ -1,5 +1,5 @@
 set(_gtest_byproduct_binary_dir
-  ${CMAKE_BINARY_DIR}/downloads/googletest-prefix/src/googletest-build)
+  ${CMAKE_BINARY_DIR}/unittests/googletest-prefix/src/googletest-build)
 set(_gtest_byproducts
   ${_gtest_byproduct_binary_dir}/lib/libgtest.a
   ${_gtest_byproduct_binary_dir}/lib/libgtest_main.a
