@@ -163,8 +163,8 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # In rare cases we might want to have clang installed in a different place
   # than llvm and the header files should be found first (even though the
   # LLVM_INCLUDE_DIRS) contain clang headers, too.
-  include_directories(${CLANG_INCLUDE_DIRS})
-  include_directories(${LLVM_INCLUDE_DIRS})
+  include_directories(SYSTEM ${CLANG_INCLUDE_DIRS})
+  include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
   # If the llvm sources are present add them with higher priority.
@@ -176,13 +176,13 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     #
     # FIXME: We only support in-tree builds of clang, that is clang being built
     # in llvm_src/tools/clang.
-    include_directories(${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/)
+    include_directories(SYSTEM ${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/)
 
     if (NOT LLVM_BUILD_BINARY_DIR)
       message(FATAL "LLVM_BUILD_* values should be available for the build tree")
     endif()
 
-    include_directories(${LLVM_BUILD_BINARY_DIR}/tools/clang/include/)
+    include_directories(SYSTEM ${LLVM_BUILD_BINARY_DIR}/tools/clang/include/)
   endif()
 
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/)
@@ -224,24 +224,19 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR AND NOT MSVC_IDE )
 "`CMakeFiles'. Please delete them.")
 endif()
 
-# Add appropriate flags for GCC
-if (LLVM_COMPILER_IS_GCC_COMPATIBLE)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-common -Woverloaded-virtual -Wcast-qual -fno-strict-aliasing -pedantic -Wno-long-long -Wall -W -Wno-unused-parameter -Wwrite-strings")
-endif ()
-
 if (APPLE)
   set(CMAKE_MODULE_LINKER_FLAGS "-Wl,-undefined -Wl,dynamic_lookup")
 endif ()
 
 # FIXME: Use merge this with the content from the LLVMConfig and ClangConfig.
 if (NOT CLAD_BUILT_STANDALONE)
-include_directories(BEFORE
+include_directories(BEFORE SYSTEM
   ${CMAKE_CURRENT_BINARY_DIR}/../clang/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../clang/include
   )
 endif()
 
-include_directories(BEFORE
+include_directories(BEFORE SYSTEM
   ${CMAKE_CURRENT_BINARY_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   )
@@ -312,6 +307,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
   # Filter some unsupported flags by clang.
   string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  string(REPLACE "-Wno-class-memaccess" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
   add_subdirectory(unittests)
   add_subdirectory(test)
