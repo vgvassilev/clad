@@ -557,13 +557,8 @@ namespace clad {
         }
 
         void VisitBinaryOperator(clang::BinaryOperator* BO) {
-          if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp()) {
+          if (BO->isAssignmentOp() || BO->isCompoundAssignmentOp())
             Visit(BO->getLHS());
-          } else if (BO->getOpcode() == clang::BO_Comma) {
-            /**/
-          } else {
-            assert("Unexpected binary operator!!");
-          }
         }
 
         void VisitConditionalOperator(clang::ConditionalOperator* CO) {

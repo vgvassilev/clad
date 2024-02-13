@@ -80,7 +80,7 @@ jobs:
             clang-runtime: '11'
             coverage: true
             cuda: true
-            extra_cmake_options: '-DLLVM_ENABLE_WERROR=On -DCLAD_ENABLE_ENZYME_BACKEND=On'
+            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
             #clang-format: true
 
           - name: ubu20-gcc7-runtime11-benchmarks
@@ -739,6 +739,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCLAD_CODE_COVERAGE=${CLAD_CODE_COVERAGE}  \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
+          -DLLVM_ENABLE_WERROR=On           \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
 

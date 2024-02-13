@@ -72,7 +72,9 @@ namespace clad {
 #pragma warning(push, 0)
 #endif // MSVC
 #pragma GCC diagnostic push
+#ifdef __clang__
 #pragma clang diagnostic ignored "-Wunknown-warning-option"
+#endif // __clang__
 #pragma GCC diagnostic ignored "-Wnon-template-friend"
     friend type get(Tag);
 #pragma GCC diagnostic pop
