@@ -13,11 +13,12 @@
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Version.h"
 
-#include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
+#include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Sema/SemaConsumer.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
@@ -94,27 +95,192 @@ namespace clad {
     std::string CustomModelName;
     };
 
-    class CladPlugin : public clang::ASTConsumer {
-      clang::CompilerInstance& m_CI;
-      DifferentiationOptions m_DO;
-      std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
-      bool m_HasRuntime = false;
-      bool m_PendingInstantiationsInFlight = false;
-      bool m_HandleTopLevelDeclInternal = false;
-      CladTimerGroup m_CTG;
-      DerivedFnCollector m_DFC;
-    public:
-      CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
-      ~CladPlugin();
-      bool HandleTopLevelDecl(clang::DeclGroupRef DGR) override;
-      clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
+    class CladExternalSource : public clang::ExternalSemaSource {
+    // ExternalSemaSource
+    void ReadUndefinedButUsed(
+        llvm::MapVector<clang::NamedDecl*, clang::SourceLocation>& Undefined)
+        override {
+      // namespace { double f_darg0(double x); } will issue a warning that
+      // f_darg0 has internal linkage but is not defined. This is because we
+      // have not yet started to differentiate it. The warning is triggered by
+      // Sema::ActOnEndOfTranslationUnit before Clad is given control.
+      // To avoid the warning we should remove the entry from here.
+      using namespace clang;
+      Undefined.remove_if([](std::pair<NamedDecl*, SourceLocation> P) {
+        NamedDecl* ND = P.first;
 
-    private:
-      bool CheckBuiltins();
-      void SetRequestOptions(RequestOptions& opts) const;
-      static void SetTBRAnalysisOptions(const DifferentiationOptions& DO,
-                                        RequestOptions& opts);
-      void ProcessTopLevelDecl(clang::Decl* D);
+        if (!ND->getDeclName().isIdentifier())
+          return false;
+
+        // FIXME: We should replace this comparison with the canonical decl
+        // from the differentiation plan...
+        llvm::StringRef Name = ND->getName();
+        return Name.contains("_darg") || Name.contains("_grad") ||
+               Name.contains("_hessian") || Name.contains("_jacobian");
+      });
+    }
+    };
+    class CladPlugin : public clang::SemaConsumer {
+    clang::CompilerInstance& m_CI;
+    DifferentiationOptions m_DO;
+    std::unique_ptr<DerivativeBuilder> m_DerivativeBuilder;
+    bool m_HasRuntime = false;
+    CladTimerGroup m_CTG;
+    DerivedFnCollector m_DFC;
+    DiffSchedule m_DiffSchedule;
+    enum class CallKind {
+      HandleCXXStaticMemberVarInstantiation,
+      HandleTopLevelDecl,
+      HandleInlineFunctionDefinition,
+      HandleInterestingDecl,
+      HandleTagDeclDefinition,
+      HandleTagDeclRequiredDefinition,
+      HandleCXXImplicitFunctionInstantiation,
+      HandleTopLevelDeclInObjCContainer,
+      HandleImplicitImportDecl,
+      CompleteTentativeDefinition,
+#if CLANG_VERSION_MAJOR > 9
+      CompleteExternalDeclaration,
+#endif
+      AssignInheritanceModel,
+      HandleVTable,
+      InitializeSema,
+    };
+    struct DelayedCallInfo {
+      CallKind m_Kind;
+      clang::DeclGroupRef m_DGR;
+      DelayedCallInfo(CallKind K, clang::DeclGroupRef DGR)
+          : m_Kind(K), m_DGR(DGR) {}
+      DelayedCallInfo(CallKind K, const clang::Decl* D)
+          : m_Kind(K), m_DGR(const_cast<clang::Decl*>(D)) {}
+      bool operator==(const DelayedCallInfo& other) const {
+        if (m_Kind != other.m_Kind)
+          return false;
+
+        if (std::distance(m_DGR.begin(), m_DGR.end()) !=
+            std::distance(other.m_DGR.begin(), other.m_DGR.end()))
+          return false;
+
+        clang::Decl* const* first1 = m_DGR.begin();
+        clang::Decl* const* first2 = other.m_DGR.begin();
+        clang::Decl* const* last1 = m_DGR.end();
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        for (; first1 != last1; ++first1, ++first2)
+          if (!(*first1 == *first2))
+            return false;
+        return true;
+      }
+    };
+    /// The calls to the main action which clad delayed and will dispatch at
+    /// then end of the translation unit.
+    std::vector<DelayedCallInfo> m_DelayedCalls;
+    /// The default clang consumers which are called after clad is done.
+    std::unique_ptr<clang::MultiplexConsumer> m_Multiplexer;
+
+    /// Have we processed all delayed calls.
+    bool m_HasMultiplexerProcessedDelayedCalls = false;
+
+    /// The Sema::TUScope to restore in CladPlugin::HandleTranslationUnit.
+    clang::Scope* m_StoredTUScope = nullptr;
+
+  public:
+    CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
+    ~CladPlugin();
+    // ASTConsumer
+    void Initialize(clang::ASTContext& Context) override;
+    void HandleCXXStaticMemberVarInstantiation(clang::VarDecl* D) override {
+      AppendDelayed({CallKind::HandleCXXStaticMemberVarInstantiation, D});
+    }
+    bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
+      HandleTopLevelDeclForClad(D);
+      AppendDelayed({CallKind::HandleTopLevelDecl, D});
+      return true; // happyness, continue parsing
+    }
+    void HandleInlineFunctionDefinition(clang::FunctionDecl* D) override {
+      AppendDelayed({CallKind::HandleInlineFunctionDefinition, D});
+    }
+    void HandleInterestingDecl(clang::DeclGroupRef D) override {
+      AppendDelayed({CallKind::HandleInterestingDecl, D});
+    }
+    void HandleTagDeclDefinition(clang::TagDecl* D) override {
+      AppendDelayed({CallKind::HandleTagDeclDefinition, D});
+    }
+    void HandleTagDeclRequiredDefinition(const clang::TagDecl* D) override {
+      AppendDelayed({CallKind::HandleTagDeclRequiredDefinition, D});
+    }
+    void
+    HandleCXXImplicitFunctionInstantiation(clang::FunctionDecl* D) override {
+      AppendDelayed({CallKind::HandleCXXImplicitFunctionInstantiation, D});
+    }
+    void HandleTopLevelDeclInObjCContainer(clang::DeclGroupRef D) override {
+      AppendDelayed({CallKind::HandleTopLevelDeclInObjCContainer, D});
+    }
+    void HandleImplicitImportDecl(clang::ImportDecl* D) override {
+      AppendDelayed({CallKind::HandleImplicitImportDecl, D});
+    }
+    void CompleteTentativeDefinition(clang::VarDecl* D) override {
+      AppendDelayed({CallKind::CompleteTentativeDefinition, D});
+    }
+#if CLANG_VERSION_MAJOR > 9
+    void CompleteExternalDeclaration(clang::VarDecl* D) override {
+      AppendDelayed({CallKind::CompleteExternalDeclaration, D});
+    }
+#endif
+    void AssignInheritanceModel(clang::CXXRecordDecl* D) override {
+      AppendDelayed({CallKind::AssignInheritanceModel, D});
+    }
+    void HandleVTable(clang::CXXRecordDecl* D) override {
+      AppendDelayed({CallKind::HandleVTable, D});
+    }
+
+    // Not delayed.
+    void HandleTranslationUnit(clang::ASTContext& C) override;
+
+    // No need to handle the listeners, they will be handled non-delayed by
+    // the parent multiplexer.
+    //
+    // clang::ASTMutationListener *GetASTMutationListener() override;
+    // clang::ASTDeserializationListener *GetASTDeserializationListener()
+    // override;
+    void PrintStats() override;
+
+    bool shouldSkipFunctionBody(clang::Decl* D) override {
+      return m_Multiplexer->shouldSkipFunctionBody(D);
+    }
+
+    // SemaConsumer
+    void InitializeSema(clang::Sema& S) override {
+      // We are also a ExternalSemaSource.
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      S.addExternalSource(new CladExternalSource()); // Owned by Sema.
+      m_StoredTUScope = S.TUScope;
+      AppendDelayed({CallKind::InitializeSema, nullptr});
+    }
+    void ForgetSema() override {
+      // ForgetSema is called in the destructor of Sema which is much later
+      // than where we can process anything. We can't delay this call.
+      m_Multiplexer->ForgetSema();
+    }
+
+    // FIXME: We should hide ProcessDiffRequest when we implement proper
+    // handling of the differentiation plans.
+    clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
+
+  private:
+    void AppendDelayed(DelayedCallInfo DCI) {
+      assert(!m_HasMultiplexerProcessedDelayedCalls);
+      m_DelayedCalls.push_back(DCI);
+    }
+    void SendToMultiplexer();
+    bool CheckBuiltins();
+    void SetRequestOptions(RequestOptions& opts) const;
+
+    void ProcessTopLevelDecl(clang::Decl* D) {
+      DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
+      assert(!llvm::is_contained(m_DelayedCalls, DCI) && "Already exists!");
+      AppendDelayed(DCI);
+    }
+    void HandleTopLevelDeclForClad(clang::DeclGroupRef DGR);
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
@@ -210,7 +376,7 @@ namespace clad {
       }
 
       PluginASTAction::ActionType getActionType() override {
-        return AddBeforeMainAction;
+        return AddAfterMainAction;
       }
     };
   } // end namespace plugin
