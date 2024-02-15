@@ -13,8 +13,7 @@ if(MSVC)
     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL:PATH=${_gtest_byproduct_binary_dir}/lib/
     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE:PATH=${_gtest_byproduct_binary_dir}/lib/
     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO:PATH=${_gtest_byproduct_binary_dir}/lib/
-    -Dgtest_force_shared_crt=ON
-    BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release)
+    -Dgtest_force_shared_crt=ON)
 elseif(APPLE)
   set(EXTRA_GTEST_OPTS -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT})
 endif()
@@ -62,6 +61,7 @@ ExternalProject_Add(
                 -DCMAKE_AR=${CMAKE_AR}
                 -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
                 ${EXTRA_GTEST_OPTS}
+  BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release -- -j6
   # Disable install step
   INSTALL_COMMAND ""
   BUILD_BYPRODUCTS ${_gtest_byproducts}
