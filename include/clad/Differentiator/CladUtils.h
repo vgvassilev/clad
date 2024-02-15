@@ -326,6 +326,8 @@ namespace clad {
     bool ContainsFunctionCalls(const clang::Stmt* E);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
+
+    bool IsLiteral(const clang::Expr* E);
     } // namespace utils
     } // namespace clad
 

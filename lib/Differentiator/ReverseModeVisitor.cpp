@@ -1166,6 +1166,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                    SL->getType(), utils::GetValidSLoc(m_Sema)));
   }
 
+  StmtDiff ReverseModeVisitor::VisitCXXNullPtrLiteralExpr(
+      const CXXNullPtrLiteralExpr* NPE) {
+    return StmtDiff(Clone(NPE), Clone(NPE));
+  }
+
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
@@ -1360,7 +1365,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
-    return StmtDiff(Clone(IL));
+    auto* Constant0 =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    return StmtDiff(Clone(IL), Constant0);
   }
 
   StmtDiff ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
@@ -1461,22 +1468,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // argument by reference.
         passByRef = false;
       }
+      QualType argDiffType;
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
       if (passByRef) {
         argDiff = Visit(arg);
+        Expr* dArg = nullptr;
+        argDiffType = argDiff.getExpr()->getType();
         QualType argResultValueType =
-            utils::GetValueType(argDiff.getExpr()->getType())
-                .getNonReferenceType();
+            utils::GetValueType(argDiffType).getNonReferenceType();
         // Create ArgResult variable for each reference argument because it is
         // required by error estimator. For automatic differentiation, we do not need
         // to create ArgResult variable for arguments passed by reference.
         // ```
         // _r0 = _d_a;
         // ```
-        Expr* dArg = nullptr;
-        if (utils::isArrayOrPointerType(argDiff.getExpr()->getType())) {
+        if (argDiff.getExpr_dx() && utils::IsLiteral(argDiff.getExpr_dx())) {
+          dArg = StoreAndRef(argDiff.getExpr_dx(), arg->getType(),
+                             direction::reverse, "_r",
+                             /*forceDeclCreation=*/true);
+        } else if (argDiffType->isArrayType()) {
           Expr* init = argDiff.getExpr_dx();
           if (isa<ConstantArrayType>(argDiff.getExpr_dx()->getType()))
             init = utils::BuildCladArrayInitByConstArray(m_Sema,
@@ -1486,6 +1498,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                              direction::reverse, "_r",
                              /*forceDeclCreation=*/true,
                              VarDecl::InitializationStyle::CallInit);
+        } else if (argDiffType->isPointerType()) {
+          dArg = StoreAndRef(argDiff.getExpr_dx(), argDiffType,
+                             direction::reverse, "_r",
+                             /*forceDeclCreation=*/true);
         } else {
           dArg = StoreAndRef(argDiff.getExpr_dx(), argResultValueType,
                              direction::reverse, "_r",
@@ -1511,6 +1527,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
         // Visit using uninitialized reference.
         argDiff = Visit(arg, dArg);
+        argDiffType = argDiff.getExpr()->getType();
       }
 
       // FIXME: We may use same argDiff.getExpr_dx at two places. This can
@@ -1536,7 +1553,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
       StmtDiff argDiffStore;
-      if (passByRef && !argDiff.getExpr()->getType()->isArrayType())
+      if (passByRef && !argDiffType->isArrayType() &&
+          !argDiff.getExpr()->isEvaluatable(m_Context))
         argDiffStore =
             GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
       else
@@ -1567,7 +1585,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // ```
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
-      if (passByRef && !argDiff.getExpr()->getType()->isArrayType()) {
+      if (passByRef && !argDiffType->isArrayType()) {
         if (isInsideLoop) {
           // Add tape push expression. We need to explicitly add it here because
           // we cannot add it as call expression argument -- we need to pass the
@@ -1606,7 +1624,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // inside loop and outside loop cases separately.
           Expr* newArgE = Visit(arg).getExpr();
           argDiffStore = {newArgE, argDiffLocalE};
-        } else {
+        } else if (isa<DeclRefExpr>(argDiff.getExpr())) {
           // Restore args
           auto& block = getCurrentBlock(direction::reverse);
           auto* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
@@ -1734,7 +1752,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             argDerivative = BuildDeclRef(derivativeArrayRefVD);
           }
           if ((argDerivative != nullptr) &&
-              isCladArrayType(argDerivative->getType()))
+              (isCladArrayType(argDerivative->getType()) ||
+               argDerivative->getType()->isPointerType() ||
+               !argDerivative->isLValue()))
             gradArgExpr = argDerivative;
           else
             gradArgExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, argDerivative);
