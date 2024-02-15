@@ -1366,11 +1366,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Clone(NPE), Clone(NPE));
   }
 
-  bool isKokkosView(const std::string constructedTypeName){
-    return constructedTypeName.find("Kokkos::View") == 0 || constructedTypeName.find("class Kokkos::View") == 0;
-    //return constructedTypeName.find("Kokkos::View") != std::string::npos && constructedTypeName.find("<class Kokkos::View") == std::string::npos;
-  }
-
   StmtDiff ReverseModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     // Initially, df/df = 1.
     const Expr* value = RS->getRetValue();
@@ -3350,7 +3345,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
-    } else if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
+    else if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
       VDDerivedInit = getArraySizeExpr(AT, m_Context, *this);
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit, false,
