@@ -33,9 +33,17 @@ extern "C" int printf(const char* fmt, ...);
 
 int f_1_darg0(int x);
 
+double sq_defined_later(double);
+
 int main() {
   int x = 4;
   clad::differentiate(f_1, 0);
+  auto df = clad::differentiate(sq_defined_later, "x");
   printf("Result is = %d\n", f_1_darg0(1)); // CHECK-EXEC: Result is = 2
+  printf("Result is = %f\n", df.execute(3)); // CHECK-EXEC: Result is = 6
   return 0;
+}
+
+double sq_defined_later(double x) {
+  return x * x;
 }
