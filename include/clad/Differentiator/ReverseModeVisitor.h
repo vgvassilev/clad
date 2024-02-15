@@ -380,6 +380,8 @@ namespace clad {
     VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
+    StmtDiff
+    VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPE);
 
     /// A helper method to differentiate a single Stmt in the reverse mode.
     /// Internally, calls Visit(S, expr). Its result is wrapped into a

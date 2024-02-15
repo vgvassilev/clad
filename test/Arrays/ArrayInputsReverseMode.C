@@ -54,7 +54,7 @@ double f(double *arr) {
 //CHECK-NEXT:         arr = _t0;
 //CHECK-NEXT:         int _grad1 = 0;
 //CHECK-NEXT:         addArr_pullback(_t0, 3, 1, _d_arr, &_grad1);
-//CHECK-NEXT:         clad::array<double> _r0(_d_arr);
+//CHECK-NEXT:         double *_r0 = _d_arr;
 //CHECK-NEXT:         int _r1 = _grad1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:   }
@@ -473,7 +473,7 @@ double func8(double i, double *arr, int n) {
 //CHECK-NEXT:         helper2_pullback(i, _t2, n, _r_d1, &_grad0, _d_arr, &_grad2);
 //CHECK-NEXT:         double _r0 = _grad0;
 //CHECK-NEXT:         * _d_i += _r0;
-//CHECK-NEXT:         clad::array<double> _r1(_d_arr);
+//CHECK-NEXT:         double *_r1 = _d_arr;
 //CHECK-NEXT:         int _r2 = _grad2;
 //CHECK-NEXT:         * _d_n += _r2;
 //CHECK-NEXT:     }

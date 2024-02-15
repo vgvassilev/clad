@@ -305,7 +305,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:         arr = _t1;
 // CHECK-NEXT:         int _grad1 = 0;
 // CHECK-NEXT:         sum_pullback(_t1, n, _r_d0, _d_arr, &_grad1);
-// CHECK-NEXT:         clad::array<double> _r0(_d_arr);
+// CHECK-NEXT:         double *_r0 = _d_arr;
 // CHECK-NEXT:         int _r1 = _grad1;
 // CHECK-NEXT:         * _d_n += _r1;
 // CHECK-NEXT:     }
@@ -348,7 +348,7 @@ double fn5(double* arr, int n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         arr = _t0;
 // CHECK-NEXT:         modify2_pullback(_t0, _d_temp, _d_arr);
-// CHECK-NEXT:         clad::array<double> _r0(_d_arr);
+// CHECK-NEXT:         double *_r0 = _d_arr;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -497,7 +497,7 @@ double fn8(double x, double y) {
 // CHECK-NEXT:         double _r0 = _grad0;
 // CHECK-NEXT:         * _d_x += _r0;
 // CHECK-NEXT:         char _r1 = _grad1;
-// CHECK-NEXT:         clad::array<char> _r2({"", 3UL});
+// CHECK-NEXT:         const char *_r2 = "";
 // CHECK-NEXT:         * _d_y += _t3 * 1 * _t0 * _t1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -645,6 +645,33 @@ double fn11(double x, double y) {
 // CHECK-NEXT:    }
 // CHECK-NEXT: }
 
+double do_nothing(double* u, double* v, double* w) {
+  return u[0];
+}
+
+// CHECK: void do_nothing_pullback(double *u, double *v, double *w, double _d_y, clad::array_ref<double> _d_u, clad::array_ref<double> _d_v, clad::array_ref<double> _d_w) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_u[0] += _d_y;
+// CHECK-NEXT: }
+
+double fn12(double x, double y) {
+  return do_nothing(&x, nullptr, 0);
+}
+
+// CHECK: void fn12_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:     double *_t0;
+// CHECK-NEXT:     _t0 = &x;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         do_nothing_pullback(_t0, nullptr, 0, 1, &* _d_x, nullptr, 0);
+// CHECK-NEXT:         double *_r0 = &* _d_x;
+// CHECK-NEXT:         {{(std::)?}}nullptr_t _r1 = nullptr;
+// CHECK-NEXT:         double *_r2 = 0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -701,6 +728,7 @@ int main() {
   INIT(fn9);
   INIT(fn10);
   INIT(fn11);
+  INIT(fn12);
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
@@ -714,4 +742,5 @@ int main() {
   TEST2(fn9, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn10, 8, 5);            // CHECK-EXEC: {0.00, 7.00}
   TEST2(fn11, 3, 5);            // CHECK-EXEC: {1.00, 1.00}
+  TEST2(fn12, 3, 5);            // CHECK-EXEC: {1.00, 0.00}
 }
