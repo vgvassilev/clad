@@ -102,7 +102,8 @@ public:
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   /// Returns the ptr of the underlying array
-  CUDA_HOST_DEVICE T* ptr() { return m_arr; }
+  CUDA_HOST_DEVICE T* ptr() const { return m_arr; }
+  CUDA_HOST_DEVICE T*& ptr_ref() { return m_arr; }
   /// Returns the reference to the location at the index of the underlying
   /// array
   CUDA_HOST_DEVICE T& operator[](std::ptrdiff_t i) { return m_arr[i]; }

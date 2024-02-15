@@ -672,6 +672,61 @@ double fn12(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double multiply(double* a, double* b) {
+  return a[0] * b[0];
+}
+
+// CHECK: void multiply_pullback(double *a, double *b, double _d_y, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_a[0] += _d_y * b[0];
+// CHECK-NEXT:         _d_b[0] += a[0] * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn13(double* x, const double* w) {
+  double wCopy[2];
+  for(std::size_t i = 0; i < 2; ++i) { wCopy[i] = w[i]; }
+  return multiply(x, wCopy + 1);
+}
+
+// CHECK: void fn13_grad_0(double *x, const double *w, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:     clad::array<double> _d_wCopy(2UL);
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     std::size_t _d_i = 0;
+// CHECK-NEXT:     std::size_t i = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double *_t2;
+// CHECK-NEXT:     double *_t3;
+// CHECK-NEXT:     double wCopy[2];
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (i = 0; i < 2; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, wCopy[i]);
+// CHECK-NEXT:         wCopy[i] = w[i];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _t2 = x;
+// CHECK-NEXT:     _t3 = wCopy + 1;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x = _t2;
+// CHECK-NEXT:         multiply_pullback(_t2, _t3, 1, _d_x, _d_wCopy.ptr_ref() + 1);
+// CHECK-NEXT:         double *_r0 = _d_x;
+// CHECK-NEXT:         double *_r1 = _d_wCopy.ptr_ref() + 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             wCopy[i] = clad::pop(_t1);
+// CHECK-NEXT:             double _r_d0 = _d_wCopy[i];
+// CHECK-NEXT:             _d_wCopy[i] -= _r_d0;
+// CHECK-NEXT:             _d_wCopy[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -743,4 +798,12 @@ int main() {
   TEST2(fn10, 8, 5);            // CHECK-EXEC: {0.00, 7.00}
   TEST2(fn11, 3, 5);            // CHECK-EXEC: {1.00, 1.00}
   TEST2(fn12, 3, 5);            // CHECK-EXEC: {1.00, 0.00}
+
+  // Testing the partial gradient of a function with multiple pointer arguments
+  auto fn13_grad_0 = clad::gradient(fn13, "x");
+  double x = 2.0;
+  double w[] = {2.0, 3.0};
+  double fn13_result = 0.0;
+  fn13_grad_0.execute(&x, w, &fn13_result);
+  printf("{%.2f}\n", fn13_result);   // CHECK-EXEC: {3.00}
 }
