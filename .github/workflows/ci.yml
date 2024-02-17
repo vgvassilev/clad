@@ -404,6 +404,12 @@ jobs:
             compiler: clang-16
             clang-runtime: '17'
 
+          - name: ubu22-clang16-runtime17-shared-libs
+            os: ubuntu-22.04
+            compiler: clang-16
+            extra_cmake_options: '-DBUILD_SHARED_LIBS=On'
+            clang-runtime: '17'
+
           - name: ubu22-clang16-runtime17-kokkos
             os: ubuntu-22.04
             compiler: clang-16

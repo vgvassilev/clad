@@ -8,7 +8,8 @@ set(CLAD_PLUGIN_SRC
   DerivedFnInfo.cpp
   RequiredSymbols.cpp
 )
-add_llvm_library(cladPlugin ${CLAD_PLUGIN_SRC} )
+
+llvm_add_library(cladPlugin STATIC ${CLAD_PLUGIN_SRC})
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
   add_llvm_loadable_module(clad ${CLAD_PLUGIN_SRC} PLUGIN_TOOL clang)

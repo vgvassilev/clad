@@ -19,7 +19,8 @@ set_property(SOURCE Version.cpp APPEND PROPERTY
              COMPILE_DEFINITIONS "HAVE_VCS_VERSION_INC")
 
 # (Ab)use llvm facilities for adding libraries.
-add_llvm_library(cladDifferentiator
+llvm_add_library(cladDifferentiator
+  STATIC
   BaseForwardModeVisitor.cpp
   CladUtils.cpp
   ConstantFolder.cpp
