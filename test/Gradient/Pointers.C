@@ -339,6 +339,71 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:     _d_b[2] += _d_sum;
 // CHECK-NEXT: }
 
+double newAndDeletePointer(double i, double j) {
+  double *p = new double(i);
+  double *q = new double(j);
+  double *r = new double[2];
+  r[0] = i + j;
+  r[1] = i*j;
+  double sum = *p + *q + r[0] + r[1];
+  delete p;
+  delete q;
+  delete [] r;
+  return sum;
+}
+
+// CHECK: void newAndDeletePointer_grad(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK-NEXT:     double *_d_p = 0;
+// CHECK-NEXT:     double *_d_q = 0;
+// CHECK-NEXT:     double *_d_r = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     double _d_sum = 0;
+// CHECK-NEXT:     _d_p = new double(* _d_i);
+// CHECK-NEXT:     double *p = new double(i);
+// CHECK-NEXT:     _d_q = new double(* _d_j);
+// CHECK-NEXT:     double *q = new double(j);
+// CHECK-NEXT:     _d_r = new double [2];
+// CHECK-NEXT:     double *r = new double [2];
+// CHECK-NEXT:     _t0 = r[0];
+// CHECK-NEXT:     r[0] = i + j;
+// CHECK-NEXT:     _t1 = r[1];
+// CHECK-NEXT:     r[1] = i * j;
+// CHECK-NEXT:     double sum = *p + *q + r[0] + r[1];
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_sum += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p += _d_sum;
+// CHECK-NEXT:         *_d_q += _d_sum;
+// CHECK-NEXT:         _d_r[0] += _d_sum;
+// CHECK-NEXT:         _d_r[1] += _d_sum;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         r[1] = _t1;
+// CHECK-NEXT:         double _r_d1 = _d_r[1];
+// CHECK-NEXT:         _d_r[1] -= _r_d1;
+// CHECK-NEXT:         * _d_i += _r_d1 * j;
+// CHECK-NEXT:         * _d_j += i * _r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         r[0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_r[0];
+// CHECK-NEXT:         _d_r[0] -= _r_d0;
+// CHECK-NEXT:         * _d_i += _r_d0;
+// CHECK-NEXT:         * _d_j += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     * _d_j += *_d_q;
+// CHECK-NEXT:     * _d_i += *_d_p;
+// CHECK-NEXT:     delete [] r;
+// CHECK-NEXT:     delete [] _d_r;
+// CHECK-NEXT:     delete q;
+// CHECK-NEXT:     delete _d_q;
+// CHECK-NEXT:     delete p;
+// CHECK-NEXT:     delete _d_p;
+// CHECK-NEXT: }
+  
+
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
 var.execute(5,res);\
@@ -433,4 +498,9 @@ int main() {
   d_pointerMultipleParams.execute(arr, b_arr, d_arr_ref, d_b_arr_ref);
   printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 2.00 4.00 2.00 0.00 0.00
   printf("%.2f %.2f %.2f %.2f %.2f\n", d_b_arr[0], d_b_arr[1], d_b_arr[2], d_b_arr[3], d_b_arr[4]); // CHECK-EXEC: 0.00 0.00 1.00 0.00 0.00
+
+  auto d_newAndDeletePointer = clad::gradient(newAndDeletePointer);
+  double d_i = 0, d_j = 0;
+  d_newAndDeletePointer.execute(5, 7, &d_i, &d_j);
+  printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 9.00 7.00
 }

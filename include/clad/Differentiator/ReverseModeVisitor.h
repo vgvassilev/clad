@@ -41,6 +41,8 @@ namespace clad {
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
     std::vector<Stmts> m_Reverse;
+    /// Storing expressions to delete/free memory in the reverse pass.
+    Stmts m_DeallocExprs;
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
@@ -370,6 +372,8 @@ namespace clad {
     StmtDiff VisitContinueStmt(const clang::ContinueStmt* CS);
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
+    StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
+    StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
     StmtDiff VisitCXXConstructExpr(const clang::CXXConstructExpr* CE);
     StmtDiff
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
