@@ -610,6 +610,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Reverse, direction::forward);
+    // Add delete statements present in m_DeallocExprs to the current block.
+    for (auto* S : m_DeallocExprs)
+      if (auto* CS = dyn_cast<CompoundStmt>(S))
+        for (Stmt* S : CS->body())
+          addToCurrentBlock(S, direction::forward);
+      else
+        addToCurrentBlock(S, direction::forward);
 
     if (m_ExternalSource)
       m_ExternalSource->ActOnEndOfDerivedFnBody();
@@ -2573,6 +2580,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VD->getType()->isPointerType();
+    bool isInitializedByNewExpr = false;
+    // Check if the variable is pointer type and initialized by new expression
+    if (isPointerType && VD->getInit()) {
+      if (isa<CXXNewExpr>(VD->getInit())) {
+        isInitializedByNewExpr = true;
+      }
+    }
 
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
@@ -2663,8 +2677,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
     // need to call `Visit` since non-local variables are not differentiated.
-    if (!isDerivativeOfRefType && !isPointerType) {
+    if (!isDerivativeOfRefType && !(isPointerType && !isInitializedByNewExpr)) {
       Expr* derivedE = BuildDeclRef(VDDerived);
+      if (isInitializedByNewExpr) {
+        // derivedE should be dereferenced.
+        derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
+      }
       if (VD->getInit()) {
         if (isa<CXXConstructExpr>(VD->getInit()))
           initDiff = Visit(VD->getInit());
@@ -3702,6 +3720,49 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* clonedCTE = Clone(CTE);
     return {clonedCTE, m_ThisExprDerivative};
   }
+
+  StmtDiff ReverseModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
+  StmtDiff initializerDiff;
+  if (CNE->hasInitializer())
+    initializerDiff = Visit(CNE->getInitializer(), dfdx());
+
+  Expr* clonedArraySizeE = nullptr;
+  Expr* derivedArraySizeE = nullptr;
+  if (CNE->getArraySize()) {
+    clonedArraySizeE =
+        Visit(clad_compat::ArraySize_GetValue(CNE->getArraySize())).getExpr();
+    // Array size is a non-differentiable expression, thus the original value
+    // should be used in both the cloned and the derived statements.
+    derivedArraySizeE = Clone(clonedArraySizeE);
+  }
+  Expr* clonedNewE = utils::BuildCXXNewExpr(
+      m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
+      initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+  Expr* derivedNewE = utils::BuildCXXNewExpr(
+      m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
+      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+  return {clonedNewE, derivedNewE};
+}
+
+StmtDiff
+ReverseModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
+  StmtDiff argDiff = Visit(CDE->getArgument());
+  Expr* clonedDeleteE =
+      m_Sema
+          .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
+                          argDiff.getExpr())
+          .get();
+  Expr* derivedDeleteE =
+      m_Sema
+          .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
+                          argDiff.getExpr_dx())
+          .get();
+  // create a compound statement containing both the cloned and the derived
+  // delete expressions.
+  CompoundStmt* CS = MakeCompoundStmt({clonedDeleteE, derivedDeleteE});
+  m_DeallocExprs.push_back(CS);
+  return {nullptr, nullptr};
+}
 
   // FIXME: Add support for differentiating calls to constructors.
   // We currently assume that constructor arguments are non-differentiable.
