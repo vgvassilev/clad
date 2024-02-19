@@ -1247,6 +1247,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
       return StmtDiff(clonedILE);
     }
+    // Check if type is a CXXRecordDecl and a struct.
+    if (!isCladValueAndPushforwardType(ILEType) && ILEType->isRecordType() &&
+        ILEType->getAsCXXRecordDecl()->isStruct()) {
+      for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
+        // fetch ith field of the struct.
+        auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
+        std::advance(field_iterator, i);
+        Expr* member_acess = utils::BuildMemberExpr(
+            m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
+        clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
+      }
+      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+      return StmtDiff(clonedILE);
+    }
+
     // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
     // that represents a ValueAndPushforward type. Ideally this must be
     // differentiated at VisitCXXConstructExpr
@@ -2582,11 +2597,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool isPointerType = VD->getType()->isPointerType();
     bool isInitializedByNewExpr = false;
     // Check if the variable is pointer type and initialized by new expression
-    if (isPointerType && VD->getInit()) {
-      if (isa<CXXNewExpr>(VD->getInit())) {
-        isInitializedByNewExpr = true;
-      }
-    }
+    if (isPointerType && (VD->getInit() != nullptr) &&
+        isa<CXXNewExpr>(VD->getInit()))
+      isInitializedByNewExpr = true;
 
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
@@ -2655,7 +2668,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // if VD is a pointer type, then the initial value is set to the derived
       // expression of the corresponding pointer type.
       else if (isPointerType && VD->getInit()) {
-        initDiff = Visit(VD->getInit());
         VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
         // If it's a pointer to a constant type, then remove the constness.
         if (VD->getType()->getPointeeType().isConstQualified()) {
@@ -2677,12 +2689,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
     // need to call `Visit` since non-local variables are not differentiated.
-    if (!isDerivativeOfRefType && !(isPointerType && !isInitializedByNewExpr)) {
+    if (!isDerivativeOfRefType && (!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = BuildDeclRef(VDDerived);
-      if (isInitializedByNewExpr) {
-        // derivedE should be dereferenced.
+      if (isInitializedByNewExpr)
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
-      }
       if (VD->getInit()) {
         if (isa<CXXConstructExpr>(VD->getInit()))
           initDiff = Visit(VD->getInit());
@@ -2709,6 +2719,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                      getZeroInit(VDDerivedType));
         addToCurrentBlock(assignToZero, direction::reverse);
       }
+    } else if (isPointerType && VD->getInit()) {
+      initDiff = Visit(VD->getInit());
     }
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = BuildDeclRef(VDDerived);
@@ -2924,6 +2936,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Casts should be handled automatically when the result is used by
     // Sema::ActOn.../Build...
     return Visit(ICE->getSubExpr(), dfdx());
+  }
+
+  StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
+      const ImplicitValueInitExpr* IVIE) {
+    return {Clone(IVIE), Clone(IVIE)};
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
@@ -3722,47 +3739,47 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
-  StmtDiff initializerDiff;
-  if (CNE->hasInitializer())
-    initializerDiff = Visit(CNE->getInitializer(), dfdx());
+    StmtDiff initializerDiff;
+    if (CNE->hasInitializer())
+      initializerDiff = Visit(CNE->getInitializer(), dfdx());
 
-  Expr* clonedArraySizeE = nullptr;
-  Expr* derivedArraySizeE = nullptr;
-  if (CNE->getArraySize()) {
-    clonedArraySizeE =
-        Visit(clad_compat::ArraySize_GetValue(CNE->getArraySize())).getExpr();
-    // Array size is a non-differentiable expression, thus the original value
-    // should be used in both the cloned and the derived statements.
-    derivedArraySizeE = Clone(clonedArraySizeE);
+    Expr* clonedArraySizeE = nullptr;
+    Expr* derivedArraySizeE = nullptr;
+    if (CNE->getArraySize()) {
+      clonedArraySizeE =
+          Visit(clad_compat::ArraySize_GetValue(CNE->getArraySize())).getExpr();
+      // Array size is a non-differentiable expression, thus the original value
+      // should be used in both the cloned and the derived statements.
+      derivedArraySizeE = Clone(clonedArraySizeE);
+    }
+    Expr* clonedNewE = utils::BuildCXXNewExpr(
+        m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
+        initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+    Expr* derivedNewE = utils::BuildCXXNewExpr(
+        m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
+        initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+    return {clonedNewE, derivedNewE};
   }
-  Expr* clonedNewE = utils::BuildCXXNewExpr(
-      m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
-      initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
-  Expr* derivedNewE = utils::BuildCXXNewExpr(
-      m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
-      initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
-  return {clonedNewE, derivedNewE};
-}
 
-StmtDiff
-ReverseModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
-  StmtDiff argDiff = Visit(CDE->getArgument());
-  Expr* clonedDeleteE =
-      m_Sema
-          .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
-                          argDiff.getExpr())
-          .get();
-  Expr* derivedDeleteE =
-      m_Sema
-          .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
-                          argDiff.getExpr_dx())
-          .get();
-  // create a compound statement containing both the cloned and the derived
-  // delete expressions.
-  CompoundStmt* CS = MakeCompoundStmt({clonedDeleteE, derivedDeleteE});
-  m_DeallocExprs.push_back(CS);
-  return {nullptr, nullptr};
-}
+  StmtDiff
+  ReverseModeVisitor::VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE) {
+    StmtDiff argDiff = Visit(CDE->getArgument());
+    Expr* clonedDeleteE =
+        m_Sema
+            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
+                            argDiff.getExpr())
+            .get();
+    Expr* derivedDeleteE =
+        m_Sema
+            .ActOnCXXDelete(noLoc, CDE->isGlobalDelete(), CDE->isArrayForm(),
+                            argDiff.getExpr_dx())
+            .get();
+    // create a compound statement containing both the cloned and the derived
+    // delete expressions.
+    CompoundStmt* CS = MakeCompoundStmt({clonedDeleteE, derivedDeleteE});
+    m_DeallocExprs.push_back(CS);
+    return {nullptr, nullptr};
+  }
 
   // FIXME: Add support for differentiating calls to constructors.
   // We currently assume that constructor arguments are non-differentiable.
