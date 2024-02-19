@@ -19,8 +19,9 @@
 #include "clang/Basic/Version.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Timer.h"
 
 namespace clang {
   class ASTContext;
@@ -61,6 +62,15 @@ namespace clad {
     /// argument `DFI`.
     bool AlreadyExists(const DerivedFnInfo& DFI) const;
   };
+  class CladTimerGroup {
+    llvm::TimerGroup m_Tg;
+    std::vector<std::unique_ptr<llvm::Timer>> m_Timers;
+
+  public:
+    CladTimerGroup();
+    void StartNewTimer(llvm::StringRef TimerName, llvm::StringRef TimerDesc);
+    void StopTimer();
+  };
 
   namespace plugin {
     struct DifferentiationOptions {
@@ -89,6 +99,7 @@ namespace clad {
       bool m_HasRuntime = false;
       bool m_PendingInstantiationsInFlight = false;
       bool m_HandleTopLevelDeclInternal = false;
+      CladTimerGroup m_CTG;
       DerivedFnCollector m_DFC;
     public:
       CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);

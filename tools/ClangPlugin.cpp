@@ -32,35 +32,6 @@
 
 using namespace clang;
 
-namespace {
-  class SimpleTimer {
-    bool WantTiming;
-    llvm::TimeRecord Start;
-    std::string Output;
-
-  public:
-    explicit SimpleTimer(bool WantTiming) : WantTiming(WantTiming) {
-      if (WantTiming)
-        Start = llvm::TimeRecord::getCurrentTime();
-    }
-
-    void setOutput(const Twine &Output) {
-      if (WantTiming)
-        this->Output = Output.str();
-    }
-
-    ~SimpleTimer() {
-      if (WantTiming) {
-        llvm::TimeRecord Elapsed = llvm::TimeRecord::getCurrentTime();
-        Elapsed -= Start;
-        llvm::errs() << Output << ": user | system | process | all :";
-        Elapsed.print(Elapsed, llvm::errs());
-        llvm::errs() << '\n';
-      }
-    }
-  };
-}
-
 namespace clad {
   namespace plugin {
     /// Keeps track if we encountered #pragma clad on/off.
@@ -103,7 +74,6 @@ namespace clad {
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
 #if CLANG_VERSION_MAJOR > 8
-
       FrontendOptions& Opts = CI.getFrontendOpts();
       // Find the path to clad.
       llvm::StringRef CladSoPath;
@@ -228,9 +198,14 @@ namespace clad {
         // FIXME: Move the timing inside the DerivativeBuilder. This would
         // require to pass in the DifferentiationOptions in the DiffPlan.
         // derive the collected functions
-        bool WantTiming = getenv("LIBCLAD_TIMING");
-        SimpleTimer Timer(WantTiming);
-        Timer.setOutput("Generation time for " + FD->getNameAsString());
+
+#if CLANG_VERSION_MAJOR > 11
+        bool WantTiming =
+            getenv("LIBCLAD_TIMING") || m_CI.getCodeGenOpts().TimePasses;
+#else
+        bool WantTiming =
+            getenv("LIBCLAD_TIMING") || m_CI.getFrontendOpts().ShowTimers;
+#endif
 
         auto DFI = m_DFC.Find(request);
         if (DFI.IsValid()) {
@@ -238,9 +213,16 @@ namespace clad {
           OverloadedDerivativeDecl = DFI.OverloadedDerivedFn();
           alreadyDerived = true;
         } else {
+          // Only time the function when it is first encountered
+          if (WantTiming)
+            m_CTG.StartNewTimer("Timer for clad func",
+                                request.BaseFunctionName);
+
           auto deriveResult = m_DerivativeBuilder->Derive(request);
           DerivativeDecl = deriveResult.derivative;
           OverloadedDerivativeDecl = deriveResult.overload;
+          if (WantTiming)
+            m_CTG.StopTimer();
         }
       }
 
@@ -337,6 +319,23 @@ namespace clad {
       return m_HasRuntime;
     }
   } // end namespace plugin
+
+  clad::CladTimerGroup::CladTimerGroup()
+      : m_Tg("Timers for Clad Funcs", "Timers for Clad Funcs") {}
+
+  void clad::CladTimerGroup::StartNewTimer(llvm::StringRef TimerName,
+                                           llvm::StringRef TimerDesc) {
+      std::unique_ptr<llvm::Timer> tm(
+          new llvm::Timer(TimerName, TimerDesc, m_Tg));
+      m_Timers.push_back(std::move(tm));
+      m_Timers.back()->startTimer();
+  }
+
+  void clad::CladTimerGroup::StopTimer() {
+      m_Timers.back()->stopTimer();
+      if (m_Timers.size() != 1)
+        m_Timers.pop_back();
+  }
 
   // Routine to check clang version at runtime against the clang version for
   // which clad was built.
