@@ -34,20 +34,6 @@ namespace clad {
     /// Clear the variable estimate map so that we can start afresh.
     void clearEstimationVariables() { m_EstimateVar.clear(); }
 
-    /// Check if a variable is registered for estimation.
-    ///
-    /// \param[in] VD The variable to check.
-    ///
-    /// \returns The delta expression of the variable if it is registered,
-    /// nullptr otherwise.
-    clang::Expr* IsVariableRegistered(const clang::VarDecl* VD);
-
-    /// Track the variable declaration and utilize it in error
-    /// estimation.
-    ///
-    /// \param[in] VD The declaration to track.
-    void AddVarToEstimate(clang::VarDecl* VD, clang::Expr* VDRef);
-
     /// Helper to build a function call expression.
     ///
     /// \param[in] funcName The name of the function to build the expression
@@ -85,31 +71,6 @@ namespace clad {
     /// \returns The error expression of the input value.
     virtual clang::Expr* AssignError(StmtDiff refExpr,
                                      const std::string& name) = 0;
-
-    /// Initializes errors for '_delta_' statements.
-    /// This function returns the initial error assignment. Similar to
-    /// AssignError, however, this function is only called during declaration of
-    /// variables. This function is separate from AssignError to keep
-    /// implementation of different estimation models more flexible.
-    ///
-    /// The default definition is as follows:
-    /// \n \code
-    /// clang::Expr* SetError(clang::VarDecl* declStmt) {
-    ///      return nullptr;
-    /// }
-    /// \endcode
-    /// The above will return a 0 expression to be assigned to the '_delta_'
-    /// declaration of input decl.
-    ///
-    /// \param[in] decl The declaration to which the error has to be assigned.
-    ///
-    /// \returns The error expression for declaration statements.
-    virtual clang::Expr* SetError(clang::VarDecl* decl);
-
-    /// Calculate aggregate error from m_EstimateVar.
-    ///
-    /// \returns the final error estimation statement.
-    clang::Expr* CalculateAggregateError();
 
     friend class ErrorEstimationHandler;
   };
