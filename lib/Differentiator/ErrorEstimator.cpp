@@ -17,8 +17,7 @@ QualType getUnderlyingArrayType(QualType baseType, ASTContext& C) {
   } else if (auto PTType = baseType->getAs<PointerType>()) {
     return PTType->getPointeeType();
   }
-  assert(0 && "Unreachable");
-  return {};
+  return baseType;
 }
 
 Expr* UpdateErrorForFuncCallAssigns(ErrorEstimationHandler* handler,
@@ -121,10 +120,7 @@ bool ErrorEstimationHandler::ShouldEstimateErrorFor(VarDecl* VD) {
 
   // Get the types on the declartion and initalization expression.
   QualType varDeclBase = VD->getType();
-  QualType varDeclType =
-      utils::isArrayOrPointerType(varDeclBase)
-          ? getUnderlyingArrayType(varDeclBase, m_RMV->m_Context)
-          : varDeclBase;
+  QualType varDeclType = getUnderlyingArrayType(varDeclBase, m_RMV->m_Context);
   const Expr* init = VD->getInit();
   // If declarationg type in not floating point type, we want to do two
   // things.
