@@ -396,14 +396,40 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     * _d_j += *_d_q;
 // CHECK-NEXT:     * _d_i += *_d_p;
-// CHECK-NEXT:     delete [] r;
-// CHECK-NEXT:     delete [] _d_r;
-// CHECK-NEXT:     delete q;
-// CHECK-NEXT:     delete _d_q;
 // CHECK-NEXT:     delete p;
 // CHECK-NEXT:     delete _d_p;
+// CHECK-NEXT:     delete q;
+// CHECK-NEXT:     delete _d_q;
+// CHECK-NEXT:     delete [] r;
+// CHECK-NEXT:     delete [] _d_r;
 // CHECK-NEXT: }
-  
+
+struct T {
+  double x;
+  int y;
+};
+
+double structPointer (double x) {
+  T* t = new T{x};
+  double res = t->x;
+  delete t;
+  return res;
+}
+
+// CHECK: void structPointer_grad(double x, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:     T *_d_t = 0;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     _d_t = new T;
+// CHECK-NEXT:     T *t = new T({x, /*implicit*/(int)0});
+// CHECK-NEXT:     double res = t->x;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_t->x += _d_res;
+// CHECK-NEXT:     * _d_x += *_d_t.x;
+// CHECK-NEXT:     delete t;
+// CHECK-NEXT:     delete _d_t;
+// CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
@@ -504,4 +530,8 @@ int main() {
   double d_i = 0, d_j = 0;
   d_newAndDeletePointer.execute(5, 7, &d_i, &d_j);
   printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 9.00 7.00
+
+  auto d_structPointer = clad::gradient(structPointer);
+  double d_x = 0;
+  d_structPointer.execute(5, &d_x);
 }

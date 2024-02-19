@@ -1445,6 +1445,11 @@ BaseForwardModeVisitor::VisitImplicitCastExpr(const ImplicitCastExpr* ICE) {
   return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
 }
 
+StmtDiff BaseForwardModeVisitor::VisitImplicitValueInitExpr(
+    const ImplicitValueInitExpr* E) {
+  return StmtDiff(Clone(E), Clone(E));
+}
+
 StmtDiff
 BaseForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
   // FIXME: Shouldn't we simply clone the CXXDefaultArgExpr?

@@ -110,16 +110,41 @@ double fn5(double i, double j) {
 // CHECK-NEXT:     return *(_d_arr + idx1) + *(_d_arr + idx2);
 // CHECK-NEXT: }
 
+struct T {
+  double i;
+  int j;
+};
+
+double fn6 (double i) {
+  T* t = new T{i};
+  double res = t->i;
+  delete t;
+  return res;
+}
+
+// CHECK: double fn6_darg0(double i) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     T *_d_t = new T({_d_i, /*implicit*/(int)0});
+// CHECK-NEXT:     T *t = new T({i, /*implicit*/(int)0});
+// CHECK-NEXT:     double _d_res = _d_t->i;
+// CHECK-NEXT:     double res = t->i;
+// CHECK-NEXT:     delete _d_t;
+// CHECK-NEXT:     delete t;
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
   INIT_DIFFERENTIATE(fn3, "i");
   INIT_DIFFERENTIATE(fn4, "i");
   INIT_DIFFERENTIATE(fn5, "i");
+  INIT_DIFFERENTIATE(fn6, "i");
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: {5.00}
   TEST_DIFFERENTIATE(fn2, 3, 5);  // CHECK-EXEC: {5.00}
   TEST_DIFFERENTIATE(fn3, 3, 5);  // CHECK-EXEC: {6.00}
   TEST_DIFFERENTIATE(fn4, 3, 5);  // CHECK-EXEC: {16.00}
   TEST_DIFFERENTIATE(fn5, 3, 5);  // CHECK-EXEC: {57.00}
+  TEST_DIFFERENTIATE(fn6, 3);     // CHECK-EXEC: {1.00}
 }
