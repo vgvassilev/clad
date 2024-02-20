@@ -60,7 +60,7 @@ Building from source LLVM, Clang and Clad (development environment)
 
    sudo -H pip install lit
    git clone https://github.com/llvm/llvm-project.git src
-   cd src; git chekout llvmorg-13.0.0
+   cd src; git checkout llvmorg-13.0.0
    cd /tools
    git clone https://github.com/vgvassilev/clad.git clad
    cd ../../../
