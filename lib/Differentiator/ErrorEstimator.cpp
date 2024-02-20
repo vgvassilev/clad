@@ -335,7 +335,7 @@ void ErrorEstimationHandler::
 }
 
 void ErrorEstimationHandler::
-    ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt() {
+    ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt() {
   // In error estimation, manually emit the code here instead of
   // DifferentiateSingleStmt to maintain correct order.
   EmitErrorEstimationStmts(direction::forward);
@@ -354,7 +354,7 @@ void ErrorEstimationHandler::ActAfterProcessingSingleStmtBodyInVisitForLoop() {
   EmitErrorEstimationStmts(direction::forward);
 }
 
-void ErrorEstimationHandler::ActBeforeFinalisingVisitReturnStmt(
+void ErrorEstimationHandler::ActBeforeFinalizingVisitReturnStmt(
     StmtDiff& retExprDiff) {
   // If the return expression is not a DeclRefExpression and is of type
   // float, we should add it to the error estimate because returns are
@@ -362,7 +362,7 @@ void ErrorEstimationHandler::ActBeforeFinalisingVisitReturnStmt(
   SaveReturnExpr(retExprDiff.getExpr());
 }
 
-void ErrorEstimationHandler::ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) {
+void ErrorEstimationHandler::ActBeforeFinalizingPostIncDecOp(StmtDiff& diff) {
   EmitUnaryOpErrorStmts(diff, m_RMV->isInsideLoop);
 }
 
@@ -387,7 +387,7 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
   }
 }
 
-void ErrorEstimationHandler::ActBeforeFinalisingAssignOp(
+void ErrorEstimationHandler::ActBeforeFinalizingAssignOp(
     clang::Expr*& LCloned, clang::Expr*& oldValue, clang::Expr*& R,
     clang::BinaryOperator::Opcode& opCode) {
   // In the case that an RHS expression is a declReference, we do not emit
