@@ -172,18 +172,18 @@ public:
   void ActBeforeDifferentiatingStmtInVisitCompoundStmt() override;
   void ActAfterProcessingStmtInVisitCompoundStmt() override;
   void ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt() override;
-  void ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt() override;
+  void ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt() override;
   void ActBeforeDifferentiatingLoopInitStmt() override;
   void ActBeforeDifferentiatingSingleStmtLoopBody() override;
   void ActAfterProcessingSingleStmtBodyInVisitForLoop() override;
-  void ActBeforeFinalisingVisitReturnStmt(StmtDiff& retExprDiff) override;
-  void ActBeforeFinalisingPostIncDecOp(StmtDiff& diff) override;
+  void ActBeforeFinalizingVisitReturnStmt(StmtDiff& retExprDiff) override;
+  void ActBeforeFinalizingPostIncDecOp(StmtDiff& diff) override;
   void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& fnDecl,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls,
       bool asGrad) override;
-  void ActBeforeFinalisingAssignOp(clang::Expr*&, clang::Expr*&, clang::Expr*&,
+  void ActBeforeFinalizingAssignOp(clang::Expr*&, clang::Expr*&, clang::Expr*&,
                                    clang::BinaryOperator::Opcode&) override;
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
   void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) override;
