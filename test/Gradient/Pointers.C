@@ -431,6 +431,38 @@ double structPointer (double x) {
 // CHECK-NEXT:     delete _d_t;
 // CHECK-NEXT: }
 
+double cStyleMemoryAlloc(double x, size_t n) {
+  T* t = (T*)malloc(n * sizeof(T));
+  t->x = x;
+  double res = t->x;
+  free(t);
+  return res;
+}
+
+// CHECK: void cStyleMemoryAlloc_grad_0(double x, size_t n, clad::array_ref<double> _d_x) {
+// CHECK-NEXT:     size_t _d_n = 0;
+// CHECK-NEXT:     T *_d_t = 0;
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     _d_t = (T *)malloc(n * sizeof(T));
+// CHECK-NEXT:     T *t = (T *)malloc(n * sizeof(T));
+// CHECK-NEXT:     _t0 = t->x;
+// CHECK-NEXT:     t->x = x;
+// CHECK-NEXT:     double res = t->x;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_t->x += _d_res;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         t->x = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_t->x;
+// CHECK-NEXT:         _d_t->x -= _r_d0;
+// CHECK-NEXT:         * _d_x += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     free(t);
+// CHECK-NEXT:     free(_d_t);
+// CHECK-NEXT: }
+
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
 var.execute(5,res);\
@@ -534,4 +566,10 @@ int main() {
   auto d_structPointer = clad::gradient(structPointer);
   double d_x = 0;
   d_structPointer.execute(5, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
+
+  auto d_cStyleMemoryAlloc = clad::gradient(cStyleMemoryAlloc, "x");
+  d_x = 0;
+  d_cStyleMemoryAlloc.execute(5, 7, &d_x);
+  printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
 }

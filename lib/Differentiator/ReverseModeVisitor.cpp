@@ -1441,6 +1441,58 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Stores tape decl and pushes for multiarg numerically differentiated
     // calls.
     llvm::SmallVector<Stmt*, 16> NumericalDiffMultiArg{};
+
+    // For calls to C-style memory allocation functions, we do not need to
+    // differentiate the call. We just need to visit the arguments to the
+    // function.
+    if (utils::IsMemoryAllocationFunction(FD)) {
+      for (const Expr* Arg : CE->arguments()) {
+        StmtDiff ArgDiff = Visit(Arg, dfdx());
+        CallArgs.push_back(ArgDiff.getExpr());
+        if (Arg->getType()->isPointerType())
+          DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
+        else
+          DerivedCallArgs.push_back(ArgDiff.getExpr());
+      }
+      Expr* call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+              .get();
+      Expr* call_dx =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
+                             noLoc)
+              .get();
+      return StmtDiff(call, call_dx);
+    }
+    // For calls to C-style memory deallocation functions, we do not need to
+    // differentiate the call. We just need to visit the arguments to the
+    // function. Also, don't add any statements either in forward or reverse
+    // pass. Instead, add it in m_DeallocExprs.
+    if (utils::IsMemoryDeallocationFunction(FD)) {
+      for (const Expr* Arg : CE->arguments()) {
+        StmtDiff ArgDiff = Visit(Arg, dfdx());
+        CallArgs.push_back(ArgDiff.getExpr());
+        DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
+      }
+      Expr* call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+              .get();
+      Expr* call_dx =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
+                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
+                             noLoc)
+              .get();
+      m_DeallocExprs.push_back(call);
+      m_DeallocExprs.push_back(call_dx);
+      return StmtDiff();
+    }
+
     // If the result does not depend on the result of the call, just clone
     // the call and visit arguments (since they may contain side-effects like
     // f(x = y))

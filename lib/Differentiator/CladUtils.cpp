@@ -641,5 +641,19 @@ namespace clad {
              isa<ObjCBoolLiteralExpr>(E) || isa<CXXBoolLiteralExpr>(E) ||
              isa<GNUNullExpr>(E);
     }
+
+    bool IsMemoryAllocationFunction(const clang::FunctionDecl* FD) {
+      if (FD->getBuiltinID() == Builtin::BImalloc)
+        return true;
+      if (FD->getBuiltinID() == Builtin::BIcalloc)
+        return true;
+      if (FD->getBuiltinID() == Builtin::BIrealloc)
+        return true;
+      return false;
+    }
+
+    bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD) {
+      return FD->getBuiltinID() == Builtin::BIfree;
+    }
   } // namespace utils
 } // namespace clad
