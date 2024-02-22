@@ -4,7 +4,7 @@
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
 // XFAIL: asserts
 // CHECK-NOT: {{.*error|warning|note:.*}}
-
+// XFAIL: target={{i586.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 #include <utility>

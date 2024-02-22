@@ -4,6 +4,7 @@
 
 // FIXME: This test does not work with enable-tbr flag, because the
 // current implementation of TBR analysis doesn't support pointers.
+// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 

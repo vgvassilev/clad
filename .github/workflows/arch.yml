@@ -1,0 +1,53 @@
+---
+name: 'Arch'
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  architecture:
+    strategy:
+      matrix:
+        target: [x86]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v3
+      - name: "Setup latest Alpine Linux"
+        uses: jirutka/setup-alpine@v1
+        with:
+          arch:  ${{ matrix.target }}
+          branch: edge
+          packages: >
+            llvm-dev
+            clang-dev
+            clang-static
+            llvm17-static
+            llvm17-gtest
+            cmake
+            llvm
+            clang
+            make
+            git
+      - name: "Setup"
+        run: |
+          clang --version
+          make --version
+        shell: alpine.sh {0}
+
+      - name: "Compile library"
+        run: |
+          mkdir build && cd build
+          cmake -DLLVM_EXTERNAL_LIT="$(which lit)" ../../clad
+          make -j 8 check-clad
+        shell: alpine.sh {0}
+
+      - name: Setup tmate session
+        if: ${{ failure() && runner.debug }}
+        uses: mxschmitt/action-tmate@v3
+        # When debugging increase to a suitable value!
+        timeout-minutes: 30

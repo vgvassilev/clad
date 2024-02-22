@@ -1,6 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -oSwitch.out 2>&1 -lstdc++ -lm | FileCheck %s
 // RUN: ./Switch.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
+// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"

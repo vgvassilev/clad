@@ -1,5 +1,6 @@
 // RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | FileCheck %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
+// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
