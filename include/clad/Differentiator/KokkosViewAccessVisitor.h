@@ -11,6 +11,16 @@
 
 namespace clad {
 
+/// Determines whether two statement trees are identical regarding
+/// operators and symbols.
+///
+/// Exceptions: expressions containing macros or functions with possible side
+/// effects are never considered identical.
+/// Limitations: (t + u) and (u + t) are not considered identical.
+/// t*(u + t) and t*u + t*t are not considered identical.
+///
+/// function copied from clang/lib/StaticAnalyzer/Checkers/IdenticalExprChecker.cpp
+///
 static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stmt1,
                             const clang::Stmt *Stmt2, bool IgnoreSideEffects) {
 
@@ -206,6 +216,11 @@ static bool isIdenticalStmt(const clang::ASTContext &Ctx, const clang::Stmt *Stm
   }
 }
 
+  /// A visitor for processing the Kokkos View accesses.
+  /// This visitor is used for two purposes:
+  /// - Detect if a View access in the reverse pass is thread safe,
+  /// - Detect if the View needs to be recorded during the forward pass
+  ///   to use the values in the reverse one.
   class KokkosViewAccessVisitor {
     public:
       KokkosViewAccessVisitor (clang::Sema& _semaRef, clang::ASTContext& _m_Context) : 
