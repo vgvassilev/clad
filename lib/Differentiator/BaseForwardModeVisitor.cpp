@@ -1451,6 +1451,25 @@ StmtDiff BaseForwardModeVisitor::VisitImplicitValueInitExpr(
 }
 
 StmtDiff
+BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
+  StmtDiff subExprDiff = Visit(CSCE->getSubExpr());
+  // Create a new CStyleCastExpr with the same type and the same subexpression
+  // as the original one.
+  Expr* castExpr = m_Sema
+                       .BuildCStyleCastExpr(
+                           CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
+                           CSCE->getRParenLoc(), subExprDiff.getExpr())
+                       .get();
+  Expr* castExprDiff =
+      m_Sema
+          .BuildCStyleCastExpr(CSCE->getLParenLoc(),
+                               CSCE->getTypeInfoAsWritten(),
+                               CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
+          .get();
+  return StmtDiff(castExpr, castExprDiff);
+}
+
+StmtDiff
 BaseForwardModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
   // FIXME: Shouldn't we simply clone the CXXDefaultArgExpr?
   // return {Clone(DE), Clone(DE)};

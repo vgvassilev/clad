@@ -360,6 +360,7 @@ namespace clad {
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
     StmtDiff
     VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
+    StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
     StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
