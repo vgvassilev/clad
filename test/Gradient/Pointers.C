@@ -433,7 +433,13 @@ double structPointer (double x) {
 double cStyleMemoryAlloc(double x, size_t n) {
   T* t = (T*)malloc(n * sizeof(T));
   t->x = x;
-  double res = t->x;
+  double* p = (double*)calloc(1, sizeof(double));
+  *p = x;
+  double res = t->x + *p;
+  p = (double*)realloc(p, 2*sizeof(double));
+  p[1] = 2*x;
+  res += p[1];
+  free(p);
   free(t);
   return res;
 }
@@ -442,22 +448,66 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     T *_d_t = 0;
 // CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double *_d_p = 0;
+// CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double *_t2;
+// CHECK-NEXT:     double *_t3;
+// CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     _d_t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     T *t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     _t0 = t->x;
 // CHECK-NEXT:     t->x = x;
-// CHECK-NEXT:     double res = t->x;
+// CHECK-NEXT:     _d_p = (double *)calloc(1, sizeof(double));
+// CHECK-NEXT:     double *p = (double *)calloc(1, sizeof(double));
+// CHECK-NEXT:     _t1 = *p;
+// CHECK-NEXT:     *p = x;
+// CHECK-NEXT:     double res = t->x + *p;
+// CHECK-NEXT:     _t2 = p;
+// CHECK-NEXT:     _t3 = _d_p;
+// CHECK-NEXT:     _d_p = (double *)realloc(_d_p, 2 * sizeof(double));
+// CHECK-NEXT:     p = (double *)realloc(p, 2 * sizeof(double));
+// CHECK-NEXT:     _t4 = p[1];
+// CHECK-NEXT:     p[1] = 2 * x;
+// CHECK-NEXT:     _t5 = res;
+// CHECK-NEXT:     res += p[1];
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
-// CHECK-NEXT:     _d_t->x += _d_res;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         res = _t5;
+// CHECK-NEXT:         double _r_d3 = _d_res;
+// CHECK-NEXT:         _d_p[1] += _r_d3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p[1] = _t4;
+// CHECK-NEXT:         double _r_d2 = _d_p[1];
+// CHECK-NEXT:         _d_p[1] -= _r_d2;
+// CHECK-NEXT:         * _d_x += 2 * _r_d2;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         p = _t2;
+// CHECK-NEXT:         _d_p = _t3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_t->x += _d_res;
+// CHECK-NEXT:         *_d_p += _d_res;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *p = _t1;
+// CHECK-NEXT:         double _r_d1 = *_d_p;
+// CHECK-NEXT:         *_d_p -= _r_d1;
+// CHECK-NEXT:         * _d_x += _r_d1;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t->x = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_t->x;
 // CHECK-NEXT:         _d_t->x -= _r_d0;
 // CHECK-NEXT:         * _d_x += _r_d0;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     free(p);
+// CHECK-NEXT:     free(_d_p);
 // CHECK-NEXT:     free(t);
 // CHECK-NEXT:     free(_d_t);
 // CHECK-NEXT: }
@@ -570,5 +620,5 @@ int main() {
   auto d_cStyleMemoryAlloc = clad::gradient(cStyleMemoryAlloc, "x");
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
-  printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
+  printf("%.2f\n", d_x); // CHECK-EXEC: 4.00
 }

@@ -133,6 +133,47 @@ double fn6 (double i) {
 // CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
+double fn7(double i) {
+  double *p = (double*)malloc(8UL /*sizeof(double)*/);
+  *p = i;
+  T *t = (T*)calloc(1, sizeof(T));
+  t->i = i;
+  double res = *p + t->i;
+  p = (double*)realloc(p, 2*sizeof(double));
+  p[1] = 2*i;
+  res += p[1];
+  free(t);
+  free(p);
+  return res;
+}
+
+// CHECK: double fn7_darg0(double i) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t0 = clad::custom_derivatives::malloc_pushforward(8UL, 0UL);
+// CHECK-NEXT:     double *_d_p = (double *)_t0.pushforward;
+// CHECK-NEXT:     double *p = (double *)_t0.value;
+// CHECK-NEXT:     *_d_p = _d_i;
+// CHECK-NEXT:     *p = i;
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t1 = clad::custom_derivatives::calloc_pushforward(1, sizeof(T), 0, sizeof(T));
+// CHECK-NEXT:     T *_d_t = (T *)_t1.pushforward;
+// CHECK-NEXT:     T *t = (T *)_t1.value;
+// CHECK-NEXT:     _d_t->i = _d_i;
+// CHECK-NEXT:     t->i = i;
+// CHECK-NEXT:     double _d_res = *_d_p + _d_t->i;
+// CHECK-NEXT:     double res = *p + t->i;
+// CHECK-NEXT:     unsigned long _t2 = sizeof(double);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t3 = clad::custom_derivatives::realloc_pushforward(p, 2 * _t2, _d_p, 0 * _t2 + 2 * sizeof(double));
+// CHECK-NEXT:     _d_p = (double *)_t3.pushforward;
+// CHECK-NEXT:     p = (double *)_t3.value;
+// CHECK-NEXT:     _d_p[1] = 0 * i + 2 * _d_i;
+// CHECK-NEXT:     p[1] = 2 * i;
+// CHECK-NEXT:     _d_res += _d_p[1];
+// CHECK-NEXT:     res += p[1];
+// CHECK-NEXT:     clad::custom_derivatives::free_pushforward(t, _d_t);
+// CHECK-NEXT:     clad::custom_derivatives::free_pushforward(p, _d_p);
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
@@ -140,6 +181,7 @@ int main() {
   INIT_DIFFERENTIATE(fn4, "i");
   INIT_DIFFERENTIATE(fn5, "i");
   INIT_DIFFERENTIATE(fn6, "i");
+  INIT_DIFFERENTIATE(fn7, "i");
 
   TEST_DIFFERENTIATE(fn1, 3, 5);  // CHECK-EXEC: {5.00}
   TEST_DIFFERENTIATE(fn2, 3, 5);  // CHECK-EXEC: {5.00}
@@ -147,4 +189,5 @@ int main() {
   TEST_DIFFERENTIATE(fn4, 3, 5);  // CHECK-EXEC: {16.00}
   TEST_DIFFERENTIATE(fn5, 3, 5);  // CHECK-EXEC: {57.00}
   TEST_DIFFERENTIATE(fn6, 3);     // CHECK-EXEC: {1.00}
+  TEST_DIFFERENTIATE(fn7, 3);     // CHECK-EXEC: {4.00}
 }

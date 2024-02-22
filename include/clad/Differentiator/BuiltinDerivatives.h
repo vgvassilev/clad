@@ -196,6 +196,31 @@ CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
 #endif
 
 } // namespace std
+
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+inline ValueAndPushforward<void*, void*> malloc_pushforward(size_t sz,
+                                                            size_t d_sz) {
+  return {malloc(sz), malloc(sz)};
+}
+
+inline ValueAndPushforward<void*, void*>
+calloc_pushforward(size_t n, size_t sz, size_t d_n, size_t d_sz) {
+  return {calloc(n, sz), calloc(n, sz)};
+}
+
+inline ValueAndPushforward<void*, void*>
+realloc_pushforward(void* ptr, size_t sz, void* d_ptr, size_t d_sz) {
+  return {realloc(ptr, sz), realloc(d_ptr, sz)};
+}
+
+inline void free_pushforward(void* ptr, void* d_ptr) {
+  free(ptr);
+  free(d_ptr);
+}
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
 using std::abs_pushforward;
