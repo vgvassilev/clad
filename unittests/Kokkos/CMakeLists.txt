@@ -12,5 +12,6 @@ if (NOT (LLVM_REQUIRES_RTTI OR LLVM_ENABLE_RTTI))
   endif()
 endif()
 
+target_link_libraries(KokkosTests PRIVATE Kokkos::kokkos)
 target_link_libraries(KokkosTests PUBLIC ${Kokkos_LIBRARIES})
 target_include_directories(KokkosTests SYSTEM PRIVATE ${Kokkos_INCLUDE_DIRS})
