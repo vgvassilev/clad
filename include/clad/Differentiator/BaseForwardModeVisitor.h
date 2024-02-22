@@ -107,6 +107,7 @@ public:
   StmtDiff VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
   StmtDiff VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
+  StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
 
   virtual clang::QualType
   GetPushForwardDerivativeType(clang::QualType ParamType);

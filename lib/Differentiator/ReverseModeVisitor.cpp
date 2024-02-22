@@ -1429,7 +1429,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
       }
       if (allArgsAreConstantLiterals)
-        return StmtDiff(Clone(CE));
+        return StmtDiff(Clone(CE), Clone(CE));
     }
 
     // Stores the call arguments for the function to be derived
@@ -2941,6 +2941,23 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitImplicitValueInitExpr(
       const ImplicitValueInitExpr* IVIE) {
     return {Clone(IVIE), Clone(IVIE)};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
+    StmtDiff subExprDiff = Visit(CSCE->getSubExpr(), dfdx());
+    Expr* castExpr = m_Sema
+                         .BuildCStyleCastExpr(
+                             CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
+                             CSCE->getRParenLoc(), subExprDiff.getExpr())
+                         .get();
+    Expr* castExprDiff = subExprDiff.getExpr_dx();
+    if (castExprDiff != nullptr)
+      castExprDiff = m_Sema
+                         .BuildCStyleCastExpr(
+                             CSCE->getLParenLoc(), CSCE->getTypeInfoAsWritten(),
+                             CSCE->getRParenLoc(), subExprDiff.getExpr_dx())
+                         .get();
+    return {castExpr, castExprDiff};
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
