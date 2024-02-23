@@ -26,6 +26,7 @@ Checks: >
   -readability-magic-numbers,
   -readability-named-parameter,
   -readability-function-cognitive-complexity,
+  -readability-implicit-bool-conversion,
   -cppcoreguidelines-avoid-magic-numbers,
 
 CheckOptions:
