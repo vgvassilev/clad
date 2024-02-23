@@ -113,6 +113,14 @@ differentiation. The following examples demonstrate computation of higher-order 
     std::cout << d_fn_3.execute(3) << "\n"; // prints 72.00
   }
 
+Clad also supports higher order differentiation of custom derivatives like `std::sin`. A usage example can be something like::
+  
+  double mysin(double x) { return std::sin(x); }
+  int main() {
+    auto d_sin_3 = clad::differentiate<3>(mysin);
+    std::cout << d_sin_3.execute(3) << "\n"; // prints 0.989992
+  }
+  
 .. note::
 
    For derivative orders upto 3, clad has specially defined enums that can be used

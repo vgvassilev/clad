@@ -3,7 +3,7 @@ Clad Installation
 
 This page covers both installation and usage details for Clad.
 
-At the moment, LLVM/Clang 5.0.x - 15.0.6 are supported.
+At the moment, LLVM/Clang 7.0.x - 17.0.x are supported.
 
 Conda Installation
 ====================
@@ -32,12 +32,13 @@ Building from source (example was tested on Ubuntu 20.04 LTS)
 .. code-block:: bash
 
    #sudo apt install clang-11 libclang-11-dev llvm-11-tools llvm-11-dev
-   sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+   sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" 
    sudo -H pip install lit
-   git clone https://github.com/vgvassilev/clad.git clad
-   mkdir build_dir inst; cd build_dir
-   cmake ../clad -DClang_DIR=/usr/lib/llvm-11 -DLLVM_DIR=/usr/lib/llvm-11 -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="``which lit``"
-   make && make install
+   git clone https://github.com/vgvassilev/clad.git
+   cd clad
+   mkdir build && cd build
+   cmake ../ -DLLVM_DIR=/usr/lib/llvm-11 -DLLVM_EXTERNAL_LIT="``which lit``"
+   make && sudo make install
    
 Building from source (example was tested on macOS Catalina 10.15.7)
 --------------------------------------------------------------------
@@ -48,26 +49,47 @@ Building from source (example was tested on macOS Catalina 10.15.7)
    brew install python
    python -m pip install lit
    git clone https://github.com/vgvassilev/clad.git clad
-   mkdir build_dir inst; cd build_dir
-   cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DCMAKE_INSTALL_PREFIX=../inst -DLLVM_EXTERNAL_LIT="``which lit``"
+   mkdir build; cd build
+   cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DLLVM_EXTERNAL_LIT="``which lit``"
    make && make install
    make check-clad
    
-Building from source LLVM, Clang and Clad (development environment)
+Development Environment - Build LLVM, Clang and Clad from source:
 --------------------------------------------------------------------
 
 .. code-block:: bash
 
-   sudo -H pip install lit
-   git clone https://github.com/llvm/llvm-project.git src
-   cd src; git checkout llvmorg-13.0.0
-   cd /tools
-   git clone https://github.com/vgvassilev/clad.git clad
-   cd ../../../
-   mkdir obj inst
-   cd obj
-   cmake -S ../src/llvm -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_INSTALL_PREFIX=../inst 
-   make && make install
+   python -m pip install lit
+   git clone https://github.com/llvm/llvm-project.git
+   cd llvm-project
+   git checkout llvmorg-16.0.0
+
+Build Clang:
+
+.. code-block:: bash
+
+   mkdir build && cd build
+   cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="DEBUG" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
+   cmake --build . --target clang --parallel $(nproc --all)
+   make -j8 check-clang # this installs llvm-config required by lit
+   cd ../..
+
+Clone and build Clad:
+
+.. code-block:: bash
+
+   git clone https://github.com/vgvassilev/clad.git
+   cd clad
+   mkdir build && cd build
+   cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+   make -j8 clad
+
+
+Run the Clad tests:
+
+.. code-block:: bash
+
+   make -j8 check-clad
 
 How to use Clad
 =================
