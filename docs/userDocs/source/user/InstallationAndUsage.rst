@@ -53,37 +53,6 @@ Building from source (example was tested on macOS Catalina 10.15.7)
    cmake ../clad -DLLVM_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/llvm -DClang_DIR=/usr/local/Cellar/llvm/12.0.0_1/lib/cmake/clang -DLLVM_EXTERNAL_LIT="``which lit``"
    make && make install
    make check-clad
-   
-Development Environment - Build LLVM, Clang and Clad from source:
---------------------------------------------------------------------
-
-.. code-block:: bash
-
-   python -m pip install lit
-   git clone https://github.com/llvm/llvm-project.git
-   cd llvm-project
-   git checkout llvmorg-16.0.0
-
-Build Clang:
-
-.. code-block:: bash
-
-   mkdir build && cd build
-   cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="DEBUG" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
-   cmake --build . --target clang --parallel $(nproc --all)
-   make -j8 check-clang # this installs llvm-config required by lit
-   cd ../..
-
-Clone and build Clad:
-
-.. code-block:: bash
-
-   git clone https://github.com/vgvassilev/clad.git
-   cd clad
-   mkdir build && cd build
-   cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
-   make -j8 clad
-
 
 Run the Clad tests:
 

@@ -46,7 +46,7 @@ To build clad and its documentation, use the following CMake command:
 The built user documentation can be found in `build/docs/userDocs/build`; 
 while the built internal documentation can be found in `build/docs/internalDocs/build`.
 
-Linux (Ubuntu) with debug build of LLVM
+Developers Environment (Linux) - debug build of LLVM, Clang and Clad from source
 -----------------------------------------
 
 Clad is a plugin for LLVM Clang compiler infrastructure. Clad uses
@@ -62,18 +62,32 @@ instructions:
 
 .. code-block:: bash
 
-   sudo -H pip install lit
+   python -m pip install lit
    git clone https://github.com/llvm/llvm-project.git
-   cd llvm-project
-   git checkout release/12.x
-   cd ../
-   mkdir obj inst
-   cd obj
-   cmake ../llvm-project/llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=../inst
-   make install
+   cd llvm-projectß
+   git checkout llvmorg-16.0.0
+
+Build Clang:
+
+.. code-block:: bash
+
+   mkdir build && cd build
+   cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="DEBUG" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
+   cmake --build . --target clang --parallel $(nproc --all)
+   make -j8 check-clang # this installs llvm-config required by lit
+   cd ../..
+
+Clone and build Clad:
+
+.. code-block:: bash
+
+   git clone https://github.com/vgvassilev/clad.git
+   cd clad
+   mkdir build && cd build
+   cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+   make -j8 clad
 
 Please note that it is recommended to have at least 16 GB of total memory (RAM + swap) to build LLVM in debug mode.
-
 
 To build Clad with Debug build of LLVM, adjust the ``-DClang_DIR`` and 
 ``-DLLVM_DIR`` options to point to installation home of debug build of LLVM.
