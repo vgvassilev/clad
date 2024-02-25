@@ -64,7 +64,7 @@ instructions:
 
    python -m pip install lit
    git clone https://github.com/llvm/llvm-project.git
-   cd llvm-projectß
+   cd llvm-project
    git checkout llvmorg-16.0.0
 
 Build Clang:
