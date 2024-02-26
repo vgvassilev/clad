@@ -364,7 +364,7 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     double *p = new double(i);
 // CHECK-NEXT:     _d_q = new double(* _d_j);
 // CHECK-NEXT:     double *q = new double(j);
-// CHECK-NEXT:     _d_r = new double [2];
+// CHECK-NEXT:     _d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
 // CHECK-NEXT:     double *r = new double [2];
 // CHECK-NEXT:     _t0 = r[0];
 // CHECK-NEXT:     r[0] = i + j;
@@ -419,7 +419,7 @@ double structPointer (double x) {
 // CHECK: void structPointer_grad(double x, clad::array_ref<double> _d_x) {
 // CHECK-NEXT:     T *_d_t = 0;
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     _d_t = new T;
+// CHECK-NEXT:     _d_t = new T();
 // CHECK-NEXT:     T *t = new T({x, /*implicit*/(int)0});
 // CHECK-NEXT:     double res = t->x;
 // CHECK-NEXT:     goto _label0;
@@ -433,6 +433,7 @@ double structPointer (double x) {
 
 double cStyleMemoryAlloc(double x, size_t n) {
   T* t = (T*)malloc(n * sizeof(T));
+  memset(t, 0, n * sizeof(T));
   t->x = x;
   double* p = (double*)calloc(1, sizeof(double));
   *p = x;
@@ -458,6 +459,8 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     _d_t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     T *t = (T *)malloc(n * sizeof(T));
+// CHECK-NEXT:     memset(_d_t, 0, n * sizeof(T));
+// CHECK-NEXT:     memset(t, 0, n * sizeof(T));
 // CHECK-NEXT:     _t0 = t->x;
 // CHECK-NEXT:     t->x = x;
 // CHECK-NEXT:     _d_p = (double *)calloc(1, sizeof(double));

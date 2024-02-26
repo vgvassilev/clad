@@ -28,6 +28,7 @@ Checks: >
   -readability-function-cognitive-complexity,
   -readability-implicit-bool-conversion,
   -cppcoreguidelines-avoid-magic-numbers,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
 
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase

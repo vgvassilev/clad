@@ -6,6 +6,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
 #include "llvm/ADT/SmallVector.h"
@@ -400,6 +401,12 @@ namespace clad {
       auto& C = semaRef.getASTContext();
       if (!TSI)
         TSI = C.getTrivialTypeSourceInfo(qType);
+      if (clad_compat::isa_and_nonnull<ImplicitValueInitExpr>(initializer))
+        // If the initializer is an implicit value init expression, then
+        // we don't need to pass it explicitly to the CXXNewExpr. As, clang
+        // internally adds it when initializer is ParenListExpr and
+        // DirectInitRange is valid.
+        initializer = semaRef.ActOnParenListExpr(noLoc, noLoc, {}).get();
       auto newExpr =
           semaRef
               .BuildCXXNew(
@@ -642,18 +649,36 @@ namespace clad {
              isa<GNUNullExpr>(E);
     }
 
-    bool IsMemoryAllocationFunction(const clang::FunctionDecl* FD) {
+    bool IsMemoryFunction(const clang::FunctionDecl* FD) {
+
+#if CLANG_VERSION_MAJOR > 12
       if (FD->getBuiltinID() == Builtin::BImalloc)
         return true;
-      if (FD->getBuiltinID() == Builtin::BIcalloc)
+      if (FD->getBuiltinID() == Builtin::ID::BIcalloc)
         return true;
-      if (FD->getBuiltinID() == Builtin::BIrealloc)
+      if (FD->getBuiltinID() == Builtin::ID::BIrealloc)
         return true;
+      if (FD->getBuiltinID() == Builtin::ID::BImemset)
+        return true;
+#else
+      if (FD->getNameAsString() == "malloc")
+        return true;
+      if (FD->getNameAsString() == "calloc")
+        return true;
+      if (FD->getNameAsString() == "realloc")
+        return true;
+      if (FD->getNameAsString() == "memset")
+        return true;
+#endif
       return false;
     }
 
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD) {
-      return FD->getBuiltinID() == Builtin::BIfree;
+#if CLANG_VERSION_MAJOR > 12
+      return FD->getBuiltinID() == Builtin::ID::BIfree;
+#else
+      return FD->getNameAsString() == "free";
+#endif
     }
   } // namespace utils
 } // namespace clad
