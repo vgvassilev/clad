@@ -16,9 +16,9 @@ double f1(double x) {
   return t;
 } // == x^3
 
-// CHECK: void f1_grad_enzyme(double x, clad::array_ref<double> _d_x) {
+// CHECK: void f1_grad_enzyme(double x, double *_d_x) {
 // CHECK-NEXT:     clad::EnzymeGradient<1> grad = __enzyme_autodiff_f1(f1, x);
-// CHECK-NEXT:     * _d_x = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_x = grad.d_arr[0U];
 // CHECK-NEXT: }
 
 double f2(double x) {
@@ -29,9 +29,9 @@ double f2(double x) {
   return t;
 } // == x^9
 
-// CHECK: void f2_grad_enzyme(double x, clad::array_ref<double> _d_x) {
+// CHECK: void f2_grad_enzyme(double x, double *_d_x) {
 // CHECK-NEXT:     clad::EnzymeGradient<1> grad = __enzyme_autodiff_f2(f2, x);
-// CHECK-NEXT:     * _d_x = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_x = grad.d_arr[0U];
 // CHECK-NEXT: }
 
 double f3(double x) {
@@ -44,9 +44,9 @@ double f3(double x) {
   return t;
 } // == x^2
 
-// CHECK: void f3_grad_enzyme(double x, clad::array_ref<double> _d_x) {
+// CHECK: void f3_grad_enzyme(double x, double *_d_x) {
 // CHECK-NEXT:     clad::EnzymeGradient<1> grad = __enzyme_autodiff_f3(f3, x);
-// CHECK-NEXT:     * _d_x = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_x = grad.d_arr[0U];
 // CHECK-NEXT: }
 
 double f4(double x) {
@@ -56,9 +56,9 @@ double f4(double x) {
   return t;
 } // == x^3
 
-// CHECK: void f4_grad_enzyme(double x, clad::array_ref<double> _d_x) {
+// CHECK: void f4_grad_enzyme(double x, double *_d_x) {
 // CHECK-NEXT:     clad::EnzymeGradient<1> grad = __enzyme_autodiff_f4(f4, x);
-// CHECK-NEXT:     * _d_x = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_x = grad.d_arr[0U];
 // CHECK-NEXT: }
 
 double f5(double x){
@@ -67,9 +67,9 @@ double f5(double x){
   return x;
 } // == x + 10
 
-// CHECK: void f5_grad_enzyme(double x, clad::array_ref<double> _d_x) {
+// CHECK: void f5_grad_enzyme(double x, double *_d_x) {
 // CHECK-NEXT:     clad::EnzymeGradient<1> grad = __enzyme_autodiff_f5(f5, x);
-// CHECK-NEXT:     * _d_x = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_x = grad.d_arr[0U];
 // CHECK-NEXT: }
 
 double f6 (double i, double j) {
@@ -83,10 +83,10 @@ double f6 (double i, double j) {
   return a;
 }
 
-// CHECK: void f6_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void f6_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_f6(f6, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn7(double i, double j) {
@@ -97,10 +97,10 @@ double fn7(double i, double j) {
   return a;
 }
 
-// CHECK: void fn7_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn7_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn7(fn7, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn8(double i, double j) {
@@ -113,10 +113,10 @@ double fn8(double i, double j) {
   return a;
 }
 
-// CHECK: void fn8_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn8_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn8(fn8, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn9(double i, double j) {
@@ -132,10 +132,10 @@ double fn9(double i, double j) {
   return a;
 }
 
-// CHECK: void fn9_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn9_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn9(fn9, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn10(double i, double j) {
@@ -148,10 +148,10 @@ double fn10(double i, double j) {
   return a;
 }
 
-// CHECK: void fn10_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn10_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn10(fn10, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn11(double i, double j) {
@@ -171,10 +171,10 @@ double fn11(double i, double j) {
   return a;
 }
 
-// CHECK: void fn11_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn11_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn11(fn11, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn12(double i, double j) {
@@ -194,10 +194,10 @@ double fn12(double i, double j) {
   return res;
 }
 
-// CHECK: void fn12_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn12_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn12(fn12, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn13(double i, double j) {
@@ -220,10 +220,10 @@ double fn13(double i, double j) {
   return res;
 }
 
-// CHECK: void fn13_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn13_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn13(fn13, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 double fn14(double i, double j) {
@@ -241,10 +241,10 @@ double fn14(double i, double j) {
   return res;
 }
 
-// CHECK: void fn14_grad_enzyme(double i, double j, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void fn14_grad_enzyme(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     clad::EnzymeGradient<2> grad = __enzyme_autodiff_fn14(fn14, i, j);
-// CHECK-NEXT:     * _d_i = grad.d_arr[0U];
-// CHECK-NEXT:     * _d_j = grad.d_arr[1U];
+// CHECK-NEXT:     *_d_i = grad.d_arr[0U];
+// CHECK-NEXT:     *_d_j = grad.d_arr[1U];
 // CHECK-NEXT: }
 
 #define TEST(F, x) { \
