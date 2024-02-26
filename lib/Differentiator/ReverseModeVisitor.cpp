@@ -1445,7 +1445,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // For calls to C-style memory allocation functions, we do not need to
     // differentiate the call. We just need to visit the arguments to the
     // function.
-    if (utils::IsMemoryAllocationFunction(FD)) {
+    if (utils::IsMemoryFunction(FD)) {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
@@ -2649,8 +2649,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool isPointerType = VD->getType()->isPointerType();
     bool isInitializedByNewExpr = false;
     // Check if the variable is pointer type and initialized by new expression
-    if (isPointerType && (VD->getInit() != nullptr) &&
-        isa<CXXNewExpr>(VD->getInit()))
+    if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
 
     // VDDerivedInit now serves two purposes -- as the initial derivative value
@@ -2842,7 +2841,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingDifferentiateSingleStmt(direction::reverse);
 
-    addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
+    // If the statement is a standalone call to a memory function, we want to
+    // add its derived statement in the same block as the original statement.
+    // For ex: memset(x, 0, 10) -> memset(_d_x, 0, 10)
+    Stmt* stmtDx = SDiff.getStmt_dx();
+    bool dxInForward = false;
+    if (auto* callExpr = dyn_cast_or_null<CallExpr>(stmtDx))
+      if (auto* FD = dyn_cast<FunctionDecl>(callExpr->getCalleeDecl()))
+        if (utils::IsMemoryFunction(FD))
+          dxInForward = true;
+
+    if (dxInForward)
+      addToCurrentBlock(stmtDx, direction::forward);
+    else
+      addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
     CompoundStmt* RCS = endBlock(direction::reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
@@ -3824,9 +3836,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* clonedNewE = utils::BuildCXXNewExpr(
         m_Sema, CNE->getAllocatedType(), clonedArraySizeE,
         initializerDiff.getExpr(), CNE->getAllocatedTypeSourceInfo());
+    Expr* diffInit = initializerDiff.getExpr_dx();
+    if (!diffInit) {
+      // we should initialize it implicitly using ParenListExpr.
+      diffInit = m_Sema.ActOnParenListExpr(noLoc, noLoc, {}).get();
+    }
     Expr* derivedNewE = utils::BuildCXXNewExpr(
-        m_Sema, CNE->getAllocatedType(), derivedArraySizeE,
-        initializerDiff.getExpr_dx(), CNE->getAllocatedTypeSourceInfo());
+        m_Sema, CNE->getAllocatedType(), derivedArraySizeE, diffInit,
+        CNE->getAllocatedTypeSourceInfo());
     return {clonedNewE, derivedNewE};
   }
 

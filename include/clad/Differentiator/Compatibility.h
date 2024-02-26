@@ -766,5 +766,16 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
   ,Node->isTransparent()
 #endif
 
+// Clang 9 above added isa_and_nonnull.
+#if CLANG_VERSION_MAJOR < 9
+template <typename X, typename Y> bool isa_and_nonnull(const Y* Val) {
+  return Val && isa<X>(Val);
+}
+#else
+template <typename X, typename Y> bool isa_and_nonnull(const Y* Val) {
+  return llvm::isa_and_nonnull<X>(Val);
+}
+#endif
+
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY

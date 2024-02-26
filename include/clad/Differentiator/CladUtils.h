@@ -329,7 +329,7 @@ namespace clad {
 
     bool IsLiteral(const clang::Expr* E);
 
-    bool IsMemoryAllocationFunction(const clang::FunctionDecl* FD);
+    bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
     } // namespace utils
     } // namespace clad

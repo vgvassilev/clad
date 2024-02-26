@@ -161,7 +161,7 @@ double fn7(double i) {
 // CHECK-NEXT:     t->i = i;
 // CHECK-NEXT:     double _d_res = *_d_p + _d_t->i;
 // CHECK-NEXT:     double res = *p + t->i;
-// CHECK-NEXT:     unsigned long _t2 = sizeof(double);
+// CHECK-NEXT:     unsigned {{(int|long)}} _t2 = sizeof(double);
 // CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t3 = clad::custom_derivatives::realloc_pushforward(p, 2 * _t2, _d_p, 0 * _t2 + 2 * sizeof(double));
 // CHECK-NEXT:     _d_p = (double *)_t3.pushforward;
 // CHECK-NEXT:     p = (double *)_t3.value;
