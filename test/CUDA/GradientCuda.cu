@@ -28,7 +28,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 }
 
 
-// CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, clad::array_ref<double> _d_p) __attribute__((device)) __attribute__((host)) {
+// CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     double _d_t = 0;

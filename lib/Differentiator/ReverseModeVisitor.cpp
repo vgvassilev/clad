@@ -126,7 +126,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Account for the this pointer.
     if (isa<CXXMethodDecl>(m_Function) && !utils::IsStaticMethod(m_Function))
       ++numOfDerivativeParams;
-    // All output parameters will be of type `clad::array_ref<void>`. These
+    // All output parameters will be of type `void*`. These
     // parameters will be casted to correct type before the call to the actual
     // derived function.
     // We require each output parameter to be of same type in the overloaded
@@ -635,29 +635,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     const auto* originalFnType =
         dyn_cast<FunctionProtoType>(m_Function->getType());
 
-    // Extract Pointer from Clad Array Ref
-    llvm::SmallVector<VarDecl*, 8> cladRefParams;
-    for (unsigned i = 0; i < numParams; i++) {
-      QualType paramType = origParams[i]->getOriginalType();
-      if (paramType->isRealType()) {
-        cladRefParams.push_back(nullptr);
-        continue;
-      }
-
-      paramType = m_Context.getPointerType(
-          QualType(paramType->getPointeeOrArrayElementType(), 0));
-      auto* arrayRefNameExpr = BuildDeclRef(paramsRef[numParams + i]);
-      auto* getPointerExpr = BuildCallExprToMemFn(arrayRefNameExpr, "ptr", {});
-      auto* arrayRefToArrayStmt = BuildVarDecl(
-          paramType, "d_" + paramsRef[i]->getNameAsString(), getPointerExpr);
-      addToCurrentBlock(BuildDeclStmt(arrayRefToArrayStmt), direction::forward);
-      cladRefParams.push_back(arrayRefToArrayStmt);
-    }
     // Prepare Arguments and Parameters to enzyme_autodiff
     llvm::SmallVector<Expr*, 16> enzymeArgs;
     llvm::SmallVector<ParmVarDecl*, 16> enzymeParams;
     llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParams;
-    llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParamsRef;
+    llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParamsDerived;
 
     // First add the function itself as a parameter/argument
     enzymeArgs.push_back(BuildDeclRef(const_cast<FunctionDecl*>(m_Function)));
@@ -673,23 +655,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
           fdDeclContext, noLoc, paramsRef[i]->getType()));
 
-      // If the original parameter is not of array/pointer type, then we don't
-      // have to extract its pointer from clad array_ref and add it to the
-      // enzyme parameters, so we can skip the rest of the code
-      if (!cladRefParams[i]) {
-        // If original parameter is of a differentiable real type(but not
-        // array/pointer), then add it to the list of params whose gradient must
-        // be extracted later from the EnzymeGradient structure
-        if (paramsRef[i]->getOriginalType()->isRealFloatingType()) {
-          enzymeRealParams.push_back(paramsRef[i]);
-          enzymeRealParamsRef.push_back(paramsRef[numParams + i]);
-        }
-        continue;
+      QualType paramType = origParams[i]->getOriginalType();
+      // If original parameter is of a differentiable real type(but not
+      // array/pointer), then add it to the list of params whose gradient must
+      // be extracted later from the EnzymeGradient structure
+      if (paramType->isRealFloatingType()) {
+        enzymeRealParams.push_back(paramsRef[i]);
+        enzymeRealParamsDerived.push_back(paramsRef[numParams + i]);
+      } else if (utils::isArrayOrPointerType(paramType)) {
+        // Add the corresponding array/pointer variable
+        enzymeArgs.push_back(BuildDeclRef(paramsRef[numParams + i]));
+        enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
+            fdDeclContext, noLoc, paramsRef[numParams + i]->getType()));
       }
-      // Then add the corresponding clad array ref pointer variable
-      enzymeArgs.push_back(BuildDeclRef(cladRefParams[i]));
-      enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
-          fdDeclContext, noLoc, cladRefParams[i]->getType()));
     }
 
     llvm::SmallVector<QualType, 16> enzymeParamsType;
@@ -732,7 +710,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(BuildDeclStmt(gradDeclStmt), direction::forward);
 
       for (unsigned i = 0; i < enzymeRealParams.size(); i++) {
-        auto* LHSExpr = BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsRef[i]));
+        auto* LHSExpr =
+            BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsDerived[i]));
 
         auto* ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                           BuildDeclRef(gradDeclStmt), "d_arr");
