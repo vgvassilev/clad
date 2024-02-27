@@ -47,7 +47,7 @@ The built user documentation can be found in `build/docs/userDocs/build`;
 while the built internal documentation can be found in `build/docs/internalDocs/build`.
 
 Developers Environment (Linux) - debug build of LLVM, Clang and Clad from source
------------------------------------------
+----------------------------------------------------------------------------------
 
 Clad is a plugin for LLVM Clang compiler infrastructure. Clad uses
 Clang and LLVM APIs. Therefore, to properly debug Clad, you will also
