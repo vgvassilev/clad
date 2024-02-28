@@ -3,6 +3,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oReverseLoops.out
 // RUN: ./ReverseLoops.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
+// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

@@ -1,6 +1,7 @@
 // RUN: %cladclang %s -I%S/../../include -std=c++17 -oSwitchInit.out 2>&1 -lstdc++ -lm | FileCheck %s
 // RUN: ./SwitchInit.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
+// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 

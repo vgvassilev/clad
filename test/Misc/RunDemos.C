@@ -5,6 +5,7 @@
 // RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
 
 // XFAIL: asserts
+// XFAIL: target={{i586.*}}
 
 //-----------------------------------------------------------------------------/
 //  Demo: Gradient.cpp

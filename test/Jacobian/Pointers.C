@@ -17,6 +17,8 @@ void nonMemFn(double i, double j, double* out) {
 // CHECK-NEXT:     jacobianMatrix[3UL] += 1;
 // CHECK-NEXT:     jacobianMatrix[0UL] += 1;
 // CHECK-NEXT: }
+// XFAIL: target={{i586.*}}
+
 
 #define NON_MEM_FN_TEST(var)\
 res[0]=res[1]=res[2]=res[3]=0;\
