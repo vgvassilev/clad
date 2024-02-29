@@ -26,36 +26,31 @@ External Dependencies
 
 Forward Mode & Reverse Mode
 ---------------------------
-*
+* Improve handling of char and string literals
 
-Forward Mode
-------------
-*
 
 Reverse Mode
 ------------
-*
+* Add support for differentiating switch statements
+* Supportpassing pointers as call arguments
+* Fix pointer arithmetic for array types
 
-CUDA
-----
-*
-
-Error Estimation
-----------------
-*
 
 Misc
 ----
-*
+* Support BUILD_SHARED_LIBS=On
 
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
+[300](https://github.com/vgvassilev/clad/issues/300)
+[313](https://github.com/vgvassilev/clad/issues/313)
+[636](https://github.com/vgvassilev/clad/issues/636)
+[735](https://github.com/vgvassilev/clad/issues/735)
+[748](https://github.com/vgvassilev/clad/issues/748)
+[753](https://github.com/vgvassilev/clad/issues/753)
+[774](https://github.com/vgvassilev/clad/issues/774)
 
- <!---Get release bugs. Check for close, fix, resolve
- git log v1.3..master | grep -i "close" | grep '#' | sed -E 's,.*\#([0-9]*).*,\[\1\]\(https://github.com/vgvassilev/clad/issues/\1\),g' | sort
- --->
 
 Special Kudos
 =============
@@ -67,6 +62,10 @@ FirstName LastName (#commits)
 
 A B (N)
 
-<!---Find contributor list for this release
- git log --pretty=format:"%an"  v1.3...master | sort | uniq -c | sort -rn | sed -E 's,^ *([0-9]+) (.*)$,\2 \(\1\),'
---->
+Vassil Vassilev (9)
+Vaibhav Thakkar (6)
+maximusron (1)
+bedupako12mas (1)
+Parth (1)
+Krishna Narayanan (1)
+Aaron  Jomy (1)
