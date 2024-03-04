@@ -11,6 +11,13 @@
 namespace clad {
 template <typename T> class array_ref;
 
+// For MSVC, __attribute__((pure)) is not supported.
+#if defined(_MSC_VER)
+#define PUREFUNC
+#else
+#define PUREFUNC __attribute__((pure))
+#endif
+
 /// This class is not meant to be used by user. It is used by clad internally
 /// only
 
@@ -102,16 +109,16 @@ public:
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
   /// Returns the ptr of the underlying array
-  CUDA_HOST_DEVICE T* ptr() const { return m_arr; }
-  CUDA_HOST_DEVICE T*& ptr_ref() { return m_arr; }
+  CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
+  CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
   /// Returns the reference to the location at the index of the underlying
   /// array
-  CUDA_HOST_DEVICE T& operator[](std::ptrdiff_t i) { return m_arr[i]; }
-  CUDA_HOST_DEVICE const T& operator[](std::ptrdiff_t i) const {
+  CUDA_HOST_DEVICE PUREFUNC T& operator[](std::ptrdiff_t i) { return m_arr[i]; }
+  CUDA_HOST_DEVICE PUREFUNC const T& operator[](std::ptrdiff_t i) const {
     return m_arr[i];
   }
   /// Returns the reference to the underlying array
-  CUDA_HOST_DEVICE T& operator*() { return *m_arr; }
+  CUDA_HOST_DEVICE PUREFUNC T& operator*() { return *m_arr; }
 
   // Arithmetic overloads
   /// Divides the number from every element in the array

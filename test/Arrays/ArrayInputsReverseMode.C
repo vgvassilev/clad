@@ -293,7 +293,6 @@ double func5(int k) {
 //CHECK-NEXT:             double _r_d0 = _d_arr[i];
 //CHECK-NEXT:             _d_arr[i] -= _r_d0;
 //CHECK-NEXT:             * _d_k += _r_d0;
-//CHECK-NEXT:             _d_arr[i];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     * _d_k += _d_n;
@@ -498,7 +497,6 @@ void modify(double& elem, double val) {
 //CHECK-NEXT:         double _r_d0 = * _d_elem;
 //CHECK-NEXT:         * _d_elem -= _r_d0;
 //CHECK-NEXT:         * _d_val += _r_d0;
-//CHECK-NEXT:         * _d_elem;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -565,7 +563,6 @@ double sq(double& elem) {
 //CHECK-NEXT:         * _d_elem -= _r_d0;
 //CHECK-NEXT:         * _d_elem += _r_d0 * elem;
 //CHECK-NEXT:         * _d_elem += elem * _r_d0;
-//CHECK-NEXT:         * _d_elem;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 

@@ -74,13 +74,11 @@ double modify1(double& i, double& j) {
 // CHECK-NEXT:         j = _t1;
 // CHECK-NEXT:         double _r_d1 = * _d_j;
 // CHECK-NEXT:         * _d_j += _r_d1;
-// CHECK-NEXT:         * _d_j;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
 // CHECK-NEXT:         double _r_d0 = * _d_i;
 // CHECK-NEXT:         * _d_j += _r_d0;
-// CHECK-NEXT:         * _d_i;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -149,13 +147,11 @@ void update1(double& i, double& j) {
 // CHECK-NEXT:         j = _t1;
 // CHECK-NEXT:         double _r_d1 = * _d_j;
 // CHECK-NEXT:         * _d_j += _r_d1;
-// CHECK-NEXT:         * _d_j;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         i = _t0;
 // CHECK-NEXT:         double _r_d0 = * _d_i;
 // CHECK-NEXT:         * _d_j += _r_d0;
-// CHECK-NEXT:         * _d_i;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -248,7 +244,6 @@ void twice(double& d) {
 // CHECK-NEXT:         double _r_d0 = * _d_d;
 // CHECK-NEXT:         * _d_d -= _r_d0;
 // CHECK-NEXT:         * _d_d += 2 * _r_d0;
-// CHECK-NEXT:         * _d_d;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -723,7 +718,6 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:             wCopy[i] = clad::pop(_t1);
 // CHECK-NEXT:             double _r_d0 = _d_wCopy[i];
 // CHECK-NEXT:             _d_wCopy[i] -= _r_d0;
-// CHECK-NEXT:             _d_wCopy[i];
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

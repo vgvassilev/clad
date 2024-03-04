@@ -296,12 +296,10 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a++;
 // CHECK-NEXT:         _d_a.ptr_ref()++;
-// CHECK-NEXT:         _d_a.ptr_ref();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         b++;
 // CHECK-NEXT:         _d_b.ptr_ref()++;
-// CHECK-NEXT:         _d_b.ptr_ref();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t5;
@@ -312,12 +310,10 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a--;
 // CHECK-NEXT:         _d_a.ptr_ref()--;
-// CHECK-NEXT:         _d_a.ptr_ref();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         b--;
 // CHECK-NEXT:         _d_b.ptr_ref()--;
-// CHECK-NEXT:         _d_b.ptr_ref();
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t4;

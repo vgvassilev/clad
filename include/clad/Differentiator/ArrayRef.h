@@ -53,8 +53,8 @@ public:
   }
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
-  CUDA_HOST_DEVICE T* ptr() const { return m_arr; }
-  CUDA_HOST_DEVICE T*& ptr_ref() { return m_arr; }
+  CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
+  CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
   /// Returns an array_ref to a part of the underlying array starting at
   /// offset and having the specified size
   CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset, std::size_t size) {
@@ -64,7 +64,7 @@ public:
     return array_ref<T>(&m_arr[offset], size);
   }
   /// Returns the reference to the underlying array
-  CUDA_HOST_DEVICE T& operator*() { return *m_arr; }
+  CUDA_HOST_DEVICE PUREFUNC T& operator*() { return *m_arr; }
 
   // Arithmetic overloads
   /// Divides the arrays element wise

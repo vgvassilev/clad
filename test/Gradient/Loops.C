@@ -196,7 +196,6 @@ double f5(double x){
 //CHECK-NEXT:       for (; _t0; _t0--) {
 //CHECK-NEXT:           i--;
 //CHECK-NEXT:           x--;
-//CHECK-NEXT:           * _d_x;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
