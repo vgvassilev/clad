@@ -116,14 +116,14 @@ namespace clad {
     }
     
     // Slab struct to store the elements. Contains the pointer to the next slab
-    template <typename T>
+    template <typename SlabT>
     struct Slab {
-	  std::array<T, 32> elements; // can store 32 elements
-	  std::unique_ptr<Slab<T>> nextSlab;
+	  std::array<SlabT, 32> elements; // can store 32 elements
+	  std::unique_ptr<Slab<SlabT>> nextSlab;
     };
     constexpr static std::size_t _init_capacity = 32;
     CUDA_HOST_DEVICE void grow() {
-	  std::unique_ptr<Slab<T>> newSlab = std::make_unique<Slab<T>>();
+	  std::unique_ptr<Slab<SlabT>> newSlab = std::make_unique<Slab<SlabT>>();
       newSlab->nextSlab = nullptr;
 
       if (!_capacity) {
@@ -132,7 +132,7 @@ namespace clad {
         _data = newSlab;
       } else {
         // find the last slab by iterating the chain of slabs
-        auto* currentSlab = static_cast<Slab<T>*>(_data);
+        auto* currentSlab = static_cast<Slab<SlabT>*>(_data);
         while(currentSlab->nextSlab != nullptr) {
           currentSlab = currentSlab->nextSlab;
         }
