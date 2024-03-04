@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.7.0)
 
+include(GNUInstallDirs)
+
 if(POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
