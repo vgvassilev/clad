@@ -53,7 +53,6 @@ float func(float x, float y) {
 //CHECK-NEXT:         _delta_y += std::abs(* _d_y * _EERepl_y1 * {{.+}});
 //CHECK-NEXT:         * _d_y += _r_d1;
 //CHECK-NEXT:         _delta_y += std::abs(_r_d1 * _EERepl_y2 * {{.+}});
-//CHECK-NEXT:         * _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
@@ -62,7 +61,6 @@ float func(float x, float y) {
 //CHECK-NEXT:         * _d_x += _r_d0;
 //CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     _delta_y += std::abs(* _d_y * _EERepl_y0 * {{.+}});
@@ -108,7 +106,6 @@ float func2(float x, float y) {
 //CHECK-NEXT:         * _d_y += -_r_d0 * y;
 //CHECK-NEXT:         * _d_y += y * -_r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
@@ -176,7 +173,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:         * _d_y += -_r_d0 * y;
 //CHECK-NEXT:         * _d_y += y * -_r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     _delta_y += std::abs(* _d_y * _EERepl_y0 * {{.+}});
@@ -236,7 +232,6 @@ float func5(float x, float y) {
 //CHECK-NEXT:         float _r0 = _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, 1.F).pushforward;
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:         _delta_y += std::abs(_r_d0 * _EERepl_y1 * {{.+}});
-//CHECK-NEXT:         * _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});

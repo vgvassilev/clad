@@ -313,7 +313,6 @@ double f_cond4(double x, double y) {
 //CHECK-NEXT:               * _d_y -= _r_d0;
 //CHECK-NEXT:               _d_arr[i] += _r_d0 * x;
 //CHECK-NEXT:               * _d_x += arr[i] * _r_d0;
-//CHECK-NEXT:               * _d_y;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {

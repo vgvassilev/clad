@@ -60,7 +60,6 @@ float func(float x, float y) {
 //CHECK-NEXT:             * _d_y += _r_d0 * x;
 //CHECK-NEXT:             * _d_x += y * _r_d0;
 //CHECK-NEXT:             _delta_y += std::abs(_r_d0 * _EERepl_y1 * {{.+}});
-//CHECK-NEXT:             * _d_y;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     } else {
 //CHECK-NEXT:         {
@@ -68,7 +67,6 @@ float func(float x, float y) {
 //CHECK-NEXT:             float _r_d2 = * _d_x;
 //CHECK-NEXT:             * _d_x -= _r_d2;
 //CHECK-NEXT:             * _d_y += _r_d2;
-//CHECK-NEXT:             * _d_x;
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             temp = _t1;
@@ -189,20 +187,17 @@ float func4(float x, float y) {
 //CHECK-NEXT:         float _r0 = 1 * -y / (x * x);
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     {
-//CHECK-NEXT:         if (_cond0) {
-//CHECK-NEXT:             x = _t0;
-//CHECK-NEXT:             float _r_d0 = * _d_x;
-//CHECK-NEXT:             _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         } else {
-//CHECK-NEXT:             x = _t1;
-//CHECK-NEXT:             float _r_d1 = * _d_x;
-//CHECK-NEXT:             * _d_x -= _r_d1;
-//CHECK-NEXT:             * _d_x += _r_d1 * x;
-//CHECK-NEXT:             * _d_x += x * _r_d1;
-//CHECK-NEXT:             _delta_x += std::abs(_r_d1 * _EERepl_x2 * {{.+}});
-//CHECK-NEXT:         }
-//CHECK-NEXT:         _cond0 ? * _d_x : * _d_x;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         x = _t0;
+//CHECK-NEXT:         float _r_d0 = * _d_x;
+//CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
+//CHECK-NEXT:     } else {
+//CHECK-NEXT:         x = _t1;
+//CHECK-NEXT:         float _r_d1 = * _d_x;
+//CHECK-NEXT:         * _d_x -= _r_d1;
+//CHECK-NEXT:         * _d_x += _r_d1 * x;
+//CHECK-NEXT:         * _d_x += x * _r_d1;
+//CHECK-NEXT:         _delta_x += std::abs(_r_d1 * _EERepl_x2 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;

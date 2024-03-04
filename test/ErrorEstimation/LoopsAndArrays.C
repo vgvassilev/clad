@@ -158,7 +158,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _d_arr[1] += _r_d2;
 //CHECK-NEXT:         _delta_arr[2] += std::abs(_r_d2 * _EERepl_arr2 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_arr[2];
-//CHECK-NEXT:         _d_arr[2];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         arr[1] = _t1;
@@ -168,7 +167,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:         * _d_x += x * _r_d1;
 //CHECK-NEXT:         _delta_arr[1] += std::abs(_r_d1 * _EERepl_arr1 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_arr[1];
-//CHECK-NEXT:         _d_arr[1];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         arr[0] = _t0;
@@ -178,7 +176,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         _delta_arr[0] += std::abs(_r_d0 * _EERepl_arr0 * {{.+}});
 //CHECK-NEXT:         _final_error += _delta_arr[0];
-//CHECK-NEXT:         _d_arr[0];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double _delta_x = 0;
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * x * {{.+}});

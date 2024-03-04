@@ -31,7 +31,6 @@ float func(float x, float y) {
 //CHECK-NEXT:         float _r_d1 = * _d_y;
 //CHECK-NEXT:         * _d_y -= _r_d1;
 //CHECK-NEXT:         * _d_x += _r_d1;
-//CHECK-NEXT:         * _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
@@ -40,7 +39,6 @@ float func(float x, float y) {
 //CHECK-NEXT:         * _d_x += _r_d0;
 //CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
@@ -73,7 +71,6 @@ float func2(float x, int y) {
 //CHECK-NEXT:         * _d_x += _r_d0 * x;
 //CHECK-NEXT:         * _d_x += x * _r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     _final_error += _delta_x;
@@ -96,7 +93,6 @@ float func3(int x, int y) {
 //CHECK-NEXT:         int _r_d0 = * _d_x;
 //CHECK-NEXT:         * _d_x -= _r_d0;
 //CHECK-NEXT:         * _d_y += _r_d0;
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -129,7 +125,6 @@ float func4(float x, float y) {
 //CHECK-NEXT:         _d_z += _r_d0;
 //CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     * _d_y += _d_z;
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
@@ -164,7 +159,6 @@ float func5(float x, float y) {
 //CHECK-NEXT:         _d_z += _r_d0;
 //CHECK-NEXT:         * _d_y += _r_d0;
 //CHECK-NEXT:         _delta_x += std::abs(_r_d0 * _EERepl_x1 * {{.+}});
-//CHECK-NEXT:         * _d_x;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _delta_x += std::abs(* _d_x * _EERepl_x0 * {{.+}});
 //CHECK-NEXT:     double _delta_y = 0;
