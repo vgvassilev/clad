@@ -170,9 +170,10 @@ void MultiplexExternalRMVSource::ActAfterCloningLHSOfAssignOp(
 }
 
 void MultiplexExternalRMVSource::ActBeforeFinalisingAssignOp(
-    clang::Expr*& LCloned, clang::Expr*& oldValue) {
+    clang::Expr*& LCloned, clang::Expr*& oldValue, clang::Expr*& R,
+    clang::BinaryOperator::Opcode& opCode) {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalisingAssignOp(LCloned, oldValue);
+    source->ActBeforeFinalisingAssignOp(LCloned, oldValue, R, opCode);
   }
 }
 
