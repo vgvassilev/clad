@@ -138,8 +138,10 @@ public:
                                             clang::BinaryOperatorKind& opCode) {
   }
 
-  /// This is called just after finaising processing of assignment operator.
-  virtual void ActBeforeFinalisingAssignOp(clang::Expr*&, clang::Expr*&){};
+  /// This is called just after finalising processing of assignment operator.
+  virtual void ActBeforeFinalisingAssignOp(clang::Expr*&, clang::Expr*&,
+                                           clang::Expr*&,
+                                           clang::BinaryOperator::Opcode&){};
 
   /// This is called at that beginning of
   /// `ReverseModeVisitor::DifferentiateSingleStmt`.

@@ -424,6 +424,13 @@ namespace clad {
     clang::Expr*
     BuildArraySubscript(clang::Expr* Base,
                         const llvm::SmallVectorImpl<clang::Expr*>& IS);
+
+    /// Build an array subscript expression with a given base expression and
+    /// one index.
+    clang::Expr* BuildArraySubscript(clang::Expr* Base, clang::Expr*& Idx) {
+      llvm::SmallVector<clang::Expr*, 1> IS = {Idx};
+      return BuildArraySubscript(Base, IS);
+    }
     /// Find namespace clad declaration.
     clang::NamespaceDecl* GetCladNamespace();
     /// Find declaration of clad::class templated type

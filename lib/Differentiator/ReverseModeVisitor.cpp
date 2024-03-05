@@ -2572,7 +2572,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       } else
         llvm_unreachable("unknown assignment opCode");
       if (m_ExternalSource)
-        m_ExternalSource->ActBeforeFinalisingAssignOp(LCloned, oldValue);
+        m_ExternalSource->ActBeforeFinalisingAssignOp(LCloned, ResultRef, R,
+                                                      opCode);
 
       // Output statements from Visit(L).
       for (auto it = Lblock_begin; it != Lblock_end; ++it)
