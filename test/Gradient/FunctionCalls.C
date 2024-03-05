@@ -728,6 +728,36 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+void emptyFn(double &x, double y) {}
+
+// CHECK: void emptyFn_pullback(double &x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT: }
+
+double fn14(double x, double y) {
+    emptyFn(x, y);
+    return x + y;
+}
+
+// CHECK: void fn14_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = x;
+// CHECK-NEXT:     emptyFn(x, y);
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         * _d_x += 1;
+// CHECK-NEXT:         * _d_y += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x = _t0;
+// CHECK-NEXT:         double _grad1 = 0.;
+// CHECK-NEXT:         emptyFn_pullback(_t0, y, &* _d_x, &_grad1);
+// CHECK-NEXT:         double _r0 = * _d_x;
+// CHECK-NEXT:         double _r1 = _grad1;
+// CHECK-NEXT:         * _d_y += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -807,4 +837,7 @@ int main() {
   double fn13_result = 0.0;
   fn13_grad_0.execute(&x, w, &fn13_result);
   printf("{%.2f}\n", fn13_result);   // CHECK-EXEC: {3.00}
+
+  INIT(fn14);
+  TEST2(fn14, 3, 5);  // CHECK-EXEC: {1.00, 1.00}
 }
