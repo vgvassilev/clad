@@ -390,12 +390,13 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
 void ErrorEstimationHandler::ActBeforeFinalizingAssignOp(
     clang::Expr*& LCloned, clang::Expr*& oldValue, clang::Expr*& R,
     clang::BinaryOperator::Opcode& opCode) {
+  DeclRefExpr* RRef = GetUnderlyingDeclRefOrNull(R);
   // In the case that an RHS expression is a declReference, we do not emit
   // any error because the assignment operation entials zero error.
   // However, for compound assignment operators, the RHS may be a
   // declRefExpr but here we will need to emit its error.
   // This checks for the above conditions.
-  if (opCode != BO_Assign || !isa<DeclRefExpr>(R->IgnoreImplicit()))
+  if (opCode != BO_Assign || !RRef)
     EmitBinaryOpErrorStmts(LCloned, oldValue);
 }
 
