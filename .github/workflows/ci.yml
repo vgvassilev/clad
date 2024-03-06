@@ -24,55 +24,80 @@ jobs:
       matrix:
 
         include:
-          - name: osx-clang-runtime11
-            os: macos-11
-            compiler: clang
-            clang-runtime: '11'
-
-          - name: osx-clang-runtime12
-            os: macos-latest
-            compiler: clang
-            clang-runtime: '12'
-
-          - name: osx-clang-runtime13
-            os: macos-latest
+          - name: osx14-arm-clang-runtime13
+            os: macos-14
             compiler: clang
             clang-runtime: '13'
 
-          - name: osx-clang-runtime14
-            os: macos-latest
+          - name: osx14-arm-clang-runtime14
+            os: macos-14
             compiler: clang
             clang-runtime: '14'
 
-          - name: osx-clang-runtime15
-            os: macos-latest
+          - name: osx14-arm-clang-runtime15
+            os: macos-14
             compiler: clang
             clang-runtime: '15'
 
-          - name: osx-clang-runtime16
-            os: macos-latest
+          - name: osx14-arm-clang-runtime16
+            os: macos-14
             compiler: clang
             clang-runtime: '16'
 
-          - name: osx-clang-runtime17
-            os: macos-latest
+          - name: osx14-arm-clang-runtime17
+            os: macos-14
             compiler: clang
             clang-runtime: '17'
 
-          - name: win-msvc-runtime14
-            os: windows-latest
+          - name: osx13-x86-clang-runtime12
+            os: macos-13
+            compiler: clang
+            clang-runtime: '12'
+
+          - name: osx13-x86-clang-runtime13
+            os: macos-13
+            compiler: clang
+            clang-runtime: '13'
+
+          - name: osx13-x86-clang-runtime14
+            os: macos-13
+            compiler: clang
+            clang-runtime: '14'
+
+          - name: osx13-x86-clang-runtime15
+            os: macos-13
+            compiler: clang
+            clang-runtime: '15'
+
+          - name: osx13-x86-clang-runtime16
+            os: macos-13
+            compiler: clang
+            clang-runtime: '16'
+
+          - name: osx13-x86-clang-runtime17
+            os: macos-13
+            compiler: clang
+            clang-runtime: '17'
+
+          - name: win2022-msvc-runtime14
+            os: windows-2022
             compiler: msvc
             clang-runtime: '14'
 
-          - name: win-msvc-runtime15
-            os: windows-latest
+          - name: win2022-msvc-runtime15
+            os: windows-2022
             compiler: msvc
             clang-runtime: '15'
 
-          - name: win-msvc-runtime16
-            os: windows-latest
+          - name: win2022-msvc-runtime16
+            os: windows-2022
             compiler: msvc
             clang-runtime: '16'
+
+          - name: win2022-msvc-runtime17
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '17'
 
           - name: ubu22-clang15-runtime16-debug
             os: ubuntu-22.04
@@ -559,7 +584,6 @@ jobs:
         # Update openssl on osx because the current one is deprecated by python.
         curl -L https://bootstrap.pypa.io/get-pip.py | sudo python3
         echo "/usr/local/opt/ccache/libexec" >> $GITHUB_PATH
-        PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
 
         # For now Package llvm@18 is unsuported on brew, llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
@@ -591,16 +615,22 @@ jobs:
           # allowing clang to work with system's SDK.
           sudo rm -fr /usr/local/opt/llvm*/include/c++
         fi
-
+        
+        PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
+        
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
         # We need headers in correct place
-        for file in $(xcrun --show-sdk-path)/usr/include/*
-        do
-          if [ ! -f /usr/local/include/$(basename $file) ]; then
-            ln -s $file /usr/local/include/$(basename $file)
-          fi
-        done
+        #FIXME: ln solution fails with error message No such file or directory on osx arm, 
+        #Copying over files as a temporary solution
+        sudo cp -r -n $(xcrun --show-sdk-path)/usr/include/ /usr/local/include/
+        #for file in $(xcrun --show-sdk-path)/usr/include/*
+        #do
+        #  if [ ! -f /usr/local/include/$(basename $file) ]; then
+        #    echo ${file}
+        #    ln -s ${file} /usr/local/include/$(basename $file)
+        #  fi
+        #done
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
@@ -740,10 +770,10 @@ jobs:
       if: ${{ runner.os != 'windows' }}
       run: |
         mkdir obj && cd obj
-        cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
-          -DLLVM_DIR="$PATH_TO_LLVM_BUILD"  \
+        cmake -DClang_DIR=${{ env.PATH_TO_LLVM_BUILD }}  \
+          -DLLVM_DIR=${{ env.PATH_TO_LLVM_BUILD }}       \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
-          -DCLAD_CODE_COVERAGE=${CLAD_CODE_COVERAGE}  \
+          -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           -DLLVM_ENABLE_WERROR=On           \
           $GITHUB_WORKSPACE                 \
