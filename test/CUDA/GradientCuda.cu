@@ -15,6 +15,7 @@
 // XFAIL: clang-15
 
 #include "clad/Differentiator/Differentiator.h"
+#include <vector>
 
 #define N 3
 
@@ -26,7 +27,6 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
    return std::pow(2*M_PI, -dim/2.0) * std::pow(sigma, -0.5) * std::exp(t);
 }
 
-auto gauss_g = clad::gradient(gauss, "p");
 
 // CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, clad::array_ref<double> _d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
@@ -90,8 +90,9 @@ auto gauss_g = clad::gradient(gauss, "p");
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-__global__ void compute(decltype(gauss_g) grad, double* d_x, double* d_p, int n, double* d_result) {
-  grad.execute(d_x, d_p, 2.0, n, d_result);
+__global__ void compute(double* d_x, double* d_p, int n, double* d_result) {
+  auto gauss_g = clad::gradient(gauss, "p");
+  gauss_g.execute(d_x, d_p, 2.0, n, d_result);
 }
 
 int main(void) {
@@ -109,14 +110,24 @@ int main(void) {
   cudaMemcpy(d_x, x, N * sizeof(double), cudaMemcpyHostToDevice);
   cudaMalloc(&d_p, N * sizeof(double));
   cudaMemcpy(d_p, p, N * sizeof(double), cudaMemcpyHostToDevice);
-  double *result, *d_result;
+  std::vector<double> result(N, 0);
+  double *d_result;
 
-  result = (double*)malloc(N * sizeof(double));
   cudaMalloc(&d_result, N * sizeof(double));
 
-  compute<<<1, 1>>>(gauss_g, d_x, d_p, N, d_result);
+  compute<<<1, 1>>>(d_x, d_p, N, d_result);
   cudaDeviceSynchronize();
 
-  cudaMemcpy(result, d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
   printf("%f,%f,%f\n", result[0], result[1], result[2]);
+
+  std::vector<double> result_cpu(N, 0);
+  auto gauss_g = clad::gradient(gauss, "p");
+  gauss_g.execute(x, p, 2.0, N, result_cpu.data());
+
+  if (result != result_cpu) {
+    printf("Results are not equal\n");
+    return 1;
+  }
+
 }
