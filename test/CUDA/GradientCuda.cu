@@ -15,7 +15,7 @@
 // XFAIL: clang-15
 
 #include "clad/Differentiator/Differentiator.h"
-#include <vector>
+#include <array>
 
 #define N 3
 
@@ -110,7 +110,7 @@ int main(void) {
   cudaMemcpy(d_x, x, N * sizeof(double), cudaMemcpyHostToDevice);
   cudaMalloc(&d_p, N * sizeof(double));
   cudaMemcpy(d_p, p, N * sizeof(double), cudaMemcpyHostToDevice);
-  std::vector<double> result(N, 0);
+  std::array<double, N> result{0};
   double *d_result;
 
   cudaMalloc(&d_result, N * sizeof(double));
@@ -121,7 +121,7 @@ int main(void) {
   cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
   printf("%f,%f,%f\n", result[0], result[1], result[2]);
 
-  std::vector<double> result_cpu(N, 0);
+  std::array<double, N> result_cpu{0};
   auto gauss_g = clad::gradient(gauss, "p");
   gauss_g.execute(x, p, 2.0, N, result_cpu.data());
 
