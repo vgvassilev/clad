@@ -358,9 +358,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   /// \param[in] args independent parameters information
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <unsigned... BitMaskedOpts /*To check for enzyme*/,
-            typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
@@ -376,9 +375,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <unsigned... BitMaskedOpts /*To check for enzyme*/,
-            typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
@@ -397,8 +395,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   /// \param[in] args independent parameters information
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = HessianDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = HessianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
@@ -406,18 +404,16 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   hessian(F f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
           const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<
-        DerivedFnType,
-        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by hessian*/,
-                                   code);
+      assert(f && "Must pass in a non-0 argument");
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+          derivedFn /* will be replaced by hessian*/, code);
   }
 
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = HessianDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = HessianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
@@ -425,10 +421,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   hessian(F&& f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
           const char* code = "") {
-    return CladFunction<
-        DerivedFnType,
-        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by hessian*/,
-                                   code, f);
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+          derivedFn /* will be replaced by hessian*/, code, f);
   }
 
   /// Generates function which computes jacobian matrix of the given function
@@ -438,8 +432,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   /// \param[in] args independent parameters information
   /// \returns `CladFunction` object to access the corresponding derived
   /// function.
-  template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
@@ -447,18 +441,16 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<
-        DerivedFnType,
-        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by Jacobian*/,
-                                   code);
+      assert(f && "Must pass in a non-0 argument");
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+          derivedFn /* will be replaced by Jacobian*/, code);
   }
 
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <typename ArgSpec = const char*, typename F,
-            typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
+            typename F, typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((
@@ -466,10 +458,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   jacobian(F&& f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    return CladFunction<
-        DerivedFnType,
-        ExtractFunctorTraits_t<F>>(derivedFn /* will be replaced by Jacobian*/,
-                                   code, f);
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+          derivedFn /* will be replaced by Jacobian*/, code, f);
   }
 
   template <typename ArgSpec = const char*, typename F,

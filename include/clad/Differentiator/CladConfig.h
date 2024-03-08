@@ -21,23 +21,28 @@ enum order {
   third = 3,
 }; // enum order
 
-enum opts {
+enum opts : unsigned {
   use_enzyme = 1 << ORDER_BITS,
   vector_mode = 1 << (ORDER_BITS + 1),
+
+  // Storing two bits for tbr analysis.
+  // 00 - default, 01 - enable, 10 - disable, 11 - not used / invalid
+  enable_tbr = 1 << (ORDER_BITS + 2),
+  disable_tbr = 1 << (ORDER_BITS + 3),
 }; // enum opts
 
-constexpr unsigned GetDerivativeOrder(unsigned const bitmasked_opts) {
+constexpr unsigned GetDerivativeOrder(const unsigned bitmasked_opts) {
   return bitmasked_opts & ORDER_MASK;
 }
 
-constexpr bool HasOption(unsigned const bitmasked_opts, unsigned const option) {
+constexpr bool HasOption(const unsigned bitmasked_opts, const unsigned option) {
   return (bitmasked_opts & option) == option;
 }
 
 constexpr unsigned GetBitmaskedOpts() { return 0; }
-constexpr unsigned GetBitmaskedOpts(unsigned const first) { return first; }
+constexpr unsigned GetBitmaskedOpts(const unsigned first) { return first; }
 template <typename... Opts>
-constexpr unsigned GetBitmaskedOpts(unsigned const first, Opts... opts) {
+constexpr unsigned GetBitmaskedOpts(const unsigned first, Opts... opts) {
   return first | GetBitmaskedOpts(opts...);
 }
 

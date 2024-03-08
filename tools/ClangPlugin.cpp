@@ -107,17 +107,14 @@ namespace clad {
       if (m_HandleTopLevelDeclInternal)
         return true;
 
+      RequestOptions opts{};
+      SetRequestOptions(opts);
       DiffSchedule requests{};
-      DiffCollector collector(DGR, CladEnabledRange, requests, m_CI.getSema());
+      DiffCollector collector(DGR, CladEnabledRange, requests, m_CI.getSema(),
+                              opts);
 
       if (requests.empty())
         return true;
-
-      // FIXME: flags have to be set manually since DiffCollector's constructor
-      // does not have access to m_DO.
-      if (m_DO.EnableTBRAnalysis)
-        for (DiffRequest& request : requests)
-          request.EnableTBRAnalysis = true;
 
       // FIXME: Remove the PerformPendingInstantiations altogether. We should
       // somehow make the relevant functions referenced.
@@ -317,6 +314,19 @@ namespace clad {
                                 /*allowBuiltinCreation*/ false);
       m_HasRuntime = !R.empty();
       return m_HasRuntime;
+    }
+
+    void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
+      SetTBRAnalysisOptions(m_DO, opts);
+    }
+
+    void CladPlugin::SetTBRAnalysisOptions(const DifferentiationOptions& DO,
+                                           RequestOptions& opts) {
+      // If user has explicitly specified the mode for TBR analysis, use it.
+      if (DO.EnableTBRAnalysis || DO.DisableTBRAnalysis)
+        opts.EnableTBRAnalysis = DO.EnableTBRAnalysis && !DO.DisableTBRAnalysis;
+      else
+        opts.EnableTBRAnalysis = false; // Default mode.
     }
   } // end namespace plugin
 

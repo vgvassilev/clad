@@ -74,22 +74,24 @@ namespace clad {
 
   namespace plugin {
     struct DifferentiationOptions {
-      DifferentiationOptions()
-          : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-            DumpDerivedAST(false), GenerateSourceFile(false),
-            ValidateClangVersion(true), EnableTBRAnalysis(false),
-            CustomEstimationModel(false), PrintNumDiffErrorInfo(false) {}
+    DifferentiationOptions()
+        : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
+          DumpDerivedAST(false), GenerateSourceFile(false),
+          ValidateClangVersion(true), EnableTBRAnalysis(false),
+          DisableTBRAnalysis(false), CustomEstimationModel(false),
+          PrintNumDiffErrorInfo(false) {}
 
-      bool DumpSourceFn : 1;
-      bool DumpSourceFnAST : 1;
-      bool DumpDerivedFn : 1;
-      bool DumpDerivedAST : 1;
-      bool GenerateSourceFile : 1;
-      bool ValidateClangVersion : 1;
-      bool EnableTBRAnalysis : 1;
-      bool CustomEstimationModel : 1;
-      bool PrintNumDiffErrorInfo : 1;
-      std::string CustomModelName;
+    bool DumpSourceFn : 1;
+    bool DumpSourceFnAST : 1;
+    bool DumpDerivedFn : 1;
+    bool DumpDerivedAST : 1;
+    bool GenerateSourceFile : 1;
+    bool ValidateClangVersion : 1;
+    bool EnableTBRAnalysis : 1;
+    bool DisableTBRAnalysis : 1;
+    bool CustomEstimationModel : 1;
+    bool PrintNumDiffErrorInfo : 1;
+    std::string CustomModelName;
     };
 
     class CladPlugin : public clang::ASTConsumer {
@@ -109,6 +111,9 @@ namespace clad {
 
     private:
       bool CheckBuiltins();
+      void SetRequestOptions(RequestOptions& opts) const;
+      static void SetTBRAnalysisOptions(const DifferentiationOptions& DO,
+                                        RequestOptions& opts);
       void ProcessTopLevelDecl(clang::Decl* D);
     };
 
@@ -146,6 +151,8 @@ namespace clad {
             m_DO.ValidateClangVersion = false;
           } else if (args[i] == "-enable-tbr") {
             m_DO.EnableTBRAnalysis = true;
+          } else if (args[i] == "-disable-tbr") {
+            m_DO.DisableTBRAnalysis = true;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
@@ -170,6 +177,14 @@ namespace clad {
                    "derivative.\n"
                 << "-fgenerate-source-file - Produces a file containing the "
                    "derivatives.\n"
+                << "-fno-validate-clang-version - Disables the validation of "
+                   "the clang version.\n"
+                << "-enable-tbr - Ensures that TBR analysis is enabled during "
+                   "reverse-mode differentiation unless explicitly specified "
+                   "in an individual request.\n"
+                << "-disable-tbr - Ensures that TBR analysis is disabled "
+                   "during reverse-mode differentiation unless explicitly "
+                   "specified in an individual request.\n"
                 << "-fcustom-estimation-model - allows user to send in a "
                    "shared object to use as the custom estimation model.\n"
                 << "-fprint-num-diff-errors - allows users to print the "
@@ -185,6 +200,11 @@ namespace clad {
         if (m_DO.ValidateClangVersion != false) {
           if (!checkClangVersion())
             return false;
+        }
+        if (m_DO.EnableTBRAnalysis && m_DO.DisableTBRAnalysis) {
+          llvm::errs() << "clad: Error: -enable-tbr and -disable-tbr cannot "
+                          "be used together.\n";
+          return false;
         }
         return true;
       }
