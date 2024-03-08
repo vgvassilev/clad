@@ -175,6 +175,7 @@ int main () {
   clad::differentiate(test_6, "x");
   clad::differentiate(test_7, "i");
   clad::differentiate(test_8, "x");
-
+  clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{TBR analysis is not meant for forward mode AD.}}
+  clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
   return 0;
 }

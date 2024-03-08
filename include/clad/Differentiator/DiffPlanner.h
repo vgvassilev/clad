@@ -86,6 +86,12 @@ namespace clad {
   using DiffSchedule = llvm::SmallVector<DiffRequest, 16>;
   using DiffInterval = std::vector<clang::SourceRange>;
 
+  struct RequestOptions {
+    /// This is a flag to indicate the default behaviour to enable/disable
+    /// TBR analysis during reverse-mode differentiation.
+    bool EnableTBRAnalysis = false;
+  };
+
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {
     /// The source interval where clad was activated.
     ///
@@ -101,9 +107,11 @@ namespace clad {
     const clang::FunctionDecl* m_TopMostFD = nullptr;
     clang::Sema& m_Sema;
 
+    RequestOptions& m_Options;
+
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
-                  DiffSchedule& plans, clang::Sema& S);
+                  DiffSchedule& plans, clang::Sema& S, RequestOptions& opts);
     bool VisitCallExpr(clang::CallExpr* E);
 
   private:
