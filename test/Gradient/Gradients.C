@@ -280,7 +280,7 @@ double f_cond3(double x, double c) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
-double f_cond3_grad(double x, double c, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
+void f_cond3_grad(double x, double c, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
 
 double f_cond4(double x, double y) {
     int i = 0;
@@ -321,7 +321,7 @@ double f_cond4(double x, double y) {
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
-double f_cond4_grad(double x, double c, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
+void f_cond4_grad(double x, double c, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
 
 double f_if1(double x, double y) {
   if (x > y)
@@ -345,7 +345,7 @@ double f_if1(double x, double y) {
 //CHECK-NEXT:           * _d_y += 1;
 //CHECK-NEXT:   }
 
-double f_if1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
+void f_if1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
 
 double f_if2(double x, double y) {
   if (x > y)
