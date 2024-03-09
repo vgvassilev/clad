@@ -5,6 +5,20 @@ set(CMAKE_CXX_EXTENSIONS NO)
 
 include(GNUInstallDirs)
 
+# MUST be done before call to clad project
+get_cmake_property(_cache_vars CACHE_VARIABLES)
+foreach(_cache_var ${_cache_vars})
+  get_property(_helpstring CACHE ${_cache_var} PROPERTY HELPSTRING)
+  if(_helpstring STREQUAL 
+    "No help, variable specified on the command line.")
+    set(CMAKE_ARGS "${CMAKE_ARGS} -D${_cache_var}=\"${${_cache_var}}\"")
+  endif()
+endforeach()
+
+# Generate CMakeArgs.txt file with source, build dir and command line args
+write_file("${CMAKE_CURRENT_BINARY_DIR}/CMakeArgs.txt"
+  "-S${CMAKE_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_ARGS}")
+
 if(POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
