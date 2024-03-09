@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.7.0)
 
+enable_language(CXX)
+set(CMAKE_CXX_EXTENSIONS NO)
+
 include(GNUInstallDirs)
 
 if(POLICY CMP0075)
