@@ -76,13 +76,13 @@ int main() {
   // the indexes of the array by using the format arr[0:<last index of arr>]
   auto hessian_all = clad::hessian(weighted_avg, "arr[0:2], weights[0:2]");
   // Generates the Hessian matrix for weighted_avg w.r.t. to arr.
-  auto hessian_arr = clad::hessian(weighted_avg, "arr[0:2]");
+  // auto hessian_arr = clad::hessian(weighted_avg, "arr[0:2]");
 
   double matrix_all[36] = {0};
-  double matrix_arr[9] = {0};
+  // double matrix_arr[9] = {0};
 
   clad::array_ref<double> matrix_all_ref(matrix_all, 36);
-  clad::array_ref<double> matrix_arr_ref(matrix_arr, 9);
+  // clad::array_ref<double> matrix_arr_ref(matrix_arr, 9);
 
   hessian_all.execute(arr, weights, matrix_all_ref);
   printf("Hessian Mode w.r.t. to all:\n matrix =\n"
@@ -102,7 +102,7 @@ int main() {
          matrix_all[28], matrix_all[29], matrix_all[30], matrix_all[31],
          matrix_all[32], matrix_all[33], matrix_all[34], matrix_all[35]);
 
-  hessian_arr.execute(arr, weights, matrix_arr_ref);
+  /*hessian_arr.execute(arr, weights, matrix_arr_ref);
   printf("Hessian Mode w.r.t. to arr:\n matrix =\n"
          "  {%.2g, %.2g, %.2g}\n"
          "  {%.2g, %.2g, %.2g}\n"
@@ -110,4 +110,5 @@ int main() {
          matrix_arr[0], matrix_arr[1], matrix_arr[2], matrix_arr[3],
          matrix_arr[4], matrix_arr[5], matrix_arr[6], matrix_arr[7],
          matrix_arr[8]);
+  */
 }
