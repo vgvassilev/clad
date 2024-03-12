@@ -98,7 +98,7 @@ void ErrorEstimationHandler::SaveReturnExpr(Expr* retExpr) {
 
 void ErrorEstimationHandler::EmitNestedFunctionParamError(
     FunctionDecl* fnDecl, llvm::SmallVectorImpl<Expr*>& derivedCallArgs,
-    llvm::SmallVectorImpl<VarDecl*>& ArgResultDecls, size_t numArgs) {
+    llvm::SmallVectorImpl<Expr*>& ArgResult, size_t numArgs) {
   assert(fnDecl && "Must have a value");
   for (size_t i = 0; i < numArgs; i++) {
     if (!fnDecl->getParamDecl(0)->getType()->isLValueReferenceType())
@@ -109,7 +109,7 @@ void ErrorEstimationHandler::EmitNestedFunctionParamError(
     // if (utils::IsReferenceOrPointerType(fnDecl->getParamDecl(i)->getType()))
     //   continue;
     Expr* errorExpr = m_EstModel->AssignError(
-        {derivedCallArgs[i], m_RMV->BuildDeclRef(ArgResultDecls[i])},
+        {derivedCallArgs[i], m_RMV->Clone(ArgResult[i])},
         fnDecl->getNameInfo().getAsString() + "_param_" + std::to_string(i));
     Expr* errorStmt = m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
     m_ReverseErrorStmts.push_back(errorStmt);
@@ -372,7 +372,7 @@ void ErrorEstimationHandler::ActBeforeFinalizingPostIncDecOp(StmtDiff& diff) {
 void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
     const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
     llvm::SmallVectorImpl<Expr*>& derivedCallArgs,
-    llvm::SmallVectorImpl<VarDecl*>& ArgResultDecls, bool asGrad) {
+    llvm::SmallVectorImpl<Expr*>& ArgResult, bool asGrad) {
   if (OverloadedDerivedFn && asGrad) {
     // Derivative was found.
     FunctionDecl* fnDecl =
@@ -382,7 +382,7 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
     // in the input prameters (if of reference type) to call and save to
     // emit them later.
 
-    EmitNestedFunctionParamError(fnDecl, derivedCallArgs, ArgResultDecls,
+    EmitNestedFunctionParamError(fnDecl, derivedCallArgs, ArgResult,
                                  CE->getNumArgs());
   }
 }
@@ -416,7 +416,7 @@ void ErrorEstimationHandler::ActBeforeFinalizingDifferentiateSingleExpr(
 
 void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
     llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-    llvm::SmallVectorImpl<DeclStmt*>& ArgDecls, bool hasAssignee) {
+    llvm::SmallVectorImpl<Stmt*>& ArgDecls, bool hasAssignee) {
   auto errorRef =
       m_RMV->BuildVarDecl(m_RMV->m_Context.DoubleTy, "_t",
                           m_RMV->getZeroInit(m_RMV->m_Context.DoubleTy));

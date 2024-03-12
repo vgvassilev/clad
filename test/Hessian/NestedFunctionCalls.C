@@ -67,18 +67,14 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         double _grad1 = 0.;
-// CHECK-NEXT:         double _grad2 = 0.;
-// CHECK-NEXT:         double _grad3 = 0.;
-// CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_grad0, &_grad1, &_grad2, &_grad3);
-// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         double _r1 = 0;
+// CHECK-NEXT:         double _r2 = 0;
+// CHECK-NEXT:         double _r3 = 0;
+// CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         double _r1 = _grad1;
 // CHECK-NEXT:         * _d_y += _r1;
-// CHECK-NEXT:         double _r2 = _grad2;
 // CHECK-NEXT:         _d__d_x += _r2;
-// CHECK-NEXT:         double _r3 = _grad3;
 // CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -109,18 +105,14 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         double _grad1 = 0.;
-// CHECK-NEXT:         double _grad2 = 0.;
-// CHECK-NEXT:         double _grad3 = 0.;
-// CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_grad0, &_grad1, &_grad2, &_grad3);
-// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         double _r1 = 0;
+// CHECK-NEXT:         double _r2 = 0;
+// CHECK-NEXT:         double _r3 = 0;
+// CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         double _r1 = _grad1;
 // CHECK-NEXT:         * _d_y += _r1;
-// CHECK-NEXT:         double _r2 = _grad2;
 // CHECK-NEXT:         _d__d_x += _r2;
-// CHECK-NEXT:         double _r3 = _grad3;
 // CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

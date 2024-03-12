@@ -236,15 +236,12 @@
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_y += -(f_x - y) * 1;
 //CHECK_GRADIENT_DESCENT-NEXT:     }
 //CHECK_GRADIENT_DESCENT-NEXT:     {
-//CHECK_GRADIENT_DESCENT-NEXT:         double _grad0 = 0.;
-//CHECK_GRADIENT_DESCENT-NEXT:         double _grad1 = 0.;
-//CHECK_GRADIENT_DESCENT-NEXT:         double _grad2 = 0.;
-//CHECK_GRADIENT_DESCENT-NEXT:         f_pullback(theta_0, theta_1, x, _d_f_x, &_grad0, &_grad1, &_grad2);
-//CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = _grad0;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r0 = 0;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = 0;
+//CHECK_GRADIENT_DESCENT-NEXT:         double _r2 = 0;
+//CHECK_GRADIENT_DESCENT-NEXT:         f_pullback(theta_0, theta_1, x, _d_f_x, &_r0, &_r1, &_r2);
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_0 += _r0;
-//CHECK_GRADIENT_DESCENT-NEXT:         double _r1 = _grad1;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_theta_1 += _r1;
-//CHECK_GRADIENT_DESCENT-NEXT:         double _r2 = _grad2;
 //CHECK_GRADIENT_DESCENT-NEXT:         * _d_x += _r2;
 //CHECK_GRADIENT_DESCENT-NEXT:     }
 //CHECK_GRADIENT_DESCENT-NEXT: }

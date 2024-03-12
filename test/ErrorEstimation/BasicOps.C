@@ -150,12 +150,10 @@ float func4(float x, float y) { return std::pow(x, y); }
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         float _grad0 = 0.F;
-//CHECK-NEXT:         float _grad1 = 0.F;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_grad0, &_grad1);
-//CHECK-NEXT:         float _r0 = _grad0;
+//CHECK-NEXT:         float _r0 = 0;
+//CHECK-NEXT:         float _r1 = 0;
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_r0, &_r1);
 //CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         float _r1 = _grad1;
 //CHECK-NEXT:         * _d_y += _r1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(* _d_x * x * {{.+}});
@@ -186,7 +184,8 @@ float func5(float x, float y) {
 //CHECK-NEXT:         y = _t0;
 //CHECK-NEXT:         float _r_d0 = * _d_y;
 //CHECK-NEXT:         * _d_y -= _r_d0;
-//CHECK-NEXT:         float _r0 = _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, 1.F).pushforward;
+//CHECK-NEXT:         float _r0 = 0;
+//CHECK-NEXT:         _r0 += _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, 1.F).pushforward;
 //CHECK-NEXT:         * _d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(* _d_x * x * {{.+}});
@@ -228,13 +227,11 @@ float func6(float x, float y) {
 //CHECK-NEXT:         _d_z += z * 1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _grad0 = 0.;
-//CHECK-NEXT:         double _grad1 = 0.;
+//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         double _t0 = 0;
-//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_grad0, &_grad1, _t0);
-//CHECK-NEXT:         double _r0 = _grad0;
+//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_r0, &_r1, _t0);
 //CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         double _r1 = _grad1;
 //CHECK-NEXT:         * _d_y += _r1;
 //CHECK-NEXT:         _final_error += _t0;
 //CHECK-NEXT:     }
@@ -301,9 +298,8 @@ float func8(float x, float y) {
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _t2 = 0;
 //CHECK-NEXT:         helper2_pullback(_t1, _r_d0, &* _d_x, _t2);
-//CHECK-NEXT:         float _r0 = * _d_x;
 //CHECK-NEXT:         _final_error += _t2;
-//CHECK-NEXT:         _final_error += std::abs(_r0 * _t1 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(* _d_x * _t1 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(* _d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(* _d_y * y * {{.+}});
@@ -340,30 +336,25 @@ float func9(float x, float y) {
 //CHECK-NEXT:         x = _t5;
 //CHECK-NEXT:         double _t6 = 0;
 //CHECK-NEXT:         helper2_pullback(_t5, _r_d0 * _t4, &* _d_x, _t6);
-//CHECK-NEXT:         float _r3 = * _d_x;
 //CHECK-NEXT:         y = _t8;
 //CHECK-NEXT:         double _t9 = 0;
 //CHECK-NEXT:         helper2_pullback(_t8, _t7 * _r_d0, &* _d_y, _t9);
-//CHECK-NEXT:         float _r4 = * _d_y;
 //CHECK-NEXT:         _final_error += _t6 + _t9;
-//CHECK-NEXT:         _final_error += std::abs(_r4 * _t8 * {{.+}});
-//CHECK-NEXT:         _final_error += std::abs(_r3 * _t5 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(* _d_y * _t8 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(* _d_x * _t5 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _grad0 = 0.;
-//CHECK-NEXT:         double _grad1 = 0.;
+//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         double _t0 = 0;
-//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_grad0, &_grad1, _t0);
-//CHECK-NEXT:         double _r0 = _grad0;
+//CHECK-NEXT:         helper_pullback(x, y, _d_z, &_r0, &_r1, _t0);
 //CHECK-NEXT:         * _d_x += _r0;
-//CHECK-NEXT:         double _r1 = _grad1;
 //CHECK-NEXT:         * _d_y += _r1;
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _t2 = 0;
 //CHECK-NEXT:         helper2_pullback(_t1, _d_z, &* _d_x, _t2);
-//CHECK-NEXT:         float _r2 = * _d_x;
 //CHECK-NEXT:         _final_error += _t0 + _t2;
-//CHECK-NEXT:         _final_error += std::abs(_r2 * _t1 * {{.+}});
+//CHECK-NEXT:         _final_error += std::abs(* _d_x * _t1 * {{.+}});
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(* _d_x * x * {{.+}});
 //CHECK-NEXT:     _final_error += std::abs(* _d_y * y * {{.+}});

@@ -127,7 +127,7 @@ public:
   virtual void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
-      llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls, bool asGrad) {}
+      llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) {}
 
   /// This is called just before finalising processing of post and pre
   /// increment and decrement operations.
@@ -157,7 +157,7 @@ public:
 
   virtual void ActBeforeDifferentiatingCallExpr(
       llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::DeclStmt*>& ArgDecls, bool hasAssignee) {}
+      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) {}
 
   virtual void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
