@@ -107,33 +107,41 @@
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, float *_d_x, unsigned int *_d_n, double &_final_error) {
-//CHECK_FLOAT_SUM:     float _d_sum = 0;
-//CHECK_FLOAT_SUM:     unsigned {{int|long}} _t0;
-//CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
-//CHECK_FLOAT_SUM:     unsigned int i = 0;
-//CHECK_FLOAT_SUM:     clad::tape<float> _t1 = {};
-//CHECK_FLOAT_SUM:     float sum = 0.;
-//CHECK_FLOAT_SUM:     _t0 = {{0U|0UL}};
-//CHECK_FLOAT_SUM:     for (i = 0; i < n; i++) {
-//CHECK_FLOAT_SUM:         _t0++;
-//CHECK_FLOAT_SUM:         clad::push(_t1, sum);
-//CHECK_FLOAT_SUM:         sum = sum + x;
-//CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     _d_sum += 1;
-//CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
-//CHECK_FLOAT_SUM:         i--;
-//CHECK_FLOAT_SUM:         {
-//CHECK_FLOAT_SUM:             _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:             sum = clad::pop(_t1);
-//CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
-//CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
-//CHECK_FLOAT_SUM:             _d_sum += _r_d0;
-//CHECK_FLOAT_SUM:             *_d_x += _r_d0;
-//CHECK_FLOAT_SUM:         }
-//CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:     _final_error += std::abs(*_d_x * x * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM: }
+//CHECK_FLOAT_SUM:    float _d_sum = 0;
+//CHECK_FLOAT_SUM:    unsigned {{int|long}} _t0;
+//CHECK_FLOAT_SUM:    unsigned int _d_i = 0;
+//CHECK_FLOAT_SUM:    unsigned int i = 0;
+//CHECK_FLOAT_SUM:    clad::tape<float> _t1 = {};
+//CHECK_FLOAT_SUM:    float sum = 0.;
+//CHECK_FLOAT_SUM:    _t0 = {{0U|0UL}};
+//CHECK_FLOAT_SUM:    for (i = 0; ; i++) {
+//CHECK_FLOAT_SUM:        {
+//CHECK_FLOAT_SUM:            if (!(i < n))
+//CHECK_FLOAT_SUM:                break;
+//CHECK_FLOAT_SUM:        }
+//CHECK_FLOAT_SUM:        _t0++;
+//CHECK_FLOAT_SUM:        clad::push(_t1, sum);
+//CHECK_FLOAT_SUM:        sum = sum + x;
+//CHECK_FLOAT_SUM:    }
+//CHECK_FLOAT_SUM:    _d_sum += 1;
+//CHECK_FLOAT_SUM:    for (;; _t0--) {
+//CHECK_FLOAT_SUM:        {
+//CHECK_FLOAT_SUM:            if (!_t0)
+//CHECK_FLOAT_SUM:                break;
+//CHECK_FLOAT_SUM:        }
+//CHECK_FLOAT_SUM:        i--;
+//CHECK_FLOAT_SUM:        {
+//CHECK_FLOAT_SUM:            _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:            sum = clad::pop(_t1);
+//CHECK_FLOAT_SUM:            float _r_d0 = _d_sum;
+//CHECK_FLOAT_SUM:            _d_sum -= _r_d0;
+//CHECK_FLOAT_SUM:            _d_sum += _r_d0;
+//CHECK_FLOAT_SUM:            *_d_x += _r_d0;
+//CHECK_FLOAT_SUM:        }
+//CHECK_FLOAT_SUM:    }
+//CHECK_FLOAT_SUM:    _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:    _final_error += std::abs(*_d_x * x * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:}
 
 //-----------------------------------------------------------------------------/
 // Demo: Custom Error Estimation Plugin

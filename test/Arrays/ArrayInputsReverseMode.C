@@ -46,7 +46,11 @@ float func(float* a, float* b) {
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < 3; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, a[i]);
 //CHECK-NEXT:         a[i] *= b[i];
@@ -54,7 +58,11 @@ float func(float* a, float* b) {
 //CHECK-NEXT:         sum += a[i];
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t2);
@@ -92,13 +100,21 @@ float func2(float* a) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < 3; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += helper(a[i]);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         sum = clad::pop(_t1);
 //CHECK-NEXT:         float _r_d0 = _d_sum;
@@ -124,14 +140,22 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < 3; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         clad::push(_t2, a[i]);
 //CHECK-NEXT:         sum += (a[i] += b[i]);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         sum = clad::pop(_t1);
 //CHECK-NEXT:         float _r_d0 = _d_sum;
@@ -161,13 +185,21 @@ double func4(double x) {
 //CHECK-NEXT:     double arr[3] = {x, 2 * x, x * x};
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < 3; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t1);
@@ -217,20 +249,32 @@ double func5(int k) {
 //CHECK-NEXT:     clad::zero_init(_d_arr, n);
 //CHECK-NEXT:     double arr[n];
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < n; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < n))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, arr[i]);
 //CHECK-NEXT:         arr[i] = k;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     _t2 = {{0U|0UL}};
-//CHECK-NEXT:     for (i0 = 0; i0 < 3; i0++) {
+//CHECK-NEXT:     for (i0 = 0; ; i0++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i0 < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t2++;
 //CHECK-NEXT:         clad::push(_t3, sum);
 //CHECK-NEXT:         sum += addArr(arr, n);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (; _t2; _t2--) {
+//CHECK-NEXT:     for (;; _t2--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t2)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i0--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t3);
@@ -240,7 +284,11 @@ double func5(int k) {
 //CHECK-NEXT:             _d_n += _r0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             arr[i] = clad::pop(_t1);
@@ -272,14 +320,22 @@ double func6(double seed) {
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < 3; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 3))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, arr) , arr = {seed, seed * i, seed + i};
 //CHECK-NEXT:         clad::push(_t2, sum);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_sum += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             sum = clad::pop(_t2);
@@ -325,14 +381,22 @@ double func7(double *params) {
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double out = 0.;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < 1; ++i) {
-//CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, paramsPrime) , paramsPrime = {params[0]};
-//CHECK-NEXT:         clad::push(_t2, out);
-//CHECK-NEXT:         out = out + inv_square(paramsPrime);
-//CHECK-NEXT:     }
-//CHECK-NEXT:     _d_out += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 1))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, paramsPrime) , paramsPrime = {params[0]};
+// CHECK-NEXT:         clad::push(_t2, out);
+// CHECK-NEXT:         out = out + inv_square(paramsPrime);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_out += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         --i;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             out = clad::pop(_t2);
@@ -421,19 +485,27 @@ double func9(double i, double j) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double arr[5] = {};
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (idx = 0; idx < 5; ++idx) {
-//CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, arr[idx]);
-//CHECK-NEXT:         modify(arr[idx], i);
-//CHECK-NEXT:     }
-//CHECK-NEXT:     {
-//CHECK-NEXT:         _d_arr[0] += 1;
-//CHECK-NEXT:         _d_arr[1] += 1;
-//CHECK-NEXT:         _d_arr[2] += 1;
-//CHECK-NEXT:         _d_arr[3] += 1;
-//CHECK-NEXT:         _d_arr[4] += 1;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (idx = 0; ; ++idx) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(idx < 5))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, arr[idx]);
+// CHECK-NEXT:         modify(arr[idx], i);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_arr[0] += 1;
+// CHECK-NEXT:         _d_arr[1] += 1;
+// CHECK-NEXT:         _d_arr[2] += 1;
+// CHECK-NEXT:         _d_arr[3] += 1;
+// CHECK-NEXT:         _d_arr[4] += 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         --idx;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             arr[idx] = clad::back(_t1);
@@ -470,14 +542,22 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double res = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < n; ++i) {
-//CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, res);
-//CHECK-NEXT:         clad::push(_t2, arr[i]);
-//CHECK-NEXT:         res += sq(arr[i]);
-//CHECK-NEXT:     }
-//CHECK-NEXT:     _d_res += 1;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < n))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, res);
+// CHECK-NEXT:         clad::push(_t2, arr[i]);
+// CHECK-NEXT:         res += sq(arr[i]);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         --i;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             res = clad::pop(_t1);
@@ -563,13 +643,21 @@ int main() {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double ret = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < n; i++) {
-//CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, ret);
-//CHECK-NEXT:         ret += arr[i];
-//CHECK-NEXT:     }
-//CHECK-NEXT:     _d_ret += _d_y;
-//CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (i = 0; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < n))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, ret);
+// CHECK-NEXT:         ret += arr[i];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_ret += _d_y;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
 //CHECK-NEXT:             ret = clad::pop(_t1);

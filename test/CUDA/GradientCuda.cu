@@ -43,7 +43,11 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:     double _t6;
 //CHECK-NEXT:     double t = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
-//CHECK-NEXT:     for (i = 0; i < dim; i++) {
+//CHECK-NEXT:     for (i = 0; ; i++) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             if (!(i < dim))
+//CHECK-NEXT:                 break;
+//CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, t);
 //CHECK-NEXT:         t += (x[i] - p[i]) * (x[i] - p[i]);
@@ -76,7 +80,11 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:         _d_sigma += 2 * _r0 * sigma;
 //CHECK-NEXT:         _d_sigma += 2 * sigma * _r0;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:     for (;; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             if (!_t0)
+//CHECK-NEXT:                 break;
+//CHECK-NEXT:         }
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         t = clad::pop(_t1);
 //CHECK-NEXT:         double _r_d0 = _d_t;

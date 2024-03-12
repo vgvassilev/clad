@@ -61,6 +61,11 @@ namespace clad {
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
+    /// This expression checks if the forward pass loop was terminted due to
+    /// break. It is used to determine whether to run the loop cond
+    /// differentiation. One additional time.
+    clang::Expr* m_CurrentBreakFlagExpr;
+
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
     // FIXME: Should we make this an object instead of a pointer?
@@ -561,7 +566,6 @@ namespace clad {
 
       ReverseModeVisitor& m_RMV;
 
-      const bool m_IsInvokedBySwitchStmt = false;
       /// Builds and returns a literal expression of type `std::size_t` with
       /// `value` as value.
       clang::Expr* CreateSizeTLiteralExpr(std::size_t value);
@@ -576,6 +580,8 @@ namespace clad {
       clang::Expr* CreateCFTapePushExpr(std::size_t value);
 
     public:
+      bool m_IsInvokedBySwitchStmt = false;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
@@ -597,6 +603,11 @@ namespace clad {
       /// expression, where `TapeRef` and `m_CurrentCounter` are replaced
       /// by their actual values respectively.
       clang::Stmt* CreateCFTapePushExprToCurrentCase();
+
+      /// Builds and return `clad::back(TapeRef) != m_CaseCounter`
+      /// expression, where `TapeRef` and `m_CaseCounter` are replaced
+      /// by their actual values respectively
+      clang::Expr* CreateCFTapeBackExprForCurrentCase();
 
       /// Does final modifications on forward and reverse blocks
       /// so that `break` and `continue` statements are handled

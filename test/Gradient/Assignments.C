@@ -819,9 +819,9 @@ double f21 (double x, double y) {
 //CHECK-NEXT:         y = _t0;
 //CHECK-NEXT:         double _r_d0 = *_d_y;
 //CHECK-NEXT:         *_d_y -= _r_d0;
+//CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:         *_d_y += 0;
 //CHECK-NEXT:         y--;
-//CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 

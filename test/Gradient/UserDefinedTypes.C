@@ -314,7 +314,11 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     Tangent _t6;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
-// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:          if (!(i < 5))
+// CHECK-NEXT:          break;
+// CHECK-NEXT:     }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         clad::push(_t2, c);
@@ -331,7 +335,11 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         t = _t6;
 // CHECK-NEXT:         sum_pullback(_t6, _r_d1, &(*_d_t));
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             res = clad::pop(_t1);
@@ -392,13 +400,21 @@ int main() {
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
-// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 5))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += t.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += _d_y;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         res = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_res;
@@ -414,13 +430,21 @@ int main() {
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
-// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 5))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     _d_res += _d_y;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         res = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = _d_res;
@@ -464,12 +488,20 @@ int main() {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
-// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 5))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, this->data[i]);
 // CHECK-NEXT:         this->data[i] = d;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         this->data[i] = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = (*_d_this).data[i];
