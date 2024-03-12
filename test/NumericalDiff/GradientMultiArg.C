@@ -18,15 +18,17 @@ double test_1(double x, double y){
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         double _grad1 = 0.;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         double _r1 = 0;
 // CHECK-NEXT:         clad::tape<clad::array_ref<double> > _t0 = {};
+// CHECK-NEXT:         double _grad0 = 0;
 // CHECK-NEXT:         clad::push(_t0, &_grad0);
+// CHECK-NEXT:         double _grad1 = 0;
 // CHECK-NEXT:         clad::push(_t0, &_grad1);
 // CHECK-NEXT:         numerical_diff::central_difference(std::hypot, _t0, 0, x, y);
-// CHECK-NEXT:         double _r0 = 1 * _grad0;
+// CHECK-NEXT:         _r0 += 1 * _grad0;
+// CHECK-NEXT:         _r1 += 1 * _grad1;
 // CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         double _r1 = 1 * _grad1;
 // CHECK-NEXT:         * _d_y += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

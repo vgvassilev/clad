@@ -246,12 +246,10 @@ int main() {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _grad0 = 0.;
-  // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_grad0, &_grad1);
-  // CHECK-NEXT:         double _r0 = _grad0;
+  // CHECK-NEXT:         double _r0 = 0;
+  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_r0, &_r1);
   // CHECK-NEXT:         * _d_i += _r0;
-  // CHECK-NEXT:         double _r1 = _grad1;
   // CHECK-NEXT:         * _d_j += _r1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -268,12 +266,10 @@ int main() {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _grad0 = 0.;
-  // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &(* _d_fn), &_grad0, &_grad1);
-  // CHECK-NEXT:         double _r0 = _grad0;
+  // CHECK-NEXT:         double _r0 = 0;
+  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &(* _d_fn), &_r0, &_r1);
   // CHECK-NEXT:         * _d_i += _r0;
-  // CHECK-NEXT:         double _r1 = _grad1;
   // CHECK-NEXT:         * _d_j += _r1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -291,12 +287,10 @@ int main() {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _grad0 = 0.;
-  // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(* _d_fn), &_grad0, &_grad1);
-  // CHECK-NEXT:         double _r0 = _grad0;
+  // CHECK-NEXT:         double _r0 = 0;
+  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(* _d_fn), &_r0, &_r1);
   // CHECK-NEXT:         * _d_i += _r0;
-  // CHECK-NEXT:         double _r1 = _grad1;
   // CHECK-NEXT:         * _d_j += _r1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
@@ -307,14 +301,11 @@ int main() {
   // CHECK-NEXT:     goto _label0;
   // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         Experiment _grad0;
-  // CHECK-NEXT:         double _grad1 = 0.;
-  // CHECK-NEXT:         double _grad2 = 0.;
-  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_grad0, &_grad1, &_grad2);
-  // CHECK-NEXT:         Experiment _r0(_grad0);
-  // CHECK-NEXT:         double _r1 = _grad1;
+  // CHECK-NEXT:         Experiment _r0 = {};
+  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         double _r2 = 0;
+  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r0, &_r1, &_r2);
   // CHECK-NEXT:         * _d_i += _r1;
-  // CHECK-NEXT:         double _r2 = _grad2;
   // CHECK-NEXT:         * _d_j += _r2;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }

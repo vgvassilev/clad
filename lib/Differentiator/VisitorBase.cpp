@@ -772,8 +772,9 @@ namespace clad {
   }
 
   Expr* VisitorBase::GetMultiArgCentralDiffCall(
-      Expr* targetFuncCall, QualType retType, unsigned numArgs,
-      llvm::SmallVectorImpl<Stmt*>& NumericalDiffMultiArg,
+      Expr* targetFuncCall, QualType retType, unsigned numArgs, Expr* dfdx,
+      llvm::SmallVectorImpl<Stmt*>& PreCallStmts,
+      llvm::SmallVectorImpl<Stmt*>& PostCallStmts,
       llvm::SmallVectorImpl<Expr*>& args,
       llvm::SmallVectorImpl<Expr*>& outputArgs) {
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
@@ -785,7 +786,7 @@ namespace clad {
     auto VD = BuildVarDecl(
         TapeType, "_t", getZeroInit(TapeType), /*DirectInit=*/false,
         /*TSI=*/nullptr, VarDecl::InitializationStyle::CInit);
-    NumericalDiffMultiArg.push_back(BuildDeclStmt(VD));
+    PreCallStmts.push_back(BuildDeclStmt(VD));
     Expr* TapeRef = BuildDeclRef(VD);
     NumDiffArgs.push_back(TapeRef);
     NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
@@ -798,16 +799,23 @@ namespace clad {
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
     LookupResult& Push = GetCladTapePush();
-    auto PushDRE = m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false)
-                       .get();
-    Expr* PushExpr;
+    auto PushDRE =
+        m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false).get();
     for (unsigned i = 0, e = numArgs; i < e; i++) {
-      Expr* callArgs[] = {TapeRef, outputArgs[i]};
-      PushExpr = m_Sema
-                     .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs,
-                                    noLoc)
-                     .get();
-      NumericalDiffMultiArg.push_back(PushExpr);
+      QualType argTy = args[i]->getType();
+      VarDecl* gradVar = BuildVarDecl(argTy, "_grad", getZeroInit(argTy));
+      PreCallStmts.push_back(BuildDeclStmt(gradVar));
+      Expr* PushExpr = BuildDeclRef(gradVar);
+      if (!isCladArrayType(argTy))
+        PushExpr = BuildOp(UO_AddrOf, PushExpr);
+      Expr* callArgs[] = {TapeRef, PushExpr};
+      Stmt* PushStmt =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs, noLoc)
+              .get();
+      PreCallStmts.push_back(PushStmt);
+      Expr* gradExpr = BuildOp(BO_Mul, dfdx, BuildDeclRef(gradVar));
+      PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
