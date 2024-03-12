@@ -880,7 +880,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     StmtDiff thenDiff = VisitBranch(If->getThen());
     StmtDiff elseDiff = VisitBranch(If->getElse());
-
     Stmt* Forward = clad_compat::IfStmt_Create(
         m_Context, noLoc, If->isConstexpr(), /*Init=*/nullptr, /*Var=*/nullptr,
         condDiffStored, noLoc, noLoc, thenDiff.getStmt(), noLoc,
@@ -992,6 +991,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                Scope::ContinueScope);
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
+    llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
+        m_CurrentBreakFlagExpr);
+    m_CurrentBreakFlagExpr = nullptr;
     const Stmt* init = FS->getInit();
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeDifferentiatingLoopInitStmt();
@@ -1000,7 +1002,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Save the isInsideLoop value (we may be inside another loop).
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
     isInsideLoop = true;
-
     StmtDiff condVarRes;
     VarDecl* condVarClone = nullptr;
     if (FS->getConditionVariable()) {
@@ -1011,11 +1012,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
 
-    // FIXME: for now we assume that cond has no differentiable effects,
     // but it is not generally true, e.g. for (...; (x = y); ...)...
-    StmtDiff cond;
+    StmtDiff condDiff;
+    StmtDiff condExprDiff;
     if (FS->getCond())
-      cond = Visit(FS->getCond());
+      std::tie(condDiff, condExprDiff) = DifferentiateSingleExpr(FS->getCond());
+
     const auto* IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
     const Expr* inc = IDRE ? Visit(FS->getInc()).getExpr() : FS->getInc();
 
@@ -1063,7 +1065,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     /// with function globals and replace initializations with assignments.
     /// This is a temporary measure to avoid the bug that arises from
     /// overwriting local variables on different loop passes.
-    Expr* forwardCond = cond.getExpr();
+    Expr* forwardCond = condExprDiff.getExpr();
     /// If there is a declaration in the condition, `cond` will be
     /// a DeclRefExpr of the declared variable. There is no point in
     /// inserting it since condVarRes.getExpr() represents an assignment with
@@ -1073,8 +1075,36 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (condVarRes.getExpr() != nullptr && isa<Expr>(condVarRes.getExpr()))
       forwardCond = cast<Expr>(condVarRes.getExpr());
 
+    Stmt* breakStmt = m_Sema.ActOnBreakStmt(noLoc, getCurrentScope()).get();
+
+    /// This part adds the forward pass of loop condition stmt in the body
+    /// In this first loop condition diff stmts execute then loop condition
+    /// is checked if and loop is terminated.
+    beginBlock();
+    if (utils::unwrapIfSingleStmt(condDiff.getStmt()))
+      addToCurrentBlock(condDiff.getStmt());
+
+    Stmt* IfStmt = clad_compat::IfStmt_Create(
+        /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
+        /*Init=*/nullptr, /*Var=*/nullptr,
+        /*Cond=*/
+        BuildOp(clang::UnaryOperatorKind::UO_LNot, BuildParens(forwardCond)),
+        /*LPL=*/noLoc, /*RPL=*/noLoc,
+        /*Then=*/breakStmt,
+        /*EL=*/noLoc,
+        /*Else=*/nullptr);
+    addToCurrentBlock(IfStmt);
+
+    Stmt* forwardCondStmts = endBlock();
+    if (BodyDiff.getStmt()) {
+      BodyDiff.updateStmt(utils::PrependAndCreateCompoundStmt(
+          m_Context, BodyDiff.getStmt(), forwardCondStmts));
+    } else {
+      BodyDiff.updateStmt(utils::unwrapIfSingleStmt(forwardCondStmts));
+    }
+
     Stmt* Forward = new (m_Context)
-        ForStmt(m_Context, initResult.getStmt(), forwardCond, condVarClone,
+        ForStmt(m_Context, initResult.getStmt(), nullptr, condVarClone,
                 incResult, BodyDiff.getStmt(), noLoc, noLoc, noLoc);
 
     // Create a condition testing counter for being zero, and its decrement.
@@ -1084,12 +1114,45 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         CounterCondition = loopCounter.getCounterConditionResult().get().second;
     Expr* CounterDecrement = loopCounter.getCounterDecrement();
 
-    Stmt* ReverseResult = BodyDiff.getStmt_dx();
-    if (!ReverseResult)
-      ReverseResult = new (m_Context) NullStmt(noLoc);
+    /// This part adds the reverse pass of loop condition stmt in the body
+    beginBlock(direction::reverse);
+    Stmt* RevIfStmt = clad_compat::IfStmt_Create(
+        /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
+        /*Init=*/nullptr, /*Var=*/nullptr,
+        /*Cond=*/BuildOp(clang::UnaryOperatorKind::UO_LNot, CounterCondition),
+        /*LPL=*/noLoc, /*RPL=*/noLoc,
+        /*Then=*/Clone(breakStmt),
+        /*EL=*/noLoc,
+        /*Else=*/nullptr);
+    addToCurrentBlock(RevIfStmt, direction::reverse);
+
+    if (condDiff.getStmt_dx()) {
+      if (m_CurrentBreakFlagExpr) {
+        Expr* loopBreakFlagCond =
+            BuildOp(BinaryOperatorKind::BO_LOr,
+                    BuildOp(UnaryOperatorKind::UO_LNot, CounterCondition),
+                    BuildParens(m_CurrentBreakFlagExpr));
+        auto* RevIfStmt = clad_compat::IfStmt_Create(
+            m_Context, noLoc, false, nullptr, nullptr, loopBreakFlagCond, noLoc,
+            noLoc, condDiff.getStmt_dx(), noLoc, nullptr);
+        addToCurrentBlock(RevIfStmt, direction::reverse);
+      } else {
+        addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
+      }
+    }
+
+    Stmt* revPassCondStmts = endBlock(direction::reverse);
+    if (BodyDiff.getStmt_dx()) {
+      BodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+          m_Context, BodyDiff.getStmt_dx(), revPassCondStmts));
+    } else {
+      BodyDiff.updateStmtDx(utils::unwrapIfSingleStmt(revPassCondStmts));
+    }
+
     Stmt* Reverse = new (m_Context)
-        ForStmt(m_Context, nullptr, CounterCondition, nullptr, CounterDecrement,
-                ReverseResult, noLoc, noLoc, noLoc);
+        ForStmt(m_Context, nullptr, nullptr, nullptr, CounterDecrement,
+                BodyDiff.getStmt_dx(), noLoc, noLoc, noLoc);
+
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
@@ -2391,14 +2454,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } else if (opCode == BO_Comma) {
       auto* zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      Ldiff = Visit(L, zero);
       Rdiff = Visit(R, dfdx());
+      Ldiff = Visit(L, zero);
       valueForRevPass = Ldiff.getRevSweepAsExpr();
       ResultRef = Ldiff.getExpr();
     } else if (opCode == BO_LAnd) {
       VarDecl* condVar = GlobalStoreImpl(m_Context.BoolTy, "_cond");
       VarDecl* derivedCondVar = GlobalStoreImpl(
           m_Context.DoubleTy, "_d" + condVar->getNameAsString());
+      addToBlock(BuildOp(BO_Assign, BuildDeclRef(derivedCondVar),
+                         ConstantFolder::synthesizeLiteral(
+                             m_Context.DoubleTy, m_Context, /*val=*/0)),
+                 m_Globals);
       Expr* condVarRef = BuildDeclRef(condVar);
       Expr* assignExpr = BuildOp(BO_Assign, condVarRef, Clone(R));
       m_Variables.emplace(condVar, BuildDeclRef(derivedCondVar));
@@ -3546,6 +3613,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
+    if (isInsideLoop && !activeBreakContHandler->m_IsInvokedBySwitchStmt) {
+      Expr* tapeBackExprForCurrentCase =
+          activeBreakContHandler->CreateCFTapeBackExprForCurrentCase();
+      if (m_CurrentBreakFlagExpr) {
+        m_CurrentBreakFlagExpr =
+            BuildOp(BinaryOperatorKind::BO_LAnd, m_CurrentBreakFlagExpr,
+                    tapeBackExprForCurrentCase);
+
+      } else {
+        m_CurrentBreakFlagExpr = tapeBackExprForCurrentCase;
+      }
+    }
     addToCurrentBlock(pushExprToCurrentCase);
     addToCurrentBlock(newBS);
     return {endBlock(direction::forward), CFCaseStmt};
@@ -3605,6 +3684,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     m_SwitchCases.push_back(CS);
     return CS;
+  }
+
+  Expr* ReverseModeVisitor::BreakContStmtHandler::
+      CreateCFTapeBackExprForCurrentCase() {
+    return m_RMV.BuildOp(
+        BinaryOperatorKind::BO_NE, m_ControlFlowTape->Last(),
+        ConstantFolder::synthesizeLiteral(m_RMV.m_Context.IntTy,
+                                          m_RMV.m_Context, m_CaseCounter));
   }
 
   Stmt* ReverseModeVisitor::BreakContStmtHandler::
