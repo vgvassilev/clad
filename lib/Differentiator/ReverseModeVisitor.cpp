@@ -1790,18 +1790,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!OverloadedDerivedFn) {
       if (FD == m_Function && m_Mode == DiffMode::experimental_pullback) {
         // Recursive call.
-        auto* selfRef =
+        Expr* selfRef =
             m_Sema
                 .BuildDeclarationNameExpr(
                     CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
                 .get();
 
-        OverloadedDerivedFn =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), selfRef, noLoc,
-                               llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
-                               noLoc)
-                .get();
+        OverloadedDerivedFn = m_Sema
+                                  .ActOnCallExpr(getCurrentScope(), selfRef,
+                                                 noLoc, pullbackCallArgs, noLoc)
+                                  .get();
       } else {
         if (m_ExternalSource)
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(
