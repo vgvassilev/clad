@@ -799,7 +799,7 @@ namespace clad {
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
     LookupResult& Push = GetCladTapePush();
-    auto PushDRE =
+    Expr* PushDRE =
         m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false).get();
     for (unsigned i = 0, e = numArgs; i < e; i++) {
       QualType argTy = args[i]->getType();
@@ -808,7 +808,7 @@ namespace clad {
       Expr* PushExpr = BuildDeclRef(gradVar);
       if (!isCladArrayType(argTy))
         PushExpr = BuildOp(UO_AddrOf, PushExpr);
-      Expr* callArgs[] = {TapeRef, PushExpr};
+      std::array<Expr*, 2> callArgs = {TapeRef, PushExpr};
       Stmt* PushStmt =
           m_Sema
               .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs, noLoc)
