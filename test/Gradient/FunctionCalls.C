@@ -696,6 +696,25 @@ double fn14(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn15(double x, double y) {
+    A::constantFn(y += x);
+    return y;
+}
+
+//CHECK: void fn15_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     _t0 = y;
+//CHECK-NEXT:     A::constantFn(y += x);
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     * _d_y += 1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         y = _t0;
+//CHECK-NEXT:         double _r_d0 = * _d_y;
+//CHECK-NEXT:         * _d_x += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -778,4 +797,6 @@ int main() {
 
   INIT(fn14);
   TEST2(fn14, 3, 5);  // CHECK-EXEC: {1.00, 1.00}
+  INIT(fn15);
+  TEST2(fn15, 6, -2)  // CHECK-EXEC: {1.00, 1.00}
 }
