@@ -368,34 +368,18 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
       assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code);
-  }
-
-  /// To check if reference is initialized with pointer dereference
-  template <typename T>
-  constexpr bool has_reference_initialized_with_pointer_dereference =
-      std::is_reference<T>::value &&
-      std::is_pointer<typename std::remove_reference<T>::type>::value;
-
-  /// To get the pointer and adjoint corresponding
-  template <typename F, typename... Args>
-  auto get_pointer_and_adjoint(Args&&... args) {
-    F* f_ptr = &std::forward<F>(args...);
-    auto dp = get_adjoint<F>(f_ptr);
-    return std::make_pair(f_ptr, dp);
-  }
-
-  /// To set the adjoint variable for the reference to the
-  /// same value as the adjoint variable for the pointer
-  template <typename F, typename Ptr, typename Dp, typename... Args>
-  auto get_adjoint_for_reference_initialized_with_pointer_dereference(Ptr ptr,
-    Dp dp, Args&&... args) {
-    auto& ref = *ptr;
-    auto dr = get_adjoint<decltype(ref)>(ref);
-    dr = dp;
-    return std::make_tuple(dr, get_adjoint<Args>(std::forward<Args>
-    (args))...);
+      // Add a special case to handle the situation where a reference 
+      // variable is initialized with a pointer dereference
+    if (std::is_reference<F>::value && std::is_pointer
+        <typename std::remove_reference<F>::type>::value) {
+        // Replace the reference variable with its original pointer
+        F original_f = *(typename std::remove_reference<F>::type*)&f;
+        return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+            derivedFn /* will be replaced by gradient*/, code, original_f);
+    } else {
+        return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+            derivedFn /* will be replaced by gradient*/, code, f);
+    }
   }
 
   /// Specialization for differentiating functors.
@@ -411,24 +395,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
           const char* code = "") {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-        derivedFn /* will be replaced by gradient*/, code, f,
-        [](auto&& f, auto&&... args) {
-          // Checking if any reference variable is initialized
-          // with a pointer dereference
-          if constexpr (has_reference_initialized_with_pointer_dereference
-            <decltype(f)>::value) {
-            // Creating a new adjoint variable for the pointer
-            auto&& [ptr, dp] = get_pointer_and_adjoint<decltype(f)>(args...);
-            // Setting the adjoint variable for the reference to the same value 
-            // as the adjoint variable for the pointer
-            return get_adjoint_for_reference_initialized_with_pointer_dereference
-            <decltype(f)>(ptr, dp, args...);
-          } else {
-            // O/W, differentiate as usual
-            return differentiate<BitMaskedOpts...>(f, std::forward
-            <decltype(args)>(args)...);
-          }
-        });
+        derivedFn /* will be replaced by gradient*/, code, f);
   }
 
   /// Generates function which computes hessian matrix of the given function wrt
