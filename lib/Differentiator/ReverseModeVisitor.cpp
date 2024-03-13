@@ -1868,7 +1868,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Put Result array declaration in the function body.
       // Call the gradient, passing Result as the last Arg.
       Stmts& block = getCurrentBlock(direction::reverse);
-      Stmt** it = std::begin(block) + insertionPoint;
+      Stmts::iterator it = std::begin(block) + insertionPoint;
       // Insert PreCallStmts
       it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
       it += PreCallStmts.size();
@@ -1887,7 +1887,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         it++;
       }
       // Insert PostCallStmts
-      it = block.insert(it, PostCallStmts.begin(), PostCallStmts.end());
+      block.insert(it, PostCallStmts.begin(), PostCallStmts.end());
     }
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
