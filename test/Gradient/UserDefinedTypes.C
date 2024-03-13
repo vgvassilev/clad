@@ -2,7 +2,6 @@
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oUserDefinedTypes.out
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
-// XFAIL: asserts
 // CHECK-NOT: {{.*error|warning|note:.*}}
 // XFAIL: target={{i586.*}}
 #include "clad/Differentiator/Differentiator.h"
