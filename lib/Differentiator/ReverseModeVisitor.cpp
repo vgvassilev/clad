@@ -573,8 +573,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
       ParmVarDecl* param = paramsRef[i];
       // derived variables are already created for independent variables.
-      if (m_Variables.count(param))
+      if (m_Variables.count(param)){
+        if (m_Variables.size() == m_Function->getNumParams() &&
+            m_Function->getReturnType()->isVoidType()) {
+          auto size_type = m_Context.getSizeType();
+          unsigned size_type_bits = m_Context.getIntWidth(size_type);
+          auto* one = IntegerLiteral::Create(
+            m_Context, llvm::APInt(size_type_bits, 1), m_Context.IntTy, noLoc);
+          addToBlock(
+            BuildOp(BinaryOperatorKind::BO_Assign, m_Variables[param], one),
+            m_Globals);
+        }
         continue;
+      }
       // in vector mode last non diff parameter is output parameter.
       if (isVectorValued && i == m_Function->getNumParams() - 1)
         continue;
