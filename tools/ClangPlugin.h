@@ -185,7 +185,7 @@ namespace clad {
 
   public:
     CladPlugin(clang::CompilerInstance& CI, DifferentiationOptions& DO);
-    ~CladPlugin();
+    ~CladPlugin() override;
     // ASTConsumer
     void Initialize(clang::ASTContext& Context) override;
     void HandleCXXStaticMemberVarInstantiation(clang::VarDecl* D) override {
