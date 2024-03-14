@@ -12,7 +12,7 @@ endif()
 # Produces a binary named 'basename(test_dirname)'.
 function(add_clad_unittest test_dirname)
 
-  add_unittest(CladUnitTests ${test_dirname} ${ARGN})
+  add_unittest(CladUnitTests ${test_dirname} ${ARGN} DISABLE_LLVM_LINK_LLVM_DYLIB)
 
   # Remove the llvm_gtest_* coming from add_unittest.
   get_target_property(GTEST_LINKED_LIBS ${test_dirname} LINK_LIBRARIES)
