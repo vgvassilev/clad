@@ -1537,8 +1537,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerType(PVD->getType()) &&
-          !isa<MaterializeTemporaryExpr>(arg)) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1723,9 +1722,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (auto* argDerivative : CallArgDx) {
         Expr* gradArgExpr = nullptr;
         const Expr* arg = CE->getArg(idx);
-        const auto* PVD = FD->getParamDecl(idx);
-        if (utils::IsReferenceOrPointerType(PVD->getType()) &&
-            !isa<MaterializeTemporaryExpr>(arg)) {
+        if (utils::IsReferenceOrPointerArg(arg)) {
           if (argDerivative) {
             if (utils::isArrayOrPointerType(argDerivative->getType()) ||
                 isCladArrayType(argDerivative->getType()) ||
