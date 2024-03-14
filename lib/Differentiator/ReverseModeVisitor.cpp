@@ -580,9 +580,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           unsigned size_type_bits = m_Context.getIntWidth(size_type);
           auto* one = IntegerLiteral::Create(
             m_Context, llvm::APInt(size_type_bits, 1), m_Context.IntTy, noLoc);
-          addToBlock(
-            BuildOp(BinaryOperatorKind::BO_Assign, m_Variables[param], one),
-            m_Globals);
+          auto *left = param->getType()->isPointerType() ? BuildOp(UO_Deref, m_Variables[param]) : m_Variables[param]; 
+          addToBlock(BuildOp(BinaryOperatorKind::BO_Assign, left, one),
+                     m_Globals);
         }
         continue;
       }
