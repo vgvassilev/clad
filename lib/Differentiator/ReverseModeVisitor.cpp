@@ -574,8 +574,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       ParmVarDecl* param = paramsRef[i];
       // derived variables are already created for independent variables.
       if (m_Variables.count(param)) {
-        // if all the parameters are to be derived and the function has no return statement,
-        // then we need to initialize the derived variables.
+        // if all the parameters are to be derived and the function has no
+        // return statement, then we need to initialize the derived variables.
         if (m_Variables.size() == m_Function->getNumParams() &&
             m_Function->getReturnType()->isVoidType()) {
           auto size_type = m_Context.getSizeType();
