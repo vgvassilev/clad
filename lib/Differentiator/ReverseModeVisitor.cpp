@@ -901,7 +901,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       if (m_ExternalSource)
         m_ExternalSource
-            ->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
+            ->ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt();
 
       Stmt* Forward = unwrapIfSingleStmt(endBlock(direction::forward));
       Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
@@ -1226,7 +1226,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // ValueAndPushforward.
     if (!isCladValueAndPushforwardType(type)) {
       if (m_ExternalSource)
-        m_ExternalSource->ActBeforeFinalisingVisitReturnStmt(ExprDiff);
+        m_ExternalSource->ActBeforeFinalizingVisitReturnStmt(ExprDiff);
     }
 
     // Create goto to the label.
@@ -2179,7 +2179,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       ResultRef = diff_dx;
       valueForRevPass = diff.getRevSweepAsExpr();
       if (m_ExternalSource)
-        m_ExternalSource->ActBeforeFinalisingPostIncDecOp(diff);
+        m_ExternalSource->ActBeforeFinalizingPostIncDecOp(diff);
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       diff = Visit(E, dfdx());
       Expr* diff_dx = diff.getExpr_dx();
@@ -2583,7 +2583,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       } else
         llvm_unreachable("unknown assignment opCode");
       if (m_ExternalSource)
-        m_ExternalSource->ActBeforeFinalisingAssignOp(LCloned, oldValue);
+        m_ExternalSource->ActBeforeFinalizingAssignOp(LCloned, ResultRef, R,
+                                                      opCode);
 
       // Output statements from Visit(L).
       for (auto it = Lblock_begin; it != Lblock_end; ++it)

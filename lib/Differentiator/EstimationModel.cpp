@@ -15,44 +15,6 @@ namespace clad {
 
   FPErrorEstimationModel::~FPErrorEstimationModel() {}
 
-  Expr* FPErrorEstimationModel::IsVariableRegistered(const VarDecl* VD) {
-    auto it = m_EstimateVar.find(VD);
-    if (it != m_EstimateVar.end())
-      return it->second;
-    return nullptr;
-  }
-
-  void FPErrorEstimationModel::AddVarToEstimate(VarDecl* VD, Expr* VDRef) {
-    m_EstimateVar.emplace(VD, VDRef);
-  }
-
-  // FIXME: Maybe this should be left to the user too.
-  Expr* FPErrorEstimationModel::CalculateAggregateError() {
-    Expr* addExpr = nullptr;
-    // Loop over all the error variables and form the final error expression of
-    // the form... _final_error = _delta_var + _delta_var1 +...
-    for (auto var : m_EstimateVar) {
-      // Errors through array subscript expressions are already captured
-      // to avoid having long add expression at the end and to only add
-      // the values to the final error that have a non zero delta.
-      if (isArrayOrPointerType(var.first->getType()))
-        continue;
-
-      if (!addExpr) {
-        addExpr = var.second;
-        continue;
-      }
-      addExpr = BuildOp(BO_Add, addExpr, var.second);
-    }
-    // Return an expression that can be directly assigned to final error.
-    return addExpr;
-  }
-
-  // Return nullptr here, this is interpreted as 0 internally.
-  Expr* FPErrorEstimationModel::SetError(VarDecl* declStmt) { 
-    return nullptr; 
-  }
-
   Expr* FPErrorEstimationModel::GetFunctionCall(
       std::string funcName, std::string nmspace,
       llvm::SmallVectorImpl<Expr*>& callArgs) {

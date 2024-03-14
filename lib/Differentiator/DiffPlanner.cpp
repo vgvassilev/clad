@@ -232,9 +232,10 @@ namespace clad {
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
-                               DiffSchedule& plans, clang::Sema& S)
+                               DiffSchedule& plans, clang::Sema& S,
+                               RequestOptions& opts)
       : m_Interval(Interval), m_DiffPlans(plans), m_TopMostFD(nullptr),
-        m_Sema(S) {
+        m_Sema(S), m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -556,12 +557,13 @@ namespace clad {
         return true;
       DiffRequest request{};
 
-      if (A->getAnnotation().equals("D")) {
-        request.Mode = DiffMode::forward;
-
-        // bitmask_opts is a template pack of unsigned integers, so we need to
-        // do bitwise or of all the values to get the final value.
-        unsigned bitmasked_opts_value = 0;
+      // bitmask_opts is a template pack of unsigned integers, so we need to
+      // do bitwise or of all the values to get the final value.
+      unsigned bitmasked_opts_value = 0;
+      bool enable_tbr_in_req = false;
+      bool disable_tbr_in_req = false;
+      if (!A->getAnnotation().equals("E") &&
+          FD->getTemplateSpecializationArgs()) {
         const auto template_arg = FD->getTemplateSpecializationArgs()->get(0);
         if (template_arg.getKind() == TemplateArgument::Pack)
           for (const auto& arg :
@@ -569,14 +571,39 @@ namespace clad {
             bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
         else
           bitmasked_opts_value = template_arg.getAsIntegral().getExtValue();
+
+        // Set option for TBR analysis.
+        enable_tbr_in_req =
+            clad::HasOption(bitmasked_opts_value, clad::opts::enable_tbr);
+        disable_tbr_in_req =
+            clad::HasOption(bitmasked_opts_value, clad::opts::disable_tbr);
+        if (enable_tbr_in_req && disable_tbr_in_req) {
+          utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                          "Both enable and disable TBR options are specified.");
+          return true;
+        }
+        if (enable_tbr_in_req || disable_tbr_in_req) {
+          // override the default value of TBR analysis.
+          request.EnableTBRAnalysis = enable_tbr_in_req && !disable_tbr_in_req;
+        } else {
+          request.EnableTBRAnalysis = m_Options.EnableTBRAnalysis;
+        }
+      }
+
+      if (A->getAnnotation().equals("D")) {
+        request.Mode = DiffMode::forward;
         unsigned derivative_order =
             clad::GetDerivativeOrder(bitmasked_opts_value);
         if (derivative_order == 0) {
           derivative_order = 1; // default to first order derivative.
         }
         request.RequestedDerivativeOrder = derivative_order;
-        if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme)) {
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
           request.use_enzyme = true;
+        if (enable_tbr_in_req) {
+          utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                          "TBR analysis is not meant for forward mode AD.");
+          return true;
         }
         if (clad::HasOption(bitmasked_opts_value, clad::opts::vector_mode)) {
           request.Mode = DiffMode::vector_forward_mode;
@@ -601,17 +628,6 @@ namespace clad {
         request.Mode = DiffMode::jacobian;
       } else if (A->getAnnotation().equals("G")) {
         request.Mode = DiffMode::reverse;
-
-        // bitmask_opts is a template pack of unsigned integers, so we need to
-        // do bitwise or of all the values to get the final value.
-        unsigned bitmasked_opts_value = 0;
-        const auto template_arg = FD->getTemplateSpecializationArgs()->get(0);
-        if (template_arg.getKind() == TemplateArgument::Pack)
-          for (const auto& arg :
-               FD->getTemplateSpecializationArgs()->get(0).pack_elements())
-            bitmasked_opts_value |= arg.getAsIntegral().getExtValue();
-        else
-          bitmasked_opts_value = template_arg.getAsIntegral().getExtValue();
         if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
           request.use_enzyme = true;
         // reverse vector mode is not yet supported.

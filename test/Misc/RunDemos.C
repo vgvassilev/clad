@@ -109,21 +109,16 @@
 
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, clad::array_ref<float> _d_x, clad::array_ref<unsigned int> _d_n, double &_final_error) {
 //CHECK_FLOAT_SUM:     float _d_sum = 0;
-//CHECK_FLOAT_SUM:     double _delta_sum = 0;
-//CHECK_FLOAT_SUM:     float _EERepl_sum0;
 //CHECK_FLOAT_SUM:     unsigned long _t0;
 //CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
 //CHECK_FLOAT_SUM:     unsigned int i = 0;
 //CHECK_FLOAT_SUM:     clad::tape<float> _t1 = {};
-//CHECK_FLOAT_SUM:     clad::tape<float> _EERepl_sum1 = {};
 //CHECK_FLOAT_SUM:     float sum = 0.;
-//CHECK_FLOAT_SUM:     _EERepl_sum0 = sum;
 //CHECK_FLOAT_SUM:     _t0 = 0;
 //CHECK_FLOAT_SUM:     for (i = 0; i < n; i++) {
 //CHECK_FLOAT_SUM:         _t0++;
 //CHECK_FLOAT_SUM:         clad::push(_t1, sum);
 //CHECK_FLOAT_SUM:         sum = sum + x;
-//CHECK_FLOAT_SUM:         clad::push(_EERepl_sum1, sum);
 //CHECK_FLOAT_SUM:     }
 //CHECK_FLOAT_SUM:     goto _label0;
 //CHECK_FLOAT_SUM:   _label0:
@@ -131,19 +126,16 @@
 //CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
 //CHECK_FLOAT_SUM:         i--;
 //CHECK_FLOAT_SUM:         {
+//CHECK_FLOAT_SUM:             _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM:             sum = clad::pop(_t1);
 //CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
 //CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
 //CHECK_FLOAT_SUM:             _d_sum += _r_d0;
 //CHECK_FLOAT_SUM:             * _d_x += _r_d0;
-//CHECK_FLOAT_SUM:             float _r0 = clad::pop(_EERepl_sum1);
-//CHECK_FLOAT_SUM:             _delta_sum += std::abs(_r_d0 * _r0 * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM:         }
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     _delta_sum += std::abs(_d_sum * _EERepl_sum0 * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:     double _delta_x = 0;
-//CHECK_FLOAT_SUM:     _delta_x += std::abs(* _d_x * x * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:     _final_error += _delta_x + _delta_sum;
+//CHECK_FLOAT_SUM:     _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:     _final_error += std::abs(* _d_x * x * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM: }
 
 //-----------------------------------------------------------------------------/
@@ -161,31 +153,23 @@
 // CHECK_CUSTOM_MODEL_EXEC: The code is:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_z = 0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _t0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _EERepl_z1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += _d_z * z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _delta_z += _r_d0 * _EERepl_z1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_x = 0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _delta_x += * _d_x * x;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    double _delta_y = 0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _delta_y += * _d_y * y;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += * _d_x * x;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += * _d_y * y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: }
 
 //-----------------------------------------------------------------------------/
@@ -203,31 +187,23 @@
 // CHECK_PRINT_MODEL_EXEC: The code is:
 // CHECK_PRINT_MODEL_EXEC-NEXT: void func_grad(float x, float y, clad::array_ref<float> _d_x, clad::array_ref<float> _d_y, double &_final_error) {
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float _d_z = 0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_z = 0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    float _EERepl_z0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float _t0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    float _EERepl_z1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float z;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _EERepl_z1 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
+// CHECK_PRINT_MODEL_EXEC-NEXT:        _final_error += clad::getErrorVal(_d_z, z, "z");
 // CHECK_PRINT_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        * _d_x += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        * _d_y += _r_d0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:        _delta_z += clad::getErrorVal(_r_d0, _EERepl_z1, "z");
 // CHECK_PRINT_MODEL_EXEC-NEXT:    }
-// CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_x = 0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _delta_x += clad::getErrorVal(* _d_x, x, "x");
-// CHECK_PRINT_MODEL_EXEC-NEXT:    double _delta_y = 0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _delta_y += clad::getErrorVal(* _d_y, y, "y");
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += _delta_{{x|y|z}} + _delta_{{x|y|z}} + _delta_{{x|y|z}};
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(* _d_x, x, "x");
+// CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(* _d_y, y, "y");
 // CHECK_PRINT_MODEL_EXEC-NEXT: }
 // CHECK_PRINT_MODEL_EXEC: Error in z : {{.+}}
 // CHECK_PRINT_MODEL_EXEC-NEXT: Error in x : {{.+}}
@@ -301,11 +277,11 @@
 // CHECK_ARRAYS_EXEC:   {0.33, 0, 0, 0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0.33, 0, 0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0, 0.33, 0, 0, 0}
-// CHECK_ARRAYS_EXEC: Hessian Mode w.r.t. to arr:
-// CHECK_ARRAYS_EXEC:  matrix =
-// CHECK_ARRAYS_EXEC:   {0, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0}
-// CHECK_ARRAYS_EXEC:   {0, 0, 0}
+// CHECK_ARRAYS_EXEC-FAIL: Hessian Mode w.r.t. to arr:
+// CHECK_ARRAYS_EXEC-FAIL:  matrix =
+// CHECK_ARRAYS_EXEC-FAIL:   {0, 0, 0}
+// CHECK_ARRAYS_EXEC-FAIL:   {0, 0, 0}
+// CHECK_ARRAYS_EXEC-FAIL:   {0, 0, 0}
 
 //-----------------------------------------------------------------------------/
 // Demo: VectorForwardMode.cpp

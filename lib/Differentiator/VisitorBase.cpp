@@ -8,10 +8,11 @@
 
 #include "ConstantFolder.h"
 
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
+#include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
-#include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -59,42 +60,14 @@ namespace clad {
     return true;
   }
 
-  // A facility allowing us to access the private member CurScope of the Sema
-  // object using standard-conforming C++.
-  namespace {
-  template <typename Tag, typename Tag::type M> struct Rob {
-    friend typename Tag::type get(Tag) { return M; }
-  };
-
-  template <typename Tag, typename Member> struct TagBase {
-    using type = Member;
-#ifdef MSVC
-#pragma warning(push, 0)
-#endif // MSVC
-#pragma GCC diagnostic push
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wunknown-warning-option"
-#endif // __clang__
-#pragma GCC diagnostic ignored "-Wnon-template-friend"
-    friend type get(Tag);
-#pragma GCC diagnostic pop
-#ifdef MSVC
-#pragma warning(pop)
-#endif // MSVC
-  };
-
-  // Tag used to access Sema::CurScope.
-  using namespace clang;
-  struct Sema_CurScope : TagBase<Sema_CurScope, Scope * Sema::*> {};
-  template struct Rob<Sema_CurScope, &Sema::CurScope>;
-  } // namespace
+  ALLOW_ACCESS(Sema, CurScope, Scope*);
 
   clang::Scope*& VisitorBase::getCurrentScope() {
-    return m_Sema.*get(Sema_CurScope());
+    return ACCESS(m_Sema, CurScope);
   }
 
   void VisitorBase::setCurrentScope(clang::Scope* S) {
-    m_Sema.*get(Sema_CurScope()) = S;
+    getCurrentScope() = S;
     assert(getEnclosingNamespaceOrTUScope() && "Lost path to base.");
   }
 

@@ -114,9 +114,9 @@ void MultiplexExternalRMVSource::
 }
 
 void MultiplexExternalRMVSource::
-    ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt() {
+    ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt() {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalisingVisitBranchSingleStmtInIfVisitStmt();
+    source->ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt();
   }
 }
 
@@ -139,10 +139,10 @@ void MultiplexExternalRMVSource::
   }
 }
 
-void MultiplexExternalRMVSource::ActBeforeFinalisingVisitReturnStmt(
+void MultiplexExternalRMVSource::ActBeforeFinalizingVisitReturnStmt(
     StmtDiff& retExprDiff) {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalisingVisitReturnStmt(retExprDiff);
+    source->ActBeforeFinalizingVisitReturnStmt(retExprDiff);
   }
 }
 
@@ -156,10 +156,10 @@ void MultiplexExternalRMVSource::ActBeforeFinalizingVisitCallExpr(
   }
 }
 
-void MultiplexExternalRMVSource::ActBeforeFinalisingPostIncDecOp(
+void MultiplexExternalRMVSource::ActBeforeFinalizingPostIncDecOp(
     StmtDiff& diff) {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalisingPostIncDecOp(diff);
+    source->ActBeforeFinalizingPostIncDecOp(diff);
   }
 }
 void MultiplexExternalRMVSource::ActAfterCloningLHSOfAssignOp(
@@ -169,10 +169,11 @@ void MultiplexExternalRMVSource::ActAfterCloningLHSOfAssignOp(
   }
 }
 
-void MultiplexExternalRMVSource::ActBeforeFinalisingAssignOp(
-    clang::Expr*& LCloned, clang::Expr*& oldValue) {
+void MultiplexExternalRMVSource::ActBeforeFinalizingAssignOp(
+    clang::Expr*& LCloned, clang::Expr*& oldValue, clang::Expr*& R,
+    clang::BinaryOperator::Opcode& opCode) {
   for (auto source : m_Sources) {
-    source->ActBeforeFinalisingAssignOp(LCloned, oldValue);
+    source->ActBeforeFinalizingAssignOp(LCloned, oldValue, R, opCode);
   }
 }
 

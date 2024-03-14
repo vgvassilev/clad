@@ -617,7 +617,7 @@ int main() {
   d_structPointer.execute(5, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
 
-  auto d_cStyleMemoryAlloc = clad::gradient(cStyleMemoryAlloc, "x");
+  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr>(cStyleMemoryAlloc, "x");
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 4.00

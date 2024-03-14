@@ -127,6 +127,52 @@ Substituting `s = z` we will get `sz` = 1
 Thus we don't need to run the program twice for each input. However, as mentioned
 above the only drawback is we need to re-run the program for a different output.
 
+
+Vectorized Forward Mode Automatic Differentiation
+===================================================
+
+Vectorized Forward Mode Automatic Differentiation is a computational technique
+that combines two powerful concepts: vectorization and forward mode automatic
+differentiation. This approach is used to efficiently compute derivatives of
+functions with respect to multiple input variables by taking advantage of both
+parallel processing capabilities and the structure of the computation graph.
+
+Working
+--------
+
+For computing gradient of a function with an n-dimensional input - forward mode
+requires n forward passes.
+
+We can do this in a single forward pass, instead of accumulating a single
+scalar value of derivative with respect to a particular node, we maintain a
+gradient vector at each node. Although, the strategy is pretty similar, it requires
+three passes for computing partial derivatives w.r.t. the three scalar inputs of
+the function.
+
+At each node, we maintain a vector, storing the complete gradient of that node's
+output w.r.t.. all the input parameters. All operations are now vector operations,
+for example, applying the sum rule will result in the addition of vectors.
+Initialization for input nodes are done using one-hot vectors.
+
+.. figure:: ../_static/vector-mode.png
+  :width: 600
+  :align: center
+  :alt: Vectorized Forward Mode Automatic Differentiation
+
+  Vectorized Forward Mode Automatic Differentiation to compute the gradient.
+
+Benefits
+----------
+
+We know that each node requires computing a vector, which requires more memory
+and more time, which adds to these memory allocation calls. This must be offset
+by some improvement in computing efficiency.
+
+This can prevent the recomputation of some expensive functions, which would have
+executed in a non-vectorized version due to multiple forward passes. This approach
+can take advantage of the hardware's vectorization and parallelization capabilities
+using SIMD techniques.
+
 Derived Function Types and Derivative Types
 =============================================
 
