@@ -36,9 +36,8 @@ static void BM_VectorForwardModeAddArrayAndMultiplyWithScalarsExecute(
   int dn = 0;
   double arr[5] = {1, 2, 3, 4, 5};
   double darr[5] = {0};
-  clad::array_ref<double> darr_ref(darr, n);
   for (auto _ : state) {
-    grad.execute(arr, x, y, 5, darr_ref, &dx, &dy, &dn);
+    grad.execute(arr, x, y, 5, darr, &dx, &dy, &dn);
     dx = 0;
     dy = 0;
     for (int i = 0; i < n; i++)
@@ -87,9 +86,8 @@ static void BM_VectorForwardModeSumExecute(benchmark::State& state) {
   auto grad = clad::differentiate<clad::opts::vector_mode>(sum, "p");
   double inputs[] = {1, 2, 3, 4, 5};
   double result[5] = {};
-  clad::array_ref<double> result_ref(result, 5);
   for (auto _ : state) {
-    grad.execute(inputs, /*dim*/ 5, result_ref);
+    grad.execute(inputs, /*dim*/ 5, result);
     for (int i = 0; i < 5; i++)
       result[i] = 0;
   }
@@ -126,9 +124,8 @@ static void BM_VectorForwardModeProductExecute(benchmark::State& state) {
   auto grad = clad::differentiate<clad::opts::vector_mode>(product, "p");
   double inputs[] = {1, 2, 3, 4, 5};
   double result[5] = {};
-  clad::array_ref<double> result_ref(result, 5);
   for (auto _ : state) {
-    grad.execute(inputs, /*dim*/ 5, result_ref);
+    grad.execute(inputs, /*dim*/ 5, result);
     for (int i = 0; i < 5; i++)
       result[i] = 0;
   }
@@ -210,12 +207,10 @@ static void BM_ReverseModeWeightedSum(benchmark::State& state) {
 
   double dinp[n];
   double dweights[n];
-  clad::array_ref<double> dinp_ref(dinp, n);
-  clad::array_ref<double> dweights_ref(dweights, n);
 
   double sum = 0;
   for (auto _ : state) {
-    grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
+    grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
       sum += dinp[i] + dweights[i];
       dinp[i] = 0;
@@ -241,12 +236,10 @@ static void BM_VectorForwardModeWeightedSum(benchmark::State& state) {
 
   double dinp[n];
   double dweights[n];
-  clad::array_ref<double> dinp_ref(dinp, n);
-  clad::array_ref<double> dweights_ref(dweights, n);
 
   double sum = 0;
   for (auto _ : state) {
-    vm_grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
+    vm_grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
       sum += dinp[i] + dweights[i];
       dinp[i] = 0;
@@ -271,12 +264,10 @@ static void BM_ReverseModeWeightedSumEnzyme(benchmark::State& state) {
 
   double dinp[n];
   double dweights[n];
-  clad::array_ref<double> dinp_ref(dinp, n);
-  clad::array_ref<double> dweights_ref(dweights, n);
 
   double sum = 0;
   for (auto _ : state) {
-    grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
+    grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
       sum += dinp[i] + dweights[i];
       dinp[i] = 0;

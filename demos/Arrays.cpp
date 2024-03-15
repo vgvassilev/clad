@@ -52,20 +52,14 @@ int main() {
 
   double darr[3] = {0, 0, 0};
   double dweights[3] = {0, 0, 0};
-  // clad::array_ref is used by clad::gradient to keep track of the array size
-  // being sent into the generated gradient. Since clad::array_ref is a wrapper
-  // for the supplied array any changes to it will be reflected in the array and
-  // vice versa
-  clad::array_ref<double> darr_ref(darr, 3);
-  clad::array_ref<double> dweights_ref(dweights, 3);
 
-  weighted_avg_dall.execute(arr, weights, darr_ref, dweights_ref);
+  weighted_avg_dall.execute(arr, weights, darr, dweights);
   printf("Reverse Mode w.r.t. all:\n darr = {%.2g, %.2g, %.2g}\n dweights = "
          "{%.2g, %.2g, %.2g}\n",
          darr[0], darr[1], darr[2], dweights[0], dweights[1], dweights[2]);
 
   darr[0] = darr[1] = darr[2] = 0;
-  weighted_avg_darr.execute(arr, weights, darr_ref);
+  weighted_avg_darr.execute(arr, weights, darr);
   printf("Reverse Mode w.r.t. arr:\n darr = {%.2g, %.2g, %.2g}\n", darr[0],
          darr[1], darr[2]);
 
@@ -81,10 +75,7 @@ int main() {
   double matrix_all[36] = {0};
   // double matrix_arr[9] = {0};
 
-  clad::array_ref<double> matrix_all_ref(matrix_all, 36);
-  // clad::array_ref<double> matrix_arr_ref(matrix_arr, 9);
-
-  hessian_all.execute(arr, weights, matrix_all_ref);
+  hessian_all.execute(arr, weights, matrix_all);
   printf("Hessian Mode w.r.t. to all:\n matrix =\n"
          "  {%.2g, %.2g, %.2g, %.2g, %.2g, %.2g}\n"
          "  {%.2g, %.2g, %.2g, %.2g, %.2g, %.2g}\n"
@@ -102,7 +93,7 @@ int main() {
          matrix_all[28], matrix_all[29], matrix_all[30], matrix_all[31],
          matrix_all[32], matrix_all[33], matrix_all[34], matrix_all[35]);
 
-  /*hessian_arr.execute(arr, weights, matrix_arr_ref);
+  /*hessian_arr.execute(arr, weights, matrix_arr);
   printf("Hessian Mode w.r.t. to arr:\n matrix =\n"
          "  {%.2g, %.2g, %.2g}\n"
          "  {%.2g, %.2g, %.2g}\n"
