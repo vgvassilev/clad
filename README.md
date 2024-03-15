@@ -231,7 +231,7 @@ Clad also provides certain flags to save and print the generated derivative code
 - To print the Clad generated derivative: `-Xclang -plugin-arg-clad -Xclang -fdump-derived-fn`
 
 ## How to install
-At the moment, LLVM/Clang 7.0.x - 17.0.x are supported.
+At the moment, LLVM/Clang 8.0.x - 18.1.x are supported.
 
 ### Conda Installation
 
@@ -276,7 +276,7 @@ make check-clad
 ```
 pip3 install lit
 ```
-Clone the LLVM project and checkout the required LLVM version (Currently supported versions 7.x - 17.x)
+Clone the LLVM project and checkout the required LLVM version (Currently supported versions 8.x - 18.x)
 
 ```
 git clone https://github.com/llvm/llvm-project.git

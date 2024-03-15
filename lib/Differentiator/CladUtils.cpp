@@ -77,10 +77,8 @@ namespace clad {
         return "operator_less_equal";
       case OverloadedOperatorKind::OO_GreaterEqual:
         return "operator_greater_equal";
-#if CLANG_VERSION_MAJOR > 5
       case OverloadedOperatorKind::OO_Spaceship:
         return "operator_spaceship";
-#endif
       case OverloadedOperatorKind::OO_AmpAmp:
         return "operator_AmpAmp";
       case OverloadedOperatorKind::OO_PipePipe:
@@ -166,7 +164,8 @@ namespace clad {
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
         NestedNameSpecifier* NS = CSS.getScopeRep();
         if (auto* Prefix = NS->getPrefix())
-          return C.getElaboratedType(ETK_None, Prefix, QT);
+          return C.getElaboratedType(clad_compat::ElaboratedTypeKeyword_None,
+                                     Prefix, QT);
       }
       return QT;
     }
@@ -268,16 +267,15 @@ namespace clad {
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();
-      QualType
-          StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
-                                                    llvm::APInt(/*numBits=*/32,
-                                                                str.size() + 1),
-                                                    /*SizeExpr=*/nullptr,
-                                                    /*ASM=*/ArrayType::Normal,
-                                                    /*IndexTypeQuals*/ 0);
-      StringLiteral* SL = StringLiteral::Create(C, str,
-                                                /*Kind=*/clad_compat::StringKind_Ordinary,
-                                                /*Pascal=*/false, StrTy, noLoc);
+      QualType StrTy = clad_compat::getConstantArrayType(
+          C, CharTyConst, llvm::APInt(/*numBits=*/32, str.size() + 1),
+          /*SizeExpr=*/nullptr,
+          /*ASM=*/clad_compat::ArraySizeModifier_Normal,
+          /*IndexTypeQuals*/ 0);
+      StringLiteral* SL = StringLiteral::Create(
+          C, str,
+          /*Kind=*/clad_compat::StringLiteralKind_Ordinary,
+          /*Pascal=*/false, StrTy, noLoc);
       return SL;
     }
 

@@ -79,7 +79,7 @@ namespace clad {
       // Find the path to clad.
       llvm::StringRef CladSoPath;
       for (llvm::StringRef P : Opts.Plugins)
-        if (llvm::sys::path::stem(P).endswith("clad")) {
+        if (llvm::sys::path::stem(P).ends_with("clad")) {
           CladSoPath = P;
           break;
         }

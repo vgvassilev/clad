@@ -244,9 +244,9 @@ namespace clad {
     // For intermediate variables, use numbered names (_t0), for everything
     // else first try a name without number (e.g. first try to use _d_x and
     // use _d_x0 only if _d_x is taken).
-    bool countedName = nameBase.startswith("_") &&
-                       !nameBase.startswith("_d_") &&
-                       !nameBase.startswith("_delta_");
+    bool countedName = nameBase.starts_with("_") &&
+                       !nameBase.starts_with("_d_") &&
+                       !nameBase.starts_with("_delta_");
     std::size_t idx = 0;
     std::size_t& id = countedName ? m_idCtr[nameBase.str()] : idx;
     std::string idStr = countedName ? std::to_string(id) : "";
@@ -452,7 +452,8 @@ namespace clad {
 
     // Create elaborated type with namespace specifier,
     // i.e. class<T> -> clad::class<T>
-    return m_Context.getElaboratedType(ETK_None, NS, TT);
+    return m_Context.getElaboratedType(clad_compat::ElaboratedTypeKeyword_None,
+                                       NS, TT);
   }
 
   QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,

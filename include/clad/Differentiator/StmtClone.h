@@ -8,6 +8,8 @@
 #ifndef CLAD_UTILS_STMTCLONE_H
 #define CLAD_UTILS_STMTCLONE_H
 
+#include "Compatibility.h"
+
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Version.h"
@@ -122,14 +124,8 @@ namespace utils {
     DECLARE_CLONE_FN(PseudoObjectExpr)
     DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
     DECLARE_CLONE_FN(CXXScalarValueInitExpr)
-    // `ConstantExpr` node is only available after clang 7.
-    #if CLANG_VERSION_MAJOR > 7
     DECLARE_CLONE_FN(ConstantExpr)
-    #endif
-#if CLANG_VERSION_MAJOR > 8
-    // `ValueStmt` node is only available after clang 8.
-    DECLARE_CLONE_FN(ValueStmt)
-#endif
+    CLAD_COMPAT_8_DECLARE_CLONE_FN(ValueStmt)
 
     clang::Stmt* VisitStmt(clang::Stmt*);
   };
