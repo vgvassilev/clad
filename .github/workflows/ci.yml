@@ -48,6 +48,11 @@ jobs:
             os: macos-14
             compiler: clang
             clang-runtime: '17'
+          #Turn on once clang-18 available through Homebrew
+          #- name: osx14-arm-clang-runtime18
+          #  os: macos-14
+          #  compiler: clang
+          #  clang-runtime: '18'
 
           - name: osx13-x86-clang-runtime12
             os: macos-13
@@ -78,6 +83,11 @@ jobs:
             os: macos-13
             compiler: clang
             clang-runtime: '17'
+          #Turn on once clang-18 available through Homebrew
+          #- name: osx13-x86-clang-runtime18
+          #  os: macos-13
+          #  compiler: clang
+          #  clang-runtime: '18'
 
           - name: win2022-msvc-runtime14
             os: windows-2022
@@ -98,6 +108,11 @@ jobs:
             os: windows-2022
             compiler: msvc
             clang-runtime: '17'
+
+          - name: win2022-msvc-runtime18
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '18'
 
           - name: ubu22-clang15-runtime16-debug
             os: ubuntu-22.04
@@ -442,12 +457,12 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          # Оld, still supported versions
+          - name: ubu22-clang16-runtime18
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '18'
 
-          - name: ubu20-gcc9-runtime7
-            os: ubuntu-20.04
-            compiler: gcc-9
-            clang-runtime: '7'
+          # Оld, still supported versions
 
           - name: ubu20-gcc9-runtime8
             os: ubuntu-20.04

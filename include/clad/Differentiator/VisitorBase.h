@@ -170,6 +170,7 @@ namespace clad {
                           CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
 #if CLANG_VERSION_MAJOR > 16
       V.beginScope(clang::Scope::LambdaScope | clang::Scope::DeclScope |
+
                    clang::Scope::FunctionDeclarationScope |
                    clang::Scope::FunctionPrototypeScope);
 #endif // CLANG_VERSION_MAJOR
@@ -192,7 +193,12 @@ namespace clad {
       func();
       clang::CompoundStmt* body = V.endBlock();
       clang::Expr* lambda =
-          S.ActOnLambdaExpr(noLoc, body, V.getCurrentScope()).get();
+          S.ActOnLambdaExpr(
+               noLoc,
+               body /*,*/
+                   CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(
+                       V))
+              .get();
       V.endScope();
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();

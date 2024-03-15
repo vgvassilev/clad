@@ -268,7 +268,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
     if (MD->isInstance() && !MD->getParent()->isLambda()) {
       QualType thisObjectType =
           clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
-      QualType thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+      QualType thisType = MD->getThisType();
       // Here we are effectively doing:
       // ```
       // Class _d_this_obj;
@@ -405,7 +405,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // derivative of `this` pointer with respect to the independent parameter.
   if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
     if (MD->isInstance()) {
-      QualType thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+      QualType thisType = MD->getThisType();
       derivedParamTypes.push_back(thisType);
     }
   }
@@ -447,7 +447,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // `this` pointer with respect to the independent parameter.
   if (const auto* MFD = dyn_cast<CXXMethodDecl>(FD)) {
     if (MFD->isInstance()) {
-      auto thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MFD);
+      auto thisType = MFD->getThisType();
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier("_d_this");
       auto* derivedPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
                                                  derivedPVDII, thisType);
@@ -857,14 +857,16 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   if (VD == m_IndependentVar) {
     llvm::APSInt index;
     Expr* diffExpr = nullptr;
-
-    if (!clad_compat::Expr_EvaluateAsInt(clonedIndices.back(), index,
-                                         m_Context)) {
+    Expr::EvalResult res;
+    Expr::SideEffectsKind AllowSideEffects =
+        Expr::SideEffectsKind::SE_NoSideEffects;
+    if (!clonedIndices.back()->EvaluateAsInt(res, m_Context,
+                                             AllowSideEffects)) {
       diffExpr =
           BuildParens(BuildOp(BO_EQ, clonedIndices.back(),
                               ConstantFolder::synthesizeLiteral(
                                   ExprTy, m_Context, m_IndependentVarIndex)));
-    } else if (index.getExtValue() == m_IndependentVarIndex) {
+    } else if (res.Val.getInt().getExtValue() == m_IndependentVarIndex) {
       diffExpr = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 1);
     } else {
       diffExpr = zero;
@@ -1619,11 +1621,7 @@ static SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
 /// Returns top switch statement in the `SwitchStack` of the given
 /// Function Scope.
 static SwitchStmt* getTopSwitchStmtOfSwitchStack(sema::FunctionScopeInfo* FSI) {
-#if CLANG_VERSION_MAJOR < 7
-  return FSI->SwitchStack.back();
-#elif CLANG_VERSION_MAJOR >= 7
   return FSI->SwitchStack.back().getPointer();
-#endif
 }
 
 StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
@@ -1730,8 +1728,9 @@ BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
           (newCaseSC->getLHS() ? Clone(newCaseSC->getLHS()) : nullptr);
       Expr* rhsClone =
           (newCaseSC->getRHS() ? Clone(newCaseSC->getRHS()) : nullptr);
-      newActiveSC = clad_compat::CaseStmt_Create(
-          m_Sema.getASTContext(), lhsClone, rhsClone, noLoc, noLoc, noLoc);
+      newActiveSC = CaseStmt::Create(m_Sema.getASTContext(), lhsClone, rhsClone,
+                                     noLoc, noLoc, noLoc);
+
     } else if (isa<DefaultStmt>(SC)) {
       newActiveSC =
           new (m_Sema.getASTContext()) DefaultStmt(noLoc, noLoc, nullptr);
@@ -1870,20 +1869,20 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
-  Expr* clonedTOE = m_Sema
-                        .ActOnCXXTypeConstructExpr(
-                            OpaquePtr<QualType>::make(TOE->getType()),
-                            utils::GetValidSLoc(m_Sema), clonedArgs,
-                            utils::GetValidSLoc(m_Sema)
-                                CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(TOE))
-                        .get();
-  Expr* derivedTOE = m_Sema
-                         .ActOnCXXTypeConstructExpr(
-                             OpaquePtr<QualType>::make(TOE->getType()),
-                             utils::GetValidSLoc(m_Sema), derivedArgs,
-                             utils::GetValidSLoc(m_Sema)
-                                 CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(TOE))
-                         .get();
+  Expr* clonedTOE =
+      m_Sema
+          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
+                                     utils::GetValidSLoc(m_Sema), clonedArgs,
+                                     utils::GetValidSLoc(m_Sema),
+                                     TOE->isListInitialization())
+          .get();
+  Expr* derivedTOE =
+      m_Sema
+          .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
+                                     utils::GetValidSLoc(m_Sema), derivedArgs,
+                                     utils::GetValidSLoc(m_Sema),
+                                     TOE->isListInitialization())
+          .get();
   return {clonedTOE, derivedTOE};
 }
 
