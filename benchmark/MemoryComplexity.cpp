@@ -89,10 +89,9 @@ static void BM_ReverseGausMemoryP(benchmark::State& state) {
     x[i] = 1;
     p[i] = i;
   }
-  clad::array_ref<double> result_ref(result, dim);
   AddBMCounterRAII MemCounters(*mm.get(), state);
   for (auto _ : state) {
-    dfdp_grad.execute(x, p, /*sigma*/ 2, dim, result_ref);
+    dfdp_grad.execute(x, p, /*sigma*/ 2, dim, result);
   }
 }
 BENCHMARK(BM_ReverseGausMemoryP)

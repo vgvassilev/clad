@@ -53,12 +53,10 @@ static void BM_ReverseModeWeightedSum(benchmark::State& state) {
 
   double dinp[n];
   double dweights[n];
-  clad::array_ref<double> dinp_ref(dinp, n);
-  clad::array_ref<double> dweights_ref(dweights, n);
 
   double sum = 0;
   for (auto _ : state) {
-    grad.execute(inputs, weights, n, dinp_ref, dweights_ref);
+    grad.execute(inputs, weights, n, dinp, dweights);
     for (int i = 0; i < n; ++i) {
       sum += dinp[i] + dweights[i];
       dinp[i] = 0;

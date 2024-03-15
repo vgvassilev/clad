@@ -27,7 +27,7 @@ static void BM_ForwardModePow2FwdDecl(benchmark::State &state) {
 BENCHMARK(BM_ForwardModePow2FwdDecl);
 
 // Benchmark calling the gradient via CladFunction::execute.
-inline void sum_grad_0(double*, int, clad::array_ref<double>);
+inline void sum_grad_0(double*, int, double*);
 static void BM_ReverseModeSumFwdDecl(benchmark::State &state) {
   auto grad = clad::gradient(sum, "p");
   (void) grad;
@@ -63,10 +63,9 @@ static void BM_VectorForwardModeSumFwdDecl(benchmark::State &state) {
   (void) vm_grad;
   double inputs[] = {1, 2, 3, 4, 5};
   double result[3] = {};
-  clad::array_ref<double> result_ref(result, 3);
   unsigned long long sum = 0;
   for (auto _ : state) {
-    sum_dvec_0(inputs,/*dim*/ 3, result_ref);
+    sum_dvec_0(inputs, /*dim*/ 3, result);
     benchmark::DoNotOptimize(sum += result[0] + result[1] + result[2]);
   }
 }
@@ -78,10 +77,9 @@ static void BM_VectorForwardModeSumExecute(benchmark::State &state) {
   auto vm_grad = clad::differentiate<clad::opts::vector_mode>(sum, "p");
   double inputs[] = {1, 2, 3, 4, 5};
   double result[3] = {};
-  clad::array_ref<double> result_ref(result, 3);
   unsigned long long sum = 0;
   for (auto _ : state) {
-    vm_grad.execute(inputs,/*dim*/ 3, result_ref);
+    vm_grad.execute(inputs, /*dim*/ 3, result);
     benchmark::DoNotOptimize(sum += result[0] + result[1] + result[2]);
   }
 }
