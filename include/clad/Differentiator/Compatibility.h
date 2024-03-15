@@ -71,29 +71,21 @@ NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
 }
 #endif
 
-// Clang 7 add one extra param in UnaryOperator constructor.
-
-#if CLANG_VERSION_MAJOR >= 7
 #define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams , Node->canOverflow()
-#endif
-
-
+  
 // Clang 8 change E->EvaluateAsInt(APSInt int, context) ===> E->EvaluateAsInt(Expr::EvalResult res, context)
 
 static inline bool Expr_EvaluateAsInt(const Expr *E,
                          APSInt &IntValue, const ASTContext &Ctx,
                          Expr::SideEffectsKind AllowSideEffects = Expr::SideEffectsKind::SE_NoSideEffects)
 {
-#if CLANG_VERSION_MAJOR < 8
-   return E->EvaluateAsInt(IntValue, Ctx, AllowSideEffects);
-#elif CLANG_VERSION_MAJOR >= 8
    Expr::EvalResult res;
    if (E->EvaluateAsInt(res, Ctx, AllowSideEffects)) {
      IntValue = res.Val.getInt();
      return true;
    }
    return false;
-#endif
+
 }
 
 // Clang 12: bool Expr::EvaluateAsConstantExpr(EvalResult &Result,
@@ -111,7 +103,6 @@ static inline bool Expr_EvaluateAsConstantExpr(const Expr* E,
 }
 
 // Compatibility helper function for creation IfStmt.
-// Clang 8 and above use Create.
 // Clang 12 and above use two extra params.
 
 static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
@@ -120,9 +111,8 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
    SourceLocation LPL, SourceLocation RPL,
    Stmt *Then, SourceLocation EL=SourceLocation(), Stmt *Else=nullptr)
 {
-#if CLANG_VERSION_MAJOR < 8
-   return new (Ctx) IfStmt(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
-#elif CLANG_VERSION_MAJOR < 12
+
+#if CLANG_VERSION_MAJOR < 12
    return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, Then, EL, Else);
 #elif CLANG_VERSION_MAJOR < 14
    return IfStmt::Create(Ctx, IL, IsConstexpr, Init, Var, Cond, LPL, RPL, Then, EL, Else);
@@ -134,34 +124,14 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
 #endif
 }
 
-
-// Clang 8 change Node->getIdentType() ===> Node->getIdentKind()
-
-#if CLANG_VERSION_MAJOR < 8
-   #define getIdentKind() getIdentType()
-#endif
-
-
 // Clang 8 change <NAME>Stmt(...) constructor to private ===> Use <NAME>Stmt::Create(...)
 
-#if CLANG_VERSION_MAJOR < 8
-   #define CLAD_COMPAT_CREATE(CLASS, CTORARGS) (new (Ctx) CLASS CTORARGS)
-#elif CLANG_VERSION_MAJOR >= 8
-   #define CLAD_COMPAT_CREATE(CLASS, CTORARGS) (CLASS::Create CTORARGS)
-#endif
-
+#define CLAD_COMPAT_CREATE(CLASS, CTORARGS) (CLASS::Create CTORARGS)
 
 // Compatibility helper function for creation CallExpr.
-// Clang 8 and above use Create.
 // Clang 12 and above use one extra param.
 
-#if CLANG_VERSION_MAJOR < 8
-static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
-   QualType Ty, ExprValueKind VK, SourceLocation RParenLoc)
-{
-   return new (Ctx) CallExpr(Ctx, Fn, Args, Ty, VK, RParenLoc);
-}
-#elif CLANG_VERSION_MAJOR < 12
+#if CLANG_VERSION_MAJOR < 12
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
    QualType Ty, ExprValueKind VK, SourceLocation RParenLoc,
    unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
@@ -178,12 +148,9 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
 #endif
 
 
-// Clang 8 add one extra param (Ctx) in some constructors.
 // Clang 12 and above use one extra param.
 
-#if CLANG_VERSION_MAJOR < 8
-   #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR < 12
+#if CLANG_VERSION_MAJOR < 12
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getNumArgs(),Node->getADLCallKind()
 #elif CLANG_VERSION_MAJOR >= 12
    #define CLAD_COMPAT_CLANG8_CallExpr_ExtraParams ,Node->getFPFeatures(),Node->getNumArgs(),Node->getADLCallKind()
@@ -239,7 +206,7 @@ static inline void ExprSetDeps(Expr* result, Expr* Node) {
    #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams ,Node->getLParenLoc(),Node->getRParenLoc()
 #endif
 
-// Compatibility helper function for creation CXXOperatorCallExpr. Clang 8 and above use Create.
+// Compatibility helper function for creation CXXOperatorCallExpr. 
 
 static inline CXXOperatorCallExpr* CXXOperatorCallExpr_Create(ASTContext &Ctx,
    OverloadedOperatorKind OpKind, Expr *Fn, ArrayRef<Expr *> Args, QualType Ty,
@@ -247,27 +214,17 @@ static inline CXXOperatorCallExpr* CXXOperatorCallExpr_Create(ASTContext &Ctx,
    CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar
    )
 {
-#if CLANG_VERSION_MAJOR < 8
-   return new (Ctx) CXXOperatorCallExpr(Ctx, OpKind, Fn, Args, Ty, VK, OperatorLoc, FPFeatures);
-#elif CLANG_VERSION_MAJOR >= 8
    return CXXOperatorCallExpr::Create(Ctx, OpKind, Fn, Args, Ty, VK, OperatorLoc, FPFeatures
    CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse
    );
-#endif
+
 }
 
 
 // Compatibility helper function for creation CXXMemberCallExpr.
-// Clang 8 and above use Create.
 // Clang 12 and above use two extra param.
 
-#if CLANG_VERSION_MAJOR < 8
-static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
-   Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP)
-{
-   return new (Ctx) CXXMemberCallExpr(Ctx, Fn, Args, Ty, VK, RP);
-}
-#elif CLANG_VERSION_MAJOR < 12
+#if CLANG_VERSION_MAJOR < 12
 static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
    Expr *Fn, ArrayRef<Expr *> Args, QualType Ty, ExprValueKind VK, SourceLocation RP)
 {
@@ -284,30 +241,26 @@ static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
 #endif
 
 
-// Compatibility helper function for creation CaseStmt. Clang 8 and above use Create.
+// Compatibility helper function for creation CaseStmt. 
 
 static inline CaseStmt* CaseStmt_Create(ASTContext &Ctx,
    Expr *lhs, Expr *rhs, SourceLocation caseLoc, SourceLocation ellipsisLoc, SourceLocation colonLoc)
 {
-#if CLANG_VERSION_MAJOR < 8
-   return new (Ctx) CaseStmt(lhs, rhs, caseLoc, ellipsisLoc, colonLoc);
-#elif CLANG_VERSION_MAJOR >= 8
+
    return CaseStmt::Create(const_cast<ASTContext&>(Ctx), lhs, rhs, caseLoc, ellipsisLoc, colonLoc);
-#endif
+
 }
 
 
 // Compatibility helper function for creation SwitchStmt.
-// Clang 8 and above use Create.
 // Clang 12 and above use two extra params.
 
 static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
    Stmt *Init, VarDecl *Var, Expr *Cond,
    SourceLocation LParenLoc, SourceLocation RParenLoc)
 {
-#if CLANG_VERSION_MAJOR < 8
-   return new (Ctx) SwitchStmt(Ctx, Init, Var, Cond);
-#elif CLANG_VERSION_MAJOR < 12
+
+#if CLANG_VERSION_MAJOR < 12
    return SwitchStmt::Create(Ctx, Init, Var, Cond);
 #elif CLANG_VERSION_MAJOR >= 12
    return SwitchStmt::Create(Ctx, Init, Var, Cond, LParenLoc, RParenLoc);
@@ -315,31 +268,9 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 }
 
 
-// Clang 8 change E->getLocStart() ===> E->getBeginLoc()
-// E->getLocEnd() ===> E->getEndLoc()
-// Clang 7 define both for compatibility
-
-#if CLANG_VERSION_MAJOR < 7
-   #define getBeginLoc() getLocStart()
-   #define getEndLoc() getLocEnd()
-#endif
-
-
 // Clang 8 add one extra param (Ctx) in some constructors.
 
-#if CLANG_VERSION_MAJOR < 8
-   #define CLAD_COMPAT_CLANG8_Ctx_ExtraParams /**/
-#elif CLANG_VERSION_MAJOR >= 8
-   #define CLAD_COMPAT_CLANG8_Ctx_ExtraParams Ctx,
-#endif
-
-
-// Clang 8 change result->setNumArgs(Ctx, Num) ===> result->setNumArgsUnsafe(Num)
-
-#if CLANG_VERSION_MAJOR < 8
-   #define setNumArgsUnsafe(NUM) setNumArgs(Ctx, NUM)
-#endif
-
+#define CLAD_COMPAT_CLANG8_Ctx_ExtraParams Ctx,
 
 // Compatibility helper function for getConstexprKind(). Clang 9
 
@@ -478,11 +409,9 @@ static inline QualType getConstantArrayType(const ASTContext &Ctx,
 /// `ASTContext` to be passed as an argument.
 static inline QualType CXXMethodDecl_getThisType(Sema& SemaRef,
                                                  const CXXMethodDecl* method) {
-#if CLANG_VERSION_MAJOR >= 8
+
   auto thisType = method->getThisType();
-#elif CLANG_VERSION_MAJOR < 8
-  auto thisType = method->getThisType(SemaRef.getASTContext());
-#endif
+
   return thisType;
 }
 
@@ -562,10 +491,6 @@ static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* 
 #elif CLANG_VERSION_MAJOR == 8
 static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
    return MD->getTypeQualifiers();
-}
-#elif CLANG_VERSION_MAJOR < 8
-static inline Qualifiers CXXMethodDecl_getMethodQualifiers(const CXXMethodDecl* MD) {
-   return Qualifiers::fromFastMask(MD->getTypeQualifiers());
 }
 #endif
 

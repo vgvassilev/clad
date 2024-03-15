@@ -1619,11 +1619,7 @@ static SwitchCase* getContainedSwitchCaseStmt(const CompoundStmt* CS) {
 /// Returns top switch statement in the `SwitchStack` of the given
 /// Function Scope.
 static SwitchStmt* getTopSwitchStmtOfSwitchStack(sema::FunctionScopeInfo* FSI) {
-#if CLANG_VERSION_MAJOR < 7
-  return FSI->SwitchStack.back();
-#elif CLANG_VERSION_MAJOR >= 7
   return FSI->SwitchStack.back().getPointer();
-#endif
 }
 
 StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {

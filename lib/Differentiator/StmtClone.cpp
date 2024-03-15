@@ -176,10 +176,9 @@ DEFINE_CREATE_EXPR(CXXFunctionalCastExpr,
                     Node->getLParenLoc(), Node->getRParenLoc()))
 DEFINE_CREATE_EXPR(ExprWithCleanups, (Ctx, Node->getSubExpr(),
                                       Node->cleanupsHaveSideEffects(), {}))
-// clang <= 7 do not have `ConstantExpr` node.
-#if CLANG_VERSION_MAJOR > 7
+
 DEFINE_CREATE_EXPR(ConstantExpr, (Ctx, Clone(Node->getSubExpr()) CLAD_COMPAT_ConstantExpr_Create_ExtraParams))
-#endif
+
 
 DEFINE_CLONE_EXPR_CO(
     CXXTemporaryObjectExpr,
