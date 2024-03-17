@@ -58,6 +58,8 @@ namespace clad {
     std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently visiting is inside loop.
+    bool hasContStmt = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;

@@ -897,8 +897,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(Forward, Reverse);
     };
 
+    llvm::SaveAndRestore<bool> SaveHasContStmt(hasContStmt);
+    hasContStmt = false;
     StmtDiff thenDiff = VisitBranch(If->getThen());
+    llvm::SaveAndRestore<bool> SaveHasContStmtThen(hasContStmt);
+    hasContStmt = false;
     StmtDiff elseDiff = VisitBranch(If->getElse());
+
 
     // It is problematic to specify both condVarDecl and cond thorugh
     // Sema::ActOnIfStmt, therefore we directly use the IfStmt constructor.
@@ -931,7 +936,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                thenDiff.getStmt_dx(),
                                                noLoc,
                                                elseDiff.getStmt_dx());
-    addToCurrentBlock(Reverse, direction::reverse);
+    if (!SaveHasContStmtThen.get()) 
+      addToCurrentBlock(Reverse, direction::reverse);
+    else{
+      addToCurrentBlock(thenDiff.getStmt_dx(), direction::reverse);
+      addToCurrentBlock(elseDiff.getStmt_dx(), direction::reverse);
+    }
     CompoundStmt* ForwardBlock = endBlock(direction::forward);
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
     endScope();
@@ -3644,10 +3654,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!revLoopBlock.empty())
       bodyDiff.updateStmtDx(MakeCompoundStmt(revLoopBlock));
     m_LoopBlock.pop_back();
+    
+    activeBreakContHandler->EndCFSwitchStmtScope();
+    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
+    PopBreakContStmtHandler();
 
-    // Increment statement in the for-loop is only executed if the iteration
-    // did not end with a break/continue statement. Therefore, forLoopIncDiff
-    // should be inside the last switch case in the reverse pass.
+    // Increment statement in the for-loop is executed in the beginning for every case
     if (forLoopIncDiff) {
       if (bodyDiff.getStmt_dx()) {
         bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
@@ -3656,10 +3668,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         bodyDiff.updateStmtDx(forLoopIncDiff);
       }
     }
-
-    activeBreakContHandler->EndCFSwitchStmtScope();
-    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
-    PopBreakContStmtHandler();
 
     Expr* counterDecrement = loopCounter.getCounterDecrement();
 
@@ -3684,15 +3692,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitContinueStmt(const ContinueStmt* CS) {
-    beginBlock(direction::forward);
+    hasContStmt = true;
+        // beginBlock(direction::forward);
     Stmt* newCS = m_Sema.ActOnContinueStmt(noLoc, getCurrentScope()).get();
     auto* activeBreakContHandler = GetActiveBreakContStmtHandler();
     Stmt* CFCaseStmt = activeBreakContHandler->GetNextCFCaseStmt();
     Stmt* pushExprToCurrentCase = activeBreakContHandler
                                       ->CreateCFTapePushExprToCurrentCase();
     addToCurrentBlock(pushExprToCurrentCase);
-    addToCurrentBlock(newCS);
-    return {endBlock(direction::forward), CFCaseStmt};
+    // addToCurrentBlock(newCS);
+    return {newCS, CFCaseStmt};
   }
 
   StmtDiff ReverseModeVisitor::VisitBreakStmt(const BreakStmt* BS) {
