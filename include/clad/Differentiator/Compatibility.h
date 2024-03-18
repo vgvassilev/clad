@@ -652,12 +652,17 @@ static inline bool IsPRValue(const Expr* E) { return E->isPRValue(); }
 #define CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node) /**/
 #endif
 
-// Clang 15 rename StringKind::Ascii to StringKind::Ordinary
+// Clang 15 renamed StringKind::Ascii to StringKind::Ordinary
+// Clang 18 renamed clang::StringLiteral::StringKind::Ordinary became clang::StringLiteralKind::Ordinary;
 
 #if CLANG_VERSION_MAJOR < 15
    const auto StringKind_Ordinary = clang::StringLiteral::StringKind::Ascii;
 #elif CLANG_VERSION_MAJOR >= 15
-   const auto StringKind_Ordinary = clang::StringLiteral::StringKind::Ordinary;
+   #if CLANG_VERSION_MAJOR < 18
+      const auto StringKind_Ordinary = clang::StringLiteral::StringKind::Ordinary;
+   #else
+      const auto StringKind_Ordinary = clang::StringLiteralKind::Ordinary;
+   #endif
 #endif
 
 // Clang 15 add one extra param to Sema::CheckFunctionDeclaration
