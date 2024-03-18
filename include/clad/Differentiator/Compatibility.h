@@ -573,7 +573,12 @@ CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
 #else
 static inline QualType
 CXXMethodDecl_GetThisObjectType(Sema& semaRef, const CXXMethodDecl* MD) {
-  return MD->getThisObjectType();
+   //clang-18 renamed getThisObjectType to getFunctionObjectParameterType
+   #if CLANG_VERSION_MAJOR < 18
+      return MD->getThisObjectType();
+   #else
+      return MD->getFunctionObjectParameterType();
+   #endif
 }
 #endif
 
