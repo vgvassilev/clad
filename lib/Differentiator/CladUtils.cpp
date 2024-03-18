@@ -166,7 +166,12 @@ namespace clad {
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
         NestedNameSpecifier* NS = CSS.getScopeRep();
         if (auto* Prefix = NS->getPrefix())
-          return C.getElaboratedType(ETK_None, Prefix, QT);
+          //clang-18 use ElaboratedTypeKeyword::None instead of ETK_None
+          #if CLANG_VERSION_MAJOR < 18
+            return C.getElaboratedType(ETK_None, Prefix, QT);
+          #else
+            return C.getElaboratedType(ElaboratedTypeKeyword::None, Prefix, QT);
+          #endif
       }
       return QT;
     }
@@ -269,12 +274,21 @@ namespace clad {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();
       QualType
+      #if CLANG_VERSION_MAJOR < 18
           StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
                                                     llvm::APInt(/*numBits=*/32,
                                                                 str.size() + 1),
                                                     /*SizeExpr=*/nullptr,
                                                     /*ASM=*/ArrayType::Normal,
                                                     /*IndexTypeQuals*/ 0);
+      #else
+          StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
+                                                    llvm::APInt(/*numBits=*/32,
+                                                                str.size() + 1),
+                                                    /*SizeExpr=*/nullptr,
+                                                    /*ASM=*/ArraySizeModifier::Normal,
+                                                    /*IndexTypeQuals*/ 0);
+      #endif
       StringLiteral* SL = StringLiteral::Create(C, str,
                                                 /*Kind=*/clad_compat::StringKind_Ordinary,
                                                 /*Pascal=*/false, StrTy, noLoc);
