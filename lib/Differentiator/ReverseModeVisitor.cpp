@@ -27,6 +27,7 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
+#include "clang/Sema/ScopeInfo.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -99,7 +100,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder), m_Result(nullptr) {}
+      : VisitorBase(builder), m_Result(nullptr) {
+      m_KVAV = new KokkosViewAccessVisitor(m_Sema, m_Context);
+      }
 
   ReverseModeVisitor::~ReverseModeVisitor() {
     if (m_ExternalSource) {
@@ -110,6 +113,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Free the external sources multiplexer since we own this resource.
       delete m_ExternalSource;
     }
+    delete m_KVAV;
   }
 
   FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
@@ -755,6 +759,197 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff ReverseModeVisitor::VisitValueStmt(const clang::ValueStmt* VS) {
+    if (isa<CXXBindTemporaryExpr>(VS)) {
+      auto CBTE = dyn_cast<CXXBindTemporaryExpr>(VS);
+
+      return Visit(CBTE->getSubExpr());
+    }
+    return {Clone(VS), Clone(VS)};
+  }
+
+
+  StmtDiff ReverseModeVisitor::VisitLambdaExpr(const clang::LambdaExpr* LE) {
+
+    llvm::SaveAndRestore<bool> SaveIsInsideParallelRegion(isInsideParallelRegion);
+    isInsideParallelRegion = true;
+
+    const Stmt* body = LE->getBody();
+
+    auto bodyV = Visit(body);
+
+    auto children_iterator_range = LE->children();
+
+    std::vector<Expr *> children_Exp;
+    std::vector<Expr *> children_Exp_dx;
+
+    for (auto children : children_iterator_range) {
+      auto children_expr = const_cast<clang::Expr*>(dyn_cast<clang::Expr>(children));
+      if (children_expr) {
+        children_Exp.push_back(children_expr);
+
+        children_Exp_dx.push_back(children_expr);
+
+        if(isa<CXXConstructExpr>(children_expr)) {
+          std::string constructedTypeName = QualType::getAsString(dyn_cast<CXXConstructExpr>(children_expr)->getType().split(), PrintingPolicy{ {} });
+          if (!utils::IsKokkosTeamPolicy(constructedTypeName) && !utils::IsKokkosRange(constructedTypeName) && !utils::IsKokkosMember(constructedTypeName)) {
+            auto children_exprV = Visit(children_expr);
+            auto children_expr_copy = dyn_cast<CXXConstructExpr>(Clone(children_expr));
+            children_expr_copy->setArg(0, children_exprV.getExpr_dx());
+            children_Exp_dx.push_back(children_expr_copy);
+          }
+        }
+        else if(isa<DeclRefExpr>(children_expr)) {
+
+        }
+        else {
+          auto children_exprV = Visit(children_expr);
+          if (children_exprV.getExpr_dx()) {
+            children_Exp_dx.push_back(children_exprV.getExpr_dx());
+          }
+        }
+      }
+    }
+
+    llvm::ArrayRef<Expr*> childrenRef_Exp =
+        clad_compat::makeArrayRef(children_Exp.data(), children_Exp.size());
+
+    llvm::ArrayRef<Expr*> childrenRef_Exp_dx =
+        clad_compat::makeArrayRef(children_Exp_dx.data(), children_Exp_dx.size());
+
+    auto forwardLambdaClass = LE->getLambdaClass();
+
+    auto forwardLE = LambdaExpr::Create(m_Context,
+                              forwardLambdaClass,
+                              LE->getIntroducerRange(),
+                              LE->getCaptureDefault(),
+                              LE->getCaptureDefaultLoc(),
+                              LE->hasExplicitParameters(),
+                              LE->hasExplicitResultType(),
+                              childrenRef_Exp,
+                              LE->getEndLoc(),
+                              false);
+
+
+    clang::LambdaExpr  * reverseLE;
+    {
+      clang::LambdaIntroducer Intro;
+      Intro.Default = forwardLambdaClass->getLambdaCaptureDefault ();
+      Intro.Range.setBegin(LE->getBeginLoc());
+      Intro.Range.setEnd(LE->getEndLoc());
+
+      clang::AttributeFactory AttrFactory;
+      const clang::DeclSpec DS(AttrFactory);
+      clang::Declarator D(DS,
+                          CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
+                          CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
+      clang::sema::LambdaScopeInfo * LSI = m_Sema.PushLambdaScope();
+      beginScope(clang::Scope::BlockScope | clang::Scope::FnScope |
+                   clang::Scope::DeclScope);
+      m_Sema.ActOnStartOfLambdaDefinition(Intro, D,
+                   clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(getCurrentScope(), DS));
+
+      /*
+      // needed for CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams
+      clad::VisitorBase& VB = *this;
+
+      auto DNI = utils::BuildDeclarationNameInfo(m_Sema, "operator_pullback");
+
+      CXXMethodDecl* CMD = LE->getCallOperator();
+      DeclContext* DC = const_cast<DeclContext*>(CMD->getDeclContext());
+      CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+
+      DNI = CMD->getNameInfo();
+
+      LSI->CallOperator = CXXMethodDecl::Create(m_Context,
+                                                CXXRD, 
+                                                noLoc,
+                                                DNI,
+                                                CMD->getType(), 
+                                                CMD->getTypeSourceInfo(),
+                                                CMD->getStorageClass(),
+                                                CMD->isInlineSpecified(),
+                                                clad_compat::Function_GetConstexprKind(CMD),
+                                                noLoc
+                                                CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(CMD->getTrailingRequiresClause()));
+      LSI->CallOperator->setAccess(CMD->getAccess());
+      */
+
+      // The following lines will modify the body of the
+      // LambdaExpr 0x16051c540
+      // |-CXXRecordDecl 0x1409e2eb0  implicit class definition
+      // | |-CXXMethodDecl 0x1409e2ff0  used constexpr operator() 'void (const int) const' inline
+      // of the forward lambda but not its CompoundStmtBody (which are supposed to be consistent I think).
+      //
+      // However, the CompoundStmtBody and the body of the operator above for the reverse lambda are consistent.
+      //
+      // The generated C++ file seems to be fine as it seems to use the CompoundStmtBody.
+      LSI->CallOperator = LE->getCallOperator();
+      FunctionDecl *FD = LSI->CallOperator->getAsFunction();
+      FD->setBody(bodyV.getStmt_dx());
+
+      //LE->getCallOperator()->getAsFunction()->setBody(bodyV.getStmt_dx());
+      //LE->getLambdaClass()->getLambdaCallOperator()->getAsFunction()->setBody(bodyV.getStmt_dx());
+
+
+      std::vector<LambdaCapture> children_LC_Exp_dx;
+
+      for (auto children_expr : children_Exp_dx) {
+        if(isa<CXXConstructExpr>(children_expr)) {
+
+          auto tmp = dyn_cast<CXXConstructExpr>(children_expr)->getArg(0)->IgnoreImpCasts();
+
+          if (isa<DeclRefExpr>(tmp)) {
+            auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(tmp)->getDecl());
+            children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+          }
+          if(isa<ParenExpr>(tmp)) {
+            auto PE = dyn_cast<ParenExpr>(tmp);
+            auto OCE = dyn_cast<CXXOperatorCallExpr>(PE->getSubExpr());
+
+            auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(OCE->getArg(0))->getDecl());
+            children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+          }
+        }
+        if (isa<DeclRefExpr>(children_expr)) {
+            auto VD = dyn_cast<VarDecl>(dyn_cast<DeclRefExpr>(children_expr)->getDecl());
+            children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
+        }
+      }
+      assert(children_Exp_dx.size() == children_LC_Exp_dx.size() && "Wrong number of captures");
+
+      llvm::ArrayRef<LambdaCapture> childrenRef_LC_Exp_dx =
+          clad_compat::makeArrayRef(children_LC_Exp_dx.data(), children_LC_Exp_dx.size());
+
+      LSI->CallOperator->getParent()->setCaptures(m_Context, childrenRef_LC_Exp_dx);
+
+      m_Sema.buildLambdaScope(LSI, 
+                              //bodyV.getStmt_dx(),
+                              LSI->CallOperator,
+                              LE->getIntroducerRange(),
+                              LE->getCaptureDefault(),
+                              LE->getCaptureDefaultLoc(),
+                              LE->hasExplicitParameters(),
+                              LE->hasExplicitResultType(),
+                              LE->isMutable()); 
+
+      reverseLE = LambdaExpr::Create(m_Context,
+                                LSI->Lambda,
+                                LE->getIntroducerRange(),
+                                LE->getCaptureDefault(),
+                                LE->getCaptureDefaultLoc(),
+                                LE->hasExplicitParameters(),
+                                LE->hasExplicitResultType(),
+                                childrenRef_Exp_dx,
+                                LE->getEndLoc(),
+                                false);
+
+      endScope();
+    }
+
+    return {forwardLE, reverseLE};
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,
@@ -1396,7 +1591,480 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Clone(FL));
   }
 
+  bool isKokkosView(const Expr* E) {
+      if (isa<ImplicitCastExpr>(E)) {
+        auto SE = E->IgnoreImpCasts();
+        if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+          return utils::IsKokkosView(QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} }));
+        }
+      }
+    return utils::IsKokkosView(QualType::getAsString(E->getType().split(), PrintingPolicy{ {} }));
+  }
+
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
+    if (isa<CXXMemberCallExpr>(CE)) {
+      auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
+
+      if (utils::IsKokkosView(MCE->getObjectType().getAsString())) {
+        // Member function called from a Kokkos::View; nothing to do here
+        return StmtDiff(Clone(CE));
+      }
+      if (utils::IsKokkosTeamPolicy(MCE->getObjectType().getAsString())) {
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+        for (size_t i = 0; i < MCE->getNumArgs(); ++i) {
+          auto visitedArg = Visit(MCE->getArg(i));
+
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i == 0)
+            ClonedDArgs.push_back(visitedArg.getExpr());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+        }
+
+        auto tmp = Visit(CE->getCallee());
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), tmp.getExpr(),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), tmp.getExpr_dx(),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+        
+        // We need to set the scratch pad sizes BEFORE the policy is used.
+        addToCurrentBlock(dCall, direction::forward);
+
+        return StmtDiff(Call, nullptr);
+      }
+      if (utils::IsKokkosRange(MCE->getObjectType().getAsString()) || utils::IsKokkosMember(MCE->getObjectType().getAsString())) {
+        auto result = const_cast<CXXMemberCallExpr*>(MCE);
+        //CXXMemberCallExpr* result = dyn_cast<CXXMemberCallExpr>(Clone(MCE));
+        for (size_t i = 0; i < result->getNumArgs(); ++i)
+          result->setArg(i, Visit(result->getArg(i)).getExpr());
+
+        return StmtDiff(result, nullptr);
+      }
+    }
+    if (isa<CXXOperatorCallExpr>(CE)) {
+      auto OCE = dyn_cast<clang::CXXOperatorCallExpr>(CE);
+      const Expr* baseOriginalE = OCE->getArg(0);
+
+      bool isKokkosViewAccess = false;
+
+      if (isa<ImplicitCastExpr>(baseOriginalE)) {
+        auto SE = baseOriginalE->IgnoreImpCasts();
+        if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+          if (utils::IsKokkosView(DRE->getType())) {
+            isKokkosViewAccess = true;
+          }
+        }
+      }
+      if (auto DRE = dyn_cast<DeclRefExpr>(baseOriginalE)) {
+        if (utils::IsKokkosView(DRE->getType())) {
+          isKokkosViewAccess = true;
+        }
+      }
+
+      // Returning the function call and zero derivative
+      if (isKokkosViewAccess) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        for (unsigned i = 1, e = CE->getNumArgs(); i < e; ++i)
+          ClonedArgs.push_back(Clone(CE->getArg(i)));
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getArg(0)),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+
+        auto visited = Visit(CE->getArg(0), dfdx());
+        Expr* dView = visited.getExpr_dx();
+
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), dView,
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+
+        if (dfdx()) {
+          if (!isInsideParallelRegion || m_KVAV->isAccessThreadSafe(dyn_cast<CXXOperatorCallExpr>(Call))) {
+            Expr* add_assign = BuildOp(BO_AddAssign, dCall, dfdx());
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
+          else {
+            Expr* kokkos_atomic_add = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "atomic_add");
+            llvm::SmallVector<Expr*, 4> AtomicAddArgs;
+            AtomicAddArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, dCall));
+            AtomicAddArgs.push_back(dfdx());
+            Expr* add_assign =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_atomic_add, noLoc, AtomicAddArgs, noLoc).get();
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
+        }
+        return StmtDiff(Call, dCall);
+      }
+    }
+    auto SE = CE->getCallee()->IgnoreImpCasts();
+    if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+      if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+        if (FD->getQualifiedNameAsString().find("kokkos_builtin_derivative::parallel_sum") != std::string::npos) {
+          llvm::SmallVector<Expr*, 4> ClonedArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+          auto visitedArg_0 = Visit(CE->getArg(0), dfdx());
+          auto visitedArg_1 = Visit(CE->getArg(1), dfdx());
+
+          ClonedArgs.push_back(visitedArg_0.getExpr());
+          ClonedArgs.push_back(visitedArg_1.getExpr());
+
+          ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
+          ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+
+          Expr* kokkos_builtin_derivative_parallel_sum = utils::GetUnresolvedLookup(m_Sema, m_Context, "kokkos_builtin_derivative", "parallel_sum");
+
+          Expr* Call =
+              m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedArgs, noLoc).get();
+
+          Expr* dCall =
+              m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
+
+          addToCurrentBlock(dCall, direction::reverse);
+          
+          return StmtDiff(Call);
+        }
+        if (FD->getQualifiedNameAsString().find("Kokkos::deep_copy") != std::string::npos) {
+
+          llvm::SmallVector<Expr*, 4> ClonedArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgsZero;
+          bool viewToView = isKokkosView(CE->getArg(1));
+
+          auto visitedArg_0 = Visit(CE->getArg(0), dfdx());
+          auto visitedArg_1 = Visit(CE->getArg(1), dfdx());
+
+          ClonedArgs.push_back(visitedArg_0.getExpr());
+          ClonedArgs.push_back(visitedArg_1.getExpr());
+
+          ClonedDArgsZero.push_back(visitedArg_0.getExpr_dx());
+          auto zero =
+            ConstantFolder::synthesizeLiteral(m_Context.DoubleTy, m_Context, 0);
+          ClonedDArgsZero.push_back(zero);
+
+          Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
+          Expr* kokkos_builtin_derivative_parallel_sum = utils::GetUnresolvedLookup(m_Sema, m_Context, "kokkos_builtin_derivative", "parallel_sum");
+
+          if (viewToView) {
+            ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
+            ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+
+            Expr* Call =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedArgs, noLoc).get();
+
+            Expr* dCall =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
+
+            Expr* dCallZero =
+                m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgsZero, noLoc).get();
+
+
+            addToCurrentBlock(dCall, direction::reverse);
+            addToCurrentBlock(dCallZero, direction::reverse);
+            
+            return StmtDiff(Call);
+          }
+          else {
+            if (visitedArg_1.getExpr_dx()) {
+              ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
+              ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+
+              Expr* Call = m_Sema
+                              .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
+                                              noLoc, ClonedArgs, noLoc)
+                              .get();
+                              
+              // Here we need to do:
+              // visitedArg_1.getExpr_dx() = parallel_sum(visitedArg_0.getExpr_dx());
+
+              Expr* dCall =
+                  m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
+
+              Expr* dCallZero = m_Sema
+                              .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
+                                              noLoc, ClonedDArgsZero, noLoc)
+                              .get();
+
+              addToCurrentBlock(dCall, direction::reverse);
+              addToCurrentBlock(dCallZero, direction::reverse);
+
+              return StmtDiff(Call);
+            } else {
+
+              QualType argResultValueType =
+                  utils::GetValueType(visitedArg_1.getExpr()->getType())
+                      .getNonReferenceType();
+
+
+
+              VarDecl* argDerivativeVar = BuildVarDecl(argResultValueType, CreateUniqueIdentifier("_r"), visitedArg_1.getExpr_dx());
+              Expr*  argDerivative = BuildDeclRef(argDerivativeVar);
+
+              llvm::SmallVector<VarDecl*, 16> ArgResultDecls{};
+              ArgResultDecls.push_back(
+                  cast<VarDecl>(cast<DeclRefExpr>(argDerivative)->getDecl()));
+
+              llvm::SmallVector<DeclStmt*, 16> ArgDeclStmts{};
+
+              Expr* Call = m_Sema
+                              .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
+                                              noLoc, ClonedArgs, noLoc)
+                              .get();
+                              
+              // Here we need to do:
+              // visitedArg_1.getExpr_dx() = parallel_sum(visitedArg_0.getExpr_dx());
+
+              llvm::SmallVector<std::pair<VarDecl*, Expr*>, 4> argResultsAndGrads;
+
+              VarDecl* gradVarDecl = nullptr;
+              Expr* gradVarExpr = nullptr;
+              IdentifierInfo* gradVarII = nullptr;
+
+              {
+                gradVarII = CreateUniqueIdentifier(funcPostfix());
+
+                {
+                  // Declare: diffArgType _grad;
+                  Expr* initVal = nullptr;
+                  if (!visitedArg_1.getExpr()->getType()->isRecordType()) {
+                    // If the argument is not a class type, then initialize the grad
+                    // variable with 0.
+                    initVal =
+                        ConstantFolder::synthesizeLiteral(visitedArg_1.getExpr()->getType(), m_Context, 0);
+                  }
+                  gradVarDecl = BuildVarDecl(visitedArg_1.getExpr()->getType(), gradVarII, initVal);
+                  // Pass the address of the declared variable
+                  gradVarExpr = BuildDeclRef(gradVarDecl);
+                  argResultsAndGrads.push_back({ArgResultDecls[0], gradVarExpr});
+                  ArgDeclStmts.push_back(BuildDeclStmt(gradVarDecl));
+                }
+              }
+
+              ClonedDArgs.push_back(BuildDeclRef(gradVarDecl));
+              ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+
+              Expr* dCall =
+                  m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_builtin_derivative_parallel_sum, noLoc, ClonedDArgs, noLoc).get();
+
+              Expr* dCallZero = m_Sema
+                              .ActOnCallExpr(getCurrentScope(), kokkos_deep_copy,
+                                              noLoc, ClonedDArgsZero, noLoc)
+                              .get();
+
+              auto& block = getCurrentBlock(direction::reverse);
+              std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
+              auto it = std::begin(block) + insertionPoint;
+
+              // Insert the _gradX declaration statements
+              it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
+              it += ArgDeclStmts.size();
+
+              it = block.insert(it, dCall);
+              it += 1;
+              it = block.insert(it, dCallZero);
+              it += 1;
+
+              it = block.insert(it, BuildDeclStmt(argDerivativeVar));
+              
+              for (auto resAndGrad : argResultsAndGrads) {
+                VarDecl* argRes = resAndGrad.first;
+                Expr* grad = resAndGrad.second;
+                PerformImplicitConversionAndAssign(argRes, grad);
+              }   
+
+              Visit(CE->getArg(1), argDerivative);
+
+              return StmtDiff(Call);
+            }
+          }
+        }
+        if (FD->getQualifiedNameAsString().find("Kokkos::subview") != std::string::npos || FD->getQualifiedNameAsString().find("Kokkos::create_mirror_view") != std::string::npos) {
+
+          llvm::SmallVector<Expr*, 4> ClonedArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgs;
+          for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+            auto visitedArg = Visit(CE->getArg(i));
+            ClonedArgs.push_back(visitedArg.getExpr());
+            if (i==0)
+              ClonedDArgs.push_back(visitedArg.getExpr_dx());
+            else
+              ClonedDArgs.push_back(visitedArg.getExpr());
+          }
+
+          Expr* Call = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedArgs, noLoc)
+                          .get();
+          Expr* dCall = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedDArgs, noLoc)
+                          .get();
+
+          return StmtDiff(Call, dCall);
+        }
+        if (FD->getQualifiedNameAsString().find("Kokkos::PerTeam") != std::string::npos || FD->getQualifiedNameAsString().find("Kokkos::PerThread") != std::string::npos) {
+          // What we do here depends whether we are in a parallel region or not.
+          if (!isInsideParallelRegion) {
+            llvm::SmallVector<Expr*, 4> ClonedArgs;
+            llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+            ClonedArgs.push_back(Clone(CE->getArg(0)));
+
+            auto val2 = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 2);
+            ClonedDArgs.push_back(BuildOp(clang::BO_Mul, 
+              val2, 
+              Clone(CE->getArg(0))));
+
+            Expr* Call = m_Sema
+                            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                            noLoc, ClonedArgs, noLoc)
+                            .get();
+
+            Expr* dCall = m_Sema
+                            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                            noLoc, ClonedDArgs, noLoc)
+                            .get();
+
+            return StmtDiff(Call, dCall);
+          }
+          else {
+            return StmtDiff(Clone(CE), Clone(CE));
+          }
+        }
+        if (FD->getQualifiedNameAsString().find("Kokkos::single") != std::string::npos) {
+          llvm::SmallVector<Expr*, 4> ClonedArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+          for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+            auto arg = CE->getArg(i);
+
+            if (i==0) {
+              ClonedArgs.push_back(const_cast<Expr*>(arg));
+              ClonedDArgs.push_back(const_cast<Expr*>(arg));
+            }
+            else {
+              auto visitedArg = Visit(arg);
+              ClonedArgs.push_back(visitedArg.getExpr());
+              ClonedDArgs.push_back(visitedArg.getExpr_dx());
+            }
+          }
+
+          Expr* Call = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedArgs, noLoc)
+                          .get();
+
+          Expr* dCall = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedDArgs, noLoc)
+                          .get();
+
+          return StmtDiff(Call, dCall);          
+        }
+        if (FD->getQualifiedNameAsString().find("Kokkos::parallel_for") != std::string::npos) {
+          llvm::SmallVector<Expr*, 4> ClonedArgs;
+          llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+          for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+            auto arg = CE->getArg(i);
+            if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
+              arg = clad_compat::GetSubExpr(MTE);
+
+            if (const auto* ICE = dyn_cast<ImplicitCastExpr>(arg))
+              arg = ICE->getSubExpr();
+            
+            if (const auto* BTE = dyn_cast<CXXBindTemporaryExpr>(arg))
+              arg = BTE->getSubExpr();
+              
+            if (isa<LambdaExpr>(arg) && !isInsideParallelRegion) {
+              m_KVAV->clear();
+              m_KVAV->Visit(dyn_cast<LambdaExpr>(arg)->getBody(), false);
+
+              Sema::CodeSynthesisContext Ctx;
+              Ctx.Entity = dyn_cast<LambdaExpr>(arg)->getCallOperator();
+              m_Sema.pushCodeSynthesisContext(Ctx);
+
+              for (auto DRE : m_KVAV->view_DeclRefExpr) {
+                VarDecl* recordedView = BuildVarDecl(DRE->getType(), "_t", const_cast<DeclRefExpr*>(DRE), /*DirectInit=*/true);
+                addToCurrentBlock(BuildDeclStmt(recordedView), direction::forward);
+
+
+                Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
+
+                //llvm::SmallVector<Expr*, 4> ClonedDCArgs;
+                llvm::SmallVector<Expr*, 4> ClonedDDCArgs;
+
+                //ClonedDCArgs.push_back(BuildDeclRef(recordedView));
+                //ClonedDCArgs.push_back(const_cast<DeclRefExpr*>(DRE));
+
+                ClonedDDCArgs.push_back(const_cast<DeclRefExpr*>(DRE));
+                ClonedDDCArgs.push_back(BuildDeclRef(recordedView));
+
+                //Expr* CallDC =
+                //    m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDCArgs, noLoc).get();
+
+                Expr* CallDDC =
+                    m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDDCArgs, noLoc).get();
+
+                //addToCurrentBlock(CallDC, direction::forward);
+                addToCurrentBlock(CallDDC, direction::reverse);
+              }
+
+              auto CMD = dyn_cast<LambdaExpr>(arg)->getCallOperator();
+
+              std::vector<clang::ParmVarDecl*> params;
+              
+              for (size_t iParam = 0; iParam < CMD->getNumParams(); ++iParam) {
+                params.push_back(CMD->getParamDecl(iParam));
+              }
+
+              m_KVAV->VisitViewAccesses(params);
+            }
+              
+
+            bool copyArg = i==0;
+            
+            if (copyArg) {
+              if (isa<DeclRefExpr>(arg))
+                copyArg = false;
+            }
+
+            if (copyArg) {
+              ClonedArgs.push_back(const_cast<Expr*>(arg));
+              ClonedDArgs.push_back(const_cast<Expr*>(arg));
+            }
+            else {
+              auto visitedArg = Visit(arg);
+              ClonedArgs.push_back(visitedArg.getExpr());
+              ClonedDArgs.push_back(visitedArg.getExpr_dx());
+            }
+          }
+
+          Expr* Call = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedArgs, noLoc)
+                          .get();
+          Expr* dCall = m_Sema
+                          .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                          noLoc, ClonedDArgs, noLoc)
+                          .get();
+
+          return StmtDiff(Call, dCall);
+        }
+      }
+    }
+
     const FunctionDecl* FD = CE->getDirectCallee();
     if (!FD) {
       diag(DiagnosticsEngine::Warning,
@@ -1730,8 +2398,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         !isa<CXXMethodDecl>(FD)) {
       std::string customPushforward = FD->getNameAsString() + "_pushforward";
       auto pushforwardCallArgs = DerivedCallArgs;
-      pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
-          DerivedCallArgs.front()->getType(), m_Context, 1));
+      if (utils::IsKokkosView(DerivedCallArgs.front()->getType())) {
+        pushforwardCallArgs.push_back(DerivedCallArgs.front());
+      }
+      else {
+        pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
+            DerivedCallArgs.front()->getType(), m_Context, 1));
+      }
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPushforward, pushforwardCallArgs, getCurrentScope(),
@@ -2653,9 +3326,105 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
 
+
+    std::string constructedTypeName = QualType::getAsString(VD->getType().split(), PrintingPolicy{ {} });
+    if (utils::IsKokkosView(constructedTypeName)) {
+      size_t runTimeDim = 0;
+      std::vector<size_t> compileTimeDims;
+      bool read = false;
+      for (size_t i = 0; i < constructedTypeName.size(); ++i) { 
+        if (read && constructedTypeName[i] == '*')
+          ++runTimeDim;
+        if (read && constructedTypeName[i] == '[')
+          compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
+        if (!read && constructedTypeName[i] == ' ')
+          read = true;
+      }
+      size_t i = 0;
+      if (isa<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts())) {
+        auto CE = dyn_cast<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts());
+        llvm::SmallVector<Expr*, 4> clonedArgs;
+        for (auto arg : CE->arguments()) {
+          if (i == runTimeDim + 1)
+            break;
+          if(isa<clang::StringLiteral>(arg)) {
+            // Prepend the label of the view with "_d_".
+            // This is a very specific case and not a general derivation of a string.
+            auto SL = dyn_cast<clang::StringLiteral>(arg);
+            std::string name_str("_d_"+ SL->getString().str());
+            StringRef name(name_str);
+
+            clonedArgs.push_back(StringLiteral::Create(m_Sema.getASTContext(), name, 
+              SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc()));
+          }
+          else {
+            clonedArgs.push_back(Clone(arg));
+          }
+          ++i;
+        }
+
+        VDDerivedInit =
+            m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+
+
+        if (VDDerivedType->isRecordType())
+          VDDerived =
+              BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                          VDDerivedInit, VD->isDirectInit(),
+                          m_Context.getTrivialTypeSourceInfo(VDDerivedType),
+                          VD->getInitStyle());
+        else
+          VDDerived = BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                                  VDDerivedInit);
+      }
+      else {
+        auto SE = VD->getInit()->IgnoreImpCasts();
+        
+        if (auto CBTE = dyn_cast<CXXBindTemporaryExpr>(SE)) {
+          auto tmp = Visit(CBTE);
+          // This is a subview
+
+          VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+                                tmp.getExpr(), VD->isDirectInit());
+
+          VarDecl* VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
+                                tmp.getExpr_dx());
+
+          //VarDecl* VDDerived = BuildVarDecl(VD->getType()->getContainedAutoType(), "_d_" + VD->getNameAsString(),
+          //                      tmp.getExpr_dx());
+
+
+          Expr* derivedVDE = BuildDeclRef(VDDerived);
+          m_Variables.emplace(VDClone, derivedVDE);
+
+          return VarDeclDiff(VDClone, VDDerived);
+        }
+        else 
+          assert(false &&
+                "Not supported yet!");
+      }
+    } else if (utils::IsKokkosTeamPolicy(constructedTypeName)) {
+      if (isa<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts())) {
+        auto CE = dyn_cast<CXXConstructExpr>(VD->getInit()->IgnoreImpCasts());
+        llvm::SmallVector<Expr*, 4> clonedArgs;
+        for (auto arg : CE->arguments()) {
+          clonedArgs.push_back(Clone(arg));
+        }
+
+        VDDerivedInit =
+            m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+
+
+        VDDerived =
+            BuildVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
+                        VDDerivedInit, VD->isDirectInit(),
+                        m_Context.getTrivialTypeSourceInfo(VDDerivedType),
+                        VD->getInitStyle());
+      }
+    }
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
-    if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
+    else if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
       VDDerivedInit = getArraySizeExpr(AT, m_Context, *this);
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit, false,
@@ -3028,8 +3797,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
     auto* field = ME->getMemberDecl();
-    assert(!isa<CXXMethodDecl>(field) &&
-           "CXXMethodDecl nodes not supported yet!");
+    //assert(!isa<CXXMethodDecl>(field) &&
+    //       "CXXMethodDecl nodes not supported yet!");
     MemberExpr* clonedME = utils::BuildMemberExpr(
         m_Sema, getCurrentScope(), baseDiff.getExpr(), field->getName());
     if (!baseDiff.getExpr_dx())
@@ -3134,6 +3903,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!force && !UsefulToStoreGlobal(E))
       return {E, E};
 
+    if (isInsideParallelRegion) {
+      return {E, E};
+    }
+
     auto pushPop = BuildPushPop(E, Type, prefix, force);
     if (!isInsideLoop) {
       if (E) {
@@ -3204,7 +3977,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
-    if (isConstant || !needsUpdate)
+    if (isConstant || isInsideParallelRegion || !needsUpdate)
       return;
     if (isInsideLoop) {
       auto* Push = cast<CallExpr>(Result.getExpr());
@@ -3228,7 +4001,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this, Ediff,
                                 /*isConstant*/ isConst,
                                 /*isInsideLoop*/ false,
-                                /*pNeedsUpdate=*/false};
+                                /*pNeedsUpdate=*/ false,
+                                /*isInsideParallelRegion*/ false};
     }
     if (isInsideLoop) {
       Expr* dummy = E;
@@ -3237,14 +4011,36 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* Pop = CladTape.Pop;
       return DelayedStoreResult{*this, StmtDiff{Push, nullptr, nullptr, Pop},
                                 /*isConstant*/ false,
-                                /*isInsideLoop*/ true, /*pNeedsUpdate=*/true};
+                                /*isInsideLoop*/ true,
+                                /*pNeedsUpdate=*/ false,
+                                /*isInsideParallelRegion*/ false};
+    } else if (isInsideParallelRegion) {
+      Expr* Cloned = Clone(E);
+      return DelayedStoreResult{*this,
+                                StmtDiff{Cloned, Cloned},
+                                /*isConstant*/ false,
+                                /*isInsideLoop*/ false,
+                                /*pNeedsUpdate=*/ false,
+                                /*isInsideParallelRegion*/ true};
+    } else {
+      Expr* Ref = BuildDeclRef(GlobalStoreImpl(
+          getNonConstType(E->getType(), m_Context, m_Sema), prefix));
+      // Return reference to the declaration instead of original expression.
+      return DelayedStoreResult{*this,
+                                StmtDiff{Ref, Ref},
+                                /*isConstant*/ false,
+                                /*isInsideLoop*/ false,
+                                /*pNeedsUpdate=*/ true,
+                                /*isInsideParallelRegion*/ false};
     }
     Expr* Ref = BuildDeclRef(GlobalStoreImpl(
         getNonConstType(E->getType(), m_Context, m_Sema), prefix));
     // Return reference to the declaration instead of original expression.
     return DelayedStoreResult{*this, StmtDiff{Ref, nullptr, nullptr, Ref},
                               /*isConstant*/ false,
-                              /*isInsideLoop*/ false, /*pNeedsUpdate=*/true};
+                              /*isInsideLoop*/ false, 
+                              /*pNeedsUpdate=*/ true,
+                              /*isInsideParallelRegion=*/ false};
   }
 
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
@@ -3873,9 +4669,48 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     llvm::SmallVector<Expr*, 4> clonedArgs;
-    for (const auto* arg : CE->arguments()) {
-      auto argDiff = Visit(arg, dfdx());
-      clonedArgs.push_back(argDiff.getExpr());
+    llvm::SmallVector<Expr*, 4> clonedDArgs;
+    std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
+    if (utils::IsKokkosTeamPolicy(constructedTypeName)) {
+      return {Clone(CE), Clone(CE)};
+    }
+    else if (utils::IsKokkosRange(constructedTypeName)) {
+      return {Clone(CE), Clone(CE)};
+    }
+    else if (utils::IsKokkosMember(constructedTypeName)) {
+      return {Clone(CE), Clone(CE)};
+    }
+    else if (utils::IsKokkosView(constructedTypeName)) {
+      size_t runTimeDim = 0;
+      std::vector<size_t> compileTimeDims;
+      bool read = false;
+      for (size_t i = 0; i < constructedTypeName.size(); ++i) { 
+        if (read && constructedTypeName[i] == '*')
+          ++runTimeDim;
+        if (read && constructedTypeName[i] == '[')
+          compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
+        if (!read && constructedTypeName[i] == ' ')
+          read = true;
+      }
+      size_t i = 0;
+      for (auto arg : CE->arguments()) {
+        if (i == runTimeDim + 1)
+          break;
+        auto argDiff = Visit(arg, dfdx());
+
+        clonedArgs.push_back(argDiff.getExpr());
+        clonedDArgs.push_back(argDiff.getExpr_dx());
+        ++i;
+      }
+      if (CE->getNumArgs() == 1) {
+        return StmtDiff(clonedArgs[0], clonedDArgs[0]);
+      }
+    }
+    else {
+      for (const auto* arg : CE->arguments()) {
+        auto argDiff = Visit(arg, dfdx());
+        clonedArgs.push_back(argDiff.getExpr());
+      }
     }
     Expr* clonedArgsE = nullptr;
 

@@ -961,6 +961,132 @@ DiffMode BaseForwardModeVisitor::GetPushForwardMode() {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
+  if (isa<CXXMemberCallExpr>(CE)) {
+    auto MCE = dyn_cast<clang::CXXMemberCallExpr>(CE);
+
+    if (utils::IsKokkosView(MCE->getObjectType().getAsString())) {
+      //Member function called from a Kokkos::View; nothing to do here
+      return StmtDiff(Clone(CE));
+    }
+  }
+  if (isa<CXXOperatorCallExpr>(CE)) {
+    auto OCE = dyn_cast<clang::CXXOperatorCallExpr>(CE);
+    const Expr* baseOriginalE = OCE->getArg(0);
+
+    bool isKokkosViewAccess = false;
+    std::string kokkosViewName;
+    
+    if (isa<ImplicitCastExpr>(baseOriginalE)) {
+      auto SE = baseOriginalE->IgnoreImpCasts();
+      if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+        std::string constructedTypeName = QualType::getAsString(DRE->getType().split(), PrintingPolicy{ {} });
+        if (utils::IsKokkosView(constructedTypeName)) {
+          isKokkosViewAccess = true;
+          kokkosViewName = DRE->getNameInfo().getName().getAsString ();
+        }
+      }
+    }
+
+    // Returning the function call and zero derivative
+    if (isKokkosViewAccess) {
+
+      llvm::SmallVector<Expr*, 4> ClonedArgs;
+      for (unsigned i = 1, e = CE->getNumArgs(); i < e; ++i)
+        ClonedArgs.push_back(Clone(CE->getArg(i)));
+
+      Expr* Call = m_Sema
+                      .ActOnCallExpr(getCurrentScope(), Clone(CE->getArg(0)),
+                                      noLoc, ClonedArgs, noLoc)
+                      .get();
+
+      // replace kokkosViewName with "_d_"+kokkosViewName
+
+      Expr* dView = Visit(CE->getArg(0)).getExpr_dx();
+
+      Expr* dCall = m_Sema
+                      .ActOnCallExpr(getCurrentScope(), dView,
+                                      noLoc, ClonedArgs, noLoc)
+                      .get();
+
+      return StmtDiff(Call, dCall);
+    }
+  }
+
+  auto SE = CE->getCallee()->IgnoreImpCasts();
+  if (auto DRE = dyn_cast<DeclRefExpr>(SE)) {
+    if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+      if (FD->getQualifiedNameAsString().find("Kokkos::deep_copy") != std::string::npos) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+
+        auto visitedArg_0 = Visit(CE->getArg(0));
+        auto visitedArg_1 = Visit(CE->getArg(1));
+        ClonedArgs.push_back(visitedArg_0.getExpr());
+        ClonedArgs.push_back(visitedArg_1.getExpr());
+        ClonedDArgs.push_back(visitedArg_0.getExpr_dx());
+        ClonedDArgs.push_back(visitedArg_1.getExpr_dx());
+
+        Expr* kokkos_deep_copy = utils::GetUnresolvedLookup(m_Sema, m_Context, "Kokkos", "deep_copy");
+
+        Expr* Call =
+            m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedArgs, noLoc).get();
+
+        Expr* dCall =
+            m_Sema.ActOnCallExpr(getCurrentScope(), kokkos_deep_copy, noLoc, ClonedDArgs, noLoc).get();
+
+        return StmtDiff(Call, dCall);
+      }
+      if (FD->getQualifiedNameAsString().find("Kokkos::subview") != std::string::npos) {
+
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i==0)
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr());
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+      if (FD->getQualifiedNameAsString().find("Kokkos::parallel_for") != std::string::npos) {
+        llvm::SmallVector<Expr*, 4> ClonedArgs;
+        llvm::SmallVector<Expr*, 4> ClonedDArgs;
+        for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
+          auto visitedArg = Visit(CE->getArg(i));
+          ClonedArgs.push_back(visitedArg.getExpr());
+          if (i==0)
+            ClonedDArgs.push_back(visitedArg.getExpr());
+          else
+            ClonedDArgs.push_back(visitedArg.getExpr_dx());
+        }
+
+        Expr* Call = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedArgs, noLoc)
+                        .get();
+        Expr* dCall = m_Sema
+                        .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                        noLoc, ClonedDArgs, noLoc)
+                        .get();
+
+        return StmtDiff(Call, dCall);
+      }
+    }
+  }
+
   const FunctionDecl* FD = CE->getDirectCallee();
   if (!FD) {
     diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
@@ -1805,10 +1931,49 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
-  for (auto arg : CE->arguments()) {
-    auto argDiff = Visit(arg);
-    clonedArgs.push_back(argDiff.getExpr());
-    derivedArgs.push_back(argDiff.getExpr_dx());
+  std::string constructedTypeName = QualType::getAsString(CE->getType().split(), PrintingPolicy{ {} });
+
+  // Check if we are in a Kokkos View construction.
+  if (utils::IsKokkosView(constructedTypeName)) {
+    size_t runTimeDim = 0;
+    std::vector<size_t> compileTimeDims;
+    bool read = false;
+    for (size_t i = 0; i < constructedTypeName.size(); ++i) { 
+      if (read && constructedTypeName[i] == '*')
+        ++runTimeDim;
+      if (read && constructedTypeName[i] == '[')
+        compileTimeDims.push_back(std::stoi(&constructedTypeName[i+1]));
+      if (!read && constructedTypeName[i] == ' ')
+        read = true;
+    }
+
+    size_t i = 0;
+    for (auto arg : CE->arguments()) {
+      if (i == runTimeDim + 1)
+        break;
+      clonedArgs.push_back(Clone(arg));
+      if(isa<clang::StringLiteral>(arg)) {
+        // Prepend the label of the view with "_d_".
+        // This is a very specific case and not a general derivation of a string.
+        auto SL = dyn_cast<clang::StringLiteral>(arg);
+        std::string name_str("_d_"+ SL->getString().str());
+        StringRef name(name_str);
+
+        derivedArgs.push_back(StringLiteral::Create(m_Sema.getASTContext(), name, 
+          SL->getKind(), SL->isPascal(), SL->getType(), SL->getBeginLoc()));
+      }
+      else {
+        derivedArgs.push_back(Clone(arg));
+      }
+      ++i;
+    }
+  }
+  else {
+    for (auto arg : CE->arguments()) {
+      auto argDiff = Visit(arg);
+      clonedArgs.push_back(argDiff.getExpr());
+      derivedArgs.push_back(argDiff.getExpr_dx());
+    }
   }
   Expr* clonedArgsE = nullptr;
   Expr* derivedArgsE = nullptr;

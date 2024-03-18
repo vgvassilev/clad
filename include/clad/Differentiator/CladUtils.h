@@ -153,6 +153,11 @@ namespace clad {
     clang::DeclContext* GetOutermostDC(clang::Sema& semaRef,
                                        clang::DeclContext* DC);
 
+    clang::Expr* GetUnresolvedLookup(clang::Sema& semaRef,
+                                     clang::ASTContext& C,
+                                     std::string NS,
+                                     std::string FN);
+
     /// Creates a `StringLiteral` node to represent string literal
     /// "`str`".
     ///
@@ -173,6 +178,22 @@ namespace clad {
     /// Returns true if the function has any reference or pointer parameter;
     /// otherwise returns false.
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
+
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamPolicy type.
+    bool IsKokkosTeamPolicy(const std::string constructedTypeName);
+
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::TeamThreadRange,
+    /// Kokkos::ThreadVectorRange, or Kokkos::TeamVectorRange type.
+    bool IsKokkosRange(const std::string constructedTypeName);
+
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::Member type.
+    bool IsKokkosMember(const std::string constructedTypeName);
+
+    /// Returns true if `constructedTypeName` is a string describing Kokkos::View type.
+    bool IsKokkosView(const std::string constructedTypeName);
+
+    /// Returns true if `T` is a Kokkos::View type.
+    bool IsKokkosView(clang::QualType T);
 
     /// Returns true if `T` is a reference, pointer or array type.
     ///

@@ -11,6 +11,7 @@
 #include "clad/Differentiator/VisitorBase.h"
 #include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/KokkosViewAccessVisitor.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -46,6 +47,9 @@ namespace clad {
     /// Stack is used to pass the arguments (dfdx) to further nodes
     /// in the Visit method.
     std::stack<clang::Expr*> m_Stack;
+    /// Used to pass a Kokkos view access visitor to further nodes
+    /// in the Visit method.
+    clad::KokkosViewAccessVisitor * m_KVAV;
     /// A sequence of DeclStmts containing "tape" variable declarations
     /// that will be put immediately in the beginning of derivative function
     /// block.
@@ -58,6 +62,8 @@ namespace clad {
     std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently visiting is inside a parallel region.
+    bool isInsideParallelRegion = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
@@ -271,11 +277,14 @@ namespace clad {
       bool isConstant;
       bool isInsideLoop;
       bool needsUpdate;
+      bool isInsideParallelRegion;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
                          bool pIsConstant, bool pIsInsideLoop,
-                         bool pNeedsUpdate = false)
+                         bool pNeedsUpdate = false,
+                         bool pIsInsideParallelRegion = false)
           : V(pV), Result(pResult), isConstant(pIsConstant),
-            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
+            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate), 
+            isInsideParallelRegion(pIsInsideParallelRegion) {}
       void Finalize(clang::Expr* New);
     };
 
@@ -367,6 +376,8 @@ namespace clad {
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
+    StmtDiff VisitValueStmt(const clang::ValueStmt* S);
+    StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.

@@ -265,6 +265,23 @@ namespace clad {
       return DC;
     }
 
+    clang::Expr* GetUnresolvedLookup(Sema& S, ASTContext& C, std::string NS, std::string FN) {
+        NamespaceDecl* DC = utils::LookupNSD(S, NS, /*shouldExist=*/true);
+
+        CXXScopeSpec SS;
+
+        utils::BuildNNS(S, DC, SS);
+        IdentifierInfo* II = &C.Idents.get(FN);
+
+        DeclarationName name(II);
+        DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(S));
+
+        LookupResult R(S, DNInfo, Sema::LookupOrdinaryName);
+        S.LookupQualifiedName(R, DC);
+        
+        return S.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+    }
+    
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();
@@ -301,8 +318,41 @@ namespace clad {
       return false;
     }
 
+    bool IsKokkosTeamPolicy(const std::string constructedTypeName) {
+      return constructedTypeName.find("Kokkos::TeamPolicy") == 0 
+      || constructedTypeName.find("class Kokkos::TeamPolicy") == 0 
+      || constructedTypeName.find("const class Kokkos::TeamPolicy") == 0;
+    }
+
+    bool IsKokkosRange(const std::string constructedTypeName) {
+      return constructedTypeName.find("Kokkos::TeamVectorRange") == 0 
+      || constructedTypeName.find("class Kokkos::TeamVectorRange") == 0 
+      || constructedTypeName.find("const class Kokkos::TeamVectorRange") == 0
+      || constructedTypeName.find("Kokkos::TeamThreadRange") == 0 
+      || constructedTypeName.find("class Kokkos::TeamThreadRange") == 0 
+      || constructedTypeName.find("const class Kokkos::TeamThreadRange") == 0
+      || constructedTypeName.find("Kokkos::ThreadVectorRange") == 0 
+      || constructedTypeName.find("class Kokkos::ThreadVectorRange") == 0 
+      || constructedTypeName.find("const class Kokkos::ThreadVectorRange") == 0;
+    }
+
+    bool IsKokkosMember(const std::string constructedTypeName) {
+      return constructedTypeName.find("member_type") != (size_t) -1;
+    }
+
+    bool IsKokkosView(const std::string constructedTypeName) {
+      return constructedTypeName.find("Kokkos::View") == 0
+       || constructedTypeName.find("class Kokkos::View") == 0
+       || constructedTypeName.find("const Kokkos::View") == 0
+       || constructedTypeName.find("const class Kokkos::View") == 0;
+    }
+
+    bool IsKokkosView(QualType QT) {
+      return IsKokkosView( QualType::getAsString(QT.split(), PrintingPolicy{ {} }) );
+    }
+
     bool IsReferenceOrPointerType(QualType T) {
-      return T->isReferenceType() || isArrayOrPointerType(T);
+      return T->isReferenceType() || isArrayOrPointerType(T) || IsKokkosView(T);
     }
 
     bool SameCanonicalType(clang::QualType T1, clang::QualType T2) {

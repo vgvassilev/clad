@@ -252,6 +252,7 @@ if (NOT CLAD_BUILT_STANDALONE)
 include_directories(BEFORE SYSTEM
   ${CMAKE_CURRENT_BINARY_DIR}/../clang/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../clang/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../clang/include
   )
 endif()
 
