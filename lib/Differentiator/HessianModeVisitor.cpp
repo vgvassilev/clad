@@ -36,13 +36,23 @@ namespace clad {
   static const StringLiteral* CreateStringLiteral(ASTContext& C,
                                                   std::string str) {
     QualType CharTyConst = C.CharTy.withConst();
-    QualType StrTy =
-        clad_compat::getConstantArrayType(C, CharTyConst,
+    #if CLANG_VERSION_MAJOR < 18
+      QualType StrTy =
+          clad_compat::getConstantArrayType(C, CharTyConst,
                                           llvm::APInt(/*numBits=*/32,
                                                       str.size() + 1),
                                           /*SizeExpr=*/nullptr,
                                           /*ASM=*/ArrayType::Normal,
                                           /*IndexTypeQuals*/ 0);
+    #else
+      QualType StrTy =
+          clad_compat::getConstantArrayType(C, CharTyConst,
+                                          llvm::APInt(/*numBits=*/32,
+                                                      str.size() + 1),
+                                          /*SizeExpr=*/nullptr,
+                                          /*ASM=*/ArraySizeModifier::Normal,
+                                          /*IndexTypeQuals*/ 0);      
+    #endif
     const StringLiteral* SL =
         StringLiteral::Create(C, str, /*Kind=*/clad_compat::StringKind_Ordinary,
                               /*Pascal=*/false, StrTy, noLoc);
