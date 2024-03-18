@@ -12,6 +12,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/Version.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Sema.h"

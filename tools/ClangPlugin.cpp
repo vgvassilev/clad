@@ -79,10 +79,20 @@ namespace clad {
       // Find the path to clad.
       llvm::StringRef CladSoPath;
       for (llvm::StringRef P : Opts.Plugins)
-        if (llvm::sys::path::stem(P).endswith("clad")) {
-          CladSoPath = P;
-          break;
-        }
+        //FIXME: Define variable based on
+        //llvm::sys::path::stem(P).endswith("clad")/llvm::sys::path::stem(P).ends_with("clad")
+        //to write more compactly before PR review.
+        #if CLANG_VERSION_MAJOR < 18
+          if (llvm::sys::path::stem(P).endswith("clad")) {
+            CladSoPath = P;
+            break;
+          }
+        #elif CLANG_VERSION_MAJOR >= 18
+          if (llvm::sys::path::stem(P).ends_with("clad")) {
+            CladSoPath = P;
+            break;
+          }
+        #endif // CLANG_VERSION_MAJOR <18
 
       // Register clad as a backend pass.
       CodeGenOptions& CGOpts = CI.getCodeGenOpts();
