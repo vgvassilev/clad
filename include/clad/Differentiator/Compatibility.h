@@ -315,20 +315,32 @@ static inline ConstexprSpecKind Function_GetConstexprKind(const FunctionDecl* F)
 
 
 // Clang 10 change add new param in getConstantArrayType.
-
-static inline QualType getConstantArrayType(const ASTContext &Ctx,
-   QualType EltTy,
-   const APInt &ArySize,
-   const Expr* SizeExpr,
-   clang::ArrayType::ArraySizeModifier ASM,
-   unsigned IndexTypeQuals)
-{
-#if CLANG_VERSION_MAJOR < 10
-   return Ctx.getConstantArrayType(EltTy, ArySize, ASM, IndexTypeQuals);
-#elif CLANG_VERSION_MAJOR >= 10
-   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM, IndexTypeQuals);
+// clang 18 clang::ArrayType::ArraySizeModifier became clang::ArraySizeModifier
+#if CLANG_VERSION_MAJOR < 18
+   static inline QualType getConstantArrayType(const ASTContext &Ctx,
+      QualType EltTy,
+      const APInt &ArySize,
+      const Expr* SizeExpr,
+      clang::ArrayType::ArraySizeModifier ASM,
+      unsigned IndexTypeQuals)
+   {
+   #if CLANG_VERSION_MAJOR < 10
+      return Ctx.getConstantArrayType(EltTy, ArySize, ASM, IndexTypeQuals);
+   #elif CLANG_VERSION_MAJOR >= 10
+      return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM, IndexTypeQuals);
+   #endif
+   }
+#else
+   static inline QualType getConstantArrayType(const ASTContext &Ctx,
+      QualType EltTy,
+      const APInt &ArySize,
+      const Expr* SizeExpr,
+      clang::ArraySizeModifier ASM,
+      unsigned IndexTypeQuals)
+   {
+      return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM, IndexTypeQuals);
+   }
 #endif
-}
 
 // Clang 10 add new last param TrailingRequiresClause in FunctionDecl::Create
 
