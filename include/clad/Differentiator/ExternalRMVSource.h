@@ -59,6 +59,10 @@ public:
   virtual void ActAfterParsingDiffArgs(const DiffRequest& request,
                                        DiffParams& args) {}
 
+  /// This is called after processing array subscript expressions.
+  virtual void
+  ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) {}
+
   /// This is called just before creating derived function parameter types.
   virtual void ActBeforeCreatingDerivedFnParamTypes(unsigned& numExtraParam) {}
 

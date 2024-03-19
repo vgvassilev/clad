@@ -1333,6 +1333,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Add it to the body statements.
       addToCurrentBlock(add_assign, direction::reverse);
     }
+    if (m_ExternalSource)
+      m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
     return StmtDiff(cloned, result, forwSweepDerivative, valueForRevSweep);
   }
 

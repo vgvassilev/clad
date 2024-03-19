@@ -42,6 +42,12 @@ void MultiplexExternalRMVSource::ActAfterParsingDiffArgs(
   }
 }
 
+void MultiplexExternalRMVSource::ActAfterProcessingArraySubscriptExpr(
+    const clang::Expr* revArrSub) {
+  for (auto source : m_Sources)
+    source->ActAfterProcessingArraySubscriptExpr(revArrSub);
+}
+
 void MultiplexExternalRMVSource::ActBeforeCreatingDerivedFnParamTypes(
     unsigned& numExtraParams) {
   for (auto source : m_Sources) {

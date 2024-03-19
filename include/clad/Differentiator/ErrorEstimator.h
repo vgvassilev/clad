@@ -40,6 +40,8 @@ class ErrorEstimationHandler : public ExternalRMVSource {
   Stmts m_ReverseErrorStmts;
   /// The index expression for emitting final errors for input param errors.
   clang::Expr* m_IdxExpr;
+  /// A map from var decls to their size variables (e.g. `var_size`).
+  std::unordered_map<const clang::VarDecl*, clang::Expr*> m_ArrSizes;
   /// An expression to match nested function call errors with their
   /// assignee (if any exists).
   clang::Expr* m_NestedFuncError = nullptr;
@@ -161,6 +163,11 @@ public:
   /// loop.
   void EmitDeclErrorStmts(VarDeclDiff VDDiff, bool isInsideLoop);
 
+  /// This function returns the size expression for a given variable
+  /// (`var.size()` for clad::array/clad::array_ref
+  /// or `var_size` for array/pointer types)
+  clang::Expr* getSizeExpr(const clang::VarDecl* VD);
+
   void InitialiseRMV(ReverseModeVisitor& RMV) override;
   void ForgetRMV() override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned&) override;
@@ -172,6 +179,8 @@ public:
   void ActOnEndOfDerivedFnBody() override;
   void ActBeforeDifferentiatingStmtInVisitCompoundStmt() override;
   void ActAfterProcessingStmtInVisitCompoundStmt() override;
+  void
+  ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) override;
   void ActBeforeDifferentiatingSingleStmtBranchInVisitIfStmt() override;
   void ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt() override;
   void ActBeforeDifferentiatingLoopInitStmt() override;
