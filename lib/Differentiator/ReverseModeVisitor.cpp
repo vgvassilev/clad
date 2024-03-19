@@ -944,6 +944,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } 
     // if only then block contains a continue statement, we need to add
     // the then block to the current block and create an if stmt for the else block
+    // afterwards to ensure that in the reverse pass it will be included in the prior case
     else if (SaveHasContStmtThen.get()) {
       addToCurrentBlock(thenDiff.getStmt_dx(), direction::reverse);
       if (elseDiff.getStmt_dx()){
@@ -956,6 +957,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } 
     // if only else block contains a continue statement, we need to add
     // the else block to the current block and create an if stmt for the then block
+    // afterwards to ensure that in the reverse pass it will be included in the prior case
     else if (hasContStmt) {
       addToCurrentBlock(elseDiff.getStmt_dx(), direction::reverse);
       Stmt* Reverse = clad_compat::IfStmt_Create(
@@ -3710,7 +3712,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               betweenCase = true;
             } else {
               curBlockStmts.push_back(new (m_Context)
-                                          BreakStmt(Stmt::EmptyShell()));
+                                          BreakStmt(Stmt::EmptyShell())); // compatible with all clang versions
               curCaseStmt->setSubStmt(MakeCompoundStmt(curBlockStmts));
               curBlockStmts.clear();
             }

@@ -444,7 +444,7 @@ namespace clad {
           AppendIndividualStmts(block, stmt);
       } else if (S)
         block.push_back(S);
-      }
+    }
 
     MemberExpr*
     BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
