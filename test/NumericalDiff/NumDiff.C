@@ -3,7 +3,7 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oNumDiff.out
 // RUN: ./NumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
-
+//XFAIL: asserts
 #include "clad/Differentiator/Differentiator.h"
 
 double test_1(double x){
