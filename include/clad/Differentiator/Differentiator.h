@@ -93,36 +93,41 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   ///   return f(1.0, 2.0, 0, 0);
   // for executing non-member functions
   template <bool EnablePadding, class... Rest, class F, class... Args,
+            class... fArgTypes,
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
-  execute_with_default_args(list<Rest...>, F f, Args&&... args) {
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
+                            Args&&... args) {
     return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
   }
 
   template <bool EnablePadding, class... Rest, class F, class... Args,
+            class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
   return_type_t<F> execute_with_default_args(list<Rest...>, F f,
+                                             list<fArgTypes...>,
                                              Args&&... args) {
     return f(static_cast<Args>(args)...);
   }
 
   // for executing member-functions
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
-            class Obj, class... Args,
+            class Obj, class... Args, class... fArgTypes,
             typename std::enable_if<EnablePadding, bool>::type = true>
-  CUDA_HOST_DEVICE auto execute_with_default_args(list<Rest...>,
-                                                  ReturnType C::*f, Obj&& obj,
-                                                  Args&&... args)
+  CUDA_HOST_DEVICE auto
+  execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
+                            list<fArgTypes...>, Args&&... args)
       -> return_type_t<decltype(f)> {
-    return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...,
+    return (static_cast<Obj>(obj).*f)((fArgTypes)(args)...,
                                       static_cast<Rest>(nullptr)...);
   }
 
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
-            class Obj, class... Args,
+            class Obj, class... Args, class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
   auto execute_with_default_args(list<Rest...>, ReturnType C::*f, Obj&& obj,
-                                 Args&&... args) -> return_type_t<decltype(f)> {
+                                 list<fArgTypes...>, Args&&... args)
+      -> return_type_t<decltype(f)> {
     return (static_cast<Obj>(obj).*f)(static_cast<Args>(args)...);
   }
 
@@ -237,8 +242,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-        return execute_with_default_args<EnablePadding>(
-            DropArgs_t<sizeof...(Args), F>{}, f, static_cast<Args>(args)...);
+      return execute_with_default_args<EnablePadding>(
+          DropArgs_t<sizeof...(Args), F>{}, f,
+          TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
+          static_cast<Args>(args)...);
       }
 
       /// Helper functions for executing member derived functions.
@@ -254,9 +261,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       return_type_t<CladFunctionType>
       execute_helper(ReturnType C::*f, Obj&& obj, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-        return execute_with_default_args<EnablePadding>(
-            DropArgs_t<sizeof...(Args), decltype(f)>{}, f,
-            static_cast<Obj>(obj), static_cast<Args>(args)...);
+      return execute_with_default_args<EnablePadding>(
+          DropArgs_t<sizeof...(Args), decltype(f)>{}, f, static_cast<Obj>(obj),
+          TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
+          static_cast<Args>(args)...);
       }
       /// If user have not passed object explicitly, then this specialization
       /// will be used and derived function will be called through the object
@@ -270,6 +278,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f, *m_Functor,
+            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
             static_cast<Args>(args)...);
       }
   };

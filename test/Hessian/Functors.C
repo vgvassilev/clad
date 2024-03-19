@@ -17,11 +17,11 @@ struct Experiment {
     x = val;
   }
 
-  // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) {
+  // CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) {
   // CHECK-NEXT:     Experiment _d_this;
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
   // CHECK-NEXT:     Experiment _d_this0;
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
   // CHECK-NEXT: }
 };
 
@@ -35,11 +35,11 @@ struct ExperimentConst {
     x = val;
   }
 
-  // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) const {
+  // CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) const {
   // CHECK-NEXT:     ExperimentConst _d_this;
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
   // CHECK-NEXT:     ExperimentConst _d_this0;
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
   // CHECK-NEXT: }
 };
 
@@ -53,11 +53,11 @@ struct ExperimentVolatile {
     x = val;
   }
 
-  // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) volatile {
+  // CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) volatile {
   // CHECK-NEXT:     volatile ExperimentVolatile _d_this;
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
   // CHECK-NEXT:     volatile ExperimentVolatile _d_this0;
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
   // CHECK-NEXT: }
 };
 
@@ -71,11 +71,11 @@ struct ExperimentConstVolatile {
     x = val;
   }
 
-  // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) const volatile {
+  // CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) const volatile {
   // CHECK-NEXT:     volatile ExperimentConstVolatile _d_this;
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
   // CHECK-NEXT:     volatile ExperimentConstVolatile _d_this0;
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
   // CHECK-NEXT: }
 };
 
@@ -91,11 +91,11 @@ namespace outer {
         x = val;
       }
 
-      // CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) {
+      // CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) {
       // CHECK-NEXT:     outer::inner::ExperimentNNS _d_this;
-      // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+      // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
       // CHECK-NEXT:     outer::inner::ExperimentNNS _d_this0;
-      // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+      // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
       // CHECK-NEXT: }
     };
 
@@ -103,9 +103,9 @@ namespace outer {
       return i*i*j*j;
     };
 
-    // CHECK: inline void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) const {
-    // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-    // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+    // CHECK: inline void operator_call_hessian(double i, double j, double *hessianMatrix) const {
+    // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix + 0UL, hessianMatrix + 1UL);
+    // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix + 2UL, hessianMatrix + 3UL);
     // CHECK-NEXT: }
   }
 }
@@ -116,11 +116,11 @@ namespace outer {
 
 #define TEST(E)                                                         \
   result[0] = result[1] = result[2] = result[3] = 0;                    \
-  d_##E.execute(7, 9, result_ref);                                      \
+  d_##E.execute(7, 9, result);                                          \
   printf("{%.2f, %.2f, %.2f, %.2f}, ", result[0], result[1], result[2], \
          result[3]);                                                    \
   result[0] = result[1] = result[2] = result[3] = 0;                    \
-  d_##E##Ref.execute(7, 9, result_ref);                                 \
+  d_##E##Ref.execute(7, 9, result);                                     \
   printf("{%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], \
          result[3]);
 
@@ -128,7 +128,6 @@ double x = 3;
 double y = 5;
 int main() {
   double result[4];
-  clad::array_ref<double> result_ref(result, 4);
   Experiment E(3, 5);
   auto E_Again = E;
   const ExperimentConst E_Const(3, 5);
@@ -140,18 +139,18 @@ int main() {
     return i*i*j*j;
   };
 
-  // CHECK: inline void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) const {
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK: inline void operator_call_hessian(double i, double j, double *hessianMatrix) const {
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, j, hessianMatrix + 0UL, hessianMatrix + 1UL);
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, j, hessianMatrix + 2UL, hessianMatrix + 3UL);
   // CHECK-NEXT: }
 
   auto lambdaWithCapture = [&](double i, double jj) {
     return x*i*i*jj + y*i*jj*jj;
   };
 
-  // CHECK: inline void operator_call_hessian(double i, double jj, clad::array_ref<double> hessianMatrix) const {
-  // CHECK-NEXT:     this->operator_call_darg0_grad(i, jj, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-  // CHECK-NEXT:     this->operator_call_darg1_grad(i, jj, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+  // CHECK: inline void operator_call_hessian(double i, double jj, double *hessianMatrix) const {
+  // CHECK-NEXT:     this->operator_call_darg0_grad(i, jj, hessianMatrix + 0UL, hessianMatrix + 1UL);
+  // CHECK-NEXT:     this->operator_call_darg1_grad(i, jj, hessianMatrix + 2UL, hessianMatrix + 3UL);
   // CHECK-NEXT: }
 
   auto lambdaNNS = outer::inner::lambdaNNS;

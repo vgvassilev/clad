@@ -92,8 +92,8 @@ ReverseModeForwPassVisitor::GetParameterDerivativeType(QualType yType,
   xValueType.removeLocalConst();
   QualType nonRefXValueType = xValueType.getNonReferenceType();
   if (nonRefXValueType->isRealType())
-    return GetCladArrayRefOfType(yType);
-  return GetCladArrayRefOfType(nonRefXValueType);
+    return m_Context.getPointerType(yType);
+  return m_Context.getPointerType(nonRefXValueType);
 }
 
 llvm::SmallVector<clang::QualType, 8>

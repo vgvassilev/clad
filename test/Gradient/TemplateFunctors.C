@@ -14,15 +14,15 @@ template <typename T> struct Experiment {
   Experiment& operator=(const Experiment& E) = default;
 };
 
-// CHECK: void operator_call_grad(double i, double j, clad::array_ref<Experiment<double> > _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) {
+// CHECK: void operator_call_grad(double i, double j, Experiment<double> *_d_this, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (* _d_this).x += 1 * i * i;
-// CHECK-NEXT:         * _d_i += this->x * 1 * i;
-// CHECK-NEXT:         * _d_i += this->x * i * 1;
-// CHECK-NEXT:         (* _d_this).y += 1 * j;
-// CHECK-NEXT:         * _d_j += this->y * 1;
+// CHECK-NEXT:         (*_d_this).x += 1 * i * i;
+// CHECK-NEXT:         *_d_i += this->x * 1 * i;
+// CHECK-NEXT:         *_d_i += this->x * i * 1;
+// CHECK-NEXT:         (*_d_this).y += 1 * j;
+// CHECK-NEXT:         *_d_j += this->y * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -36,17 +36,17 @@ template <> struct Experiment<long double> {
   Experiment& operator=(const Experiment& E) = default;
 };
 
-// CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<Experiment<long double> > _d_this, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) {
+// CHECK: void operator_call_grad(long double i, long double j, Experiment<long double>  *_d_this, long double  *_d_i, long double  *_d_j) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (* _d_this).x += 1 * j * i * i;
-// CHECK-NEXT:         * _d_i += this->x * 1 * j * i;
-// CHECK-NEXT:         * _d_i += this->x * i * 1 * j;
-// CHECK-NEXT:         * _d_j += this->x * i * i * 1;
-// CHECK-NEXT:         (* _d_this).y += 1 * i * j;
-// CHECK-NEXT:         * _d_j += this->y * 1 * i;
-// CHECK-NEXT:         * _d_i += this->y * j * 1;
+// CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
+// CHECK-NEXT:         *_d_i += this->x * 1 * j * i;
+// CHECK-NEXT:         *_d_i += this->x * i * 1 * j;
+// CHECK-NEXT:         *_d_j += this->x * i * i * 1;
+// CHECK-NEXT:         (*_d_this).y += 1 * i * j;
+// CHECK-NEXT:         *_d_j += this->y * 1 * i;
+// CHECK-NEXT:         *_d_i += this->y * j * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -58,17 +58,17 @@ template <typename T> struct ExperimentConstVolatile {
   ExperimentConstVolatile& operator=(const ExperimentConstVolatile& E) = default;
 };
 
-// CHECK: void operator_call_grad(double i, double j, clad::array_ref<volatile ExperimentConstVolatile<double> > _d_this, clad::array_ref<double> _d_i, clad::array_ref<double> _d_j) const volatile {
+// CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile<double> *_d_this, double *_d_i, double *_d_j) const volatile {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     _t0 = this->x * i;
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (* _d_this).x += 1 * i * i;
-// CHECK-NEXT:         * _d_i += this->x * 1 * i;
-// CHECK-NEXT:         * _d_i += _t0 * 1;
-// CHECK-NEXT:         (* _d_this).y += 1 * j;
-// CHECK-NEXT:         * _d_j += this->y * 1;
+// CHECK-NEXT:         (*_d_this).x += 1 * i * i;
+// CHECK-NEXT:         *_d_i += this->x * 1 * i;
+// CHECK-NEXT:         *_d_i += _t0 * 1;
+// CHECK-NEXT:         (*_d_this).y += 1 * j;
+// CHECK-NEXT:         *_d_j += this->y * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -82,7 +82,7 @@ template <> struct ExperimentConstVolatile<long double> {
   ExperimentConstVolatile& operator=(const ExperimentConstVolatile& E) = default;
 };
 
-// CHECK: void operator_call_grad(long double i, long double j, clad::array_ref<volatile ExperimentConstVolatile<long double> > _d_this, clad::array_ref<long double> _d_i, clad::array_ref<long double> _d_j) const volatile {
+// CHECK: void operator_call_grad(long double i, long double j, volatile ExperimentConstVolatile<long double> *_d_this, long double  *_d_i, long double  *_d_j) const volatile {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t0 = this->x * i;
@@ -90,13 +90,13 @@ template <> struct ExperimentConstVolatile<long double> {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (* _d_this).x += 1 * j * i * i;
-// CHECK-NEXT:         * _d_i += this->x * 1 * j * i;
-// CHECK-NEXT:         * _d_i += _t0 * 1 * j;
-// CHECK-NEXT:         * _d_j += _t0 * i * 1;
-// CHECK-NEXT:         (* _d_this).y += 1 * i * j;
-// CHECK-NEXT:         * _d_j += this->y * 1 * i;
-// CHECK-NEXT:         * _d_i += _t1 * 1;
+// CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
+// CHECK-NEXT:         *_d_i += this->x * 1 * j * i;
+// CHECK-NEXT:         *_d_i += _t0 * 1 * j;
+// CHECK-NEXT:         *_d_j += _t0 * i * 1;
+// CHECK-NEXT:         (*_d_this).y += 1 * i * j;
+// CHECK-NEXT:         *_d_j += this->y * 1 * i;
+// CHECK-NEXT:         *_d_i += _t1 * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -105,30 +105,28 @@ template <> struct ExperimentConstVolatile<long double> {
   auto d_##E##Ref = clad::gradient(E);
 
 #define TEST_DOUBLE(E, dE, ...)                                                \
-  res[0] = res[1] = 0;                                                         \
+  di = dj = 0;                                                                 \
   dE = decltype(dE)();                                                         \
-  d_##E.execute(__VA_ARGS__, &dE, di_ref, dj_ref);                             \
-  printf("{%.2f, %.2f} ", res[0], res[1]);                                     \
-  res[0] = res[1] = 0;                                                         \
+  d_##E.execute(__VA_ARGS__, &dE, &di, &dj);                                   \
+  printf("{%.2f, %.2f} ", di, dj);                                             \
+  di = dj = 0;                                                                 \
   dE = decltype(dE)();                                                         \
-  d_##E##Ref.execute(__VA_ARGS__, &dE, di_ref, dj_ref);                        \
-  printf("{%.2f, %.2f}\n", res[0], res[1]);
+  d_##E##Ref.execute(__VA_ARGS__, &dE, &di, &dj);                              \
+  printf("{%.2f, %.2f}\n", di, dj);
 
 #define TEST_LONG_DOUBLE(E, dE, ...)                                           \
-  res_ld[0] = res_ld[1] = 0;                                                   \
+  di_ld = dj_ld = 0;                                                           \
   dE = decltype(dE)();                                                         \
-  d_##E.execute(__VA_ARGS__, &dE, di_ref_ld, dj_ref_ld);                       \
-  printf("{%.2Lf, %.2Lf} ", res_ld[0], res_ld[1]);                             \
-  res_ld[0] = res_ld[1] = 0;                                                   \
+  d_##E.execute(__VA_ARGS__, &dE, &di_ld, &dj_ld);                             \
+  printf("{%.2Lf, %.2Lf} ", di_ld, dj_ld);                                     \
+  di_ld = dj_ld = 0;                                                           \
   dE = decltype(dE)();                                                         \
-  d_##E##Ref.execute(__VA_ARGS__, &dE, di_ref_ld, dj_ref_ld);                  \
-  printf("{%.2Lf, %.2Lf}\n", res_ld[0], res_ld[1]);
+  d_##E##Ref.execute(__VA_ARGS__, &dE, &di_ld, &dj_ld);                        \
+  printf("{%.2Lf, %.2Lf}\n", di_ld, dj_ld);
 
 int main() {
-  double res[2];
-  long double res_ld[2];
-  clad::array_ref<double> di_ref(res, 1), dj_ref(res + 1, 1);
-  clad::array_ref<long double> di_ref_ld(res_ld, 1), dj_ref_ld(res_ld + 1, 1);
+  double di, dj;
+  long double di_ld, dj_ld;
 
   Experiment<double> E_double(3, 5), dE_double;
   Experiment<long double> E_ld(3, 5), dE_ld;

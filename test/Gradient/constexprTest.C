@@ -12,16 +12,16 @@ constexpr double mul (double a, double b, double c) {
     return result;
 }
 
-//CHECK: constexpr void mul_grad(double a, double b, double c, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b, clad::array_ref<double> _d_c) {
+//CHECK: constexpr void mul_grad(double a, double b, double c, double *_d_a, double *_d_b, double *_d_c) {
 //CHECK-NEXT:    double _d_result = 0;
 //CHECK-NEXT:    double result = a * b * c;
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        * _d_a += _d_result * c * b;
-//CHECK-NEXT:        * _d_b += a * _d_result * c;
-//CHECK-NEXT:        * _d_c += a * b * _d_result;
+//CHECK-NEXT:        *_d_a += _d_result * c * b;
+//CHECK-NEXT:        *_d_b += a * _d_result * c;
+//CHECK-NEXT:        *_d_c += a * b * _d_result;
 //CHECK-NEXT:    }
 //CHECK-NEXT: }
 
@@ -31,7 +31,7 @@ constexpr double fn( double a, double b, double c) {
     return result;
 }
 
-//CHECK: constexpr void fn_grad(double a, double b, double c, clad::array_ref<double> _d_a, clad::array_ref<double> _d_b, clad::array_ref<double> _d_c) {
+//CHECK: constexpr void fn_grad(double a, double b, double c, double *_d_a, double *_d_b, double *_d_c) {
 //CHECK-NEXT:    double _d_val = 0;
 //CHECK-NEXT:    double _d_result = 0;
 //CHECK-NEXT:    double val = 98.;
@@ -40,13 +40,13 @@ constexpr double fn( double a, double b, double c) {
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        * _d_a += _d_result * 100 * (a + b) / c * b;
-//CHECK-NEXT:        * _d_b += a * _d_result * 100 * (a + b) / c;
+//CHECK-NEXT:        *_d_a += _d_result * 100 * (a + b) / c * b;
+//CHECK-NEXT:        *_d_b += a * _d_result * 100 * (a + b) / c;
 //CHECK-NEXT:        double _r0 = _d_result * 100 * (a + b) * -a * b / (c * c);
-//CHECK-NEXT:        * _d_c += _r0;
-//CHECK-NEXT:        * _d_a += a * b / c * _d_result * 100;
-//CHECK-NEXT:        * _d_b += a * b / c * _d_result * 100;
-//CHECK-NEXT:        * _d_c += _d_result;
+//CHECK-NEXT:        *_d_c += _r0;
+//CHECK-NEXT:        *_d_a += a * b / c * _d_result * 100;
+//CHECK-NEXT:        *_d_b += a * b / c * _d_result * 100;
+//CHECK-NEXT:        *_d_c += _d_result;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 

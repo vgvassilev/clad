@@ -14,11 +14,11 @@ template <typename T> struct Experiment {
   void setX(T val) { x = val; }
 };
 
-// CHECK: void operator_call_hessian(double i, double j, clad::array_ref<double> hessianMatrix) {
+// CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) {
 // CHECK-NEXT:     Experiment<double> _d_this;
-// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
 // CHECK-NEXT:     Experiment<double> _d_this0;
-// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
 // CHECK-NEXT: }
 
 template <> struct Experiment<long double> {
@@ -30,11 +30,11 @@ template <> struct Experiment<long double> {
   void setX(long double val) { x = val; }
 };
 
-// CHECK: void operator_call_hessian(long double i, long double j, clad::array_ref<long double> hessianMatrix) {
+// CHECK: void operator_call_hessian(long double i, long double j, long double *hessianMatrix) {
 // CHECK-NEXT:     Experiment<long double> _d_this;
-// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
+// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
 // CHECK-NEXT:     Experiment<long double> _d_this0;
-// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
 // CHECK-NEXT: }
 
 #define INIT(E)                   \
@@ -43,25 +43,23 @@ template <> struct Experiment<long double> {
 
 #define TEST_DOUBLE(E, ...)                                            \
   res[0] = res[1] = res[2] = res[3] = 0;                               \
-  d_##E.execute(__VA_ARGS__, res_ref);                                 \
+  d_##E.execute(__VA_ARGS__, res);                                     \
   printf("{%.2f, %.2f, %.2f, %.2f} ", res[0], res[1], res[2], res[3]); \
   res[0] = res[1] = res[2] = res[3] = 0;                               \
-  d_##E##Ref.execute(__VA_ARGS__, res_ref);                            \
+  d_##E##Ref.execute(__VA_ARGS__, res);                                \
   printf("{%.2f, %.2f, %.2f, %.2f}\n", res[0], res[1], res[2], res[3]);
 
 #define TEST_LONG_DOUBLE(E, ...)                                                       \
   res_ld[0] = res_ld[1] = res_ld[2] = res_ld[3] = 0;                                   \
-  d_##E.execute(__VA_ARGS__, res_ref_ld);                                              \
+  d_##E.execute(__VA_ARGS__, res_ld);                                                  \
   printf("{%.2Lf, %.2Lf, %.2Lf, %.2Lf} ", res_ld[0], res_ld[1], res_ld[2], res_ld[3]); \
   res_ld[0] = res_ld[1] = res_ld[2] = res_ld[3] = 0;                                   \
-  d_##E##Ref.execute(__VA_ARGS__, res_ref_ld);                                         \
+  d_##E##Ref.execute(__VA_ARGS__, res_ld);                                             \
   printf("{%.2Lf, %.2Lf, %.2Lf, %.2Lf}\n", res_ld[0], res_ld[1], res_ld[2], res_ld[3]);
 
 int main() {
   double res[4];
   long double res_ld[4];
-  clad::array_ref<double> res_ref(res, 4);
-  clad::array_ref<long double> res_ref_ld(res_ld, 4);
   Experiment<double> E(3, 5);
   Experiment<long double> E_ld(3, 5);
 

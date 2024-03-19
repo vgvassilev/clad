@@ -31,26 +31,26 @@ double f2(double x, double y){
 // CHECK-NEXT:     return _d_ans;
 // CHECK-NEXT: }
 
-// CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y, clad::array_ref<double> _d__d_x, clad::array_ref<double> _d__d_y) {
+// CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         * _d_x += _d_y0.value * x;
-// CHECK-NEXT:         * _d_x += x * _d_y0.value;
-// CHECK-NEXT:         * _d_y += _d_y0.value * y;
-// CHECK-NEXT:         * _d_y += y * _d_y0.value;
-// CHECK-NEXT:         * _d__d_x += _d_y0.pushforward * x;
-// CHECK-NEXT:         * _d_x += _d_x * _d_y0.pushforward;
-// CHECK-NEXT:         * _d_x += _d_y0.pushforward * _d_x;
-// CHECK-NEXT:         * _d__d_x += x * _d_y0.pushforward;
-// CHECK-NEXT:         * _d__d_y += _d_y0.pushforward * y;
-// CHECK-NEXT:         * _d_y += _d_y * _d_y0.pushforward;
-// CHECK-NEXT:         * _d_y += _d_y0.pushforward * _d_y;
-// CHECK-NEXT:         * _d__d_y += y * _d_y0.pushforward;
+// CHECK-NEXT:         *_d_x += _d_y0.value * x;
+// CHECK-NEXT:         *_d_x += x * _d_y0.value;
+// CHECK-NEXT:         *_d_y += _d_y0.value * y;
+// CHECK-NEXT:         *_d_y += y * _d_y0.value;
+// CHECK-NEXT:         *_d__d_x += _d_y0.pushforward * x;
+// CHECK-NEXT:         *_d_x += _d_x * _d_y0.pushforward;
+// CHECK-NEXT:         *_d_x += _d_y0.pushforward * _d_x;
+// CHECK-NEXT:         *_d__d_x += x * _d_y0.pushforward;
+// CHECK-NEXT:         *_d__d_y += _d_y0.pushforward * y;
+// CHECK-NEXT:         *_d_y += _d_y * _d_y0.pushforward;
+// CHECK-NEXT:         *_d_y += _d_y0.pushforward * _d_y;
+// CHECK-NEXT:         *_d__d_y += y * _d_y0.pushforward;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void f2_darg0_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK: void f2_darg0_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d__d_x = 0;
 // CHECK-NEXT:     double _d__d_y = 0;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
@@ -72,8 +72,8 @@ double f2(double x, double y){
 // CHECK-NEXT:         double _r2 = 0;
 // CHECK-NEXT:         double _r3 = 0;
 // CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
-// CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         * _d_y += _r1;
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
 // CHECK-NEXT:         _d__d_x += _r2;
 // CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
@@ -88,7 +88,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     return _d_ans;
 // CHECK-NEXT: }
 
-// CHECK: void f2_darg1_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+// CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d__d_x = 0;
 // CHECK-NEXT:     double _d__d_y = 0;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
@@ -110,22 +110,21 @@ double f2(double x, double y){
 // CHECK-NEXT:         double _r2 = 0;
 // CHECK-NEXT:         double _r3 = 0;
 // CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
-// CHECK-NEXT:         * _d_x += _r0;
-// CHECK-NEXT:         * _d_y += _r1;
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         *_d_y += _r1;
 // CHECK-NEXT:         _d__d_x += _r2;
 // CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void f2_hessian(double x, double y, clad::array_ref<double> hessianMatrix) {
-// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+// CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
+// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + 0UL, hessianMatrix + 1UL);
+// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + 2UL, hessianMatrix + 3UL);
 // CHECK-NEXT: }
 
 int main() {
     auto f_hess = clad::hessian(f2);
     double mat_f[4] = {0};
-    clad::array_ref<double> mat_f_ref(mat_f, 4);
-    f_hess.execute(3, 4, mat_f_ref);
-    printf("[%.2f, %.2f, %.2f, %.2f]\n", mat_f_ref[0], mat_f_ref[1], mat_f_ref[2], mat_f_ref[3]); //CHECK-EXEC: [2.00, 0.00, 0.00, 2.00]
+    f_hess.execute(3, 4, mat_f);
+    printf("[%.2f, %.2f, %.2f, %.2f]\n", mat_f[0], mat_f[1], mat_f[2], mat_f[3]); //CHECK-EXEC: [2.00, 0.00, 0.00, 2.00]
 }

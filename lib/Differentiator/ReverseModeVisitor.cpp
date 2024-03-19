@@ -132,7 +132,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // We require each output parameter to be of same type in the overloaded
     // derived function due to limitations of generating the exact derived
     // function type at the compile-time (without clad plugin help).
-    QualType outputParamType = GetCladArrayRefOfType(m_Context.VoidTy);
+    QualType outputParamType = m_Context.getPointerType(m_Context.VoidTy);
 
     llvm::SmallVector<QualType, 16> paramTypes;
 
@@ -216,10 +216,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
          ++i) {
       auto* overloadParam = overloadParams[i];
       auto* gradientParam = gradientParams[i];
+      TypeSourceInfo* typeInfo =
+          m_Context.getTrivialTypeSourceInfo(gradientParam->getType());
+      SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+      auto* init = m_Sema
+                       .BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc,
+                                            BuildDeclRef(overloadParam))
+                       .get();
 
-      auto* gradientVD =
-          BuildGlobalVarDecl(gradientParam->getType(), gradientParam->getName(),
-                             BuildDeclRef(overloadParam));
+      auto* gradientVD = BuildGlobalVarDecl(gradientParam->getType(),
+                                            gradientParam->getName(), init);
       callArgs.push_back(BuildDeclRef(gradientVD));
       addToCurrentBlock(BuildDeclStmt(gradientVD));
     }
@@ -3806,7 +3812,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // derivative variables should always be of non-const type.
     xValueType.removeLocalConst();
     QualType nonRefXValueType = xValueType.getNonReferenceType();
-    return GetCladArrayRefOfType(nonRefXValueType);
+    return m_Context.getPointerType(nonRefXValueType);
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXStaticCastExpr(
@@ -3833,7 +3839,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   clang::QualType ReverseModeVisitor::ComputeParamType(clang::QualType T) {
       QualType TValueType = utils::GetValueType(T);
       TValueType.removeLocalConst();
-      return GetCladArrayRefOfType(TValueType);
+      return m_Context.getPointerType(TValueType);
   }
 
   llvm::SmallVector<clang::QualType, 8>
@@ -3953,7 +3959,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           if (utils::isArrayOrPointerType(PVD->getType())) {
             m_Variables[*it] = (Expr*)BuildDeclRef(dPVD);
           } else {
-            QualType valueType = DetermineCladArrayValueType(dPVD->getType());
+            QualType valueType = dPVD->getType()->getPointeeType();
             m_Variables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD),
                                        m_Function->getLocation());
             // Add additional paranthesis if derivative is of record type

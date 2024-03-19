@@ -16,7 +16,7 @@ double runningSum(float* f, int n) {
   return sum;
 }
 
-//CHECK: void runningSum_grad(float *f, int n, clad::array_ref<float> _d_f, clad::array_ref<int> _d_n, double &_final_error) {
+//CHECK: void runningSum_grad(float *f, int n, float *_d_f, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
@@ -57,7 +57,7 @@ double mulSum(float* a, float* b, int n) {
   return sum;
 }
 
-//CHECK: void mulSum_grad(float *a, float *b, int n, clad::array_ref<float> _d_a, clad::array_ref<float> _d_b, clad::array_ref<int> _d_n, double &_final_error) {
+//CHECK: void mulSum_grad(float *a, float *b, int n, float *_d_a, float *_d_b, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
@@ -116,7 +116,7 @@ double divSum(float* a, float* b, int n) {
   return sum;
 }
 
-//CHECK: void divSum_grad(float *a, float *b, int n, clad::array_ref<float> _d_a, clad::array_ref<float> _d_b, clad::array_ref<int> _d_n, double &_final_error) {
+//CHECK: void divSum_grad(float *a, float *b, int n, float *_d_a, float *_d_b, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
@@ -158,8 +158,7 @@ int main() {
   double finalError = 0;
   float darr[3] = {0, 0, 0};
   int dn = 0;
-  clad::array_ref<float> darrRef(darr, 3);
-  df.execute(arrf, 3, darrRef, &dn, finalError);
+  df.execute(arrf, 3, darr, &dn, finalError);
   printf("Result (RS) = {%.2f, %.2f, %.2f} error = %.5f\n", darr[0], darr[1],
          darr[2], finalError); // CHECK-EXEC: Result (RS) = {1.00, 2.00, 1.00} error = 0.00000
 
@@ -167,9 +166,8 @@ int main() {
   darr[0] = darr[1] = darr[2] = 0;
   dn = 0;
   float darr2[3] = {0, 0, 0};
-  clad::array_ref<float> darrRef2(darr2, 3);
   auto df2 = clad::estimate_error(mulSum);
-  df2.execute(arrf, arrf, 3, darrRef, darrRef2, &dn, finalError);
+  df2.execute(arrf, arrf, 3, darr, darr2, &dn, finalError);
   printf("Result (MS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}  error = %.5f\n",
          darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2],
          finalError); // CHECK-EXEC: Result (MS) = {2.18, 2.18, 2.18}, {2.18, 2.18, 2.18}  error = 0.00000
@@ -179,7 +177,7 @@ int main() {
   darr2[0] = darr2[1] = darr2[2] = 0;
   dn = 0;
   auto df3 = clad::estimate_error(divSum);
-  df3.execute(arrf, arrf, 3, darrRef, darrRef2, &dn, finalError);
+  df3.execute(arrf, arrf, 3, darr, darr2, &dn, finalError);
   printf("Result (DS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}  error = %.5f\n",
          darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2],
          finalError); // CHECK-EXEC: Result (DS) = {2.19, 1.30, 1.05}, {-2.19, -1.30, -1.05}  error = 0.00000

@@ -312,7 +312,7 @@ partial derivative of the function with respect to every input, and as such
 is used in Clad's reverse mode. The signature of the method is as follows::
 
   template <typename F, std::size_t... Ints,
-              typename RetType = typename clad::return_type<F>::type,
+              typename RetType = typename clad::function_traits<F>::return_type,
               typename... Args>
     void central_difference(F f, clad::tape_impl<clad::array_ref<RetType>>& _grad, bool printErrors, Args&&... args) {
   	// Similar to the above method, here:
