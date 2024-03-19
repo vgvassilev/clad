@@ -181,6 +181,7 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
             m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr));
       } else {
         auto LdiffExpr = m_RMV->m_Variables[decl];
+        Expr* size = getSizeExpr(decl);
         VarDecl* idxExprDecl = nullptr;
         // Save our index expression so it can be used later.
         if (!m_IdxExpr) {
@@ -197,8 +198,7 @@ void ErrorEstimationHandler::EmitFinalErrorStmts(
         Expr* errorExpr = GetError(LRepl, Ldiff, params[i]->getNameAsString());
         Expr* finalAssignExpr =
             m_RMV->BuildOp(BO_AddAssign, m_FinalError, errorExpr);
-        Expr* conditionExpr = m_RMV->BuildOp(
-            BO_LT, m_IdxExpr, m_RMV->BuildArrayRefSizeExpr(LdiffExpr));
+        Expr* conditionExpr = m_RMV->BuildOp(BO_LE, m_IdxExpr, size);
         Expr* incExpr = m_RMV->BuildOp(UO_PostInc, m_IdxExpr);
         Stmt* ArrayParamLoop = new (m_RMV->m_Context)
             ForStmt(m_RMV->m_Context, nullptr, conditionExpr, nullptr, incExpr,
@@ -327,6 +327,50 @@ void ErrorEstimationHandler::ActAfterProcessingStmtInVisitCompoundStmt() {
   // statements generated.
   EmitErrorEstimationStmts(direction::forward);
   EmitErrorEstimationStmts(direction::reverse);
+}
+
+void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
+    const Expr* revArrSub) {
+  if (const auto* ASE = dyn_cast<ArraySubscriptExpr>(revArrSub)) {
+    if (const auto* DRE =
+            dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
+      const auto* VD = cast<VarDecl>(DRE->getDecl());
+      Expr* VDdiff = m_RMV->m_Variables[VD];
+      // We only need to track sizes for arrays and pointers.
+      if (!utils::isArrayOrPointerType(VDdiff->getType()))
+        return;
+      // Construct `var_size = max(var_size, idx);`
+      // to update `var_size` to the biggest index used if necessary.
+      Expr* size = getSizeExpr(VD);
+      Expr* idx = m_RMV->Clone(ASE->getIdx());
+      idx =
+          m_RMV->m_Sema.ImpCastExprToType(idx, size->getType(), CK_IntegralCast)
+              .get();
+      llvm::SmallVector<clang::Expr*, 2> params{size, idx};
+      Expr* extendedSize = m_EstModel->GetFunctionCall("max", "std", params);
+      size = m_RMV->Clone(size);
+      Stmt* updateSize = m_RMV->BuildOp(BO_Assign, size, extendedSize);
+      m_RMV->addToCurrentBlock(updateSize, direction::reverse);
+    }
+  }
+}
+
+Expr* ErrorEstimationHandler::getSizeExpr(const VarDecl* VD) {
+  // For every array/pointer variable `arr`
+  // we create `arr_size` to track the size.
+  auto foundSize = m_ArrSizes.find(VD);
+  // If the size variable is already generated, just clone the decl ref.
+  if (foundSize != m_ArrSizes.end())
+    return m_RMV->Clone(foundSize->second);
+  // If the size variable is not generated yet,
+  // generate it now.
+  QualType intTy = m_RMV->m_Context.getSizeType();
+  VarDecl* sizeVD = m_RMV->BuildGlobalVarDecl(
+      intTy, VD->getNameAsString() + "_size", m_RMV->getZeroInit(intTy));
+  m_RMV->AddToGlobalBlock(m_RMV->BuildDeclStmt(sizeVD));
+  Expr* size = m_RMV->BuildDeclRef(sizeVD);
+  m_ArrSizes[VD] = size;
+  return size;
 }
 
 void ErrorEstimationHandler::

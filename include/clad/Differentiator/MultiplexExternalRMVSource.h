@@ -27,6 +27,8 @@ public:
   void ActOnEndOfDerive() override;
   void ActAfterParsingDiffArgs(const DiffRequest& request,
                                DiffParams& args) override;
+  void
+  ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned& numExtraParams) override;
   void ActAfterCreatingDerivedFnParamTypes(
       llvm::SmallVectorImpl<clang::QualType>& paramTypes) override;
