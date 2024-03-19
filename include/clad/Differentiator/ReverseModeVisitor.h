@@ -522,12 +522,6 @@ namespace clad {
     /// PopBreakContStmtHandler();
     /// ```
     class BreakContStmtHandler {
-      /// Keeps track of all the created switch cases. It is required
-      /// because we need to register all the switch cases later with the
-      /// switch statement that will be used to manage the control flow in
-      /// the reverse block.
-      llvm::SmallVector<clang::SwitchCase*, 4> m_SwitchCases;
-
       /// `m_ControlFlowTape` tape keeps track of which `break`/`continue`
       /// statement was hit in which iteration.
       /// \note `m_ControlFlowTape` is only initialized if the body contains
@@ -539,8 +533,6 @@ namespace clad {
       /// statement. `m_CaseCounter` stores the value that was used for last
       /// `break`/`continue` statement.
       std::size_t m_CaseCounter = 0;
-
-      ReverseModeVisitor& m_RMV;
 
       const bool m_IsInvokedBySwitchStmt = false;
       /// Builds and returns a literal expression of type `std::size_t` with
@@ -557,6 +549,14 @@ namespace clad {
       clang::Expr* CreateCFTapePushExpr(std::size_t value);
 
     public:
+      /// Keeps track of all the created switch cases. It is required
+      /// because we need to register all the switch cases later with the
+      /// switch statement that will be used to manage the control flow in
+      /// the reverse block.
+      llvm::SmallVector<clang::SwitchCase*, 4> m_SwitchCases;
+
+      ReverseModeVisitor& m_RMV;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 

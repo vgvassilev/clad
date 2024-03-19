@@ -439,12 +439,12 @@ namespace clad {
 
     void AppendIndividualStmts(llvm::SmallVectorImpl<clang::Stmt*>& block,
                                clang::Stmt* S) {
-      if (auto CS = dyn_cast_or_null<CompoundStmt>(S))
+      if (auto CS = dyn_cast_or_null<CompoundStmt>(S)) {
         for (auto stmt : CS->body())
-          block.push_back(stmt);
-      else if (S)
+          AppendIndividualStmts(block, stmt);
+      } else if (S)
         block.push_back(S);
-    }
+      }
 
     MemberExpr*
     BuildMemberExpr(clang::Sema& semaRef, clang::Scope* S, clang::Expr* base,
