@@ -170,7 +170,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK: void pointerParam_grad_0(const double *arr, size_t n, double *_d_arr) {
 // CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     size_t _d_i = 0;
 // CHECK-NEXT:     size_t i = 0;
 // CHECK-NEXT:     clad::tape<size_t *> _t1 = {};

@@ -4,7 +4,6 @@
 // RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -192,7 +191,7 @@ float sum(double* arr, int n) {
 
 // CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     float _d_res = 0;
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
@@ -251,7 +250,7 @@ double fn4(double* arr, int n) {
 // CHECK: void fn4_grad(double *arr, int n, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     unsigned long _t1;
+// CHECK-NEXT:     unsigned {{int|long}} _t1;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
@@ -643,8 +642,8 @@ double fn13(double* x, const double* w) {
 }
 
 // CHECK: void fn13_grad_0(double *x, const double *w, double *_d_x) {
-// CHECK-NEXT:     clad::array<double> _d_wCopy(2UL);
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     clad::array<double> _d_wCopy({{2U|2UL}});
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     std::size_t _d_i = 0;
 // CHECK-NEXT:     std::size_t i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};

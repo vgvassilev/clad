@@ -3,7 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oReverseAssignments.out
 // RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
@@ -281,7 +280,7 @@ double f7(double x, double y) {
 }
 
 //CHECK:   void f7_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       clad::array<double> _d_t(3UL);
+//CHECK-NEXT:       clad::array<double> _d_t({{3U|3UL}});
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
@@ -373,7 +372,7 @@ double f8(double x, double y) {
 }
 
 //CHECK: void f8_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       clad::array<double> _d_t(4UL);
+//CHECK-NEXT:       clad::array<double> _d_t({{4U|4UL}});
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;

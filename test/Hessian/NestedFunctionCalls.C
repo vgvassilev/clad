@@ -4,7 +4,6 @@
 // RUN: ./NestedFunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -118,8 +117,8 @@ double f2(double x, double y){
 // CHECK-NEXT: }
 
 // CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
-// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + 0UL, hessianMatrix + 1UL);
-// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + 2UL, hessianMatrix + 3UL);
+// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 int main() {

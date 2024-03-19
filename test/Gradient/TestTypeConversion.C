@@ -4,7 +4,6 @@
 // RUN: ./TestTypeConversion.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
@@ -20,7 +19,7 @@ float fn_type_conversion(float z, int a) {
 
 void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK: void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a) {
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};

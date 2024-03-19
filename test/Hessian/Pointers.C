@@ -3,7 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointers.out
 // RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -54,8 +53,8 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT: }
 
 // CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
-// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, hessianMatrix + 0UL, hessianMatrix + 1UL);
-// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, hessianMatrix + 2UL, hessianMatrix + 3UL);
+// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\

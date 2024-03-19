@@ -1,7 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -std=c++17 -oSwitchInit.out 2>&1 -lstdc++ -lm | FileCheck %s
 // RUN: ./SwitchInit.out | FileCheck -check-prefix=CHECK-EXEC %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -23,7 +22,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     clad::tape<unsigned long> _t1 = {};
+// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _t4;
@@ -38,7 +37,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 _t0 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t1, 1UL);
+// CHECK-NEXT:                 clad::push(_t1, {{1U|1UL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
@@ -58,7 +57,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:                 _t4 = res;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t1, 2UL);
+// CHECK-NEXT:             clad::push(_t1, {{2U|2UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
@@ -66,7 +65,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
-// CHECK-NEXT:           case 2UL:
+// CHECK-NEXT:           case {{2U|2UL}}:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -102,7 +101,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 if (1 == _cond0)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case 1UL:
+// CHECK-NEXT:           case {{1U|1UL}}:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {

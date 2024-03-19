@@ -3,7 +3,7 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oUserDefinedTypes.out
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
+
 #include "clad/Differentiator/Differentiator.h"
 
 #include <utility>
@@ -57,7 +57,7 @@ double sum(Tangent& t) {
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
@@ -88,7 +88,7 @@ double sum(double *data) {
 
 // CHECK: void sum_pullback(double *data, double _d_y, double *_d_data) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
@@ -360,7 +360,7 @@ double fn8(Tangent t, dcomplex c) {
 }
 
 // CHECK: void updateTo_pullback(double d, Tangent *_d_this, double *_d_d) {
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
@@ -411,7 +411,7 @@ double fn9(Tangent t, dcomplex c) {
 
 // CHECK: void fn9_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
