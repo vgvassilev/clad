@@ -1,6 +1,5 @@
 // RUN: %cladclang -I%S/../../include -oLoopsAndArrays.out %s 2>&1 | FileCheck %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -17,11 +16,11 @@ float func(float* p, int n) {
 
 //CHECK: void func_grad(float *p, int n, float *_d_p, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     float _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
-//CHECK-NEXT:     unsigned long p_size = 0;
+//CHECK-NEXT:     unsigned {{int|long}} p_size = 0;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
@@ -60,7 +59,7 @@ float func2(float x) {
 
 //CHECK: void func2_grad(float x, float *_d_x, double &_final_error) {
 //CHECK-NEXT:     float _d_z = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
@@ -108,7 +107,7 @@ float func3(float x, float y) {
 }
 
 //CHECK: void func3_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     clad::array<double> _d_arr(3UL);
+//CHECK-NEXT:     clad::array<double> _d_arr({{3U|3UL}});
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     double _t1;
 //CHECK-NEXT:     double _t2;
@@ -161,12 +160,12 @@ float func4(float x[10], float y[10]) {
 
 //CHECK: void func4_grad(float x[10], float y[10], float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     float _d_sum = 0;
-//CHECK-NEXT:     unsigned long _t0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     unsigned long x_size = 0;
+//CHECK-NEXT:     unsigned {{int|long}} x_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
-//CHECK-NEXT:     unsigned long y_size = 0;
+//CHECK-NEXT:     unsigned {{int|long}} y_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = 0;
@@ -216,10 +215,10 @@ double func5(double* x, double* y, double* output) {
 }
 
 //CHECK: void func5_grad(double *x, double *y, double *output, double *_d_x, double *_d_y, double *_d_output, double &_final_error) {
-//CHECK-NEXT:     unsigned long output_size = 0;
+//CHECK-NEXT:     unsigned {{int|long}} output_size = 0;
 //CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     unsigned long x_size = 0;
-//CHECK-NEXT:     unsigned long y_size = 0;
+//CHECK-NEXT:     unsigned {{int|long}} x_size = 0;
+//CHECK-NEXT:     unsigned {{int|long}} y_size = 0;
 //CHECK-NEXT:     double _t1;
 //CHECK-NEXT:     double _t2;
 //CHECK-NEXT:     double _ret_value0 = 0;

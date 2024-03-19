@@ -4,7 +4,6 @@
 // RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
@@ -93,8 +92,8 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:   }
 
 //CHECK:   void const_dot_product_grad(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
-//CHECK-NEXT:       clad::array<double> _d_vars(3UL);
-//CHECK-NEXT:       clad::array<double> _d_consts(3UL);
+//CHECK-NEXT:       clad::array<double> _d_vars({{3U|3UL}});
+//CHECK-NEXT:       clad::array<double> _d_consts({{3U|3UL}});
 //CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
 //CHECK-NEXT:       goto _label0;

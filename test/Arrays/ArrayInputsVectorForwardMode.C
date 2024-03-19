@@ -12,11 +12,11 @@ double multiply(const double *arr) {
 }
 
 // CHECK: void multiply_dvec(const double *arr, clad::array_ref<double> _d_arr) {
-// CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size();
-// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
+// CHECK-NEXT:   unsigned {{int|long}} indepVarCount = _d_arr.size();
+// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL}});
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, (_d_vector_arr[0]) * arr[1] + arr[0] * (_d_vector_arr[1])));
-// CHECK-NEXT:     _d_arr = _d_vector_return.slice(0UL, _d_arr.size());
+// CHECK-NEXT:     _d_arr = _d_vector_return.slice({{0U|0UL}}, _d_arr.size());
 // CHECK-NEXT:     return;
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -26,11 +26,11 @@ double divide(double *arr) {
 }
 
 // CHECK: void divide_dvec(double *arr, clad::array_ref<double> _d_arr) {
-// CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size();
-// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
+// CHECK-NEXT:   unsigned {{int|long}} indepVarCount = _d_arr.size();
+// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL}});
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, ((_d_vector_arr[0]) * arr[1] - arr[0] * (_d_vector_arr[1])) / (arr[1] * arr[1])));
-// CHECK-NEXT:     _d_arr = _d_vector_return.slice(0UL, _d_arr.size());
+// CHECK-NEXT:     _d_arr = _d_vector_return.slice({{0U|0UL}}, _d_arr.size());
 // CHECK-NEXT:     return;
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -44,8 +44,8 @@ double addArr(const double *arr, int n) {
 }
 
 // CHECK: void addArr_dvec_0(const double *arr, int n, clad::array_ref<double> _d_arr) {
-// CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size();
-// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
+// CHECK-NEXT:   unsigned {{int|long}} indepVarCount = _d_arr.size();
+// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL}});
 // CHECK-NEXT:   clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);
 // CHECK-NEXT:   clad::array<double> _d_vector_ret(clad::array<double>(indepVarCount, 0));
 // CHECK-NEXT:   double ret = 0;
@@ -58,7 +58,7 @@ double addArr(const double *arr, int n) {
 // CHECK-NEXT:   }
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, _d_vector_ret));
-// CHECK-NEXT:     _d_arr = _d_vector_return.slice(0UL, _d_arr.size());
+// CHECK-NEXT:     _d_arr = _d_vector_return.slice({{0U|0UL}}, _d_arr.size());
 // CHECK-NEXT:     return;
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
@@ -76,11 +76,11 @@ double maskedSum(const double *arr, int n, int *signedMask, double alpha, double
 }
 
 // CHECK: void maskedSum_dvec_0_3_4(const double *arr, int n, int *signedMask, double alpha, double beta, clad::array_ref<double> _d_arr, double *_d_alpha, double *_d_beta) {
-// CHECK-NEXT:   unsigned long indepVarCount = _d_arr.size() + 2UL;
-// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, 0UL);
+// CHECK-NEXT:   unsigned {{int|long}} indepVarCount = _d_arr.size() + {{2U|2UL}};
+// CHECK-NEXT:   clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL}});
 // CHECK-NEXT:   clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);
 // CHECK-NEXT:   clad::array<double> _d_vector_alpha = clad::one_hot_vector(indepVarCount, _d_arr.size());
-// CHECK-NEXT:   clad::array<double> _d_vector_beta = clad::one_hot_vector(indepVarCount, _d_arr.size() + 1UL);
+// CHECK-NEXT:   clad::array<double> _d_vector_beta = clad::one_hot_vector(indepVarCount, _d_arr.size() + {{1U|1UL}});
 // CHECK-NEXT:   clad::array<double> _d_vector_ret(clad::array<double>(indepVarCount, 0));
 // CHECK-NEXT:   double ret = 0;
 // CHECK-NEXT:   {
@@ -97,9 +97,9 @@ double maskedSum(const double *arr, int n, int *signedMask, double alpha, double
 // CHECK-NEXT:   }
 // CHECK-NEXT:   {
 // CHECK-NEXT:     clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, _d_vector_ret));
-// CHECK-NEXT:     _d_arr = _d_vector_return.slice(0UL, _d_arr.size());
+// CHECK-NEXT:     _d_arr = _d_vector_return.slice({{0U|0UL}}, _d_arr.size());
 // CHECK-NEXT:     *_d_alpha = _d_vector_return[_d_arr.size()];
-// CHECK-NEXT:     *_d_beta = _d_vector_return[_d_arr.size() + 1UL];
+// CHECK-NEXT:     *_d_beta = _d_vector_return[_d_arr.size() + {{1U|1UL}}];
 // CHECK-NEXT:     return;
 // CHECK-NEXT:   }
 // CHECK-NEXT: }

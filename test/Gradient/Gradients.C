@@ -4,7 +4,6 @@
 // RUN: ./Gradients.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
@@ -293,7 +292,7 @@ double f_cond4(double x, double y) {
 
 //CHECK:   void f_cond4_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       int _d_i = 0;
-//CHECK-NEXT:       clad::array<double> _d_arr(2UL);
+//CHECK-NEXT:       clad::array<double> _d_arr({{2U|2UL}});
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       int i = 0;
@@ -695,7 +694,7 @@ float running_sum(float* p, int n) {
 }
 
 // CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
-// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
@@ -769,8 +768,8 @@ double fn_template_non_type(double x) {
 // CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     size_t _d_m = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
-// CHECK-NEXT:     _cond0 = maxN < 15UL;
-// CHECK-NEXT:     const size_t m = _cond0 ? maxN : 15UL;
+// CHECK-NEXT:     _cond0 = maxN < {{15U|15UL}};
+// CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_x += 1 * m;

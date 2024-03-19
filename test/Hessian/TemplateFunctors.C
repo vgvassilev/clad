@@ -3,7 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oTemplateFunctors.out
 // RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -16,9 +15,9 @@ template <typename T> struct Experiment {
 
 // CHECK: void operator_call_hessian(double i, double j, double *hessianMatrix) {
 // CHECK-NEXT:     Experiment<double> _d_this;
-// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
+// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
 // CHECK-NEXT:     Experiment<double> _d_this0;
-// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
+// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 template <> struct Experiment<long double> {
@@ -32,9 +31,9 @@ template <> struct Experiment<long double> {
 
 // CHECK: void operator_call_hessian(long double i, long double j, long double *hessianMatrix) {
 // CHECK-NEXT:     Experiment<long double> _d_this;
-// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + 0UL, hessianMatrix + 1UL);
+// CHECK-NEXT:     this->operator_call_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
 // CHECK-NEXT:     Experiment<long double> _d_this0;
-// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + 2UL, hessianMatrix + 3UL);
+// CHECK-NEXT:     this->operator_call_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 #define INIT(E)                   \

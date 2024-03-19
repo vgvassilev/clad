@@ -5,7 +5,6 @@
 
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <math.h>
@@ -83,7 +82,7 @@ float f1(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void f1_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f1_darg0_grad(x, hessianMatrix + 0UL);
+// CHECK-NEXT:     f1_darg0_grad(x, hessianMatrix + {{0U|0UL}});
 // CHECK-NEXT: }
 
 float f2(float x) {
@@ -130,7 +129,7 @@ float f2(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void f2_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f2_darg0_grad(x, hessianMatrix + 0UL);
+// CHECK-NEXT:     f2_darg0_grad(x, hessianMatrix + {{0U|0UL}});
 // CHECK-NEXT: }
 
 
@@ -175,7 +174,7 @@ float f3(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void f3_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f3_darg0_grad(x, hessianMatrix + 0UL);
+// CHECK-NEXT:     f3_darg0_grad(x, hessianMatrix + {{0U|0UL}});
 // CHECK-NEXT: }
 
 
@@ -264,7 +263,7 @@ float f4(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void f4_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f4_darg0_grad(x, hessianMatrix + 0UL);
+// CHECK-NEXT:     f4_darg0_grad(x, hessianMatrix + {{0U|0UL}});
 // CHECK-NEXT: }
 
 
@@ -298,7 +297,7 @@ float f5(float x) {
 // CHECK-NEXT: }
 
 // CHECK: void f5_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f5_darg0_grad(x, hessianMatrix + 0UL);
+// CHECK-NEXT:     f5_darg0_grad(x, hessianMatrix + {{0U|0UL}});
 // CHECK-NEXT: }
 
 
@@ -367,8 +366,8 @@ float f6(float x, float y) {
 // CHECK-NEXT: }
 
 // CHECK: void f6_hessian(float x, float y, float *hessianMatrix) {
-// CHECK-NEXT:     f6_darg0_grad(x, y, hessianMatrix + 0UL, hessianMatrix + 1UL);
-// CHECK-NEXT:     f6_darg1_grad(x, y, hessianMatrix + 2UL, hessianMatrix + 3UL);
+// CHECK-NEXT:     f6_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+// CHECK-NEXT:     f6_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 
