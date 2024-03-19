@@ -18,17 +18,17 @@ clad::array_ref<double>mat_ref_f1(mat_ref1, 9);
 
 double fn(double x, double y) { return x * y; }
 
-//CHECK: void fn_hessian(double x, double y, clad::array_ref<double> hessianMatrix) {
-//CHECK-NEXT:    fn_darg0_grad(x, y, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 1UL));
-//CHECK-NEXT:    fn_darg1_grad(x, y, hessianMatrix.slice(2UL, 1UL), hessianMatrix.slice(3UL, 1UL));
+//CHECK: void fn_hessian(double x, double y, double *hessianMatrix) {
+//CHECK-NEXT:    fn_darg0_grad(x, y, hessianMatrix + 0UL, hessianMatrix + 1UL);
+//CHECK-NEXT:    fn_darg1_grad(x, y, hessianMatrix + 2UL, hessianMatrix + 3UL);
 //CHECK-NEXT:}
 
 double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 
-//CHECK: void g_hessian(double i, double j[2], clad::array_ref<double> hessianMatrix) {
-//CHECK-NEXT:   g_darg0_grad(i, j, hessianMatrix.slice(0UL, 1UL), hessianMatrix.slice(1UL, 2UL));
-//CHECK-NEXT:   g_darg1_0_grad(i, j, hessianMatrix.slice(3UL, 1UL), hessianMatrix.slice(4UL, 2UL));
-//CHECK-NEXT:   g_darg1_1_grad(i, j, hessianMatrix.slice(6UL, 1UL), hessianMatrix.slice(7UL, 2UL));
+//CHECK: void g_hessian(double i, double j[2], double *hessianMatrix) {
+//CHECK-NEXT:   g_darg0_grad(i, j, hessianMatrix + 0UL, hessianMatrix + 1UL);
+//CHECK-NEXT:   g_darg1_0_grad(i, j, hessianMatrix + 3UL, hessianMatrix + 4UL);
+//CHECK-NEXT:   g_darg1_1_grad(i, j, hessianMatrix + 6UL, hessianMatrix + 7UL);
 //CHECK-NEXT: }
 
 int main() {

@@ -40,7 +40,7 @@ Double_t TFormula_example(Double_t* x, Double_t* p) {
 // _grad = { x[0] + (-1) * Exp_darg0(-p[0]), x[0] + Abs_darg0(p[1]), x[0] }
 
 void TFormula_example_grad_1(Double_t* x, Double_t* p, Double_t* _d_p);
-//CHECK:   void TFormula_example_grad_1(Double_t *x, Double_t *p, clad::array_ref<Double_t> _d_p) {
+//CHECK:   void TFormula_example_grad_1(Double_t *x, Double_t *p, Double_t *_d_p) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
@@ -85,10 +85,9 @@ int main() {
   Double_t x[] = { 3 };
   Double_t p[] = { -std::log(2), -1, 3 };
   Double_t result[3] = { 0 };
-  clad::array_ref<Double_t> result_ref(result, 3);
 
   auto gradient = clad::gradient(TFormula_example, "p");
-  gradient.execute(x, p, result_ref);
+  gradient.execute(x, p, result);
   printf("Result is = {%.2f, %.2f, %.2f}\n", result[0], result[1], result[2]); // CHECK-EXEC: Result is = {1.00, 2.00, 3.00}
 
   auto differentiation0 = clad::differentiate(TFormula_example, "p[0]");

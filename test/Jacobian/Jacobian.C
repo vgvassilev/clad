@@ -81,12 +81,12 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:}
 
 double multiply(double x, double y) { return x * y; }
-//CHECK: void multiply_pullback(double x, double y, double _d_y0, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y) {
+//CHECK: void multiply_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
 //CHECK-NEXT:    goto _label0;
 //CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
-//CHECK-NEXT:        * _d_x += _d_y0 * y;
-//CHECK-NEXT:        * _d_y += x * _d_y0;
+//CHECK-NEXT:        *_d_x += _d_y0 * y;
+//CHECK-NEXT:        *_d_y += x * _d_y0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 

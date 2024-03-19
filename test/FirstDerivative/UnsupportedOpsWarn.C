@@ -19,7 +19,7 @@ int binOpWarn_1(int x){
     return x ^ 1;   // expected-warning {{attempt to differentiate unsupported operator, ignored.}}
 }
 
-// CHECK: void binOpWarn_1_grad(int x, clad::array_ref<int> _d_x) {
+// CHECK: void binOpWarn_1_grad(int x, int *_d_x) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     ;

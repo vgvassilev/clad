@@ -10,7 +10,7 @@
 double f(double x, double y) {
   return (x - 1) * (x - 1) + 100 * (y - x * x) * (y - x * x);
 }
-void f_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_ref<double> _d_y);
+void f_grad(double x, double y, double *_d_x, double *_d_y);
 
 void f_grad_old(double x, double y, double* _d_x, double* _d_y) {
   auto dx = clad::differentiate(f, 0);

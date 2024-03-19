@@ -255,7 +255,7 @@ namespace numerical_diff {
   /// the input parameter pack.
   /// \param[in] \c args The arguments to the function to differentiate.
   template <typename F, std::size_t... Ints,
-            typename RetType = typename clad::return_type<F>::type,
+            typename RetType = typename clad::function_traits<F>::return_type,
             typename... Args>
   void central_difference_helper(
       F f, clad::tape_impl<clad::array_ref<RetType>>& _grad, bool printErrors,
@@ -339,7 +339,7 @@ namespace numerical_diff {
   /// diff errors estimates.
   /// \param[in] \c args The arguments to the function to differentiate.
   template <typename F, std::size_t... Ints,
-            typename RetType = typename clad::return_type<F>::type,
+            typename RetType = typename clad::function_traits<F>::return_type,
             typename... Args>
   void central_difference(F f, clad::tape_impl<clad::array_ref<RetType>>& _grad,
                           bool printErrors, Args&&... args) {

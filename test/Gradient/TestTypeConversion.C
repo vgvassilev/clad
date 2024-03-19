@@ -18,8 +18,8 @@ float fn_type_conversion(float z, int a) {
   return z;
 }
 
-void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::array_ref<int> _d_a);
-// CHECK: void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::array_ref<int> _d_a) {
+void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
+// CHECK: void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a) {
 // CHECK-NEXT:     unsigned long _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -32,26 +32,26 @@ void fn_type_conversion_grad(float z, int a, clad::array_ref<float> _d_z, clad::
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:     * _d_z += 1;
+// CHECK-NEXT:     *_d_z += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         i--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             z = clad::pop(_t1);
-// CHECK-NEXT:             float _r_d0 = * _d_z;
-// CHECK-NEXT:             * _d_z -= _r_d0;
-// CHECK-NEXT:             * _d_z += _r_d0 * a;
-// CHECK-NEXT:             * _d_a += z * _r_d0;
+// CHECK-NEXT:             float _r_d0 = *_d_z;
+// CHECK-NEXT:             *_d_z -= _r_d0;
+// CHECK-NEXT:             *_d_z += _r_d0 * a;
+// CHECK-NEXT:             *_d_a += z * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-#define TEST(F, x, y)                                                          \
-  {                                                                            \
-    result_0 = 0;                                                             \
-    result_1 = 0;                                                             \
-    clad::gradient(F);                                                         \
-    F##_grad(x, y, &result_0, &result_1);                                    \
-    printf("Result is = {%.2f, %.2f}\n", result_0, (float)result_1);                \
+#define TEST(F, x, y)                                                 \
+  {                                                                   \
+    result_0 = 0;                                                     \
+    result_1 = 0;                                                     \
+    clad::gradient(F);                                                \
+    F##_grad(x, y, &result_0, &result_1);                             \
+    printf("Result is = {%.2f, %.2f}\n", result_0, (float)result_1);  \
   }
 
 int main() {
