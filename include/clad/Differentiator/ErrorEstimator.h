@@ -97,10 +97,11 @@ public:
   /// \param[in] CallArgs The orignal call arguments of the function call.
   /// \param[in] ArgResultDecls The differentiated call arguments.
   /// \param[in] numArgs The number of call args.
-  void EmitNestedFunctionParamError(
-      clang::FunctionDecl* fnDecl,
-      llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
-      llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls, size_t numArgs);
+  void
+  EmitNestedFunctionParamError(clang::FunctionDecl* fnDecl,
+                               llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+                               llvm::SmallVectorImpl<clang::Expr*>& ArgResult,
+                               size_t numArgs);
 
   /// Checks if a variable should be considered in error estimation.
   ///
@@ -181,16 +182,14 @@ public:
   void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& fnDecl,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
-      llvm::SmallVectorImpl<clang::VarDecl*>& ArgResultDecls,
-      bool asGrad) override;
+      llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) override;
   void ActBeforeFinalizingAssignOp(clang::Expr*&, clang::Expr*&, clang::Expr*&,
                                    clang::BinaryOperator::Opcode&) override;
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
   void ActBeforeFinalizingDifferentiateSingleExpr(const direction& d) override;
   void ActBeforeDifferentiatingCallExpr(
       llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
-      llvm::SmallVectorImpl<clang::DeclStmt*>& ArgDecls,
-      bool hasAssignee) override;
+      llvm::SmallVectorImpl<clang::Stmt*>& ArgDecls, bool hasAssignee) override;
   void ActBeforeFinalizingVisitDeclStmt(
       llvm::SmallVectorImpl<clang::Decl*>& decls,
       llvm::SmallVectorImpl<clang::Decl*>& declsDiff) override;

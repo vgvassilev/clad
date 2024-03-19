@@ -393,12 +393,8 @@ namespace clad {
       Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
       Sema::LocalEagerInstantiationScope LocalInstantiations(S);
 
-      for (DiffRequest& request : m_DiffSchedule) {
-        // FIXME: flags have to be set manually since DiffCollector's
-        // constructor does not have access to m_DO.
-        request.EnableTBRAnalysis = m_DO.EnableTBRAnalysis;
+      for (DiffRequest& request : m_DiffSchedule)
         ProcessDiffRequest(request);
-      }
       // Put the TUScope in a consistent state after clad is done.
       S.TUScope = nullptr;
       // Force emission of the produced pending template instantiations.

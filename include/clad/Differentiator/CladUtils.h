@@ -174,11 +174,12 @@ namespace clad {
     /// otherwise returns false.
     bool HasAnyReferenceOrPointerArgument(const clang::FunctionDecl* FD);
 
-    /// Returns true if `T` is a reference, pointer or array type.
+    /// Returns true if `arg` is an argument passed by reference or is of
+    /// pointer/array type.
     ///
-    /// \note Please note that this function returns true for array types as
-    /// well.
-    bool IsReferenceOrPointerType(clang::QualType T);
+    /// \note Please note that this function returns false for temporary
+    /// expressions.
+    bool IsReferenceOrPointerArg(const clang::Expr* arg);
 
     /// Returns true if `T1` and `T2` have same cononical type; otherwise
     /// returns false.

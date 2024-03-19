@@ -52,15 +52,15 @@ double f(double x, double y) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _grad0 = 0.;
-//CHECK-NEXT:           sq_pullback(std::sin(x), _d_y, &_grad0);
-//CHECK-NEXT:           double _r0 = _grad0;
-//CHECK-NEXT:           double _r1 = _r0 * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           double _r0 = 0;
+//CHECK-NEXT:           sq_pullback(std::sin(x), _d_y, &_r0);
+//CHECK-NEXT:           double _r1 = 0;
+//CHECK-NEXT:           _r1 += _r0 * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
 //CHECK-NEXT:           * _d_x += _r1;
-//CHECK-NEXT:           double _grad1 = 0.;
-//CHECK-NEXT:           sq_pullback(std::cos(x), _d_y, &_grad1);
-//CHECK-NEXT:           double _r2 = _grad1;
-//CHECK-NEXT:           double _r3 = _r2 * clad::custom_derivatives::cos_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           double _r2 = 0;
+//CHECK-NEXT:           sq_pullback(std::cos(x), _d_y, &_r2);
+//CHECK-NEXT:           double _r3 = 0;
+//CHECK-NEXT:           _r3 += _r2 * clad::custom_derivatives::cos_pushforward(x, 1.).pushforward;
 //CHECK-NEXT:           * _d_x += _r3;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -75,9 +75,8 @@ double f(double x, double y) {
 //CHECK-NEXT:           * _d_y += t * 1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _grad0 = 0.;
-//CHECK-NEXT:           one_pullback(x, _d_t, &_grad0);
-//CHECK-NEXT:           double _r0 = _grad0;
+//CHECK-NEXT:           double _r0 = 0;
+//CHECK-NEXT:           one_pullback(x, _d_t, &_r0);
 //CHECK-NEXT:           * _d_x += _r0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }

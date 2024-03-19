@@ -585,23 +585,6 @@ namespace clad {
     clang::Expr* GetSingleArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args);
-    /// A function to get the multi-argument "central_difference"
-    /// call expression for the given arguments.
-    ///
-    /// \param[in] targetFuncCall The function to get the derivative for.
-    /// \param[in] retType The return type of the target call expression.
-    /// \param[in] numArgs The total number of 'args'.
-    /// \param[in] NumericalDiffMultiArg The built statements to add to block
-    /// later.
-    /// \param[in] args All the arguments to the target function.
-    /// \param[in] outputArgs The output gradient arguments.
-    ///
-    /// \returns The derivative function call.
-    clang::Expr* GetMultiArgCentralDiffCall(
-        clang::Expr* targetFuncCall, clang::QualType retType, unsigned numArgs,
-        llvm::SmallVectorImpl<clang::Stmt*>& NumericalDiffMultiArg,
-        llvm::SmallVectorImpl<clang::Expr*>& args,
-        llvm::SmallVectorImpl<clang::Expr*>& outputArgs);
     /// Emits diagnostic messages on differentiation (or lack thereof) for
     /// call expressions.
     ///

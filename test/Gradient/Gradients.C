@@ -444,24 +444,18 @@ void f_norm_grad(double x,
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _grad4 = 0.;
-//CHECK-NEXT:           double _grad5 = 0.;
-//CHECK-NEXT:           clad::custom_derivatives::pow_pullback(sum_of_powers(x, y, z, d), 1 / d, 1, &_grad4, &_grad5);
-//CHECK-NEXT:           double _r0 = _grad4;
-//CHECK-NEXT:           double _grad0 = 0.;
-//CHECK-NEXT:           double _grad1 = 0.;
-//CHECK-NEXT:           double _grad2 = 0.;
-//CHECK-NEXT:           double _grad3 = 0.;
-//CHECK-NEXT:           clad::custom_derivatives::sum_of_powers_pullback(x, y, z, d, _r0, &_grad0, &_grad1, &_grad2, &_grad3);
-//CHECK-NEXT:           double _r1 = _grad0;
+//CHECK-NEXT:           double _r0 = 0;
+//CHECK-NEXT:           double _r5 = 0;
+//CHECK-NEXT:           clad::custom_derivatives::pow_pullback(sum_of_powers(x, y, z, d), 1 / d, 1, &_r0, &_r5);
+//CHECK-NEXT:           double _r1 = 0;
+//CHECK-NEXT:           double _r2 = 0;
+//CHECK-NEXT:           double _r3 = 0;
+//CHECK-NEXT:           double _r4 = 0;
+//CHECK-NEXT:           clad::custom_derivatives::sum_of_powers_pullback(x, y, z, d, _r0, &_r1, &_r2, &_r3, &_r4);
 //CHECK-NEXT:           * _d_x += _r1;
-//CHECK-NEXT:           double _r2 = _grad1;
 //CHECK-NEXT:           * _d_y += _r2;
-//CHECK-NEXT:           double _r3 = _grad2;
 //CHECK-NEXT:           * _d_z += _r3;
-//CHECK-NEXT:           double _r4 = _grad3;
 //CHECK-NEXT:           * _d_d += _r4;
-//CHECK-NEXT:           double _r5 = _grad5;
 //CHECK-NEXT:           double _r6 = _r5 * -1 / (d * d);
 //CHECK-NEXT:           * _d_d += _r6;
 //CHECK-NEXT:       }
@@ -478,9 +472,11 @@ void f_sin_grad(double x, double y, clad::array_ref<double> _d_x, clad::array_re
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = 1 * (x + y) * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           double _r0 = 0;
+//CHECK-NEXT:           _r0 += 1 * (x + y) * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
 //CHECK-NEXT:           * _d_x += _r0;
-//CHECK-NEXT:           double _r1 = 1 * (x + y) * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
+//CHECK-NEXT:           double _r1 = 0;
+//CHECK-NEXT:           _r1 += 1 * (x + y) * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
 //CHECK-NEXT:           * _d_y += _r1;
 //CHECK-NEXT:           * _d_x += _t0 * 1;
 //CHECK-NEXT:           * _d_y += _t0 * 1;

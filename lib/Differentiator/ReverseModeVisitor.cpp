@@ -1397,6 +1397,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // Add it to the body statements.
           addToCurrentBlock(add_assign, direction::reverse);
         }
+        return StmtDiff(clonedDRE, it->second, it->second);
       } else {
         // Check DeclRefExpr is a reference to an independent variable.
         auto it = m_Variables.find(VD);
@@ -1475,7 +1476,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Expr*, 16> DerivedCallArgs{};
     // Stores tape decl and pushes for multiarg numerically differentiated
     // calls.
-    llvm::SmallVector<Stmt*, 16> NumericalDiffMultiArg{};
+    llvm::SmallVector<Stmt*, 16> PostCallStmts{};
 
     // For calls to C-style memory allocation functions, we do not need to
     // differentiate the call. We just need to visit the arguments to the
@@ -1551,8 +1552,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return call;
     }
 
-    llvm::SmallVector<VarDecl*, 16> ArgResultDecls{};
-    llvm::SmallVector<DeclStmt*, 16> ArgDeclStmts{};
+    llvm::SmallVector<Stmt*, 16> PreCallStmts{};
     // Save current index in the current block, to potentially put some
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
@@ -1569,101 +1569,37 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       const auto* PVD =
           FD->getParamDecl(i - static_cast<unsigned long>(isCXXOperatorCall));
       StmtDiff argDiff{};
-      bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
-      if (passByRef && isa<MaterializeTemporaryExpr>(arg)) {
-        // If the argument is a temporary variable, this means that param type
-        // is a reference to a const type and we are passing a temporary
-        // variable to it. In this case, we should not pass the derivative
-        // argument by reference.
-        passByRef = false;
-      }
-      QualType argDiffType;
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (passByRef) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
-        Expr* dArg = nullptr;
-        argDiffType = argDiff.getExpr()->getType();
-        QualType argResultValueType =
-            utils::GetValueType(argDiffType).getNonReferenceType();
-        // Create ArgResult variable for each reference argument because it is
-        // required by error estimator. For automatic differentiation, we do not need
-        // to create ArgResult variable for arguments passed by reference.
-        // ```
-        // _r0 = _d_a;
-        // ```
-        if (argDiff.getExpr_dx() && utils::IsLiteral(argDiff.getExpr_dx())) {
-          dArg = StoreAndRef(argDiff.getExpr_dx(), arg->getType(),
-                             direction::reverse, "_r",
-                             /*forceDeclCreation=*/true);
-        } else if (argDiffType->isArrayType()) {
-          Expr* init = argDiff.getExpr_dx();
-          if (isa<ConstantArrayType>(argDiff.getExpr_dx()->getType()))
-            init = utils::BuildCladArrayInitByConstArray(m_Sema,
-                                                         argDiff.getExpr_dx());
-
-          dArg = StoreAndRef(init, GetCladArrayOfType(argResultValueType),
-                             direction::reverse, "_r",
-                             /*forceDeclCreation=*/true,
-                             VarDecl::InitializationStyle::CallInit);
-        } else if (argDiffType->isPointerType()) {
-          dArg = StoreAndRef(argDiff.getExpr_dx(), argDiffType,
-                             direction::reverse, "_r",
-                             /*forceDeclCreation=*/true);
-        } else {
-          dArg = StoreAndRef(argDiff.getExpr_dx(), argResultValueType,
-                             direction::reverse, "_r",
-                             /*forceDeclCreation=*/true);
-        }
-        ArgResultDecls.push_back(
-            cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
+        CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
-        assert(!utils::isArrayOrPointerType(arg->getType()) &&
-               "Arguments passed by pointers should be covered in pass by "
-               "reference calls");
         // Create temporary variables corresponding to derivative of each
         // argument, so that they can be referred to when arguments is visited.
         // Variables will be initialized later after arguments is visited. This
         // is done to reduce cloning complexity and only clone once. The type is
         // same as the call expression as it is the type used to declare the
         // _gradX array
-        Expr* dArg = nullptr;
-        QualType argType = utils::GetValueType(arg->getType());
-        dArg = StoreAndRef(/*E=*/nullptr, argType, direction::reverse, "_r",
-                           /*forceDeclCreation=*/true);
-        ArgResultDecls.push_back(
-            cast<VarDecl>(cast<DeclRefExpr>(dArg)->getDecl()));
+        QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
+        CallArgDx.push_back(BuildDeclRef(dArgDecl));
         // Visit using uninitialized reference.
-        argDiff = Visit(arg, dArg);
-        argDiffType = argDiff.getExpr()->getType();
+        argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       }
 
-      // FIXME: We may use same argDiff.getExpr_dx at two places. This can
-      // lead to inconsistent pushes and pops. If `isInsideLoop` is true and
-      // actual argument is something like "a[i]", then argDiff.getExpr() and
-      // argDiff.getExpr_dx() will respectively be:
-      // ```
-      // a[clad::push(_t0, i)];
-      // a[clad::pop(_t0)];
-      // ```
-      // The expression `a[clad::pop(_t0)]` might already be used in the AST if
-      // visit was called with a dfdx() present.
-      // And thus using this expression in the AST explicitly may lead to size
-      // assertion failed.
-      //
-      // We should modify the design so that the behaviour of obtained StmtDiff
-      // expression is consistent both inside and outside loops.
-      CallArgDx.push_back(argDiff.getExpr_dx());
       // Save cloned arg in a "global" variable, so that it is accessible from
       // the reverse pass.
       // FIXME: At this point, we assume all the variables passed by reference
       // may be changed since we have no way to determine otherwise.
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
+      bool passByRef = PVD->getType()->isReferenceType() &&
+                       !isa<MaterializeTemporaryExpr>(arg);
       StmtDiff argDiffStore;
-      if (passByRef && !argDiffType->isArrayType() &&
-          !argDiff.getExpr()->isEvaluatable(m_Context))
+      if (passByRef && !argDiff.getExpr()->isEvaluatable(m_Context))
         argDiffStore =
             GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
       else
@@ -1694,7 +1630,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // ```
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
-      if (passByRef && !argDiffType->isArrayType()) {
+      if (passByRef) {
         if (isInsideLoop) {
           // Add tape push expression. We need to explicitly add it here because
           // we cannot add it as call expression argument -- we need to pass the
@@ -1750,10 +1686,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       DerivedCallArgs.push_back(argDiffStore.getExpr_dx());
     }
 
-    VarDecl* gradVarDecl = nullptr;
-    Expr* gradVarExpr = nullptr;
-    Expr* gradArgExpr = nullptr;
-    IdentifierInfo* gradVarII = nullptr;
     Expr* OverloadedDerivedFn = nullptr;
     // If the function has a single arg and does not returns a reference or take
     // arg by reference, we look for a derivative w.r.t. to this arg using the
@@ -1779,10 +1711,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // It is required because call to numerical diff and reverse mode diff
     // requires (slightly) different arguments.
     llvm::SmallVector<Expr*, 16> pullbackCallArgs{};
-
-    // Stores a list of arg result variable declaration (_r0) with the
-    // corresponding grad variable expression (_grad0).
-    llvm::SmallVector<std::pair<VarDecl*, Expr*>, 4> argResultsAndGrads;
 
     // Stores differentiation result of implicit `this` object, if any.
     StmtDiff baseDiff;
@@ -1827,79 +1755,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
 
       for (auto* argDerivative : CallArgDx) {
-        gradVarDecl = nullptr;
-        gradVarExpr = nullptr;
-        gradArgExpr = nullptr;
-        gradVarII = CreateUniqueIdentifier(funcPostfix());
-
-        const auto* PVD = FD->getParamDecl(idx);
-        bool passByRef = utils::IsReferenceOrPointerType(PVD->getType());
-        if (passByRef && isa<MaterializeTemporaryExpr>(CE->getArg(idx))) {
-          // If the argument is a temporary variable, this means that param type
-          // is a reference to a const type and we are passing a temporary
-          // variable to it. In this case, we should not pass the derivative
-          // argument by reference.
-          passByRef = false;
-        }
-        if (passByRef) {
-          // If derivative type is constant array type instead of
-          // `clad::array_ref` or `clad::array` type, then create an
-          // `clad::array_ref` variable that references this constant array. It
-          // is required because the pullback function expects `clad::array_ref`
-          // type for representing array derivatives. Currently, only constant
-          // array data members have derivatives of constant array types.
-          if ((argDerivative != nullptr) &&
-              isa<ConstantArrayType>(argDerivative->getType())) {
-            Expr* init =
-                utils::BuildCladArrayInitByConstArray(m_Sema, argDerivative);
-            auto* derivativeArrayRefVD = BuildVarDecl(
-                GetCladArrayRefOfType(argDerivative->getType()
-                                          ->getPointeeOrArrayElementType()
-                                          ->getCanonicalTypeInternal()),
-                "_t", init);
-            ArgDeclStmts.push_back(BuildDeclStmt(derivativeArrayRefVD));
-            argDerivative = BuildDeclRef(derivativeArrayRefVD);
-          }
-          if ((argDerivative != nullptr) &&
-              (isCladArrayType(argDerivative->getType()) ||
-               argDerivative->getType()->isPointerType() ||
-               !argDerivative->isLValue()))
-            gradArgExpr = argDerivative;
-          else
-            gradArgExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, argDerivative);
-        } else {
-          // Declare: diffArgType _grad;
-          Expr* initVal = nullptr;
-          QualType gradVarType = utils::GetValueType(PVD->getType());
-          if (!gradVarType->isRecordType()) {
-            // If the argument is not a class type, then initialize the grad
-            // variable with 0.
-            initVal =
-                ConstantFolder::synthesizeLiteral(gradVarType, m_Context, 0);
-          }
-          gradVarDecl = BuildVarDecl(gradVarType, gradVarII, initVal);
-          // Pass the address of the declared variable
-          gradVarExpr = BuildDeclRef(gradVarDecl);
+        Expr* gradArgExpr = nullptr;
+        const Expr* arg = CE->getArg(idx);
+        if (utils::isArrayOrPointerType(arg->getType()) ||
+            isCladArrayType(argDerivative->getType()))
+          gradArgExpr = argDerivative;
+        else
           gradArgExpr =
-              BuildOp(UO_AddrOf, gradVarExpr, m_Function->getLocation());
-          argResultsAndGrads.push_back({ArgResultDecls[idx], gradVarExpr});
-        }
+              BuildOp(UO_AddrOf, argDerivative, m_Function->getLocation());
         DerivedCallOutputArgs.push_back(gradArgExpr);
-        if (gradVarDecl)
-          ArgDeclStmts.push_back(BuildDeclStmt(gradVarDecl));
         idx++;
       }
       Expr* pullback = dfdx();
 
       if ((pullback == nullptr) && FD->getReturnType()->isLValueReferenceType())
         pullback = getZeroInit(FD->getReturnType().getNonReferenceType());
-
-      // FIXME: Remove this restriction.
-      if (!FD->getReturnType()->isVoidType()) {
-        assert((pullback && !FD->getReturnType()->isVoidType()) &&
-               "Call to function returning non-void type with no dfdx() is not "
-               "supported!");
-      }
 
       if (FD->getReturnType()->isVoidType()) {
         assert(pullback == nullptr && FD->getReturnType()->isVoidType() &&
@@ -1932,29 +1802,24 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackCallArgs.erase(pullbackCallArgs.begin());
     }
 
-    // should be true if we are using numerical differentiation to differentiate
-    // the callee function.
-    bool usingNumericalDiff = false;
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
       if (FD == m_Function && m_Mode == DiffMode::experimental_pullback) {
         // Recursive call.
-        auto* selfRef =
+        Expr* selfRef =
             m_Sema
                 .BuildDeclarationNameExpr(
                     CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
                 .get();
 
-        OverloadedDerivedFn =
-            m_Sema
-                .ActOnCallExpr(getCurrentScope(), selfRef, noLoc,
-                               llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
-                               noLoc)
-                .get();
+        OverloadedDerivedFn = m_Sema
+                                  .ActOnCallExpr(getCurrentScope(), selfRef,
+                                                 noLoc, pullbackCallArgs, noLoc)
+                                  .get();
       } else {
         if (m_ExternalSource)
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(
-              pullbackCallArgs, ArgDeclStmts, dfdx());
+              pullbackCallArgs, PreCallStmts, dfdx());
         // Overloaded derivative was not found, request the CladPlugin to
         // derive the called function.
         DiffRequest pullbackRequest{};
@@ -1973,39 +1838,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (!pullbackFD && !utils::HasAnyReferenceOrPointerArgument(FD) &&
             !isa<CXXMethodDecl>(FD)) {
           // Try numerically deriving it.
-          // Build a clone call expression so that we can correctly
-          // scope the function to be differentiated.
-          Expr* call = m_Sema
-                     .ActOnCallExpr(getCurrentScope(),
-                                    Clone(CE->getCallee()),
-                                    noLoc,
-                                    llvm::MutableArrayRef<Expr*>(CallArgs),
-                                    noLoc)
-                     .get();
-          Expr* fnCallee = cast<CallExpr>(call)->getCallee();
           if (NArgs == 1) {
-            OverloadedDerivedFn = GetSingleArgCentralDiffCall(fnCallee,
-                                                              DerivedCallArgs
-                                                                  [0],
-                                                              /*targetPos=*/0,
-                                                              /*numArgs=*/1,
-                                                              DerivedCallArgs);
+            OverloadedDerivedFn = GetSingleArgCentralDiffCall(
+                Clone(CE->getCallee()), DerivedCallArgs[0],
+                /*targetPos=*/0,
+                /*numArgs=*/1, DerivedCallArgs);
             asGrad = !OverloadedDerivedFn;
           } else {
             auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
             OverloadedDerivedFn = GetMultiArgCentralDiffCall(
-                fnCallee, CEType.getCanonicalType(), CE->getNumArgs(),
-                NumericalDiffMultiArg, DerivedCallArgs, DerivedCallOutputArgs);
+                Clone(CE->getCallee()), CEType.getCanonicalType(),
+                CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
+                DerivedCallArgs, CallArgDx);
           }
           CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
                                   OverloadedDerivedFn);
           if (!OverloadedDerivedFn) {
             auto& block = getCurrentBlock(direction::reverse);
-            block.insert(block.begin(), ArgDeclStmts.begin(),
-                         ArgDeclStmts.end());
+            block.insert(block.begin(), PreCallStmts.begin(),
+                         PreCallStmts.end());
             return StmtDiff(Clone(CE));
           }
-          usingNumericalDiff = true;
         } else if (pullbackFD) {
           if (baseDiff.getExpr()) {
             Expr* baseE = baseDiff.getExpr();
@@ -2026,55 +1879,33 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Derivative was found.
       FunctionDecl* fnDecl = dyn_cast<CallExpr>(OverloadedDerivedFn)
                                  ->getDirectCallee();
+      // Put Result array declaration in the function body.
+      // Call the gradient, passing Result as the last Arg.
+      Stmts& block = getCurrentBlock(direction::reverse);
+      Stmts::iterator it = std::begin(block) + insertionPoint;
+      // Insert PreCallStmts
+      it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
+      it += PreCallStmts.size();
       if (!asGrad) {
         if (utils::IsCladValueAndPushforwardType(fnDecl->getReturnType()))
           OverloadedDerivedFn = utils::BuildMemberExpr(
               m_Sema, getCurrentScope(), OverloadedDerivedFn, "pushforward");
         // If the derivative is called through _darg0 instead of _grad.
         Expr* d = BuildOp(BO_Mul, dfdx(), OverloadedDerivedFn);
-
-        PerformImplicitConversionAndAssign(ArgResultDecls[0], d);
+        Expr* addGrad = BuildOp(BO_AddAssign, Clone(CallArgDx[0]), d);
+        it = block.insert(it, addGrad);
+        it++;
       } else {
-        // Put Result array declaration in the function body.
-        // Call the gradient, passing Result as the last Arg.
-        auto& block = getCurrentBlock(direction::reverse);
-        auto* it = std::begin(block) + insertionPoint;
-
-        // Insert the _gradX declaration statements
-        it = block.insert(it, ArgDeclStmts.begin(), ArgDeclStmts.end());
-        it += ArgDeclStmts.size();
-        it = block.insert(it, NumericalDiffMultiArg.begin(),
-                          NumericalDiffMultiArg.end());
-        it += NumericalDiffMultiArg.size();
         // Insert the CallExpr to the derived function
-        block.insert(it, OverloadedDerivedFn);
-
-        if (usingNumericalDiff) {
-          for (auto resAndGrad : argResultsAndGrads) {
-            VarDecl* argRes = resAndGrad.first;
-            Expr* grad = resAndGrad.second;
-            if (isCladArrayType(grad->getType())) {
-              Expr* E = BuildOp(BO_MulAssign, grad, dfdx());
-              // Visit each arg with df/dargi = df/dxi * Result.
-              PerformImplicitConversionAndAssign(argRes, E);
-            } else {
-              //  Visit each arg with df/dargi = df/dxi * Result.
-              PerformImplicitConversionAndAssign(argRes,
-                                                 BuildOp(BO_Mul, dfdx(), grad));
-            }
-          }
-        } else {
-          for (auto resAndGrad : argResultsAndGrads) {
-            VarDecl* argRes = resAndGrad.first;
-            Expr* grad = resAndGrad.second;
-            PerformImplicitConversionAndAssign(argRes, grad);
-          }
-        }
+        it = block.insert(it, OverloadedDerivedFn);
+        it++;
       }
+      // Insert PostCallStmts
+      block.insert(it, PostCallStmts.begin(), PostCallStmts.end());
     }
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
-        CE, OverloadedDerivedFn, DerivedCallArgs, ArgResultDecls, asGrad);
+          CE, OverloadedDerivedFn, DerivedCallArgs, CallArgDx, asGrad);
 
     Expr* call = nullptr;
 
@@ -2159,6 +1990,59 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(call);
 
     return {};
+  }
+
+  Expr* ReverseModeVisitor::GetMultiArgCentralDiffCall(
+      Expr* targetFuncCall, QualType retType, unsigned numArgs, Expr* dfdx,
+      llvm::SmallVectorImpl<Stmt*>& PreCallStmts,
+      llvm::SmallVectorImpl<Stmt*>& PostCallStmts,
+      llvm::SmallVectorImpl<Expr*>& args,
+      llvm::SmallVectorImpl<Expr*>& outputArgs) {
+    int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
+    llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
+    NumDiffArgs.push_back(targetFuncCall);
+    // build the clad::tape<clad::array_ref>> = {};
+    QualType RefType = GetCladArrayRefOfType(retType);
+    QualType TapeType = GetCladTapeOfType(RefType);
+    auto* VD = BuildVarDecl(
+        TapeType, "_t", getZeroInit(TapeType), /*DirectInit=*/false,
+        /*TSI=*/nullptr, VarDecl::InitializationStyle::CInit);
+    PreCallStmts.push_back(BuildDeclStmt(VD));
+    Expr* TapeRef = BuildDeclRef(VD);
+    NumDiffArgs.push_back(TapeRef);
+    NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(
+        m_Context.IntTy, m_Context, printErrorInf));
+
+    // Build the tape push expressions.
+    VD->setLocation(m_Function->getLocation());
+    m_Sema.AddInitializerToDecl(VD, getZeroInit(TapeType), false);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    LookupResult& Push = GetCladTapePush();
+    Expr* PushDRE =
+        m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false).get();
+    for (unsigned i = 0, e = numArgs; i < e; i++) {
+      QualType argTy = args[i]->getType();
+      VarDecl* gradVar = BuildVarDecl(argTy, "_grad", getZeroInit(argTy));
+      PreCallStmts.push_back(BuildDeclStmt(gradVar));
+      Expr* PushExpr = BuildDeclRef(gradVar);
+      if (!isCladArrayType(argTy))
+        PushExpr = BuildOp(UO_AddrOf, PushExpr);
+      std::array<Expr*, 2> callArgs = {TapeRef, PushExpr};
+      Stmt* PushStmt =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs, noLoc)
+              .get();
+      PreCallStmts.push_back(PushStmt);
+      Expr* gradExpr = BuildOp(BO_Mul, dfdx, BuildDeclRef(gradVar));
+      PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
+      NumDiffArgs.push_back(args[i]);
+    }
+    std::string Name = "central_difference";
+    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        /*forCustomDerv=*/false,
+        /*namespaceShouldExist=*/false);
   }
 
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {

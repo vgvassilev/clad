@@ -744,52 +744,6 @@ namespace clad {
         /*namespaceShouldExist=*/false);
   }
 
-  Expr* VisitorBase::GetMultiArgCentralDiffCall(
-      Expr* targetFuncCall, QualType retType, unsigned numArgs,
-      llvm::SmallVectorImpl<Stmt*>& NumericalDiffMultiArg,
-      llvm::SmallVectorImpl<Expr*>& args,
-      llvm::SmallVectorImpl<Expr*>& outputArgs) {
-    int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
-    llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
-    NumDiffArgs.push_back(targetFuncCall);
-    // build the clad::tape<clad::array_ref>> = {};
-    QualType RefType = GetCladArrayRefOfType(retType);
-    QualType TapeType = GetCladTapeOfType(RefType);
-    auto VD = BuildVarDecl(
-        TapeType, "_t", getZeroInit(TapeType), /*DirectInit=*/false,
-        /*TSI=*/nullptr, VarDecl::InitializationStyle::CInit);
-    NumericalDiffMultiArg.push_back(BuildDeclStmt(VD));
-    Expr* TapeRef = BuildDeclRef(VD);
-    NumDiffArgs.push_back(TapeRef);
-    NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                            m_Context,
-                                                            printErrorInf));
-
-    // Build the tape push expressions.
-    VD->setLocation(m_Function->getLocation());
-    m_Sema.AddInitializerToDecl(VD, getZeroInit(TapeType), false);
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
-    LookupResult& Push = GetCladTapePush();
-    auto PushDRE = m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false)
-                       .get();
-    Expr* PushExpr;
-    for (unsigned i = 0, e = numArgs; i < e; i++) {
-      Expr* callArgs[] = {TapeRef, outputArgs[i]};
-      PushExpr = m_Sema
-                     .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs,
-                                    noLoc)
-                     .get();
-      NumericalDiffMultiArg.push_back(PushExpr);
-      NumDiffArgs.push_back(args[i]);
-    }
-    std::string Name = "central_difference";
-    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
-        /*forCustomDerv=*/false,
-        /*namespaceShouldExist=*/false);
-  }
-
   void VisitorBase::CallExprDiffDiagnostics(llvm::StringRef funcName,
                                  SourceLocation srcLoc, bool isDerived){
     if (!isDerived) {

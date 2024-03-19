@@ -2,7 +2,6 @@
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oUserDefinedTypes.out
 // RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
-// XFAIL: asserts
 // CHECK-NOT: {{.*error|warning|note:.*}}
 // XFAIL: target={{i586.*}}
 #include "clad/Differentiator/Differentiator.h"
@@ -131,16 +130,13 @@ double fn2(Tangent t, double i) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t1;
 // CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         clad::array_ref<double> _t2 = {(* _d_t).data, 5UL};
-// CHECK-NEXT:         sum_pullback(t.data, _r_d0, _t2);
-// CHECK-NEXT:         clad::array<double> _r1({(* _d_t).data, 5UL});
+// CHECK-NEXT:         sum_pullback(t.data, _r_d0, (* _d_t).data);
 // CHECK-NEXT:         * _d_i += _r_d0;
 // CHECK-NEXT:         (* _d_t).data[0] += 2 * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t0;
 // CHECK-NEXT:         sum_pullback(_t0, _d_res, &(* _d_t));
-// CHECK-NEXT:         Tangent _r0 = (* _d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -167,7 +163,6 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(_t2, 1, &_d_t);
-// CHECK-NEXT:         Tangent _r0 = _d_t;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t.data[1] = _t1;
@@ -245,12 +240,10 @@ double fn5(const Tangent& t, double i) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         double _grad1 = 0.;
-// CHECK-NEXT:         _t0.someMemFn2_pullback(i, i, 1, &(* _d_t), &_grad0, &_grad1);
-// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         double _r1 = 0;
+// CHECK-NEXT:         _t0.someMemFn2_pullback(i, i, 1, &(* _d_t), &_r0, &_r1);
 // CHECK-NEXT:         * _d_i += _r0;
-// CHECK-NEXT:         double _r1 = _grad1;
 // CHECK-NEXT:         * _d_i += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -320,9 +313,8 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:         * _d_i += 6 * _d_res;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _grad0 = 0.;
-// CHECK-NEXT:         _t0.real_pullback(5 * i, &(* _d_c), &_grad0);
-// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         _t0.real_pullback(5 * i, &(* _d_c), &_r0);
 // CHECK-NEXT:         * _d_i += 5 * _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -355,9 +347,8 @@ double fn7(dcomplex c1, dcomplex c2) {
 // CHECK-NEXT:         _t6.imag_pullback(3 * 1, &(* _d_c1));
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _grad0 = 0.;
-// CHECK-NEXT:         _t3.real_pullback(c2.imag() + 5 * _t1, &(* _d_c1), &_grad0);
-// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         _t3.real_pullback(c2.imag() + 5 * _t1, &(* _d_c1), &_r0);
 // CHECK-NEXT:         _t0.imag_pullback(_r0, &(* _d_c2));
 // CHECK-NEXT:         _t2.real_pullback(5 * _r0, &(* _d_c2));
 // CHECK-NEXT:     }
@@ -401,12 +392,10 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(_t2, 1, &(* _d_t));
-// CHECK-NEXT:         Tangent _r1 = (* _d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _grad0 = 0.;
-// CHECK-NEXT:         _t1.updateTo_pullback(c.real(), &(* _d_t), &_grad0);
-// CHECK-NEXT:         double _r0 = _grad0;
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         _t1.updateTo_pullback(c.real(), &(* _d_t), &_r0);
 // CHECK-NEXT:         _t0.real_pullback(_r0, &(* _d_c));
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -451,7 +440,6 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         double _r_d1 = _d_res;
 // CHECK-NEXT:         t = _t6;
 // CHECK-NEXT:         sum_pullback(_t6, _r_d1, &(* _d_t));
-// CHECK-NEXT:         Tangent _r2 = (* _d_t);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
