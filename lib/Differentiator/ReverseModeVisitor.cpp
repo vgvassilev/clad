@@ -4105,6 +4105,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       bodyDiff.updateStmtDx(MakeCompoundStmt(revLoopBlock));
     m_LoopBlock.pop_back();
 
+    activeBreakContHandler->EndCFSwitchStmtScope();
+    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
+    PopBreakContStmtHandler();
+    
     // Increment statement in the for-loop is only executed if the iteration
     // did not end with a break/continue statement. Therefore, forLoopIncDiff
     // should be inside the last switch case in the reverse pass.
@@ -4116,10 +4120,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         bodyDiff.updateStmtDx(forLoopIncDiff);
       }
     }
-
-    activeBreakContHandler->EndCFSwitchStmtScope();
-    activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
-    PopBreakContStmtHandler();
 
     Expr* counterDecrement = loopCounter.getCounterDecrement();
 
