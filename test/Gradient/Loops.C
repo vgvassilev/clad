@@ -1624,6 +1624,47 @@ double f_loop_init_var(double lower, double upper) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn20(double *arr, int n) {
+  double res = 0;
+  for (int i=0; i<n; ++i) {
+    res += (arr[i] *= 5);
+  }
+  return res;
+}
+
+// CHECK: void fn20_grad_0(double *arr, int n, clad::array_ref<double> _d_arr) {
+// CHECK-NEXT:     int _d_n = 0;
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (i = 0; i < n; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, res);
+// CHECK-NEXT:         clad::push(_t2, arr[i]);
+// CHECK-NEXT:         res += (arr[i] *= 5);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             res = clad::pop(_t1);
+// CHECK-NEXT:             double _r_d0 = _d_res;
+// CHECK-NEXT:             _d_arr[i] += _r_d0;
+// CHECK-NEXT:             arr[i] = clad::pop(_t2);
+// CHECK-NEXT:             double _r_d1 = _d_arr[i];
+// CHECK-NEXT:             _d_arr[i] -= _r_d1;
+// CHECK-NEXT:             _d_arr[i] += _r_d1 * 5;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -1690,4 +1731,9 @@ int main() {
 
   TEST_GRADIENT(fn19, 1, arr, 5, d_arr);
   TEST_2(f_loop_init_var, 1, 2); // CHECK-EXEC: {-1.00, 4.00}
+
+  for (int i = 0; i < 5; i++) result[i] = 0;
+  auto d_fn20 = clad::gradient(fn20, "arr");
+  d_fn20.execute(x, 5, result_ref);
+  printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {5.00, 5.00, 5.00, 5.00, 5.00}
 }
