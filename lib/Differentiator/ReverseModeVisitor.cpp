@@ -3522,6 +3522,88 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
+  void ReverseModeVisitor::AppendCaseStmts(llvm::SmallVectorImpl<Stmt*>& curBlock,
+                                      llvm::SmallVectorImpl<Stmt*>& cases,
+                                      Stmt* S, bool& afterCase) {
+    if (auto CS = dyn_cast_or_null<CompoundStmt>(S)) {
+      // create a new list to store the nested stmts
+      Stmts newBlock;
+      // This stmts is a compound and not a case
+      // so its nested stmts do not come immediately after a case. 
+      // The whole compound though may belong to a case stmt,
+      // hence, we store the original flag's value
+      SaveAndRestore<bool> SaveAfterCase(afterCase);
+      afterCase = false;
+      for (auto stmt : CS->body())
+        AppendCaseStmts(newBlock, cases, stmt, afterCase);
+      if (!newBlock.empty()){
+        auto Stmts_ref = clad_compat::makeArrayRef(newBlock.data(), newBlock.size());
+        auto newCS = clad_compat::CompoundStmt_Create(
+            m_Context, Stmts_ref /**/
+                CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
+                    FPOptionsOverride()),
+            noLoc, noLoc);
+        // if the compound belongs to a case, add it to the `cases` vector
+        // else add it to the main body of the for loop
+        if (SaveAfterCase.get())
+          cases.push_back(newCS);
+        else{
+          curBlock.push_back(newCS);
+        }
+      }
+    } else if (isa<CaseStmt>(S)) {
+      afterCase = true;
+      cases.push_back(S);
+    } else if (auto If = dyn_cast_or_null<IfStmt>(S)) {
+      if (auto IfThenCS = dyn_cast_or_null<CompoundStmt>(If->getThen())) {
+        Stmts thenBlock;
+        SaveAndRestore<bool> SaveAfterCase(afterCase);
+        afterCase = false;
+        for (auto stmt : IfThenCS->body())
+          AppendCaseStmts(thenBlock, cases, stmt, afterCase);
+        auto Stmts_ref =
+            clad_compat::makeArrayRef(thenBlock.data(),
+            thenBlock.size());
+        auto newThenCS = clad_compat::CompoundStmt_Create(
+            m_Context,
+            Stmts_ref /**/
+                CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
+                    FPOptionsOverride()),
+            noLoc, noLoc);
+        If->setThen(newThenCS);
+      }
+      if (auto IfElseCS = dyn_cast_or_null<CompoundStmt>(If->getElse())) {
+        Stmts elseBlock;
+        SaveAndRestore<bool> SaveAfterCase(afterCase);
+        afterCase = false;
+        for (auto stmt : IfElseCS->body())
+          AppendCaseStmts(elseBlock, cases, stmt, afterCase);
+        auto Stmts_ref =
+            clad_compat::makeArrayRef(elseBlock.data(),
+            elseBlock.size());
+        auto newElseCS = clad_compat::CompoundStmt_Create(
+            m_Context,
+            Stmts_ref /**/
+                CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
+                    FPOptionsOverride()),
+            noLoc, noLoc);
+        If->setElse(newElseCS);
+      }
+      if (afterCase)
+        cases.push_back(If);
+      else
+        curBlock.push_back(If);
+    } else if (S) {
+      if (afterCase)
+        cases.push_back(S);
+      else
+        curBlock.push_back(S);
+    }
+    // No need to check fo other stmts that have a body,
+    // as while and for loops as well as do stmts have their own switch.
+    // Functions and class objects are also independent.
+  }
+
   StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
                                                      LoopCounter& loopCounter,
                                                      Stmt* condVarDiff,
@@ -3571,19 +3653,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           activeBreakContHandler->CreateCFTapePushExprToCurrentCase();
 
       Stmt* forwBlock = nullptr;
-      Stmt* revBlock = nullptr;
-
       forwBlock = utils::AppendAndCreateCompoundStmt(
           activeBreakContHandler->m_RMV.m_Context, bodyDiff.getStmt(),
           pushExprToCurrentCase);
-      revBlock = utils::PrependAndCreateCompoundStmt(
-          activeBreakContHandler->m_RMV.m_Context, bodyDiff.getStmt_dx(),
-          lastSC);
+      bodyDiff.updateStmt(forwBlock);
 
-      bodyDiff = {forwBlock, revBlock};
-
-      utils::AppendIndividualStmts(revLoopBlock, bodyDiff.getStmt_dx());
-      Stmts revLoopBlockIndexed;
+      bool afterCase = false;
+      Stmts cases;
+      AppendCaseStmts(revLoopBlock, cases, bodyDiff.getStmt_dx(), afterCase);
+      revLoopBlock.append(cases.begin(), cases.end());
+      revLoopBlock.insert(revLoopBlock.begin(), lastSC);
+      Stmts revLoopBlockIndexed; // stores the correctly indexed version of the loop's body
       bool betweenCase = false;
       Stmts curBlockStmts;
 

@@ -445,7 +445,7 @@ namespace clad {
                                clang::Stmt* S) {
       if (auto CS = dyn_cast_or_null<CompoundStmt>(S)) {
         for (auto stmt : CS->body())
-          AppendIndividualStmts(block, stmt);
+          block.push_back(stmt);
       } else if (S)
         block.push_back(S);
     }

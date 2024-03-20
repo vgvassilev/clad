@@ -503,6 +503,15 @@ namespace clad {
       }
     };
 
+    /// Helper function to bring the cases created by a continue or break stmt
+    /// foward to the loop's body and append them correctly.
+    /// The statements that belong to the main body of the loop are added directly
+    /// to the current block, while the cases followed by with their corresponding stmts
+    /// are stored in a separate vector.
+    void AppendCaseStmts(llvm::SmallVectorImpl<clang::Stmt*>& curBlock,
+                          llvm::SmallVectorImpl<clang::Stmt*>& cases, clang::Stmt* S,
+                          bool& afterCase);
+
     /// Helper function to differentiate a loop body.
     ///
     ///\param[in] body body of the loop
