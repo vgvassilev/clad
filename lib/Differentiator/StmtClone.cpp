@@ -330,6 +330,9 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
 
 Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
   TemplateArgumentListInfo TemplateArgs;
+  //FIXME: Know last argument of UnresolvedLookupExpr::Create needs to be 
+  //bool clang-18 onwards, but unsure what it should be.
+  bool KnownDependent;
   if (Node->hasExplicitTemplateArgs())
     Node->copyTemplateArgumentsInto(TemplateArgs);
   #if CLANG_VERSION_MAJOR < 18
@@ -358,7 +361,7 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
                                               &TemplateArgs,
                                               Node->decls_begin(),
                                               Node->decls_end(),
-                                              bool KnownDependent
+                                              KnownDependent
                                               );
   #endif
   return result;
