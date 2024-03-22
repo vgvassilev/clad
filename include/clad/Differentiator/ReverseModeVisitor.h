@@ -517,7 +517,7 @@ namespace clad {
                                    LoopCounter& loopCounter,
                                    clang::Stmt* condVarDifff = nullptr,
                                    clang::Stmt* forLoopIncDiff = nullptr,
-                                   clang::Stmt* condDiff = nullptr,
+                                   StmtDiff* condDiff = nullptr,
                                    bool isForLoop = false);
 
     /// This class modifies forward and reverse blocks of the loop/switch
