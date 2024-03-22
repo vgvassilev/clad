@@ -339,6 +339,13 @@ void ErrorEstimationHandler::ActAfterProcessingArraySubscriptExpr(
       // We only need to track sizes for arrays and pointers.
       if (!utils::isArrayOrPointerType(VDdiff->getType()))
         return;
+
+      // We only need to know the size of independent arrays.
+      auto& indVars = m_RMV->m_IndependentVars;
+      auto* it = std::find(indVars.begin(), indVars.end(), VD);
+      if (it == indVars.end())
+        return;
+
       // Construct `var_size = max(var_size, idx);`
       // to update `var_size` to the biggest index used if necessary.
       Expr* size = getSizeExpr(VD);
