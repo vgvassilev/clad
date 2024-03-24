@@ -790,7 +790,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // the if statement.
     Expr* PushCond = nullptr;
     Expr* PopCond = nullptr;
-    auto condExpr = Visit(cond.getExpr());
+
+    StmtDiff condExpr;
+    StmtDiff condDiff;
+    std::tie(condDiff, condExpr) = DifferentiateSingleExpr(cond.getExpr());
+
     if (isInsideLoop) {
       // If we are inside for loop, cond will be stored in the following way:
       // forward:
@@ -828,6 +832,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // }
     beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    addToCurrentBlock(unwrapIfSingleStmt(condDiff.getStmt()),
+                      direction::forward);
+    addToCurrentBlock(unwrapIfSingleStmt(condDiff.getStmt_dx()),
+                      direction::reverse);
     const Stmt* init = If->getInit();
     StmtDiff initResult = init ? Visit(init) : StmtDiff{};
     // If there is Init, it's derivative will be output in the block before if:
@@ -887,36 +895,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // It is problematic to specify both condVarDecl and cond thorugh
     // Sema::ActOnIfStmt, therefore we directly use the IfStmt constructor.
-    Stmt* Forward = clad_compat::IfStmt_Create(m_Context,
-                                               noLoc,
-                                               If->isConstexpr(),
-                                               initResult.getStmt(),
-                                               condVarClone,
-                                               cond.getExpr(),
-                                               noLoc,
-                                               noLoc,
-                                               thenDiff.getStmt(),
-                                               noLoc,
-                                               elseDiff.getStmt());
-    addToCurrentBlock(Forward, direction::forward);
+    if (thenDiff.getStmt()) {
+      Stmt* Forward = clad_compat::IfStmt_Create(
+          m_Context, noLoc, If->isConstexpr(), initResult.getStmt(),
+          condVarClone, cond.getExpr(), noLoc, noLoc, thenDiff.getStmt(), noLoc,
+          elseDiff.getStmt());
+      addToCurrentBlock(Forward, direction::forward);
+    }
 
     Expr* reverseCond = cond.getExpr_dx();
     if (isInsideLoop) {
       addToCurrentBlock(PushCond, direction::forward);
       reverseCond = PopCond;
     }
-    Stmt* Reverse = clad_compat::IfStmt_Create(m_Context,
-                                               noLoc,
-                                               If->isConstexpr(),
-                                               initResult.getStmt_dx(),
-                                               condVarClone,
-                                               reverseCond,
-                                               noLoc,
-                                               noLoc,
-                                               thenDiff.getStmt_dx(),
-                                               noLoc,
-                                               elseDiff.getStmt_dx());
-    addToCurrentBlock(Reverse, direction::reverse);
+    if (thenDiff.getStmt_dx()) {
+      Stmt* Reverse = clad_compat::IfStmt_Create(
+          m_Context, noLoc, If->isConstexpr(), initResult.getStmt_dx(),
+          condVarClone, reverseCond, noLoc, noLoc, thenDiff.getStmt_dx(), noLoc,
+          elseDiff.getStmt_dx());
+      addToCurrentBlock(Reverse, direction::reverse);
+    }
+
     CompoundStmt* ForwardBlock = endBlock(direction::forward);
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
     endScope();
@@ -1043,9 +1042,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // FIXME: for now we assume that cond has no differentiable effects,
     // but it is not generally true, e.g. for (...; (x = y); ...)...
-    StmtDiff cond;
-    if (FS->getCond())
-      cond = Visit(FS->getCond());
+    StmtDiff condDiff;
+    StmtDiff condExprDiff;
+    StmtDiff condDiffOuter;
+    StmtDiff condExprDiffOuter;
+    if (FS->getCond()) {
+      std::tie(condDiff, condExprDiff) = DifferentiateSingleExpr(FS->getCond());
+      std::tie(condDiffOuter, condExprDiffOuter) =
+          DifferentiateSingleExpr(FS->getCond());
+    }
+
     const auto* IDRE = dyn_cast<DeclRefExpr>(FS->getInc());
     const Expr* inc = IDRE ? Visit(FS->getInc()).getExpr() : FS->getInc();
 
@@ -1084,16 +1090,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     const Stmt* body = FS->getBody();
-    StmtDiff BodyDiff = DifferentiateLoopBody(body, loopCounter,
-                                              condVarRes.getStmt_dx(),
-                                              incDiff.getStmt_dx(),
-                                              /*isForLoop=*/true);
+    StmtDiff BodyDiff =
+        DifferentiateLoopBody(body, loopCounter, condVarRes.getStmt_dx(),
+                              incDiff.getStmt_dx(), &condDiff,
+                              /*isForLoop=*/true);
 
     /// FIXME: This part in necessary to replace local variables inside loops
     /// with function globals and replace initializations with assignments.
     /// This is a temporary measure to avoid the bug that arises from
     /// overwriting local variables on different loop passes.
-    Expr* forwardCond = cond.getExpr();
+    Expr* forwardCond = condExprDiff.getExpr();
     /// If there is a declaration in the condition, `cond` will be
     /// a DeclRefExpr of the declared variable. There is no point in
     /// inserting it since condVarRes.getExpr() represents an assignment with
@@ -1126,10 +1132,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                             noLoc,
                                             noLoc,
                                             noLoc);
+    addToCurrentBlock(unwrapIfSingleStmt(condDiffOuter.getStmt()));
     addToCurrentBlock(Forward, direction::forward);
     Forward = endBlock(direction::forward);
     addToCurrentBlock(loopCounter.getPop(), direction::reverse);
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
+    addToCurrentBlock(condDiffOuter.getStmt_dx(), direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
     endScope();
@@ -2452,10 +2460,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } else if (opCode == BO_Comma) {
       auto* zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      Ldiff = Visit(L, zero);
       Rdiff = Visit(R, dfdx());
+      Ldiff = Visit(L, zero);
       valueForRevPass = Ldiff.getRevSweepAsExpr();
       ResultRef = Ldiff.getExpr();
+    } else if (opCode == BO_LAnd) {
+      StmtDiff BinOpClone = Clone(BinOp);
+      auto* IfStmt =
+          clad_compat::IfStmt_Create(m_Context, noLoc, false, nullptr, nullptr,
+                                     L, noLoc, noLoc, R, noLoc, nullptr);
+
+      StmtDiff IfStmtDiff = VisitIfStmt(IfStmt);
+      addToCurrentBlock(unwrapIfSingleStmt(IfStmtDiff.getStmt()));
+      addToCurrentBlock(unwrapIfSingleStmt(IfStmtDiff.getStmt_dx()),
+                        direction::reverse);
+      return BinOpClone;
     } else {
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
@@ -3474,11 +3493,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {endBlock(direction::forward), endBlock(direction::reverse)};
   }
 
-  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(const Stmt* body,
-                                                     LoopCounter& loopCounter,
-                                                     Stmt* condVarDiff,
-                                                     Stmt* forLoopIncDiff,
-                                                     bool isForLoop) {
+  StmtDiff ReverseModeVisitor::DifferentiateLoopBody(
+      const Stmt* body, LoopCounter& loopCounter, Stmt* condVarDiff,
+      Stmt* forLoopIncDiff, StmtDiff* condDiff, bool isForLoop) {
     Expr* counterIncrement = loopCounter.getCounterIncrement();
     auto* activeBreakContHandler = PushBreakContStmtHandler();
     activeBreakContHandler->BeginCFSwitchStmtScope();
@@ -3525,6 +3542,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             m_Context, bodyDiff.getStmt_dx(), forLoopIncDiff));
       } else {
         bodyDiff.updateStmtDx(forLoopIncDiff);
+      }
+    }
+
+    if (condDiff && unwrapIfSingleStmt(condDiff->getStmt_dx())) {
+      if (bodyDiff.getStmt_dx()) {
+        bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+            m_Context, bodyDiff.getStmt_dx(),
+            unwrapIfSingleStmt(condDiff->getStmt_dx())));
+      } else {
+        bodyDiff.updateStmtDx(unwrapIfSingleStmt(condDiff->getStmt_dx()));
+      }
+    }
+
+    if (condDiff && unwrapIfSingleStmt(condDiff->getStmt())) {
+      if (bodyDiff.getStmt()) {
+        bodyDiff.updateStmt(utils::PrependAndCreateCompoundStmt(
+            m_Context, bodyDiff.getStmt(),
+            unwrapIfSingleStmt(condDiff->getStmt())));
+      } else {
+        bodyDiff.updateStmt(unwrapIfSingleStmt(condDiff->getStmt()));
       }
     }
 
