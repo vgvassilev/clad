@@ -268,3 +268,46 @@ Now, to ssh into the GitHub runner do, simply do::
   ssh SSH_KEY
 
 No username or password is required.
+
+Debugging x86 builds locally
+============================
+
+It is possible to use a local namespace container using ``systemd-nspawn``.
+In order to replicate the CI environment as closely as possible it is recommended to use
+an Alpine mini root filesystem, which can be downloaded from `Alpine Downloads <https://alpinelinux.org/downloads/>`_.
+After downloading, the container can be set up in the ``~/alpine32/`` directory with the
+following commands:
+
+.. code-block:: sh
+
+   mkdir ~/alpine32/
+   tar -C ~/alpine32/ -xpf alpine-minirootfs-*.tar.gz
+
+A shell inside the container can be created with:
+
+.. code-block:: sh
+
+   sudo systemd-nspawn --personality=x86 -D ~/alpine32/
+
+When in the container the neccessary tools can be installed with:
+
+.. code-block:: sh
+
+   apk add llvm llvm-dev llvm-gtest llvm-static clang clang-dev clang-static make cmake git
+
+Then clad can be built:
+
+.. code-block:: sh
+
+   git clone https://github.com/vgvassilev/clad.git
+   cd clad/
+   mkdir build/ && cd build/
+   cmake -DLLVM_EXTERNAL_LIT="$(which lit)" ../
+   make -j$(nproc --all) clad
+
+If debugging it could be useful to add ``-DCMAKE_BUILD_TYPE=Debug`` to the ``cmake`` command
+and specifying the ``check-clad`` target when running ``make`` in order to also run the tests.
+
+*Note:* LLDB can't run any processes on x86 [#lldb-x86-bug]_, but GDB can be used instead.
+
+.. [#lldb-x86-bug] https://bugs.llvm.org/show_bug.cgi?id=45852
