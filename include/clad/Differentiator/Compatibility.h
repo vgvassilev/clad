@@ -21,6 +21,16 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+
+//Clang 18 endswith->ends_with
+//and starstwith->starts_with
+
+#if LLVM_VERSION_MAJOR < 18
+#define starts_with startswith
+#define ends_with startswith
+#endif
+
+
 // Compatibility helper function for creation CompoundStmt.
 // Clang 15 and above use a extra param FPFeatures in CompoundStmt::Create.
 
