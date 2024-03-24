@@ -353,8 +353,9 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
      
   #else
   //FIXME: Know last argument of UnresolvedLookupExpr::Create needs to be 
-  //bool clang-18 onwards, but unsure what it should be.
-  bool KnownDependent;
+  //bool clang-18 onwards, but unsure what it should be. Set to false for testing 
+  //until set properly
+  bool KnownDependent=false;
   Stmt* result = UnresolvedLookupExpr::Create(Ctx,
                                               Node->getNamingClass(),
                                               Node->getQualifierLoc(),
