@@ -1,5 +1,6 @@
 channels:
   - conda-forge
 dependencies:
-  - clad
+  - clangdev=17
+  - clad=1.4
   - xeus-cling
