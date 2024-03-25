@@ -21,7 +21,7 @@ described first.
 External Dependencies
 ---------------------
 
-* Clad now works with clang-7 to clang-17
+* Clad now works with clang-8 to clang-18
 
 
 Forward Mode & Reverse Mode
