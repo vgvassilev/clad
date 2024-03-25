@@ -3,3 +3,4 @@ channels:
 dependencies:
   - clad
   - xeus-cpp
+  - clang=17
