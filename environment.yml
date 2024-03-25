@@ -1,5 +1,5 @@
 channels:
   - conda-forge
 dependencies:
-  - clangdev=17
+  - clangdev=10
   - clad
