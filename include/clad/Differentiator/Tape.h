@@ -114,34 +114,33 @@ namespace clad {
           T(std::move(*first));
       }
     }
-    /// Initial capacity (allocated whenever a value is pushed into empty tape).
+    
+    // Slab struct to store the elements. Contains the pointer to the next slab
+    template <typename SlabT>
+    struct Slab {
+	  std::array<SlabT, 32> elements; // can store 32 elements
+	  std::unique_ptr<Slab<SlabT>> nextSlab;
+    };
     constexpr static std::size_t _init_capacity = 32;
     CUDA_HOST_DEVICE void grow() {
-      // If empty, use initial capacity.
-      if (!_capacity)
-        _capacity = _init_capacity;
-      else
-        // Double the capacity on each reallocation.
-        _capacity *= 2;
-      T* new_data = AllocateRawStorage(_capacity);
+	  std::unique_ptr<Slab<SlabT>> newSlab = std::make_unique<Slab<SlabT>>();
+      newSlab->nextSlab = nullptr;
 
-      if (!new_data) {
-        // clean up the memory mess just in case!
-        destroy(begin(), end());
-        printf("Allocation failure during tape resize! Aborting.\n");
-        trap(EXIT_FAILURE);
+      if (!_capacity) {
+        // the Tape is empty and we can update
+        // the _data pointer to the newly allocated slab.
+        _data = newSlab;
+      } else {
+        // find the last slab by iterating the chain of slabs
+        auto* currentSlab = static_cast<Slab<SlabT>*>(_data);
+        while(currentSlab->nextSlab != nullptr) {
+          currentSlab = currentSlab->nextSlab;
+        }
+        // update pointer to the newly allocated slab
+        currentSlab->nextSlab = newSlab;
       }
-
-      // Move values from old storage to the new storage. Should call move
-      // constructors on non-trivial types, otherwise is expected to use
-      // memcpy/memmove.
-      MoveData(begin(), end(), new_data);
-      // Destroy all values in the old storage.
-      destroy(begin(), end());
-      // delete the old data here to make sure we do not leak anything.
-      ::operator delete(const_cast<void*>(
-            static_cast<const volatile void*>(_data)));
-      _data = new_data;
+        // Double the capacity on each slab addition
+        _capacity *= 2;
     }
 
     template <typename It>
