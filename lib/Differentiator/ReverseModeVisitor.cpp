@@ -3982,8 +3982,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
         const CXXRecordDecl* RD = MD->getParent();
         if (MD->isInstance() && !RD->isLambda()) {
-          QualType thisType =
-              clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+          QualType thisType =  MD->getThisType();
           paramTypes.push_back(
               GetParameterDerivativeType(effectiveReturnType, thisType));
         }

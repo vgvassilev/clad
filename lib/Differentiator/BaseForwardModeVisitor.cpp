@@ -268,7 +268,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
     if (MD->isInstance() && !MD->getParent()->isLambda()) {
       QualType thisObjectType =
           clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
-      QualType thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+      QualType thisType = MD->getThisType();
       // Here we are effectively doing:
       // ```
       // Class _d_this_obj;
@@ -405,7 +405,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // derivative of `this` pointer with respect to the independent parameter.
   if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
     if (MD->isInstance()) {
-      QualType thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+      QualType thisType = MD->getThisType();
       derivedParamTypes.push_back(thisType);
     }
   }
@@ -447,7 +447,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // `this` pointer with respect to the independent parameter.
   if (const auto* MFD = dyn_cast<CXXMethodDecl>(FD)) {
     if (MFD->isInstance()) {
-      auto thisType = clad_compat::CXXMethodDecl_getThisType(m_Sema, MFD);
+      auto thisType = MFD->getThisType(;
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier("_d_this");
       auto* derivedPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
                                                  derivedPVDII, thisType);
