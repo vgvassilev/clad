@@ -444,7 +444,7 @@ Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
   return result;
 }
 
-DEFINE_CLONE_STMT_CO(ReturnStmt, (Ctx, Node->getReturnLoc(), Clone(Node->getRetValue()), 0))
+DEFINE_CLONE_STMT_CO(ReturnStmt, (Ctx, Node->getReturnLoc(), Clone(Node->getRetValue()), nullptr))
 DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
 DEFINE_CLONE_STMT_CO(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc() CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams))
