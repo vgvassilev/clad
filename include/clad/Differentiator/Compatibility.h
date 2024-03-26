@@ -277,19 +277,7 @@ static inline void ExprSetDeps(Expr* result, Expr* Node) {
    #define CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams ,Node->getLParenLoc(),Node->getRParenLoc()
 #endif
 
-// Compatibility helper function for creation CXXOperatorCallExpr. 
 
-static inline CXXOperatorCallExpr* CXXOperatorCallExpr_Create(ASTContext &Ctx,
-   OverloadedOperatorKind OpKind, Expr *Fn, ArrayRef<Expr *> Args, QualType Ty,
-   ExprValueKind VK, SourceLocation OperatorLoc, CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsOverride FPFeatures
-   CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsPar
-   )
-{
-   return CXXOperatorCallExpr::Create(Ctx, OpKind, Fn, Args, Ty, VK, OperatorLoc, FPFeatures
-   CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse
-   );
-
-}
 
 
 // Compatibility helper function for creation CXXMemberCallExpr.

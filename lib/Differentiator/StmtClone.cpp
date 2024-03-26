@@ -359,11 +359,10 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   for (Expr* arg : Node->arguments()) {
     clonedArgs.push_back(Clone(arg));
   }
-  CXXOperatorCallExpr* result = clad_compat::CXXOperatorCallExpr_Create(
-      Ctx, Node->getOperator(), Clone(Node->getCallee()), clonedArgs,
-      CloneType(Node->getType()), Node->getValueKind(), Node->getRParenLoc(),
-      Node->getFPFeatures()
-          CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParams);
+  CXXOperatorCallExpr* result = CXXOperatorCallExpr::Create(Ctx, Node->getOperator(), Clone(Node->getCallee()), clonedArgs, CloneType(Node->getType()), Node->getValueKind(), Node->getRParenLoc(), Node->getFPFeatures()
+   CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse
+   );
+
   //###  result->setNumArgs(Ctx, Node->getNumArgs());
   result->setNumArgsUnsafe(Node->getNumArgs());
   for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
