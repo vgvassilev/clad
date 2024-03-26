@@ -452,11 +452,7 @@ namespace clad {
 
     // Create elaborated type with namespace specifier,
     // i.e. class<T> -> clad::class<T>
-    #if CLANG_VERSION_MAJOR < 18
-      return m_Context.getElaboratedType(ETK_None, NS, TT);
-    #else
-      return m_Context.getElaboratedType(ElaboratedTypeKeyword::None, NS, TT);
-    #endif
+      return m_Context.getElaboratedType(ElaboratedTypeKeyword_None, NS, TT);
   }
 
   QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,

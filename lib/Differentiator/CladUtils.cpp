@@ -166,12 +166,7 @@ namespace clad {
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
         NestedNameSpecifier* NS = CSS.getScopeRep();
         if (auto* Prefix = NS->getPrefix())
-          //clang-18 use ElaboratedTypeKeyword::None instead of ETK_None
-          #if CLANG_VERSION_MAJOR < 18
-            return C.getElaboratedType(ETK_None, Prefix, QT);
-          #else
-            return C.getElaboratedType(ElaboratedTypeKeyword::None, Prefix, QT);
-          #endif
+            return C.getElaboratedType(ElaboratedTypeKeyword_None, Prefix, QT);
       }
       return QT;
     }

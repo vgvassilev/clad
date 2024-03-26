@@ -22,6 +22,14 @@ using namespace clang;
 using namespace llvm;
 
 
+//Clang 18 ETK_None -> ElaboratedTypeKeyword::None
+
+#if LLVM_VERSION_MAJOR < 18
+#define ElaboratedTypeKeyword_None ETK_None
+#else
+#define ElaboratedTypeKeyword_None ElaboratedTypeKeyword::None
+#endif
+
 //Clang 18 endswith->ends_with
 //and starstwith->starts_with
 
