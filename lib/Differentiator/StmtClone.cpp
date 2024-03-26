@@ -337,8 +337,7 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
   TemplateArgumentListInfo TemplateArgs;
   if (Node->hasExplicitTemplateArgs())
     Node->copyTemplateArgumentsInto(TemplateArgs);
-  #if CLANG_VERSION_MAJOR < 18
-    Stmt* result = UnresolvedLookupExpr::Create(Ctx,
+    Stmt* result = clad_compat::UnresolvedLookupExpr_Create(Ctx,
                                               Node->getNamingClass(),
                                               Node->getQualifierLoc(),
                                               Node->getTemplateKeywordLoc(),
@@ -351,25 +350,7 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
                                               Node->decls_end()
                                               );
      
-  #else
-  //FIXME: Know last argument of UnresolvedLookupExpr::Create needs to be 
-  //bool clang-18 onwards, but unsure what it should be. Set to false for testing 
-  //until set properly
-  bool KnownDependent=false;
-  Stmt* result = UnresolvedLookupExpr::Create(Ctx,
-                                              Node->getNamingClass(),
-                                              Node->getQualifierLoc(),
-                                              Node->getTemplateKeywordLoc(),
-                                              Node->getNameInfo(),
-                                              Node->requiresADL(),
-                                              // They get copied again by
-                                              // OverloadExpr, so we are safe.
-                                              &TemplateArgs,
-                                              Node->decls_begin(),
-                                              Node->decls_end(),
-                                              KnownDependent
-                                              );
-  #endif
+ 
   return result;
 }
 

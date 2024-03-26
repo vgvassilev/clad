@@ -21,6 +21,54 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+// Compatibility helper function for creation UnresolvedLookupExpr.
+// Clang-18 extra argument knowndependent.
+//FIXME: Knowndependent set to false temporarily until known value found for initialisation.
+
+static inline Stmt* UnresolvedLookupExpr_Create(const ASTContext &Ctx, 
+                                                CXXRecordDecl *NamingClass, 
+                                                NestedNameSpecifierLoc QualifierLoc, 
+                                                SourceLocation TemplateKWLoc, 
+                                                const DeclarationNameInfo &NameInfo, 
+                                                bool RequiresADL, 
+                                                const TemplateArgumentListInfo *Args, 
+                                                UnresolvedSetIterator Begin, 
+                                                UnresolvedSetIterator End
+                                              )
+{
+
+  #if CLANG_VERSION_MAJOR < 18
+   return UnresolvedLookupExpr::Create(Ctx,
+                                       NamingClass,
+                                       QualifierLoc,
+                                       TemplateKWLoc,
+                                       NameInfo,
+                                       RequiresADL,
+                                       // They get copied again by
+                                       // OverloadExpr, so we are safe.
+                                       Args,
+                                       Begin,
+                                       End
+                                       );
+     
+  #else
+   bool KnownDependent=false;
+   return UnresolvedLookupExpr::Create(Ctx,
+                                       NamingClass,
+                                       QualifierLoc,
+                                       TemplateKWLoc,
+                                       NameInfo,
+                                       RequiresADL,
+                                       // They get copied again by
+                                       // OverloadExpr, so we are safe.
+                                       Args,
+                                       Begin,
+                                       End
+                                       KnownDependent
+                                       );
+  #endif
+
+}
 
 //Clang 18 ETK_None -> ElaboratedTypeKeyword::None
 
