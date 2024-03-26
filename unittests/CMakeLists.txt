@@ -36,5 +36,7 @@ add_subdirectory(Basic)
 
 find_package(Kokkos)
 if (Kokkos_FOUND)
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
   add_subdirectory(Kokkos)
 endif(Kokkos_FOUND)
