@@ -447,7 +447,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // `this` pointer with respect to the independent parameter.
   if (const auto* MFD = dyn_cast<CXXMethodDecl>(FD)) {
     if (MFD->isInstance()) {
-      auto thisType = MFD->getThisType(;
+      auto thisType = MFD->getThisType();
       IdentifierInfo* derivedPVDII = CreateUniqueIdentifier("_d_this");
       auto* derivedPVD = utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext,
                                                  derivedPVDII, thisType);
