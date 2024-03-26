@@ -50,7 +50,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 #define DEFINE_CLONE_EXPR_CO(CLASS, CTORARGS)           \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
-  CLASS* result = (CLASS::Create CTORARGS);             \
+  (CLASS)* result = (CLASS::Create CTORARGS);             \
   clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
