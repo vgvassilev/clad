@@ -359,6 +359,7 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
   for (Expr* arg : Node->arguments()) {
     clonedArgs.push_back(Clone(arg));
   }
+  CallExpr::ADLCallKind UsesADL = CallExpr::NotADL;
   CXXOperatorCallExpr* result = CXXOperatorCallExpr::Create(Ctx, Node->getOperator(), Clone(Node->getCallee()), clonedArgs, CloneType(Node->getType()), Node->getValueKind(), Node->getRParenLoc(), Node->getFPFeatures()
    CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse
    );
