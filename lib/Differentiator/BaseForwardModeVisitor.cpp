@@ -1871,14 +1871,14 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
                             OpaquePtr<QualType>::make(TOE->getType()),
                             utils::GetValidSLoc(m_Sema), clonedArgs,
                             utils::GetValidSLoc(m_Sema)
-                                CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(TOE))
+                                , TOE->isListInitialization())
                         .get();
   Expr* derivedTOE = m_Sema
                          .ActOnCXXTypeConstructExpr(
                              OpaquePtr<QualType>::make(TOE->getType()),
                              utils::GetValidSLoc(m_Sema), derivedArgs,
                              utils::GetValidSLoc(m_Sema)
-                                 CLAD_COMPAT_IS_LIST_INITIALIZATION_PARAM(TOE))
+                                 ,TOE->isListInitialization())
                          .get();
   return {clonedTOE, derivedTOE};
 }

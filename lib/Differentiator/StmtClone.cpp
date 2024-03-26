@@ -28,7 +28,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 #define DEFINE_CLONE_STMT_CO(CLASS, CTORARGS) \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)  \
 {                                             \
-  return CLAD_COMPAT_CREATE(CLASS, CTORARGS); \
+  return (CLASS::Create CTORARGS); \
 }
 
 #define DEFINE_CLONE_EXPR(CLASS, CTORARGS)              \
@@ -50,7 +50,7 @@ Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 #define DEFINE_CLONE_EXPR_CO(CLASS, CTORARGS)           \
 Stmt* StmtClone::Visit ## CLASS(CLASS *Node)            \
 {                                                       \
-  CLASS* result = CLAD_COMPAT_CREATE(CLASS, CTORARGS);  \
+  CLASS* result = (CLASS::Create CTORARGS);             \
   clad_compat::ExprSetDeps(result, Node);               \
   return result;                                        \
 }
@@ -74,7 +74,7 @@ DEFINE_CLONE_EXPR_CO11(
     (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getSubExpr()),
      Node->getOpcode(), CloneType(Node->getType()), Node->getValueKind(),
      Node->getObjectKind(),
-     Node->getOperatorLoc() CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams
+     Node->getOperatorLoc() , Node->canOverflow()
          CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams))
 Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   TemplateArgumentListInfo TAListInfo;
@@ -91,7 +91,7 @@ DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
                     Node->getLocation()))
 DEFINE_CLONE_EXPR_CO(PredefinedExpr,
-                     (CLAD_COMPAT_CLANG8_Ctx_ExtraParams Node->getLocation(),
+                     (Ctx, Node->getLocation(),
                       CloneType(Node->getType()),
                       Node->getIdentKind()
                           CLAD_COMPAT_CLANG17_IsTransparent(Node),
@@ -444,7 +444,7 @@ Stmt* StmtClone::VisitSwitchStmt(SwitchStmt* Node) {
   return result;
 }
 
-DEFINE_CLONE_STMT_CO(ReturnStmt, (CLAD_COMPAT_CLANG8_Ctx_ExtraParams Node->getReturnLoc(), Clone(Node->getRetValue()), 0))
+DEFINE_CLONE_STMT_CO(ReturnStmt, (Ctx, Node->getReturnLoc(), Clone(Node->getRetValue()), 0))
 DEFINE_CLONE_STMT(DefaultStmt, (Node->getDefaultLoc(), Node->getColonLoc(), Clone(Node->getSubStmt())))
 DEFINE_CLONE_STMT(GotoStmt, (Node->getLabel(), Node->getGotoLoc(), Node->getLabelLoc()))
 DEFINE_CLONE_STMT_CO(WhileStmt, (Ctx, CloneDeclOrNull(Node->getConditionVariable()), Clone(Node->getCond()), Clone(Node->getBody()), Node->getWhileLoc() CLAD_COMPAT_CLANG11_WhileStmt_ExtraParams))

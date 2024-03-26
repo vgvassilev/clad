@@ -81,7 +81,6 @@ NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
 }
 #endif
 
-#define CLAD_COMPAT_CLANG7_UnaryOperator_ExtraParams , Node->canOverflow()
   
 // Clang 8 change E->EvaluateAsInt(APSInt int, context) ===> E->EvaluateAsInt(Expr::EvalResult res, context)
 
@@ -134,9 +133,7 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
 #endif
 }
 
-// Clang 8 change <NAME>Stmt(...) constructor to private ===> Use <NAME>Stmt::Create(...)
 
-#define CLAD_COMPAT_CREATE(CLASS, CTORARGS) (CLASS::Create CTORARGS)
 
 // Compatibility helper function for creation CallExpr.
 // Clang 12 and above use one extra param.
@@ -276,11 +273,6 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
    return SwitchStmt::Create(Ctx, Init, Var, Cond, LParenLoc, RParenLoc);
 #endif
 }
-
-
-// Clang 8 add one extra param (Ctx) in some constructors.
-
-#define CLAD_COMPAT_CLANG8_Ctx_ExtraParams Ctx,
 
 // Compatibility helper function for getConstexprKind(). Clang 9
 
