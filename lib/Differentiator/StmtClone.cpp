@@ -337,7 +337,7 @@ Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
   TemplateArgumentListInfo TemplateArgs;
   if (Node->hasExplicitTemplateArgs())
     Node->copyTemplateArgumentsInto(TemplateArgs);
-    Stmt* result = clad_compat::UnresolvedLookupExpr_Create(Ctx,
+  Stmt* result = clad_compat::UnresolvedLookupExpr_Create(Ctx,
                                               Node->getNamingClass(),
                                               Node->getQualifierLoc(),
                                               Node->getTemplateKeywordLoc(),
