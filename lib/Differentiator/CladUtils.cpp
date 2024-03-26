@@ -269,21 +269,12 @@ namespace clad {
       // Copied and adapted from clang::Sema::ActOnStringLiteral.
       QualType CharTyConst = C.CharTy.withConst();
       QualType
-      #if CLANG_VERSION_MAJOR < 18
           StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
                                                     llvm::APInt(/*numBits=*/32,
                                                                 str.size() + 1),
                                                     /*SizeExpr=*/nullptr,
-                                                    /*ASM=*/ArrayType::Normal,
+                                                    /*ASM=*/ArrayType_Normal,
                                                     /*IndexTypeQuals*/ 0);
-      #else
-          StrTy = clad_compat::getConstantArrayType(C, CharTyConst,
-                                                    llvm::APInt(/*numBits=*/32,
-                                                                str.size() + 1),
-                                                    /*SizeExpr=*/nullptr,
-                                                    /*ASM=*/ArraySizeModifier::Normal,
-                                                    /*IndexTypeQuals*/ 0);
-      #endif
       StringLiteral* SL = StringLiteral::Create(C, str,
                                                 /*Kind=*/clad_compat::StringKind_Ordinary,
                                                 /*Pascal=*/false, StrTy, noLoc);

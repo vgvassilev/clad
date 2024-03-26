@@ -21,6 +21,14 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+//Clang 18 ArrayType::Normal -> ArraySizeModifier::Normal
+
+#if LLVM_VERSION_MAJOR < 18
+#define ArrayType_Normal ArrayType::Normal
+#else
+#define ArrayType_Normal ArraySizeModifier::Normal
+#endif
+
 // Compatibility helper function for creation UnresolvedLookupExpr.
 // Clang-18 extra argument knowndependent.
 //FIXME: Knowndependent set to false temporarily until known value found for initialisation.
@@ -63,7 +71,7 @@ static inline Stmt* UnresolvedLookupExpr_Create(const ASTContext &Ctx,
                                        // OverloadExpr, so we are safe.
                                        Args,
                                        Begin,
-                                       End
+                                       End,
                                        KnownDependent
                                        );
   #endif
