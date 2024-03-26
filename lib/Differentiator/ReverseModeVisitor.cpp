@@ -3565,8 +3565,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* lhsClone = (CS->getLHS() ? Clone(CS->getLHS()) : nullptr);
     Expr* rhsClone = (CS->getRHS() ? Clone(CS->getRHS()) : nullptr);
 
-    auto* newSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(), lhsClone,
-                                               rhsClone, noLoc, noLoc, noLoc);
+    auto* newSC = CaseStmt::Create(const_cast<ASTContext&>(m_Sema.getASTContext()), lhsClone, rhsClone, noLoc, noLoc, noLoc);
 
     Expr* ifCond = BuildOp(BinaryOperatorKind::BO_EQ, newSC->getLHS(),
                            SSData->switchStmtCond);
@@ -3748,8 +3747,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   CaseStmt* ReverseModeVisitor::BreakContStmtHandler::GetNextCFCaseStmt() {
     ++m_CaseCounter;
     auto* counterLiteral = CreateSizeTLiteralExpr(m_CaseCounter);
-    CaseStmt* CS = clad_compat::CaseStmt_Create(m_RMV.m_Context, counterLiteral,
-                                                nullptr, noLoc, noLoc, noLoc);
+    CaseStmt* CS = CaseStmt::Create(const_cast<ASTContext&>(m_RMV.m_Context), counterLiteral, nullptr, noLoc, noLoc, noLoc);
 
     // Initialise switch case statements with null statement because it is
     // necessary for switch case statements to have a substatement but it

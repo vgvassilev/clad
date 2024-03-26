@@ -1726,8 +1726,8 @@ BaseForwardModeVisitor::DeriveSwitchStmtBodyHelper(const Stmt* stmt,
           (newCaseSC->getLHS() ? Clone(newCaseSC->getLHS()) : nullptr);
       Expr* rhsClone =
           (newCaseSC->getRHS() ? Clone(newCaseSC->getRHS()) : nullptr);
-      newActiveSC = clad_compat::CaseStmt_Create(
-          m_Sema.getASTContext(), lhsClone, rhsClone, noLoc, noLoc, noLoc);
+      newActiveSC = CaseStmt::Create(const_cast<ASTContext&>(m_Sema.getASTContext()), lhsClone, rhsClone, noLoc, noLoc, noLoc);
+      
     } else if (isa<DefaultStmt>(SC)) {
       newActiveSC =
           new (m_Sema.getASTContext()) DefaultStmt(noLoc, noLoc, nullptr);

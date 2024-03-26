@@ -300,17 +300,6 @@ static inline CXXMemberCallExpr* CXXMemberCallExpr_Create(ASTContext &Ctx,
 #endif
 
 
-// Compatibility helper function for creation CaseStmt. 
-
-static inline CaseStmt* CaseStmt_Create(ASTContext &Ctx,
-   Expr *lhs, Expr *rhs, SourceLocation caseLoc, SourceLocation ellipsisLoc, SourceLocation colonLoc)
-{
-
-   return CaseStmt::Create(const_cast<ASTContext&>(Ctx), lhs, rhs, caseLoc, ellipsisLoc, colonLoc);
-
-}
-
-
 // Compatibility helper function for creation SwitchStmt.
 // Clang 12 and above use two extra params.
 

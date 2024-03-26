@@ -405,11 +405,7 @@ Stmt* StmtClone::VisitShuffleVectorExpr(ShuffleVectorExpr* Node) {
 }
 
 Stmt* StmtClone::VisitCaseStmt(CaseStmt* Node) {
-  CaseStmt* result = clad_compat::CaseStmt_Create(Ctx, Clone(Node->getLHS()),
-                                        Clone(Node->getRHS()),
-                                        Node->getCaseLoc(),
-                                        Node->getEllipsisLoc(),
-                                        Node->getColonLoc());
+  CaseStmt* result = CaseStmt::Create(const_cast<ASTContext&>(Ctx), Clone(Node->getLHS()), Clone(Node->getRHS()), Node->getCaseLoc(), Node->getEllipsisLoc(), Node->getColonLoc());
   result->setSubStmt(Clone(Node->getSubStmt()));
   return result;
 }
