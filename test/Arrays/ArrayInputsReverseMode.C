@@ -4,7 +4,6 @@
 // RUN: ./ArrayInputsReverseMode.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: asserts
 
 #include "clad/Differentiator/Differentiator.h"
 
