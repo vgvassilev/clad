@@ -224,7 +224,7 @@ double func4(double x) {
 //CHECK-NEXT: }
 
 double func5(int k) {
-  int n = k;
+  const int n = 10;
   double arr[n];
   for (int i = 0; i < n; i++) {
     arr[i] = k;
@@ -238,6 +238,7 @@ double func5(int k) {
 
 //CHECK: void func5_grad(int k, int *_d_k) {
 //CHECK-NEXT:     int _d_n = 0;
+//CHECK-NEXT:     double _d_arr[10] = {0};
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
@@ -247,10 +248,8 @@ double func5(int k) {
 //CHECK-NEXT:     int _d_i0 = 0;
 //CHECK-NEXT:     int i0 = 0;
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
-//CHECK-NEXT:     int n = k;
-//CHECK-NEXT:     double _d_arr[n];
-//CHECK-NEXT:     clad::zero_init(_d_arr, n);
-//CHECK-NEXT:     double arr[n];
+//CHECK-NEXT:     int n = 10;
+//CHECK-NEXT:     double arr[10];
 //CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
@@ -286,7 +285,6 @@ double func5(int k) {
 //CHECK-NEXT:             *_d_k += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     *_d_k += _d_n;
 //CHECK-NEXT: }
 
 double func6(double seed) {
