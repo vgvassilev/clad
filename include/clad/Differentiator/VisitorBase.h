@@ -191,8 +191,8 @@ namespace clad {
       V.beginBlock();
       func();
       clang::CompoundStmt* body = V.endBlock();
-      clang::Expr* lambda =
-          S.ActOnLambdaExpr(noLoc, body, V.getCurrentScope()).get();
+      clang::Expr* lambda = S.ActOnLambdaExpr(noLoc, body/*,*/
+        CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(V)).get();
       V.endScope();
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();

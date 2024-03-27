@@ -2256,10 +2256,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           std::string DRE_str = DRE->getDecl()->getNameAsString();
 
           llvm::APSInt intIdx;
-          auto isIdxValid =
-              clad_compat::Expr_EvaluateAsInt(ASE->getIdx(), intIdx, m_Context);
+          Expr::EvalResult res;
+          Expr::SideEffectsKind AllowSideEffects = Expr::SideEffectsKind::SE_NoSideEffects;
+          auto isIdxValid = ASE->getIdx()->EvaluateAsInt(res, m_Context, AllowSideEffects);
+
 
           if (DRE_str == outputArrayStr && isIdxValid) {
+            intIdx=res.Val.getInt();
             if (isVectorValued) {
               outputArrayCursor = intIdx.getExtValue();
 
@@ -3436,8 +3439,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* lhsClone = (CS->getLHS() ? Clone(CS->getLHS()) : nullptr);
     Expr* rhsClone = (CS->getRHS() ? Clone(CS->getRHS()) : nullptr);
 
-    auto* newSC = clad_compat::CaseStmt_Create(m_Sema.getASTContext(), lhsClone,
-                                               rhsClone, noLoc, noLoc, noLoc);
+    auto* newSC = CaseStmt::Create(const_cast<ASTContext&>(m_Sema.getASTContext()), lhsClone, rhsClone, noLoc, noLoc, noLoc);
 
     Expr* ifCond = BuildOp(BinaryOperatorKind::BO_EQ, newSC->getLHS(),
                            SSData->switchStmtCond);
@@ -3619,8 +3621,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   CaseStmt* ReverseModeVisitor::BreakContStmtHandler::GetNextCFCaseStmt() {
     ++m_CaseCounter;
     auto* counterLiteral = CreateSizeTLiteralExpr(m_CaseCounter);
-    CaseStmt* CS = clad_compat::CaseStmt_Create(m_RMV.m_Context, counterLiteral,
-                                                nullptr, noLoc, noLoc, noLoc);
+    CaseStmt* CS = CaseStmt::Create(const_cast<ASTContext&>(m_RMV.m_Context), counterLiteral, nullptr, noLoc, noLoc, noLoc);
 
     // Initialise switch case statements with null statement because it is
     // necessary for switch case statements to have a substatement but it
@@ -3853,8 +3854,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
         const CXXRecordDecl* RD = MD->getParent();
         if (MD->isInstance() && !RD->isLambda()) {
-          QualType thisType =
-              clad_compat::CXXMethodDecl_getThisType(m_Sema, MD);
+          QualType thisType =  MD->getThisType();
           paramTypes.push_back(
               GetParameterDerivativeType(effectiveReturnType, thisType));
         }

@@ -166,7 +166,7 @@ namespace clad {
         utils::BuildNNS(semaRef, const_cast<clang::DeclContext*>(declContext), CSS);
         NestedNameSpecifier* NS = CSS.getScopeRep();
         if (auto* Prefix = NS->getPrefix())
-          return C.getElaboratedType(ETK_None, Prefix, QT);
+            return C.getElaboratedType(ElaboratedTypeKeyword_None, Prefix, QT);
       }
       return QT;
     }
@@ -273,7 +273,7 @@ namespace clad {
                                                     llvm::APInt(/*numBits=*/32,
                                                                 str.size() + 1),
                                                     /*SizeExpr=*/nullptr,
-                                                    /*ASM=*/ArrayType::Normal,
+                                                    /*ASM=*/ArrayType_Normal,
                                                     /*IndexTypeQuals*/ 0);
       StringLiteral* SL = StringLiteral::Create(C, str,
                                                 /*Kind=*/clad_compat::StringKind_Ordinary,

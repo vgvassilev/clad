@@ -41,7 +41,7 @@ namespace clad {
                                           llvm::APInt(/*numBits=*/32,
                                                       str.size() + 1),
                                           /*SizeExpr=*/nullptr,
-                                          /*ASM=*/ArrayType::Normal,
+                                          /*ASM=*/ArrayType_Normal,
                                           /*IndexTypeQuals*/ 0);
     const StringLiteral* SL =
         StringLiteral::Create(C, str, /*Kind=*/clad_compat::StringKind_Ordinary,
