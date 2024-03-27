@@ -21,6 +21,14 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+//clang-18 ActOnLambdaExpr got extra argument
+
+#if CLANG_VERSION_MAJOR > 17
+   #define CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(V) /**/
+#else
+   #define CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(V) ,(V).getCurrentScope()
+#endif 
+
 //Clang 18 ArrayType::Normal -> ArraySizeModifier::Normal
 
 #if LLVM_VERSION_MAJOR < 18

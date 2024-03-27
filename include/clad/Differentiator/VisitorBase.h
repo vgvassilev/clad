@@ -191,13 +191,8 @@ namespace clad {
       V.beginBlock();
       func();
       clang::CompoundStmt* body = V.endBlock();
-      #if CLANG_VERSION_MAJOR > 17
-        clang::Expr* lambda =
-            S.ActOnLambdaExpr(noLoc, body).get();
-      #else
-        clang::Expr* lambda =
-            S.ActOnLambdaExpr(noLoc, body, V.getCurrentScope()).get();
-      #endif // CLANG_VERSION_MAJOR > 17
+      clang::Expr* lambda = S.ActOnLambdaExpr(noLoc, body/*,*/
+        CLAD_COMPAT_CLANG17_ActOnLambdaExpr_getCurrentScope_ExtraParam(V)).get();
       V.endScope();
       return S.ActOnCallExpr(V.getCurrentScope(), lambda, noLoc, {}, noLoc)
           .get();
