@@ -107,7 +107,7 @@ float func3(float x, float y) {
 }
 
 //CHECK: void func3_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     clad::array<double> _d_arr({{3U|3UL}});
+//CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     double _t1;
 //CHECK-NEXT:     double _t2;

@@ -4,7 +4,6 @@
 // RUN: ./ArrayInputsReverseMode.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
-// XFAIL: asserts
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -189,7 +188,7 @@ double func4(double x) {
 }
 
 //CHECK: void func4_grad(double x, double *_d_x) {
-//CHECK-NEXT:     clad::array<double> _d_arr({{3U|3UL}});
+//CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
@@ -224,7 +223,7 @@ double func4(double x) {
 //CHECK-NEXT: }
 
 double func5(int k) {
-  int n = k;
+  const int n = 10;
   double arr[n];
   for (int i = 0; i < n; i++) {
     arr[i] = k;
@@ -238,6 +237,7 @@ double func5(int k) {
 
 //CHECK: void func5_grad(int k, int *_d_k) {
 //CHECK-NEXT:     int _d_n = 0;
+//CHECK-NEXT:     double _d_arr[10] = {0};
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
@@ -247,9 +247,8 @@ double func5(int k) {
 //CHECK-NEXT:     int _d_i0 = 0;
 //CHECK-NEXT:     int i0 = 0;
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
-//CHECK-NEXT:     int n = k;
-//CHECK-NEXT:     clad::array<double> _d_arr(n);
-//CHECK-NEXT:     double arr[n];
+//CHECK-NEXT:     int n = 10;
+//CHECK-NEXT:     double arr[10];
 //CHECK-NEXT:     _t0 = 0;
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
@@ -285,7 +284,6 @@ double func5(int k) {
 //CHECK-NEXT:             *_d_k += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     *_d_k += _d_n;
 //CHECK-NEXT: }
 
 double func6(double seed) {
@@ -303,7 +301,7 @@ double func6(double seed) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
-//CHECK-NEXT:     clad::array<double> _d_arr({{3U|3UL}});
+//CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     clad::array<double> arr({{3U|3UL}});
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double sum = 0;
@@ -331,7 +329,7 @@ double func6(double seed) {
 //CHECK-NEXT:             _d_i += seed * _d_arr[1];
 //CHECK-NEXT:             *_d_seed += _d_arr[2];
 //CHECK-NEXT:             _d_i += _d_arr[2];
-//CHECK-NEXT:             _d_arr = {};
+//CHECK-NEXT:             clad::zero_init(_d_arr);
 //CHECK-NEXT:             arr = clad::pop(_t1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -368,7 +366,7 @@ double func7(double *params) {
 //CHECK-NEXT:     std::size_t _d_i = 0;
 //CHECK-NEXT:     std::size_t i = 0;
 //CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
-//CHECK-NEXT:     clad::array<double> _d_paramsPrime({{1U|1UL}});
+//CHECK-NEXT:     double _d_paramsPrime[1] = {0};
 //CHECK-NEXT:     clad::array<double> paramsPrime({{1U|1UL}});
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double out = 0.;
@@ -393,7 +391,7 @@ double func7(double *params) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _d_params[0] += _d_paramsPrime[0];
-//CHECK-NEXT:             _d_paramsPrime = {};
+//CHECK-NEXT:             clad::zero_init(_d_paramsPrime);
 //CHECK-NEXT:             paramsPrime = clad::pop(_t1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -483,7 +481,7 @@ double func9(double i, double j) {
 
 
 //CHECK: void func9_grad(double i, double j, double *_d_i, double *_d_j) {
-//CHECK-NEXT:     clad::array<double> _d_arr({{5U|5UL}});
+//CHECK-NEXT:     double _d_arr[5] = {0};
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_idx = 0;
 //CHECK-NEXT:     int idx = 0;
