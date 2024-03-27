@@ -2531,9 +2531,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
-      Expr* zero =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      VDDerivedInit = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
+      if (!isa<VariableArrayType>(AT)) {
+        Expr* zero =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+        VDDerivedInit = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
+      }
       if (promoteToFnScope) {
         // If an array-type declaration is promoted to function global,
         // its type is changed for clad::array. In that case we should
@@ -2643,9 +2645,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       //   _d_localVar = 0;
       // }
       if (isInsideLoop) {
-        Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign,
-                                     BuildDeclRef(VDDerived),
-                                     getZeroInit(VDDerivedType));
+        Stmt* assignToZero = nullptr;
+        Expr* declRef = BuildDeclRef(VDDerived);
+        if (!isa<ArrayType>(VDDerivedType))
+          assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
+                                 getZeroInit(VDDerivedType));
+        else
+          assignToZero = GetCladZeroInit(declRef);
         addToCurrentBlock(assignToZero, direction::reverse);
       }
     } else if (isPointerType && VD->getInit()) {
@@ -2822,9 +2828,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
             }
             inits.push_back(assignment);
-            if (isa<ArrayType>(VD->getType())) {
+            if (auto* AT = dyn_cast<ArrayType>(VD->getType())) {
+              m_Sema.AddInitializerToDecl(
+                  decl, Clone(getArraySizeExpr(AT, m_Context, *this)), true);
               decl->setInitStyle(VarDecl::InitializationStyle::CallInit);
-              decl->setInit(Clone(VDDiff.getDecl_dx()->getInit()));
             } else {
               decl->setInit(getZeroInit(VD->getType()));
             }
@@ -2850,10 +2857,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(
           localDSDIff,
           clad::rmv::forward); // Doesnt work for arrays decl'd in loops.
+      for (Decl* decl : localDeclsDiff)
+        if (const auto* VAT =
+                dyn_cast<VariableArrayType>(cast<VarDecl>(decl)->getType())) {
+          std::array<Expr*, 2> args{};
+          args[0] = BuildDeclRef(cast<VarDecl>(decl));
+          args[1] = Clone(VAT->getSizeExpr());
+          Stmt* initCall = GetCladZeroInit(args);
+          addToCurrentBlock(initCall, direction::forward);
+        }
     }
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
       addToBlock(DSDiff, m_Globals);
+      for (Decl* decl : declsDiff)
+        if (const auto* VAT =
+                dyn_cast<VariableArrayType>(cast<VarDecl>(decl)->getType())) {
+          std::array<Expr*, 2> args{};
+          args[0] = BuildDeclRef(cast<VarDecl>(decl));
+          args[1] = Clone(VAT->getSizeExpr());
+          Stmt* initCall = GetCladZeroInit(args);
+          addToBlock(initCall, m_Globals);
+        }
     }
 
     if (m_ExternalSource) {
