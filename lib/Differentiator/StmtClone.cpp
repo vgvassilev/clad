@@ -74,7 +74,7 @@ DEFINE_CLONE_EXPR_CO11(
     (CLAD_COMPAT_CLANG11_Ctx_ExtraParams Clone(Node->getSubExpr()),
      Node->getOpcode(), CloneType(Node->getType()), Node->getValueKind(),
      Node->getObjectKind(),
-     Node->getOperatorLoc() , Node->canOverflow()
+     Node->getOperatorLoc(), Node->canOverflow()
          CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams))
 Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
   TemplateArgumentListInfo TAListInfo;
