@@ -816,4 +816,17 @@ namespace clad {
         derivedR = BuildArrayRefPtrRefExpr(derivedR);
     }
   }
+
+  Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
+    static clad_compat::llvm_Optional<LookupResult> Result{};
+    if (!Result)
+      Result = LookupCladTapeMethod("zero_init");
+    LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    auto* pushDRE =
+        m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
+    return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
+        .get();
+  }
 } // end namespace clad

@@ -2559,12 +2559,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // declarations don't have to be moved to the function global scope.
     bool promoteToFnScope = !getCurrentScope()->isFunctionScope() &&
                             m_Mode != DiffMode::reverse_mode_forward_pass;
-    auto VDDerivedType = ComputeAdjointType(VD->getType());
-    auto VDCloneType = CloneType(VD->getType());
+    QualType VDCloneType = CloneType(VD->getType());
+    QualType VDDerivedType = ComputeAdjointType(VDCloneType);
     // If the cloned declaration is moved to the function global scope,
     // change its type for the corresponding adjoint type.
-    if (promoteToFnScope)
+    if (promoteToFnScope) {
       VDCloneType = VDDerivedType;
+      if (isa<ArrayType>(VDCloneType) && !isa<IncompleteArrayType>(VDCloneType))
+        VDCloneType =
+            GetCladArrayOfType(m_Context.getBaseElementType(VDCloneType));
+    }
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VD->getType()->isPointerType();
@@ -2576,16 +2580,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
-      VDDerivedInit = getArraySizeExpr(AT, m_Context, *this);
+      if (!isa<VariableArrayType>(AT)) {
+        Expr* zero =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+        VDDerivedInit = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
+      }
+      if (promoteToFnScope) {
+        // If an array-type declaration is promoted to function global,
+        // its type is changed for clad::array. In that case we should
+        // initialize it with its size.
+        initDiff = getArraySizeExpr(AT, m_Context, *this);
+      }
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit, false,
-          nullptr, clang::VarDecl::InitializationStyle::CallInit);
-      // If an array-type declaration is promoted to function global,
-      // its type is changed for clad::array. In that case we should
-      // initialize it with its size the same way the derived variable
-      // is initialized.
-      if (promoteToFnScope)
-        initDiff = VDDerivedInit;
+          nullptr, VarDecl::InitializationStyle::CInit);
     } else {
       // If VD is a reference to a local variable, then the initial value is set
       // to the derived variable of the corresponding local variable.
@@ -2686,9 +2694,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       //   _d_localVar = 0;
       // }
       if (isInsideLoop) {
-        Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign,
-                                     BuildDeclRef(VDDerived),
-                                     getZeroInit(VDDerivedType));
+        Stmt* assignToZero = nullptr;
+        Expr* declRef = BuildDeclRef(VDDerived);
+        if (!isa<ArrayType>(VDDerivedType))
+          assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
+                                 getZeroInit(VDDerivedType));
+        else
+          assignToZero = GetCladZeroInit(declRef);
         addToCurrentBlock(assignToZero, direction::reverse);
       }
     } else if (isPointerType && VD->getInit()) {
@@ -2865,9 +2877,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
             }
             inits.push_back(assignment);
-            if (isa<ArrayType>(VD->getType())) {
+            if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
+              m_Sema.AddInitializerToDecl(
+                  decl, Clone(getArraySizeExpr(AT, m_Context, *this)), true);
               decl->setInitStyle(VarDecl::InitializationStyle::CallInit);
-              decl->setInit(Clone(VDDiff.getDecl_dx()->getInit()));
             } else {
               decl->setInit(getZeroInit(VD->getType()));
             }
@@ -2901,6 +2914,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(
           localDSDIff,
           clad::rmv::forward); // Doesnt work for arrays decl'd in loops.
+      for (Decl* decl : localDeclsDiff)
+        if (const auto* VAT =
+                dyn_cast<VariableArrayType>(cast<VarDecl>(decl)->getType())) {
+          std::array<Expr*, 2> args{};
+          args[0] = BuildDeclRef(cast<VarDecl>(decl));
+          args[1] = Clone(VAT->getSizeExpr());
+          Stmt* initCall = GetCladZeroInit(args);
+          addToCurrentBlock(initCall, direction::forward);
+        }
     }
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
@@ -2915,7 +2937,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // This part in necessary to replace local variables inside loops
     // with function globals and replace initializations with assignments.
     if (promoteToFnScope) {
-      addToBlock(DSClone, m_Globals);
+      // FIXME: We only need to produce separate decl stmts
+      // because arrays promoted to the function scope are
+      // turned into clad::array. This is done because of
+      // mixed declarations.
+      // e.g.
+      // double a, b[5];
+      // ->
+      // double a, b(5UL);
+      // when it should be
+      // double a;
+      // clad::array<double> b(5UL);
+      // If we remove the need for clad::array here,
+      // just add DSClone to the block.
+      for (Decl* decl : decls)
+        addToBlock(BuildDeclStmt(decl), m_Globals);
       Stmt* initAssignments = MakeCompoundStmt(inits);
       initAssignments = unwrapIfSingleStmt(initAssignments);
       return StmtDiff(initAssignments);
@@ -3869,11 +3905,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       QualType TValueType = utils::GetValueType(T);
       TValueType.removeLocalConst();
       return m_Context.getPointerType(TValueType);
-    }
-    if (isa<ArrayType>(T) && !isa<IncompleteArrayType>(T)) {
-      QualType adjointType =
-          GetCladArrayOfType(m_Context.getBaseElementType(T));
-      return adjointType;
     }
     T.removeLocalConst();
     return T;

@@ -469,6 +469,8 @@ namespace clad {
 
     clang::DeclRefExpr* GetCladTapePushDRE();
 
+    clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
+
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit
     /// conversions while assigning values to variables which are initialized
