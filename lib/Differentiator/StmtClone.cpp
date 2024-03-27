@@ -234,11 +234,8 @@ DEFINE_CLONE_EXPR(CXXScalarValueInitExpr,
 DEFINE_CLONE_EXPR(ExtVectorElementExpr, (Node->getType(), Node->getValueKind(), Clone(Node->getBase()), Node->getAccessor(), Node->getAccessorLoc()))
 DEFINE_CLONE_EXPR(CXXBoolLiteralExpr, (Node->getValue(), Node->getType(), Node->getSourceRange().getBegin()))
 DEFINE_CLONE_EXPR(CXXNullPtrLiteralExpr, (Node->getType(), Node->getSourceRange().getBegin()))
-#if CLANG_VERSION_MAJOR < 18
-   DEFINE_CLONE_EXPR(CXXThisExpr, (Node->getSourceRange().getBegin(), Node->getType(), Node->isImplicit()))
-#else
-   DEFINE_CREATE_EXPR(CXXThisExpr, (Ctx, Node->getSourceRange().getBegin(), Node->getType(), Node->isImplicit()))
-#endif
+
+CLAD_COMPAT_CLANG17_CXXThisExpr_ExtraParam Node->getSourceRange().getBegin(), Node->getType(), Node->isImplicit())) 
 
 DEFINE_CLONE_EXPR(CXXThrowExpr, (Clone(Node->getSubExpr()), Node->getType(), Node->getThrowLoc(), Node->isThrownVariableInScope()))
 #if CLANG_VERSION_MAJOR < 16

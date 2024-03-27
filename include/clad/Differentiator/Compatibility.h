@@ -21,6 +21,15 @@ namespace clad_compat {
 using namespace clang;
 using namespace llvm;
 
+
+//clang-18 CXXThisExpr got extra argument
+
+#if CLANG_VERSION_MAJOR > 17
+   #define CLAD_COMPAT_CLANG17_CXXThisExpr_ExtraParam DEFINE_CREATE_EXPR(CXXThisExpr, (Ctx,
+#else
+   #define CLAD_COMPAT_CLANG17_CXXThisExpr_ExtraParam DEFINE_CLONE_EXPR(CXXThisExpr, (
+#endif 
+
 //clang-18 ActOnLambdaExpr got extra argument
 
 #if CLANG_VERSION_MAJOR > 17
