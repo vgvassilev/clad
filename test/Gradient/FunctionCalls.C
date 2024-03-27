@@ -488,7 +488,7 @@ double fn13(double* x, const double* w) {
 }
 
 // CHECK: void fn13_grad_0(double *x, const double *w, double *_d_x) {
-// CHECK-NEXT:     clad::array<double> _d_wCopy({{2U|2UL}});
+// CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     std::size_t _d_i = 0;
 // CHECK-NEXT:     std::size_t i = 0;
@@ -502,7 +502,7 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
-// CHECK-NEXT:     multiply_pullback(x, wCopy + 1, 1, _d_x, _d_wCopy.ptr_ref() + 1);
+// CHECK-NEXT:     multiply_pullback(x, wCopy + 1, 1, _d_x, _d_wCopy + 1);
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         {

@@ -292,7 +292,7 @@ double f_cond4(double x, double y) {
 
 //CHECK:   void f_cond4_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       int _d_i = 0;
-//CHECK-NEXT:       clad::array<double> _d_arr({{2U|2UL}});
+//CHECK-NEXT:       double _d_arr[2] = {0};
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       int i = 0;

@@ -74,6 +74,27 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     return of.back();
   }
 
+  /// The purpose of this function is to initialize adjoints
+  /// (or all of its differentiable fields) with 0.
+  // FIXME: Add support for objects.
+  /// Initialize a non-array variable.
+  template <typename T> CUDA_HOST_DEVICE void zero_init(T& x) { new (&x) T(); }
+
+  /// Initialize a non-const sized array when the size is known and is equal to
+  /// N.
+  template <typename T> CUDA_HOST_DEVICE void zero_init(T* x, std::size_t N) {
+    for (std::size_t i = 0; i < N; ++i)
+    zero_init(x[i]);
+  }
+
+  /// Initialize a const sized array.
+  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
+  template <typename T, std::size_t N>
+  CUDA_HOST_DEVICE void zero_init(T (&arr)[N]) {
+    zero_init((T*)arr, N);
+  }
+  // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
+
   /// Pad the args supplied with nullptr(s) or zeros to match the the num of
   /// params of the function and then execute the function using the padded args
   /// i.e. we are adding default arguments as we cannot do that with
