@@ -280,7 +280,7 @@ double f7(double x, double y) {
 }
 
 //CHECK:   void f7_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       clad::array<double> _d_t({{3U|3UL}});
+//CHECK-NEXT:       double _d_t[3] = {0};
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
@@ -372,7 +372,7 @@ double f8(double x, double y) {
 }
 
 //CHECK: void f8_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       clad::array<double> _d_t({{4U|4UL}});
+//CHECK-NEXT:       double _d_t[4] = {0};
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double _t2;
