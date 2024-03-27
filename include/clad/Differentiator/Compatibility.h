@@ -162,22 +162,6 @@ NamespaceDecl_Create(ASTContext& C, DeclContext* DC, bool Inline,
 }
 #endif
 
-  
-// Clang 8 change E->EvaluateAsInt(APSInt int, context) ===> E->EvaluateAsInt(Expr::EvalResult res, context)
-
-static inline bool Expr_EvaluateAsInt(const Expr *E,
-                         APSInt &IntValue, const ASTContext &Ctx,
-                         Expr::SideEffectsKind AllowSideEffects = Expr::SideEffectsKind::SE_NoSideEffects)
-{
-   Expr::EvalResult res;
-   if (E->EvaluateAsInt(res, Ctx, AllowSideEffects)) {
-     IntValue = res.Val.getInt();
-     return true;
-   }
-   return false;
-
-}
-
 // Clang 12: bool Expr::EvaluateAsConstantExpr(EvalResult &Result,
 // ConstExprUsage Usage, ASTContext &)
 // => bool Expr::EvaluateAsConstantExpr(EvalResult &Result, ASTContext &)

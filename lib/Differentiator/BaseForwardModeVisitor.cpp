@@ -857,14 +857,14 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   if (VD == m_IndependentVar) {
     llvm::APSInt index;
     Expr* diffExpr = nullptr;
-
-    if (!clad_compat::Expr_EvaluateAsInt(clonedIndices.back(), index,
-                                         m_Context)) {
+    Expr::EvalResult res;
+    Expr::SideEffectsKind AllowSideEffects = Expr::SideEffectsKind::SE_NoSideEffects;
+    if (!clonedIndices.back()->EvaluateAsInt(res, m_Context, AllowSideEffects)) {
       diffExpr =
           BuildParens(BuildOp(BO_EQ, clonedIndices.back(),
                               ConstantFolder::synthesizeLiteral(
                                   ExprTy, m_Context, m_IndependentVarIndex)));
-    } else if (index.getExtValue() == m_IndependentVarIndex) {
+    } else if (res.Val.getInt().getExtValue() == m_IndependentVarIndex) {
       diffExpr = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 1);
     } else {
       diffExpr = zero;

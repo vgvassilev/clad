@@ -2385,10 +2385,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           std::string DRE_str = DRE->getDecl()->getNameAsString();
 
           llvm::APSInt intIdx;
-          auto isIdxValid =
-              clad_compat::Expr_EvaluateAsInt(ASE->getIdx(), intIdx, m_Context);
+          Expr::EvalResult res;
+          Expr::SideEffectsKind AllowSideEffects = Expr::SideEffectsKind::SE_NoSideEffects;
+          auto isIdxValid = ASE->getIdx()->EvaluateAsInt(res, m_Context, AllowSideEffects);
+
 
           if (DRE_str == outputArrayStr && isIdxValid) {
+            intIdx=res.Val.getInt();
             if (isVectorValued) {
               outputArrayCursor = intIdx.getExtValue();
 
