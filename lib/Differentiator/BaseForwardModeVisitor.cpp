@@ -1871,7 +1871,7 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
                             OpaquePtr<QualType>::make(TOE->getType()),
                             utils::GetValidSLoc(m_Sema), clonedArgs,
                             utils::GetValidSLoc(m_Sema),
-                                , TOE->isListInitialization())
+                                TOE->isListInitialization())
                         .get();
   Expr* derivedTOE = m_Sema
                          .ActOnCXXTypeConstructExpr(
