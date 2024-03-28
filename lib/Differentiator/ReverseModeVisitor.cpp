@@ -2319,6 +2319,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             addToCurrentBlock(Reverse, direction::reverse);
             for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
               addToCurrentBlock(S, direction::forward);
+            return BuildOp(opCode, Clone(L), ReturnResult.second.getExpr());
           }
         }
       }

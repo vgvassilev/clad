@@ -57,11 +57,11 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  double _t2;
 //CHECK-NEXT:  double constant = 42;
 //CHECK-NEXT:  _t0 = sin(x);
-//CHECK-NEXT:  _result[0] = sin(x) * constant;
+//CHECK-NEXT:  _result[0] = _t0 * constant;
 //CHECK-NEXT:  _t1 = sin(y);
-//CHECK-NEXT:  _result[1] = sin(y) * constant;
+//CHECK-NEXT:  _result[1] = _t1 * constant;
 //CHECK-NEXT:  _t2 = sin(z);
-//CHECK-NEXT:  _result[2] = sin(z) * constant;
+//CHECK-NEXT:  _result[2] = _t2 * constant;
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r2 = 0;
 //CHECK-NEXT:    _r2 += 1 * constant * clad::custom_derivatives::sin_pushforward(z, 1.).pushforward;
@@ -98,11 +98,11 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:    double _t2;
 //CHECK-NEXT:    double constant = 42;
 //CHECK-NEXT:    _t0 = multiply(x, y);
-//CHECK-NEXT:    _result[0] = multiply(x, y) * constant;
+//CHECK-NEXT:    _result[0] = _t0 * constant;
 //CHECK-NEXT:    _t1 = multiply(y, z);
-//CHECK-NEXT:    _result[1] = multiply(y, z) * constant;
+//CHECK-NEXT:    _result[1] = _t1 * constant;
 //CHECK-NEXT:    _t2 = multiply(z, x);
-//CHECK-NEXT:    _result[2] = multiply(z, x) * constant;
+//CHECK-NEXT:    _result[2] = _t2 * constant;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r4 = 0;
 //CHECK-NEXT:        double _r5 = 0;
