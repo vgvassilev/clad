@@ -471,8 +471,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(m_Function && "Must not be null.");
 
     DiffParams args{};
-    std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
-
+    if (!request.DVI.empty())
+      for (const auto& dParam : request.DVI)
+        args.push_back(dParam.param);
+    else
+      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 #ifndef NDEBUG
     bool isStaticMethod = utils::IsStaticMethod(FD);
     assert((!args.empty() || !isStaticMethod) &&
@@ -1509,9 +1512,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
-    // FIXME: We should add instructions for handling non-differentiable
-    // arguments. Currently we are implicitly assuming function call only
-    // contains differentiable arguments.
     bool isCXXOperatorCall = isa<CXXOperatorCallExpr>(CE);
 
     for (std::size_t i = static_cast<std::size_t>(isCXXOperatorCall),
@@ -1729,9 +1729,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                "corresponding dfdx().");
       }
 
-      DerivedCallArgs.insert(DerivedCallArgs.end(),
-                             DerivedCallOutputArgs.begin(),
-                             DerivedCallOutputArgs.end());
+      for (Expr* arg : DerivedCallOutputArgs)
+        if (arg)
+          DerivedCallArgs.push_back(arg);
       pullbackCallArgs = DerivedCallArgs;
 
       if (pullback)
@@ -1782,6 +1782,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = enableTBR;
+        bool isaMethod = isa<CXXMethodDecl>(FD);
+        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
+          if (DerivedCallOutputArgs[i + isaMethod])
+            pullbackRequest.DVI.push_back(FD->getParamDecl(i));
         FunctionDecl* pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If
