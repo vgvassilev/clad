@@ -758,6 +758,59 @@ double fn16(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double add(double a, double* b) {
+    return a + b[0];
+}
+
+//CHECK: void add_pullback(double a, double *b, double _d_y, double *_d_a) {
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     *_d_a += _d_y;
+//CHECK-NEXT: }
+
+//CHECK: void add_pullback(double a, double *b, double _d_y, double *_d_a, double *_d_b) {
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_a += _d_y;
+//CHECK-NEXT:         _d_b[0] += _d_y;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double fn17 (double x, double* y) {
+    x = add(x, y);
+    x = add(x, &x);
+    return x;
+}
+
+//CHECK: void fn17_grad_0(double x, double *y, double *_d_x) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     double _t1;
+//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     x = add(x, y);
+//CHECK-NEXT:     _t1 = x;
+//CHECK-NEXT:     x = add(x, &x);
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     *_d_x += 1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         x = _t1;
+//CHECK-NEXT:         double _r_d1 = *_d_x;
+//CHECK-NEXT:         *_d_x -= _r_d1;
+//CHECK-NEXT:         double _r1 = 0;
+//CHECK-NEXT:         add_pullback(x, &x, _r_d1, &_r1, &*_d_x);
+//CHECK-NEXT:         *_d_x += _r1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         x = _t0;
+//CHECK-NEXT:         double _r_d0 = *_d_x;
+//CHECK-NEXT:         *_d_x -= _r_d0;
+//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         add_pullback(x, y, _r_d0, &_r0);
+//CHECK-NEXT:         *_d_x += _r0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -844,4 +897,9 @@ int main() {
   TEST2(fn15, 6, -2)  // CHECK-EXEC: {1.00, 1.00}
   INIT(fn16);
   TEST2(fn16, 12, 8)  // CHECK-EXEC: {8.00, 8.00}
+
+  auto fn17_grad_0 = clad::gradient(fn17, "x");
+  double y[] = {3.0, 2.0}, dx = 0;
+  fn17_grad_0.execute(5, y, &dx);
+  printf("{%.2f}\n", dx);   // CHECK-EXEC: {2.00}
 }

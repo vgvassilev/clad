@@ -273,6 +273,10 @@ namespace clad {
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
+    // Diff info for pullbacks is generated automatically,
+    // its parameters are not provided by the user.
+    if (Mode == DiffMode::experimental_pullback)
+      return;
     DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
