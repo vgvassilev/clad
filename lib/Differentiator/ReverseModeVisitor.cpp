@@ -2347,24 +2347,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
 
       Expr* LCloned = Ldiff.getExpr();
-      // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
-      // like (x = y) it propagates recursively, so _d_x is also returned.
-      Expr* AssignedDiff = Ldiff.getExpr_dx();
-      if (!AssignedDiff) {
-        // If either LHS or RHS is a declaration reference, visit it to avoid
-        // naming collision
-        auto* LDRE = dyn_cast<DeclRefExpr>(L);
-        auto* RDRE = dyn_cast<DeclRefExpr>(R);
-
-        if (!LDRE && !RDRE)
-          return Clone(BinOp);
-
-        Expr* LExpr = LDRE ? Visit(L).getExpr() : L;
-        Expr* RExpr = RDRE ? Visit(R).getExpr() : R;
-
-        return BuildOp(opCode, LExpr, RExpr);
-      }
-      ResultRef = AssignedDiff;
       // If assigned expr is dependent, first update its derivative;
       auto Lblock_begin = Lblock->body_rbegin();
       auto Lblock_end = Lblock->body_rend();
@@ -2382,6 +2364,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       if (m_ExternalSource)
         m_ExternalSource->ActAfterCloningLHSOfAssignOp(LCloned, R, opCode);
+
+      // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
+      // like (x = y) it propagates recursively, so _d_x is also returned.
+      Expr* AssignedDiff = Ldiff.getExpr_dx();
+      // If the LHS is non-differentiable, differentiate the RHS
+      // and clone the operation
+      if (!AssignedDiff)
+        return BuildOp(opCode, Ldiff.getExpr(), Visit(R).getExpr());
+      ResultRef = AssignedDiff;
 
       // Save old value for the derivative of LHS, to avoid problems with cases
       // like x = x.
