@@ -224,8 +224,12 @@ double func4(double x) {
 //CHECK-NEXT: }
 
 double func5(int k) {
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wunknown-warning-option"
+  #pragma clang diagnostic ignored "-Wvla-cxx-extension"
   int n = k;
   double arr[n];
+  #pragma clang diagnostic pop
   for (int i = 0; i < n; i++) {
     arr[i] = k;
   }
