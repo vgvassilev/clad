@@ -16,7 +16,7 @@ __attribute__((always_inline)) double f_add1(double x, double y) {
   return x + y;
 }
 
-//CHECK:   void f_add1_grad(double x, double y, double *_d_x, double *_d_y) __attribute__((always_inline)) {
+//CHECK: {{[__attribute__((always_inline))]*}}void f_add1_grad(double x, double y, double *_d_x, double *_d_y){{[ __attribute__((always_inline))]*}} {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
