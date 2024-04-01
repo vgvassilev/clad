@@ -223,6 +223,8 @@ namespace clad {
           // if enabled, print source code of the derived functions
           if (m_DO.DumpDerivedFn) {
             DerivativeDecl->print(llvm::outs(), Policy);
+            if (request.DeclarationOnly)
+              llvm::outs() << ";\n";
           }
 
           // if enabled, print ASTs of the derived functions
@@ -236,6 +238,8 @@ namespace clad {
             llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                    CLAD_COMPAT_llvm_sys_fs_Append);
             DerivativeDecl->print(f, Policy);
+            if (request.DeclarationOnly)
+              f << ";\n";
             f.flush();
           }
 
@@ -393,8 +397,14 @@ namespace clad {
       Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
       Sema::LocalEagerInstantiationScope LocalInstantiations(S);
 
-      for (DiffRequest& request : m_DiffSchedule)
+      // Use index based loop to avoid iterator invalidation as
+      // ProcessDiffRequest might add more requests to m_DiffSchedule.
+      for (size_t i = 0; i < m_DiffSchedule.size(); ++i) {
+        // make a copy of the request to avoid invalidating the reference
+        // when ProcessDiffRequest adds more requests to m_DiffSchedule.
+        DiffRequest request = m_DiffSchedule[i];
         ProcessDiffRequest(request);
+      }
       // Put the TUScope in a consistent state after clad is done.
       S.TUScope = nullptr;
       // Force emission of the produced pending template instantiations.

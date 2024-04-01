@@ -125,9 +125,7 @@ double test_7(double i, double j) {
   return res;
 }
 
-// CHECK: void increment_pushforward(int &i, int &_d_i) {
-// CHECK-NEXT: ++i;
-// CHECK-NEXT: }
+// CHECK: void increment_pushforward(int &i, int &_d_i);
 
 // CHECK: double test_7_darg0(double i, double j) {
 // CHECK-NEXT: double _d_i = 1;
@@ -154,9 +152,7 @@ double test_8(double x) {
   return func_with_enum(x, e);
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x) {
-// CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
-// CHECK-NEXT: }
+// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x);
 
 // CHECK: double test_8_darg0(double x) {
 // CHECK-NEXT: double _d_x = 1;
@@ -178,4 +174,12 @@ int main () {
   clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{TBR analysis is not meant for forward mode AD.}}
   clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
   return 0;
+
+// CHECK: void increment_pushforward(int &i, int &_d_i) {
+// CHECK-NEXT: ++i;
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x) {
+// CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
 }
