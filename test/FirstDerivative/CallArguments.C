@@ -106,9 +106,7 @@ float f_const_helper(const float x) {
   return x * x;
 }
 
-// CHECK: clad::ValueAndPushforward<float, float> f_const_helper_pushforward(const float x, const float _d_x) {
-// CHECK-NEXT:     return {x * x, _d_x * x + x * _d_x};
-// CHECK-NEXT: }
+// CHECK: clad::ValueAndPushforward<float, float> f_const_helper_pushforward(const float x, const float _d_x);
 
 float f_const_args_func_7(const float x, const float y) {
   return f_const_helper(x) + f_const_helper(y) - y;
@@ -167,6 +165,10 @@ int main () { // expected-no-diagnostics
   const float f8x = 1.F;
   printf("f8_darg0=%f\n", f8.execute(f8x,2.F));
   //CHECK-EXEC: f8_darg0=2.000000
+
+// CHECK: clad::ValueAndPushforward<float, float> f_const_helper_pushforward(const float x, const float _d_x) {
+// CHECK-NEXT:     return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
 
   return 0;
 }

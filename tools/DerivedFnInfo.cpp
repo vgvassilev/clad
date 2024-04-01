@@ -11,12 +11,14 @@ DerivedFnInfo::DerivedFnInfo(const DiffRequest& request,
     : m_OriginalFn(request.Function), m_DerivedFn(derivedFn),
       m_OverloadedDerivedFn(overloadedDerivedFn), m_Mode(request.Mode),
       m_DerivativeOrder(request.CurrentDerivativeOrder),
-      m_DiffVarsInfo(request.DVI), m_UsesEnzyme(request.use_enzyme) {}
+      m_DiffVarsInfo(request.DVI), m_UsesEnzyme(request.use_enzyme),
+      m_DeclarationOnly(request.DeclarationOnly) {}
 
 bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
   return (request.Function == m_OriginalFn && request.Mode == m_Mode &&
           request.CurrentDerivativeOrder == m_DerivativeOrder &&
-          request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme);
+          request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme &&
+          request.DeclarationOnly == m_DeclarationOnly);
   }
 
   bool DerivedFnInfo::IsValid() const { return m_OriginalFn && m_DerivedFn; }
@@ -27,6 +29,7 @@ bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
            lhs.m_DerivativeOrder == rhs.m_DerivativeOrder &&
            lhs.m_Mode == rhs.m_Mode &&
            lhs.m_DiffVarsInfo == rhs.m_DiffVarsInfo &&
-           lhs.m_UsesEnzyme == rhs.m_UsesEnzyme;
+           lhs.m_UsesEnzyme == rhs.m_UsesEnzyme &&
+           lhs.m_DeclarationOnly == rhs.m_DeclarationOnly;
   }
 } // namespace clad

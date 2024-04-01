@@ -37,6 +37,7 @@ namespace clad {
     class CladPlugin;
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
                                             DiffRequest& request);
+    void AddRequestToSchedule(CladPlugin& P, const DiffRequest& request);
   } // namespace plugin
 
 } // namespace clad

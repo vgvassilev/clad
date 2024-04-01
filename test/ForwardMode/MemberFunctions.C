@@ -32,8 +32,7 @@ public:
 	  return;
   }
 
-  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this) {
-  // CHECK-NEXT:}
+  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this);
 
   double mem_fn_with_void_function_call(double i, double j) {
     mem_fn_with_void_return();
@@ -821,6 +820,9 @@ double multiplySimpleFunctionByValue(SimpleFunctions v, double value) {
   // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions &, SimpleFunctions &> _t0 = clad::custom_derivatives::class_functions::operator_star_equal_pushforward(&v, value, &_d_v, _d_value);
   // CHECK-NEXT:       return _d_v.x;
   // CHECK-NEXT:   }
+
+  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this) {
+  // CHECK-NEXT:}
 
 
 #define TEST(name,i,j) \

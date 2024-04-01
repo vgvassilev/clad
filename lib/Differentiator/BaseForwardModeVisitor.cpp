@@ -492,17 +492,23 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   m_Derivative->setParams(params);
   m_Derivative->setBody(nullptr);
 
-  beginScope(Scope::FnScope | Scope::DeclScope);
-  m_DerivativeFnScope = getCurrentScope();
-  beginBlock();
+  if (!request.DeclarationOnly) {
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+    beginBlock();
 
-  // execute the functor inside the function body.
-  ExecuteInsidePushforwardFunctionBlock();
+    // execute the functor inside the function body.
+    ExecuteInsidePushforwardFunctionBlock();
 
-  Stmt* derivativeBody = endBlock();
-  m_Derivative->setBody(derivativeBody);
+    Stmt* derivativeBody = endBlock();
+    m_Derivative->setBody(derivativeBody);
 
-  endScope(); // Function body scope
+    endScope(); // Function body scope
+
+    if (request.DerivedFDPrototype)
+      m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+  }
+
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
   endScope(); // Function decl scope
@@ -1138,8 +1144,17 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // pushforwardFnRequest.RequestedDerivativeOrder = m_DerivativeOrder;
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
+
+    // Derive declaration of the pushforward function.
+    pushforwardFnRequest.DeclarationOnly = true;
     FunctionDecl* pushforwardFD =
         plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
+
+    // Add the request to derive the definition of the pushforward function
+    // into the queue.
+    pushforwardFnRequest.DeclarationOnly = false;
+    pushforwardFnRequest.DerivedFDPrototype = pushforwardFD;
+    plugin::AddRequestToSchedule(m_CladPlugin, pushforwardFnRequest);
 
     if (pushforwardFD) {
       if (baseDiff.getExpr()) {

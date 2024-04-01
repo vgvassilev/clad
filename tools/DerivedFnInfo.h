@@ -18,6 +18,7 @@ namespace clad {
     unsigned m_DerivativeOrder = 0;
     DiffInputVarsInfo m_DiffVarsInfo;
     bool m_UsesEnzyme = false;
+    bool m_DeclarationOnly = false;
 
     DerivedFnInfo() {}
     DerivedFnInfo(const DiffRequest& request, clang::FunctionDecl* derivedFn,
@@ -34,6 +35,7 @@ namespace clad {
     const clang::FunctionDecl* OriginalFn() const { return m_OriginalFn; }
     clang::FunctionDecl* DerivedFn() const { return m_DerivedFn; }
     clang::FunctionDecl* OverloadedDerivedFn() const { return m_OverloadedDerivedFn; }
+    bool DeclarationOnly() const { return m_DeclarationOnly; }
 
     /// Returns true if `lhs` and `rhs` represents same derivative.
     /// Here derivative is any function derived by clad.
