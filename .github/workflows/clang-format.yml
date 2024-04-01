@@ -43,4 +43,8 @@ jobs:
           -c color.diff.whitespace='red reverse' \
           clang-format-15 --diff --binary clang-format-15 --commit $PR_BASE -- demos/ include/ lib/ tools/ || \
           (echo "Please run the following git-clang-format locally to fix the formatting: \n
-                git clang-format origin/master -- demos/ include/ lib/ tools/" && exit 1)
+                git-clang-format HEAD~\n
+                for multiple commits we should place the formatting changes in the related commit with:\n
+                \t\tgit rebase -i -x \"git-clang-format-15 master && git commit -a --allow-empty --fixup=HEAD\" --strategy-option=theirs origin/master\n
+                \t\t Then inspect the results with: git log --oneline\n
+                \t\t Then squash without poluting the history with: git rebase --autosquash -i master\n" && exit 1)
