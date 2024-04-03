@@ -212,143 +212,150 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   derivedFD->setParams(paramsRef);
   derivedFD->setBody(nullptr);
 
-  // Function body scope
-  beginScope(Scope::FnScope | Scope::DeclScope);
-  m_DerivativeFnScope = getCurrentScope();
-  beginBlock();
-  // For each function parameter variable, store its derivative value.
-  for (auto param : params) {
-    // We cannot create derivatives of reference type since seed value is
-    // always a constant (r-value). We assume that all the arguments have no
-    // relation among them, thus it is safe (correct) to use the corresponding
-    // non-reference type for creating the derivatives.
-    QualType dParamType = param->getType().getNonReferenceType();
-    // We do not create derived variable for array/pointer parameters.
-    if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType) ||
-        utils::isArrayOrPointerType(dParamType))
-      continue;
-    Expr* dParam = nullptr;
-    if (dParamType->isRealType()) {
-      // If param is independent variable, its derivative is 1, otherwise 0.
-      int dValue = (param == m_IndependentVar);
-      dParam =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, dValue);
-    }
-    // For each function arg, create a variable _d_arg to store derivatives
-    // of potential reassignments, e.g.:
-    // double f_darg0(double x, double y) {
-    //   double _d_x = 1;
-    //   double _d_y = 0;
-    //   ...
-    auto dParamDecl =
-        BuildVarDecl(dParamType, "_d_" + param->getNameAsString(), dParam);
-    addToCurrentBlock(BuildDeclStmt(dParamDecl));
-    dParam = BuildDeclRef(dParamDecl);
-    if (dParamType->isRecordType() && param == m_IndependentVar) {
-      llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
-                                                diffVarInfo.fields.end());
-      Expr* memRef =
-          utils::BuildMemberExpr(m_Sema, getCurrentScope(), dParam, ref);
-      assert(memRef->getType()->isRealType() &&
-             "Forward mode can only differentiate w.r.t builtin scalar "
-             "numerical types.");
-      addToCurrentBlock(BuildOp(
-          BinaryOperatorKind::BO_Assign, memRef,
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1)));
-    }
-    // Memorize the derivative of param, i.e. whenever the param is visited
-    // in the future, it's derivative dParam is found (unless reassigned with
-    // something new).
-    m_Variables[param] = dParam;
-  }
-
-  if (auto MD = dyn_cast<CXXMethodDecl>(FD)) {
-    // We cannot create derivative of lambda yet because lambdas default
-    // constructor is deleted.
-    if (MD->isInstance() && !MD->getParent()->isLambda()) {
-      QualType thisObjectType =
-          clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
-      QualType thisType = MD->getThisType();
-      // Here we are effectively doing:
-      // ```
-      // Class _d_this_obj;
-      // Class* _d_this = &_d_this_obj;
-      // ```
-      // We are not creating `this` expression derivative using `new` because
-      // then we would be responsible for freeing the memory as well and its
-      // more convenient to let compiler handle the object lifecycle.
-      VarDecl* derivativeVD = BuildVarDecl(thisObjectType, "_d_this_obj");
-      DeclRefExpr* derivativeE = BuildDeclRef(derivativeVD);
-      VarDecl* thisExprDerivativeVD =
-          BuildVarDecl(thisType, "_d_this",
-                       BuildOp(UnaryOperatorKind::UO_AddrOf, derivativeE));
-      addToCurrentBlock(BuildDeclStmt(derivativeVD));
-      addToCurrentBlock(BuildDeclStmt(thisExprDerivativeVD));
-      m_ThisExprDerivative = BuildDeclRef(thisExprDerivativeVD);
-    }
-  }
-
-  // Create derived variable for each member variable if we are
-  // differentiating a call operator.
-  if (m_Functor) {
-    for (FieldDecl* fieldDecl : m_Functor->fields()) {
-      Expr* dInitializer = nullptr;
-      QualType fieldType = fieldDecl->getType();
-
-      if (auto arrType = dyn_cast<ConstantArrayType>(fieldType.getTypePtr())) {
-        if (!arrType->getElementType()->isRealType())
-          continue;
-
-        auto arrSize = arrType->getSize().getZExtValue();
-        std::vector<Expr*> dArrVal;
-
-        // Create an initializer list to initialize derived variable created
-        // for array member variable.
-        // For example, if we are differentiating wrt arr[3], then
-        // ```
-        // double arr[7];
-        // ```
-        // will get differentiated to,
-        //
-        // ```
-        // double _d_arr[7] = {0, 0, 0, 1, 0, 0, 0};
-        // ```
-        for (size_t i = 0; i < arrSize; ++i) {
-          int dValue =
-              (fieldDecl == m_IndependentVar && i == m_IndependentVarIndex);
-          auto dValueLiteral = ConstantFolder::synthesizeLiteral(
-              m_Context.IntTy, m_Context, dValue);
-          dArrVal.push_back(dValueLiteral);
-        }
-        dInitializer = m_Sema.ActOnInitList(noLoc, dArrVal, noLoc).get();
-      } else if (auto ptrType = dyn_cast<PointerType>(fieldType.getTypePtr())) {
-        if (!ptrType->getPointeeType()->isRealType())
-          continue;
-        // Pointer member variables should be initialised by `nullptr`.
-        dInitializer = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
-      } else {
-        int dValue = (fieldDecl == m_IndependentVar);
-        dInitializer = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                         m_Context, dValue);
+  if (!request.DeclarationOnly) {
+    // Function body scope
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+    beginBlock();
+    // For each function parameter variable, store its derivative value.
+    for (auto* param : params) {
+      // We cannot create derivatives of reference type since seed value is
+      // always a constant (r-value). We assume that all the arguments have no
+      // relation among them, thus it is safe (correct) to use the corresponding
+      // non-reference type for creating the derivatives.
+      QualType dParamType = param->getType().getNonReferenceType();
+      // We do not create derived variable for array/pointer parameters.
+      if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType) ||
+          utils::isArrayOrPointerType(dParamType))
+        continue;
+      Expr* dParam = nullptr;
+      if (dParamType->isRealType()) {
+        // If param is independent variable, its derivative is 1, otherwise 0.
+        int dValue = (param == m_IndependentVar);
+        dParam = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                   dValue);
       }
-      VarDecl* derivedFieldDecl =
-          BuildVarDecl(fieldType.getNonReferenceType(),
-                       "_d_" + fieldDecl->getNameAsString(), dInitializer);
-      addToCurrentBlock(BuildDeclStmt(derivedFieldDecl));
-      m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
+      // For each function arg, create a variable _d_arg to store derivatives
+      // of potential reassignments, e.g.:
+      // double f_darg0(double x, double y) {
+      //   double _d_x = 1;
+      //   double _d_y = 0;
+      //   ...
+      auto* dParamDecl =
+          BuildVarDecl(dParamType, "_d_" + param->getNameAsString(), dParam);
+      addToCurrentBlock(BuildDeclStmt(dParamDecl));
+      dParam = BuildDeclRef(dParamDecl);
+      if (dParamType->isRecordType() && param == m_IndependentVar) {
+        llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
+                                                  diffVarInfo.fields.end());
+        Expr* memRef =
+            utils::BuildMemberExpr(m_Sema, getCurrentScope(), dParam, ref);
+        assert(memRef->getType()->isRealType() &&
+               "Forward mode can only differentiate w.r.t builtin scalar "
+               "numerical types.");
+        addToCurrentBlock(BuildOp(
+            BinaryOperatorKind::BO_Assign, memRef,
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1)));
+      }
+      // Memorize the derivative of param, i.e. whenever the param is visited
+      // in the future, it's derivative dParam is found (unless reassigned with
+      // something new).
+      m_Variables[param] = dParam;
     }
+
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      // We cannot create derivative of lambda yet because lambdas default
+      // constructor is deleted.
+      if (MD->isInstance() && !MD->getParent()->isLambda()) {
+        QualType thisObjectType =
+            clad_compat::CXXMethodDecl_GetThisObjectType(m_Sema, MD);
+        QualType thisType = MD->getThisType();
+        // Here we are effectively doing:
+        // ```
+        // Class _d_this_obj;
+        // Class* _d_this = &_d_this_obj;
+        // ```
+        // We are not creating `this` expression derivative using `new` because
+        // then we would be responsible for freeing the memory as well and its
+        // more convenient to let compiler handle the object lifecycle.
+        VarDecl* derivativeVD = BuildVarDecl(thisObjectType, "_d_this_obj");
+        DeclRefExpr* derivativeE = BuildDeclRef(derivativeVD);
+        VarDecl* thisExprDerivativeVD =
+            BuildVarDecl(thisType, "_d_this",
+                         BuildOp(UnaryOperatorKind::UO_AddrOf, derivativeE));
+        addToCurrentBlock(BuildDeclStmt(derivativeVD));
+        addToCurrentBlock(BuildDeclStmt(thisExprDerivativeVD));
+        m_ThisExprDerivative = BuildDeclRef(thisExprDerivativeVD);
+      }
+    }
+
+    // Create derived variable for each member variable if we are
+    // differentiating a call operator.
+    if (m_Functor) {
+      for (FieldDecl* fieldDecl : m_Functor->fields()) {
+        Expr* dInitializer = nullptr;
+        QualType fieldType = fieldDecl->getType();
+
+        if (const auto* arrType =
+                dyn_cast<ConstantArrayType>(fieldType.getTypePtr())) {
+          if (!arrType->getElementType()->isRealType())
+            continue;
+
+          auto arrSize = arrType->getSize().getZExtValue();
+          std::vector<Expr*> dArrVal;
+
+          // Create an initializer list to initialize derived variable created
+          // for array member variable.
+          // For example, if we are differentiating wrt arr[3], then
+          // ```
+          // double arr[7];
+          // ```
+          // will get differentiated to,
+          //
+          // ```
+          // double _d_arr[7] = {0, 0, 0, 1, 0, 0, 0};
+          // ```
+          for (size_t i = 0; i < arrSize; ++i) {
+            int dValue =
+                (fieldDecl == m_IndependentVar && i == m_IndependentVarIndex);
+            auto* dValueLiteral = ConstantFolder::synthesizeLiteral(
+                m_Context.IntTy, m_Context, dValue);
+            dArrVal.push_back(dValueLiteral);
+          }
+          dInitializer = m_Sema.ActOnInitList(noLoc, dArrVal, noLoc).get();
+        } else if (const auto* ptrType =
+                       dyn_cast<PointerType>(fieldType.getTypePtr())) {
+          if (!ptrType->getPointeeType()->isRealType())
+            continue;
+          // Pointer member variables should be initialised by `nullptr`.
+          dInitializer = m_Sema.ActOnCXXNullPtrLiteral(noLoc).get();
+        } else {
+          int dValue = (fieldDecl == m_IndependentVar);
+          dInitializer = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                           m_Context, dValue);
+        }
+        VarDecl* derivedFieldDecl =
+            BuildVarDecl(fieldType.getNonReferenceType(),
+                         "_d_" + fieldDecl->getNameAsString(), dInitializer);
+        addToCurrentBlock(BuildDeclStmt(derivedFieldDecl));
+        m_Variables.emplace(fieldDecl, BuildDeclRef(derivedFieldDecl));
+      }
+    }
+
+    Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
+    if (auto* CS = dyn_cast<CompoundStmt>(BodyDiff))
+      for (Stmt* S : CS->body())
+        addToCurrentBlock(S);
+    else
+      addToCurrentBlock(BodyDiff);
+    Stmt* derivativeBody = endBlock();
+    derivedFD->setBody(derivativeBody);
+
+    endScope(); // Function body scope
+
+    if (request.DerivedFDPrototype)
+      m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
   }
-
-  Stmt* BodyDiff = Visit(FD->getBody()).getStmt();
-  if (auto CS = dyn_cast<CompoundStmt>(BodyDiff))
-    for (Stmt* S : CS->body())
-      addToCurrentBlock(S);
-  else
-    addToCurrentBlock(BodyDiff);
-  Stmt* derivativeBody = endBlock();
-  derivedFD->setBody(derivativeBody);
-
-  endScope(); // Function body scope
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
   endScope(); // Function decl scope

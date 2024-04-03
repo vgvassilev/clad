@@ -20,6 +20,133 @@ float f1(float x) {
 // CHECK-NEXT:     return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
+// CHECK: void f1_darg0_grad(float x, float *_d_x);
+
+// CHECK: void f1_hessian(float x, float *hessianMatrix) {
+// CHECK-NEXT:     f1_darg0_grad(x, hessianMatrix + {{0U|0UL}});
+// CHECK-NEXT: }
+
+float f2(float x) {
+  return exp(x);
+}
+
+// CHECK: float f2_darg0(float x) {
+// CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+// CHECK: void f2_darg0_grad(float x, float *_d_x);
+
+// CHECK: void f2_hessian(float x, float *hessianMatrix) {
+// CHECK-NEXT:     f2_darg0_grad(x, hessianMatrix + {{0U|0UL}});
+// CHECK-NEXT: }
+
+
+float f3(float x) {
+  return log(x);
+}
+
+// CHECK: float f3_darg0(float x) {
+// CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::log_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+// CHECK: void f3_darg0_grad(float x, float *_d_x);
+
+// CHECK: void f3_hessian(float x, float *hessianMatrix) {
+// CHECK-NEXT:     f3_darg0_grad(x, hessianMatrix + {{0U|0UL}});
+// CHECK-NEXT: }
+
+
+float f4(float x) {
+  return pow(x, 4.0F);
+}
+
+// CHECK: float f4_darg0(float x) {
+// CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, 4.F, _d_x, 0.F);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+// CHECK: void f4_darg0_grad(float x, float *_d_x);
+
+// CHECK: void f4_hessian(float x, float *hessianMatrix) {
+// CHECK-NEXT:     f4_darg0_grad(x, hessianMatrix + {{0U|0UL}});
+// CHECK-NEXT: }
+
+
+float f5(float x) {
+  return pow(2.0F, x);
+}
+
+// CHECK: float f5_darg0(float x) {
+// CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(2.F, x, 0.F, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+// CHECK: void f5_darg0_grad(float x, float *_d_x);
+
+// CHECK: void f5_hessian(float x, float *hessianMatrix) {
+// CHECK-NEXT:     f5_darg0_grad(x, hessianMatrix + {{0U|0UL}});
+// CHECK-NEXT: }
+
+
+float f6(float x, float y) {
+  return pow(x, y);
+}
+
+// CHECK: float f6_darg0(float x, float y) {
+// CHECK-NEXT:     float _d_x = 1;
+// CHECK-NEXT:     float _d_y = 0;
+// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+// CHECK: void f6_darg0_grad(float x, float y, float *_d_x, float *_d_y);
+
+// CHECK: float f6_darg1(float x, float y) {
+// CHECK-NEXT:     float _d_x = 0;
+// CHECK-NEXT:     float _d_y = 1;
+// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+// CHECK: void f6_darg1_grad(float x, float y, float *_d_x, float *_d_y);
+
+// CHECK: void f6_hessian(float x, float y, float *hessianMatrix) {
+// CHECK-NEXT:     f6_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+// CHECK-NEXT:     f6_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+// CHECK-NEXT: }
+
+
+#define TEST1(F, x) {                                \
+  result[0] = 0;                                     \
+  auto h = clad::hessian(F);                         \
+  h.execute(x, result);                              \
+  printf("Result is = {%.2f}\n", result[0]);         \
+}
+
+#define TEST2(F, x, y) {                             \
+  result[0] = result[1] = result[2] = result[3] = 0; \
+  auto h = clad::hessian(F);                         \
+  h.execute(x, y, result);                           \
+  printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n",   \
+         result[0], result[1], result[2], result[3]);\
+}
+
+int main() {
+  float result[4];
+
+  TEST1(f1, 0); // CHECK-EXEC: Result is = {-1.00}
+  TEST1(f2, 1); // CHECK-EXEC: Result is = {2.72}
+  TEST1(f3, 1); // CHECK-EXEC: Result is = {-1.00}
+  TEST1(f4, 3); // CHECK-EXEC: Result is = {108.00}
+  TEST1(f5, 3); // CHECK-EXEC: Result is = {3.84}
+  TEST2(f6, 3, 4); // CHECK-EXEC: Result is = {108.00, 145.65, 145.65, 97.76}
+
 // CHECK: void sin_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     float _t0;
 // CHECK-NEXT:     _t0 = ::std::cos(x);
@@ -81,20 +208,6 @@ float f1(float x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void f1_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f1_darg0_grad(x, hessianMatrix + {{0U|0UL}});
-// CHECK-NEXT: }
-
-float f2(float x) {
-  return exp(x);
-}
-
-// CHECK: float f2_darg0(float x) {
-// CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, _d_x);
-// CHECK-NEXT:     return _t0.pushforward;
-// CHECK-NEXT: }
-
 // CHECK: void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     float _t0;
 // CHECK-NEXT:     _t0 = ::std::exp(x);
@@ -128,21 +241,6 @@ float f2(float x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void f2_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f2_darg0_grad(x, hessianMatrix + {{0U|0UL}});
-// CHECK-NEXT: }
-
-
-float f3(float x) {
-  return log(x);
-}
-
-// CHECK: float f3_darg0(float x) {
-// CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::log_pushforward(x, _d_x);
-// CHECK-NEXT:     return _t0.pushforward;
-// CHECK-NEXT: }
-
 // CHECK: void log_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
@@ -171,21 +269,6 @@ float f3(float x) {
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         _d__d_x += _r1;
 // CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: void f3_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f3_darg0_grad(x, hessianMatrix + {{0U|0UL}});
-// CHECK-NEXT: }
-
-
-float f4(float x) {
-  return pow(x, 4.0F);
-}
-
-// CHECK: float f4_darg0(float x) {
-// CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, 4.F, _d_x, 0.F);
-// CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 // CHECK: void pow_pushforward_pullback(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent) {
@@ -262,21 +345,6 @@ float f4(float x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void f4_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f4_darg0_grad(x, hessianMatrix + {{0U|0UL}});
-// CHECK-NEXT: }
-
-
-float f5(float x) {
-  return pow(2.0F, x);
-}
-
-// CHECK: float f5_darg0(float x) {
-// CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(2.F, x, 0.F, _d_x);
-// CHECK-NEXT:     return _t0.pushforward;
-// CHECK-NEXT: }
-
 // CHECK: void f5_darg0_grad(float x, float *_d_x) {
 // CHECK-NEXT:     float _d__d_x = 0;
 // CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _d__t0 = {};
@@ -294,22 +362,6 @@ float f5(float x) {
 // CHECK-NEXT:         *_d_x += _r1;
 // CHECK-NEXT:         _d__d_x += _r3;
 // CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: void f5_hessian(float x, float *hessianMatrix) {
-// CHECK-NEXT:     f5_darg0_grad(x, hessianMatrix + {{0U|0UL}});
-// CHECK-NEXT: }
-
-
-float f6(float x, float y) {
-  return pow(x, y);
-}
-
-// CHECK: float f6_darg0(float x, float y) {
-// CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     float _d_y = 0;
-// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
-// CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
 // CHECK: void f6_darg0_grad(float x, float y, float *_d_x, float *_d_y) {
@@ -335,13 +387,6 @@ float f6(float x, float y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: float f6_darg1(float x, float y) {
-// CHECK-NEXT:     float _d_x = 0;
-// CHECK-NEXT:     float _d_y = 1;
-// CHECK-NEXT:     ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
-// CHECK-NEXT:     return _t0.pushforward;
-// CHECK-NEXT: }
-
 // CHECK: void f6_darg1_grad(float x, float y, float *_d_x, float *_d_y) {
 // CHECK-NEXT:     float _d__d_x = 0;
 // CHECK-NEXT:     float _d__d_y = 0;
@@ -364,35 +409,4 @@ float f6(float x, float y) {
 // CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
-
-// CHECK: void f6_hessian(float x, float y, float *hessianMatrix) {
-// CHECK-NEXT:     f6_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:     f6_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
-// CHECK-NEXT: }
-
-
-#define TEST1(F, x) {                                \
-  result[0] = 0;                                     \
-  auto h = clad::hessian(F);                         \
-  h.execute(x, result);                              \
-  printf("Result is = {%.2f}\n", result[0]);         \
-}
-
-#define TEST2(F, x, y) {                             \
-  result[0] = result[1] = result[2] = result[3] = 0; \
-  auto h = clad::hessian(F);                         \
-  h.execute(x, y, result);                           \
-  printf("Result is = {%.2f, %.2f, %.2f, %.2f}\n",   \
-         result[0], result[1], result[2], result[3]);\
-}
-
-int main() {
-  float result[4];
-
-  TEST1(f1, 0); // CHECK-EXEC: Result is = {-1.00}
-  TEST1(f2, 1); // CHECK-EXEC: Result is = {2.72}
-  TEST1(f3, 1); // CHECK-EXEC: Result is = {-1.00}
-  TEST1(f4, 3); // CHECK-EXEC: Result is = {108.00}
-  TEST1(f5, 3); // CHECK-EXEC: Result is = {3.84}
-  TEST2(f6, 3, 4); // CHECK-EXEC: Result is = {108.00, 145.65, 145.65, 97.76}
 }
