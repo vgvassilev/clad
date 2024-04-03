@@ -438,8 +438,9 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
   m_Sema.CurContext = DC;
 
+  SourceLocation loc{m_Function->getLocation()};
   DeclWithContext cloneFunctionResult = m_Builder.cloneFunction(
-      m_Function, *this, DC, noLoc, derivedFnName, derivedFnType);
+      m_Function, *this, DC, loc, derivedFnName, derivedFnType);
   m_Derivative = cloneFunctionResult.first;
 
   llvm::SmallVector<ParmVarDecl*, 16> params;

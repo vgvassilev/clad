@@ -811,6 +811,34 @@ double fn17 (double x, double* y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double sq_defined_later(double x);
+
+// CHECK: void sq_defined_later_pullback(double x, double _d_y, double *_d_x) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:       *_d_x += _d_y * x;
+// CHECK-NEXT:       *_d_x += x * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double fn18(double x, double y) {
+    return sq_defined_later(x) + sq_defined_later(y);
+}
+
+// CHECK: void fn18_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         sq_defined_later_pullback(x, 1, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:         double _r1 = 0;
+// CHECK-NEXT:         sq_defined_later_pullback(y, 1, &_r1);
+// CHECK-NEXT:         *_d_y += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -902,4 +930,11 @@ int main() {
   double y[] = {3.0, 2.0}, dx = 0;
   fn17_grad_0.execute(5, y, &dx);
   printf("{%.2f}\n", dx);   // CHECK-EXEC: {2.00}
+
+  INIT(fn18);
+  TEST2(fn18, 3, 5);  // CHECK-EXEC: {6.00, 10.00}
+}
+
+double sq_defined_later(double x) {
+    return x*x;
 }
