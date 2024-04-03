@@ -268,6 +268,27 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0;
 // CHECK-NEXT: }
 
+double g (double x) { return x; }
+
+// CHECK: clad::ValueAndPushforward<double, double> g_pushforward(double x, double _d_x);
+
+double fn9 (double i, double j) {
+  const int k = 1;
+  return g(i) * g(j);
+}
+
+// CHECK: double fn9_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     const int _d_k = 0;
+// CHECK-NEXT:     const int k = 1;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = g_pushforward(i, _d_i);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = g_pushforward(j, _d_j);
+// CHECK-NEXT:     double &_t2 = _t0.value;
+// CHECK-NEXT:     double &_t3 = _t1.value;
+// CHECK-NEXT:     return _t0.pushforward * _t3 + _t2 * _t1.pushforward;
+// CHECK-NEXT: }
+
 float test_1_darg0(float x);
 float test_2_darg0(float x);
 float test_4_darg0(float x);
@@ -296,6 +317,7 @@ int main () {
   INIT(fn6, "i");
   INIT(fn7, "i");
   INIT(fn8, "i");
+  INIT(fn9, "i");
 
   TEST(fn1, 3, 5);    // CHECK-EXEC: {12.00}
   TEST(fn2, 3, 5);    // CHECK-EXEC: {181.00}
@@ -305,6 +327,7 @@ int main () {
   TEST(fn6, 3, 5, 7); // CHECK-EXEC: {3.00}
   TEST(fn7, 3, 5);    // CHECK-EXEC: {8.00}
   TEST(fn8, 3, 5);    // CHECK-EXEC: {19.04}
+  TEST(fn9, 3, 5);    // CHECK-EXEC: {5.00}
   return 0;
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_of_squares_pushforward(double u, double v, double _d_u, double _d_v) {
@@ -376,5 +399,9 @@ int main () {
 // CHECK-NEXT:   if (c == 'a')
 // CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT:   return {1, 0};
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndPushforward<double, double> g_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT: }
 }

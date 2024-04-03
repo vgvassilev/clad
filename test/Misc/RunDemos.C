@@ -273,11 +273,11 @@
 // CHECK_ARRAYS_EXEC:   {0.33, 0, 0, 0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0.33, 0, 0, 0, 0}
 // CHECK_ARRAYS_EXEC:   {0, 0, 0.33, 0, 0, 0}
-// CHECK_ARRAYS_EXEC-FAIL: Hessian Mode w.r.t. to arr:
-// CHECK_ARRAYS_EXEC-FAIL:  matrix =
-// CHECK_ARRAYS_EXEC-FAIL:   {0, 0, 0}
-// CHECK_ARRAYS_EXEC-FAIL:   {0, 0, 0}
-// CHECK_ARRAYS_EXEC-FAIL:   {0, 0, 0}
+// CHECK_ARRAYS_EXEC: Hessian Mode w.r.t. to arr:
+// CHECK_ARRAYS_EXEC:  matrix =
+// CHECK_ARRAYS_EXEC:   {0, 0, 0}
+// CHECK_ARRAYS_EXEC:   {0, 0, 0}
+// CHECK_ARRAYS_EXEC:   {0, 0, 0}
 
 //-----------------------------------------------------------------------------/
 // Demo: VectorForwardMode.cpp

@@ -67,8 +67,17 @@ namespace clad {
     IndependentArgRequest.Args = ReverseModeArgs;
     IndependentArgRequest.BaseFunctionName = firstDerivative->getNameAsString();
     IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
+
+    // Derive declaration of the the forward mode derivative.
+    IndependentArgRequest.DeclarationOnly = true;
     FunctionDecl* secondDerivative =
         plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+
+    // Add the request to derive the definition of the forward mode derivative
+    // to the schedule.
+    IndependentArgRequest.DeclarationOnly = false;
+    IndependentArgRequest.DerivedFDPrototype = secondDerivative;
+    plugin::AddRequestToSchedule(CP, IndependentArgRequest);
 
     return secondDerivative;
   }
@@ -99,8 +108,9 @@ namespace clad {
     std::string hessianFuncName = request.BaseFunctionName + "_hessian";
     // To be consistent with older tests, nothing is appended to 'f_hessian' if
     // we differentiate w.r.t. all the parameters at once.
-    if (!std::equal(m_Function->param_begin(), m_Function->param_end(),
-                    std::begin(args))) {
+    if (args.size() != FD->getNumParams() ||
+        !std::equal(m_Function->param_begin(), m_Function->param_end(),
+                    args.begin())) {
       for (auto arg : args) {
         auto it =
             std::find(m_Function->param_begin(), m_Function->param_end(), arg);

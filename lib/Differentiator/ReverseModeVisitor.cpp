@@ -339,6 +339,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // added by the plugins yet.
     if (!isVectorValued && numExtraParam == 0)
       shouldCreateOverload = true;
+    if (request.DerivedFDPrototype)
+      // If the overload is already created, we don't need to create it again.
+      shouldCreateOverload = false;
 
     const auto* originalFnType =
         dyn_cast<FunctionProtoType>(m_Function->getType());
@@ -386,57 +389,62 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     gradientFD->setParams(paramsRef);
     gradientFD->setBody(nullptr);
 
-    if (isVectorValued) {
-      // Reference to the output parameter.
-      m_Result = BuildDeclRef(params.back());
-      numParams = args.size();
+    if (!request.DeclarationOnly) {
+      if (isVectorValued) {
+        // Reference to the output parameter.
+        m_Result = BuildDeclRef(params.back());
+        numParams = args.size();
 
-      // Creates the ArraySubscriptExprs for the independent variables
-      size_t idx = 0;
-      for (const auto* arg : args) {
-        // FIXME: fix when adding array inputs, now we are just skipping all
-        // array/pointer inputs (not treating them as independent variables).
-        if (utils::isArrayOrPointerType(arg->getType())) {
-          if (arg->getName() == "p")
-            m_Variables[arg] = m_Result;
+        // Creates the ArraySubscriptExprs for the independent variables
+        size_t idx = 0;
+        for (const auto* arg : args) {
+          // FIXME: fix when adding array inputs, now we are just skipping all
+          // array/pointer inputs (not treating them as independent variables).
+          if (utils::isArrayOrPointerType(arg->getType())) {
+            if (arg->getName() == "p")
+              m_Variables[arg] = m_Result;
+            idx += 1;
+            continue;
+          }
+          auto size_type = m_Context.getSizeType();
+          unsigned size_type_bits = m_Context.getIntWidth(size_type);
+          // Create the idx literal.
+          auto* i = IntegerLiteral::Create(
+              m_Context, llvm::APInt(size_type_bits, idx), size_type, noLoc);
+          // Create the jacobianMatrix[idx] expression.
+          auto* result_at_i =
+              m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
+                  .get();
+          m_Variables[arg] = result_at_i;
           idx += 1;
-          continue;
+          m_IndependentVars.push_back(arg);
         }
-        auto size_type = m_Context.getSizeType();
-        unsigned size_type_bits = m_Context.getIntWidth(size_type);
-        // Create the idx literal.
-        auto* i = IntegerLiteral::Create(
-            m_Context, llvm::APInt(size_type_bits, idx), size_type, noLoc);
-        // Create the jacobianMatrix[idx] expression.
-        auto* result_at_i =
-            m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
-                .get();
-        m_Variables[arg] = result_at_i;
-        idx += 1;
-        m_IndependentVars.push_back(arg);
       }
+
+      if (m_ExternalSource)
+        m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
+
+      // Function body scope.
+      beginScope(Scope::FnScope | Scope::DeclScope);
+      m_DerivativeFnScope = getCurrentScope();
+      beginBlock();
+      if (m_ExternalSource)
+        m_ExternalSource->ActOnStartOfDerivedFnBody(request);
+
+      Stmt* gradientBody = nullptr;
+
+      if (!use_enzyme)
+        DifferentiateWithClad();
+      else
+        DifferentiateWithEnzyme();
+
+      gradientBody = endBlock();
+      m_Derivative->setBody(gradientBody);
+      endScope(); // Function body scope
+
+      if (request.DerivedFDPrototype)
+        m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
     }
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
-
-    // Function body scope.
-    beginScope(Scope::FnScope | Scope::DeclScope);
-    m_DerivativeFnScope = getCurrentScope();
-    beginBlock();
-    if (m_ExternalSource)
-      m_ExternalSource->ActOnStartOfDerivedFnBody(request);
-
-    Stmt* gradientBody = nullptr;
-
-    if (!use_enzyme)
-      DifferentiateWithClad();
-    else
-      DifferentiateWithEnzyme();
-
-    gradientBody = endBlock();
-    m_Derivative->setBody(gradientBody);
-    endScope(); // Function body scope
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
