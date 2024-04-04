@@ -4109,9 +4109,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
     
-    // Increment statement in the for-loop is only executed if the iteration
-    // did not end with a break/continue statement. Therefore, forLoopIncDiff
-    // should be inside the last switch case in the reverse pass.
+    // Increment statement in the for-loop is executed for every case
     if (forLoopIncDiff) {
       if (bodyDiff.getStmt_dx()) {
         bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
