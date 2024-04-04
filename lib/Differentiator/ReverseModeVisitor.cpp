@@ -4108,7 +4108,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
-    
+   
     // Increment statement in the for-loop is executed for every case
     if (forLoopIncDiff) {
       if (bodyDiff.getStmt_dx()) {
