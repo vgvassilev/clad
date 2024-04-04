@@ -57,25 +57,30 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   m_Derivative->setParams(params);
   m_Derivative->setBody(nullptr);
 
-  beginScope(Scope::FnScope | Scope::DeclScope);
-  m_DerivativeFnScope = getCurrentScope();
+  if (!request.DeclarationOnly) {
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
 
-  beginBlock();
-  beginBlock(direction::reverse);
+    beginBlock();
+    beginBlock(direction::reverse);
 
-  StmtDiff bodyDiff = Visit(m_Function->getBody());
-  Stmt* forward = bodyDiff.getStmt();
+    StmtDiff bodyDiff = Visit(m_Function->getBody());
+    Stmt* forward = bodyDiff.getStmt();
 
-  for (Stmt* S : ReverseModeVisitor::m_Globals)
-    addToCurrentBlock(S);
-
-  if (auto* CS = dyn_cast<CompoundStmt>(forward))
-    for (Stmt* S : CS->body())
+    for (Stmt* S : ReverseModeVisitor::m_Globals)
       addToCurrentBlock(S);
 
-  Stmt* fnBody = endBlock();
-  m_Derivative->setBody(fnBody);
-  endScope();
+    if (auto* CS = dyn_cast<CompoundStmt>(forward))
+      for (Stmt* S : CS->body())
+        addToCurrentBlock(S);
+
+    Stmt* fnBody = endBlock();
+    m_Derivative->setBody(fnBody);
+    endScope();
+
+    if (request.DerivedFDPrototype)
+      m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+  }
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
   endScope();
