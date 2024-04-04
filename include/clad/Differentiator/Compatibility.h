@@ -284,7 +284,7 @@ static inline SwitchStmt* SwitchStmt_Create(const ASTContext &Ctx,
 {
 
 #if CLANG_VERSION_MAJOR < 12
-   return SwitchStmt::Create(Ctx, Init, Var, Cond);
+  return SwitchStmt::Create(Ctx, Init, Var, Cond);
 #elif CLANG_VERSION_MAJOR >= 12
    return SwitchStmt::Create(Ctx, Init, Var, Cond, LParenLoc, RParenLoc);
 #endif
@@ -342,7 +342,7 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
 #if CLANG_VERSION_MAJOR < 10
    return Ctx.getConstantArrayType(EltTy, ArySize, ASM, IndexTypeQuals);
 #elif CLANG_VERSION_MAJOR >= 10
-   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
+  return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
                                   IndexTypeQuals);
 #endif
 }
@@ -351,7 +351,7 @@ static inline QualType
 getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
                      const APInt& ArySize, const Expr* SizeExpr,
                      clang::ArraySizeModifier ASM, unsigned IndexTypeQuals) {
-   return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
+  return Ctx.getConstantArrayType(EltTy, ArySize, SizeExpr, ASM,
                                   IndexTypeQuals);
 }
 #endif
@@ -433,8 +433,8 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
 /// Clang < 9, do not provide `Sema::BuildCXXThisExpr` function.
 static inline CXXThisExpr* Sema_BuildCXXThisExpr(Sema& SemaRef,
                                                  const CXXMethodDecl* method) {
-   auto thisType = method->getThisType();
-   SourceLocation noLoc;
+  auto thisType = method->getThisType();
+  SourceLocation noLoc;
 #if CLANG_VERSION_MAJOR >= 9
   return cast<CXXThisExpr>(
       SemaRef.BuildCXXThisExpr(noLoc, thisType, /*IsImplicit=*/true));

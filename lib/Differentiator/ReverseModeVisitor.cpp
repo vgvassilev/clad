@@ -71,6 +71,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return Call;
   }
 
+  Expr* ReverseModeVisitor::CladTapeResult::Size() {
+    LookupResult& TapeSize = V.GetCladTapeSize();
+    CXXScopeSpec CSS;
+    CSS.Extend(V.m_Context, V.GetCladNamespace(), noLoc, noLoc);
+    Expr* SizeDRE = V.m_Sema
+                        .BuildDeclarationNameExpr(CSS, TapeSize,
+                                                  /*AcceptInvalidDecl=*/false)
+                        .get();
+    Expr* Call =
+        V.m_Sema.ActOnCallExpr(V.getCurrentScope(), SizeDRE, noLoc, Ref, noLoc)
+            .get();
+    return Call;
+  }
+
   ReverseModeVisitor::CladTapeResult
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
@@ -4108,14 +4122,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
-   
+
     // Increment statement in the for-loop is executed for every case
     if (forLoopIncDiff) {
+      Stmt* forLoopIncDiffExpr = forLoopIncDiff;
+      if (m_CurrentBreakFlagExpr) {
+        forLoopIncDiffExpr = clad_compat::IfStmt_Create(
+            m_Context, noLoc, false, nullptr, nullptr, m_CurrentBreakFlagExpr,
+            noLoc, noLoc, forLoopIncDiff, noLoc, nullptr);
+      }
       if (bodyDiff.getStmt_dx()) {
         bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
-            m_Context, bodyDiff.getStmt_dx(), forLoopIncDiff));
+            m_Context, bodyDiff.getStmt_dx(), forLoopIncDiffExpr));
       } else {
-        bodyDiff.updateStmtDx(forLoopIncDiff);
+        bodyDiff.updateStmtDx(forLoopIncDiffExpr);
       }
     }
 
@@ -4163,13 +4183,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isInsideLoop && !activeBreakContHandler->m_IsInvokedBySwitchStmt) {
       Expr* tapeBackExprForCurrentCase =
           activeBreakContHandler->CreateCFTapeBackExprForCurrentCase();
+      Expr* tapeSizeExprForCurrentCase =
+          activeBreakContHandler->CreateCFTapeSizeExprForCurrentCase();
+      Expr* currentBreakFlagExpr =
+          BuildOp(BinaryOperatorKind::BO_LAnd, tapeSizeExprForCurrentCase,
+                  tapeBackExprForCurrentCase);
       if (m_CurrentBreakFlagExpr) {
         m_CurrentBreakFlagExpr =
             BuildOp(BinaryOperatorKind::BO_LAnd, m_CurrentBreakFlagExpr,
-                    tapeBackExprForCurrentCase);
+                    currentBreakFlagExpr);
 
       } else {
-        m_CurrentBreakFlagExpr = tapeBackExprForCurrentCase;
+        m_CurrentBreakFlagExpr = currentBreakFlagExpr;
       }
     }
     addToCurrentBlock(pushExprToCurrentCase);
@@ -4246,6 +4271,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!m_ControlFlowTape)
       InitializeCFTape();
     return CreateCFTapePushExpr(m_CaseCounter);
+  }
+
+  Expr* ReverseModeVisitor::BreakContStmtHandler::
+      CreateCFTapeSizeExprForCurrentCase() {
+    return m_RMV.BuildOp(BinaryOperatorKind::BO_NE, m_ControlFlowTape->Size(),
+                         ConstantFolder::synthesizeLiteral(
+                             m_RMV.m_Context.IntTy, m_RMV.m_Context, 0));
   }
 
   void ReverseModeVisitor::BreakContStmtHandler::UpdateForwAndRevBlocks(

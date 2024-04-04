@@ -460,9 +460,10 @@ namespace clad {
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.
     clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
-    /// Perform lookup into clad namespace for push/pop/back. Returns
+    /// Perform lookup into clad namespace for push/pop/back/size. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
     /// are templates).
+    clang::LookupResult& GetCladTapeSize();
     clang::LookupResult& GetCladTapePush();
     clang::LookupResult& GetCladTapePop();
     clang::LookupResult& GetCladTapeBack();
