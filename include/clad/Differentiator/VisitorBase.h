@@ -13,6 +13,7 @@ namespace clad {
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffMode.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"

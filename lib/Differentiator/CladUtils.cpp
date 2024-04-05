@@ -689,5 +689,12 @@ namespace clad {
       // FIXME: consider analysing object types with this
       return !utils::GetValueType(QT)->isIntegerType();
     }
+
+    clang::QualType getNonConstType(clang::QualType T, clang::ASTContext& C,
+                                    clang::Sema& S) {
+      clang::Qualifiers quals(T.getQualifiers());
+      quals.removeConst();
+      return S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+    }
   } // namespace utils
 } // namespace clad

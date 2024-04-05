@@ -70,8 +70,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
     assert(E && "must be provided");
     E = E->IgnoreImplicit();
-    QualType TapeType =
-        GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
+    QualType TapeType = GetCladTapeOfType(
+        utils::getNonConstType(E->getType(), m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
     Expr* TapeRef =
@@ -1529,7 +1529,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // is done to reduce cloning complexity and only clone once. The type is
         // same as the call expression as it is the type used to declare the
         // _gradX array
-        QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
+        QualType dArgTy =
+            utils::getNonConstType(arg->getType(), m_Context, m_Sema);
         VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
         PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
         CallArgDx.push_back(BuildDeclRef(dArgDecl));
@@ -1823,7 +1824,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 /*numArgs=*/1, DerivedCallArgs);
             asGrad = !OverloadedDerivedFn;
           } else {
-            auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
+            auto CEType =
+                utils::getNonConstType(CE->getType(), m_Context, m_Sema);
             OverloadedDerivedFn = GetMultiArgCentralDiffCall(
                 Clone(CE->getCallee()), CEType.getCanonicalType(),
                 CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
@@ -2636,7 +2638,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Computation of hessian requires this code to be correctly
       // differentiated.
       if (specialThisDiffCase && VD->getNameAsString() == "_d_this") {
-        VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
+        VDDerivedType =
+            utils::getNonConstType(VDDerivedType, m_Context, m_Sema);
         initDiff = Visit(VD->getInit());
         if (initDiff.getExpr_dx())
           VDDerivedInit = initDiff.getExpr_dx();
@@ -2644,7 +2647,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // if VD is a pointer type, then the initial value is set to the derived
       // expression of the corresponding pointer type.
       else if (isPointerType && VD->getInit()) {
-        VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
+        VDDerivedType =
+            utils::getNonConstType(VDDerivedType, m_Context, m_Sema);
         // If it's a pointer to a constant type, then remove the constness.
         if (VD->getType()->getPointeeType().isConstQualified()) {
           // first extract the pointee type
@@ -3112,7 +3116,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                  bool force) {
     assert(E && "cannot infer type");
     return GlobalStoreAndRef(
-        E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
+        E, utils::getNonConstType(E->getType(), m_Context, m_Sema), prefix,
+        force);
   }
 
   StmtDiff ReverseModeVisitor::BuildPushPop(clang::Expr* E,
@@ -3136,7 +3141,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
                                                llvm::StringRef prefix,
                                                bool force) {
-    auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
+    auto Type = utils::getNonConstType(E->getType(), m_Context, m_Sema);
 
     if (!force && !UsefulToStoreGlobal(E))
       return {};
@@ -3202,7 +3207,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                 /*isInsideLoop*/ true, /*pNeedsUpdate=*/true};
     }
     Expr* Ref = BuildDeclRef(GlobalStoreImpl(
-        getNonConstType(E->getType(), m_Context, m_Sema), prefix));
+        utils::getNonConstType(E->getType(), m_Context, m_Sema), prefix));
     // Return reference to the declaration instead of original expression.
     return DelayedStoreResult{*this, StmtDiff{Ref, nullptr, nullptr, Ref},
                               /*isConstant*/ false,
