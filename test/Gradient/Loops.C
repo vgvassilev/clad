@@ -1666,6 +1666,61 @@ double fn20(double *arr, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn21(double val) {
+  double res = 0;
+  for (int i=1; i<5; ++i) {
+    if (i == 3)
+      continue;
+    res += i * val;
+  }
+  return res;
+}
+
+// CHECK: void fn21_grad(double val, double *_d_val) {
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     unsigned long _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<bool> _t2 = {};
+// CHECK-NEXT:     clad::tape<unsigned long> _t3 = {};
+// CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (i = 1; i < 5; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         bool _t1 = i == 3;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (_t1) {
+// CHECK-NEXT:                 clad::push(_t3, 1UL);
+// CHECK-NEXT:                 continue;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             clad::push(_t2, _t1);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         clad::push(_t4, res);
+// CHECK-NEXT:         res += i * val;
+// CHECK-NEXT:         clad::push(_t3, 2UL);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         switch (clad::pop(_t3)) {
+// CHECK-NEXT:           case 2UL:
+// CHECK-NEXT:             ;
+// CHECK-NEXT:             {
+// CHECK-NEXT:                 res = clad::pop(_t4);
+// CHECK-NEXT:                 double _r_d0 = _d_res;
+// CHECK-NEXT:                 _d_i += _r_d0 * val;
+// CHECK-NEXT:                 *_d_val += i * _r_d0;
+// CHECK-NEXT:             }
+// CHECK-NEXT:             if (clad::pop(_t2))
+// CHECK-NEXT:               case 1UL:
+// CHECK-NEXT:                 ;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -1735,4 +1790,6 @@ int main() {
   auto d_fn20 = clad::gradient(fn20, "arr");
   d_fn20.execute(x, 5, result);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {5.00, 5.00, 5.00, 5.00, 5.00}
+
+  TEST(fn21, 3); // CHECK-EXEC: {7.00}
 }
