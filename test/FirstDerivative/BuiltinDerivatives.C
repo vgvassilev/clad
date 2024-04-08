@@ -171,9 +171,9 @@ double f10(float x, int y) {
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
-void f10_grad(float x, int y, float *_d_x, int *_d_y);
+void f10_grad_0(float x, int y, float *_d_x);
 
-// CHECK: void f10_grad(float x, int y, float *_d_x, int *_d_y) {
+// CHECK: void f10_grad_0(float x, int y, float *_d_x) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
@@ -181,7 +181,6 @@ void f10_grad(float x, int y, float *_d_x, int *_d_y);
 // CHECK-NEXT:         int _r1 = 0;
 // CHECK-NEXT:         {{(clad::)?}}custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_r0, &_r1);
 // CHECK-NEXT:         *_d_x += _r0;
-// CHECK-NEXT:         *_d_y += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -222,7 +221,6 @@ double f12(double a, double b) { return std::fma(a, b, b); }
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
-  int i_result[1];
 
   auto f1_darg0 = clad::differentiate(f1, 0);
   printf("Result is = %f\n", f1_darg0.execute(60)); // CHECK-EXEC: Result is = -0.952413
@@ -276,10 +274,9 @@ int main () { //expected-no-diagnostics
   printf("Result is = %f\n", f10_darg0.execute(3, 4)); //CHECK-EXEC: Result is = 108.000000
 
   f_result[0] = f_result[1] = 0;
-  i_result[0] = 0;
   clad::gradient(f10);
-  f10_grad(3, 4, &f_result[0], &i_result[0]);
-  printf("Result is = {%f, %d}\n", f_result[0], i_result[0]); //CHECK-EXEC: Result is = {108.000000, 88}
+  f10_grad_0(3, 4, &f_result[0]);
+  printf("Result is = {%f}\n", f_result[0]); //CHECK-EXEC: Result is = {108.000000}
 
   INIT_GRADIENT(f11);
 

@@ -1095,8 +1095,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   std::string customPushforward =
       clad::utils::ComputeEffectiveFnName(FD) + GetPushForwardFunctionSuffix();
   Expr* callDiff = BuildCallToCustomDerivativeOrNumericalDiff(
-      customPushforward, customDerivativeArgs, getCurrentScope(),
-      const_cast<DeclContext*>(FD->getDeclContext()));
+      customPushforward, customDerivativeArgs, getCurrentScope(), FD);
 
   // Check if it is a recursive call.
   if (!callDiff && (FD == m_Function) && m_Mode == GetPushForwardMode()) {

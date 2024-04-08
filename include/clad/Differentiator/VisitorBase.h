@@ -663,8 +663,9 @@ namespace clad {
     /// null otherwise.
     clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
-        clang::Scope* S, clang::DeclContext* originalFnDC,
-        bool forCustomDerv = true, bool namespaceShouldExist = true);
+        clang::Scope* S, const clang::FunctionDecl* originalFD,
+        bool forCustomDerv = true, bool namespaceShouldExist = true,
+        llvm::SmallVectorImpl<clang::Stmt*>* block = nullptr);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
   };

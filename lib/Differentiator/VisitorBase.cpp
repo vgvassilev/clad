@@ -730,8 +730,11 @@ namespace clad {
     NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
     // Return the found overload.
     std::string Name = "forward_central_difference";
+    const FunctionDecl* FD = nullptr;
+    if (auto* DRE = dyn_cast<DeclRefExpr>(targetFuncCall->IgnoreImplicit()))
+      FD = dyn_cast<FunctionDecl>(DRE->getDecl());
     return BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        Name, NumDiffArgs, getCurrentScope(), /*OriginalFD=*/FD,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }
@@ -814,8 +817,12 @@ namespace clad {
 
   Expr* VisitorBase::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
-      clang::Scope* S, clang::DeclContext* originalFnDC,
-      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
+      clang::Scope* S, const clang::FunctionDecl* originalFD,
+      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
+      llvm::SmallVectorImpl<Stmt*>* block /*=nullptr*/) {
+    DeclContext* originalFnDC = nullptr;
+    if (originalFD)
+      originalFnDC = const_cast<DeclContext*>(originalFD->getDeclContext());
     NamespaceDecl* NSD = nullptr;
     std::string namespaceID;
     if (forCustomDerv) {
@@ -837,7 +844,7 @@ namespace clad {
       NSD = utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist);
       if (!forCustomDerv && !NSD) {
         diag(DiagnosticsEngine::Warning, noLoc,
-             "Numerical differentiation is diabled using the "
+             "Numerical differentiation is disabled using the "
              "-DCLAD_NO_NUM_DIFF "
              "flag, this means that every try to numerically differentiate a "
              "function will fail! Remove the flag to revert to default "
@@ -885,15 +892,40 @@ namespace clad {
       Expr* UnresolvedLookup =
           m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
 
-      auto MARargs = llvm::MutableArrayRef<Expr*>(CallArgs);
-
-      SourceLocation Loc;
+      llvm::SmallVector<Expr*, 16> ExtendedCallArgs(CallArgs.begin(),
+                                                    CallArgs.end());
+      llvm::SmallVector<Stmt*, 16> DeclStmts;
+      // FIXME: for now, integer types are considered differentiable in the
+      // forward mode.
+      if (m_Mode != DiffMode::forward &&
+          m_Mode != DiffMode::vector_forward_mode &&
+          m_Mode != DiffMode::experimental_pushforward)
+        for (size_t i = 0, e = originalFD->getNumParams(); i < e; ++i) {
+          QualType paramTy = originalFD->getParamDecl(i)->getType();
+          if (!utils::IsDifferentiableType(paramTy)) {
+            QualType argTy = utils::getNonConstType(paramTy, m_Context, m_Sema);
+            VarDecl* argDecl = BuildVarDecl(argTy, "_r", getZeroInit(argTy));
+            Expr* arg = BuildDeclRef(argDecl);
+            if (!utils::isArrayOrPointerType(argTy))
+              arg = BuildOp(UO_AddrOf, arg);
+            ExtendedCallArgs.insert(ExtendedCallArgs.begin() + e + i + 1, arg);
+            DeclStmts.push_back(BuildDeclStmt(argDecl));
+          }
+        }
+      auto MARargs = llvm::MutableArrayRef<Expr*>(ExtendedCallArgs);
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;
 
       OverloadedFn =
-          m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc).get();
+          m_Sema.ActOnCallExpr(S, UnresolvedLookup, noLoc, MARargs, noLoc)
+              .get();
+      if (!DeclStmts.empty()) {
+        if (!block)
+          block = &getCurrentBlock();
+        for (Stmt* decl : DeclStmts)
+          block->push_back(decl);
+      }
     }
     return OverloadedFn;
   }

@@ -1648,8 +1648,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
           DerivedCallArgs.front()->getType(), m_Context, 1));
       OverloadedDerivedFn = BuildCallToCustomDerivativeOrNumericalDiff(
-          customPushforward, pushforwardCallArgs, getCurrentScope(),
-          const_cast<DeclContext*>(FD->getDeclContext()));
+          customPushforward, pushforwardCallArgs, getCurrentScope(), FD);
       if (OverloadedDerivedFn)
         asGrad = false;
     }
@@ -1744,8 +1743,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::string customPullback =
           clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
       OverloadedDerivedFn = BuildCallToCustomDerivativeOrNumericalDiff(
-          customPullback, pullbackCallArgs, getCurrentScope(),
-          const_cast<DeclContext*>(FD->getDeclContext()));
+          customPullback, pullbackCallArgs, getCurrentScope(), FD,
+          /*forCustomDerv=*/true,
+          /*namespaceShouldExist=*/true,
+          /*block=*/&PreCallStmts);
       if (baseDiff.getExpr())
         pullbackCallArgs.erase(pullbackCallArgs.begin());
     }
@@ -2023,8 +2024,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
+    const FunctionDecl* FD = nullptr;
+    if (auto* DRE = dyn_cast<DeclRefExpr>(targetFuncCall->IgnoreImplicit()))
+      FD = dyn_cast<FunctionDecl>(DRE->getDecl());
     return BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        Name, NumDiffArgs, getCurrentScope(), /*OriginalFD=*/FD,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }

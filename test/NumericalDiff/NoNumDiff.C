@@ -8,8 +8,8 @@
 
 double func(double x) { return std::tanh(x); }
 
-//CHECK: warning: Numerical differentiation is diabled using the -DCLAD_NO_NUM_DIFF flag, this means that every try to numerically differentiate a function will fail! Remove the flag to revert to default behaviour.
-//CHECK: warning: Numerical differentiation is diabled using the -DCLAD_NO_NUM_DIFF flag, this means that every try to numerically differentiate a function will fail! Remove the flag to revert to default behaviour.
+//CHECK: warning: Numerical differentiation is disabled using the -DCLAD_NO_NUM_DIFF flag, this means that every try to numerically differentiate a function will fail! Remove the flag to revert to default behaviour.
+//CHECK: warning: Numerical differentiation is disabled using the -DCLAD_NO_NUM_DIFF flag, this means that every try to numerically differentiate a function will fail! Remove the flag to revert to default behaviour.
 //CHECK: double func_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
 //CHECK-NEXT:     return 0;
