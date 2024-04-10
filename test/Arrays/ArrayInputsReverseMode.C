@@ -16,31 +16,7 @@ double addArr(const double *arr, int n) {
   return ret;
 }
 
-//CHECK: void addArr_pullback(const double *arr, int n, double _d_y, double *_d_arr, int *_d_n) {
-//CHECK-NEXT:     double _d_ret = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
-//CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     double ret = 0;
-//CHECK-NEXT:     _t0 = 0;
-//CHECK-NEXT:     for (i = 0; i < n; i++) {
-//CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, ret);
-//CHECK-NEXT:         ret += arr[i];
-//CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
-//CHECK-NEXT:     _d_ret += _d_y;
-//CHECK-NEXT:     for (; _t0; _t0--) {
-//CHECK-NEXT:         i--;
-//CHECK-NEXT:         {
-//CHECK-NEXT:             ret = clad::pop(_t1);
-//CHECK-NEXT:             double _r_d0 = _d_ret;
-//CHECK-NEXT:             _d_arr[i] += _r_d0;
-//CHECK-NEXT:         }
-//CHECK-NEXT:     }
-//CHECK-NEXT: }
+//CHECK: void addArr_pullback(const double *arr, int n, double _d_y, double *_d_arr, int *_d_n);
 
 double f(double *arr) {
   return addArr(arr, 3);
@@ -104,11 +80,7 @@ float helper(float x) {
   return 2 * x;
 }
 
-// CHECK: void helper_pullback(float x, float _d_y, float *_d_x) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     *_d_x += 2 * _d_y;
-// CHECK-NEXT: }
+// CHECK: void helper_pullback(float x, float _d_y, float *_d_x);
 
 float func2(float* a) {
   float sum = 0;
@@ -345,17 +317,7 @@ double inv_square(double *params) {
   return 1 / (params[0] * params[0]);
 }
 
-//CHECK: void inv_square_pullback(double *params, double _d_y, double *_d_params) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     _t0 = (params[0] * params[0]);
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
-//CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = _d_y * -1 / (_t0 * _t0);
-//CHECK-NEXT:         _d_params[0] += _r0 * params[0];
-//CHECK-NEXT:         _d_params[0] += params[0] * _r0;
-//CHECK-NEXT:     }
-//CHECK-NEXT: }
+//CHECK: void inv_square_pullback(double *params, double _d_y, double *_d_params);
 
 double func7(double *params) {
   double out = 0.0;
@@ -407,14 +369,7 @@ double helper2(double i, double *arr, int n) {
   return arr[0]*i;
 }
 
-//CHECK: void helper2_pullback(double i, double *arr, int n, double _d_y, double *_d_i, double *_d_arr, int *_d_n) {
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
-//CHECK-NEXT:     {
-//CHECK-NEXT:         _d_arr[0] += _d_y * i;
-//CHECK-NEXT:         *_d_i += arr[0] * _d_y;
-//CHECK-NEXT:     }
-//CHECK-NEXT: }
+//CHECK: void helper2_pullback(double i, double *arr, int n, double _d_y, double *_d_i, double *_d_arr, int *_d_n);
 
 double func8(double i, double *arr, int n) {
   double res = 0;
@@ -465,17 +420,7 @@ void modify(double& elem, double val) {
   elem = val;
 }
 
-//CHECK: void modify_pullback(double &elem, double val, double *_d_elem, double *_d_val) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     _t0 = elem;
-//CHECK-NEXT:     elem = val;
-//CHECK-NEXT:     {
-//CHECK-NEXT:         elem = _t0;
-//CHECK-NEXT:         double _r_d0 = *_d_elem;
-//CHECK-NEXT:         *_d_elem -= _r_d0;
-//CHECK-NEXT:         *_d_val += _r_d0;
-//CHECK-NEXT:     }
-//CHECK-NEXT: }
+//CHECK: void modify_pullback(double &elem, double val, double *_d_elem, double *_d_val);
 
 double func9(double i, double j) {
   double arr[5] = {};
@@ -525,21 +470,7 @@ double sq(double& elem) {
   return elem;
 }
 
-//CHECK: void sq_pullback(double &elem, double _d_y, double *_d_elem) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     _t0 = elem;
-//CHECK-NEXT:     elem = elem * elem;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
-//CHECK-NEXT:     *_d_elem += _d_y;
-//CHECK-NEXT:     {
-//CHECK-NEXT:         elem = _t0;
-//CHECK-NEXT:         double _r_d0 = *_d_elem;
-//CHECK-NEXT:         *_d_elem -= _r_d0;
-//CHECK-NEXT:         *_d_elem += _r_d0 * elem;
-//CHECK-NEXT:         *_d_elem += elem * _r_d0;
-//CHECK-NEXT:     }
-//CHECK-NEXT: }
+//CHECK: void sq_pullback(double &elem, double _d_y, double *_d_elem);
 
 double func10(double *arr, int n) {
   double res = 0;
@@ -645,3 +576,84 @@ int main() {
   func10grad.execute(arr3, 5, _d_arr3);
   printf("Result (arr) = {%.2f, %.2f, %.2f, %.2f, %.2f}\n", _d_arr3[0], _d_arr3[1], _d_arr3[2], _d_arr3[3], _d_arr3[4]); // CHECK-EXEC: Result (arr) = {2.00, 4.00, 6.00, 8.00, 10.00}
 }
+
+//CHECK: void addArr_pullback(const double *arr, int n, double _d_y, double *_d_arr, int *_d_n) {
+//CHECK-NEXT:     double _d_ret = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     int _d_i = 0;
+//CHECK-NEXT:     int i = 0;
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double ret = 0;
+//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     for (i = 0; i < n; i++) {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, ret);
+//CHECK-NEXT:         ret += arr[i];
+//CHECK-NEXT:     }
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     _d_ret += _d_y;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         i--;
+//CHECK-NEXT:         {
+//CHECK-NEXT:             ret = clad::pop(_t1);
+//CHECK-NEXT:             double _r_d0 = _d_ret;
+//CHECK-NEXT:             _d_arr[i] += _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+// CHECK: void helper_pullback(float x, float _d_y, float *_d_x) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     *_d_x += 2 * _d_y;
+// CHECK-NEXT: }
+
+//CHECK: void inv_square_pullback(double *params, double _d_y, double *_d_params) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     _t0 = (params[0] * params[0]);
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     {
+//CHECK-NEXT:         double _r0 = _d_y * -1 / (_t0 * _t0);
+//CHECK-NEXT:         _d_params[0] += _r0 * params[0];
+//CHECK-NEXT:         _d_params[0] += params[0] * _r0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+//CHECK: void helper2_pullback(double i, double *arr, int n, double _d_y, double *_d_i, double *_d_arr, int *_d_n) {
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _d_arr[0] += _d_y * i;
+//CHECK-NEXT:         *_d_i += arr[0] * _d_y;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+//CHECK: void modify_pullback(double &elem, double val, double *_d_elem, double *_d_val) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     _t0 = elem;
+//CHECK-NEXT:     elem = val;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         elem = _t0;
+//CHECK-NEXT:         double _r_d0 = *_d_elem;
+//CHECK-NEXT:         *_d_elem -= _r_d0;
+//CHECK-NEXT:         *_d_val += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+//CHECK: void sq_pullback(double &elem, double _d_y, double *_d_elem) {
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     _t0 = elem;
+//CHECK-NEXT:     elem = elem * elem;
+//CHECK-NEXT:     goto _label0;
+//CHECK-NEXT:   _label0:
+//CHECK-NEXT:     *_d_elem += _d_y;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         elem = _t0;
+//CHECK-NEXT:         double _r_d0 = *_d_elem;
+//CHECK-NEXT:         *_d_elem -= _r_d0;
+//CHECK-NEXT:         *_d_elem += _r_d0 * elem;
+//CHECK-NEXT:         *_d_elem += elem * _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }

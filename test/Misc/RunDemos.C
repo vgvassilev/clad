@@ -213,15 +213,7 @@
 //-----------------------------------------------------------------------------/
 // RUN: %cladclang %S/../../demos/GradientDescent.cpp -I%S/../../include -oGradientDescent.out | FileCheck -check-prefix CHECK_GRADIENT_DESCENT %s
 
-//CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, double *_d_theta_0, double *_d_theta_1, double *_d_x) {
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
-//CHECK_GRADIENT_DESCENT-NEXT:     {
-//CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_0 += _d_y;
-//CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_1 += _d_y * x;
-//CHECK_GRADIENT_DESCENT-NEXT:         *_d_x += theta_1 * _d_y;
-//CHECK_GRADIENT_DESCENT-NEXT:     }
-//CHECK_GRADIENT_DESCENT-NEXT: }
+//CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, double *_d_theta_0, double *_d_theta_1, double *_d_x);
 
 //CHECK_GRADIENT_DESCENT-NEXT: void cost_grad(double theta_0, double theta_1, double x, double y, double *_d_theta_0, double *_d_theta_1, double *_d_x, double *_d_y) {
 //CHECK_GRADIENT_DESCENT-NEXT:     double _d_f_x = 0;
@@ -242,6 +234,16 @@
 //CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_0 += _r0;
 //CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_1 += _r1;
 //CHECK_GRADIENT_DESCENT-NEXT:         *_d_x += _r2;
+//CHECK_GRADIENT_DESCENT-NEXT:     }
+//CHECK_GRADIENT_DESCENT-NEXT: }
+
+//CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, double *_d_theta_0, double *_d_theta_1, double *_d_x) {
+//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
+//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
+//CHECK_GRADIENT_DESCENT-NEXT:     {
+//CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_0 += _d_y;
+//CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_1 += _d_y * x;
+//CHECK_GRADIENT_DESCENT-NEXT:         *_d_x += theta_1 * _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:     }
 //CHECK_GRADIENT_DESCENT-NEXT: }
 

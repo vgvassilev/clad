@@ -496,39 +496,9 @@ double fn2(SimpleFunctions& sf, double i) {
   return sf.ref_mem_fn(i);
 }
 
-// CHECK: void ref_mem_fn_pullback(double i, double _d_y, SimpleFunctions *_d_this, double *_d_i) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     _t0 = this->x;
-// CHECK-NEXT:     this->x = +i;
-// CHECK-NEXT:     _t1 = this->x;
-// CHECK-NEXT:     this->x = -i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     (*_d_this).x += _d_y;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         this->x = _t1;
-// CHECK-NEXT:         double _r_d1 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x -= _r_d1;
-// CHECK-NEXT:         *_d_i += -_r_d1;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         this->x = _t0;
-// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x -= _r_d0;
-// CHECK-NEXT:         *_d_i += _r_d0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
+// CHECK: void ref_mem_fn_pullback(double i, double _d_y, SimpleFunctions *_d_this, double *_d_i);
 
-// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double *_d_i) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     _t0 = this->x;
-// CHECK-NEXT:     this->x = +i;
-// CHECK-NEXT:     _t1 = this->x;
-// CHECK-NEXT:     this->x = -i;
-// CHECK-NEXT:     return {this->x, (*_d_this).x};
-// CHECK-NEXT: }
+// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double *_d_i);
 
 // CHECK: void fn2_grad(SimpleFunctions &sf, double i, SimpleFunctions *_d_sf, double *_d_i) {
 // CHECK-NEXT:     SimpleFunctions _t0;
@@ -553,26 +523,9 @@ double fn5(SimpleFunctions& v, double value) {
   return v.x;
 }
 
-// CHECK: void operator_plus_equal_pullback(double value, SimpleFunctions _d_y, SimpleFunctions *_d_this, double *_d_value) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = this->x;
-// CHECK-NEXT:     this->x += value;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     ;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         this->x = _t0;
-// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
-// CHECK-NEXT:         *_d_value += _r_d0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
+// CHECK: void operator_plus_equal_pullback(double value, SimpleFunctions _d_y, SimpleFunctions *_d_this, double *_d_value);
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, SimpleFunctions *_d_value) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = this->x;
-// CHECK-NEXT:     this->x += value;
-// CHECK-NEXT:     return {*this, (*_d_this)};
-// CHECK-NEXT: }
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, SimpleFunctions *_d_value);
 
 // CHECK: void fn5_grad(SimpleFunctions &v, double value, SimpleFunctions *_d_v, double *_d_value) {
 // CHECK-NEXT:     SimpleFunctions _t0;
@@ -593,25 +546,9 @@ double fn4(SimpleFunctions& v) {
   return v.x;
 }
 
-// CHECK: void operator_plus_plus_pullback(SimpleFunctions _d_y, SimpleFunctions *_d_this) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = this->x;
-// CHECK-NEXT:     this->x += 1.;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     ;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         this->x = _t0;
-// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
+// CHECK: void operator_plus_plus_pullback(SimpleFunctions _d_y, SimpleFunctions *_d_this);
 
-// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this) {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = this->x;
-// CHECK-NEXT:     this->x += 1.;
-// CHECK-NEXT:     return {*this, (*_d_this)};
-// CHECK-NEXT: }
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this);
 
 // CHECK: void fn4_grad(SimpleFunctions &v, SimpleFunctions *_d_v) {
 // CHECK-NEXT:     SimpleFunctions _t0;
@@ -711,7 +648,7 @@ int main() {
   d_fn3.execute(2, 3, 4, 5, &result[0], &result[1]);
   printf("%.2f %.2f", result[0], result[1]); // CHECK-EXEC: 10.00 4.00
 
-  // CHECK: void fn3_grad_2_3(double x, double y, double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn3_grad_2_3(double x, double y, double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_x = 0;
 // CHECK-NEXT:     double _d_y = 0;
 // CHECK-NEXT:     SimpleFunctions _d_sf({});
@@ -727,5 +664,80 @@ int main() {
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:         *_d_j += _r1;
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void ref_mem_fn_pullback(double i, double _d_y, SimpleFunctions *_d_this, double *_d_i) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     _t0 = this->x;
+// CHECK-NEXT:     this->x = +i;
+// CHECK-NEXT:     _t1 = this->x;
+// CHECK-NEXT:     this->x = -i;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     (*_d_this).x += _d_y;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         this->x = _t1;
+// CHECK-NEXT:         double _r_d1 = (*_d_this).x;
+// CHECK-NEXT:         (*_d_this).x -= _r_d1;
+// CHECK-NEXT:         *_d_i += -_r_d1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         this->x = _t0;
+// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
+// CHECK-NEXT:         (*_d_this).x -= _r_d0;
+// CHECK-NEXT:         *_d_i += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndAdjoint<double &, double &> ref_mem_fn_forw(double i, SimpleFunctions *_d_this, double *_d_i) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double _t1;
+// CHECK-NEXT:     _t0 = this->x;
+// CHECK-NEXT:     this->x = +i;
+// CHECK-NEXT:     _t1 = this->x;
+// CHECK-NEXT:     this->x = -i;
+// CHECK-NEXT:     return {this->x, (*_d_this).x};
+// CHECK-NEXT: }
+
+// CHECK: void operator_plus_equal_pullback(double value, SimpleFunctions _d_y, SimpleFunctions *_d_this, double *_d_value) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = this->x;
+// CHECK-NEXT:     this->x += value;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         this->x = _t0;
+// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
+// CHECK-NEXT:         *_d_value += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_equal_forw(double value, SimpleFunctions *_d_this, SimpleFunctions *_d_value) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = this->x;
+// CHECK-NEXT:     this->x += value;
+// CHECK-NEXT:     return {*this, (*_d_this)};
+// CHECK-NEXT: }
+
+// CHECK: void operator_plus_plus_pullback(SimpleFunctions _d_y, SimpleFunctions *_d_this) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = this->x;
+// CHECK-NEXT:     this->x += 1.;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     ;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         this->x = _t0;
+// CHECK-NEXT:         double _r_d0 = (*_d_this).x;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> operator_plus_plus_forw(SimpleFunctions *_d_this) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     _t0 = this->x;
+// CHECK-NEXT:     this->x += 1.;
+// CHECK-NEXT:     return {*this, (*_d_this)};
 // CHECK-NEXT: }
 }

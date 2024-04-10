@@ -1804,17 +1804,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (!m_ExternalSource) {
           // Derive the declaration of the pullback function.
           pullbackRequest.DeclarationOnly = true;
-          pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+          pullbackFD =
+              plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
 
           // Add the request to derive the definition of the pullback function.
           pullbackRequest.DeclarationOnly = false;
           pullbackRequest.DerivedFDPrototype = pullbackFD;
           plugin::AddRequestToSchedule(m_CladPlugin, pullbackRequest);
         } else {
-          // FIXME: Error estimation currently uses singleton objects - m_ErrorEstHandler and m_EstModel, which is cleared after each error_estimate request. This requires the pullback to be derived at the same time to access the singleton objects.
-          pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+          // FIXME: Error estimation currently uses singleton objects -
+          // m_ErrorEstHandler and m_EstModel, which is cleared after each
+          // error_estimate request. This requires the pullback to be derived at
+          // the same time to access the singleton objects.
+          pullbackFD =
+              plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
         }
-          
 
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If

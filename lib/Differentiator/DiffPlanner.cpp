@@ -276,11 +276,13 @@ namespace clad {
     // Diff info for pullbacks is generated automatically,
     // its parameters are not provided by the user.
     if (Mode == DiffMode::experimental_pullback) {
-      if (!Function->getPreviousDecl())
-        return;
-      const FunctionDecl* FD = Function->getPreviousDecl();
       // Might need to update DVI args, as they may be pointing to the
       // declaration parameters, not the definition parameters.
+      if (!Function->getPreviousDecl())
+        // If the function was never declared before, we can safely assume
+        // that the parameters are correctly referring to the definition ones.
+        return;
+      const FunctionDecl* FD = Function->getPreviousDecl();
       for (size_t i = 0, e = DVI.size(), paramIdx = 0;
            i < e && paramIdx < FD->getNumParams(); ++i) {
         const auto* param = DVI[i].param;

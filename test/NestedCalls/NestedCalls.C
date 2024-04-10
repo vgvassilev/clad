@@ -29,31 +29,7 @@ double f(double x, double y) {
 // CHECK-NEXT:     return _d_t * y + t * _d_y;
 // CHECK-NEXT: }
 
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
-//CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += _d_y * x;
-//CHECK-NEXT:           *_d_x += x * _d_y;
-//CHECK-NEXT:       }
-//CHECK-NEXT:   }
-
-//CHECK:   void one_pullback(double x, double _d_y, double *_d_x) {
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
-//CHECK-NEXT:       {
-//CHECK-NEXT:           double _r0 = 0;
-//CHECK-NEXT:           sq_pullback(std::sin(x), _d_y, &_r0);
-//CHECK-NEXT:           double _r1 = 0;
-//CHECK-NEXT:           _r1 += _r0 * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
-//CHECK-NEXT:           *_d_x += _r1;
-//CHECK-NEXT:           double _r2 = 0;
-//CHECK-NEXT:           sq_pullback(std::cos(x), _d_y, &_r2);
-//CHECK-NEXT:           double _r3 = 0;
-//CHECK-NEXT:           _r3 += _r2 * clad::custom_derivatives::cos_pushforward(x, 1.).pushforward;
-//CHECK-NEXT:           *_d_x += _r3;
-//CHECK-NEXT:       }
-//CHECK-NEXT:   }
+//CHECK:   void one_pullback(double x, double _d_y, double *_d_x);
 
 //CHECK:   void f_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       double _d_t = 0;
@@ -92,7 +68,35 @@ int main () { // expected-no-diagnostics
 // CHECK-NEXT:     return {_t1.value + _t3.value, _t1.pushforward + _t3.pushforward};
 // CHECK-NEXT: }
 
+//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x);
+
+//CHECK:   void one_pullback(double x, double _d_y, double *_d_x) {
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           double _r0 = 0;
+//CHECK-NEXT:           sq_pullback(std::sin(x), _d_y, &_r0);
+//CHECK-NEXT:           double _r1 = 0;
+//CHECK-NEXT:           _r1 += _r0 * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           *_d_x += _r1;
+//CHECK-NEXT:           double _r2 = 0;
+//CHECK-NEXT:           sq_pullback(std::cos(x), _d_y, &_r2);
+//CHECK-NEXT:           double _r3 = 0;
+//CHECK-NEXT:           _r3 += _r2 * clad::custom_derivatives::cos_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           *_d_x += _r3;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
+
 // CHECK: clad::ValueAndPushforward<double, double> sq_pushforward(double x, double _d_x) {
 // CHECK-NEXT:     return {x * x, _d_x * x + x * _d_x};
 // CHECK-NEXT: }
+
+//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           *_d_x += _d_y * x;
+//CHECK-NEXT:           *_d_x += x * _d_y;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
 }
