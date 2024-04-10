@@ -37,6 +37,8 @@ namespace clad {
     class CladPlugin;
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
                                             DiffRequest& request);
+    // FIXME: This function should be removed and the entire plans array
+    // should be somehow made accessible to all the visitors.
     void AddRequestToSchedule(CladPlugin& P, const DiffRequest& request);
   } // namespace plugin
 

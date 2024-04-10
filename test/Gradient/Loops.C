@@ -277,14 +277,7 @@ double f_sum(double *p, int n) {
 //CHECK-NEXT: }
 
 double sq(double x) { return x * x; }
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
-//CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += _d_y * x;
-//CHECK-NEXT:           *_d_x += x * _d_y;
-//CHECK-NEXT:       }
-//CHECK-NEXT:   }
+//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x);
 
 double f_sum_squares(double *p, int n) {
   double s = 0;
@@ -1734,3 +1727,12 @@ int main() {
   d_fn20.execute(x, 5, result);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {5.00, 5.00, 5.00, 5.00, 5.00}
 }
+
+//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
+//CHECK-NEXT:       goto _label0;
+//CHECK-NEXT:     _label0:
+//CHECK-NEXT:       {
+//CHECK-NEXT:           *_d_x += _d_y * x;
+//CHECK-NEXT:           *_d_x += x * _d_y;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }

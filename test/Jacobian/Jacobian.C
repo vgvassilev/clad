@@ -80,14 +80,7 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:}
 
 double multiply(double x, double y) { return x * y; }
-//CHECK: void multiply_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
-//CHECK-NEXT:    goto _label0;
-//CHECK-NEXT:  _label0:
-//CHECK-NEXT:    {
-//CHECK-NEXT:        *_d_x += _d_y0 * y;
-//CHECK-NEXT:        *_d_y += x * _d_y0;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
+//CHECK: void multiply_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y);
 
 void f_4(double x, double y, double z, double *_result) {
   double constant = 42;
@@ -189,3 +182,12 @@ int main() {
   TEST(f_4, 1, 2, 3); // CHECK-EXEC: Result is = {84.00, 42.00, 0.00, 0.00, 126.00, 84.00, 126.00, 0.00, 42.00}
   TEST_F_1_SINGLE_PARAM(1, 2, 3); // CHECK-EXEC: Result is = {3.00, 3.00, -2.00}
 }
+
+//CHECK: void multiply_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
+//CHECK-NEXT:    goto _label0;
+//CHECK-NEXT:  _label0:
+//CHECK-NEXT:    {
+//CHECK-NEXT:        *_d_x += _d_y0 * y;
+//CHECK-NEXT:        *_d_y += x * _d_y0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
