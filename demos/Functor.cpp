@@ -23,13 +23,9 @@ class Equation {
   double m_x, m_y;
 
   public:
-  Equation(double x, double y) : m_x(x), m_y(y) {}
-  double operator()(double i, double j) {
-    return m_x*i*j + m_y*i*j;
-  }
-  void setX(double x) {
-    m_x = x;
-  }
+    Equation(double x = 0, double y = 0) : m_x(x), m_y(y) {}
+    double operator()(double i, double j) { return m_x * i * j + m_y * i * j; }
+    void setX(double x) { m_x = x; }
 };
 
 int main() {
