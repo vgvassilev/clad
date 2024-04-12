@@ -44,8 +44,9 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
 
+  SourceLocation validLoc{m_Function->getLocation()};
   DeclWithContext fnBuildRes = m_Builder.cloneFunction(
-      m_Function, *this, m_Sema.CurContext, noLoc, fnDNI, fnType);
+      m_Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
   m_Derivative = fnBuildRes.first;
 
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -240,8 +241,10 @@ ReverseModeForwPassVisitor::VisitReturnStmt(const clang::ReturnStmt* RS) {
   auto returnDiff = Visit(value);
   llvm::SmallVector<Expr*, 2> returnArgs = {returnDiff.getExpr(),
                                             returnDiff.getExpr_dx()};
-  Expr* returnInitList = m_Sema.ActOnInitList(noLoc, returnArgs, noLoc).get();
-  Stmt* newRS = m_Sema.BuildReturnStmt(noLoc, returnInitList).get();
+  SourceLocation validLoc{RS->getBeginLoc()};
+  Expr* returnInitList =
+      m_Sema.ActOnInitList(validLoc, returnArgs, validLoc).get();
+  Stmt* newRS = m_Sema.BuildReturnStmt(validLoc, returnInitList).get();
   return {newRS};
 }
 

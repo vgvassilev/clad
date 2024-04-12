@@ -500,7 +500,7 @@ namespace clad {
     clang::Expr*
     BuildCallExprToMemFn(clang::Expr* Base, llvm::StringRef MemberFunctionName,
                          llvm::MutableArrayRef<clang::Expr*> ArgExprs,
-                         clang::ValueDecl* memberDecl = nullptr);
+                         clang::SourceLocation Loc = noLoc);
 
     /// Build a call to member function through this pointer.
     ///
@@ -509,10 +509,9 @@ namespace clad {
     /// \param[in] useRefQualifiedThisObj If true, then the `this` object is
     /// perfectly forwarded while calling member functions.
     /// \returns Built member function call expression
-    clang::Expr*
-    BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
-                         llvm::MutableArrayRef<clang::Expr*> argExprs,
-                         bool useRefQualifiedThisObj = false);
+    clang::Expr* BuildCallExprToMemFn(
+        clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
+        bool useRefQualifiedThisObj = false, clang::SourceLocation Loc = noLoc);
 
     /// Build a call to a free function or member function through
     /// this pointer depending on whether the `FD` argument corresponds to a
@@ -577,7 +576,8 @@ namespace clad {
     clang::ParmVarDecl* CloneParmVarDecl(const clang::ParmVarDecl* PVD,
                                          clang::IdentifierInfo* II,
                                          bool pushOnScopeChains = false,
-                                         bool cloneDefaultArg = true);
+                                         bool cloneDefaultArg = true,
+                                         clang::SourceLocation Loc = noLoc);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///
