@@ -513,8 +513,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
 
+    SourceLocation validLoc{m_Function->getLocation()};
     DeclWithContext fnBuildRes = m_Builder.cloneFunction(
-        m_Function, *this, m_Sema.CurContext, noLoc, DNI, pullbackFnType);
+        m_Function, *this, m_Sema.CurContext, validLoc, DNI, pullbackFnType);
     m_Derivative = fnBuildRes.first;
 
     if (m_ExternalSource)
@@ -1436,6 +1437,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         return StmtDiff(Clone(CE), Clone(CE));
     }
 
+    SourceLocation Loc = CE->getExprLoc();
+
     // Stores the call arguments for the function to be derived
     llvm::SmallVector<Expr*, 16> CallArgs{};
     // Stores the dx of the call arguments for the function to be derived
@@ -1460,14 +1463,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
       Expr* call =
           m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
               .get();
       Expr* call_dx =
           m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
-                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
-                             noLoc)
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
               .get();
       return StmtDiff(call, call_dx);
     }
@@ -1483,14 +1485,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
       Expr* call =
           m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), noLoc)
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
               .get();
       Expr* call_dx =
           m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
-                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
-                             noLoc)
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
               .get();
       m_DeallocExprs.push_back(call);
       m_DeallocExprs.push_back(call_dx);
@@ -1510,13 +1511,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
       }
-      Expr* call = m_Sema
-                       .ActOnCallExpr(getCurrentScope(),
-                                      Clone(CE->getCallee()),
-                                      noLoc,
-                                      llvm::MutableArrayRef<Expr*>(CallArgs),
-                                      noLoc)
-                       .get();
+      Expr* call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
+              .get();
       return call;
     }
 
@@ -1779,7 +1778,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
         OverloadedDerivedFn = m_Sema
                                   .ActOnCallExpr(getCurrentScope(), selfRef,
-                                                 noLoc, pullbackCallArgs, noLoc)
+                                                 Loc, pullbackCallArgs, Loc)
                                   .get();
       } else {
         if (m_ExternalSource)
@@ -1852,12 +1851,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           if (baseDiff.getExpr()) {
             Expr* baseE = baseDiff.getExpr();
             OverloadedDerivedFn = BuildCallExprToMemFn(
-                baseE, pullbackFD->getName(), pullbackCallArgs, pullbackFD);
+                baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
           } else {
             OverloadedDerivedFn =
                 m_Sema
                     .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
-                                   noLoc, pullbackCallArgs, noLoc)
+                                   Loc, pullbackCallArgs, Loc)
                     .get();
           }
         }
@@ -1939,7 +1938,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // else
         // Currently derivedBase `*d_this` can never be CladArrayType
         CallArgs.push_back(
-            BuildOp(UnaryOperatorKind::UO_AddrOf, derivedBase, noLoc));
+            BuildOp(UnaryOperatorKind::UO_AddrOf, derivedBase, Loc));
       }
 
       for (std::size_t i = static_cast<std::size_t>(isCXXOperatorCall),
@@ -1958,19 +1957,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           //   CallArgs.push_back(derivedArg);
           // else
           CallArgs.push_back(
-              BuildOp(UnaryOperatorKind::UO_AddrOf, derivedArg, noLoc));
+              BuildOp(UnaryOperatorKind::UO_AddrOf, derivedArg, Loc));
         } else
-          CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(noLoc).get());
+          CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(Loc).get());
       }
       if (baseDiff.getExpr()) {
         Expr* baseE = baseDiff.getExpr();
         call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
-                                    CallArgs, calleeFnForwPassFD);
+                                    CallArgs, Loc);
       } else {
         call = m_Sema
                    .ActOnCallExpr(getCurrentScope(),
-                                  BuildDeclRef(calleeFnForwPassFD), noLoc,
-                                  CallArgs, noLoc)
+                                  BuildDeclRef(calleeFnForwPassFD), Loc,
+                                  CallArgs, Loc)
                    .get();
       }
       auto* callRes = StoreAndRef(call);
@@ -1981,8 +1980,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(resValue, nullptr, resAdjoint);
     } // Recreate the original call expression.
     call = m_Sema
-               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), noLoc,
-                              CallArgs, noLoc)
+               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                              CallArgs, Loc)
                .get();
     return StmtDiff(call);
 

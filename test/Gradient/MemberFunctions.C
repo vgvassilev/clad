@@ -13,8 +13,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out
 // RUN: ./MemberFunctions-cpp17.out | FileCheck -check-prefix=CHECK-EXEC %s
 
-// XFAIL: asserts
-
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 

@@ -34,7 +34,11 @@ using namespace clang;
 namespace clad {
   clang::CompoundStmt* VisitorBase::MakeCompoundStmt(const Stmts& Stmts) {
     auto Stmts_ref = clad_compat::makeArrayRef(Stmts.data(), Stmts.size());
-    return clad_compat::CompoundStmt_Create(m_Context, Stmts_ref /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FPOptionsOverride()), noLoc, noLoc);
+    return clad_compat::CompoundStmt_Create(
+        m_Context,
+        Stmts_ref /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
+            FPOptionsOverride()),
+        utils::GetValidSLoc(m_Sema), utils::GetValidSLoc(m_Sema));
   }
 
   bool VisitorBase::isUnusedResult(const Expr* E) {
@@ -524,32 +528,22 @@ namespace clad {
 
   Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
                                           StringRef MemberFunctionName,
-                                          MutableArrayRef<Expr*> ArgExprs, ValueDecl* memberDecl) {
+                                          MutableArrayRef<Expr*> ArgExprs,
+                                          SourceLocation Loc /*=noLoc*/) {
+    if (Loc.isInvalid())
+      Loc = m_Function->getLocation();
     UnqualifiedId Member;
-    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), noLoc);
+    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), Loc);
     CXXScopeSpec SS;
     bool isArrow = Base->getType()->isPointerType();
     auto ME = m_Sema
-                  .ActOnMemberAccessExpr(getCurrentScope(), Base, noLoc,
+                  .ActOnMemberAccessExpr(getCurrentScope(), Base, Loc,
                                          isArrow ? tok::TokenKind::arrow
                                                  : tok::TokenKind::period,
                                          SS, noLoc, Member,
                                          /*ObjCImpDecl=*/nullptr)
                   .getAs<MemberExpr>();
-    // FIXME: This is a workaround and it's dependency should be removed soon.
-    // Currently, member function derivatives are not being registered properly.
-    // If there are member function derivatives overloads then only one of the
-    // overload is being found by Sema lookup.
-    // Ideally, if `MemberFunctionName` corresponds to an overloaded member
-    // function name, then `Sema::ActOnMemberAccessExpr` should return an
-    // unresolved expression and `Sema::ActOnCallExpr` should automatically
-    // resolve this unresolved expression on the basis of the call arguments
-    // provided. But currently, since only one of the member function overload
-    // is found by the lookup, unresolved expression is not created and thus, we
-    // explicitly should assign the correct member function whenever we can.
-    if (memberDecl)
-      ME->setMemberDecl(memberDecl);
-    return m_Sema.ActOnCallExpr(getCurrentScope(), ME, noLoc, ArgExprs, noLoc)
+    return m_Sema.ActOnCallExpr(getCurrentScope(), ME, Loc, ArgExprs, Loc)
         .get();
   }
 
@@ -568,9 +562,11 @@ namespace clad {
 
   Expr* VisitorBase::BuildCallExprToMemFn(
       clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
-      bool useRefQualifiedThisObj) {
+      bool useRefQualifiedThisObj, SourceLocation Loc /*=noLoc*/) {
     Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
     bool isArrow = true;
+    if (Loc.isInvalid())
+      Loc = m_Function->getLocation();
 
     // C++ does not support perfect forwarding of `*this` object inside
     // a member function.
@@ -596,16 +592,16 @@ namespace clad {
     NestedNameSpecifierLoc NNS(FD->getQualifier(),
                                /*Data=*/nullptr);
     auto DAP = DeclAccessPair::make(FD, FD->getAccess());
-    auto memberExpr = MemberExpr::
-        Create(m_Context, thisExpr, isArrow, noLoc, NNS, noLoc, FD, DAP,
-               FD->getNameInfo(),
-               /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-               CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-               ExprObjectKind::OK_Ordinary
-                   CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
+    auto* memberExpr = MemberExpr::Create(
+        m_Context, thisExpr, isArrow, Loc, NNS, noLoc, FD, DAP,
+        FD->getNameInfo(),
+        /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+        CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+        ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+            NOUR_None));
     return m_Sema
-        .BuildCallToMemberFunction(getCurrentScope(), memberExpr, noLoc,
-                                   argExprs, noLoc)
+        .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc, argExprs,
+                                   Loc)
         .get();
   }
 
@@ -769,13 +765,16 @@ namespace clad {
   ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,
                                              IdentifierInfo* II,
                                              bool pushOnScopeChains,
-                                             bool cloneDefaultArg) {
+                                             bool cloneDefaultArg,
+                                             SourceLocation Loc) {
     Expr* newPVDDefaultArg = nullptr;
     if (PVD->hasDefaultArg() && cloneDefaultArg) {
       newPVDDefaultArg = Clone(PVD->getDefaultArg());
     }
+    if (Loc.isInvalid())
+      Loc = PVD->getLocation();
     auto newPVD = ParmVarDecl::Create(
-        m_Context, m_Sema.CurContext, noLoc, noLoc, II, PVD->getType(),
+        m_Context, m_Sema.CurContext, Loc, Loc, II, PVD->getType(),
         PVD->getTypeSourceInfo(), PVD->getStorageClass(), newPVDDefaultArg);
     if (pushOnScopeChains && newPVD->getIdentifier()) {
       m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),

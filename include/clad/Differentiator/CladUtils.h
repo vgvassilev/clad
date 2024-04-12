@@ -216,7 +216,8 @@ namespace clad {
                      clang::IdentifierInfo* II, clang::QualType T,
                      clang::StorageClass SC = clang::StorageClass::SC_None,
                      clang::Expr* defArg = nullptr,
-                     clang::TypeSourceInfo* TSI = nullptr);
+                     clang::TypeSourceInfo* TSI = nullptr,
+                     clang::SourceLocation Loc = clang::SourceLocation());
 
     /// If `T` represents an array or a pointer type then returns the
     /// corresponding array element or the pointee type. If `T` is a reference
