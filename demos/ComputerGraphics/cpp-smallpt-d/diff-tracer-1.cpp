@@ -99,8 +99,9 @@ void performStep(double& theta_0, double& theta_1, double& theta_2, Dataset dt, 
 // The cost function to minimize using gradient descent
 // theta_x are the parameters to learn; x, y are the inputs and outputs of f
 double cost(double theta_0, double theta_1, double theta_2, Dataset dt) {
-  char fileName[4096];
-  snprintf(fileName, sizeof(fileName), "image-%d.ppm", dt.step++);
+  const size_t fileNameMaxSize = 4096;
+  char fileName[fileNameMaxSize];
+  snprintf(fileName, fileNameMaxSize, "image-%d.ppm", dt.step++);
   Render(
       scene, *(&scene + 1) - scene, // Geometry, Lights
       dt.Vx, dt.Vy, dt.Vz, // Params - Center of one sphere // must be Vector3()
@@ -151,9 +152,9 @@ void optimize(double theta[3], Dataset dt, unsigned int maxSteps, double eps) {
     std::cout << "Steps #" << currentStep << " Theta 0: " << theta[0]
               << " Theta 1: " << theta[1] << " Theta 2: " << theta[2] << std::endl;
 
-    hasConverged = abs(diff[0] - theta[0]) <= eps &&
-                   abs(diff[1] - theta[1]) <= eps &&
-                   abs(diff[2] - theta[2]) <= eps;
+    hasConverged = std::abs(diff[0] - theta[0]) <= eps &&
+                   std::abs(diff[1] - theta[1]) <= eps &&
+                   std::abs(diff[2] - theta[2]) <= eps;
 
     diff = theta;
   } while (currentStep++ < maxSteps && !hasConverged);
