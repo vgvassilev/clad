@@ -488,9 +488,13 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitDeclStmt(
   // For all dependent variables, we register them for estimation
   // here.
   for (size_t i = 0; i < decls.size(); i++) {
-    DeclDiff<VarDecl> VDDiff(cast<VarDecl>(decls[0]),
-                             cast<VarDecl>(declsDiff[0]));
-    EmitDeclErrorStmts(VDDiff, m_RMV->isInsideLoop);
+    auto found = m_RMV->m_Variables.find(cast<VarDecl>(decls[i]));
+    if (found != m_RMV->m_Variables.end()) {
+      DeclDiff<VarDecl> VDDiff(
+          cast<VarDecl>(decls[i]),
+          cast<VarDecl>(cast<DeclRefExpr>(found->second)->getDecl()));
+      EmitDeclErrorStmts(VDDiff, m_RMV->isInsideLoop);
+    }
   }
 }
 } // namespace clad
