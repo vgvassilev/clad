@@ -932,9 +932,12 @@ jobs:
 
     - name: Upload to codecov.io
       if: ${{ success() && (matrix.coverage == true) }}
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v3
       with:
         file: ./coverage.info
+        fail_ci_if_error: true
+        verbose: true
+        token: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Upload report to coverity_scan
       if: ${{ success() && (matrix.coverity == true) }}
