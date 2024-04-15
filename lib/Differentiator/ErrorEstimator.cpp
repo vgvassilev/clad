@@ -248,7 +248,7 @@ void ErrorEstimationHandler::EmitBinaryOpErrorStmts(Expr* LExpr,
   EmitErrorEstimationStmts(direction::reverse);
 }
 
-void ErrorEstimationHandler::EmitDeclErrorStmts(VarDeclDiff VDDiff,
+void ErrorEstimationHandler::EmitDeclErrorStmts(DeclDiff<VarDecl> VDDiff,
                                                 bool isInsideLoop) {
   auto VD = VDDiff.getDecl();
   if (!ShouldEstimateErrorFor(VD))
@@ -481,8 +481,8 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitDeclStmt(
   // For all dependent variables, we register them for estimation
   // here.
   for (size_t i = 0; i < decls.size(); i++) {
-    VarDeclDiff VDDiff(static_cast<VarDecl*>(decls[0]),
-                       static_cast<VarDecl*>(declsDiff[0]));
+    DeclDiff<VarDecl> VDDiff(cast<VarDecl>(decls[0]),
+                             cast<VarDecl>(declsDiff[0]));
     EmitDeclErrorStmts(VDDiff, m_RMV->isInsideLoop);
   }
 }

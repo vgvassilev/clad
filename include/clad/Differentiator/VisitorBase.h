@@ -80,21 +80,20 @@ namespace clad {
     void setForwSweepStmt_dx(clang::Stmt* S) { m_DerivativeForForwSweep = S; }
   };
 
-  class VarDeclDiff {
+  template <typename T> class DeclDiff {
   private:
-    std::array<clang::VarDecl*, 2> data;
+    std::array<T*, 2> m_data;
 
   public:
-    VarDeclDiff(clang::VarDecl* orig = nullptr,
-                clang::VarDecl* diff = nullptr) {
-      data[1] = orig;
-      data[0] = diff;
+    DeclDiff(T* orig = nullptr, T* diff = nullptr) {
+      m_data[1] = orig;
+      m_data[0] = diff;
     }
 
-    clang::VarDecl* getDecl() { return data[1]; }
-    clang::VarDecl* getDecl_dx() { return data[0]; }
+    T* getDecl() { return m_data[1]; }
+    T* getDecl_dx() { return m_data[0]; }
     // Decl_dx goes first!
-    std::array<clang::VarDecl*, 2>& getBothDecls() { return data; }
+    std::array<T*, 2>& getBothDecls() { return m_data; }
   };
 
   /// A base class for all common functionality for visitors

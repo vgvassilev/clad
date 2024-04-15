@@ -2,6 +2,7 @@
 // RUN: ./FunctionCallsWithResults.out | FileCheck -check-prefix=CHECK-EXEC %s
 
 #include "clad/Differentiator/Differentiator.h"
+#include <random>
 
 int printf(const char* fmt, ...);
 
@@ -289,6 +290,25 @@ double fn9 (double i, double j) {
 // CHECK-NEXT:     return _t0.pushforward * _t3 + _t2 * _t1.pushforward;
 // CHECK-NEXT: }
 
+double fn10(double x) {
+  std::mt19937 gen64;
+  std::uniform_real_distribution<double> distribution(0.0,1.0);
+  double rand = distribution(gen64);
+  return x+rand;
+}
+
+// CHECK: double fn10_darg0(double x) {
+// CHECK-NEXT:   double _d_x = 1;
+// CHECK-NEXT:   std::mt19937 _d_gen64;
+// CHECK-NEXT:   std::mt19937 gen64;
+// CHECK-NEXT:   std::uniform_real_distribution<{{(double)?}}> _d_distribution(0., 0.);
+// CHECK-NEXT:   std::uniform_real_distribution<{{(double)?}}> distribution(0., 1.);
+// CHECK-NEXT:   clad::ValueAndPushforward<result_type, result_type> _t0 = distribution.operator_call_pushforward(gen64, &_d_distribution, _d_gen64);
+// CHECK-NEXT:   double _d_rand = _t0.pushforward;
+// CHECK-NEXT:   double rand0 = _t0.value;
+// CHECK-NEXT:   return _d_x + _d_rand;
+// CHECK-NEXT: }
+
 float test_1_darg0(float x);
 float test_2_darg0(float x);
 float test_4_darg0(float x);
@@ -318,6 +338,7 @@ int main () {
   INIT(fn7, "i");
   INIT(fn8, "i");
   INIT(fn9, "i");
+  INIT(fn10, "x");
 
   TEST(fn1, 3, 5);    // CHECK-EXEC: {12.00}
   TEST(fn2, 3, 5);    // CHECK-EXEC: {181.00}
@@ -328,6 +349,7 @@ int main () {
   TEST(fn7, 3, 5);    // CHECK-EXEC: {8.00}
   TEST(fn8, 3, 5);    // CHECK-EXEC: {19.04}
   TEST(fn9, 3, 5);    // CHECK-EXEC: {5.00}
+  TEST(fn10, 3);      // CHECK-EXEC: {1.00}
   return 0;
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_of_squares_pushforward(double u, double v, double _d_u, double _d_v) {

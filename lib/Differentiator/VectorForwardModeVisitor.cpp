@@ -576,7 +576,8 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   return StmtDiff(returnStmt);
 }
 
-VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+DeclDiff<VarDecl>
+VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
@@ -610,7 +611,7 @@ VarDeclDiff VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
                    false, nullptr, VarDecl::InitializationStyle::CallInit);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
-  return VarDeclDiff(VDClone, VDDerived);
+  return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
 } // namespace clad

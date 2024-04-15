@@ -860,7 +860,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     VarDecl* condVarClone = nullptr;
     if (const VarDecl* condVarDecl = If->getConditionVariable()) {
-      VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
+      DeclDiff<VarDecl> condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
       condVarClone = condVarDeclDiff.getDecl();
       if (condVarDeclDiff.getDecl_dx())
         addToBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()), m_Globals);
@@ -2549,7 +2549,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
   }
 
-  VarDeclDiff ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+  DeclDiff<VarDecl>
+  ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
     StmtDiff initDiff;
     Expr* VDDerivedInit = nullptr;
     // Local declarations are promoted to the function global scope. This
@@ -2745,7 +2746,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     m_Variables.emplace(VDClone, derivedVDE);
 
-    return VarDeclDiff(VDClone, VDDerived);
+    return DeclDiff<VarDecl>(VDClone, VDDerived);
   }
 
   // TODO: 'shouldEmit' parameter should be removed after converting
@@ -2812,7 +2813,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // double _d_y = _d_x; double y = x;
     for (auto* D : DS->decls()) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
-        VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
+        DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
 
         // Check if decl's name is the same as before. The name may be changed
         // if decl name collides with something in the derivative body.
@@ -2878,6 +2879,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           localDeclsDiff.push_back(VDDiff.getDecl_dx());
         else
           declsDiff.push_back(VDDiff.getDecl_dx());
+      } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
+        DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
+        if (SADDiff.getDecl())
+          decls.push_back(SADDiff.getDecl());
+        if (SADDiff.getDecl_dx())
+          declsDiff.push_back(SADDiff.getDecl_dx());
       } else {
         diag(DiagnosticsEngine::Warning,
              D->getEndLoc(),
@@ -2885,7 +2892,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
 
-    Stmt* DSClone = BuildDeclStmt(decls);
+    Stmt* DSClone = nullptr;
+    if (!decls.empty())
+      DSClone = BuildDeclStmt(decls);
 
     if (!localDeclsDiff.empty()) {
       Stmt* localDSDIff = BuildDeclStmt(localDeclsDiff);
@@ -3829,6 +3838,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP) {
     return Visit(NTTP->getReplacement());
+  }
+
+  DeclDiff<StaticAssertDecl> ReverseModeVisitor::DifferentiateStaticAssertDecl(
+      const clang::StaticAssertDecl* SAD) {
+    return DeclDiff<StaticAssertDecl>(nullptr, nullptr);
   }
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,

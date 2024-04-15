@@ -16,7 +16,8 @@ namespace clad {
 
 struct DiffRequest;
 class StmtDiff;
-class VarDeclDiff;
+
+template <typename T> class DeclDiff;
 
 using direction = rmv::direction;
 
