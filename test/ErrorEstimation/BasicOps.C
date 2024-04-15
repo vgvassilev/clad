@@ -241,20 +241,15 @@ float func6(float x, float y) {
 //CHECK-NEXT: }
 
 float func7(float x) {
-  int z = x;  // expected-warning {{Lossy assignment from 'float' to 'int'}}
+  int z = x;
   return z + z;
 }
 
 //CHECK: void func7_grad(float x, float *_d_x, double &_final_error) {
-//CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     int z = x;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
-//CHECK-NEXT:     {
-//CHECK-NEXT:         _d_z += 1;
-//CHECK-NEXT:         _d_z += 1;
-//CHECK-NEXT:     }
-//CHECK-NEXT:     *_d_x += _d_z;
+//CHECK-NEXT:     ;
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT: }
 

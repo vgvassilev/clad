@@ -20,7 +20,6 @@ double fn1(double i, double j) {
 
 // CHECK: void fn1_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
@@ -133,7 +132,6 @@ double fn2(double i, double j) {
 
 // CHECK: void fn2_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
@@ -267,7 +265,6 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<int> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
@@ -395,7 +392,6 @@ double fn4(double i, double j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
-// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t2;
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
@@ -482,7 +478,6 @@ double fn5(double i, double j) {
 
 // CHECK: void fn5_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
@@ -518,9 +513,10 @@ double fn5(double i, double j) {
 // CHECK-NEXT: }
 
 double fn6(double u, double v) {
-  int res = 0;
+  float res = 0;
+  int count;
   double temp = 0;
-  switch(res = u * v) {
+  switch(count = res = u * v) {
     default:
       temp = 1;
   }
@@ -528,37 +524,40 @@ double fn6(double u, double v) {
 }
 
 // CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:     int _d_res = 0;
+// CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     int _t0;
+// CHECK-NEXT:     float _t1;
 // CHECK-NEXT:     int _cond0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
-// CHECK-NEXT:     int res = 0;
+// CHECK-NEXT:     double _t2;
+// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t3 = {};
+// CHECK-NEXT:     float res = 0;
+// CHECK-NEXT:     int count;
 // CHECK-NEXT:     double temp = 0;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _t0 = res;
-// CHECK-NEXT:         res = u * v;
-// CHECK-NEXT:         _cond0 = res = u * v;
+// CHECK-NEXT:         _t0 = count;
+// CHECK-NEXT:         _t1 = res;
+// CHECK-NEXT:         count = res = u * v;
+// CHECK-NEXT:         _cond0 = count = res = u * v;
 // CHECK-NEXT:         switch (_cond0) {
 // CHECK-NEXT:             {
 // CHECK-NEXT:               default:
 // CHECK-NEXT:                 temp = 1;
-// CHECK-NEXT:                 _t1 = temp;
+// CHECK-NEXT:                 _t2 = temp;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t2, {{1U|1UL}});
+// CHECK-NEXT:             clad::push(_t3, 1UL);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         switch (clad::pop(_t2)) {
-// CHECK-NEXT:           case {{1U|1UL}}:
+// CHECK-NEXT:         switch (clad::pop(_t3)) {
+// CHECK-NEXT:           case 1UL:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
-// CHECK-NEXT:                     temp = _t1;
+// CHECK-NEXT:                     temp = _t2;
 // CHECK-NEXT:                     double _r_d1 = _d_temp;
 // CHECK-NEXT:                     _d_temp -= _r_d1;
 // CHECK-NEXT:                 }
@@ -567,8 +566,9 @@ double fn6(double u, double v) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             res = _t0;
-// CHECK-NEXT:             int _r_d0 = _d_res;
+// CHECK-NEXT:             count = _t0;
+// CHECK-NEXT:             res = _t1;
+// CHECK-NEXT:             float _r_d0 = _d_res;
 // CHECK-NEXT:             _d_res -= _r_d0;
 // CHECK-NEXT:             *_d_u += _r_d0 * v;
 // CHECK-NEXT:             *_d_v += u * _r_d0;
@@ -597,7 +597,6 @@ double fn7(double u, double v) {
 // CHECK: void fn7_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<int> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};

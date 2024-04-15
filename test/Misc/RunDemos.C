@@ -109,7 +109,6 @@
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, float *_d_x, unsigned int *_d_n, double &_final_error) {
 //CHECK_FLOAT_SUM:     float _d_sum = 0;
 //CHECK_FLOAT_SUM:     unsigned {{int|long}} _t0;
-//CHECK_FLOAT_SUM:     unsigned int _d_i = 0;
 //CHECK_FLOAT_SUM:     unsigned int i = 0;
 //CHECK_FLOAT_SUM:     clad::tape<float> _t1 = {};
 //CHECK_FLOAT_SUM:     float sum = 0.;

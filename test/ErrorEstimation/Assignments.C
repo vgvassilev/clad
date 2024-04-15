@@ -120,7 +120,6 @@ float func5(float x, float y) {
 }
 
 //CHECK: void func5_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     int z = 56;
 //CHECK-NEXT:     _t0 = x;
@@ -133,7 +132,6 @@ float func5(float x, float y) {
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
 //CHECK-NEXT:         *_d_x -= _r_d0;
-//CHECK-NEXT:         _d_z += _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});

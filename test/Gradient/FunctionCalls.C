@@ -142,7 +142,7 @@ float sum(double* arr, int n) {
   return res;
 }
 
-// CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr, int *_d_n);
+// CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr);
 
 void twice(double& d) {
   d = 2*d;
@@ -164,7 +164,6 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     unsigned {{int|long}} _t1;
-// CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
@@ -490,7 +489,6 @@ double fn13(double* x, const double* w) {
 // CHECK: void fn13_grad_0(double *x, const double *w, double *_d_x) {
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     std::size_t _d_i = 0;
 // CHECK-NEXT:     std::size_t i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double wCopy[2];
@@ -829,7 +827,6 @@ double sq_defined_later(double x) {
 // CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr, int *_d_n) {
 // CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
 // CHECK-NEXT:     double _t2;

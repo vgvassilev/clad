@@ -2545,6 +2545,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
 
+    // Integer types are not differentiable,
+    // no need to construct an adjoint.
+    if (utils::GetValueType(VD->getType())->isIntegerType()) {
+      Expr* init = nullptr;
+      if (VD->getInit())
+        init = Visit(VD->getInit()).getExpr();
+      // If a ref-type declaration is promoted to function global scope,
+      // it's replaced with a pointer and should be initialized with the
+      // address of the cloned init. e.g.
+      // double& ref = x;
+      // ->
+      // double* ref;
+      // ref = &x;
+      if (isDerivativeOfRefType && promoteToFnScope)
+        init = BuildOp(UnaryOperatorKind::UO_AddrOf, init);
+      return BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(), init,
+                                VD->isDirectInit(), nullptr,
+                                VD->getInitStyle());
+    }
+
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
@@ -2856,10 +2876,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
 
         decls.push_back(VDDiff.getDecl());
-        if (isa<VariableArrayType>(VD->getType()))
-          localDeclsDiff.push_back(VDDiff.getDecl_dx());
-        else
-          declsDiff.push_back(VDDiff.getDecl_dx());
+        if (VDDiff.getDecl_dx()) {
+          if (isa<VariableArrayType>(VD->getType()))
+            localDeclsDiff.push_back(VDDiff.getDecl_dx());
+          else
+            declsDiff.push_back(VDDiff.getDecl_dx());
+        }
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
         if (SADDiff.getDecl())

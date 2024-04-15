@@ -18,7 +18,6 @@ double runningSum(float* f, int n) {
 //CHECK: void runningSum_grad(float *f, int n, float *_d_f, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} f_size = 0;
@@ -62,11 +61,9 @@ double mulSum(float* a, float* b, int n) {
 //CHECK: void mulSum_grad(float *a, float *b, int n, float *_d_a, float *_d_b, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 //CHECK-NEXT:     clad::tape<int> _t2 = {};
-//CHECK-NEXT:     int _d_j = 0;
 //CHECK-NEXT:     int j = 0;
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
 //CHECK-NEXT:     unsigned {{int|long}} a_size = 0;
@@ -98,10 +95,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:                 _d_b[j] += a[i] * _r_d0;
 //CHECK-NEXT:                 b_size = std::max(b_size, j);
 //CHECK-NEXT:             }
-//CHECK-NEXT:             {
-//CHECK-NEXT:                 _d_j = 0;
-//CHECK-NEXT:                 j = clad::pop(_t2);
-//CHECK-NEXT:             }
+//CHECK-NEXT:             j = clad::pop(_t2);
 //CHECK-NEXT:             clad::pop(_t1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -125,7 +119,6 @@ double divSum(float* a, float* b, int n) {
 //CHECK: void divSum_grad(float *a, float *b, int n, float *_d_a, float *_d_b, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} b_size = 0;

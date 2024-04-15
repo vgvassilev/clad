@@ -17,7 +17,6 @@ float func(float* p, int n) {
 //CHECK: void func_grad(float *p, int n, float *_d_p, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} p_size = 0;
@@ -60,7 +59,6 @@ float func2(float x) {
 //CHECK: void func2_grad(float x, float *_d_x, double &_final_error) {
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     float _d_m = 0;
@@ -161,7 +159,6 @@ float func4(float x[10], float y[10]) {
 //CHECK: void func4_grad(float x[10], float y[10], float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     unsigned {{int|long}} x_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};

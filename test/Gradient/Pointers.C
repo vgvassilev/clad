@@ -171,26 +171,21 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     size_t _d_i = 0;
 // CHECK-NEXT:     size_t i = 0;
 // CHECK-NEXT:     clad::tape<size_t *> _t1 = {};
-// CHECK-NEXT:     clad::tape<size_t *> _t3 = {};
-// CHECK-NEXT:     size_t *_d_j = 0;
 // CHECK-NEXT:     size_t *j = 0;
-// CHECK-NEXT:     clad::tape<double> _t4 = {};
-// CHECK-NEXT:     clad::tape<const double *> _t5 = {};
-// CHECK-NEXT:     clad::tape<double *> _t6 = {};
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     clad::tape<const double *> _t3 = {};
+// CHECK-NEXT:     clad::tape<double *> _t4 = {};
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     for (i = 0; i < n; ++i) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         _d_j = &_d_i;
-// CHECK-NEXT:         clad::push(_t1, _d_j);
-// CHECK-NEXT:         clad::push(_t3, j) , j = &i;
-// CHECK-NEXT:         clad::push(_t4, sum);
+// CHECK-NEXT:         clad::push(_t1, j) , j = &i;
+// CHECK-NEXT:         clad::push(_t2, sum);
 // CHECK-NEXT:         sum += arr[0] * (*j);
-// CHECK-NEXT:         clad::push(_t5, arr);
-// CHECK-NEXT:         clad::push(_t6, _d_arr);
+// CHECK-NEXT:         clad::push(_t3, arr);
+// CHECK-NEXT:         clad::push(_t4, _d_arr);
 // CHECK-NEXT:         _d_arr = _d_arr + 1;
 // CHECK-NEXT:         arr = arr + 1;
 // CHECK-NEXT:     }
@@ -199,18 +194,16 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
-// CHECK-NEXT:         size_t *_t2 = clad::pop(_t1);
 // CHECK-NEXT:         {
-// CHECK-NEXT:             arr = clad::pop(_t5);
-// CHECK-NEXT:             _d_arr = clad::pop(_t6);
+// CHECK-NEXT:             arr = clad::pop(_t3);
+// CHECK-NEXT:             _d_arr = clad::pop(_t4);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             sum = clad::pop(_t4);
+// CHECK-NEXT:             sum = clad::pop(_t2);
 // CHECK-NEXT:             double _r_d0 = _d_sum;
 // CHECK-NEXT:             _d_arr[0] += _r_d0 * (*j);
-// CHECK-NEXT:             *_t2 += arr[0] * _r_d0;
 // CHECK-NEXT:         }
-// CHECK-NEXT:         j = clad::pop(_t3);
+// CHECK-NEXT:         j = clad::pop(_t1);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
