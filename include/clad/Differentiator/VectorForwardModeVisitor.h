@@ -77,7 +77,8 @@ public:
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
   // Decl is not Stmt, so it cannot be visited directly.
-  VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD) override;
+  DeclDiff<clang::VarDecl>
+  DifferentiateVarDecl(const clang::VarDecl* VD) override;
 
   clang::QualType
   GetPushForwardDerivativeType(clang::QualType ParamType) override;

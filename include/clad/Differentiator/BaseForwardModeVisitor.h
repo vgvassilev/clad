@@ -73,7 +73,8 @@ public:
   StmtDiff VisitStmt(const clang::Stmt* S);
   StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
   // Decl is not Stmt, so it cannot be visited directly.
-  virtual VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+  virtual DeclDiff<clang::VarDecl>
+  DifferentiateVarDecl(const clang::VarDecl* VD);
   /// Shorthand for warning on differentiation of unsupported operators
   void unsupportedOpWarn(clang::SourceLocation loc,
                          llvm::ArrayRef<llvm::StringRef> args = {}) {
@@ -108,6 +109,8 @@ public:
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
   StmtDiff VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
   StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
+  static DeclDiff<clang::StaticAssertDecl>
+  DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
   virtual clang::QualType
   GetPushForwardDerivativeType(clang::QualType ParamType);

@@ -648,6 +648,29 @@ double fn18(double x, double y) {
 // CHECK-NEXT: }
 
 template<typename T>
+T templated_fn(double x) {
+  static_assert(std::is_floating_point<T>::value,
+                    "template argument must be a floating point type");
+  return x;
+}
+
+// CHECK: void templated_fn_pullback(double x, double _d_y, double *_d_x);
+
+double fn19(double x) {
+  return templated_fn<double>(x);
+}
+
+// CHECK: void fn19_grad(double x, double *_d_x) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         templated_fn_pullback(x, 1, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
     arr[i] = 0;
@@ -741,6 +764,9 @@ int main() {
 
   INIT(fn18);
   TEST2(fn18, 3, 5);  // CHECK-EXEC: {6.00, 10.00}
+
+  INIT(fn19);
+  TEST1(fn19, 3);  // CHECK-EXEC: {1.00}
 }
 
 double sq_defined_later(double x) {
@@ -973,4 +999,10 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:       *_d_x += _d_y * x;
 // CHECK-NEXT:       *_d_x += x * _d_y;
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void templated_fn_pullback(double x, double _d_y, double *_d_x) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     *_d_x += _d_y;
 // CHECK-NEXT: }

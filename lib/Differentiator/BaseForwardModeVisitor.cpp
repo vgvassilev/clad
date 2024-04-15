@@ -11,7 +11,6 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
-#include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -574,7 +573,7 @@ StmtDiff BaseForwardModeVisitor::VisitIfStmt(const IfStmt* If) {
 
   VarDecl* condVarClone = nullptr;
   if (const VarDecl* condVarDecl = If->getConditionVariable()) {
-    VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
+    DeclDiff<VarDecl> condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
     condVarClone = condVarDeclDiff.getDecl();
     if (condVarDeclDiff.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
@@ -672,7 +671,7 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
   VarDecl* condVarDecl = FS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
   if (condVarDecl) {
-    VarDeclDiff condVarResult = DifferentiateVarDecl(condVarDecl);
+    DeclDiff<VarDecl> condVarResult = DifferentiateVarDecl(condVarDecl);
     condVarClone = condVarResult.getDecl();
     if (condVarResult.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(condVarResult.getDecl_dx()));
@@ -1380,7 +1379,8 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
   return StmtDiff(op, opDiff);
 }
 
-VarDeclDiff BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
+DeclDiff<VarDecl>
+BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
@@ -1392,7 +1392,7 @@ VarDeclDiff BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
       VD->getType(), "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(),
       VD->isDirectInit(), nullptr, VD->getInitStyle());
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
-  return VarDeclDiff(VDClone, VDDerived);
+  return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
@@ -1431,7 +1431,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
   // double _d_y = _d_x; double y = x;
   for (auto D : DS->decls()) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
-      VarDeclDiff VDDiff = DifferentiateVarDecl(VD);
+      DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
       // Check if decl's name is the same as before. The name may be changed
       // if decl name collides with something in the derivative body.
       // This can happen in rare cases, e.g. when the original function
@@ -1454,14 +1454,24 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
         m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
       declsDiff.push_back(VDDiff.getDecl_dx());
+    } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
+      DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
+      if (SADDiff.getDecl())
+        decls.push_back(SADDiff.getDecl());
+      if (SADDiff.getDecl_dx())
+        declsDiff.push_back(SADDiff.getDecl_dx());
     } else {
       diag(DiagnosticsEngine::Warning, D->getEndLoc(),
            "Unsupported declaration");
     }
   }
 
-  Stmt* DSClone = BuildDeclStmt(decls);
-  Stmt* DSDiff = BuildDeclStmt(declsDiff);
+  Stmt* DSClone = nullptr;
+  Stmt* DSDiff = nullptr;
+  if (!decls.empty())
+    DSClone = BuildDeclStmt(decls);
+  if (!declsDiff.empty())
+    DSDiff = BuildDeclStmt(declsDiff);
   return StmtDiff(DSClone, DSDiff);
 }
 
@@ -1534,7 +1544,7 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
 
   const VarDecl* condVar = WS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
-  VarDeclDiff condVarRes;
+  DeclDiff<VarDecl> condVarRes;
   if (condVar) {
     condVarRes = DifferentiateVarDecl(condVar);
     condVarClone = condVarRes.getDecl();
@@ -1659,7 +1669,7 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
   const VarDecl* condVarDecl = SS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
   if (condVarDecl) {
-    VarDeclDiff condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
+    DeclDiff<VarDecl> condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
     condVarClone = condVarDeclDiff.getDecl();
     addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
   }
@@ -2021,5 +2031,11 @@ StmtDiff BaseForwardModeVisitor::VisitPseudoObjectExpr(
 StmtDiff BaseForwardModeVisitor::VisitSubstNonTypeTemplateParmExpr(
     const clang::SubstNonTypeTemplateParmExpr* NTTP) {
   return Visit(NTTP->getReplacement());
+}
+
+DeclDiff<StaticAssertDecl>
+BaseForwardModeVisitor::DifferentiateStaticAssertDecl(
+    const clang::StaticAssertDecl* SAD) {
+  return DeclDiff<StaticAssertDecl>();
 }
 } // end namespace clad

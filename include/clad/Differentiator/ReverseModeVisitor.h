@@ -406,11 +406,13 @@ namespace clad {
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
-    VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+    DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
     VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPE);
+    static DeclDiff<clang::StaticAssertDecl>
+    DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
     /// A helper method to differentiate a single Stmt in the reverse mode.
     /// Internally, calls Visit(S, expr). Its result is wrapped into a
