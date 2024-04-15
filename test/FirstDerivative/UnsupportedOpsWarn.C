@@ -15,11 +15,11 @@ int binOpWarn_0(int x){
 // CHECK-NEXT: }
 
 
-int binOpWarn_1(int x){
+int binOpWarn_1(int x, double y){
     return x ^ 1;   // expected-warning {{attempt to differentiate unsupported operator, ignored.}}
 }
 
-// CHECK: void binOpWarn_1_grad(int x, int *_d_x) {
+// CHECK: void binOpWarn_1_grad_1(int x, double y, double *_d_y) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     ;

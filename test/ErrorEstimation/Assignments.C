@@ -45,7 +45,7 @@ float func2(float x, int y) {
   return x;
 }
 
-//CHECK: void func2_grad(float x, int y, float *_d_x, int *_d_y, double &_final_error) {
+//CHECK: void func2_grad_0(float x, int y, float *_d_x, double &_final_error) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = y * x + x * x;
@@ -57,7 +57,6 @@ float func2(float x, int y) {
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
 //CHECK-NEXT:         *_d_x -= _r_d0;
-//CHECK-NEXT:         *_d_y += _r_d0 * x;
 //CHECK-NEXT:         *_d_x += y * _r_d0;
 //CHECK-NEXT:         *_d_x += _r_d0 * x;
 //CHECK-NEXT:         *_d_x += x * _r_d0;
@@ -70,19 +69,14 @@ float func3(int x, int y) {
   return y;
 }
 
-//CHECK: void func3_grad(int x, int y, int *_d_x, int *_d_y, double &_final_error) {
+//CHECK: void func3_grad(int x, int y, double &_final_error) {
 //CHECK-NEXT:     int _t0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
-//CHECK-NEXT:     *_d_y += 1;
-//CHECK-NEXT:     {
-//CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         int _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d0;
-//CHECK-NEXT:         *_d_y += _r_d0;
-//CHECK-NEXT:     }
+//CHECK-NEXT:     ;
+//CHECK-NEXT:     x = _t0;
 //CHECK-NEXT: }
 
 float func4(float x, float y) {
@@ -168,20 +162,14 @@ float func8(int x, int y) {
     return x;
 }
 
-//CHECK: void func8_grad(int x, int y, int *_d_x, int *_d_y, double &_final_error) {
+//CHECK: void func8_grad(int x, int y, double &_final_error) {
 //CHECK-NEXT:     int _t0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = y * y;
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
-//CHECK-NEXT:     *_d_x += 1;
-//CHECK-NEXT:     {
-//CHECK-NEXT:         x = _t0;
-//CHECK-NEXT:         int _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d0;
-//CHECK-NEXT:         *_d_y += _r_d0 * y;
-//CHECK-NEXT:         *_d_y += y * _r_d0;
-//CHECK-NEXT:     }
+//CHECK-NEXT:     ;
+//CHECK-NEXT:     x = _t0;
 //CHECK-NEXT: }
 
 int main() {

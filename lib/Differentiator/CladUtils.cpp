@@ -684,5 +684,10 @@ namespace clad {
       return FD->getNameAsString() == "free";
 #endif
     }
+
+    bool IsDifferentiableType(clang::QualType QT) {
+      // FIXME: consider analysing object types with this
+      return !utils::GetValueType(QT)->isIntegerType();
+    }
   } // namespace utils
 } // namespace clad

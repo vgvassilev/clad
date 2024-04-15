@@ -168,7 +168,6 @@ double pointerParam(const double* arr, size_t n) {
 }
 
 // CHECK: void pointerParam_grad_0(const double *arr, size_t n, double *_d_arr) {
-// CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     size_t i = 0;
@@ -436,7 +435,6 @@ double cStyleMemoryAlloc(double x, size_t n) {
 }
 
 // CHECK: void cStyleMemoryAlloc_grad_0(double x, size_t n, double *_d_x) {
-// CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     T *_d_t = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double *_d_p = 0;
@@ -585,7 +583,7 @@ int main() {
   d_arrayPointer.execute(arr, d_arr);
   printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 5.00 1.00 2.00 4.00 3.00
 
-  auto d_pointerParam = clad::gradient(pointerParam, "arr");
+  auto d_pointerParam = clad::gradient(pointerParam);
   d_arr[0] = d_arr[1] = d_arr[2] = d_arr[3] = d_arr[4] = 0;
   d_pointerParam.execute(arr, 5, d_arr);
   printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 0.00 1.00 2.00 3.00 4.00
@@ -608,7 +606,7 @@ int main() {
   d_structPointer.execute(5, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 1.00
 
-  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr>(cStyleMemoryAlloc, "x");
+  auto d_cStyleMemoryAlloc = clad::gradient<clad::opts::disable_tbr>(cStyleMemoryAlloc);
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 4.00

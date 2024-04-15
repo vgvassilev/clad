@@ -269,7 +269,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (request.Args) {
       DVI = request.DVI;
       for (const auto& dParam : DVI)
-        args.push_back(dParam.param);
+        if (utils::IsDifferentiableType(dParam.param->getType()))
+          args.push_back(dParam.param);
     }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
@@ -596,6 +597,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // independent variables (args).
     for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
       ParmVarDecl* param = paramsRef[i];
+      // no need to create adjoints for non-differentiable variables.
+      if (!utils::IsDifferentiableType(param->getType()))
+        continue;
       // derived variables are already created for independent variables.
       if (m_Variables.count(param))
         continue;
@@ -1513,7 +1517,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg)) {
+      // Also, no need to create adjoint variables for non-differentiable types.
+      if (utils::IsReferenceOrPointerArg(arg) ||
+          !utils::IsDifferentiableType(arg->getType())) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1698,12 +1704,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (auto* argDerivative : CallArgDx) {
         Expr* gradArgExpr = nullptr;
         const Expr* arg = CE->getArg(idx);
-        if (utils::isArrayOrPointerType(arg->getType()) ||
-            isCladArrayType(argDerivative->getType()))
-          gradArgExpr = argDerivative;
-        else
-          gradArgExpr =
-              BuildOp(UO_AddrOf, argDerivative, m_Function->getLocation());
+        if (argDerivative) {
+          if (utils::isArrayOrPointerType(arg->getType()) ||
+              isCladArrayType(argDerivative->getType()))
+            gradArgExpr = argDerivative;
+          else if (argDerivative->isLValue())
+            gradArgExpr =
+                BuildOp(UO_AddrOf, argDerivative, m_Function->getLocation());
+        }
         DerivedCallOutputArgs.push_back(gradArgExpr);
         idx++;
       }
@@ -2547,7 +2555,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Integer types are not differentiable,
     // no need to construct an adjoint.
-    if (utils::GetValueType(VD->getType())->isIntegerType()) {
+    if (!utils::IsDifferentiableType(VD->getType())) {
       Expr* init = nullptr;
       if (VD->getInit())
         init = Visit(VD->getInit()).getExpr();

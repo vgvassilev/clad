@@ -491,17 +491,15 @@ unsigned f_types(int x, float y, double z) {
   return x + y + z;
 }
 
-void f_types_grad(int x,
+void f_types_grad_1_2(int x,
                   float y,
                   double z,
-                  int *_d_x,
                   float *_d_y,
                   double *_d_z);
-//CHECK:   void f_types_grad(int x, float y, double z, int *_d_x, float *_d_y, double *_d_z) {
+//CHECK:   void f_types_grad_1_2(int x, float y, double z, float *_d_y, double *_d_z) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:           *_d_y += 1;
 //CHECK-NEXT:           *_d_z += 1;
 //CHECK-NEXT:       }
@@ -700,7 +698,7 @@ float running_sum(float* p, int n) {
   return p[n - 1];
 }
 
-// CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
+// CHECK: void running_sum_grad_0(float *p, int n, float *_d_p) {
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};

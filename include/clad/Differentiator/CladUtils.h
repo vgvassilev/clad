@@ -333,6 +333,8 @@ namespace clad {
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
+
+    bool IsDifferentiableType(clang::QualType QT);
     } // namespace utils
     } // namespace clad
 

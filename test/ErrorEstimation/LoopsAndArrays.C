@@ -14,7 +14,7 @@ float func(float* p, int n) {
   return sum;
 }
 
-//CHECK: void func_grad(float *p, int n, float *_d_p, int *_d_n, double &_final_error) {
+//CHECK: void func_grad_0(float *p, int n, float *_d_p, double &_final_error) {
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int i = 0;

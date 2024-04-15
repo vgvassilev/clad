@@ -160,7 +160,7 @@ double fn4(double* arr, int n) {
   return res;
 }
 
-// CHECK: void fn4_grad(double *arr, int n, double *_d_arr, int *_d_n) {
+// CHECK: void fn4_grad_0(double *arr, int n, double *_d_arr) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     unsigned {{int|long}} _t1;
@@ -189,17 +189,15 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:             _d_arr[i] += _r_d1;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
-// CHECK-NEXT:             double _r1 = clad::pop(_t2);
-// CHECK-NEXT:             arr[i] = _r1;
-// CHECK-NEXT:             twice_pullback(_r1, &_d_arr[i]);
+// CHECK-NEXT:             double _r0 = clad::pop(_t2);
+// CHECK-NEXT:             arr[i] = _r0;
+// CHECK-NEXT:             twice_pullback(_r0, &_d_arr[i]);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         int _r0 = 0;
-// CHECK-NEXT:         sum_pullback(arr, n, _r_d0, _d_arr, &_r0);
-// CHECK-NEXT:         *_d_n += _r0;
+// CHECK-NEXT:         sum_pullback(arr, n, _r_d0, _d_arr);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -215,7 +213,7 @@ double fn5(double* arr, int n) {
     return arr[0];
 }
 
-// CHECK: void fn5_grad(double *arr, int n, double *_d_arr, int *_d_n) {
+// CHECK: void fn5_grad_0(double *arr, int n, double *_d_arr) {
 // CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     double temp = modify2(arr);
 // CHECK-NEXT:     goto _label0;
@@ -311,7 +309,7 @@ double check_and_return(double x, char c, const char* s) {
   return 1;
 }
 
-// CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s);
+// CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_s);
 
 double fn8(double x, double y) {
   return check_and_return(x, 'a', "aa") * y * std::tanh(1.0) * std::max(1.0, 2.0); // expected-warning {{ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]}}
@@ -328,8 +326,7 @@ double fn8(double x, double y) {
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
-// CHECK-NEXT:         char _r1 = 0;
-// CHECK-NEXT:         check_and_return_pullback(x, 'a', "aa", 1 * _t0 * _t1 * y, &_r0, &_r1, "");
+// CHECK-NEXT:         check_and_return_pullback(x, 'a', "aa", 1 * _t0 * _t1 * y, &_r0, "");
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         *_d_y += _t2 * 1 * _t0 * _t1;
 // CHECK-NEXT:     }
@@ -824,7 +821,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr, int *_d_n) {
+// CHECK: void sum_pullback(double *arr, int n, float _d_y, double *_d_arr) {
 // CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int i = 0;
@@ -910,7 +907,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     return {i, *_d_i};
 // CHECK-NEXT: }
 
-// CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
+// CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_s) {
 // CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:     _cond0 = c == 'a' && s[0] == 'a';

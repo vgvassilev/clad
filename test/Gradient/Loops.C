@@ -241,7 +241,6 @@ double f_sum(double *p, int n) {
 }
 
 //CHECK: void f_sum_grad_0(double *p, int n, double *_d_p) {
-//CHECK-NEXT:     int _d_n = 0;
 //CHECK-NEXT:     double _d_s = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int i = 0;
@@ -275,7 +274,6 @@ double f_sum_squares(double *p, int n) {
 }
 
 //CHECK: void f_sum_squares_grad_0(double *p, int n, double *_d_p) {
-//CHECK-NEXT:     int _d_n = 0;
 //CHECK-NEXT:     double _d_s = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int i = 0;
@@ -1453,7 +1451,6 @@ double fn19(double* arr, int n) {
 }
 
 // CHECK: void fn19_grad_0(double *arr, int n, double *_d_arr) {
-// CHECK-NEXT:     int _d_n = 0;
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int i = 0;
@@ -1552,7 +1549,6 @@ double fn20(double *arr, int n) {
 }
 
 // CHECK: void fn20_grad_0(double *arr, int n, double *_d_arr) {
-// CHECK-NEXT:     int _d_n = 0;
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int i = 0;
@@ -1596,7 +1592,6 @@ double fn21(double x) {
 // CHECK: void fn21_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
 // CHECK-NEXT:     double _d_arr[3] = {0};
@@ -1657,12 +1652,12 @@ int main() {
   double p[] = { 1, 2, 3, 4, 5 };
 
   for (int i = 0; i < 5; i++) result[i] = 0;
-  auto f_sum_grad = clad::gradient(f_sum, "p");
+  auto f_sum_grad = clad::gradient(f_sum);
   f_sum_grad.execute(p, 5, result);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00, 1.00}
 
   for (int i = 0; i < 5; i++) result[i] = 0;
-  auto f_sum_squares_grad = clad::gradient(f_sum_squares, "p");
+  auto f_sum_squares_grad = clad::gradient(f_sum_squares);
   f_sum_squares_grad.execute(p, 5, result);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {2.00, 4.00, 6.00, 8.00, 10.00}
 
@@ -1687,7 +1682,7 @@ int main() {
   TEST_2(fn17, 3, 5);     // CHECK-EXEC: {15.00, 9.00}
   TEST_2(fn18, 3, 5);     // CHECK-EXEC: {4.00, 4.00}
 
-  INIT_GRADIENT(fn19, "arr");
+  INIT_GRADIENT(fn19);
 
   double arr[5] = {};
   double d_arr[5] = {};
@@ -1696,7 +1691,7 @@ int main() {
   TEST_2(f_loop_init_var, 1, 2); // CHECK-EXEC: {-1.00, 4.00}
 
   for (int i = 0; i < 5; i++) result[i] = 0;
-  auto d_fn20 = clad::gradient(fn20, "arr");
+  auto d_fn20 = clad::gradient(fn20);
   d_fn20.execute(x, 5, result);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {5.00, 5.00, 5.00, 5.00, 5.00}
   

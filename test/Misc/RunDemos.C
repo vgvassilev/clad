@@ -106,7 +106,7 @@
 // RUN: %cladclang %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include 2>&1  | FileCheck -check-prefix CHECK_FLOAT_SUM %s
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
-//CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, float *_d_x, unsigned int *_d_n, double &_final_error) {
+//CHECK_FLOAT_SUM: void vanillaSum_grad_0(float x, unsigned int n, float *_d_x, double &_final_error) {
 //CHECK_FLOAT_SUM:     float _d_sum = 0;
 //CHECK_FLOAT_SUM:     unsigned {{int|long}} _t0;
 //CHECK_FLOAT_SUM:     unsigned int i = 0;

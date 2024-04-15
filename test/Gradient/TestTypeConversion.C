@@ -10,15 +10,15 @@
 
 #include "../TestUtils.h"
 
-float fn_type_conversion(float z, int a) {
+float fn_type_conversion(float z, double a) {
   for (int i = 1; i < a; i++){
     z = z * a;
   }
   return z;
 }
 
-void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
-// CHECK: void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a) {
+void fn_type_conversion_grad(float z, double a, float *_d_z, double *_d_a);
+// CHECK: void fn_type_conversion_grad(float z, double a, float *_d_z, double *_d_a) {
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
@@ -54,7 +54,7 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 
 int main() {
   float result_0;
-  int result_1;
+  double result_1;
   INIT_GRADIENT(fn_type_conversion);
-  TEST_GRADIENT(fn_type_conversion, /*numOfDerivativeArgs=*/2, 4, 3, &result_0, &result_1); // CHECK-EXEC: {9.00, 24}
+  TEST_GRADIENT(fn_type_conversion, /*numOfDerivativeArgs=*/2, 4, 3, &result_0, &result_1); // CHECK-EXEC: {9.00, 24.00}
 }
