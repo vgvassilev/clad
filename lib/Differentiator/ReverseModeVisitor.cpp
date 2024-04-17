@@ -2068,8 +2068,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } else if (opCode == UO_PostInc || opCode == UO_PostDec) {
       diff = Visit(E, dfdx());
       Expr* diff_dx = diff.getExpr_dx();
-      if (isPointerOp && isCladArrayType(diff_dx->getType()))
-        diff_dx = BuildArrayRefPtrRefExpr(diff_dx);
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
       if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
@@ -2087,8 +2085,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     } else if (opCode == UO_PreInc || opCode == UO_PreDec) {
       diff = Visit(E, dfdx());
       Expr* diff_dx = diff.getExpr_dx();
-      if (isPointerOp && isCladArrayType(diff_dx->getType()))
-        diff_dx = BuildArrayRefPtrRefExpr(diff_dx);
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
       if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {

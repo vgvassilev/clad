@@ -699,10 +699,6 @@ namespace clad {
     return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"slice", Args);
   }
 
-  Expr* VisitorBase::BuildArrayRefPtrRefExpr(Expr* Base) {
-    return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"ptr_ref", {});
-  }
-
   bool VisitorBase::isCladArrayType(QualType QT) {
     // FIXME: Replace this check with a clang decl check
     return QT.getAsString().find("clad::array") != std::string::npos ||
@@ -797,24 +793,11 @@ namespace clad {
     derivedL = LDiff.getExpr_dx();
     derivedR = RDiff.getExpr_dx();
     if (utils::isArrayOrPointerType(LDiff.getExpr()->getType()) &&
-        utils::isArrayOrPointerType(RDiff.getExpr()->getType())) {
-      if (isCladArrayType(derivedL->getType()))
-        derivedL = BuildArrayRefPtrRefExpr(derivedL);
-      if (isCladArrayType(derivedR->getType()))
-        derivedR = BuildArrayRefPtrRefExpr(derivedR);
-    } else if (utils::isArrayOrPointerType(LDiff.getExpr()->getType()) &&
-               !utils::isArrayOrPointerType(RDiff.getExpr()->getType())) {
-      derivedL = LDiff.getExpr_dx();
-      if (isCladArrayType(derivedL->getType()))
-        derivedL = BuildArrayRefPtrRefExpr(derivedL);
+        !utils::isArrayOrPointerType(RDiff.getExpr()->getType()))
       derivedR = RDiff.getExpr();
-    } else if (utils::isArrayOrPointerType(RDiff.getExpr()->getType()) &&
-               !utils::isArrayOrPointerType(LDiff.getExpr()->getType())) {
+    else if (utils::isArrayOrPointerType(RDiff.getExpr()->getType()) &&
+             !utils::isArrayOrPointerType(LDiff.getExpr()->getType()))
       derivedL = LDiff.getExpr();
-      derivedR = RDiff.getExpr_dx();
-      if (isCladArrayType(derivedR->getType()))
-        derivedR = BuildArrayRefPtrRefExpr(derivedR);
-    }
   }
 
   Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
