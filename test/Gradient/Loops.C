@@ -1657,6 +1657,53 @@ double fn20(double *arr, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn21(double x) {
+  double res = 0;
+  for (int i = 0; i < 5; ++i) {
+    double arr[] = {1, x, 2};
+    res += arr[0] + arr[1];
+  }
+  return res;
+}
+
+
+// CHECK: void fn21_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
+// CHECK-NEXT:     double _d_arr[3] = {0};
+// CHECK-NEXT:     clad::array<double> arr({{3U|3UL}});
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     for (i = 0; i < 5; ++i) {
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, arr) , arr = {1, x, 2};
+// CHECK-NEXT:         clad::push(_t2, res);
+// CHECK-NEXT:         res += arr[0] + arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             res = clad::pop(_t2);
+// CHECK-NEXT:             double _r_d0 = _d_res;
+// CHECK-NEXT:             _d_arr[0] += _r_d0;
+// CHECK-NEXT:             _d_arr[1] += _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             *_d_x += _d_arr[1];
+// CHECK-NEXT:             clad::zero_init(_d_arr);
+// CHECK-NEXT:             arr = clad::pop(_t1);
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -1726,6 +1773,8 @@ int main() {
   auto d_fn20 = clad::gradient(fn20, "arr");
   d_fn20.execute(x, 5, result);
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {5.00, 5.00, 5.00, 5.00, 5.00}
+  
+  TEST(fn21, 5); // CHECK-EXEC: {5.00}
 }
 
 //CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
