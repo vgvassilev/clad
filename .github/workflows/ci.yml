@@ -640,8 +640,8 @@ jobs:
         
         PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
         
-        pip3 install lit # LLVM lit is not part of the llvm releases...
-        echo "lit_directory='$(python3 -m site --user-base)/bin/lit'" >> $GITHUB_ENV
+        brew install lit # LLVM lit is not part of the llvm releases...
+        echo "lit_directory='$(brew --prefix)/bin/lit'" >> $GITHUB_ENV
 
         # We need headers in correct place
         #FIXME: ln solution fails with error message No such file or directory on osx arm, 
