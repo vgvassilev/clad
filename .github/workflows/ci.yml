@@ -706,7 +706,7 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         pip3 install lit # LLVM lit is not part of the llvm releases...
-        echo "lit_directory='$(python3 -m site --user-base)/bin/lit'" >> $GITHUB_ENV
+        echo "lit_directory='which lit'" >> $GITHUB_ENV
         vers="${compiler#*-}"
         if [[ ! -f "$PATH_TO_LLVM_BUILD/bin/FileCheck" ]]; then
           ln -s /usr/bin/FileCheck-$vers $PATH_TO_LLVM_BUILD/bin/FileCheck
@@ -729,7 +729,7 @@ jobs:
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
         pip3 install lit # LLVM lit is not part of the llvm releases...
-        echo "lit_directory='$(python3 -m site --user-base)/bin/lit'" >> $GITHUB_ENV
+        echo "lit_directory='which lit'" >> $GITHUB_ENV
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
