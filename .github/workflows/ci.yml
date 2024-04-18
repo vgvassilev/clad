@@ -640,8 +640,7 @@ jobs:
         
         PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
         
-        brew install lit # LLVM lit is not part of the llvm releases...
-        echo "lit_directory='$(brew --prefix)/bin/lit'" >> $GITHUB_ENV
+        pip3 install lit # LLVM lit is not part of the llvm releases...
 
         # We need headers in correct place
         #FIXME: ln solution fails with error message No such file or directory on osx arm, 
@@ -706,7 +705,6 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         pip3 install lit # LLVM lit is not part of the llvm releases...
-        echo "lit_directory='which lit'" >> $GITHUB_ENV
         vers="${compiler#*-}"
         if [[ ! -f "$PATH_TO_LLVM_BUILD/bin/FileCheck" ]]; then
           ln -s /usr/bin/FileCheck-$vers $PATH_TO_LLVM_BUILD/bin/FileCheck
@@ -729,7 +727,6 @@ jobs:
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
         pip3 install lit # LLVM lit is not part of the llvm releases...
-        echo "lit_directory='which lit'" >> $GITHUB_ENV
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
@@ -799,12 +796,12 @@ jobs:
           -DLLVM_DIR="${{ env.PATH_TO_LLVM_BUILD }}/lib/cmake/"       \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
-          -DLLVM_EXTERNAL_LIT="${{ env.lit_directory}}" \
+          -DLLVM_EXTERNAL_LIT="`which lit`" \
           -DLLVM_ENABLE_WERROR=On           \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
 
-        cmake --build . -j 4
+        cmake --build . -- -j4
     - name: Build Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
@@ -845,7 +842,7 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os != 'windows' }}
       run: |
         cd obj
-        cmake --build . --target check-clad -j 4
+        cmake --build . --target check-clad -- -j4
     - name: Test Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
