@@ -641,6 +641,7 @@ jobs:
         PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
         
         pip3 install lit # LLVM lit is not part of the llvm releases...
+        echo "lit_directory='$(python3 -m site --user-base)/bin/lit'" >> $GITHUB_ENV
 
         # We need headers in correct place
         #FIXME: ln solution fails with error message No such file or directory on osx arm, 
@@ -705,6 +706,7 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
         pip3 install lit # LLVM lit is not part of the llvm releases...
+        echo "lit_directory='$(python3 -m site --user-base)/bin/lit'" >> $GITHUB_ENV
         vers="${compiler#*-}"
         if [[ ! -f "$PATH_TO_LLVM_BUILD/bin/FileCheck" ]]; then
           ln -s /usr/bin/FileCheck-$vers $PATH_TO_LLVM_BUILD/bin/FileCheck
@@ -727,6 +729,7 @@ jobs:
         # Add -H to silence 'The directory '/home/..../pip/http' or its parent
         # directory is not owned by the current user and the cache has been disabled.
         pip3 install lit # LLVM lit is not part of the llvm releases...
+        echo "lit_directory='$(python3 -m site --user-base)/bin/lit'" >> $GITHUB_ENV
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
     - name: Setup LLVM/Clang on Windows
@@ -796,7 +799,7 @@ jobs:
           -DLLVM_DIR="${{ env.PATH_TO_LLVM_BUILD }}/lib/cmake/"       \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
-          -DLLVM_EXTERNAL_LIT="`which lit`" \
+          -DLLVM_EXTERNAL_LIT="${{ env.lit_directory}}" \
           -DLLVM_ENABLE_WERROR=On           \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
@@ -893,7 +896,7 @@ jobs:
           -DCLAD_ENABLE_SPHINX=ON           \
           -DCMAKE_INSTALL_PREFIX=../inst    \
           -DCMAKE_BUILD_TYPE=Debug          \
-          -DLLVM_EXTERNAL_LIT="`which lit`" \
+          -DLLVM_EXTERNAL_LIT="$lit_directory" \
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j4
     - name: Failed job config
