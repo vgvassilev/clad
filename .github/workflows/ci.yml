@@ -464,7 +464,7 @@ jobs:
 
           - name: ubu22-clang-libcxx-runtime18
             os: ubuntu-22.04
-            compiler: clang-16
+            compiler: clang-18
             clang-runtime: '18'
             extra_packages: 'libc++-18-dev'
             extra_cmake_options: '-DCMAKE_CXX_FLAGS="-stdlib=libc++"'
