@@ -462,6 +462,13 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
+          - name: ubu22-clang-libcxx-runtime18
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '18'
+            extra_packages: 'libc++-18-dev'
+            extra_cmake_options: '-DCMAKE_CXX_FLAGS="-stdlib=libc++"'
+
           # Оld, still supported versions
 
           - name: ubu20-gcc9-runtime8
@@ -956,29 +963,3 @@ jobs:
         fi
       # env:
       #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
-
-  build_script:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: osx14-arm-clang-runtime17
-            os: macos-14
-            compiler: clang
-            clang-runtime: '17'
-
-          - name: ubu22-clang-runtime18
-            os: ubuntu-22.04
-            clang-runtime: '18'
-            
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        
-    - name: Build and test Clad using build script
-      if: ${{ runner.os != 'windows' }}
-      run: | 
-        bash build.sh --build_dir=build --llvm=${{ matrix.clang-runtime }} --build_type=Release 
