@@ -792,8 +792,8 @@ jobs:
       if: ${{ runner.os != 'windows' }}
       run: |
         mkdir obj && cd obj
-        cmake -DClang_DIR=${{ env.PATH_TO_LLVM_BUILD }}  \
-          -DLLVM_DIR=${{ env.PATH_TO_LLVM_BUILD }}       \
+        cmake -DClang_DIR="${{ env.PATH_TO_LLVM_BUILD }}/lib/cmake/"  \
+          -DLLVM_DIR="${{ env.PATH_TO_LLVM_BUILD }}/lib/cmake/"       \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
           -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
@@ -801,7 +801,7 @@ jobs:
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }}
 
-        cmake --build . -- -j4
+        cmake --build . -j 4
     - name: Build Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
@@ -842,7 +842,7 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os != 'windows' }}
       run: |
         cd obj
-        cmake --build . --target check-clad -- -j4
+        cmake --build . --target check-clad -j 4
     - name: Test Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
