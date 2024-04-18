@@ -893,7 +893,7 @@ jobs:
           -DCLAD_ENABLE_SPHINX=ON           \
           -DCMAKE_INSTALL_PREFIX=../inst    \
           -DCMAKE_BUILD_TYPE=Debug          \
-          -DLLVM_EXTERNAL_LIT="$lit_directory" \
+          -DLLVM_EXTERNAL_LIT="`which lit`" \
           ..
         cmake --build . --target sphinx-clad doxygen-clad -- -j4
     - name: Failed job config
