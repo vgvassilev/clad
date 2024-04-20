@@ -798,7 +798,7 @@ jobs:
           -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           -DLLVM_ENABLE_WERROR=On           \
-          -DCMAKE_VERBOSE_MAKEFILE=${{ runner.debug }}
+          -DCMAKE_VERBOSE_MAKEFILE=${{ runner.debug }} \
           $GITHUB_WORKSPACE                 \
           ${{ matrix.extra_cmake_options }} 
 
