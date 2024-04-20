@@ -798,8 +798,9 @@ jobs:
           -DCLAD_CODE_COVERAGE=${{ env.CLAD_CODE_COVERAGE }}   \
           -DLLVM_EXTERNAL_LIT="`which lit`" \
           -DLLVM_ENABLE_WERROR=On           \
+          -DCMAKE_VERBOSE_MAKEFILE=${{ runner.debug }}
           $GITHUB_WORKSPACE                 \
-          ${{ matrix.extra_cmake_options }}
+          ${{ matrix.extra_cmake_options }} 
 
         cmake --build . -- -j4
     - name: Build Clad on Windows
