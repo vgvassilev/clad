@@ -462,11 +462,11 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
-          - name: ubu22-clang-libcxx-runtime18
+          - name: ubu22-clang-libcxx-runtime17
             os: ubuntu-22.04
-            compiler: clang-18
-            clang-runtime: '18'
-            extra_packages: 'libc++-18-dev'
+            compiler: clang-17
+            clang-runtime: '17'
+            extra_packages: 'libc++-17-dev'
             extra_cmake_options: '-DCMAKE_CXX_FLAGS="-stdlib=libc++"'
 
           # Оld, still supported versions
