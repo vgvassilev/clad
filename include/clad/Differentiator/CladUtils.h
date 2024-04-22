@@ -334,8 +334,6 @@ namespace clad {
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
 
-    bool IsDifferentiableType(clang::QualType QT);
-
     /// Removes the local const qualifiers from a QualType and returns a new
     /// type.
     clang::QualType getNonConstType(clang::QualType T, clang::ASTContext& C,

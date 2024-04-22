@@ -38,21 +38,6 @@ BaseForwardModeVisitor::BaseForwardModeVisitor(DerivativeBuilder& builder)
 
 BaseForwardModeVisitor::~BaseForwardModeVisitor() {}
 
-bool BaseForwardModeVisitor::IsDifferentiableType(QualType T) {
-  QualType origType = T;
-  // FIXME: arbitrary dimension array type as well.
-  while (utils::isArrayOrPointerType(T))
-    T = utils::GetValueType(T);
-  T = T.getNonReferenceType();
-  if (T->isEnumeralType())
-    return false;
-  if (T->isRealType() || T->isStructureOrClassType())
-    return true;
-  if (origType->isPointerType() && T->isVoidType())
-    return true;
-  return false;
-}
-
 bool IsRealNonReferenceType(QualType T) {
   return T.getNonReferenceType()->isRealType();
 }
@@ -224,7 +209,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
       // non-reference type for creating the derivatives.
       QualType dParamType = param->getType().getNonReferenceType();
       // We do not create derived variable for array/pointer parameters.
-      if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType) ||
+      if (!IsDifferentiableType(dParamType) ||
           utils::isArrayOrPointerType(dParamType))
         continue;
       Expr* dParam = nullptr;
@@ -420,7 +405,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   for (auto* PVD : m_Function->parameters()) {
     paramTypes.push_back(PVD->getType());
 
-    if (BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
+    if (IsDifferentiableType(PVD->getType()))
       derivedParamTypes.push_back(GetPushForwardDerivativeType(PVD->getType()));
   }
 
@@ -485,7 +470,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
     if (identifierMissing)
       m_DeclReplacements[PVD] = newPVD;
 
-    if (!BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
+    if (!IsDifferentiableType(PVD->getType()))
       continue;
     auto derivedPVDName = "_d_" + std::string(PVDII->getName());
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
@@ -1069,7 +1054,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       }
     }
     CallArgs.push_back(argDiff.getExpr());
-    if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
+    if (IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
       // FIXME: What happens when dArg is nullptr?
       diffArgs.push_back(dArg);

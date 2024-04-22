@@ -208,6 +208,8 @@ namespace clad {
       return QT->isArrayType() || QT->isPointerType();
     }
 
+    static bool IsDifferentiableType(clang::QualType T);
+
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);
 
     /// Get the latest block of code (i.e. place for statements output).

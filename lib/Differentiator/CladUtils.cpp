@@ -685,11 +685,6 @@ namespace clad {
 #endif
     }
 
-    bool IsDifferentiableType(clang::QualType QT) {
-      // FIXME: consider analysing object types with this
-      return !utils::GetValueType(QT)->isIntegerType();
-    }
-
     clang::QualType getNonConstType(clang::QualType T, clang::ASTContext& C,
                                     clang::Sema& S) {
       clang::Qualifiers quals(T.getQualifiers());

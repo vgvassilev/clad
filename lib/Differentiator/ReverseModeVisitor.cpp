@@ -272,7 +272,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (request.Args) {
       DVI = request.DVI;
       for (const auto& dParam : DVI)
-        if (utils::IsDifferentiableType(dParam.param->getType()))
+        // no need to create adjoints for non-differentiable parameters.
+        if (IsDifferentiableType(dParam.param->getType()))
           args.push_back(dParam.param);
     }
     else
@@ -601,7 +602,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
       ParmVarDecl* param = paramsRef[i];
       // no need to create adjoints for non-differentiable variables.
-      if (!utils::IsDifferentiableType(param->getType()))
+      if (!IsDifferentiableType(param->getType()))
         continue;
       // derived variables are already created for independent variables.
       if (m_Variables.count(param))
@@ -1522,7 +1523,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // modified by the derived callee function.
       // Also, no need to create adjoint variables for non-differentiable types.
       if (utils::IsReferenceOrPointerArg(arg) ||
-          !utils::IsDifferentiableType(arg->getType())) {
+          !IsDifferentiableType(arg->getType())) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -2562,7 +2563,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Integer types are not differentiable,
     // no need to construct an adjoint.
-    if (!utils::IsDifferentiableType(VD->getType())) {
+    if (!IsDifferentiableType(VD->getType())) {
       Expr* init = nullptr;
       if (VD->getInit())
         init = Visit(VD->getInit()).getExpr();
