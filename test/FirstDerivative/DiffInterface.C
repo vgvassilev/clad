@@ -6,69 +6,69 @@
 
 extern "C" int printf(const char* fmt, ...);
 
-int f_1(float y) {
-  int x = 1, z = 3;
+float f_1(float y) {
+  float x = 1, z = 3;
   return x * y * z; // x * z
 }
 
-// CHECK: int f_1_darg0(float y) {
+// CHECK: float f_1_darg0(float y) {
 // CHECK-NEXT: float _d_y = 1;
-// CHECK-NEXT: int _d_x = 0, _d_z = 0;
-// CHECK-NEXT: int x = 1, z = 3;
+// CHECK-NEXT: float _d_x = 0, _d_z = 0;
+// CHECK-NEXT: float x = 1, z = 3;
 // CHECK-NEXT: float _t0 = x * y;
 // CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
-int f_2(int x, float y, int z) {
+float f_2(float x, float y, float z) {
   return x * y * z; // y * z;
 }
 
-// CHECK: int f_2_darg0(int x, float y, int z) {
-// CHECK-NEXT: int _d_x = 1;
+// CHECK: float f_2_darg0(float x, float y, float z) {
+// CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: int _d_z = 0;
+// CHECK-NEXT: float _d_z = 0;
 // CHECK-NEXT: float _t0 = x * y;
 // CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 // x * z
-// CHECK: int f_2_darg1(int x, float y, int z) {
-// CHECK-NEXT: int _d_x = 0;
+// CHECK: float f_2_darg1(float x, float y, float z) {
+// CHECK-NEXT: float _d_x = 0;
 // CHECK-NEXT: float _d_y = 1;
-// CHECK-NEXT: int _d_z = 0;
+// CHECK-NEXT: float _d_z = 0;
 // CHECK-NEXT: float _t0 = x * y;
 // CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
 // x * y
-// CHECK: int f_2_darg2(int x, float y, int z) {
-// CHECK-NEXT: int _d_x = 0;
+// CHECK: float f_2_darg2(float x, float y, float z) {
+// CHECK-NEXT: float _d_x = 0;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: int _d_z = 1;
+// CHECK-NEXT: float _d_z = 1;
 // CHECK-NEXT: float _t0 = x * y;
 // CHECK-NEXT: return (_d_x * y + x * _d_y) * z + _t0 * _d_z;
 // CHECK-NEXT: }
 
-int f_3() {
-  int x = 1, z = 3;
+float f_3() {
+  float x = 1, z = 3;
   float y = 2;
   return x * y * z; // should not be differentiated
 }
 
-int f_no_definition(int x);
+float f_no_definition(float x);
 
-int f_redeclared(int x) {
+float f_redeclared(float x) {
     return x;
 }
 
-int f_redeclared(int x);
+float f_redeclared(float x);
 
-// CHECK: int f_redeclared_darg0(int x) {
-// CHECK-NEXT:   int _d_x = 1;
+// CHECK: float f_redeclared_darg0(float x) {
+// CHECK-NEXT:   float _d_x = 1;
 // CHECK-NEXT:   return _d_x;
 // CHECK: }
 
-int f_try_catch(int x)
+float f_try_catch(float x)
   try { // expected-warning {{attempted to differentiate unsupported statement, no changes applied}}
     return x;
   }
@@ -79,8 +79,8 @@ int f_try_catch(int x)
     return 1;
   }
 
-// CHECK: int f_try_catch_darg0(int x) {
-// CHECK-NEXT:    int _d_x = 1;
+// CHECK: float f_try_catch_darg0(float x) {
+// CHECK-NEXT:    float _d_x = 1;
 // CHECK-NEXT:    try {
 // CHECK-NEXT:        return x;
 // CHECK-NEXT:    } catch (int) {

@@ -425,13 +425,10 @@ Tensor<double, 5> fn5(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     Tensor<double, 5> _d_T;
 // CHECK-NEXT:     Tensor<double, 5> T;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_l = 0;
-// CHECK-NEXT:         for (int l = 0; l < 5; ++l) {
-// CHECK-NEXT:             int _t0 = (l + 1);
-// CHECK-NEXT:             _d_T.data[l] = (_d_l + 0) * i + _t0 * _d_i;
-// CHECK-NEXT:             T.data[l] = _t0 * i;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (int l = 0; l < 5; ++l) {
+// CHECK-NEXT:         int _t0 = (l + 1);
+// CHECK-NEXT:         _d_T.data[l] = (0 + 0) * i + _t0 * _d_i;
+// CHECK-NEXT:         T.data[l] = _t0 * i;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return _d_T;
 // CHECK-NEXT: }
@@ -595,7 +592,7 @@ TensorD5 fn11(double i, double j) {
 
 // CHECK: void operator_call_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val);
 
-// CHECK: clad::ValueAndPushforward<double &, double &> operator_subscript_pushforward(std::size_t idx, Tensor<double, 5> *_d_this, std::size_t _d_idx);
+// CHECK: clad::ValueAndPushforward<double &, double &> operator_subscript_pushforward(std::size_t idx, Tensor<double, 5> *_d_this);
 
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_plus_pushforward(const Tensor<double, 5U> &a, const Tensor<double, 5U> &b, const Tensor<double, 5U> &_d_a, const Tensor<double, 5U> &_d_b);
 
@@ -619,7 +616,7 @@ TensorD5 fn11(double i, double j) {
 
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> operator_minus_minus_pushforward(Tensor<double, 5> *_d_this);
 
-// CHECK: clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > operator_plus_plus_pushforward(int param, Tensor<double, 5> *_d_this, int _d_param);
+// CHECK: clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > operator_plus_plus_pushforward(int param, Tensor<double, 5> *_d_this);
 
 // CHECK: TensorD5 fn11_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
@@ -628,10 +625,10 @@ TensorD5 fn11(double i, double j) {
 // CHECK-NEXT:     TensorD5 a, b;
 // CHECK-NEXT:     a.operator_call_pushforward(7 * i, & _d_a, 0 * i + 7 * _d_i);
 // CHECK-NEXT:     b.operator_call_pushforward(9 * i, & _d_b, 0 * i + 9 * _d_i);
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t0 = a.operator_subscript_pushforward(0, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t0 = a.operator_subscript_pushforward(0, & _d_a);
 // CHECK-NEXT:     _t0.pushforward += 0 * i + 11 * _d_i;
 // CHECK-NEXT:     _t0.value += 11 * i;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t1 = b.operator_subscript_pushforward(0, & _d_b, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t1 = b.operator_subscript_pushforward(0, & _d_b);
 // CHECK-NEXT:     _t1.pushforward += 0 * i + 13 * _d_i;
 // CHECK-NEXT:     _t1.value += 13 * i;
 // CHECK-NEXT:     TensorD5 _d_res1, _d_res2;
@@ -658,8 +655,8 @@ TensorD5 fn11(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> _t18 = res2.operator_plus_plus_pushforward(& _d_res2);
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> _t19 = res1.operator_minus_minus_pushforward(& _d_res1);
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> _t20 = res2.operator_minus_minus_pushforward(& _d_res2);
-// CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > _t21 = res1.operator_plus_plus_pushforward(0, & _d_res1, 0);
-// CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > _t22 = res2.operator_plus_plus_pushforward(0, & _d_res2, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > _t21 = res1.operator_plus_plus_pushforward(0, & _d_res1);
+// CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > _t22 = res2.operator_plus_plus_pushforward(0, & _d_res2);
 // CHECK-NEXT:     return _d_res1;
 // CHECK-NEXT: }
 
@@ -697,10 +694,10 @@ TensorD5 fn12(double i, double j) {
 // CHECK-NEXT:     TensorD5 a, b;
 // CHECK-NEXT:     a.operator_call_pushforward(7 * i, & _d_a, 0 * i + 7 * _d_i);
 // CHECK-NEXT:     b.operator_call_pushforward(9 * i, & _d_b, 0 * i + 9 * _d_i);
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t0 = a.operator_subscript_pushforward(0, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t0 = a.operator_subscript_pushforward(0, & _d_a);
 // CHECK-NEXT:     _t0.pushforward += 0 * i + 11 * _d_i;
 // CHECK-NEXT:     _t0.value += 11 * i;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t1 = b.operator_subscript_pushforward(0, & _d_b, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t1 = b.operator_subscript_pushforward(0, & _d_b);
 // CHECK-NEXT:     _t1.pushforward += 0 * i + 13 * _d_i;
 // CHECK-NEXT:     _t1.value += 13 * i;
 // CHECK-NEXT:     TensorD5 _d_res1;
@@ -716,7 +713,7 @@ TensorD5 fn12(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > _t6 = operator_star_pushforward(a, a, _d_a, _d_a);
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > _t7 = operator_slash_pushforward(_t6.value, a, _t6.pushforward, _d_a);
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5U> &, Tensor<double, 5U> &> _t8 = operator_plus_equal_pushforward(res1, _t7.value, _d_res1, _t7.pushforward);
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t9 = res1.operator_subscript_pushforward(1, & _d_res1, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t9 = res1.operator_subscript_pushforward(1, & _d_res1);
 // CHECK-NEXT:     _t9.pushforward += 0 * i + 17 * _d_i;
 // CHECK-NEXT:     _t9.value += 17 * i;
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5U> &, Tensor<double, 5U> &> _t10 = operator_caret_equal_pushforward(res1, one, _d_res1, _d_one);
@@ -802,23 +799,23 @@ TensorD5 fn13(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     TensorD5 _d_a, _d_b;
 // CHECK-NEXT:     TensorD5 a, b;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t0 = a.operator_subscript_pushforward(0, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t0 = a.operator_subscript_pushforward(0, & _d_a);
 // CHECK-NEXT:     _t0.pushforward = _d_i * j + i * _d_j;
 // CHECK-NEXT:     _t0.value = i * j;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t1 = b.operator_subscript_pushforward(0, & _d_b, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t1 = b.operator_subscript_pushforward(0, & _d_b);
 // CHECK-NEXT:     _t1.pushforward = _d_i * i + i * _d_i;
 // CHECK-NEXT:     _t1.value = i * i;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t2 = a.operator_subscript_pushforward(0, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t2 = a.operator_subscript_pushforward(0, & _d_a);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t3 = operator_less_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t4 = operator_greater_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t2.pushforward += _t3.pushforward + _t4.pushforward;
 // CHECK-NEXT:     _t2.value += _t3.value + _t4.value;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t5 = b.operator_subscript_pushforward(0, & _d_b, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t5 = b.operator_subscript_pushforward(0, & _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t6 = operator_less_equal_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t7 = operator_greater_equal_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t5.pushforward += _t6.pushforward + _t7.pushforward;
 // CHECK-NEXT:     _t5.value += _t6.value + _t7.value;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t8 = a.operator_subscript_pushforward(0, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t8 = a.operator_subscript_pushforward(0, & _d_a);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t9 = operator_equal_equal_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t10 = operator_exclaim_equal_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t8.pushforward += _t9.pushforward + _t10.pushforward;
@@ -839,19 +836,19 @@ TensorD5 fn13(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> _t14 = a.operator_equal_pushforward(_t13.value, & _d_a, _t13.pushforward);
 // CHECK-NEXT:     clad::ValueAndPushforward<Tensor<double, 5U> &, Tensor<double, 5U> &> _t15 = operator_percent_equal_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     operator_tilde_pushforward(a, _d_a);
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t16 = a.operator_subscript_pushforward(2, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t16 = a.operator_subscript_pushforward(2, & _d_a);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t17 = operator_less_less_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t18 = operator_greater_greater_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t16.pushforward = _t17.pushforward + _t18.pushforward;
 // CHECK-NEXT:     _t16.value = _t17.value + _t18.value;
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t19 = b.operator_subscript_pushforward(2, & _d_b, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t19 = b.operator_subscript_pushforward(2, & _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t20 = operator_AmpAmp_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t21 = operator_pipe_pipe_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t19.pushforward = _t20.pushforward + _t21.pushforward;
 // CHECK-NEXT:     _t19.value = _t20.value + _t21.value;
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t22 = operator_less_less_equal_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t23 = operator_greater_greater_equal_pushforward(b, a, _d_b, _d_a);
-// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t24 = a.operator_subscript_pushforward(3, & _d_a, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<double &, double &> _t24 = a.operator_subscript_pushforward(3, & _d_a);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t25 = operator_amp_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     clad::ValueAndPushforward<bool, bool> _t26 = operator_pipe_pushforward(a, b, _d_a, _d_b);
 // CHECK-NEXT:     _t24.pushforward = _t25.pushforward + _t26.pushforward;
@@ -881,10 +878,10 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     vectorD _d_v;
 // CHECK-NEXT:     vectorD v;
 // CHECK-NEXT:     clad::custom_derivatives::class_functions::resize_pushforward(&v, 5, 0, &_d_v, 0, 0);
-// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t0 = v.operator_subscript_pushforward(0, &_d_v, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t0 = v.operator_subscript_pushforward(0, &_d_v);
 // CHECK-NEXT:     _t0.pushforward = 0 * i + 9 * _d_i;
 // CHECK-NEXT:     _t0.value = 9 * i;
-// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t1 = v.operator_subscript_pushforward(1, &_d_v, 0);
+// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t1 = v.operator_subscript_pushforward(1, &_d_v);
 // CHECK-NEXT:     _t1.pushforward = 0 * i + 11 * _d_i;
 // CHECK-NEXT:     _t1.value = 11 * i;
 // CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.begin()), decltype({{.*}}.begin())> _t2 = begin_pushforward(v, _d_v);
@@ -1003,35 +1000,26 @@ int main() {
 // CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5> *_d_this) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_res += _d_this->data[i];
-// CHECK-NEXT:             res += this->data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_res += _d_this->data[i];
+// CHECK-NEXT:         res += this->data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
 
 // CHECK: void updateTo_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_this->data[i] = _d_val;
-// CHECK-NEXT:             this->data[i] = val;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_this->data[i] = _d_val;
+// CHECK-NEXT:         this->data[i] = val;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5U> &t, Tensor<double, 5U> &_d_t) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_res += _d_t.data[i];
-// CHECK-NEXT:             res += t.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_res += _d_t.data[i];
+// CHECK-NEXT:         res += t.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
@@ -1055,28 +1043,22 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void operator_call_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_this->data[i] = _d_val;
-// CHECK-NEXT:             this->data[i] = val;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_this->data[i] = _d_val;
+// CHECK-NEXT:         this->data[i] = val;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<double &, double &> operator_subscript_pushforward(std::size_t idx, Tensor<double, 5> *_d_this, std::size_t _d_idx) {
+// CHECK: clad::ValueAndPushforward<double &, double &> operator_subscript_pushforward(std::size_t idx, Tensor<double, 5> *_d_this) {
 // CHECK-NEXT:     return {this->data[idx], _d_this->data[idx]};
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_plus_pushforward(const Tensor<double, 5U> &a, const Tensor<double, 5U> &b, const Tensor<double, 5U> &_d_a, const Tensor<double, 5U> &_d_b) {
 // CHECK-NEXT:     Tensor<double, 5U> _d_res;
 // CHECK-NEXT:     Tensor<double, 5U> res;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_res.data[i] = _d_a.data[i] + _d_b.data[i];
-// CHECK-NEXT:             res.data[i] = a.data[i] + b.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_res.data[i] = _d_a.data[i] + _d_b.data[i];
+// CHECK-NEXT:         res.data[i] = a.data[i] + b.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
@@ -1084,14 +1066,11 @@ int main() {
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_star_pushforward(const Tensor<double, 5U> &a, const Tensor<double, 5U> &b, const Tensor<double, 5U> &_d_a, const Tensor<double, 5U> &_d_b) {
 // CHECK-NEXT:     Tensor<double, 5U> _d_res;
 // CHECK-NEXT:     Tensor<double, 5U> res;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             const double _t0 = a.data[i];
-// CHECK-NEXT:             const double _t1 = b.data[i];
-// CHECK-NEXT:             _d_res.data[i] = _d_a.data[i] * _t1 + _t0 * _d_b.data[i];
-// CHECK-NEXT:             res.data[i] = _t0 * _t1;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         const double _t0 = a.data[i];
+// CHECK-NEXT:         const double _t1 = b.data[i];
+// CHECK-NEXT:         _d_res.data[i] = _d_a.data[i] * _t1 + _t0 * _d_b.data[i];
+// CHECK-NEXT:         res.data[i] = _t0 * _t1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
@@ -1099,12 +1078,9 @@ int main() {
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_minus_pushforward(const Tensor<double, 5U> &t, const Tensor<double, 5U> &_d_t) {
 // CHECK-NEXT:     Tensor<double, 5U> _d_res;
 // CHECK-NEXT:     Tensor<double, 5U> res;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_res.data[i] = -_d_t.data[i];
-// CHECK-NEXT:             res.data[i] = -t.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_res.data[i] = -_d_t.data[i];
+// CHECK-NEXT:         res.data[i] = -t.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
@@ -1112,12 +1088,9 @@ int main() {
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_minus_pushforward(const Tensor<double, 5U> &a, const Tensor<double, 5U> &b, const Tensor<double, 5U> &_d_a, const Tensor<double, 5U> &_d_b) {
 // CHECK-NEXT:     Tensor<double, 5U> _d_res;
 // CHECK-NEXT:     Tensor<double, 5U> res;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_res.data[i] = _d_a.data[i] - _d_b.data[i];
-// CHECK-NEXT:             res.data[i] = a.data[i] - b.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_res.data[i] = _d_a.data[i] - _d_b.data[i];
+// CHECK-NEXT:         res.data[i] = a.data[i] - b.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
@@ -1125,25 +1098,19 @@ int main() {
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_slash_pushforward(const Tensor<double, 5U> &a, const Tensor<double, 5U> &b, const Tensor<double, 5U> &_d_a, const Tensor<double, 5U> &_d_b) {
 // CHECK-NEXT:     Tensor<double, 5U> _d_res;
 // CHECK-NEXT:     Tensor<double, 5U> res;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             const double _t0 = a.data[i];
-// CHECK-NEXT:             const double _t1 = b.data[i];
-// CHECK-NEXT:             _d_res.data[i] = (_d_a.data[i] * _t1 - _t0 * _d_b.data[i]) / (_t1 * _t1);
-// CHECK-NEXT:             res.data[i] = _t0 / _t1;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         const double _t0 = a.data[i];
+// CHECK-NEXT:         const double _t1 = b.data[i];
+// CHECK-NEXT:         _d_res.data[i] = (_d_a.data[i] * _t1 - _t0 * _d_b.data[i]) / (_t1 * _t1);
+// CHECK-NEXT:         res.data[i] = _t0 / _t1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> operator_equal_pushforward(const Tensor<double, 5> &t, Tensor<double, 5> *_d_this, const Tensor<double, 5> &_d_t) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_this->data[i] = _d_t.data[i];
-// CHECK-NEXT:             this->data[i] = t.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_this->data[i] = _d_t.data[i];
+// CHECK-NEXT:         this->data[i] = t.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
@@ -1151,13 +1118,10 @@ int main() {
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5U>, Tensor<double, 5U> > operator_caret_pushforward(const Tensor<double, 5U> &a, const Tensor<double, 5U> &b, const Tensor<double, 5U> &_d_a, const Tensor<double, 5U> &_d_b) {
 // CHECK-NEXT:     Tensor<double, 5U> _d_res;
 // CHECK-NEXT:     Tensor<double, 5U> res;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             ValueAndPushforward<decltype(::std::pow(double(), double())), decltype(::std::pow(double(), double()))> _t0 = clad::custom_derivatives::pow_pushforward(a.data[i], b.data[i], _d_a.data[i], _d_b.data[i]);
-// CHECK-NEXT:             _d_res.data[i] = _t0.pushforward;
-// CHECK-NEXT:             res.data[i] = _t0.value;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         ValueAndPushforward<decltype(::std::pow(double(), double())), decltype(::std::pow(double(), double()))> _t0 = clad::custom_derivatives::pow_pushforward(a.data[i], b.data[i], _d_a.data[i], _d_b.data[i]);
+// CHECK-NEXT:         _d_res.data[i] = _t0.pushforward;
+// CHECK-NEXT:         res.data[i] = _t0.value;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {res, _d_res};
 // CHECK-NEXT: }
@@ -1175,36 +1139,27 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> operator_plus_plus_pushforward(Tensor<double, 5> *_d_this) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_this->data[i] += 0;
-// CHECK-NEXT:             this->data[i] += 1;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_this->data[i] += 0;
+// CHECK-NEXT:         this->data[i] += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<Tensor<double, 5> &, Tensor<double, 5> &> operator_minus_minus_pushforward(Tensor<double, 5> *_d_this) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_this->data[i] += 0;
-// CHECK-NEXT:             this->data[i] += 1;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_this->data[i] += 0;
+// CHECK-NEXT:         this->data[i] += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {*this, *_d_this};
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > operator_plus_plus_pushforward(int param, Tensor<double, 5> *_d_this, int _d_param) {
+// CHECK: clad::ValueAndPushforward<Tensor<double, 5>, Tensor<double, 5> > operator_plus_plus_pushforward(int param, Tensor<double, 5> *_d_this) {
 // CHECK-NEXT:     Tensor<double, 5> _d_temp;
 // CHECK-NEXT:     Tensor<double, 5> temp;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_temp.data[i] += 0;
-// CHECK-NEXT:             temp.data[i] += 1;
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_temp.data[i] += 0;
+// CHECK-NEXT:         temp.data[i] += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {temp, _d_temp};
 // CHECK-NEXT: }
@@ -1232,14 +1187,11 @@ int main() {
 // CHECK-NEXT:     double lsum, rsum;
 // CHECK-NEXT:     _d_lsum = _d_rsum = 0;
 // CHECK-NEXT:     lsum = rsum = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_lsum += _d_lhs.data[i];
-// CHECK-NEXT:             lsum += lhs.data[i];
-// CHECK-NEXT:             _d_rsum += _d_lhs.data[i];
-// CHECK-NEXT:             rsum += lhs.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_lsum += _d_lhs.data[i];
+// CHECK-NEXT:         lsum += lhs.data[i];
+// CHECK-NEXT:         _d_rsum += _d_lhs.data[i];
+// CHECK-NEXT:         rsum += lhs.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {1, 0};
 // CHECK-NEXT: }
@@ -1249,14 +1201,11 @@ int main() {
 // CHECK-NEXT:     double lsum, rsum;
 // CHECK-NEXT:     _d_lsum = _d_rsum = 0;
 // CHECK-NEXT:     lsum = rsum = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_lsum += _d_lhs.data[i];
-// CHECK-NEXT:             lsum += lhs.data[i];
-// CHECK-NEXT:             _d_rsum += _d_lhs.data[i];
-// CHECK-NEXT:             rsum += lhs.data[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:         _d_lsum += _d_lhs.data[i];
+// CHECK-NEXT:         lsum += lhs.data[i];
+// CHECK-NEXT:         _d_rsum += _d_lhs.data[i];
+// CHECK-NEXT:         rsum += lhs.data[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {1, 0};
 // CHECK-NEXT: }

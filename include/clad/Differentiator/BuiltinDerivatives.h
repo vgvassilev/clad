@@ -25,15 +25,15 @@ namespace custom_derivatives {
 #ifdef __CUDACC__
 template <typename T>
 ValueAndPushforward<cudaError_t, cudaError_t>
-cudaMalloc_pushforward(T** devPtr, size_t sz, T** d_devPtr, size_t d_sz)
+cudaMalloc_pushforward(T** devPtr, size_t sz, T** d_devPtr)
     __attribute__((host)) {
   return {cudaMalloc(devPtr, sz), cudaMalloc(d_devPtr, sz)};
 }
 
 ValueAndPushforward<cudaError_t, cudaError_t>
 cudaMemcpy_pushforward(void* destPtr, void* srcPtr, size_t count,
-                       cudaMemcpyKind kind, void* d_destPtr, void* d_srcPtr,
-                       size_t d_count) __attribute__((host)) {
+                       cudaMemcpyKind kind, void* d_destPtr, void* d_srcPtr)
+    __attribute__((host)) {
   return {cudaMemcpy(destPtr, srcPtr, count, kind),
           cudaMemcpy(d_destPtr, d_srcPtr, count, kind)};
 }
@@ -199,18 +199,17 @@ CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
 
 // NOLINTBEGIN(cppcoreguidelines-no-malloc)
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
-inline ValueAndPushforward<void*, void*> malloc_pushforward(size_t sz,
-                                                            size_t d_sz) {
+inline ValueAndPushforward<void*, void*> malloc_pushforward(size_t sz) {
   return {malloc(sz), malloc(sz)};
 }
 
-inline ValueAndPushforward<void*, void*>
-calloc_pushforward(size_t n, size_t sz, size_t d_n, size_t d_sz) {
+inline ValueAndPushforward<void*, void*> calloc_pushforward(size_t n,
+                                                            size_t sz) {
   return {calloc(n, sz), calloc(n, sz)};
 }
 
 inline ValueAndPushforward<void*, void*>
-realloc_pushforward(void* ptr, size_t sz, void* d_ptr, size_t d_sz) {
+realloc_pushforward(void* ptr, size_t sz, void* d_ptr) {
   return {realloc(ptr, sz), realloc(d_ptr, sz)};
 }
 

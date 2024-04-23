@@ -95,10 +95,9 @@ int main () {
 //CHECK-NEXT: }
   auto f1_darg0_int_B = clad::differentiate((int(B::*)(int))&B::f1, 0);
 //CHECK: int f1_darg0(int x) {
-//CHECK-NEXT:     int _d_x = 1;
 // CHECK-NEXT:     B _d_this_obj;
 // CHECK-NEXT:     B *_d_this = &_d_this_obj;
-//CHECK-NEXT:     return _d_x;
+//CHECK-NEXT:     return 0;
 //CHECK-NEXT: }
   // resolve to float(B::*)(float)
   //auto f1_darg0_double_B = clad::differentiate((double(B::*)(double))&B::f1, 0); // ?EXPECTED-ERROR {{address of overloaded function 'f1' does not match required type 'double (double)'}}
@@ -115,7 +114,7 @@ int main () {
   printf("Result is = %f\n", f1_darg0_float_A.execute(a, 2.0)); // CHECK-EXEC: Result is = 3.0000
   printf("Result is = %f\n", f1_darg0_double_A.execute(a, 2.0)); // CHECK-EXEC: Result is = 4.0000
   printf("Result is = %f\n", f1_darg0_float_B.execute(b, 2.0)); // CHECK-EXEC: Result is = 5.0000
-  printf("Result is = %i\n", f1_darg0_int_B.execute(b, 2)); // CHECK-EXEC: Result is = 1
+  printf("Result is = %i\n", f1_darg0_int_B.execute(b, 2)); // CHECK-EXEC: Result is = 0
   //printf("Result is %s\n", f1_darg0_double_B.execute(b, 2.0)<1 ? "float" : "other"); // -CHECK-EXEC: Result is float
   printf("Result is %s\n", f1_darg0_float_B1.execute(b1, 2.0f)<1 ? "double" : "other"); // CHECK-EXEC: Result is double
   printf("Result is = %f\n", f1_darg0_double_B1.execute(b1, 2.0)); // CHECK-EXEC: Result is = 6.0000

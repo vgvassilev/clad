@@ -95,7 +95,6 @@ double fn5(double i, double j) {
 // CHECK-NEXT:     double arr[2] = {7 * i, 9 * i};
 // CHECK-NEXT:     *(_d_arr + 1) += 0 * i + 11 * _d_i;
 // CHECK-NEXT:     *(arr + 1) += 11 * i;
-// CHECK-NEXT:     int _d_idx1 = 0, _d_idx2 = 0;
 // CHECK-NEXT:     int idx1 = 0, idx2 = 1;
 // CHECK-NEXT:     double *_d_p = _d_arr;
 // CHECK-NEXT:     double *p = arr;
@@ -149,12 +148,12 @@ double fn7(double i) {
 
 // CHECK: double fn7_darg0(double i) {
 // CHECK-NEXT:     double _d_i = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t0 = clad::custom_derivatives::malloc_pushforward(8UL, 0UL);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t0 = clad::custom_derivatives::malloc_pushforward(8UL);
 // CHECK-NEXT:     double *_d_p = (double *)_t0.pushforward;
 // CHECK-NEXT:     double *p = (double *)_t0.value;
 // CHECK-NEXT:     *_d_p = _d_i;
 // CHECK-NEXT:     *p = i;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t1 = clad::custom_derivatives::calloc_pushforward(1, sizeof(T), 0, sizeof(T));
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t1 = clad::custom_derivatives::calloc_pushforward(1, sizeof(T));
 // CHECK-NEXT:     T *_d_t = (T *)_t1.pushforward;
 // CHECK-NEXT:     T *t = (T *)_t1.value;
 // CHECK-NEXT:     _d_t->i = _d_i;
@@ -162,7 +161,7 @@ double fn7(double i) {
 // CHECK-NEXT:     double _d_res = *_d_p + _d_t->i;
 // CHECK-NEXT:     double res = *p + t->i;
 // CHECK-NEXT:     unsigned {{(int|long)}} _t2 = sizeof(double);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t3 = clad::custom_derivatives::realloc_pushforward(p, 2 * _t2, _d_p, 0 * _t2 + 2 * sizeof(double));
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<void *, void *> _t3 = clad::custom_derivatives::realloc_pushforward(p, 2 * _t2, _d_p);
 // CHECK-NEXT:     _d_p = (double *)_t3.pushforward;
 // CHECK-NEXT:     p = (double *)_t3.value;
 // CHECK-NEXT:     _d_p[1] = 0 * i + 2 * _d_i;

@@ -892,30 +892,45 @@ namespace clad {
       Expr* UnresolvedLookup =
           m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
 
-      llvm::SmallVector<Expr*, 16> ExtendedCallArgs(CallArgs.begin(),
-                                                    CallArgs.end());
+      llvm::SmallVector<Expr*, 16> ExtendedCallArgs;
       llvm::SmallVector<Stmt*, 16> DeclStmts;
-      // FIXME: for now, integer types are considered differentiable in the
-      // forward mode.
-      if (m_Mode != DiffMode::forward &&
-          m_Mode != DiffMode::vector_forward_mode &&
-          m_Mode != DiffMode::experimental_pushforward)
-        for (size_t i = 0, e = originalFD->getNumParams(); i < e; ++i) {
-          QualType paramTy = originalFD->getParamDecl(i)->getType();
-          if (!IsDifferentiableType(paramTy)) {
-            QualType argTy = utils::getNonConstType(paramTy, m_Context, m_Sema);
-            VarDecl* argDecl = BuildVarDecl(argTy, "_r", getZeroInit(argTy));
-            Expr* arg = BuildDeclRef(argDecl);
-            if (!utils::isArrayOrPointerType(argTy))
-              arg = BuildOp(UO_AddrOf, arg);
-            ExtendedCallArgs.insert(ExtendedCallArgs.begin() + e + i + 1, arg);
-            DeclStmts.push_back(BuildDeclStmt(argDecl));
+      auto MARargs = llvm::MutableArrayRef<Expr*>(CallArgs);
+      if (noOverloadExists(UnresolvedLookup, MARargs)) {
+        bool isMethodCall = isa<CXXMethodDecl>(originalFD);
+        ExtendedCallArgs =
+            llvm::SmallVector<Expr*, 16>(CallArgs.begin(), CallArgs.end());
+        if (m_Mode != DiffMode::forward &&
+            m_Mode != DiffMode::vector_forward_mode &&
+            m_Mode != DiffMode::experimental_pushforward)
+          for (size_t i = 0, e = originalFD->getNumParams(); i < e; ++i) {
+            QualType paramTy = originalFD->getParamDecl(i)->getType();
+            if (!IsDifferentiableType(paramTy)) {
+              QualType argTy =
+                  utils::getNonConstType(paramTy, m_Context, m_Sema);
+              VarDecl* argDecl = BuildVarDecl(argTy, "_r", getZeroInit(argTy));
+              Expr* arg = BuildDeclRef(argDecl);
+              if (!utils::isArrayOrPointerType(argTy))
+                arg = BuildOp(UO_AddrOf, arg);
+              ExtendedCallArgs.insert(
+                  ExtendedCallArgs.begin() + e + i + 1 + 2 * isMethodCall, arg);
+              DeclStmts.push_back(BuildDeclStmt(argDecl));
+            }
           }
-        }
-      auto MARargs = llvm::MutableArrayRef<Expr*>(ExtendedCallArgs);
-
-      if (noOverloadExists(UnresolvedLookup, MARargs))
-        return nullptr;
+        else
+          for (size_t i = 0, e = originalFD->getNumParams(); i < e; ++i) {
+            QualType paramTy = originalFD->getParamDecl(i)->getType();
+            if (!IsDifferentiableType(paramTy)) {
+              QualType argTy =
+                  utils::getNonConstType(paramTy, m_Context, m_Sema);
+              Expr* zero = getZeroInit(argTy);
+              ExtendedCallArgs.insert(
+                  ExtendedCallArgs.begin() + e + i + 2 * isMethodCall, zero);
+            }
+          }
+        MARargs = llvm::MutableArrayRef<Expr*>(ExtendedCallArgs);
+        if (noOverloadExists(UnresolvedLookup, MARargs))
+          return nullptr;
+      }
 
       OverloadedFn =
           m_Sema.ActOnCallExpr(S, UnresolvedLookup, noLoc, MARargs, noLoc)
@@ -958,6 +973,11 @@ namespace clad {
             return true;
         }
       }
+      return false;
+    }
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(UnresolvedLookup)) {
+      const auto* FD = cast<FunctionDecl>(DRE->getDecl());
+      return FD->getNumParams() != ARargs.size();
     }
     return false;
   }

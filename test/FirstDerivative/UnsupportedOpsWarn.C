@@ -5,17 +5,19 @@
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
-int binOpWarn_0(int x){
-    return x << 1;  // expected-warning {{attempt to differentiate unsupported operator,  derivative                          set to 0}}
+float binOpWarn_0(float x){
+    int n = 3;
+    return n << 1;  // expected-warning {{attempt to differentiate unsupported operator,  derivative                          set to 0}}
 }
 
-// CHECK: int binOpWarn_0_darg0(int x) {
-// CHECK-NEXT:    int _d_x = 1;
+// CHECK: float binOpWarn_0_darg0(float x) {
+// CHECK-NEXT:    float _d_x = 1;
+// CHECK-NEXT:    int n = 3;
 // CHECK-NEXT:    return 0;
 // CHECK-NEXT: }
 
 
-int binOpWarn_1(int x, double y){
+float binOpWarn_1(int x, double y){
     return x ^ 1;   // expected-warning {{attempt to differentiate unsupported operator, ignored.}}
 }
 
@@ -25,17 +27,18 @@ int binOpWarn_1(int x, double y){
 // CHECK-NEXT:     ;
 // CHECK-NEXT: }
 
-int unOpWarn_0(int x){
-    return ~x;  // expected-warning {{attempt to differentiate unsupported operator,  derivative                          set to 0}}
+float unOpWarn_0(float x){
+    int n = 3;
+    return ~n;  // expected-warning {{attempt to differentiate unsupported operator,  derivative                          set to 0}}
 }
 
-// CHECK: int unOpWarn_0_darg0(int x) {
-// CHECK-NEXT:   int _d_x = 1;
+// CHECK: float unOpWarn_0_darg0(float x) {
+// CHECK-NEXT:   float _d_x = 1;
+// CHECK-NEXT:   int n = 3;
 // CHECK-NEXT:   return 0;
 // CHECK-NEXT: }
 
 int main(){
-
     clad::differentiate(binOpWarn_0, 0);
     clad::gradient(binOpWarn_1);
     clad::differentiate(unOpWarn_0, 0);

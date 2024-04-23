@@ -232,7 +232,7 @@ void modifyArr(double* arr, int n, double val) {
     arr[i] = val;
 }
 
-// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, int _d_n, double _d_val);
+// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, double _d_val);
 
 double sum(double* arr, int n) {
   double val = 0;
@@ -241,14 +241,14 @@ double sum(double* arr, int n) {
   return val;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n);
+// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr);
 
 double check_and_return(double x, char c) {
   if (c == 'a')
     return x;
   return 1;
 }
-// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c);
+// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x);
 
 double fn8(double i, double j) {
   double arr[5] = {};
@@ -261,9 +261,9 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     double _d_j = 0;
 // CHECK-NEXT:     double _d_arr[5] = {};
 // CHECK-NEXT:     double arr[5] = {};
-// CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward, 0);
+// CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, _d_i * j + i * _d_j);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward);
 // CHECK-NEXT:     double &_t2 = _t1.value;
 // CHECK-NEXT:     double _t3 = std::tanh(1.);
 // CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0;
@@ -281,7 +281,6 @@ double fn9 (double i, double j) {
 // CHECK: double fn9_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     const int _d_k = 0;
 // CHECK-NEXT:     const int k = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = g_pushforward(i, _d_i);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = g_pushforward(j, _d_j);
@@ -394,30 +393,24 @@ int main () {
 // CHECK-NEXT:     return {i + j, _d_i + _d_j};
 // CHECK-NEXT: }
 
-// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, int _d_n, double _d_val) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
-// CHECK-NEXT:             _d_arr[i] = _d_val;
-// CHECK-NEXT:             arr[i] = val;
-// CHECK-NEXT:         }
+// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, double _d_val) {
+// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:         _d_arr[i] = _d_val;
+// CHECK-NEXT:         arr[i] = val;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n) {
+// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr) {
 // CHECK-NEXT:     double _d_val = 0;
 // CHECK-NEXT:     double val = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
-// CHECK-NEXT:             _d_val += _d_arr[i];
-// CHECK-NEXT:             val += arr[i];
-// CHECK-NEXT:         }
+// CHECK-NEXT:     for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:         _d_val += _d_arr[i];
+// CHECK-NEXT:         val += arr[i];
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return {val, _d_val};
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c) {
+// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x) {
 // CHECK-NEXT:   if (c == 'a')
 // CHECK-NEXT:     return {x, _d_x};
 // CHECK-NEXT:   return {1, 0};

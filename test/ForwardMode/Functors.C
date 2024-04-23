@@ -236,12 +236,9 @@ struct WidgetArr {
   // CHECK-NEXT:       double _d_arr[10] = {0, 0, 0, 1, 0, 0, 0, 0, 0, 0};
   // CHECK-NEXT:       double _d_temp = 0;
   // CHECK-NEXT:       double temp = 0;
-  // CHECK-NEXT:       {
-  // CHECK-NEXT:           int _d_k = 0;
-  // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
-  // CHECK-NEXT:               _d_temp += _d_arr[k];
-  // CHECK-NEXT:               temp += this->arr[k];
-  // CHECK-NEXT:           }
+  // CHECK-NEXT:       for (int k = 0; k < 10; ++k) {
+  // CHECK-NEXT:           _d_temp += _d_arr[k];
+  // CHECK-NEXT:           temp += this->arr[k];
   // CHECK-NEXT:       }
   // CHECK-NEXT:       double &_t0 = this->i;
   // CHECK-NEXT:       double &_t1 = this->arr[3];
@@ -262,12 +259,9 @@ struct WidgetArr {
   // CHECK-NEXT:       double _d_arr[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
   // CHECK-NEXT:       double _d_temp = 0;
   // CHECK-NEXT:       double temp = 0;
-  // CHECK-NEXT:       {
-  // CHECK-NEXT:           int _d_k = 0;
-  // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
-  // CHECK-NEXT:               _d_temp += _d_arr[k];
-  // CHECK-NEXT:               temp += this->arr[k];
-  // CHECK-NEXT:           }
+  // CHECK-NEXT:       for (int k = 0; k < 10; ++k) {
+  // CHECK-NEXT:           _d_temp += _d_arr[k];
+  // CHECK-NEXT:           temp += this->arr[k];
   // CHECK-NEXT:       }
   // CHECK-NEXT:       double &_t0 = this->i;
   // CHECK-NEXT:       double &_t1 = this->arr[3];
@@ -321,12 +315,9 @@ struct WidgetPointer {
   // CHECK-NEXT:       double *_d_arr = nullptr;
   // CHECK-NEXT:       double _d_temp = 0;
   // CHECK-NEXT:       double temp = 0;
-  // CHECK-NEXT:       {
-  // CHECK-NEXT:           int _d_k = 0;
-  // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
-  // CHECK-NEXT:               _d_temp += (k == 3.);
-  // CHECK-NEXT:               temp += this->arr[k];
-  // CHECK-NEXT:           }
+  // CHECK-NEXT:       for (int k = 0; k < 10; ++k) {
+  // CHECK-NEXT:           _d_temp += (k == 3.);
+  // CHECK-NEXT:           temp += this->arr[k];
   // CHECK-NEXT:       }
   // CHECK-NEXT:       double &_t0 = this->arr[3];
   // CHECK-NEXT:       double &_t1 = this->arr[3];
@@ -353,12 +344,9 @@ struct WidgetPointer {
   // CHECK-NEXT:       double *_d_arr = nullptr;
   // CHECK-NEXT:       double _d_temp = 0;
   // CHECK-NEXT:       double temp = 0;
-  // CHECK-NEXT:       {
-  // CHECK-NEXT:           int _d_k = 0;
-  // CHECK-NEXT:           for (int k = 0; k < 10; ++k) {
-  // CHECK-NEXT:               _d_temp += (k == 5.);
-  // CHECK-NEXT:               temp += this->arr[k];
-  // CHECK-NEXT:           }
+  // CHECK-NEXT:       for (int k = 0; k < 10; ++k) {
+  // CHECK-NEXT:           _d_temp += (k == 5.);
+  // CHECK-NEXT:           temp += this->arr[k];
   // CHECK-NEXT:       }
   // CHECK-NEXT:       double &_t0 = this->arr[3];
   // CHECK-NEXT:       double &_t1 = this->arr[3];

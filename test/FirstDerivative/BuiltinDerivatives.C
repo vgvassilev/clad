@@ -166,8 +166,7 @@ double f10(float x, int y) {
 
 // CHECK: double f10_darg0(float x, int y) {
 // CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     int _d_y = 0;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::pow(float(), int())), decltype(::std::pow(float(), int()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::pow(float(), int())), decltype(::std::pow(float(), int()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, 0);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 

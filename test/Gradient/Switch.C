@@ -545,7 +545,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:                 temp = 1;
 // CHECK-NEXT:                 _t2 = temp;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t3, 1UL);
+// CHECK-NEXT:             clad::push(_t3, {{1U|1UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
@@ -553,7 +553,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t3)) {
-// CHECK-NEXT:           case 1UL:
+// CHECK-NEXT:           case {{1U|1UL}}:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
