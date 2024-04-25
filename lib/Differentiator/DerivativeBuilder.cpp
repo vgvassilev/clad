@@ -36,52 +36,54 @@ using namespace clang;
 
 namespace clad {
 
-  DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P)
-    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()),
+DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
+                                     const DerivedFnCollector& DFC)
+    : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
-  DerivativeBuilder::~DerivativeBuilder() {}
+DerivativeBuilder::~DerivativeBuilder() {}
 
-  static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
-    LookupResult R(semaRef, derivedFD->getNameInfo(), Sema::LookupOrdinaryName);
-    // FIXME: Attach out-of-line virtual function definitions to the TUScope.
-    Scope* S = semaRef.getScopeForContext(derivedFD->getDeclContext());
-    semaRef.CheckFunctionDeclaration(S, derivedFD, R,
-                                     /*IsMemberSpecialization=*/false
-                                     /*DeclIsDefn*/CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(derivedFD));
+static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
+  LookupResult R(semaRef, derivedFD->getNameInfo(), Sema::LookupOrdinaryName);
+  // FIXME: Attach out-of-line virtual function definitions to the TUScope.
+  Scope* S = semaRef.getScopeForContext(derivedFD->getDeclContext());
+  semaRef.CheckFunctionDeclaration(
+      S, derivedFD, R,
+      /*IsMemberSpecialization=*/
+      false
+      /*DeclIsDefn*/ CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(
+          derivedFD));
 
-    // FIXME: Avoid the DeclContext lookup and the manual setPreviousDecl.
-    // Consider out-of-line virtual functions.
-    {
-      DeclContext* LookupCtx = derivedFD->getDeclContext();
-      auto R = LookupCtx->noload_lookup(derivedFD->getDeclName());
+  // FIXME: Avoid the DeclContext lookup and the manual setPreviousDecl.
+  // Consider out-of-line virtual functions.
+  {
+    DeclContext* LookupCtx = derivedFD->getDeclContext();
+    auto R = LookupCtx->noload_lookup(derivedFD->getDeclName());
 
-      for (NamedDecl* I : R) {
-        if (auto* FD = dyn_cast<FunctionDecl>(I)) {
-          // FIXME: We still do extra work in creating a derivative and throwing
-          // it away.
-          if (FD->getDefinition())
-            return;
+    for (NamedDecl* I : R) {
+      if (auto* FD = dyn_cast<FunctionDecl>(I)) {
+        // FIXME: We still do extra work in creating a derivative and throwing
+        // it away.
+        if (FD->getDefinition())
+          return;
 
-          if (derivedFD->getASTContext()
-                  .hasSameFunctionTypeIgnoringExceptionSpec(derivedFD
-                                                                ->getType(),
-                                                            FD->getType())) {
-            // Register the function on the redecl chain.
-            derivedFD->setPreviousDecl(FD);
-            break;
-          }
+        if (derivedFD->getASTContext().hasSameFunctionTypeIgnoringExceptionSpec(
+                derivedFD->getType(), FD->getType())) {
+          // Register the function on the redecl chain.
+          derivedFD->setPreviousDecl(FD);
+          break;
         }
       }
-      // Inform the decl's decl context for its existance after the lookup,
-      // otherwise it would end up in the LookupResult.
-      derivedFD->getDeclContext()->addDecl(derivedFD);
-
-      // FIXME: Rebuild VTable to remove requirements for "forward" declared
-      // virtual methods
     }
+    // Inform the decl's decl context for its existance after the lookup,
+    // otherwise it would end up in the LookupResult.
+    derivedFD->getDeclContext()->addDecl(derivedFD);
+
+    // FIXME: Rebuild VTable to remove requirements for "forward" declared
+    // virtual methods
   }
+}
 
   static bool hasAttribute(const Decl *D, attr::Kind Kind) {
     for (const auto *Attribute : D->attrs())
@@ -377,5 +379,13 @@ namespace clad {
       registerDerivative(OFD, m_Sema);
 
     return result;
+  }
+
+  FunctionDecl*
+  DerivativeBuilder::FindDerivedFunction(const DiffRequest& request) {
+    auto DFI = m_DFC.Find(request);
+    if (DFI.IsValid())
+      return DFI.DerivedFn();
+    return nullptr;
   }
 }// end namespace clad

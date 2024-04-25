@@ -25,6 +25,8 @@ llvm_add_library(cladDifferentiator
   CladUtils.cpp
   ConstantFolder.cpp
   DerivativeBuilder.cpp
+  DerivedFnCollector.cpp
+  DerivedFnInfo.cpp
   DiffPlanner.cpp
   ErrorEstimator.cpp
   EstimationModel.cpp

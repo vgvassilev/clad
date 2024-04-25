@@ -8,10 +8,11 @@
 #define CLAD_DERIVATIVE_BUILDER_H
 
 #include "Compatibility.h"
-#include "clad/Differentiator/DiffPlanner.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
+#include "clad/Differentiator/DerivedFnCollector.h"
+#include "clad/Differentiator/DiffPlanner.h"
 
 #include <array>
 #include <stack>
@@ -85,6 +86,7 @@ namespace clad {
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
+    const DerivedFnCollector& m_DFC;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     /// A reference to the model to use for error estimation (if any).
@@ -134,7 +136,8 @@ namespace clad {
     }
 
   public:
-    DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P);
+    DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
+                      const DerivedFnCollector& DFC);
     ~DerivativeBuilder();
     /// Reset the model use for error estimation (if any).
     /// \param[in] estModel The error estimation model, can be either
@@ -163,6 +166,12 @@ namespace clad {
     /// context.
     ///
     DerivativeAndOverload Derive(const DiffRequest& request);
+    /// Find the derived function if present in the DerivedFnCollector.
+    ///
+    /// \param[in] request The request to find the derived function.
+    ///
+    /// \returns The derived function if found, nullptr otherwise.
+    clang::FunctionDecl* FindDerivedFunction(const DiffRequest& request);
   };
 
 } // end namespace clad

@@ -1,5 +1,4 @@
-#include "DerivedFnInfo.h"
-
+#include "clad/Differentiator/DerivedFnInfo.h"
 #include "clad/Differentiator/DiffPlanner.h"
 
 using namespace clang;
@@ -19,17 +18,16 @@ bool DerivedFnInfo::SatisfiesRequest(const DiffRequest& request) const {
           request.CurrentDerivativeOrder == m_DerivativeOrder &&
           request.DVI == m_DiffVarsInfo && request.use_enzyme == m_UsesEnzyme &&
           request.DeclarationOnly == m_DeclarationOnly);
-  }
+}
 
-  bool DerivedFnInfo::IsValid() const { return m_OriginalFn && m_DerivedFn; }
+bool DerivedFnInfo::IsValid() const { return m_OriginalFn && m_DerivedFn; }
 
-  bool DerivedFnInfo::RepresentsSameDerivative(const DerivedFnInfo& lhs,
-                                               const DerivedFnInfo& rhs) {
-    return lhs.m_OriginalFn == rhs.m_OriginalFn &&
-           lhs.m_DerivativeOrder == rhs.m_DerivativeOrder &&
-           lhs.m_Mode == rhs.m_Mode &&
-           lhs.m_DiffVarsInfo == rhs.m_DiffVarsInfo &&
-           lhs.m_UsesEnzyme == rhs.m_UsesEnzyme &&
-           lhs.m_DeclarationOnly == rhs.m_DeclarationOnly;
-  }
+bool DerivedFnInfo::RepresentsSameDerivative(const DerivedFnInfo& lhs,
+                                             const DerivedFnInfo& rhs) {
+  return lhs.m_OriginalFn == rhs.m_OriginalFn &&
+         lhs.m_DerivativeOrder == rhs.m_DerivativeOrder &&
+         lhs.m_Mode == rhs.m_Mode && lhs.m_DiffVarsInfo == rhs.m_DiffVarsInfo &&
+         lhs.m_UsesEnzyme == rhs.m_UsesEnzyme &&
+         lhs.m_DeclarationOnly == rhs.m_DeclarationOnly;
+}
 } // namespace clad
