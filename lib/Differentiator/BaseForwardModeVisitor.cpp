@@ -1150,21 +1150,26 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     DiffRequest pushforwardFnRequest;
     pushforwardFnRequest.Function = FD;
     pushforwardFnRequest.Mode = GetPushForwardMode();
-    pushforwardFnRequest.BaseFunctionName = FD->getNameAsString();
+    pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // pushforwardFnRequest.RequestedDerivativeOrder = m_DerivativeOrder;
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
 
-    // Derive declaration of the pushforward function.
-    pushforwardFnRequest.DeclarationOnly = true;
+    // Check if request already derived in DerivedFunctions.
     FunctionDecl* pushforwardFD =
-        plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
+        m_Builder.FindDerivedFunction(pushforwardFnRequest);
+    if (!pushforwardFD) {
+      // Derive declaration of the pushforward function.
+      pushforwardFnRequest.DeclarationOnly = true;
+      pushforwardFD =
+          plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
 
-    // Add the request to derive the definition of the pushforward function
-    // into the queue.
-    pushforwardFnRequest.DeclarationOnly = false;
-    pushforwardFnRequest.DerivedFDPrototype = pushforwardFD;
-    plugin::AddRequestToSchedule(m_CladPlugin, pushforwardFnRequest);
+      // Add the request to derive the definition of the pushforward function
+      // into the queue.
+      pushforwardFnRequest.DeclarationOnly = false;
+      pushforwardFnRequest.DerivedFDPrototype = pushforwardFD;
+      plugin::AddRequestToSchedule(m_CladPlugin, pushforwardFnRequest);
+    }
 
     if (pushforwardFD) {
       if (baseDiff.getExpr()) {

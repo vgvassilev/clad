@@ -5,7 +5,6 @@ endif()
 set(CLAD_PLUGIN_SRC
   ClangPlugin.cpp
   ClangBackendPlugin.cpp
-  DerivedFnInfo.cpp
   RequiredSymbols.cpp
 )
 
