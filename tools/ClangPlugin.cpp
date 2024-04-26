@@ -292,7 +292,9 @@ namespace clad {
     }
 
     void CladPlugin::SendToMultiplexer() {
-      for (auto DelayedCall : m_DelayedCalls) {
+      for (unsigned i = m_MultiplexerProcessedDelayedCallsIdx;
+           i < m_DelayedCalls.size(); ++i) {
+        auto DelayedCall = m_DelayedCalls[i];
         DeclGroupRef& D = DelayedCall.m_DGR;
         switch (DelayedCall.m_Kind) {
         case CallKind::HandleCXXStaticMemberVarInstantiation:
@@ -350,7 +352,8 @@ namespace clad {
           break;
         };
       }
-      m_HasMultiplexerProcessedDelayedCalls = true;
+
+      m_MultiplexerProcessedDelayedCallsIdx = m_DelayedCalls.size();
     }
 
     bool CladPlugin::CheckBuiltins() {
