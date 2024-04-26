@@ -16,6 +16,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Version.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/SemaConsumer.h"
@@ -27,7 +28,6 @@
 namespace clang {
   class ASTContext;
   class CallExpr;
-  class CompilerInstance;
   class DeclGroupRef;
   class Expr;
   class FunctionDecl;
@@ -153,7 +153,7 @@ public:
     std::unique_ptr<clang::MultiplexConsumer> m_Multiplexer;
 
     /// Have we processed all delayed calls.
-    bool m_HasMultiplexerProcessedDelayedCalls = false;
+    unsigned m_MultiplexerProcessedDelayedCallsIdx = 0;
 
     /// The Sema::TUScope to restore in CladPlugin::HandleTranslationUnit.
     clang::Scope* m_StoredTUScope = nullptr;
@@ -247,7 +247,11 @@ public:
 
   private:
     void AppendDelayed(DelayedCallInfo DCI) {
-      assert(!m_HasMultiplexerProcessedDelayedCalls);
+      // Incremental processing handles the translation unit in chunks and it is
+      // expected to have multiple calls to this functionality.
+      assert((!m_MultiplexerProcessedDelayedCallsIdx ||
+              m_CI.getPreprocessor().isIncrementalProcessingEnabled()) &&
+             "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
     }
     void SendToMultiplexer();
