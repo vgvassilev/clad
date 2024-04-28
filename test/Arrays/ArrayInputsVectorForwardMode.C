@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oArrayInputsVectorForwardMode.out 2>&1 | FileCheck %s
-// RUN: ./ArrayInputsVectorForwardMode.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oArrayInputsVectorForwardMode.out 2>&1 | %filecheck %s
+// RUN: ./ArrayInputsVectorForwardMode.out | %filecheck_exec %s
 
 // XFAIL: asserts
 

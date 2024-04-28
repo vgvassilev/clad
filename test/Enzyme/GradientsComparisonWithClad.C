@@ -1,5 +1,5 @@
-// RUN: %cladclang %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | FileCheck %s
-// RUN: ./EnzymeGradients.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | %filecheck %s
+// RUN: ./EnzymeGradients.out | %filecheck_exec %s
 // REQUIRES: Enzyme
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oClangConsumers.out                  \
 // RUN:               -fms-compatibility -DMS_COMPAT -std=c++14 -fmodules      \
-// RUN:                -Xclang -print-stats 2>&1 | FileCheck %s
+// RUN:                -Xclang -print-stats 2>&1 | %filecheck %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 //
 // RUN: clang -xc -Xclang -add-plugin -Xclang clad -Xclang -load               \

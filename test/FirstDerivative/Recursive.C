@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oRecursive.out 2>&1 | FileCheck %s
-// RUN: ./Recursive.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oRecursive.out 2>&1 | %filecheck %s
+// RUN: ./Recursive.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

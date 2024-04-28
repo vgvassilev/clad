@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oTFormula.out 2>&1 | FileCheck %s
-// RUN: ./TFormula.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oTFormula.out 2>&1 | %filecheck %s
+// RUN: ./TFormula.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oTFormula.out
-// RUN: ./TFormula.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./TFormula.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

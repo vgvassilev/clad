@@ -1,9 +1,9 @@
-// RUN: %cladclang %s -I%S/../../include -oMemberFunctions.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions-cpp14.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -std=c++17 %s -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions-cpp17.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions.out | %filecheck_exec %s
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
+// RUN: %cladclang -std=c++17 %s -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

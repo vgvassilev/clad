@@ -1,5 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oCladMatrix.out 2>&1
-// RUN: ./CladMatrix.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./CladMatrix.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

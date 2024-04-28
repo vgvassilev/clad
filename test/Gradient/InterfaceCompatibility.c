@@ -1,7 +1,7 @@
-// RUN: %cladnumdiffclang %s  -I%S/../../include -oInterfaceCompatibility.out 2>&1 | FileCheck %s
-// RUN: ./InterfaceCompatibility.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oInterfaceCompatibility.out 2>&1 | %filecheck %s
+// RUN: ./InterfaceCompatibility.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s  -I%S/../../include -oInterfaceCompatibility.out
-// RUN: ./InterfaceCompatibility.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./InterfaceCompatibility.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"

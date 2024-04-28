@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oNestedFunctionCalls.out 2>&1 | FileCheck %s
-// RUN: ./NestedFunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oNestedFunctionCalls.out 2>&1 | %filecheck %s
+// RUN: ./NestedFunctionCalls.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oNestedFunctionCalls.out
-// RUN: ./NestedFunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./NestedFunctionCalls.out | %filecheck_exec %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

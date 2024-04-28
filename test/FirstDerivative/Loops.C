@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -std=c++17 -I%S/../../include -oLoops.out 2>&1 | FileCheck %s
-// RUN: ./Loops.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -std=c++17 -I%S/../../include -oLoops.out 2>&1 | %filecheck %s
+// RUN: ./Loops.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

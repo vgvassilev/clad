@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oHessians.out 2>&1 | FileCheck %s
-// RUN: ./Hessians.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oHessians.out 2>&1 | %filecheck %s
+// RUN: ./Hessians.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oHessians.out
-// RUN: ./Hessians.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./Hessians.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

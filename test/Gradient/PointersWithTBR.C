@@ -1,5 +1,5 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointersWithTBR.out
-// RUN: ./PointersWithTBR.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./PointersWithTBR.out | %filecheck_exec %s
 // XFAIL: *
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

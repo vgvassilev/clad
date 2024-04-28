@@ -1,7 +1,7 @@
 // RUN: %cladnumdiffclang %s -I%S/../../include -oNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
-// RUN: ./NumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./NumDiff.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oNumDiff.out
-// RUN: ./NumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./NumDiff.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 

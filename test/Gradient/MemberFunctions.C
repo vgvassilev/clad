@@ -1,17 +1,17 @@
-// RUN: %cladclang %s -fno-exceptions -I%S/../../include -oMemberFunctions.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -fno-exceptions -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -fno-exceptions -I%S/../../include -oMemberFunctions.out
-// RUN: ./MemberFunctions.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./MemberFunctions.out | %filecheck_exec %s
 
-// RUN: %cladclang -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions-cpp14.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -std=c++14 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp14.out
-// RUN: ./MemberFunctions-cpp14.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
 
-// RUN: %cladclang -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions-cpp17.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out
-// RUN: ./MemberFunctions-cpp17.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
