@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctionCallsWithResults.out 2>&1 | FileCheck %s
-// RUN: ./FunctionCallsWithResults.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oFunctionCallsWithResults.out 2>&1 | %filecheck %s
+// RUN: ./FunctionCallsWithResults.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include <random>

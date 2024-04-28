@@ -1,7 +1,7 @@
-// RUN: %cladnumdiffclang %s  -I%S/../../include -oTestTypeConversion.out 2>&1 | FileCheck %s
-// RUN: ./TestTypeConversion.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oTestTypeConversion.out 2>&1 | %filecheck %s
+// RUN: ./TestTypeConversion.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s  -I%S/../../include -oTestTypeConversion.out
-// RUN: ./TestTypeConversion.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./TestTypeConversion.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

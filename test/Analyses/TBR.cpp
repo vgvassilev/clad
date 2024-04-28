@@ -1,4 +1,4 @@
-// RUN: %cladclang -mllvm -debug-only=clad-tbr %s -I%S/../../include -oReverseLoops.out 2>&1 | FileCheck %s
+// RUN: %cladclang -mllvm -debug-only=clad-tbr %s -I%S/../../include -oReverseLoops.out 2>&1 | %filecheck %s
 // REQUIRES: asserts
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

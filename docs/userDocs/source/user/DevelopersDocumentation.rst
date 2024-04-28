@@ -125,7 +125,32 @@ to understand for the new developers.
 
 Internal documentation can be visited 
 `here </en/latest/internalDocs/html/index.html>`_
- 
+
+Clad's Tests
+============
+
+Clad uses LLVM's testing infrastructure.
+`Here <https://llvm.org/docs/CommandGuide/lit.html>`__ is extensive information
+about the lit testing infrastructure in LLVM. The tests are located in the
+folder ``test`` and ``unittest``. The ``test`` folder contains lit-based tests
+which check the execution result and the produced code. The ``unittest`` folder
+contains GoogleTest-based tests which are compiled.
+
+The tests can be run with:
+
+.. code-block:: bash
+
+   cmake --build . --target check-clad
+
+When developing a feature sometimes fixing all the outputs of the tests to see
+if the feature does not break the execution of the programs is too laborious.
+For such cases we can run only the execution result checks and ignore
+temporarily the differences in the produced outputs with:
+
+.. code-block:: bash
+
+   cmake --build . --target check-clad-execonly
+
 
 Debugging Clang
 ==================

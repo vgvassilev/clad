@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out | FileCheck %s
-// RUN: ./constexprTest.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out | %filecheck %s
+// RUN: ./constexprTest.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oconstexprTest.out
-// RUN: ./constexprTest.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./constexprTest.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 

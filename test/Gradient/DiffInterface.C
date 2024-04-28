@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oGradientDiffInterface.out 2>&1 | FileCheck %s
-// RUN: ./GradientDiffInterface.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oGradientDiffInterface.out 2>&1 | %filecheck %s
+// RUN: ./GradientDiffInterface.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oGradientDiffInterface.out
-// RUN: ./GradientDiffInterface.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./GradientDiffInterface.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 

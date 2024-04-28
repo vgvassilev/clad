@@ -33,7 +33,7 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py
   MAIN_CONFIG
-  ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
 option(CLANG_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
@@ -53,9 +53,6 @@ set(CLAD_TEST_PARAMS
 
 # Unit tests
 list(APPEND CLAD_TEST_DEPS CladUnitTests)
-list(APPEND CLAD_TEST_PARAMS
-  clad_site_config=${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg
-  )
 
 add_custom_target(clad-test-depends DEPENDS ${CLAD_TEST_DEPS})
 set_target_properties(clad-test-depends PROPERTIES FOLDER "Clad tests")
@@ -65,6 +62,7 @@ set_target_properties(clad-test-depends PROPERTIES FOLDER "Clad tests")
 if(NOT LLVM_MAIN_SRC_DIR)
   set(LLVM_MAIN_SRC_DIR ${LLVM_BUILD_MAIN_SRC_DIR})
 endif()
+
 add_lit_testsuite(check-clad "Running the Clad regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   LIT ${LIT_COMMAND}

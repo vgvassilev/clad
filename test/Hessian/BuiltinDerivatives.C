@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oHessianBuiltinDerivatives.out 2>&1 | FileCheck %s
-// RUN: ./HessianBuiltinDerivatives.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oHessianBuiltinDerivatives.out 2>&1 | %filecheck %s
+// RUN: ./HessianBuiltinDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oHessianBuiltinDerivatives.out
-// RUN: ./HessianBuiltinDerivatives.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./HessianBuiltinDerivatives.out | %filecheck_exec %s
 
 
 //CHECK-NOT: {{.*error|warning|note:.*}}

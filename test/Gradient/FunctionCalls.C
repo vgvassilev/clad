@@ -1,7 +1,7 @@
-// RUN: %cladnumdiffclang -std=c++17 -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out 2>&1 | FileCheck %s
-// RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladnumdiffclang -std=c++17 -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out 2>&1 | %filecheck %s
+// RUN: ./FunctionCalls.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -std=c++17 -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out
-// RUN: ./FunctionCalls.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./FunctionCalls.out | %filecheck_exec %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

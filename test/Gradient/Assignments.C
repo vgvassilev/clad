@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oReverseAssignments.out 2>&1 | FileCheck %s
-// RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oReverseAssignments.out 2>&1 | %filecheck %s
+// RUN: ./ReverseAssignments.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oReverseAssignments.out
-// RUN: ./ReverseAssignments.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./ReverseAssignments.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

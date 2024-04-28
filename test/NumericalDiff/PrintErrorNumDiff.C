@@ -1,7 +1,7 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors %s -I%S/../../include -oPrintErrorNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
-// RUN: ./PrintErrorNumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./PrintErrorNumDiff.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPrintErrorNumDiff.out
-// RUN: ./PrintErrorNumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./PrintErrorNumDiff.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

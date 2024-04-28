@@ -1,6 +1,6 @@
 // RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
 // RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
-// RUN: -ldl -lrt -pthread -lm -lstdc++ -oForwardMode.out 2>&1 | FileCheck %s
+// RUN: -ldl -lrt -pthread -lm -lstdc++ -oForwardMode.out 2>&1 | %filecheck %s
 
 // RUN: ./ForwardMode.out
 

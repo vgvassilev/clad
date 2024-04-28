@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out | FileCheck %s
-// RUN: ./UserDefinedTypes.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out | %filecheck %s
+// RUN: ./UserDefinedTypes.out | %filecheck_exec %s
 
 // XFAIL: asserts
 

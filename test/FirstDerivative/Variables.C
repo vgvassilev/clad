@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oVariables.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oVariables.out 2>&1 | %filecheck %s
 // RUN: ./Variables.out
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
