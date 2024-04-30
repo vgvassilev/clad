@@ -6,6 +6,7 @@
 #include "clang/AST/Decl.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace clad {
@@ -14,10 +15,13 @@ namespace clad {
 /// making it possible to reuse previously computed derivatives.
 class DerivedFnCollector {
   using DerivedFns = llvm::SmallVector<DerivedFnInfo, 16>;
+  using DerivativeSet = llvm::SmallSet<const clang::FunctionDecl*, 16>;
   /// Mapping to efficiently find out information about all the derivatives of
   /// a function.
   llvm::DenseMap<const clang::FunctionDecl*, DerivedFns>
       m_DerivedFnInfoCollection;
+  /// Set to keep track of all the functions that are derivatives.
+  DerivativeSet m_DerivativeSet;
 
 public:
   /// Adds a derived function to the collection.

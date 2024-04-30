@@ -294,12 +294,9 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     assert(FD && "Must not be null.");
     // If FD is only a declaration, try to find its definition.
     if (!FD->getDefinition()) {
-      // If only declaration is requested, allow this for non
-      // pullback/pushforward modes. For ex, this is required for Hessian -
-      // where we have forward mode followed by reverse mode, but we only need
-      // the declaration of the forward mode initially.
-      if (!request.DeclarationOnly ||
-          IsPullbackOrPushforwardMode(request.Mode)) {
+      // If only declaration is requested, allow this for clad-generated
+      // functions.
+      if (!request.DeclarationOnly || !m_DFC.IsDerivative(FD)) {
         if (request.VerboseDiags)
           diag(DiagnosticsEngine::Error,
                request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
@@ -403,10 +400,5 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
   void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request) {
     m_DiffRequestGraph.addEdgeToCurrentNode(request);
-  }
-
-  void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& from,
-                                         const DiffRequest& to) {
-    m_DiffRequestGraph.addEdge(from, to);
   }
 }// end namespace clad

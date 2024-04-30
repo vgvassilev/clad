@@ -43,14 +43,6 @@ inline const char* DiffModeToString(DiffMode mode) {
     return "unknown";
   }
 }
-
-/// Returns true if the given mode is a pullback/pushforward mode.
-inline bool IsPullbackOrPushforwardMode(DiffMode mode) {
-  return mode == DiffMode::experimental_pushforward ||
-         mode == DiffMode::experimental_pullback ||
-         mode == DiffMode::experimental_vector_pushforward ||
-         mode == DiffMode::reverse_mode_forward_pass;
-}
 }
 
 #endif

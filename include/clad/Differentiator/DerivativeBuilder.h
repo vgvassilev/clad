@@ -176,11 +176,6 @@ namespace clad {
     ///
     /// \param[in] request The request to add the edge to.
     void AddEdgeToGraph(const DiffRequest& request);
-    /// Add edge between two requests in the DiffRequest graph.
-    ///
-    /// \param[in] from The source request.
-    /// \param[in] to The destination request.
-    void AddEdgeToGraph(const DiffRequest& from, const DiffRequest& to);
   };
 
 } // end namespace clad

@@ -75,9 +75,8 @@ public:
   /// destination node.
   /// \param dest
   void addEdgeToCurrentNode(const T& dest) {
-    if (m_currentId == -1)
-      return;
-    addEdge(m_nodes[m_currentId], dest);
+    if (m_currentId != -1)
+      addEdge(m_nodes[m_currentId], dest);
   }
 
   /// Set the current node being processed.
