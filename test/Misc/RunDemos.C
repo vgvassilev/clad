@@ -106,7 +106,7 @@
 // RUN: %cladclang %S/../../demos/ErrorEstimation/FloatSum.cpp -I%S/../../include 2>&1  | FileCheck -check-prefix CHECK_FLOAT_SUM %s
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
-//CHECK_FLOAT_SUM: void vanillaSum_grad_0(float x, unsigned int n, float *_d_x, double &_final_error) {
+//CHECK_FLOAT_SUM: void vanillaSum_grad_0(float x, unsigned int n, float *_d_x, double *_final_error) {
 //CHECK_FLOAT_SUM:     float _d_sum = 0;
 //CHECK_FLOAT_SUM:     unsigned {{int|long}} _t0;
 //CHECK_FLOAT_SUM:     unsigned int i = 0;
@@ -124,7 +124,7 @@
 //CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
 //CHECK_FLOAT_SUM:         i--;
 //CHECK_FLOAT_SUM:         {
-//CHECK_FLOAT_SUM:             _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:             *_final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM:             sum = clad::pop(_t1);
 //CHECK_FLOAT_SUM:             float _r_d0 = _d_sum;
 //CHECK_FLOAT_SUM:             _d_sum -= _r_d0;
@@ -132,8 +132,8 @@
 //CHECK_FLOAT_SUM:             *_d_x += _r_d0;
 //CHECK_FLOAT_SUM:         }
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     _final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
-//CHECK_FLOAT_SUM:     _final_error += std::abs(*_d_x * x * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:     *_final_error += std::abs(_d_sum * sum * 1.1920928955078125E-7);
+//CHECK_FLOAT_SUM:     *_final_error += std::abs(*_d_x * x * 1.1920928955078125E-7);
 //CHECK_FLOAT_SUM: }
 
 //-----------------------------------------------------------------------------/
@@ -149,7 +149,7 @@
 // RUN: ./CustomModelTest.out | FileCheck -check-prefix CHECK_CUSTOM_MODEL_EXEC %s
 // CHECK_CUSTOM_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_CUSTOM_MODEL_EXEC: The code is:
-// CHECK_CUSTOM_MODEL_EXEC-NEXT: void func_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
+// CHECK_CUSTOM_MODEL_EXEC-NEXT: void func_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
@@ -159,15 +159,15 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += _d_z * z;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_final_error += _d_z * z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_x += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        *_d_y += _r_d0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    }
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_x * x;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    _final_error += *_d_y * y;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    *_final_error += *_d_x * x;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    *_final_error += *_d_y * y;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: }
 
 //-----------------------------------------------------------------------------/
@@ -183,7 +183,7 @@
 // RUN: ./PrintModelTest.out | FileCheck -check-prefix CHECK_PRINT_MODEL_EXEC %s
 // CHECK_PRINT_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_PRINT_MODEL_EXEC: The code is:
-// CHECK_PRINT_MODEL_EXEC-NEXT: void func_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
+// CHECK_PRINT_MODEL_EXEC-NEXT: void func_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float _t0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float z;
@@ -193,15 +193,15 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
-// CHECK_PRINT_MODEL_EXEC-NEXT:        _final_error += clad::getErrorVal(_d_z, z, "z");
+// CHECK_PRINT_MODEL_EXEC-NEXT:        *_final_error += clad::getErrorVal(_d_z, z, "z");
 // CHECK_PRINT_MODEL_EXEC-NEXT:        z = _t0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        float _r_d0 = _d_z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _d_z -= _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_x += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:        *_d_y += _r_d0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    }
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_x, x, "x");
-// CHECK_PRINT_MODEL_EXEC-NEXT:    _final_error += clad::getErrorVal(*_d_y, y, "y");
+// CHECK_PRINT_MODEL_EXEC-NEXT:    *_final_error += clad::getErrorVal(*_d_x, x, "x");
+// CHECK_PRINT_MODEL_EXEC-NEXT:    *_final_error += clad::getErrorVal(*_d_y, y, "y");
 // CHECK_PRINT_MODEL_EXEC-NEXT: }
 // CHECK_PRINT_MODEL_EXEC: Error in z : {{.+}}
 // CHECK_PRINT_MODEL_EXEC-NEXT: Error in x : {{.+}}

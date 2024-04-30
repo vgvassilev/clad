@@ -29,5 +29,5 @@ int main() {
   // Calculate the error
   float dx, dy; 
   double error;
-  df.execute(2, 3, &dx, &dy, error);
+  df.execute(2, 3, &dx, &dy, &error);
 }

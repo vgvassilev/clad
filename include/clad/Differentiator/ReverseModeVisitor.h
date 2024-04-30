@@ -436,7 +436,9 @@ namespace clad {
     /// Builds an overload for the gradient function that has derived params for
     /// all the arguments of the requested function and it calls the original
     /// gradient function internally
-    clang::FunctionDecl* CreateGradientOverload();
+    /// \param[in] numExtraParam The number of extra parameters requested by an
+    /// external source (e.g. the final error in error estimation).
+    clang::FunctionDecl* CreateGradientOverload(unsigned numExtraParam = 0);
 
     /// Returns the type that should be used to represent the derivative of a
     /// variable of type `yType` with respect to a parameter variable of type

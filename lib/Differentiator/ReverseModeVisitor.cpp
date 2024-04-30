@@ -113,7 +113,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
   }
 
-  FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
+  FunctionDecl*
+  ReverseModeVisitor::CreateGradientOverload(unsigned numExtraParam) {
     auto gradientParams = m_Derivative->parameters();
     auto gradientNameInfo = m_Derivative->getNameInfo();
     // Calculate the total number of parameters that would be required for
@@ -121,8 +122,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // requested.
     // FIXME: Here we are assuming all function parameters are of differentiable
     // type. Ideally, we should not make any such assumption.
-    std::size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
-    std::size_t numOfDerivativeParams = m_Function->getNumParams();
+    std::size_t totalDerivedParamsSize =
+        m_Function->getNumParams() * 2 + numExtraParam;
+    std::size_t numOfDerivativeParams =
+        m_Function->getNumParams() + numExtraParam;
 
     // Account for the this pointer.
     if (isa<CXXMethodDecl>(m_Function) && !utils::IsStaticMethod(m_Function))
@@ -274,7 +277,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
-    if (args.empty())
+    // If there are no parameters to differentiate with respect to, don't
+    // generate the gradient. However, if an external source is attached, the
+    // gradient function can another purpose.
+    if (args.empty() && !m_ExternalSource)
       return {};
 
     if (m_ExternalSource)
@@ -337,9 +343,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
-    // FIXME: Gradient overload doesn't know how to handle additional parameters
-    // added by the plugins yet.
-    if (!isVectorValued && numExtraParam == 0)
+    if (!isVectorValued)
       shouldCreateOverload = true;
     if (request.DerivedFDPrototype)
       // If the overload is already created, we don't need to create it again.
@@ -453,8 +457,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     FunctionDecl* gradientOverloadFD = nullptr;
     if (shouldCreateOverload) {
-      gradientOverloadFD =
-          CreateGradientOverload();
+      gradientOverloadFD = CreateGradientOverload(numExtraParam);
     }
 
     return DerivativeAndOverload{result.first, gradientOverloadFD};

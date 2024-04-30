@@ -15,7 +15,7 @@ double runningSum(float* f, int n) {
   return sum;
 }
 
-//CHECK: void runningSum_grad_0(float *f, int n, float *_d_f, double &_final_error) {
+//CHECK: void runningSum_grad_0(float *f, int n, float *_d_f, double *_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int i = 0;
@@ -34,7 +34,7 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:             *_final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
 //CHECK-NEXT:             _d_f[i] += _r_d0;
@@ -43,10 +43,10 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:             f_size = std::max(f_size, i - 1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:     *_final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:     int i0 = 0;
 //CHECK-NEXT:     for (; i0 <= f_size; i0++)
-//CHECK-NEXT:         _final_error += std::abs(_d_f[i0] * f[i0] * {{.+}});
+//CHECK-NEXT:         *_final_error += std::abs(_d_f[i0] * f[i0] * {{.+}});
 //CHECK-NEXT: }
 
 double mulSum(float* a, float* b, int n) {
@@ -58,7 +58,7 @@ double mulSum(float* a, float* b, int n) {
   return sum;
 }
 
-//CHECK: void mulSum_grad_0_1(float *a, float *b, int n, float *_d_a, float *_d_b, double &_final_error) {
+//CHECK: void mulSum_grad_0_1(float *a, float *b, int n, float *_d_a, float *_d_b, double *_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int i = 0;
@@ -87,7 +87,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             for (; clad::back(_t1); clad::back(_t1)--) {
 //CHECK-NEXT:                 j--;
-//CHECK-NEXT:                 _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:                 *_final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:                 sum = clad::pop(_t3);
 //CHECK-NEXT:                 double _r_d0 = _d_sum;
 //CHECK-NEXT:                 _d_a[i] += _r_d0 * b[j];
@@ -99,13 +99,13 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:             clad::pop(_t1);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:     *_final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:     int i0 = 0;
 //CHECK-NEXT:     for (; i0 <= a_size; i0++)
-//CHECK-NEXT:         _final_error += std::abs(_d_a[i0] * a[i0] * {{.+}});
+//CHECK-NEXT:         *_final_error += std::abs(_d_a[i0] * a[i0] * {{.+}});
 //CHECK-NEXT:     i0 = 0;
 //CHECK-NEXT:     for (; i0 <= b_size; i0++)
-//CHECK-NEXT:         _final_error += std::abs(_d_b[i0] * b[i0] * {{.+}});
+//CHECK-NEXT:         *_final_error += std::abs(_d_b[i0] * b[i0] * {{.+}});
 //CHECK-NEXT: }
 
 double divSum(float* a, float* b, int n) {
@@ -116,7 +116,7 @@ double divSum(float* a, float* b, int n) {
   return sum;
 }
 
-//CHECK: void divSum_grad_0_1(float *a, float *b, int n, float *_d_a, float *_d_b, double &_final_error) {
+//CHECK: void divSum_grad_0_1(float *a, float *b, int n, float *_d_a, float *_d_b, double *_final_error) {
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int i = 0;
@@ -136,7 +136,7 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:             *_final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:             sum = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_sum;
 //CHECK-NEXT:             b_size = std::max(b_size, i);
@@ -147,13 +147,13 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:             b_size = std::max(b_size, i);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _final_error += std::abs(_d_sum * sum * {{.+}});
+//CHECK-NEXT:     *_final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:     int i0 = 0;
 //CHECK-NEXT:     for (; i0 <= a_size; i0++)
-//CHECK-NEXT:         _final_error += std::abs(_d_a[i0] * a[i0] * {{.+}});
+//CHECK-NEXT:         *_final_error += std::abs(_d_a[i0] * a[i0] * {{.+}});
 //CHECK-NEXT:     i0 = 0;
 //CHECK-NEXT:     for (; i0 <= b_size; i0++)
-//CHECK-NEXT:         _final_error += std::abs(_d_b[i0] * b[i0] * {{.+}});
+//CHECK-NEXT:         *_final_error += std::abs(_d_b[i0] * b[i0] * {{.+}});
 //CHECK-NEXT: }
 
 int main() {
@@ -161,7 +161,7 @@ int main() {
   float arrf[3] = {0.456, 0.77, 0.95};
   double finalError = 0;
   float darr[3] = {0, 0, 0};
-  df.execute(arrf, 3, darr, finalError);
+  df.execute(arrf, 3, darr, &finalError);
   printf("Result (RS) = {%.2f, %.2f, %.2f} error = %.5f\n", darr[0], darr[1],
          darr[2], finalError); // CHECK-EXEC: Result (RS) = {1.00, 2.00, 1.00} error = 0.00000
 
@@ -169,7 +169,7 @@ int main() {
   darr[0] = darr[1] = darr[2] = 0;
   float darr2[3] = {0, 0, 0};
   auto df2 = clad::estimate_error(mulSum);
-  df2.execute(arrf, arrf, 3, darr, darr2, finalError);
+  df2.execute(arrf, arrf, 3, darr, darr2, &finalError);
   printf("Result (MS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}  error = %.5f\n",
          darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2],
          finalError); // CHECK-EXEC: Result (MS) = {2.18, 2.18, 2.18}, {2.18, 2.18, 2.18}  error = 0.00000
@@ -178,7 +178,7 @@ int main() {
   darr[0] = darr[1] = darr[2] = 0;
   darr2[0] = darr2[1] = darr2[2] = 0;
   auto df3 = clad::estimate_error(divSum);
-  df3.execute(arrf, arrf, 3, darr, darr2, finalError);
+  df3.execute(arrf, arrf, 3, darr, darr2, &finalError);
   printf("Result (DS) = {%.2f, %.2f, %.2f}, {%.2f, %.2f, %.2f}  error = %.5f\n",
          darr[0], darr[1], darr[2], darr2[0], darr2[1], darr2[2],
          finalError); // CHECK-EXEC: Result (DS) = {2.19, 1.30, 1.05}, {-2.19, -1.30, -1.05}  error = 0.00000

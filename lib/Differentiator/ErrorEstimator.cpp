@@ -285,7 +285,7 @@ void ErrorEstimationHandler::ActAfterCreatingDerivedFnParamTypes(
   // If we are performing error estimation, our gradient function
   // will have an extra argument which will hold the final error value
   paramTypes.push_back(
-      m_RMV->m_Context.getLValueReferenceType(m_RMV->m_Context.DoubleTy));
+      m_RMV->m_Context.getPointerType(m_RMV->m_Context.DoubleTy));
 }
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
@@ -307,7 +307,8 @@ void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
 
 void ErrorEstimationHandler::ActBeforeCreatingDerivedFnBodyScope() {
   // Reference to the final error statement
-  SetFinalErrorExpr(m_RMV->BuildDeclRef(m_Params->back()));
+  DeclRefExpr* DRE = m_RMV->BuildDeclRef(m_Params->back());
+  SetFinalErrorExpr(m_RMV->BuildOp(UO_Deref, DRE));
 }
 
 void ErrorEstimationHandler::ActOnEndOfDerivedFnBody() {
@@ -468,12 +469,13 @@ void ErrorEstimationHandler::ActBeforeFinalizingDifferentiateSingleExpr(
 void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
     llvm::SmallVectorImpl<clang::Expr*>& pullbackArgs,
     llvm::SmallVectorImpl<Stmt*>& ArgDecls, bool hasAssignee) {
-  auto errorRef =
+  VarDecl* errorRef =
       m_RMV->BuildVarDecl(m_RMV->m_Context.DoubleTy, "_t",
                           m_RMV->getZeroInit(m_RMV->m_Context.DoubleTy));
   ArgDecls.push_back(m_RMV->BuildDeclStmt(errorRef));
-  auto finErr = m_RMV->BuildDeclRef(errorRef);
-  pullbackArgs.push_back(finErr);
+  Expr* finErr = m_RMV->BuildDeclRef(errorRef);
+  Expr* arg = m_RMV->BuildOp(UO_AddrOf, finErr);
+  pullbackArgs.push_back(arg);
   if (hasAssignee) {
     if (m_NestedFuncError)
       m_NestedFuncError = m_RMV->BuildOp(BO_Add, m_NestedFuncError, finErr);

@@ -495,14 +495,14 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 
   template <typename ArgSpec = const char*, typename F,
             typename DerivedFnType = GradientDerivedEstFnTraits_t<F>>
-  CladFunction<DerivedFnType> __attribute__((annotate("E")))
+  CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
+      annotate("E")))
   estimate_error(F f, ArgSpec args = "",
                  DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                  const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
-    return CladFunction<
-        DerivedFnType>(derivedFn /* will be replaced by estimation code*/,
-                       code);
+      assert(f && "Must pass in a non-0 argument");
+      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+          derivedFn /* will be replaced by estimation code*/, code);
   }
 
   // Gradient Structure for Reverse Mode Enzyme
