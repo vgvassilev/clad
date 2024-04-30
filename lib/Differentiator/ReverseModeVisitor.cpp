@@ -664,8 +664,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Prepare Arguments and Parameters to enzyme_autodiff
     llvm::SmallVector<Expr*, 16> enzymeArgs;
     llvm::SmallVector<ParmVarDecl*, 16> enzymeParams;
-    llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParams;
-    llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParamsDerived;
+    llvm::SmallVector<Expr*, 16> enzymeRealParamsDerived;
 
     // First add the function itself as a parameter/argument
     enzymeArgs.push_back(BuildDeclRef(const_cast<FunctionDecl*>(m_Function)));
@@ -676,23 +675,23 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Add rest of the parameters/arguments
     for (unsigned i = 0; i < numParams; i++) {
+      ParmVarDecl* param = paramsRef[i];
       // First Add the original parameter
-      enzymeArgs.push_back(BuildDeclRef(paramsRef[i]));
+      enzymeArgs.push_back(BuildDeclRef(param));
       enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
-          fdDeclContext, noLoc, paramsRef[i]->getType()));
+          fdDeclContext, noLoc, param->getType()));
 
       QualType paramType = origParams[i]->getOriginalType();
       // If original parameter is of a differentiable real type(but not
       // array/pointer), then add it to the list of params whose gradient must
       // be extracted later from the EnzymeGradient structure
       if (paramType->isRealFloatingType()) {
-        enzymeRealParams.push_back(paramsRef[i]);
-        enzymeRealParamsDerived.push_back(paramsRef[numParams + i]);
+        enzymeRealParamsDerived.push_back(m_Variables[param]);
       } else if (utils::isArrayOrPointerType(paramType)) {
         // Add the corresponding array/pointer variable
-        enzymeArgs.push_back(BuildDeclRef(paramsRef[numParams + i]));
+        enzymeArgs.push_back(m_Variables[param]);
         enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
-            fdDeclContext, noLoc, paramsRef[numParams + i]->getType()));
+            fdDeclContext, noLoc, m_Variables[param]->getType()));
       }
     }
 
@@ -701,12 +700,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       enzymeParamsType.push_back(i->getType());
 
     QualType QT;
-    if (!enzymeRealParams.empty()) {
+    if (!enzymeRealParamsDerived.empty()) {
       // Find the EnzymeGradient datastructure
       auto* gradDecl = LookupTemplateDeclInCladNamespace("EnzymeGradient");
 
       TemplateArgumentListInfo TLI{};
-      llvm::APSInt argValue(std::to_string(enzymeRealParams.size()));
+      llvm::APSInt argValue(std::to_string(enzymeRealParamsDerived.size()));
       TemplateArgument TA(m_Context, argValue, m_Context.UnsignedIntTy);
       TLI.addArgument(TemplateArgumentLoc(TA, TemplateArgumentLocInfo()));
 
@@ -731,13 +730,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Prepare the statements that assign the gradients to
     // non array/pointer type parameters of the original function
-    if (!enzymeRealParams.empty()) {
+    if (!enzymeRealParamsDerived.empty()) {
       auto* gradDeclStmt = BuildVarDecl(QT, "grad", enzymeCall, true);
       addToCurrentBlock(BuildDeclStmt(gradDeclStmt), direction::forward);
 
-      for (unsigned i = 0; i < enzymeRealParams.size(); i++) {
-        auto* LHSExpr =
-            BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsDerived[i]));
+      for (unsigned i = 0; i < enzymeRealParamsDerived.size(); i++) {
+        auto* LHSExpr = Clone(enzymeRealParamsDerived[i]);
 
         auto* ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                           BuildDeclRef(gradDeclStmt), "d_arr");
@@ -754,7 +752,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     } else {
       // Add Function call to block
-      Expr* enzymeCall = BuildCallExprToFunction(enzymeCallFD, enzymeArgs);
       addToCurrentBlock(enzymeCall);
     }
   }
