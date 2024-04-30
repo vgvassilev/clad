@@ -1168,8 +1168,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       // into the queue.
       pushforwardFnRequest.DeclarationOnly = false;
       pushforwardFnRequest.DerivedFDPrototype = pushforwardFD;
-      plugin::AddRequestToSchedule(m_CladPlugin, pushforwardFnRequest);
     }
+    m_Builder.AddEdgeToGraph(pushforwardFnRequest);
 
     if (pushforwardFD) {
       if (baseDiff.getExpr()) {

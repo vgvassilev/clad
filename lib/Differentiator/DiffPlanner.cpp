@@ -232,10 +232,10 @@ namespace clad {
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
-                               DiffSchedule& plans, clang::Sema& S,
-                               RequestOptions& opts)
-      : m_Interval(Interval), m_DiffPlans(plans), m_TopMostFD(nullptr),
-        m_Sema(S), m_Options(opts) {
+                               clad::DynamicGraph<DiffRequest>& requestGraph,
+                               clang::Sema& S, RequestOptions& opts)
+      : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
+        m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -300,7 +300,8 @@ namespace clad {
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
     const FunctionDecl* FD = Function;
-    FD = FD->getDefinition();
+    if (!DeclarationOnly)
+      FD = FD->getDefinition();
     if (!diffArgs || !FD) {
       return;
     }
@@ -684,7 +685,7 @@ namespace clad {
       llvm::SaveAndRestore<const FunctionDecl*> saveTopMost = m_TopMostFD;
       m_TopMostFD = FD;
       TraverseDecl(derivedFD);
-      m_DiffPlans.push_back(std::move(request));
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
     /*else if (m_TopMostFD) {
       // If another function is called inside differentiated function,

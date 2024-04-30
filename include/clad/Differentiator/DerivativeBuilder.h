@@ -38,9 +38,6 @@ namespace clad {
     class CladPlugin;
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
                                             DiffRequest& request);
-    // FIXME: This function should be removed and the entire plans array
-    // should be somehow made accessible to all the visitors.
-    void AddRequestToSchedule(CladPlugin& P, const DiffRequest& request);
   } // namespace plugin
 
 } // namespace clad
@@ -87,6 +84,7 @@ namespace clad {
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
     const DerivedFnCollector& m_DFC;
+    clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
     /// A reference to the model to use for error estimation (if any).
@@ -137,7 +135,8 @@ namespace clad {
 
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                      const DerivedFnCollector& DFC);
+                      const DerivedFnCollector& DFC,
+                      clad::DynamicGraph<DiffRequest>& DRG);
     ~DerivativeBuilder();
     /// Reset the model use for error estimation (if any).
     /// \param[in] estModel The error estimation model, can be either
@@ -172,6 +171,16 @@ namespace clad {
     ///
     /// \returns The derived function if found, nullptr otherwise.
     clang::FunctionDecl* FindDerivedFunction(const DiffRequest& request);
+    /// Add edge from current request to the given request in the DiffRequest
+    /// graph.
+    ///
+    /// \param[in] request The request to add the edge to.
+    void AddEdgeToGraph(const DiffRequest& request);
+    /// Add edge between two requests in the DiffRequest graph.
+    ///
+    /// \param[in] from The source request.
+    /// \param[in] to The destination request.
+    void AddEdgeToGraph(const DiffRequest& from, const DiffRequest& to);
   };
 
 } // end namespace clad

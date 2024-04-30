@@ -102,7 +102,7 @@ public:
     bool m_HasRuntime = false;
     CladTimerGroup m_CTG;
     DerivedFnCollector m_DFC;
-    DiffSchedule m_DiffSchedule;
+    DynamicGraph<DiffRequest> m_DiffRequestGraph;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -237,10 +237,6 @@ public:
       m_Multiplexer->ForgetSema();
     }
 
-    void AddRequestToSchedule(const DiffRequest& request) {
-      m_DiffSchedule.push_back(request);
-    }
-
     // FIXME: We should hide ProcessDiffRequest when we implement proper
     // handling of the differentiation plans.
     clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
@@ -269,10 +265,6 @@ public:
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
                                             DiffRequest& request) {
       return P.ProcessDiffRequest(request);
-    }
-
-    void AddRequestToSchedule(CladPlugin& P, const DiffRequest& request) {
-      P.AddRequestToSchedule(request);
     }
 
     template <typename ConsumerType>

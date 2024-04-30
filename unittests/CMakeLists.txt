@@ -40,3 +40,5 @@ if (Kokkos_FOUND)
   set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
   add_subdirectory(Kokkos)
 endif(Kokkos_FOUND)
+
+add_subdirectory(Misc)
