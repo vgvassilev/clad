@@ -37,8 +37,10 @@ using namespace clang;
 namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                                     const DerivedFnCollector& DFC)
+                                     const DerivedFnCollector& DFC,
+                                     clad::DynamicGraph<DiffRequest>& G)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
+      m_DiffRequestGraph(G),
       m_NodeCloner(new utils::StmtClone(m_Sema, m_Context)),
       m_BuiltinDerivativesNSD(nullptr), m_NumericalDiffNSD(nullptr) {}
 
@@ -292,15 +294,25 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     assert(FD && "Must not be null.");
     // If FD is only a declaration, try to find its definition.
     if (!FD->getDefinition()) {
-      if (request.VerboseDiags)
-        diag(DiagnosticsEngine::Error,
-             request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
-             "attempted differentiation of function '%0', which does not have a "
-             "definition", { FD->getNameAsString() });
-      return {};
+      // If only declaration is requested, allow this for non
+      // pullback/pushforward modes. For ex, this is required for Hessian -
+      // where we have forward mode followed by reverse mode, but we only need
+      // the declaration of the forward mode initially.
+      if (!request.DeclarationOnly ||
+          IsPullbackOrPushforwardMode(request.Mode)) {
+        if (request.VerboseDiags)
+          diag(DiagnosticsEngine::Error,
+               request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
+               "attempted differentiation of function '%0', which does not "
+               "have a "
+               "definition",
+               {FD->getNameAsString()});
+        return {};
+      }
     }
 
-    FD = FD->getDefinition();
+    if (!request.DeclarationOnly)
+      FD = FD->getDefinition();
 
     // check if the function is non-differentiable.
     if (clad::utils::hasNonDifferentiableAttribute(FD)) {
@@ -387,5 +399,14 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     if (DFI.IsValid())
       return DFI.DerivedFn();
     return nullptr;
+  }
+
+  void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request) {
+    m_DiffRequestGraph.addEdgeToCurrentNode(request);
+  }
+
+  void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& from,
+                                         const DiffRequest& to) {
+    m_DiffRequestGraph.addEdge(from, to);
   }
 }// end namespace clad

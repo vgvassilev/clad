@@ -122,11 +122,13 @@ namespace clad {
       Sema& S = m_CI.getSema();
 
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(new DerivativeBuilder(S, *this, m_DFC));
+        m_DerivativeBuilder = std::make_unique<DerivativeBuilder>(
+            S, *this, m_DFC, m_DiffRequestGraph);
 
       RequestOptions opts{};
       SetRequestOptions(opts);
-      DiffCollector collector(DGR, CladEnabledRange, m_DiffSchedule, S, opts);
+      DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
+                              opts);
     }
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
@@ -400,13 +402,12 @@ namespace clad {
       Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
       Sema::LocalEagerInstantiationScope LocalInstantiations(S);
 
-      // Use index based loop to avoid iterator invalidation as
-      // ProcessDiffRequest might add more requests to m_DiffSchedule.
-      for (size_t i = 0; i < m_DiffSchedule.size(); ++i) {
-        // make a copy of the request to avoid invalidating the reference
-        // when ProcessDiffRequest adds more requests to m_DiffSchedule.
-        DiffRequest request = m_DiffSchedule[i];
+      DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
+      while (request.Function != nullptr) {
+        m_DiffRequestGraph.setCurrentProcessingNode(request);
         ProcessDiffRequest(request);
+        m_DiffRequestGraph.markCurrentNodeProcessed();
+        request = m_DiffRequestGraph.getNextToProcessNode();
       }
       // Put the TUScope in a consistent state after clad is done.
       S.TUScope = nullptr;

@@ -11,6 +11,7 @@
 #include "ArrayRef.h"
 #include "BuiltinDerivatives.h"
 #include "CladConfig.h"
+#include "DynamicGraph.h"
 #include "FunctionTraits.h"
 #include "Matrix.h"
 #include "NumericalDiff.h"

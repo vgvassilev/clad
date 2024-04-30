@@ -1784,6 +1784,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (m_ExternalSource)
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(
               pullbackCallArgs, PreCallStmts, dfdx());
+
         // Overloaded derivative was not found, request the CladPlugin to
         // derive the called function.
         DiffRequest pullbackRequest{};
@@ -1812,7 +1813,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             // function.
             pullbackRequest.DeclarationOnly = false;
             pullbackRequest.DerivedFDPrototype = pullbackFD;
-            plugin::AddRequestToSchedule(m_CladPlugin, pullbackRequest);
           } else {
             // FIXME: Error estimation currently uses singleton objects -
             // m_ErrorEstHandler and m_EstModel, which is cleared after each
@@ -1822,6 +1822,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
           }
         }
+        m_Builder.AddEdgeToGraph(pullbackRequest);
 
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If
@@ -1923,8 +1924,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // function.
         calleeFnForwPassReq.DeclarationOnly = false;
         calleeFnForwPassReq.DerivedFDPrototype = calleeFnForwPassFD;
-        plugin::AddRequestToSchedule(m_CladPlugin, calleeFnForwPassReq);
       }
+      m_Builder.AddEdgeToGraph(calleeFnForwPassReq);
 
       assert(calleeFnForwPassFD &&
              "Clad failed to generate callee function forward pass function");
