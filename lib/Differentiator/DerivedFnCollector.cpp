@@ -8,6 +8,7 @@ void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
          "`DerivedFnCollector::Add` more than once for the same derivative "
          ". Ideally, we shouldn't do either.");
   m_DerivedFnInfoCollection[DFI.OriginalFn()].push_back(DFI);
+  m_DerivativeSet.insert(DFI.DerivedFn());
 }
 
 bool DerivedFnCollector::AlreadyExists(const DerivedFnInfo& DFI) const {
@@ -35,5 +36,9 @@ DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
   if (it == subCollection.end())
     return DerivedFnInfo();
   return *it;
+}
+
+bool DerivedFnCollector::IsDerivative(const clang::FunctionDecl* FD) const {
+  return m_DerivativeSet.count(FD);
 }
 } // namespace clad

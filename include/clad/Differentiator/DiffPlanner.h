@@ -95,9 +95,7 @@ struct DiffRequest {
   /// Define the == operator for DiffRequest.
   bool operator==(const DiffRequest& other) const {
     // either function match or previous declaration match
-    return (Function == other.Function ||
-            Function->getPreviousDecl() == other.Function ||
-            Function == other.Function->getPreviousDecl()) &&
+    return Function == other.Function &&
            BaseFunctionName == other.BaseFunctionName &&
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&

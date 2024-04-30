@@ -17,6 +17,16 @@ double f2(double x, double y){
     return ans;
 }
 
+// CHECK: double f2_darg0(double x, double y);
+// CHECK: void f2_darg0_grad(double x, double y, double *_d_x, double *_d_y);
+// CHECK: double f2_darg1(double x, double y);
+// CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y);
+
+// CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
+// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+// CHECK-NEXT: }
+
 // CHECK: clad::ValueAndPushforward<double, double> f_pushforward(double x, double y, double _d_x, double _d_y);
 
 // CHECK: double f2_darg0(double x, double y) {
@@ -27,32 +37,6 @@ double f2(double x, double y){
 // CHECK-NEXT:     double ans = _t0.value;
 // CHECK-NEXT:     return _d_ans;
 // CHECK-NEXT: }
-
-
-// CHECK: void f2_darg0_grad(double x, double y, double *_d_x, double *_d_y);
-
-
-// CHECK: double f2_darg1(double x, double y) {
-// CHECK-NEXT:     double _d_x = 0;
-// CHECK-NEXT:     double _d_y = 1;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = f_pushforward(x, y, _d_x, _d_y);
-// CHECK-NEXT:     double _d_ans = _t0.pushforward;
-// CHECK-NEXT:     double ans = _t0.value;
-// CHECK-NEXT:     return _d_ans;
-// CHECK-NEXT: }
-
-// CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y);
-
-// CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
-// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
-// CHECK-NEXT: }
-
-
-// CHECK: clad::ValueAndPushforward<double, double> f_pushforward(double x, double y, double _d_x, double _d_y) {
-// CHECK-NEXT:     return {x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y};
-// CHECK-NEXT: }
-
 
 // CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y);
 
@@ -85,6 +69,14 @@ double f2(double x, double y){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+// CHECK: double f2_darg1(double x, double y) {
+// CHECK-NEXT:     double _d_x = 0;
+// CHECK-NEXT:     double _d_y = 1;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = f_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     double _d_ans = _t0.pushforward;
+// CHECK-NEXT:     double ans = _t0.value;
+// CHECK-NEXT:     return _d_ans;
+// CHECK-NEXT: }
 
 // CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     double _d__d_x = 0;
@@ -113,6 +105,10 @@ double f2(double x, double y){
 // CHECK-NEXT:         _d__d_x += _r2;
 // CHECK-NEXT:         _d__d_y += _r3;
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndPushforward<double, double> f_pushforward(double x, double y, double _d_x, double _d_y) {
+// CHECK-NEXT:     return {x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y};
 // CHECK-NEXT: }
 
 // CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y) {
