@@ -397,7 +397,8 @@ namespace clad {
     void CladPlugin::HandleTranslationUnit(ASTContext& C) {
       Sema& S = m_CI.getSema();
       // Restore the TUScope that became a 0 in Sema::ActOnEndOfTranslationUnit.
-      S.TUScope = m_StoredTUScope;
+      if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
+        S.TUScope = m_StoredTUScope;
       constexpr bool Enabled = true;
       Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
       Sema::LocalEagerInstantiationScope LocalInstantiations(S);
@@ -409,8 +410,11 @@ namespace clad {
         m_DiffRequestGraph.markCurrentNodeProcessed();
         request = m_DiffRequestGraph.getNextToProcessNode();
       }
+
       // Put the TUScope in a consistent state after clad is done.
-      S.TUScope = nullptr;
+      if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
+        S.TUScope = nullptr;
+
       // Force emission of the produced pending template instantiations.
       LocalInstantiations.perform();
       GlobalInstantiations.perform();
