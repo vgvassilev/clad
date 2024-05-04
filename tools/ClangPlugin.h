@@ -23,6 +23,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Timer.h"
 
 namespace clang {
@@ -167,6 +168,14 @@ public:
       AppendDelayed({CallKind::HandleCXXStaticMemberVarInstantiation, D});
     }
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
+      if (D.isSingleDecl())
+        if (auto* FD = llvm::dyn_cast<clang::FunctionDecl>(D.getSingleDecl()))
+          if (m_DFC.IsDerivative(FD)) {
+            assert(!m_Multiplexer &&
+                   "Must happen only if we failed to rearrange the consumers");
+            return true;
+          }
+
       HandleTopLevelDeclForClad(D);
       AppendDelayed({CallKind::HandleTopLevelDecl, D});
       return true; // happyness, continue parsing
@@ -250,6 +259,7 @@ public:
              "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
     }
+    void FinalizeTranslationUnit();
     void SendToMultiplexer();
     bool CheckBuiltins();
     void SetRequestOptions(RequestOptions& opts) const;
@@ -258,6 +268,10 @@ public:
       DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
       assert(!llvm::is_contained(m_DelayedCalls, DCI) && "Already exists!");
       AppendDelayed(DCI);
+      // We could not delay the process due to some strange way of
+      // initialization, inform the consumers now.
+      if (!m_Multiplexer)
+        m_CI.getASTConsumer().HandleTopLevelDecl(DCI.m_DGR);
     }
     void HandleTopLevelDeclForClad(clang::DeclGroupRef DGR);
     };

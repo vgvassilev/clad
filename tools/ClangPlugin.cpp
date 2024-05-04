@@ -129,6 +129,10 @@ namespace clad {
       SetRequestOptions(opts);
       DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
                               opts);
+      // We could not delay the processing of derivatives, inform act as if each
+      // call is final. That would still have vgvassilev/clad#248 unresolved.
+      if (!m_Multiplexer)
+        FinalizeTranslationUnit();
     }
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
@@ -394,7 +398,7 @@ namespace clad {
       SetTBRAnalysisOptions(m_DO, opts);
     }
 
-    void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+    void CladPlugin::FinalizeTranslationUnit() {
       Sema& S = m_CI.getSema();
       // Restore the TUScope that became a 0 in Sema::ActOnEndOfTranslationUnit.
       if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
@@ -418,7 +422,10 @@ namespace clad {
       // Force emission of the produced pending template instantiations.
       LocalInstantiations.perform();
       GlobalInstantiations.perform();
+    }
 
+    void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+      FinalizeTranslationUnit();
       SendToMultiplexer();
       m_Multiplexer->HandleTranslationUnit(C);
     }
