@@ -58,6 +58,8 @@ namespace clad {
     std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
+    /// A flag indicating if the Stmt we are currently visiting is inside loop.
+    bool hasContStmt = false;
     /// Output variable of vector-valued function
     std::string outputArrayStr;
     std::vector<Stmts> m_LoopBlock;
@@ -503,6 +505,15 @@ namespace clad {
       }
     };
 
+    /// Helper function to bring the cases created by a continue or break stmt
+    /// foward to the loop's body and append them correctly.
+    /// The statements that belong to the main body of the loop are added directly
+    /// to the current block, while the cases followed by with their corresponding stmts
+    /// are stored in a separate vector.
+    void AppendCaseStmts(llvm::SmallVectorImpl<clang::Stmt*>& curBlock,
+                          llvm::SmallVectorImpl<clang::Stmt*>& cases, clang::Stmt* S,
+                          bool& afterCase);
+
     /// Helper function to differentiate a loop body.
     ///
     ///\param[in] body body of the loop
@@ -544,12 +555,6 @@ namespace clad {
     /// PopBreakContStmtHandler();
     /// ```
     class BreakContStmtHandler {
-      /// Keeps track of all the created switch cases. It is required
-      /// because we need to register all the switch cases later with the
-      /// switch statement that will be used to manage the control flow in
-      /// the reverse block.
-      llvm::SmallVector<clang::SwitchCase*, 4> m_SwitchCases;
-
       /// `m_ControlFlowTape` tape keeps track of which `break`/`continue`
       /// statement was hit in which iteration.
       /// \note `m_ControlFlowTape` is only initialized if the body contains
@@ -561,8 +566,6 @@ namespace clad {
       /// statement. `m_CaseCounter` stores the value that was used for last
       /// `break`/`continue` statement.
       std::size_t m_CaseCounter = 0;
-
-      ReverseModeVisitor& m_RMV;
 
       const bool m_IsInvokedBySwitchStmt = false;
       /// Builds and returns a literal expression of type `std::size_t` with
@@ -579,6 +582,14 @@ namespace clad {
       clang::Expr* CreateCFTapePushExpr(std::size_t value);
 
     public:
+      /// Keeps track of all the created switch cases. It is required
+      /// because we need to register all the switch cases later with the
+      /// switch statement that will be used to manage the control flow in
+      /// the reverse block.
+      llvm::SmallVector<clang::SwitchCase*, 4> m_SwitchCases;
+
+      ReverseModeVisitor& m_RMV;
+
       BreakContStmtHandler(ReverseModeVisitor& RMV, bool forSwitchStmt = false)
           : m_RMV(RMV), m_IsInvokedBySwitchStmt(forSwitchStmt) {}
 
