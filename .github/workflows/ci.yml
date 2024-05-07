@@ -470,11 +470,11 @@ jobs:
             clang-runtime: '8'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: 3.11
     - name: Save PR Info
@@ -483,7 +483,7 @@ jobs:
         mkdir -p ./pr
         echo ${{ github.event.number }} > ./pr/NR
         echo ${{ github.repository }} > ./pr/REPO
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       if: ${{ matrix.coverage == true }}
       with:
         name: pr
@@ -651,7 +651,7 @@ jobs:
 
     - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       id: cache
       with:
         path: |
@@ -685,7 +685,7 @@ jobs:
         cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${CPU_COUNT}
         cd ../../
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
       with:
         path: |
