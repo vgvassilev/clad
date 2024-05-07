@@ -20,6 +20,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -1983,40 +1984,33 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
     NumDiffArgs.push_back(targetFuncCall);
-    // build the clad::tape<clad::array_ref>> = {};
-    QualType RefType = GetCladArrayRefOfType(retType);
-    QualType TapeType = GetCladTapeOfType(RefType);
-    auto* VD = BuildVarDecl(
-        TapeType, "_t", getZeroInit(TapeType), /*DirectInit=*/false,
-        /*TSI=*/nullptr, VarDecl::InitializationStyle::CInit);
+    // build the output array declaration.
+    Expr* size =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, numArgs);
+    QualType GradType = clad_compat::getConstantArrayType(
+        m_Context, retType,
+        llvm::APInt(m_Context.getTargetInfo().getIntWidth(), numArgs),
+        /*SizeExpr=*/size,
+        /*ASM=*/clad_compat::ArraySizeModifier_Normal,
+        /*IndexTypeQuals*/ 0);
+    Expr* zero =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    Expr* init = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
+    auto* VD = BuildVarDecl(GradType, "_grad", init);
+
     PreCallStmts.push_back(BuildDeclStmt(VD));
-    Expr* TapeRef = BuildDeclRef(VD);
-    NumDiffArgs.push_back(TapeRef);
+    NumDiffArgs.push_back(BuildDeclRef(VD));
     NumDiffArgs.push_back(ConstantFolder::synthesizeLiteral(
         m_Context.IntTy, m_Context, printErrorInf));
 
     // Build the tape push expressions.
     VD->setLocation(m_Function->getLocation());
-    m_Sema.AddInitializerToDecl(VD, getZeroInit(TapeType), false);
-    CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
-    LookupResult& Push = GetCladTapePush();
-    Expr* PushDRE =
-        m_Sema.BuildDeclarationNameExpr(CSS, Push, /*ADL*/ false).get();
     for (unsigned i = 0, e = numArgs; i < e; i++) {
-      QualType argTy = args[i]->getType();
-      VarDecl* gradVar = BuildVarDecl(argTy, "_grad", getZeroInit(argTy));
-      PreCallStmts.push_back(BuildDeclStmt(gradVar));
-      Expr* PushExpr = BuildDeclRef(gradVar);
-      if (!isCladArrayType(argTy))
-        PushExpr = BuildOp(UO_AddrOf, PushExpr);
-      std::array<Expr*, 2> callArgs = {TapeRef, PushExpr};
-      Stmt* PushStmt =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), PushDRE, noLoc, callArgs, noLoc)
-              .get();
-      PreCallStmts.push_back(PushStmt);
-      Expr* gradExpr = BuildOp(BO_Mul, dfdx, BuildDeclRef(gradVar));
+      Expr* gradRef = BuildDeclRef(VD);
+      Expr* idx =
+          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
+      Expr* gradElem = BuildArraySubscript(gradRef, {idx});
+      Expr* gradExpr = BuildOp(BO_Mul, dfdx, gradElem);
       PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
       NumDiffArgs.push_back(args[i]);
     }
