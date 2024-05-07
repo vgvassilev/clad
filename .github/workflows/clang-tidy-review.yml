@@ -20,7 +20,7 @@ jobs:
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v2.0.2
         with:
-          version: "18.1.3"
+          version: "16.0.0"
 
       - name: Run clang-tidy
         uses: ZedThree/clang-tidy-review@v0.18.0
