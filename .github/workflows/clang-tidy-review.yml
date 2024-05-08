@@ -26,6 +26,7 @@ jobs:
         run: pip install lit
 
       - name: run git config command
+        run: |
           git config --global --add safe.directory /github/workspace
 
       - name: Run clang-tidy
