@@ -42,7 +42,7 @@ constexpr double fn( double a, double b, double c) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        *_d_a += _d_result * 100 * (a + b) / c * b;
 //CHECK-NEXT:        *_d_b += a * _d_result * 100 * (a + b) / c;
-//CHECK-NEXT:        double _r0 = _d_result * 100 * (a + b) * -a * b / (c * c);
+//CHECK-NEXT:        double _r0 = _d_result * 100 * (a + b) * -(a * b / (c * c));
 //CHECK-NEXT:        *_d_c += _r0;
 //CHECK-NEXT:        *_d_a += a * b / c * _d_result * 100;
 //CHECK-NEXT:        *_d_b += a * b / c * _d_result * 100;

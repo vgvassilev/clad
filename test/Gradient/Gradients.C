@@ -125,7 +125,7 @@ double f_div1(double x, double y) {
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 1 / y;
-//CHECK-NEXT:           double _r0 = 1 * -x / (y * y);
+//CHECK-NEXT:           double _r0 = 1 * -(x / (y * y));
 //CHECK-NEXT:           *_d_y += _r0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -143,7 +143,7 @@ double f_div2(double x, double y) {
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 3 * 1 / _t0;
-//CHECK-NEXT:           double _r0 = 1 * -3 * x / (_t0 * _t0);
+//CHECK-NEXT:           double _r0 = 1 * -(3 * x / (_t0 * _t0));
 //CHECK-NEXT:           *_d_y += 4 * _r0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -169,7 +169,7 @@ double f_div3(double x, double y) {
 //CHECK-NEXT:         double _r_d0 = *_d_x;
 //CHECK-NEXT:         *_d_x -= _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
-//CHECK-NEXT:         double _r0 = 1 * -_t2 / (_t0 * _t0);
+//CHECK-NEXT:         double _r0 = 1 * -(_t2 / (_t0 * _t0));
 //CHECK-NEXT:         *_d_y += _r0 * y;
 //CHECK-NEXT:         *_d_y += y * _r0;
 //CHECK-NEXT:     }
@@ -190,7 +190,7 @@ double f_c(double x, double y) {
 //CHECK-NEXT:           *_d_x += 1 * (x / y);
 //CHECK-NEXT:           *_d_y += 1 * (x / y);
 //CHECK-NEXT:           *_d_x += (x + y) * 1 / y;
-//CHECK-NEXT:           double _r0 = (x + y) * 1 * -x / (y * y);
+//CHECK-NEXT:           double _r0 = (x + y) * 1 * -(x / (y * y));
 //CHECK-NEXT:           *_d_y += _r0;
 //CHECK-NEXT:           *_d_x += -1 * x;
 //CHECK-NEXT:           *_d_x += x * -1;
@@ -455,7 +455,7 @@ void f_norm_grad(double x,
 //CHECK-NEXT:           *_d_y += _r2;
 //CHECK-NEXT:           *_d_z += _r3;
 //CHECK-NEXT:           *_d_d += _r4;
-//CHECK-NEXT:           double _r6 = _r5 * -1 / (d * d);
+//CHECK-NEXT:           double _r6 = _r5 * -(1 / (d * d));
 //CHECK-NEXT:           *_d_d += _r6;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
@@ -777,6 +777,19 @@ double fn_template_non_type(double x) {
 // CHECK-NEXT:         _d_maxN += _d_m;
 // CHECK-NEXT: }
 
+double fn_div(double x) {
+  return -0.5 / x;
+}
+
+// CHECK: void fn_div_grad(double x, double *_d_x) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:   {
+// CHECK-NEXT:       double _r0 = 1 * -(-0.5 / (x * x));
+// CHECK-NEXT:       *_d_x += _r0;
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -833,4 +846,8 @@ int main() {
   double x = 5, dx = 0;
   fn_template_non_type_dx.execute(x, &dx);
   printf("Result is = %.2f\n", dx); // CHECK-EXEC: Result is = 15.00
+
+  INIT_GRADIENT(fn_div);
+  dx = 0;
+  TEST_GRADIENT(fn_div, /*numOfDerivativeArgs=*/1, 2, &dx); // CHECK-EXEC: 0.12
 }

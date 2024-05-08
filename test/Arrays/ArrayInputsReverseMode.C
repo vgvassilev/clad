@@ -615,7 +615,7 @@ int main() {
 //CHECK-NEXT:     goto _label0;
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = _d_y * -1 / (_t0 * _t0);
+//CHECK-NEXT:         double _r0 = _d_y * -(1 / (_t0 * _t0));
 //CHECK-NEXT:         _d_params[0] += _r0 * params[0];
 //CHECK-NEXT:         _d_params[0] += params[0] * _r0;
 //CHECK-NEXT:     }

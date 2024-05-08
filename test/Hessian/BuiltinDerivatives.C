@@ -373,7 +373,7 @@ int main() {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         _r0 += _d_y.value * clad::custom_derivatives{{(::std)?}}::log_pushforward(x, 1.F).pushforward;
 // CHECK-NEXT:         *_d_x += _r0;
-// CHECK-NEXT:         double _r1 = _d_y.pushforward * d_x * -1. / (x * x);
+// CHECK-NEXT:         double _r1 = _d_y.pushforward * d_x * -(1. / (x * x));
 // CHECK-NEXT:         *_d_x += _r1;
 // CHECK-NEXT:         *_d_d_x += (1. / x) * _d_y.pushforward;
 // CHECK-NEXT:     }

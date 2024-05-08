@@ -73,7 +73,7 @@ float func2(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:         *_d_y += _d_z / x;
-//CHECK-NEXT:         float _r0 = _d_z * -y / (x * x);
+//CHECK-NEXT:         float _r0 = _d_z * -(y / (x * x));
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
