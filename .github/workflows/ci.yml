@@ -48,11 +48,11 @@ jobs:
             os: macos-14
             compiler: clang
             clang-runtime: '17'
-          #Turn on once clang-18 available through Homebrew
-          #- name: osx14-arm-clang-runtime18
-          #  os: macos-14
-          #  compiler: clang
-          #  clang-runtime: '18'
+            
+          - name: osx14-arm-clang-runtime18
+            os: macos-14
+            compiler: clang
+            clang-runtime: '18'
 
           - name: osx13-x86-clang-runtime12
             os: macos-13
@@ -83,11 +83,11 @@ jobs:
             os: macos-13
             compiler: clang
             clang-runtime: '17'
-          #Turn on once clang-18 available through Homebrew
-          #- name: osx13-x86-clang-runtime18
-          #  os: macos-13
-          #  compiler: clang
-          #  clang-runtime: '18'
+            
+          - name: osx13-x86-clang-runtime18
+            os: macos-13
+            compiler: clang
+            clang-runtime: '18'
 
           - name: win2022-msvc-runtime14
             os: windows-2022
