@@ -360,7 +360,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:         _d_gaus += _r8;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r3 = _d_gaus * _t5 * -1. / (_t6 * _t6);
+//CHECK-NEXT:         double _r3 = _d_gaus * _t5 * -(1. / (_t6 * _t6));
 //CHECK-NEXT:         double _r4 = 0;
 //CHECK-NEXT:         _r4 += _r3 * clad::custom_derivatives::sqrt_pushforward(_t7 * sigma, 1.).pushforward;
 //CHECK-NEXT:         double _r5 = 0;
@@ -377,7 +377,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 //CHECK-NEXT:         double _r_d1 = _d_power;
 //CHECK-NEXT:         _d_power -= _r_d1;
 //CHECK-NEXT:         _d_power += -_r_d1 / _t3;
-//CHECK-NEXT:         double _r1 = _r_d1 * --power / (_t3 * _t3);
+//CHECK-NEXT:         double _r1 = _r_d1 * -(-power / (_t3 * _t3));
 //CHECK-NEXT:         double _r2 = 0;
 //CHECK-NEXT:         sq_pullback(sigma, 2 * _r1, &_r2);
 //CHECK-NEXT:         _d_sigma += _r2;
@@ -1611,7 +1611,7 @@ double f_loop_init_var(double lower, double upper) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_upper += _d_interval / num_points;
 // CHECK-NEXT:         *_d_lower += -_d_interval / num_points;
-// CHECK-NEXT:         double _r0 = _d_interval * -(upper - lower) / (num_points * num_points);
+// CHECK-NEXT:         double _r0 = _d_interval * -((upper - lower) / (num_points * num_points));
 // CHECK-NEXT:         _d_num_points += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

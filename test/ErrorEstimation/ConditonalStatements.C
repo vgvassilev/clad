@@ -162,7 +162,7 @@ float func4(float x, float y) {
 //CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_y += 1 / x;
-//CHECK-NEXT:         float _r0 = 1 * -y / (x * x);
+//CHECK-NEXT:         float _r0 = 1 * -(y / (x * x));
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     if (_cond0) {

@@ -2267,10 +2267,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Expr* dr = nullptr;
         if (dfdx()) {
           Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
-          dr = BuildOp(
-              BO_Mul, dfdx(),
-              BuildOp(UO_Minus,
-                      BuildOp(BO_Div, LStored.getRevSweepAsExpr(), RxR)));
+          dr = BuildOp(BO_Mul, dfdx(),
+                       BuildOp(UO_Minus,
+                               BuildParens(BuildOp(
+                                   BO_Div, LStored.getRevSweepAsExpr(), RxR))));
           dr = StoreAndRef(dr, direction::reverse);
         }
         Rdiff = Visit(R, dr);

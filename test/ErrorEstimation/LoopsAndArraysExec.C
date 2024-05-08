@@ -149,7 +149,7 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:             b_size = std::max(b_size, i);
 //CHECK-NEXT:             _d_a[i] += _r_d0 / b[i];
 //CHECK-NEXT:             a_size = std::max(a_size, i);
-//CHECK-NEXT:             double _r0 = _r_d0 * -a[i] / (b[i] * b[i]);
+//CHECK-NEXT:             double _r0 = _r_d0 * -(a[i] / (b[i] * b[i]));
 //CHECK-NEXT:             _d_b[i] += _r0;
 //CHECK-NEXT:             b_size = std::max(b_size, i);
 //CHECK-NEXT:         }
