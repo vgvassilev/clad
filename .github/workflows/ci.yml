@@ -606,10 +606,12 @@ jobs:
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
           w="0"
+          q="0"
           [ '${{ matrix.clang-runtime }}' == '17' ] && w="6"
-          sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.0.$w/clang+llvm-${{ matrix.clang-runtime }}.0.$w-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
+          [ '${{ matrix.clang-runtime }}' == '18' ] && q="1"
+          sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.$q.$w/clang+llvm-${{ matrix.clang-runtime }}.$q.$w-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
           sudo rm -fr /usr/local/clang*
-          sudo mv clang+llvm-${{ matrix.clang-runtime }}.0.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
+          sudo mv clang+llvm-${{ matrix.clang-runtime }}.$q.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
           # Use llvm/llvm@10/llvm@6 Filecheck
           if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
             if [[ -f /usr/local/opt/llvm/bin/FileCheck ]]; then
