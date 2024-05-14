@@ -115,8 +115,8 @@ double f3(double x) {
 //CHECK-NEXT:           _t0++;
 //CHECK-NEXT:           clad::push(_t1, t);
 //CHECK-NEXT:           t *= x;
-//CHECK-NEXT:           bool _t2 = i == 1;
 //CHECK-NEXT:           {
+//CHECK-NEXT:               bool _t2 = i == 1;
 //CHECK-NEXT:               if (_t2)
 //CHECK-NEXT:                   goto _label0;
 //CHECK-NEXT:               clad::push(_t3, _t2);
@@ -999,8 +999,8 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     while (choice--)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _t0++;
-// CHECK-NEXT:             bool _t1 = choice > 3;
 // CHECK-NEXT:             {
+// CHECK-NEXT:                 bool _t1 = choice > 3;
 // CHECK-NEXT:                 if (_t1) {
 // CHECK-NEXT:                     clad::push(_t3, res);
 // CHECK-NEXT:                     res += i;
@@ -1011,8 +1011,8 @@ double fn14(double i, double j) {
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 clad::push(_t2, _t1);
 // CHECK-NEXT:             }
-// CHECK-NEXT:             bool _t5 = choice > 1;
 // CHECK-NEXT:             {
+// CHECK-NEXT:                 bool _t5 = choice > 1;
 // CHECK-NEXT:                 if (_t5) {
 // CHECK-NEXT:                     clad::push(_t7, res);
 // CHECK-NEXT:                     res += j;
@@ -1023,8 +1023,8 @@ double fn14(double i, double j) {
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 clad::push(_t6, _t5);
 // CHECK-NEXT:             }
-// CHECK-NEXT:             bool _t8 = choice > 0;
 // CHECK-NEXT:             {
+// CHECK-NEXT:                 bool _t8 = choice > 0;
 // CHECK-NEXT:                 if (_t8) {
 // CHECK-NEXT:                     clad::push(_t10, res);
 // CHECK-NEXT:                     res += i * j;
@@ -1119,8 +1119,8 @@ double fn15(double i, double j) {
 // CHECK-NEXT:     while (choice--)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _t0++;
-// CHECK-NEXT:             bool _t1 = choice > 2;
 // CHECK-NEXT:             {
+// CHECK-NEXT:                 bool _t1 = choice > 2;
 // CHECK-NEXT:                 if (_t1) {
 // CHECK-NEXT:                     clad::push(_t3, {{1U|1UL}});
 // CHECK-NEXT:                     continue;
@@ -1132,8 +1132,8 @@ double fn15(double i, double j) {
 // CHECK-NEXT:             while (another_choice--)
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     clad::back(_t5)++;
-// CHECK-NEXT:                     bool _t6 = another_choice > 1;
 // CHECK-NEXT:                     {
+// CHECK-NEXT:                     bool _t6 = another_choice > 1;
 // CHECK-NEXT:                         if (_t6) {
 // CHECK-NEXT:                             clad::push(_t8, res);
 // CHECK-NEXT:                             res += i;
@@ -1144,8 +1144,8 @@ double fn15(double i, double j) {
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                         clad::push(_t7, _t6);
 // CHECK-NEXT:                     }
-// CHECK-NEXT:                     bool _t10 = another_choice > 0;
 // CHECK-NEXT:                     {
+// CHECK-NEXT:                     bool _t10 = another_choice > 0;
 // CHECK-NEXT:                         if (_t10) {
 // CHECK-NEXT:                             clad::push(_t12, res);
 // CHECK-NEXT:                             res += j;
@@ -1237,8 +1237,8 @@ double fn16(double i, double j) {
 // CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     for (ii = 0; ii < counter; ++ii) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         bool _t1 = ii == 4;
 // CHECK-NEXT:         {
+// CHECK-NEXT:             bool _t1 = ii == 4;
 // CHECK-NEXT:             if (_t1) {
 // CHECK-NEXT:                 clad::push(_t3, res);
 // CHECK-NEXT:                 res += i * j;
@@ -1249,8 +1249,8 @@ double fn16(double i, double j) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:             clad::push(_t2, _t1);
 // CHECK-NEXT:         }
-// CHECK-NEXT:         bool _t5 = ii > 2;
 // CHECK-NEXT:         {
+// CHECK-NEXT:         bool _t5 = ii > 2;
 // CHECK-NEXT:             if (_t5) {
 // CHECK-NEXT:                 clad::push(_t7, res);
 // CHECK-NEXT:                 res += 2 * i;
@@ -1343,8 +1343,8 @@ double fn17(double i, double j) {
 // CHECK-NEXT:     for (ii = 0; ii < counter; ++ii) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, jj) , jj = ii;
-// CHECK-NEXT:         bool _t2 = ii < 2;
 // CHECK-NEXT:         {
+// CHECK-NEXT:             bool _t2 = ii < 2;
 // CHECK-NEXT:             if (_t2) {
 // CHECK-NEXT:                 clad::push(_t4, {{1U|1UL}});
 // CHECK-NEXT:                 continue;
@@ -1355,8 +1355,8 @@ double fn17(double i, double j) {
 // CHECK-NEXT:         while (jj--)
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 clad::back(_t5)++;
-// CHECK-NEXT:                 bool _t6 = jj < 3;
 // CHECK-NEXT:                 {
+// CHECK-NEXT:                     bool _t6 = jj < 3;
 // CHECK-NEXT:                     if (_t6) {
 // CHECK-NEXT:                         clad::push(_t8, res);
 // CHECK-NEXT:                         res += i * j;
@@ -1460,14 +1460,13 @@ double fn18(double i, double j) {
 // CHECK-NEXT:     _t0 = 0;
 // CHECK-NEXT:     for (counter = 0; counter < choice; ++counter) {
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         bool _t1 = counter < 2;
 // CHECK-NEXT:         {
+// CHECK-NEXT:         bool _t1 = counter < 2;
 // CHECK-NEXT:             if (_t1) {
 // CHECK-NEXT:                 clad::push(_t3, res);
 // CHECK-NEXT:                 res += i + j;
 // CHECK-NEXT:             } else {
 // CHECK-NEXT:                 bool _t4 = counter < 4;
-// CHECK-NEXT:                 {
 // CHECK-NEXT:                     if (_t4) {
 // CHECK-NEXT:                         clad::push(_t6, {{1U|1UL}});
 // CHECK-NEXT:                         continue;
@@ -1480,7 +1479,6 @@ double fn18(double i, double j) {
 // CHECK-NEXT:                         }
 // CHECK-NEXT:                     }
 // CHECK-NEXT:                     clad::push(_t5, _t4);
-// CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:             clad::push(_t2, _t1);
 // CHECK-NEXT:         }

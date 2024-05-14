@@ -915,9 +915,11 @@ double sq_defined_later(double x) {
 
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
 // CHECK-NEXT:     bool _cond0;
+// CHECK-NEXT:     {
 // CHECK-NEXT:     _cond0 = c == 'a' && s[0] == 'a';
 // CHECK-NEXT:     if (_cond0)
 // CHECK-NEXT:         goto _label0;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label1;
 // CHECK-NEXT:   _label1:
 // CHECK-NEXT:     ;
@@ -957,9 +959,11 @@ double sq_defined_later(double x) {
 
 //CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:    {
 //CHECK-NEXT:     _cond0 = x > y;
 //CHECK-NEXT:     if (_cond0)
 //CHECK-NEXT:         goto _label0;
+//CHECK-NEXT:    }
 //CHECK-NEXT:     goto _label1;
 //CHECK-NEXT:   _label1:
 //CHECK-NEXT:     {

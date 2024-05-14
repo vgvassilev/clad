@@ -38,10 +38,12 @@ double f2(double x, double y) {
 //CHECK:   void f2_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _cond0 = x < y;
-//CHECK-NEXT:       if (_cond0) {
-//CHECK-NEXT:           _t0 = x;
-//CHECK-NEXT:           x = y;
+//CHECK-NEXT:       {
+//CHECK-NEXT:           _cond0 = x < y;
+//CHECK-NEXT:           if (_cond0) {
+//CHECK-NEXT:               _t0 = x;
+//CHECK-NEXT:               x = y;
+//CHECK-NEXT:           }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
@@ -160,17 +162,21 @@ double f5(double x, double y) {
 //CHECK-NEXT:       double z = 0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double t = x * x;
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x < 0;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           _t0 = t;
 //CHECK-NEXT:           t = -t;
 //CHECK-NEXT:           goto _label0;
 //CHECK-NEXT:       }
+//CHECK-NEXT:       }
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond1 = y < 0;
 //CHECK-NEXT:       if (_cond1) {
 //CHECK-NEXT:           z = t;
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:           t = -t;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label1;
 //CHECK-NEXT:     _label1:
@@ -223,17 +229,21 @@ double f6(double x, double y) {
 //CHECK-NEXT:       double z = 0;
 //CHECK-NEXT:       double _t1;
 //CHECK-NEXT:       double t = x * x;
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x < 0;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           _t0 = t;
 //CHECK-NEXT:           t = -t;
 //CHECK-NEXT:           goto _label0;
 //CHECK-NEXT:       }
+//CHECK-NEXT:       }
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond1 = y < 0;
 //CHECK-NEXT:       if (_cond1) {
 //CHECK-NEXT:           z = t;
 //CHECK-NEXT:           _t1 = t;
 //CHECK-NEXT:           t = -t;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label1;
 //CHECK-NEXT:     _label1:

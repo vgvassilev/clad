@@ -25,6 +25,7 @@ float func(float x, float y) {
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _t2;
 //CHECK-NEXT:     double _ret_value0 = 0;
+//CHECK-NEXT:     {
 //CHECK-NEXT:     _cond0 = x > y;
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         _t0 = y;
@@ -35,6 +36,7 @@ float func(float x, float y) {
 //CHECK-NEXT:         temp = y * y;
 //CHECK-NEXT:         _t2 = x;
 //CHECK-NEXT:         x = y;
+//CHECK-NEXT:     }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _ret_value0 = x + y;
 //CHECK-NEXT:     goto _label0;
@@ -91,6 +93,7 @@ float func2(float x) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     float z = x * x;
+//CHECK-NEXT:     {
 //CHECK-NEXT:     _cond0 = z > 9;
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         _ret_value0 = x + x;
@@ -98,6 +101,7 @@ float func2(float x) {
 //CHECK-NEXT:     } else {
 //CHECK-NEXT:         _ret_value0 = x * x;
 //CHECK-NEXT:         goto _label1;
+//CHECK-NEXT:     }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     if (_cond0)
 //CHECK-NEXT:       _label0:
