@@ -43,10 +43,12 @@ double test_3(double x) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _d_constant = 0;
 //CHECK-NEXT:     double constant = 0;
+//CHECK-NEXT:     {
 //CHECK-NEXT:     _cond0 = x > 0;
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         constant = 11.;
 //CHECK-NEXT:         goto _label0;
+//CHECK-NEXT:     }
 //CHECK-NEXT:     }
 //CHECK-NEXT:     goto _label1;
 //CHECK-NEXT:   _label1:

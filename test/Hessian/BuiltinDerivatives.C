@@ -383,19 +383,21 @@ int main() {
 // CHECK-NEXT:     float _d_val = 0;
 // CHECK-NEXT:     float _t0;
 // CHECK-NEXT:     float _d_derivative = 0;
-// CHECK-NEXT:     float _cond0;
+// CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     float _t1;
 // CHECK-NEXT:     float _t2;
 // CHECK-NEXT:     float _t3;
 // CHECK-NEXT:     float val = ::std::pow(x, exponent);
 // CHECK-NEXT:     _t0 = ::std::pow(x, exponent - 1);
 // CHECK-NEXT:     float derivative = (exponent * _t0) * d_x;
+// CHECK-NEXT:     {
 // CHECK-NEXT:     _cond0 = d_exponent;
 // CHECK-NEXT:     if (_cond0) {
 // CHECK-NEXT:         _t1 = derivative;
 // CHECK-NEXT:         _t3 = ::std::pow(x, exponent);
 // CHECK-NEXT:         _t2 = ::std::log(x);
 // CHECK-NEXT:         derivative += (_t3 * _t2) * d_exponent;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:

@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
+// RUN: %cladnumdiffclang %s -std=c++17 -I%S/../../include -oGradients.out 2>&1 | FileCheck %s
 // RUN: ./Gradients.out | FileCheck -check-prefix=CHECK-EXEC %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | FileCheck -check-prefix=CHECK-EXEC %s
@@ -297,10 +297,12 @@ double f_cond4(double x, double y) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       int i = 0;
 //CHECK-NEXT:       double arr[2] = {x, y};
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x > 0;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           _t0 = y;
 //CHECK-NEXT:           y = arr[i] * x;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
@@ -331,11 +333,13 @@ double f_if1(double x, double y) {
 
 //CHECK:   void f_if1_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       bool _cond0;
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           goto _label0;
 //CHECK-NEXT:       else
 //CHECK-NEXT:           goto _label1;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:         _label0:
 //CHECK-NEXT:           *_d_x += 1;
@@ -358,6 +362,7 @@ double f_if2(double x, double y) {
 //CHECK:   void f_if2_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       bool _cond1;
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           goto _label0;
@@ -367,6 +372,7 @@ double f_if2(double x, double y) {
 //CHECK-NEXT:               goto _label1;
 //CHECK-NEXT:           else
 //CHECK-NEXT:               goto _label2;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:         _label0:
@@ -584,6 +590,7 @@ void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK-NEXT:       double _d_b = 0;
 //CHECK-NEXT:       double a = 3 * x;
 //CHECK-NEXT:       double c = 333 * y;
+//CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x > 1;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           goto _label0;
@@ -591,6 +598,7 @@ void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK-NEXT:           _cond1 = x < -1;
 //CHECK-NEXT:           if (_cond1)
 //CHECK-NEXT:               goto _label1;
+//CHECK-NEXT:       }
 //CHECK-NEXT:       }
 //CHECK-NEXT:       double b = a * a;
 //CHECK-NEXT:       goto _label2;
@@ -790,6 +798,109 @@ double fn_div(double x) {
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
 
+double fn_cond_decl(double x, double y) {
+    int flag = 1;
+    if (int cond = flag)
+        return y*y;
+    return x*x + y*y;
+} // = y^2
+
+//CHECK:        void fn_cond_decl_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:            int _d_flag = 0;
+//CHECK-NEXT:            int _d_cond = 0;
+//CHECK-NEXT:            int cond = 0;
+//CHECK-NEXT:            bool _cond0;
+//CHECK-NEXT:            int flag = 1;
+//CHECK-NEXT:            {
+//CHECK-NEXT:                _cond0 = cond = flag;
+//CHECK-NEXT:                if (_cond0)
+//CHECK-NEXT:                    goto _label0;
+//CHECK-NEXT:            }
+//CHECK-NEXT:            goto _label1;
+//CHECK-NEXT:          _label1:
+//CHECK-NEXT:            {
+//CHECK-NEXT:                *_d_x += 1 * x;
+//CHECK-NEXT:                *_d_x += x * 1;
+//CHECK-NEXT:                *_d_y += 1 * y;
+//CHECK-NEXT:                *_d_y += y * 1;
+//CHECK-NEXT:            }
+//CHECK-NEXT:            {
+//CHECK-NEXT:                if (_cond0)
+//CHECK-NEXT:                  _label0:
+//CHECK-NEXT:                    {
+//CHECK-NEXT:                        *_d_y += 1 * y;
+//CHECK-NEXT:                        *_d_y += y * 1;
+//CHECK-NEXT:                    }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    _d_flag += _d_cond;
+//CHECK-NEXT:                }
+//CHECK-NEXT:            }
+//CHECK-NEXT:        }
+
+double fn_cond_side_eff(double x) {
+    if (x += x) {
+        return x;
+    }
+    return x;
+} // = 2x
+
+//CHECK:         void fn_cond_side_eff_grad(double x, double *_d_x) {
+//CHECK-NEXT:             double _t0;
+//CHECK-NEXT:             bool _cond0;
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 _t0 = x;
+//CHECK-NEXT:                 _cond0 = x += x;
+//CHECK-NEXT:                 if (_cond0) {
+//CHECK-NEXT:                     goto _label0;
+//CHECK-NEXT:                 }
+//CHECK-NEXT:             }
+//CHECK-NEXT:             goto _label1;
+//CHECK-NEXT:           _label1:
+//CHECK-NEXT:             *_d_x += 1;
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 if (_cond0) {
+//CHECK-NEXT:                   _label0:
+//CHECK-NEXT:                     *_d_x += 1;
+//CHECK-NEXT:                 }
+//CHECK-NEXT:                 {
+//CHECK-NEXT:                     x = _t0;
+//CHECK-NEXT:                     double _r_d0 = *_d_x;
+//CHECK-NEXT:                     *_d_x += _r_d0;
+//CHECK-NEXT:                 }
+//CHECK-NEXT:             }
+//CHECK-NEXT:         }
+
+double fn_cond_init(double x) {
+    if (int a = 12; a <= 0) {
+        return x+x*x;
+    }
+    return x;
+} // = x
+
+//CHECK:          void fn_cond_init_grad(double x, double *_d_x) {
+//CHECK-NEXT:              int _d_a = 0;
+//CHECK-NEXT:              int a = 0;
+//CHECK-NEXT:              bool _cond0;
+//CHECK-NEXT:              {
+//CHECK-NEXT:                  a = 12;
+//CHECK-NEXT:                  _cond0 = a <= 0;
+//CHECK-NEXT:                  if (_cond0) {
+//CHECK-NEXT:                      goto _label0;
+//CHECK-NEXT:                  }
+//CHECK-NEXT:              }
+//CHECK-NEXT:              goto _label1;
+//CHECK-NEXT:            _label1:
+//CHECK-NEXT:              *_d_x += 1;
+//CHECK-NEXT:              if (_cond0) {
+//CHECK-NEXT:                _label0:
+//CHECK-NEXT:                  {
+//CHECK-NEXT:                      *_d_x += 1;
+//CHECK-NEXT:                      *_d_x += 1 * x;
+//CHECK-NEXT:                      *_d_x += x * 1;
+//CHECK-NEXT:                  }
+//CHECK-NEXT:              }
+//CHECK-NEXT:          }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -850,4 +961,14 @@ int main() {
   INIT_GRADIENT(fn_div);
   dx = 0;
   TEST_GRADIENT(fn_div, /*numOfDerivativeArgs=*/1, 2, &dx); // CHECK-EXEC: 0.12
+
+  INIT_GRADIENT(fn_cond_decl);
+
+  INIT_GRADIENT(fn_cond_side_eff);
+  TEST_GRADIENT(fn_cond_side_eff, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 2.00
+  TEST_GRADIENT(fn_cond_side_eff, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 2.00
+
+  INIT_GRADIENT(fn_cond_init);
+  TEST_GRADIENT(fn_cond_init, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 1.00
+  TEST_GRADIENT(fn_cond_init, /*numOfDerivativeArgs=*/1, -1, &dx); // CHECK-EXEC: 1.00
 }
