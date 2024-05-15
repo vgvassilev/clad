@@ -54,7 +54,10 @@ review quickly and successfully share several common traits:
   information is usually published as part of the pull request description and
   as part of the commit message. Writing good commit messages are critical. More
   [here](https://github.blog/2022-06-30-write-better-commits-build-better-projects/)
-  and [here](https://cbea.ms/git-commit/).
+  and [here](https://cbea.ms/git-commit/). If your pull request fixes an existing
+  issue from the bug tracker make sure that the commit log and the pull request
+  description mentions `Fixes: #<ISSUE_NUMBER>`. That will link both and will
+  close the issue automatically upon merging.
 - Tested -- has a set of tests making sure that the issue will not resurface
   without a notice. Usually
 - Documented -- has good amount of code comment. The test cases are also a good
