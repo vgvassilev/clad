@@ -197,11 +197,9 @@ namespace clad {
         // derive the collected functions
 
 #if CLANG_VERSION_MAJOR > 11
-        bool WantTiming =
-            getenv("LIBCLAD_TIMING") || m_CI.getCodeGenOpts().TimePasses;
+        bool WantTiming = m_CI.getCodeGenOpts().TimePasses;
 #else
-        bool WantTiming =
-            getenv("LIBCLAD_TIMING") || m_CI.getFrontendOpts().ShowTimers;
+        bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
 #endif
 
         auto DFI = m_DFC.Find(request);
