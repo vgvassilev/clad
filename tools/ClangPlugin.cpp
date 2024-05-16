@@ -84,9 +84,11 @@ namespace clad {
           break;
         }
 
-      // Register clad as a backend pass.
-      CodeGenOptions& CGOpts = CI.getCodeGenOpts();
-      CGOpts.PassPlugins.push_back(CladSoPath.str());
+      if (!CladSoPath.empty()) {
+        // Register clad as a backend pass.
+        CodeGenOptions& CGOpts = CI.getCodeGenOpts();
+        CGOpts.PassPlugins.push_back(CladSoPath.str());
+      }
 #endif // CLANG_VERSION_MAJOR > 8
     }
 
