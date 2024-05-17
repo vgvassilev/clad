@@ -1,7 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oClassMethods.out 2>&1 | FileCheck %s
 // RUN: ./ClassMethods.out | FileCheck -check-prefix=CHECK-EXEC %s
-// Fails on clang-18 due to https://github.com/llvm/llvm-project/issues/87151
-// XFAIL: clang-18
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
