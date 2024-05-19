@@ -13,6 +13,7 @@ namespace clad {
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
+#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffMode.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -206,6 +207,8 @@ namespace clad {
     static bool isArrayOrPointerType(const clang::QualType QT) {
       return QT->isArrayType() || QT->isPointerType();
     }
+
+    static bool IsDifferentiableType(clang::QualType T);
 
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);
 
@@ -646,6 +649,27 @@ namespace clad {
     void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
                                    clang::Expr*& derivedL,
                                    clang::Expr*& derivedR);
+    /// Looks for a suitable overload for a given function.
+    ///
+    /// \param[in] Name The identification information of the function
+    /// overload to be found.
+    /// \param[in] CallArgs The call args to be used to resolve to the
+    /// correct overload.
+    /// \param[in] forCustomDerv A flag to keep track of which
+    /// namespace we should look in for the overloads.
+    /// \param[in] namespaceShouldExist A flag to enforce assertion failure
+    /// if the overload function namespace was not found. If false and
+    /// the function containing namespace was not found, nullptr is returned.
+    ///
+    /// \returns The call expression if a suitable function overload was found,
+    /// null otherwise.
+    clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
+        const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+        clang::Scope* S, const clang::FunctionDecl* originalFD,
+        bool forCustomDerv = true, bool namespaceShouldExist = true,
+        llvm::SmallVectorImpl<clang::Stmt*>* block = nullptr);
+    bool noOverloadExists(clang::Expr* UnresolvedLookup,
+                          llvm::MutableArrayRef<clang::Expr*> ARargs);
   };
 } // end namespace clad
 

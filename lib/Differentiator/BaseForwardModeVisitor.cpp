@@ -38,21 +38,6 @@ BaseForwardModeVisitor::BaseForwardModeVisitor(DerivativeBuilder& builder)
 
 BaseForwardModeVisitor::~BaseForwardModeVisitor() {}
 
-bool BaseForwardModeVisitor::IsDifferentiableType(QualType T) {
-  QualType origType = T;
-  // FIXME: arbitrary dimension array type as well.
-  while (utils::isArrayOrPointerType(T))
-    T = utils::GetValueType(T);
-  T = T.getNonReferenceType();
-  if (T->isEnumeralType())
-    return false;
-  if (T->isRealType() || T->isStructureOrClassType())
-    return true;
-  if (origType->isPointerType() && T->isVoidType())
-    return true;
-  return false;
-}
-
 bool IsRealNonReferenceType(QualType T) {
   return T.getNonReferenceType()->isRealType();
 }
@@ -224,7 +209,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
       // non-reference type for creating the derivatives.
       QualType dParamType = param->getType().getNonReferenceType();
       // We do not create derived variable for array/pointer parameters.
-      if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType) ||
+      if (!IsDifferentiableType(dParamType) ||
           utils::isArrayOrPointerType(dParamType))
         continue;
       Expr* dParam = nullptr;
@@ -420,7 +405,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   for (auto* PVD : m_Function->parameters()) {
     paramTypes.push_back(PVD->getType());
 
-    if (BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
+    if (IsDifferentiableType(PVD->getType()))
       derivedParamTypes.push_back(GetPushForwardDerivativeType(PVD->getType()));
   }
 
@@ -485,7 +470,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
     if (identifierMissing)
       m_DeclReplacements[PVD] = newPVD;
 
-    if (!BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
+    if (!IsDifferentiableType(PVD->getType()))
       continue;
     auto derivedPVDName = "_d_" + std::string(PVDII->getName());
     IdentifierInfo* derivedPVDII = CreateUniqueIdentifier(derivedPVDName);
@@ -1069,7 +1054,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       }
     }
     CallArgs.push_back(argDiff.getExpr());
-    if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
+    if (IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
       // FIXME: What happens when dArg is nullptr?
       diffArgs.push_back(dArg);
@@ -1094,9 +1079,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // Try to find a user-defined overloaded derivative.
   std::string customPushforward =
       clad::utils::ComputeEffectiveFnName(FD) + GetPushForwardFunctionSuffix();
-  Expr* callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-      customPushforward, customDerivativeArgs, getCurrentScope(),
-      const_cast<DeclContext*>(FD->getDeclContext()));
+  Expr* callDiff = BuildCallToCustomDerivativeOrNumericalDiff(
+      customPushforward, customDerivativeArgs, getCurrentScope(), FD);
 
   // Check if it is a recursive call.
   if (!callDiff && (FD == m_Function) && m_Mode == GetPushForwardMode()) {
@@ -1188,7 +1172,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       }
     }
   }
-
   // If clad failed to derive it, try finding its derivative using
   // numerical diff.
   if (!callDiff) {
@@ -1314,9 +1297,12 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
     if (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
-      diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
-           "derivative of an assignment attempts to assign to unassignable "
-           "expr, assignment ignored");
+      // If the LHS has a non-differentiable type, Ldiff.getExpr_dx() will be 0.
+      // Don't create a warning then.
+      if (IsDifferentiableType(BinOp->getLHS()->getType()))
+        diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
+             "derivative of an assignment attempts to assign to unassignable "
+             "expr, assignment ignored");
       opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
     } else if (opCode == BO_Assign || opCode == BO_AddAssign ||
                opCode == BO_SubAssign) {
@@ -1393,10 +1379,13 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
       BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
                    VD->isDirectInit(), nullptr, VD->getInitStyle());
   // FIXME: Create unique identifier for derivative.
-  VarDecl* VDDerived = BuildVarDecl(
-      VD->getType(), "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-      VD->isDirectInit(), nullptr, VD->getInitStyle());
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+  VarDecl* VDDerived = nullptr;
+  if (IsDifferentiableType(VD->getType())) {
+    VDDerived = BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(),
+                             initDiff.getExpr_dx(), VD->isDirectInit(), nullptr,
+                             VD->getInitStyle());
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+  }
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
@@ -1458,7 +1447,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
         m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
-      declsDiff.push_back(VDDiff.getDecl_dx());
+      if (VDDiff.getDecl_dx())
+        declsDiff.push_back(VDDiff.getDecl_dx());
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())
@@ -1597,7 +1587,7 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
   //   ...
   //   ...
   // }
-  if (condVarClone) {
+  if (condVarRes.getDecl_dx()) {
     bodyResult = utils::PrependAndCreateCompoundStmt(
         m_Sema.getASTContext(), cast<CompoundStmt>(bodyResult),
         BuildDeclStmt(condVarRes.getDecl_dx()));
@@ -1676,7 +1666,8 @@ StmtDiff BaseForwardModeVisitor::VisitSwitchStmt(const SwitchStmt* SS) {
   if (condVarDecl) {
     DeclDiff<VarDecl> condVarDeclDiff = DifferentiateVarDecl(condVarDecl);
     condVarClone = condVarDeclDiff.getDecl();
-    addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
+    if (condVarDeclDiff.getDecl_dx())
+      addToCurrentBlock(BuildDeclStmt(condVarDeclDiff.getDecl_dx()));
   }
 
   StmtDiff initVarRes = (SS->getInit() ? Visit(SS->getInit()) : StmtDiff());

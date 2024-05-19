@@ -291,7 +291,6 @@ double f_cond4(double x, double y) {
 }
 
 //CHECK:   void f_cond4_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       int _d_i = 0;
 //CHECK-NEXT:       double _d_arr[2] = {0};
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       double _t0;
@@ -492,17 +491,15 @@ unsigned f_types(int x, float y, double z) {
   return x + y + z;
 }
 
-void f_types_grad(int x,
+void f_types_grad_1_2(int x,
                   float y,
                   double z,
-                  int *_d_x,
                   float *_d_y,
                   double *_d_z);
-//CHECK:   void f_types_grad(int x, float y, double z, int *_d_x, float *_d_y, double *_d_z) {
+//CHECK:   void f_types_grad_1_2(int x, float y, double z, float *_d_y, double *_d_z) {
 //CHECK-NEXT:       goto _label0;
 //CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:           *_d_y += 1;
 //CHECK-NEXT:           *_d_z += 1;
 //CHECK-NEXT:       }
@@ -701,9 +698,8 @@ float running_sum(float* p, int n) {
   return p[n - 1];
 }
 
-// CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
+// CHECK: void running_sum_grad_0(float *p, int n, float *_d_p) {
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
 // CHECK-NEXT:     _t0 = 0;
@@ -772,17 +768,13 @@ double fn_template_non_type(double x) {
 }
 
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
-// CHECK-NEXT:     size_t _d_maxN = 0;
 // CHECK-NEXT:     bool _cond0;
-// CHECK-NEXT:     size_t _d_m = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
 // CHECK-NEXT:     _cond0 = maxN < {{15U|15UL}};
 // CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_x += 1 * m;
-// CHECK-NEXT:     if (_cond0)
-// CHECK-NEXT:         _d_maxN += _d_m;
 // CHECK-NEXT: }
 
 double fn_div(double x) {

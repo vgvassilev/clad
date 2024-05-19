@@ -8,7 +8,6 @@
 
 #include "ConstantFolder.h"
 
-#include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/Sins.h"
@@ -731,8 +730,11 @@ namespace clad {
     NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
     // Return the found overload.
     std::string Name = "forward_central_difference";
-    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+    const FunctionDecl* FD = nullptr;
+    if (auto* DRE = dyn_cast<DeclRefExpr>(targetFuncCall->IgnoreImplicit()))
+      FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+    return BuildCallToCustomDerivativeOrNumericalDiff(
+        Name, NumDiffArgs, getCurrentScope(), /*OriginalFD=*/FD,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }
@@ -811,5 +813,187 @@ namespace clad {
         m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
     return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
         .get();
+  }
+
+  Expr* VisitorBase::BuildCallToCustomDerivativeOrNumericalDiff(
+      const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
+      clang::Scope* S, const clang::FunctionDecl* originalFD,
+      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
+      llvm::SmallVectorImpl<Stmt*>* block /*=nullptr*/) {
+    DeclContext* originalFnDC = nullptr;
+    if (originalFD)
+      originalFnDC = const_cast<DeclContext*>(originalFD->getDeclContext());
+    NamespaceDecl* NSD = nullptr;
+    std::string namespaceID;
+    if (forCustomDerv) {
+      namespaceID = "custom_derivatives";
+      NamespaceDecl* cladNS = nullptr;
+      if (m_Builder.m_BuiltinDerivativesNSD)
+        NSD = m_Builder.m_BuiltinDerivativesNSD;
+      else {
+        cladNS = utils::LookupNSD(m_Sema, "clad", /*shouldExist=*/true);
+        NSD =
+            utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist, cladNS);
+        m_Builder.m_BuiltinDerivativesNSD = NSD;
+      }
+    } else {
+      NSD = m_Builder.m_NumericalDiffNSD;
+      namespaceID = "numerical_diff";
+    }
+    if (!NSD) {
+      NSD = utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist);
+      if (!forCustomDerv && !NSD) {
+        diag(DiagnosticsEngine::Warning, noLoc,
+             "Numerical differentiation is disabled using the "
+             "-DCLAD_NO_NUM_DIFF "
+             "flag, this means that every try to numerically differentiate a "
+             "function will fail! Remove the flag to revert to default "
+             "behaviour.");
+        return nullptr;
+      }
+    }
+    CXXScopeSpec SS;
+    DeclContext* DC = NSD;
+
+    // FIXME: Here `if` branch should be removed once we update
+    // numerical diff to use correct declaration context.
+    if (forCustomDerv) {
+      DeclContext* outermostDC = utils::GetOutermostDC(m_Sema, originalFnDC);
+      // FIXME: We should ideally construct nested name specifier from the
+      // found custom derivative function. Current way will compute incorrect
+      // nested name specifier in some cases.
+      if (outermostDC &&
+          outermostDC->getPrimaryContext() == NSD->getPrimaryContext()) {
+        utils::BuildNNS(m_Sema, originalFnDC, SS);
+        DC = originalFnDC;
+      } else {
+        if (isa<RecordDecl>(originalFnDC))
+          DC = utils::LookupNSD(m_Sema, "class_functions",
+                                /*shouldExist=*/false, NSD);
+        else
+          DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
+        if (DC)
+          utils::BuildNNS(m_Sema, DC, SS);
+      }
+    } else {
+      SS.Extend(m_Context, NSD, noLoc, noLoc);
+    }
+    IdentifierInfo* II = &m_Context.Idents.get(Name);
+    DeclarationName name(II);
+    DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
+
+    LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
+    if (DC)
+      m_Sema.LookupQualifiedName(R, DC);
+    Expr* OverloadedFn = nullptr;
+    if (!R.empty()) {
+      // FIXME: We should find a way to specify nested name specifier
+      // after finding the custom derivative.
+      Expr* UnresolvedLookup =
+          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+      llvm::SmallVector<Expr*, 16> ExtendedCallArgs;
+      llvm::SmallVector<Stmt*, 16> DeclStmts;
+      auto MARargs = llvm::MutableArrayRef<Expr*>(CallArgs);
+      if (noOverloadExists(UnresolvedLookup, MARargs)) {
+        bool isMethodCall = isa<CXXMethodDecl>(originalFD);
+        ExtendedCallArgs =
+            llvm::SmallVector<Expr*, 16>(CallArgs.begin(), CallArgs.end());
+        if (m_Mode != DiffMode::forward &&
+            m_Mode != DiffMode::vector_forward_mode &&
+            m_Mode != DiffMode::experimental_pushforward)
+          for (size_t i = 0, e = originalFD->getNumParams(); i < e; ++i) {
+            QualType paramTy = originalFD->getParamDecl(i)->getType();
+            if (!IsDifferentiableType(paramTy)) {
+              QualType argTy =
+                  utils::getNonConstType(paramTy, m_Context, m_Sema);
+              VarDecl* argDecl = BuildVarDecl(argTy, "_r", getZeroInit(argTy));
+              Expr* arg = BuildDeclRef(argDecl);
+              if (!utils::isArrayOrPointerType(argTy))
+                arg = BuildOp(UO_AddrOf, arg);
+              ExtendedCallArgs.insert(
+                  ExtendedCallArgs.begin() + e + i + 1 + 2 * isMethodCall, arg);
+              DeclStmts.push_back(BuildDeclStmt(argDecl));
+            }
+          }
+        else
+          for (size_t i = 0, e = originalFD->getNumParams(); i < e; ++i) {
+            QualType paramTy = originalFD->getParamDecl(i)->getType();
+            if (!IsDifferentiableType(paramTy)) {
+              QualType argTy =
+                  utils::getNonConstType(paramTy, m_Context, m_Sema);
+              Expr* zero = getZeroInit(argTy);
+              ExtendedCallArgs.insert(
+                  ExtendedCallArgs.begin() + e + i + 2 * isMethodCall, zero);
+            }
+          }
+        MARargs = llvm::MutableArrayRef<Expr*>(ExtendedCallArgs);
+        if (noOverloadExists(UnresolvedLookup, MARargs))
+          return nullptr;
+      }
+
+      OverloadedFn =
+          m_Sema.ActOnCallExpr(S, UnresolvedLookup, noLoc, MARargs, noLoc)
+              .get();
+      if (!DeclStmts.empty()) {
+        if (!block)
+          block = &getCurrentBlock();
+        for (Stmt* decl : DeclStmts)
+          block->push_back(decl);
+      }
+    }
+    return OverloadedFn;
+  }
+
+  // This method is derived from the source code of both
+  // buildOverloadedCallSet() in SemaOverload.cpp
+  // and ActOnCallExpr() in SemaExpr.cpp.
+  bool VisitorBase::noOverloadExists(Expr* UnresolvedLookup,
+                                     llvm::MutableArrayRef<Expr*> ARargs) {
+    if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
+      OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
+
+      if (!find.HasFormOfMemberPointer) {
+        OverloadExpr* ovl = find.Expression;
+
+        if (isa<UnresolvedLookupExpr>(ovl)) {
+          ExprResult result;
+          SourceLocation Loc;
+          OverloadCandidateSet CandidateSet(Loc,
+                                            OverloadCandidateSet::CSK_Normal);
+          Scope* S = m_Sema.getScopeForContext(m_Sema.CurContext);
+          auto* ULE = cast<UnresolvedLookupExpr>(ovl);
+          // Populate CandidateSet.
+          m_Sema.buildOverloadedCallSet(S, UnresolvedLookup, ULE, ARargs, Loc,
+                                        &CandidateSet, &result);
+          OverloadCandidateSet::iterator Best = nullptr;
+          OverloadingResult OverloadResult = CandidateSet.BestViableFunction(
+              m_Sema, UnresolvedLookup->getBeginLoc(), Best);
+          if (OverloadResult != 0U) // No overloads were found.
+            return true;
+        }
+      }
+      return false;
+    }
+    if (const auto* DRE = dyn_cast<DeclRefExpr>(UnresolvedLookup)) {
+      const auto* FD = cast<FunctionDecl>(DRE->getDecl());
+      return FD->getNumParams() != ARargs.size();
+    }
+    return false;
+  }
+
+  bool VisitorBase::IsDifferentiableType(QualType T) {
+    QualType origType = T;
+    // FIXME: arbitrary dimension array type as well.
+    while (utils::isArrayOrPointerType(T))
+      T = utils::GetValueType(T);
+    T = T.getNonReferenceType();
+    if (T->isEnumeralType())
+      return false;
+    if (T->isFloatingType() || T->isStructureOrClassType())
+      return true;
+    if (origType->isPointerType() && T->isVoidType())
+      return true;
+    return false;
   }
 } // end namespace clad

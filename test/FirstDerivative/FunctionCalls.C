@@ -8,7 +8,7 @@
 #include <cmath>
 
 int printf(const char* fmt, ...);
-int no_body(int x);
+int no_body(float x);
 int custom_fn(int x);
 float custom_fn(float x);
 int custom_fn();
@@ -83,21 +83,21 @@ float test_3() {
 
 // CHECK-NOT: float test_3_darg0() {
 
-float test_4(int x) {
+float test_4(float x) {
   return overloaded();
 }
 
-// CHECK: float test_4_darg0(int x) {
-// CHECK-NEXT: int _d_x = 1;
+// CHECK: float test_4_darg0(float x) {
+// CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: return 0;
 // CHECK-NEXT: }
 
-float test_5(int x) {
+float test_5(float x) {
   return no_body(x);
 }
 
-// CHECK: float test_5_darg0(int x) {
-// CHECK-NEXT: int _d_x = 1;
+// CHECK: float test_5_darg0(float x) {
+// CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::no_body_pushforward(x, _d_x);
 // CHECK-NEXT: return _t0.pushforward;
 // CHECK-NEXT: }
@@ -125,19 +125,16 @@ double test_7(double i, double j) {
   return res;
 }
 
-// CHECK: void increment_pushforward(int &i, int &_d_i);
+// CHECK: void increment_pushforward(int &i);
 
 // CHECK: double test_7_darg0(double i, double j) {
 // CHECK-NEXT: double _d_i = 1;
 // CHECK-NEXT: double _d_j = 0;
 // CHECK-NEXT: double _d_res = 0;
 // CHECK-NEXT: double res = 0;
-// CHECK-NEXT: {
-// CHECK-NEXT:    int _d_i0 = 0;
-// CHECK-NEXT:    for (int i0 = 0; i0 < 5; increment_pushforward(i0, _d_i0)) {
-// CHECK-NEXT:      _d_res += _d_i0 * j + i0 * _d_j;
-// CHECK-NEXT:      res += i0 * j;
-// CHECK-NEXT:    }
+// CHECK-NEXT: for (int i0 = 0; i0 < 5; increment_pushforward(i0)) {
+// CHECK-NEXT:   _d_res += 0 * j + i0 * _d_j;
+// CHECK-NEXT:   res += i0 * j;
 // CHECK-NEXT: }
 // CHECK-NEXT: return _d_res;
 // CHECK-NEXT: }
@@ -156,7 +153,6 @@ double test_8(double x) {
 
 // CHECK: double test_8_darg0(double x) {
 // CHECK-NEXT: double _d_x = 1;
-// CHECK-NEXT: E _d_e;
 // CHECK-NEXT: E e;
 // CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<double, double> _t0 = func_with_enum_pushforward(x, e, _d_x);
 // CHECK-NEXT: return _t0.pushforward;
@@ -175,7 +171,7 @@ int main () {
   clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
   return 0;
 
-// CHECK: void increment_pushforward(int &i, int &_d_i) {
+// CHECK: void increment_pushforward(int &i) {
 // CHECK-NEXT: ++i;
 // CHECK-NEXT: }
 

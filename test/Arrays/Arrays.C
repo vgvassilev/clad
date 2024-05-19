@@ -26,12 +26,9 @@ double sum(double x, double y, double z) {
 //CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       double s = 0;
-//CHECK-NEXT:       {
-//CHECK-NEXT:           int _d_i = 0;
-//CHECK-NEXT:           for (int i = 0; i < 3; i++) {
-//CHECK-NEXT:               _d_s = _d_s + _d_vars[i];
-//CHECK-NEXT:               s = s + vars[i];
-//CHECK-NEXT:           }
+//CHECK-NEXT:       for (int i = 0; i < 3; i++) {
+//CHECK-NEXT:           _d_s = _d_s + _d_vars[i];
+//CHECK-NEXT:           s = s + vars[i];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       return _d_s;
 //CHECK-NEXT:   }
@@ -55,21 +52,15 @@ double sum_squares(double x, double y, double z) {
 //CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double _d_squares[3];
 //CHECK-NEXT:       double squares[3];
-//CHECK-NEXT:       {
-//CHECK-NEXT:           int _d_i = 0;
-//CHECK-NEXT:           for (int i = 0; i < 3; i++) {
-//CHECK-NEXT:               _d_squares[i] = _d_vars[i] * vars[i] + vars[i] * _d_vars[i];
-//CHECK-NEXT:               squares[i] = vars[i] * vars[i];
-//CHECK-NEXT:           }
+//CHECK-NEXT:       for (int i = 0; i < 3; i++) {
+//CHECK-NEXT:           _d_squares[i] = _d_vars[i] * vars[i] + vars[i] * _d_vars[i];
+//CHECK-NEXT:           squares[i] = vars[i] * vars[i];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       double _d_s = 0;
 //CHECK-NEXT:       double s = 0;
-//CHECK-NEXT:       {
-//CHECK-NEXT:           int _d_i = 0;
-//CHECK-NEXT:           for (int i = 0; i < 3; i++) {
-//CHECK-NEXT:               _d_s = _d_s + _d_squares[i];
-//CHECK-NEXT:               s = s + squares[i];
-//CHECK-NEXT:           }
+//CHECK-NEXT:       for (int i = 0; i < 3; i++) {
+//CHECK-NEXT:           _d_s = _d_s + _d_squares[i];
+//CHECK-NEXT:           s = s + squares[i];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       return _d_s;
 //CHECK-NEXT:   }

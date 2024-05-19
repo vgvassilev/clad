@@ -7,20 +7,20 @@
 #include "../TestUtils.h"
 
 namespace function_namespace10 {
-  int func1(int x) {
+  float func1(float x) {
     return x*x*x + x*x;
   }
 
-  int func2(int x) {
+  float func2(float x) {
     return x*x + x;
   }
 
   namespace function_namespace11 {
-    int func3(int x, int y) {
+    float func3(float x, float y) {
       return x*x*x + y*y;
     }
 
-    int func4(int x, int y) {
+    float func4(float x, float y) {
       return x*x + y;
     }
   }
@@ -35,21 +35,21 @@ namespace function_namespace2 {
     return x*x + x;
   }
 
-  int func3(int x, int y) {
+  float func3(float x, float y) {
     return function_namespace10::function_namespace11::func4(x, y);
   }
 }
 
-int test_1(int x, int y) {
+float test_1(float x, float y) {
   return function_namespace2::func3(x, y);
 }
 
-// CHECK: clad::ValueAndPushforward<int, int> func3_pushforward(int x, int y, int _d_x, int _d_y);
+// CHECK: clad::ValueAndPushforward<float, float> func3_pushforward(float x, float y, float _d_x, float _d_y);
 
-// CHECK: int test_1_darg1(int x, int y) {
-// CHECK-NEXT:     int _d_x = 0;
-// CHECK-NEXT:     int _d_y = 1;
-// CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t0 = func3_pushforward(x, y, _d_x, _d_y);
+// CHECK: float test_1_darg1(float x, float y) {
+// CHECK-NEXT:     float _d_x = 0;
+// CHECK-NEXT:     float _d_y = 1;
+// CHECK-NEXT:     clad::ValueAndPushforward<float, float> _t0 = func3_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -92,14 +92,14 @@ int main () {
   INIT_DIFFERENTIATE(test_1, 1);
   INIT_DIFFERENTIATE(fn1, "j");
 
-  TEST_DIFFERENTIATE(test_1, 3, 5);   // CHECK-EXEC: {1}
+  TEST_DIFFERENTIATE(test_1, 3, 5);   // CHECK-EXEC: {1.00}
   TEST_DIFFERENTIATE(fn1, 3, 5);      // CHECK-EXEC: {2.00}
 
 
-  // CHECK: clad::ValueAndPushforward<int, int> func4_pushforward(int x, int y, int _d_x, int _d_y);
+  // CHECK: clad::ValueAndPushforward<float, float> func4_pushforward(float x, float y, float _d_x, float _d_y);
 
-  // CHECK: clad::ValueAndPushforward<int, int> func3_pushforward(int x, int y, int _d_x, int _d_y) {
-  // CHECK-NEXT:     clad::ValueAndPushforward<int, int> _t0 = func4_pushforward(x, y, _d_x, _d_y);
+  // CHECK: clad::ValueAndPushforward<float, float> func3_pushforward(float x, float y, float _d_x, float _d_y) {
+  // CHECK-NEXT:     clad::ValueAndPushforward<float, float> _t0 = func4_pushforward(x, y, _d_x, _d_y);
   // CHECK-NEXT:     return {_t0.value, _t0.pushforward};
   // CHECK-NEXT: }
 
@@ -110,7 +110,7 @@ int main () {
   // CHECK-NEXT:     return {3, 0};
   // CHECK-NEXT: }
 
-  // CHECK: clad::ValueAndPushforward<int, int> func4_pushforward(int x, int y, int _d_x, int _d_y) {
+  // CHECK: clad::ValueAndPushforward<float, float> func4_pushforward(float x, float y, float _d_x, float _d_y) {
   // CHECK-NEXT:     return {x * x + y, _d_x * x + x * _d_x + _d_y};
   // CHECK-NEXT: }
 

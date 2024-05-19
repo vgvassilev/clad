@@ -30,10 +30,8 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 
 // CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
-//CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     double _d_t = 0;
 //CHECK-NEXT:     unsigned long _t0;
-//CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _t2;
@@ -60,7 +58,6 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         double _r2 = 0;
 //CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t4 * _t5, &_r1, &_r2);
-//CHECK-NEXT:         _d_dim += -_r2 / 2.;
 //CHECK-NEXT:         double _r3 = 0;
 //CHECK-NEXT:         double _r4 = 0;
 //CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, _t6 * 1 * _t4, &_r3, &_r4);

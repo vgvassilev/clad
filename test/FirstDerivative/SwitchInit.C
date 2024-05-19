@@ -19,11 +19,9 @@ double fn1(double i, double j, int choice) {
 // CHECK: double fn1_darg0(double i, double j, int choice) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         short _d_effective_choice = _d_choice + 0, _d_another_choice = _d_choice + 0;
 // CHECK-NEXT:         switch ({{(short effective_choice = choice \+ 1, another_choice = choice \+ 2; )?}}effective_choice) {
 // CHECK-NEXT:           case 1:
 // CHECK-NEXT:             {

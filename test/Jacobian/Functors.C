@@ -75,9 +75,9 @@ struct ExperimentVolatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     _t0 = this->x * i;
-  // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     output[0] = _t0 * i * j;
   // CHECK-NEXT:     _t1 = this->y * i;
-  // CHECK-NEXT:     output[1] = this->y * i * j * j;
+  // CHECK-NEXT:     output[1] = _t1 * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += this->y * 1 * j * j;
   // CHECK-NEXT:         jacobianMatrix[{{3U|3UL}}] += _t1 * 1 * j;
@@ -106,9 +106,9 @@ struct ExperimentConstVolatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     double _t1;
   // CHECK-NEXT:     _t0 = this->x * i;
-  // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     output[0] = _t0 * i * j;
   // CHECK-NEXT:     _t1 = this->y * i;
-  // CHECK-NEXT:     output[1] = this->y * i * j * j;
+  // CHECK-NEXT:     output[1] = _t1 * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += this->y * 1 * j * j;
   // CHECK-NEXT:         jacobianMatrix[{{3U|3UL}}] += _t1 * 1 * j;

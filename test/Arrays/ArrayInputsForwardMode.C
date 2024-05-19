@@ -30,15 +30,11 @@ double addArr(const double *arr, int n) {
 }
 
 //CHECK:   double addArr_darg0_1(const double *arr, int n) {
-//CHECK-NEXT:       int _d_n = 0;
 //CHECK-NEXT:       double _d_ret = 0;
 //CHECK-NEXT:       double ret = 0;
-//CHECK-NEXT:       {
-//CHECK-NEXT:           int _d_i = 0;
-//CHECK-NEXT:           for (int i = 0; i < n; i++) {
-//CHECK-NEXT:               _d_ret += (i == 1.);
-//CHECK-NEXT:               ret += arr[i];
-//CHECK-NEXT:           }
+//CHECK-NEXT:       for (int i = 0; i < n; i++) {
+//CHECK-NEXT:           _d_ret += (i == 1.);
+//CHECK-NEXT:           ret += arr[i];
 //CHECK-NEXT:       }
 //CHECK-NEXT:       return _d_ret;
 //CHECK-NEXT:   }
@@ -59,25 +55,17 @@ double numMultIndex(double* arr, size_t n, double x) {
 }
 
 // CHECK:   double numMultIndex_darg2(double *arr, size_t n, double x) {
-// CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     double _d_x = 1;
-// CHECK-NEXT:     bool _d_flag = 0;
 // CHECK-NEXT:     bool flag = false;
-// CHECK-NEXT:     size_t _d_idx = 0;
 // CHECK-NEXT:     size_t idx = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         size_t _d_i = 0;
-// CHECK-NEXT:         for (size_t i = 0; i < n; ++i) {
-// CHECK-NEXT:             if (arr[i] == x) {
-// CHECK-NEXT:                 _d_flag = 0;
-// CHECK-NEXT:                 flag = true;
-// CHECK-NEXT:                 _d_idx = _d_i;
-// CHECK-NEXT:                 idx = i;
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:             }
+// CHECK-NEXT:     for (size_t i = 0; i < n; ++i) {
+// CHECK-NEXT:         if (arr[i] == x) {
+// CHECK-NEXT:             flag = true;
+// CHECK-NEXT:             idx = i;
+// CHECK-NEXT:             break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return flag ? _d_idx * x + idx * _d_x : 0;
+// CHECK-NEXT:     return flag ? 0 * x + idx * _d_x : 0;
 // CHECK-NEXT: }
 
 int main() {

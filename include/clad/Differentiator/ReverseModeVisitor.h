@@ -80,14 +80,6 @@ namespace clad {
         return "_grad";
     }
 
-    /// Removes the local const qualifiers from a QualType and returns a new
-    /// type.
-    static clang::QualType
-    getNonConstType(clang::QualType T, clang::ASTContext& C, clang::Sema& S) {
-        clang::Qualifiers quals(T.getQualifiers());
-        quals.removeConst();
-        return S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
-    }
     // Function to Differentiate with Clad as Backend
     void DifferentiateWithClad();
 
@@ -197,8 +189,9 @@ namespace clad {
                              clang::VarDecl::InitializationStyle IS =
                                  clang::VarDecl::InitializationStyle::CInit) {
       assert(E && "cannot infer type from null expression");
-      return StoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema), d,
-                         prefix, forceDeclCreation, IS);
+      return StoreAndRef(
+          E, clad::utils::getNonConstType(E->getType(), m_Context, m_Sema), d,
+          prefix, forceDeclCreation, IS);
     }
 
     /// An overload allowing to specify the type for the variable.
@@ -443,7 +436,9 @@ namespace clad {
     /// Builds an overload for the gradient function that has derived params for
     /// all the arguments of the requested function and it calls the original
     /// gradient function internally
-    clang::FunctionDecl* CreateGradientOverload();
+    /// \param[in] numExtraParam The number of extra parameters requested by an
+    /// external source (e.g. the final error in error estimation).
+    clang::FunctionDecl* CreateGradientOverload(unsigned numExtraParam = 0);
 
     /// Returns the type that should be used to represent the derivative of a
     /// variable of type `yType` with respect to a parameter variable of type
