@@ -109,6 +109,7 @@ public:
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
   StmtDiff VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
   StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
+  StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
   static DeclDiff<clang::StaticAssertDecl>
   DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 

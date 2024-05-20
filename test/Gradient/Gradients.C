@@ -901,6 +901,18 @@ double fn_cond_init(double x) {
 //CHECK-NEXT:              }
 //CHECK-NEXT:          }
 
+double fn_null_stmts(double x) {
+    ;;;;;;;;;;;;;;;;;
+    ;;;;;return x;;;;
+    ;;;;;;;;;;;;;;;;;
+} // = x
+
+//CHECK:               void fn_null_stmts_grad(double x, double *_d_x) {
+//CHECK-NEXT:              goto _label0;
+//CHECK-NEXT:            _label0:
+//CHECK-NEXT:              *_d_x += 1;
+//CHECK-NEXT:          }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -971,4 +983,6 @@ int main() {
   INIT_GRADIENT(fn_cond_init);
   TEST_GRADIENT(fn_cond_init, /*numOfDerivativeArgs=*/1, 0, &dx); // CHECK-EXEC: 1.00
   TEST_GRADIENT(fn_cond_init, /*numOfDerivativeArgs=*/1, -1, &dx); // CHECK-EXEC: 1.00
+
+  INIT_GRADIENT(fn_null_stmts);
 }

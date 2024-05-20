@@ -7,7 +7,7 @@ extern "C" int printf(const char* fmt, ...);
 
 int f(int x) {
   printf("This is f(x).\n");
-  return x*x + x - x*x*x*x;
+  return x*x + x - x*x*x*x;;
 }
 
 int main () {
