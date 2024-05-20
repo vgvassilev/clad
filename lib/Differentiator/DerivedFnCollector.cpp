@@ -8,7 +8,11 @@ void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
          "`DerivedFnCollector::Add` more than once for the same derivative "
          ". Ideally, we shouldn't do either.");
   m_DerivedFnInfoCollection[DFI.OriginalFn()].push_back(DFI);
-  m_DerivativeSet.insert(DFI.DerivedFn());
+  AddToDerivativeSet(DFI.DerivedFn());
+}
+
+void DerivedFnCollector::AddToDerivativeSet(const clang::FunctionDecl* FD) {
+  m_DerivativeSet.insert(FD);
 }
 
 bool DerivedFnCollector::AlreadyExists(const DerivedFnInfo& DFI) const {

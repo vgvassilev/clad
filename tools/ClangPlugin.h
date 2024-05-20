@@ -170,11 +170,12 @@ public:
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
       if (D.isSingleDecl())
         if (auto* FD = llvm::dyn_cast<clang::FunctionDecl>(D.getSingleDecl()))
-          if (m_DFC.IsDerivative(FD)) {
-            assert(!m_Multiplexer &&
-                   "Must happen only if we failed to rearrange the consumers");
+          // If we build the derivative in a non-standard (with no Multiplexer)
+          // setup, we exit early to give control to the non-standard setup for
+          // code generation.
+          // FIXME: This should go away if Cling starts using the clang driver.
+          if (!m_Multiplexer && m_DFC.IsDerivative(FD))
             return true;
-          }
 
       HandleTopLevelDeclForClad(D);
       AppendDelayed({CallKind::HandleTopLevelDecl, D});

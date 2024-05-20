@@ -407,12 +407,17 @@ namespace clad {
       Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
       Sema::LocalEagerInstantiationScope LocalInstantiations(S);
 
-      DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
-      while (request.Function != nullptr) {
-        m_DiffRequestGraph.setCurrentProcessingNode(request);
-        ProcessDiffRequest(request);
-        m_DiffRequestGraph.markCurrentNodeProcessed();
-        request = m_DiffRequestGraph.getNextToProcessNode();
+      if (!m_DiffRequestGraph.isProcessingNode()) {
+        // This check is to avoid recursive processing of the graph, as
+        // HandleTopLevelDecl can be called recursively in non-standard
+        // setup for code generation.
+        DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
+        while (request.Function) {
+          m_DiffRequestGraph.setCurrentProcessingNode(request);
+          ProcessDiffRequest(request);
+          m_DiffRequestGraph.markCurrentNodeProcessed();
+          request = m_DiffRequestGraph.getNextToProcessNode();
+        }
       }
 
       // Put the TUScope in a consistent state after clad is done.
