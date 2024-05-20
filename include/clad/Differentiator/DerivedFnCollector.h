@@ -27,6 +27,9 @@ public:
   /// Adds a derived function to the collection.
   void Add(const DerivedFnInfo& DFI);
 
+  /// Adds a function to derivative set.
+  void AddToDerivativeSet(const clang::FunctionDecl* FD);
+
   /// Finds a `DerivedFnInfo` object in the collection that satisfies the
   /// given differentiation request.
   DerivedFnInfo Find(const DiffRequest& request) const;

@@ -37,7 +37,7 @@ using namespace clang;
 namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                                     const DerivedFnCollector& DFC,
+                                     DerivedFnCollector& DFC,
                                      clad::DynamicGraph<DiffRequest>& G)
     : m_Sema(S), m_CladPlugin(P), m_Context(S.getASTContext()), m_DFC(DFC),
       m_DiffRequestGraph(G),
@@ -253,6 +253,17 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
       OverloadedFn =
           m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc).get();
+
+      // Add the custom derivative to the set of derivatives.
+      // This is required in case the definition of the custom derivative
+      // is not found in the current translation unit and is linked in
+      // from another translation unit.
+      // Adding it to the set of derivatives ensures that the custom
+      // derivative is not differentiated again using numerical
+      // differentiation due to unavailable definition.
+      if (auto* CE = dyn_cast<CallExpr>(OverloadedFn))
+        if (FunctionDecl* FD = CE->getDirectCallee())
+          m_DFC.AddToDerivativeSet(FD);
     }
     return OverloadedFn;
   }

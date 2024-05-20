@@ -98,6 +98,10 @@ public:
     m_currentId = -1;
   }
 
+  /// Check if currently processing a node.
+  /// \returns True if currently processing a node, false otherwise.
+  bool isProcessingNode() { return m_currentId != -1; }
+
   /// Get the nodes in the graph.
   std::vector<T> getNodes() { return m_nodes; }
 

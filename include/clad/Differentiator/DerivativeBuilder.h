@@ -83,7 +83,7 @@ namespace clad {
     clang::Sema& m_Sema;
     plugin::CladPlugin& m_CladPlugin;
     clang::ASTContext& m_Context;
-    const DerivedFnCollector& m_DFC;
+    DerivedFnCollector& m_DFC;
     clad::DynamicGraph<DiffRequest>& m_DiffRequestGraph;
     std::unique_ptr<utils::StmtClone> m_NodeCloner;
     clang::NamespaceDecl* m_BuiltinDerivativesNSD;
@@ -135,7 +135,7 @@ namespace clad {
 
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
-                      const DerivedFnCollector& DFC,
+                      DerivedFnCollector& DFC,
                       clad::DynamicGraph<DiffRequest>& DRG);
     ~DerivativeBuilder();
     /// Reset the model use for error estimation (if any).
