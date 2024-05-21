@@ -14,14 +14,14 @@ set_property(DIRECTORY APPEND PROPERTY
 endif(CLAD_ENABLE_BENCHMARKS)
 
 #-------------------------------------------------------------------------------
-# function ENABLE_CLAD_FOR_EXECUTABLE(<executable>
+# function ENABLE_CLAD_FOR_TARGET(<executable>
 #   DEPENDS dependencies...
 #     A list of targets that the executable depends on.
 #   LIBRARIES libraries...
 #     A list of libraries to be linked in. Defaults to stdc++ pthread m.
 # )
 #-------------------------------------------------------------------------------
-function(ENABLE_CLAD_FOR_EXECUTABLE executable)
+function(ENABLE_CLAD_FOR_TARGET executable)
   if (NOT TARGET ${executable})
     message(FATAL_ERROR "'${executable}' is not a valid target.")
   endif()
@@ -56,7 +56,26 @@ function(ENABLE_CLAD_FOR_EXECUTABLE executable)
     add_dependencies(${executable} ${ARG_DEPENDS})
   endif(ARG_DEPENDS)
 
-endfunction(ENABLE_CLAD_FOR_EXECUTABLE)
+endfunction(ENABLE_CLAD_FOR_TARGET)
+
+#-------------------------------------------------------------------------------
+# function ADD_CLAD_LIBRARY(<library> sources...
+#   DEPENDS dependencies...
+#     A list of targets that the library depends on.
+#   LIBRARIES libraries...
+#     A list of libraries to be linked in. Defaults to stdc++ pthread m.
+# )
+#-------------------------------------------------------------------------------
+function(ADD_CLAD_LIBRARY library)
+  cmake_parse_arguments(ARG "" "DEPENDS;LIBRARIES" "" ${ARGN})
+
+  set(source_files ${ARG_UNPARSED_ARGUMENTS})
+
+  add_library (${library} ${source_files})
+  ENABLE_CLAD_FOR_TARGET(${library} ${ARGN})
+
+endfunction(ADD_CLAD_LIBRARY)
+
 
 #-------------------------------------------------------------------------------
 # function ADD_CLAD_EXECUTABLE(<executable> sources...
@@ -73,7 +92,7 @@ function(ADD_CLAD_EXECUTABLE executable)
 
   add_executable(${executable} ${source_files})
 
-  ENABLE_CLAD_FOR_EXECUTABLE(${executable} ${ARGN})
+  ENABLE_CLAD_FOR_TARGET(${executable} ${ARGN})
 
 endfunction(ADD_CLAD_EXECUTABLE)
 

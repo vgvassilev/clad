@@ -5,10 +5,8 @@ add_clad_unittest(MiscTests
   DynamicGraph.cpp
 )
 
-# Create a library from Defs.cpp
-add_library(Defs SHARED Defs.cpp)
-target_include_directories(Defs PUBLIC ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(Defs PUBLIC stdc++ pthread m)
+# Create a library from the Defs.cpp file
+ADD_CLAD_LIBRARY(Defs Defs.cpp)
 
 # Link the library to the test
 target_link_libraries(MiscTests PRIVATE Defs)
