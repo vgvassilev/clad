@@ -19,7 +19,7 @@ function(add_clad_unittest test_dirname)
   list(REMOVE_ITEM GTEST_LINKED_LIBS llvm_gtest_main llvm_gtest)
   set_property(TARGET ${test_dirname} PROPERTY LINK_LIBRARIES ${GTEST_LINKED_LIBS})
 
-  enable_clad_for_executable(${test_dirname})
+  enable_clad_for_target(${test_dirname})
 
   # Add gtest dependencies.
   set(gtest_libs gtest gtest_main)
