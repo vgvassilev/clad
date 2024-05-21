@@ -26,36 +26,52 @@ External Dependencies
 
 Forward Mode & Reverse Mode
 ---------------------------
-*
+* Add support for C-style memory alloc and free
 
-Forward Mode
-------------
-*
 
 Reverse Mode
 ------------
-*
+* Replace array_ref with pointers in gradient signature
+* Initial support for new and delete operations in reverse mode
 
-CUDA
-----
-*
 
 Error Estimation
 ----------------
-*
+* Only track sizes of independent arrays
+* Remove .size() from error estimation
+* Simplify error estimation by removing `_EERepl_` and `_delta_`
 
 Misc
 ----
-*
+* Teach binder to use the newest available version of clad
+* Simplify pullback calls by replacing `_grad`/`_r` pairs with single `_r`
+  variables
+* Delay the differentiation process until the end of TU -- Clad now can operate
+  just like clang and visit the entire translation unit to construct a precise
+  differentiation plan
+* Remove extra lines generated when using clad::array or array_ref
+* Added timings report if `-ftime-report` flag is enabled
 
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
-
- <!---Get release bugs. Check for close, fix, resolve
- git log v1.4..master | grep -i "close" | grep '#' | sed -E 's,.*\#([0-9]*).*,\[\1\]\(https://github.com/vgvassilev/clad/issues/\1\),g' | sort
- --->
+[248](https://github.com/vgvassilev/clad/issues/248)
+[350](https://github.com/vgvassilev/clad/issues/350)
+[704](https://github.com/vgvassilev/clad/issues/704)
+[715](https://github.com/vgvassilev/clad/issues/715)
+[765](https://github.com/vgvassilev/clad/issues/765)
+[769](https://github.com/vgvassilev/clad/issues/769)
+[790](https://github.com/vgvassilev/clad/issues/790)
+[792](https://github.com/vgvassilev/clad/issues/792)
+[798](https://github.com/vgvassilev/clad/issues/798)
+[805](https://github.com/vgvassilev/clad/issues/805)
+[854](https://github.com/vgvassilev/clad/issues/854)
+[865](https://github.com/vgvassilev/clad/issues/865)
+[867](https://github.com/vgvassilev/clad/issues/867)
+[886](https://github.com/vgvassilev/clad/issues/886)
+[887](https://github.com/vgvassilev/clad/issues/887)
+[890](https://github.com/vgvassilev/clad/issues/890)
+[897](https://github.com/vgvassilev/clad/issues/897)
 
 Special Kudos
 =============
@@ -67,6 +83,17 @@ FirstName LastName (#commits)
 
 A B (N)
 
-<!---Find contributor list for this release
- git log --pretty=format:"%an"  v1.4...master | sort | uniq -c | sort -rn | sed -E 's,^ *([0-9]+) (.*)$,\2 \(\1\),'
---->
+petro.zarytskyi (30)
+Vaibhav Thakkar (24)
+Vassil Vassilev (21)
+mcbarton (6)
+Mihail Mihov (4)
+dependabot[bot] (2)
+Atell Krasnopolski (2)
+Alexander Penev (2)
+sauravUppoor (1)
+kchristin22 (1)
+Warren Jacinto (1)
+Jonas Hahnfeld (1)
+Deeptendu Santra (1)
+Christina Koutsou (1)
