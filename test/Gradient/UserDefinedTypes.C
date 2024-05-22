@@ -331,7 +331,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     Tangent _t6;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
@@ -356,10 +356,10 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             res = clad::pop(_t1);
 // CHECK-NEXT:             double _r_d0 = _d_res;
-// CHECK-NEXT:             std{{(::__1)?}}::complex<double> _r0 = clad::pop(_t2);
-// CHECK-NEXT:             _r0.real_pullback(_r_d0, &(*_d_c));
-// CHECK-NEXT:             std{{(::__1)?}}::complex<double> _r1 = clad::pop(_t4);
-// CHECK-NEXT:             _r1.imag_pullback(2 * _r_d0, &(*_d_c));
+// CHECK-NEXT:             clad::back(_t2).real_pullback(_r_d0, &(*_d_c));
+// CHECK-NEXT:             clad::pop(_t2);
+// CHECK-NEXT:             clad::back(_t4).imag_pullback(2 * _r_d0, &(*_d_c));
+// CHECK-NEXT:             clad::pop(_t4);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -411,7 +411,7 @@ int main() {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
@@ -435,7 +435,7 @@ int main() {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, res);
@@ -493,7 +493,7 @@ int main() {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, this->data[i]);

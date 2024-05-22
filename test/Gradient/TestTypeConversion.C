@@ -23,7 +23,7 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 1; i < a; i++) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, z);

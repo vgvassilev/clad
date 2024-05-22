@@ -22,7 +22,7 @@ float func(float* p, int n) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} p_size = 0;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -67,7 +67,7 @@ float func2(float x) {
 //CHECK-NEXT:     float m = 0;
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float z;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 9; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, m) , m = x * x;
@@ -168,7 +168,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     unsigned {{int|long}} y_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 10; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, x[i]);

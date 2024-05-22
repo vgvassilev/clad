@@ -47,7 +47,7 @@ float func(float* a, float* b) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, a[i]);
@@ -95,7 +95,7 @@ float func2(float* a) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -129,7 +129,7 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -168,7 +168,7 @@ double func4(double x) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double arr[3] = {x, 2 * x, x * x};
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -226,14 +226,14 @@ double func5(int k) {
 //CHECK-NEXT:     double _d_arr[n];
 //CHECK-NEXT:     clad::zero_init(_d_arr, n);
 //CHECK-NEXT:     double arr[n];
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, arr[i]);
 //CHECK-NEXT:         arr[i] = k;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t2 = 0;
+//CHECK-NEXT:     _t2 = {{0U|0UL}};
 //CHECK-NEXT:     for (i0 = 0; i0 < 3; i0++) {
 //CHECK-NEXT:         _t2++;
 //CHECK-NEXT:         clad::push(_t3, sum);
@@ -283,7 +283,7 @@ double func6(double seed) {
 //CHECK-NEXT:     clad::array<double> arr({{3U|3UL}});
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 3; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, arr) , arr = {seed, seed * i, seed + i};
@@ -338,7 +338,7 @@ double func7(double *params) {
 //CHECK-NEXT:     clad::array<double> paramsPrime({{1U|1UL}});
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double out = 0.;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < 1; ++i) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, paramsPrime) , paramsPrime = {params[0]};
@@ -438,7 +438,7 @@ double func9(double i, double j) {
 //CHECK-NEXT:     int idx = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double arr[5] = {};
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (idx = 0; idx < 5; ++idx) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, arr[idx]);
@@ -456,11 +456,11 @@ double func9(double i, double j) {
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         --idx;
 //CHECK-NEXT:         {
-//CHECK-NEXT:             double _r0 = clad::pop(_t1);
-//CHECK-NEXT:             arr[idx] = _r0;
-//CHECK-NEXT:             double _r1 = 0;
-//CHECK-NEXT:             modify_pullback(_r0, i, &_d_arr[idx], &_r1);
-//CHECK-NEXT:             *_d_i += _r1;
+//CHECK-NEXT:             arr[idx] = clad::back(_t1);
+//CHECK-NEXT:             double _r0 = 0;
+//CHECK-NEXT:             modify_pullback(clad::back(_t1), i, &_d_arr[idx], &_r0);
+//CHECK-NEXT:             clad::pop(_t1);
+//CHECK-NEXT:             *_d_i += _r0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -489,7 +489,7 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     double res = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < n; ++i) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, res);
@@ -504,9 +504,9 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             res = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_res;
-//CHECK-NEXT:             double _r0 = clad::pop(_t2);
-//CHECK-NEXT:             arr[i] = _r0;
-//CHECK-NEXT:             sq_pullback(_r0, _r_d0, &_d_arr[i]);
+//CHECK-NEXT:             arr[i] = clad::back(_t2);
+//CHECK-NEXT:             sq_pullback(clad::back(_t2), _r_d0, &_d_arr[i]);
+//CHECK-NEXT:             clad::pop(_t2);
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -584,7 +584,7 @@ int main() {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double ret = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, ret);

@@ -242,17 +242,17 @@ namespace clad {
     /// it into m_Globals block (to be inserted into the beginning of fn's
     /// body). Returns reference R to the created declaration. If E is not null,
     /// puts an additional assignment statement (R = E) in the forward block.
-    /// Alternatively, if isInsideLoop is true, stores E in a stack. Returns
-    /// StmtDiff, where .getExpr() is intended to be used in forward pass and
-    /// .getExpr_dx() in the reverse pass. Two expressions can be different in
-    /// some cases, e.g. clad::push/pop inside loops.
-    StmtDiff GlobalStoreAndRef(clang::Expr* E,
-                               clang::QualType Type,
-                               llvm::StringRef prefix = "_t",
-                               bool force = false);
-    StmtDiff GlobalStoreAndRef(clang::Expr* E,
-                               llvm::StringRef prefix = "_t",
-                               bool force = false);
+    /// Alternatively, if isInsideLoop is true, stores E in a stack S. Puts a
+    /// push statement (clad::push(S, E)) in the forward block and a pop
+    /// statement
+    /// ((clad::pop(S))) in the reverse block. Returns a reference to the top
+    /// of the stack (clad::back(S)).
+    clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
+                                   llvm::StringRef prefix = "_t",
+                                   bool force = false);
+    clang::Expr* GlobalStoreAndRef(clang::Expr* E,
+                                   llvm::StringRef prefix = "_t",
+                                   bool force = false);
     StmtDiff BuildPushPop(clang::Expr* E, clang::QualType Type,
                           llvm::StringRef prefix = "_t", bool force = false);
     StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",

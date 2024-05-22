@@ -277,12 +277,13 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     clad::tape<double> _t5 = {};
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     int counter = 2;
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     while (counter--)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _t0++;
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 switch (clad::push(_cond0, counter)) {
+// CHECK-NEXT:                 clad::push(_cond0, counter);
+// CHECK-NEXT:                 switch (clad::back(_cond0)) {
 // CHECK-NEXT:                     {
 // CHECK-NEXT:                       case 0:
 // CHECK-NEXT:                         res += i * i * j * j;
@@ -415,7 +416,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:               case 1:
 // CHECK-NEXT:                 counter = 2;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             _t2 = 0;
+// CHECK-NEXT:             _t2 = {{0U|0UL}};
 // CHECK-NEXT:             while (counter--)
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     _t2++;
@@ -604,11 +605,12 @@ double fn7(double u, double v) {
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = 0;
+// CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; i < 5; ++i) {
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             switch (clad::push(_cond0, i)) {
+// CHECK-NEXT:             clad::push(_cond0, i)
+// CHECK-NEXT:             switch (clad::back(_cond0)) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                   case 0:
 // CHECK-NEXT:                     {
