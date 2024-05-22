@@ -23,7 +23,7 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} f_size = 0;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 1; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
@@ -72,7 +72,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     unsigned {{int|long}} a_size = 0;
 //CHECK-NEXT:     unsigned {{int|long}} b_size = 0;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, {{0U|0UL}});
@@ -131,7 +131,7 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     unsigned {{int|long}} b_size = 0;
 //CHECK-NEXT:     unsigned {{int|long}} a_size = 0;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < n; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);

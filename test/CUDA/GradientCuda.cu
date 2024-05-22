@@ -42,7 +42,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:     double _t5;
 //CHECK-NEXT:     double _t6;
 //CHECK-NEXT:     double t = 0;
-//CHECK-NEXT:     _t0 = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; i < dim; i++) {
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, t);

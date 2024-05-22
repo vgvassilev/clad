@@ -113,7 +113,7 @@
 //CHECK_FLOAT_SUM:     unsigned int i = 0;
 //CHECK_FLOAT_SUM:     clad::tape<float> _t1 = {};
 //CHECK_FLOAT_SUM:     float sum = 0.;
-//CHECK_FLOAT_SUM:     _t0 = 0;
+//CHECK_FLOAT_SUM:     _t0 = {{0U|0UL}};
 //CHECK_FLOAT_SUM:     for (i = 0; i < n; i++) {
 //CHECK_FLOAT_SUM:         _t0++;
 //CHECK_FLOAT_SUM:         clad::push(_t1, sum);

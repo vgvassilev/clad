@@ -801,12 +801,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // to this scope.
     beginScope(Scope::DeclScope | Scope::ControlScope);
 
-    // Condition has to be stored as a "global" variable, to take the correct
-    // branch in the reverse pass.
-    // If we are inside loop, the condition has to be stored in a stack after
-    // the if statement.
-    Expr* PushCond = nullptr;
-    Expr* PopCond = nullptr;
     // Create a block "around" if statement, e.g:
     // {
     //   ...
@@ -837,38 +831,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(RCS, direction::reverse);
     }
 
-    if (isInsideLoop) {
-      // If we are inside for loop, cond will be stored in the following way:
-      // forward:
-      // _t = cond;
-      // if (_t) { ... }
-      // clad::push(..., _t);
-      // reverse:
-      // if (clad::pop(...)) { ... }
-      // Simply doing
-      // if (clad::push(..., _t) { ... }
-      // is incorrect when if contains return statement inside: return will
-      // skip corresponding push.
-      condDiff = StoreAndRef(condDiff.getExpr(), m_Context.BoolTy,
-                             direction::forward, "_t",
-                             /*forceDeclCreation=*/true);
-      StmtDiff condPushPop =
-          GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond",
-                            /*force=*/true);
-      PushCond = condPushPop.getExpr();
-      PopCond = condPushPop.getExpr_dx();
-    } else
-      condDiff =
-          GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond");
-    // Convert cond to boolean condition. We are modifying each Stmt in
-    // StmtDiff.
-    for (Stmt*& S : condDiff.getBothStmts())
-      if (S)
-        S = m_Sema
-                .ActOnCondition(getCurrentScope(), noLoc, cast<Expr>(S),
-                                Sema::ConditionKind::Boolean)
-                .get()
-                .second;
+    // Condition has to be stored as a "global" variable, to take the correct
+    // branch in the reverse pass.
+    Expr* condDiffStored =
+        GlobalStoreAndRef(condDiff.getExpr(), m_Context.BoolTy, "_cond");
+    // Convert cond to boolean condition.
+    if (condDiffStored)
+      condDiffStored =
+          m_Sema
+              .ActOnCondition(getCurrentScope(), noLoc, condDiffStored,
+                              Sema::ConditionKind::Boolean)
+              .get()
+              .second;
 
     auto VisitBranch = [&](const Stmt* Branch) -> StmtDiff {
       if (!Branch)
@@ -897,19 +871,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff elseDiff = VisitBranch(If->getElse());
 
     Stmt* Forward = clad_compat::IfStmt_Create(
-        m_Context, noLoc, If->isConstexpr(), nullptr, nullptr,
-        condDiff.getExpr(), noLoc, noLoc, thenDiff.getStmt(), noLoc,
+        m_Context, noLoc, If->isConstexpr(), /*Init=*/nullptr, /*Var=*/nullptr,
+        condDiffStored, noLoc, noLoc, thenDiff.getStmt(), noLoc,
         elseDiff.getStmt());
     addToCurrentBlock(Forward, direction::forward);
 
-    Expr* reverseCond = condDiff.getExpr_dx();
-    if (isInsideLoop) {
-      addToCurrentBlock(PushCond, direction::forward);
-      reverseCond = PopCond;
-    }
     Stmt* Reverse = clad_compat::IfStmt_Create(
-        m_Context, noLoc, If->isConstexpr(), nullptr, nullptr, reverseCond,
-        noLoc, noLoc, thenDiff.getStmt_dx(), noLoc, elseDiff.getStmt_dx());
+        m_Context, noLoc, If->isConstexpr(), /*Init=*/nullptr, /*Var=*/nullptr,
+        condDiffStored, noLoc, noLoc, thenDiff.getStmt_dx(), noLoc,
+        elseDiff.getStmt_dx());
     addToCurrentBlock(Reverse, direction::reverse);
     CompoundStmt* ForwardBlock = endBlock(direction::forward);
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
@@ -920,18 +890,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff ReverseModeVisitor::VisitConditionalOperator(
       const clang::ConditionalOperator* CO) {
-    StmtDiff cond = Clone(CO->getCond());
+    StmtDiff condDiff = Visit(CO->getCond());
+    beginBlock(direction::reverse);
+    addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
     // Condition has to be stored as a "global" variable, to take the correct
     // branch in the reverse pass.
-    cond = GlobalStoreAndRef(Visit(cond.getExpr()).getExpr(), "_cond");
-    // Convert cond to boolean condition. We are modifying each Stmt in
-    // StmtDiff.
-    for (Stmt*& S : cond.getBothStmts())
-      S = m_Sema
-              .ActOnCondition(getCurrentScope(), noLoc, cast<Expr>(S),
-                              Sema::ConditionKind::Boolean)
-              .get()
-              .second;
+    Expr* condStored = GlobalStoreAndRef(condDiff.getExpr(), "_cond");
+    // Convert cond to boolean condition.
+    condStored = m_Sema
+                     .ActOnCondition(getCurrentScope(), noLoc, condStored,
+                                     Sema::ConditionKind::Boolean)
+                     .get()
+                     .second;
 
     auto* ifTrue = CO->getTrueExpr();
     auto* ifFalse = CO->getFalseExpr();
@@ -973,19 +943,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     };
 
     Stmt* Forward =
-        BuildIf(cond.getExpr(), ifTrueDiff.getStmt(), ifFalseDiff.getStmt());
-    Stmt* Reverse = BuildIf(cond.getExpr_dx(),
-                            ifTrueDiff.getStmt_dx(),
-                            ifFalseDiff.getStmt_dx());
+        BuildIf(condStored, ifTrueDiff.getStmt(), ifFalseDiff.getStmt());
+    Stmt* Reverse =
+        BuildIf(condStored, ifTrueDiff.getStmt_dx(), ifFalseDiff.getStmt_dx());
     if (Forward)
       addToCurrentBlock(Forward, direction::forward);
     if (Reverse)
       addToCurrentBlock(Reverse, direction::reverse);
 
     Expr* condExpr = m_Sema
-                         .ActOnConditionalOp(noLoc,
-                                             noLoc,
-                                             cond.getExpr(),
+                         .ActOnConditionalOp(noLoc, noLoc, condStored,
                                              ifTrueExprDiff.getExpr(),
                                              ifFalseExprDiff.getExpr())
                          .get();
@@ -994,14 +961,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if ((CO->isModifiableLvalue(m_Context) == Expr::MLV_Valid) &&
         ifTrueExprDiff.getExpr_dx() && ifFalseExprDiff.getExpr_dx()) {
       Expr* ResultRef = m_Sema
-                            .ActOnConditionalOp(noLoc,
-                                                noLoc,
-                                                cond.getExpr_dx(),
+                            .ActOnConditionalOp(noLoc, noLoc, condStored,
                                                 ifTrueExprDiff.getExpr_dx(),
                                                 ifFalseExprDiff.getExpr_dx())
                             .get();
       if (ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
         ResultRef = nullptr;
+      Stmt* revBlock = unwrapIfSingleStmt(endBlock(direction::reverse));
+      addToCurrentBlock(revBlock, direction::reverse);
       return StmtDiff(condExpr, ResultRef);
     }
     return StmtDiff(condExpr);
@@ -1010,12 +977,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
                Scope::ContinueScope);
-
-    LoopCounter loopCounter(*this);
-    if (loopCounter.getPush())
-      addToCurrentBlock(loopCounter.getPush());
-    beginBlock(direction::forward);
     beginBlock(direction::reverse);
+    LoopCounter loopCounter(*this);
     const Stmt* init = FS->getInit();
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeDifferentiatingLoopInitStmt();
@@ -1111,18 +1074,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Stmt* ReverseResult = BodyDiff.getStmt_dx();
     if (!ReverseResult)
       ReverseResult = new (m_Context) NullStmt(noLoc);
-    Stmt* Reverse = new (m_Context) ForStmt(m_Context,
-                                            nullptr,
-                                            CounterCondition,
-                                            nullptr,
-                                            CounterDecrement,
-                                            ReverseResult,
-                                            noLoc,
-                                            noLoc,
-                                            noLoc);
-    addToCurrentBlock(Forward, direction::forward);
-    Forward = endBlock(direction::forward);
-    addToCurrentBlock(loopCounter.getPop(), direction::reverse);
+    Stmt* Reverse = new (m_Context)
+        ForStmt(m_Context, nullptr, CounterCondition, nullptr, CounterDecrement,
+                ReverseResult, noLoc, noLoc, noLoc);
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
     addToCurrentBlock(Reverse, direction::reverse);
     Reverse = endBlock(direction::reverse);
@@ -1539,12 +1493,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // arrays are not stored.
       bool passByRef = PVD->getType()->isReferenceType() &&
                        !isa<MaterializeTemporaryExpr>(arg);
-      StmtDiff argDiffStore;
+      Expr* argDiffStore;
       if (passByRef && !argDiff.getExpr()->isEvaluatable(m_Context))
         argDiffStore =
             GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
       else
-        argDiffStore = {argDiff.getExpr(), argDiff.getExpr()};
+        argDiffStore = argDiff.getExpr();
 
       // We need to pass the actual argument in the cloned call expression,
       // instead of a temporary, for arguments passed by reference. This is
@@ -1572,59 +1526,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
       if (passByRef) {
-        if (isInsideLoop) {
-          // Add tape push expression. We need to explicitly add it here because
-          // we cannot add it as call expression argument -- we need to pass the
-          // actual argument there.
-          addToCurrentBlock(argDiffStore.getExpr());
-          // For reference arguments, we cannot pass `clad::pop(_t0)` to the
-          // derived function. Because it will throw "lvalue reference cannot
-          // bind to rvalue error". Thus we are proceeding as follows:
-          // ```
-          // double _r0 = clad::pop(_t0);
-          // derivedCalleeFunction(_r0, ...)
-          // ```
-          VarDecl* argDiffLocalVD = BuildVarDecl(
-              argDiffStore.getExpr_dx()->getType(),
-              CreateUniqueIdentifier("_r"), argDiffStore.getExpr_dx(),
-              /*DirectInit=*/false, /*TSI=*/nullptr,
-              VarDecl::InitializationStyle::CInit);
-          auto& block = getCurrentBlock(direction::reverse);
-          block.insert(block.begin() + insertionPoint,
-                       BuildDeclStmt(argDiffLocalVD));
-          // Restore agrs
-          auto* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
-                             BuildDeclRef(argDiffLocalVD));
-          block.insert(block.begin() + insertionPoint + 1, op);
-
-          Expr* argDiffLocalE = BuildDeclRef(argDiffLocalVD);
-
-          // We added local variable to store result of `clad::pop(...)` and
-          // restoration of the original arg. Thus we need to correspondingly
-          // adjust the insertion point.
-          insertionPoint += 2;
-          // We cannot use the already existing `argDiff.getExpr()` here because
-          // it will cause inconsistent pushes and pops to the clad tape.
-          // FIXME: Modify `GlobalStoreAndRef` such that its functioning is
-          // consistent with `StoreAndRef`. This way we will not need to handle
-          // inside loop and outside loop cases separately.
-          Expr* newArgE = Visit(arg).getExpr();
-          argDiffStore = {newArgE, argDiffLocalE};
-        } else if (isa<DeclRefExpr>(argDiff.getExpr())) {
-          // Restore args
-          auto& block = getCurrentBlock(direction::reverse);
-          auto* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
-                             argDiffStore.getExpr());
-          block.insert(block.begin() + insertionPoint, op);
-          // We added restoration of the original arg. Thus we need to
-          // correspondingly adjust the insertion point.
-          insertionPoint += 1;
-
-          argDiffStore = {argDiff.getExpr(), argDiffStore.getExpr_dx()};
-        }
+        // Restore args
+        Stmts& block = getCurrentBlock(direction::reverse);
+        Expr* op = BuildOp(BinaryOperatorKind::BO_Assign, argDiff.getExpr(),
+                           argDiffStore);
+        block.insert(block.begin() + insertionPoint, op);
+        // We added restoration of the original arg. Thus we need to
+        // correspondingly adjust the insertion point.
+        insertionPoint += 1;
       }
-      CallArgs.push_back(argDiffStore.getExpr());
-      DerivedCallArgs.push_back(argDiffStore.getExpr_dx());
+      CallArgs.push_back(argDiff.getExpr());
+      DerivedCallArgs.push_back(argDiffStore);
     }
 
     Expr* OverloadedDerivedFn = nullptr;
@@ -1671,22 +1583,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             baseOriginalE = OCE->getArg(0);
 
           baseDiff = Visit(baseOriginalE);
-          StmtDiff baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
-          if (isInsideLoop) {
-            addToCurrentBlock(baseDiffStore.getExpr());
-            VarDecl* baseLocalVD = BuildVarDecl(
-                baseDiffStore.getExpr_dx()->getType(),
-                CreateUniqueIdentifier("_r"), baseDiffStore.getExpr_dx(),
-                /*DirectInit=*/false, /*TSI=*/nullptr,
-                VarDecl::InitializationStyle::CInit);
-            auto& block = getCurrentBlock(direction::reverse);
-            block.insert(block.begin() + insertionPoint,
-                         BuildDeclStmt(baseLocalVD));
-            insertionPoint += 1;
-            Expr* baseLocalE = BuildDeclRef(baseLocalVD);
-            baseDiffStore = {baseDiffStore.getExpr(), baseLocalE};
-          }
-          baseDiff = {baseDiffStore.getExpr_dx(), baseDiff.getExpr_dx()};
+          Expr* baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
+          baseDiff.updateStmt(baseDiffStore);
           Expr* baseDerivative = baseDiff.getExpr_dx();
           if (!baseDerivative->getType()->isPointerType())
             baseDerivative =
@@ -1824,7 +1722,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
                                   OverloadedDerivedFn);
           if (!OverloadedDerivedFn) {
-            auto& block = getCurrentBlock(direction::reverse);
+            Stmts& block = getCurrentBlock(direction::reverse);
             block.insert(block.begin(), PreCallStmts.begin(),
                          PreCallStmts.end());
             return StmtDiff(Clone(CE));
@@ -3063,28 +2961,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return Var;
   }
 
-  StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E,
-                                                 QualType Type,
-                                                 llvm::StringRef prefix,
-                                                 bool force) {
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, QualType Type,
+                                              llvm::StringRef prefix,
+                                              bool force) {
     assert(E && "must be provided, otherwise use DelayedGlobalStoreAndRef");
+    assert(!isa<ArrayType>(Type) && "Array types cannot be stored.");
     if (!force && !UsefulToStoreGlobal(E))
-      return {E, E};
+      return E;
 
-    auto pushPop = BuildPushPop(E, Type, prefix, force);
-    if (!isInsideLoop) {
-      if (E) {
-        Expr* Set = BuildOp(BO_Assign, pushPop.getExpr(), E);
-        addToCurrentBlock(Set, direction::forward);
-      }
+    if (isInsideLoop) {
+      CladTapeResult CladTape = MakeCladTapeFor(E, prefix);
+      addToCurrentBlock(CladTape.Push, direction::forward);
+      addToCurrentBlock(CladTape.Pop, direction::reverse);
+
+      return CladTape.Last();
     }
 
-    return pushPop;
+    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix));
+    Expr* Set = BuildOp(BO_Assign, Ref, E);
+    addToCurrentBlock(Set, direction::forward);
+
+    return Ref;
   }
 
-  StmtDiff ReverseModeVisitor::GlobalStoreAndRef(Expr* E,
-                                                 llvm::StringRef prefix,
-                                                 bool force) {
+  Expr* ReverseModeVisitor::GlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
+                                              bool force) {
     assert(E && "cannot infer type");
     return GlobalStoreAndRef(
         E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
@@ -3187,26 +3088,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
       : m_RMV(RMV) {
     ASTContext& C = m_RMV.m_Context;
-    if (RMV.isInsideLoop) {
-      auto* zero = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
-                                                     /*val=*/0);
-      auto counterTape = m_RMV.MakeCladTapeFor(zero);
-      m_Ref = counterTape.Last();
-      m_Pop = counterTape.Pop;
-      m_Push = counterTape.Push;
-    } else {
-      m_Ref = m_RMV
-                  .GlobalStoreAndRef(m_RMV.getZeroInit(C.IntTy),
-                                     C.getSizeType(), "_t",
-                                     /*force=*/true)
-                  .getExpr();
-    }
+    Expr* zero = ConstantFolder::synthesizeLiteral(C.getSizeType(), C,
+                                                   /*val=*/0);
+    m_Ref = m_RMV.GlobalStoreAndRef(zero, C.getSizeType(), "_t",
+                                    /*force=*/true);
   }
 
   StmtDiff ReverseModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
+    beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
-    if (loopCounter.getPush())
-      addToCurrentBlock(loopCounter.getPush());
 
     // begin scope for while statement
     beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
@@ -3258,31 +3148,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                           .get();
     // for while statement
     endScope();
-    Stmt* reverseBlock = reverseWS;
-    // If loop counter have to be popped then create a compound statement
-    // enclosing the reverse pass while statement and loop counter pop
-    // expression.
-    //
-    // Therefore, reverse pass code will look like this:
-    // {
-    //   while (_t) {
-    //
-    //   }
-    //   clad::pop(_t);
-    // }
-    if (loopCounter.getPop()) {
-      beginBlock(direction::reverse);
-      addToCurrentBlock(loopCounter.getPop(), direction::reverse);
-      addToCurrentBlock(reverseWS, direction::reverse);
-      reverseBlock = endBlock(direction::reverse);
-    }
-    return {forwardWS, reverseBlock};
+    addToCurrentBlock(reverseWS, direction::reverse);
+    reverseWS = unwrapIfSingleStmt(endBlock(direction::reverse));
+    return {forwardWS, reverseWS};
   }
 
   StmtDiff ReverseModeVisitor::VisitDoStmt(const DoStmt* DS) {
+
+    beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
-    if (loopCounter.getPush())
-      addToCurrentBlock(loopCounter.getPush());
 
     // begin scope for do statement
     beginScope(Scope::ContinueScope | Scope::BreakScope);
@@ -3314,25 +3188,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                           .get();
     // for do-while statement
     endScope();
-    Stmt* reverseBlock = reverseDS;
-    // If loop counter have to be popped then create a compound statement
-    // enclosing the reverse pass while statement and loop counter pop
-    // expression.
-    //
-    // Therefore, reverse pass code will look like this:
-    // {
-    //   do {
-    //
-    //   } while (_t);
-    //   clad::pop(_t);
-    // }
-    if (loopCounter.getPop()) {
-      beginBlock(direction::reverse);
-      addToCurrentBlock(loopCounter.getPop(), direction::reverse);
-      addToCurrentBlock(reverseDS, direction::reverse);
-      reverseBlock = endBlock(direction::reverse);
-    }
-    return {forwardDS, reverseBlock};
+    addToCurrentBlock(reverseDS, direction::reverse);
+    reverseDS = unwrapIfSingleStmt(endBlock(direction::reverse));
+    return {forwardDS, reverseDS};
   }
 
   // Basic idea used for differentiating switch statement is that in the reverse
@@ -3373,33 +3231,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff condDiff = DifferentiateSingleStmt(SS->getCond());
     addToCurrentBlock(condDiff.getStmt(), direction::forward);
     addToCurrentBlock(condDiff.getStmt_dx(), direction::reverse);
-    Expr* condExpr = nullptr;
-    clad_compat::llvm_Optional<CladTapeResult> condTape;
-
-    if (isInsideLoop) {
-      // If we are inside a loop, condition will be stored and used as follows:
-      //
-      // forward block:
-      // switch (clad::push(..., cond)) { ... }
-      //
-      // reverse block:
-      // switch (...) { ... }
-      // clad::pop(...);
-      condTape.emplace(MakeCladTapeFor(condDiff.getExpr(), "_cond"));
-      condExpr = condTape->Push;
-    } else {
-      condExpr = GlobalStoreAndRef(condDiff.getExpr(), "_cond").getExpr();
-    }
+    Expr* condExpr = GlobalStoreAndRef(condDiff.getExpr(), "_cond");
 
     auto* activeBreakContHandler = PushBreakContStmtHandler(
         /*forSwitchStmt=*/true);
     activeBreakContHandler->BeginCFSwitchStmtScope();
     auto* SSData = PushSwitchStmtInfo();
 
-    if (isInsideLoop)
-      SSData->switchStmtCond = condTape->Last();
-    else
-      SSData->switchStmtCond = condExpr;
+    SSData->switchStmtCond = condExpr;
 
     // scope for the switch statement body.
     beginScope(Scope::DeclScope);
@@ -3484,8 +3323,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               .getAs<SwitchStmt>();
 
       addToCurrentBlock(forwardSS, direction::forward);
-      if (isInsideLoop)
-        addToCurrentBlock(condTape->Pop, direction::reverse);
       addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
     }
 
