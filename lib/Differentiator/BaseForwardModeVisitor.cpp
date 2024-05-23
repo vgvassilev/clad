@@ -1175,8 +1175,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
                                validLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
                                validLoc)
                 .get();
-        auto* zero =
-            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+        auto* zero = ConstantFolder::synthesizeLiteral(CE->getType(), m_Context,
+                                                       /*val=*/0);
         return StmtDiff(call, zero);
       }
     }
