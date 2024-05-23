@@ -2991,24 +2991,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         E, getNonConstType(E->getType(), m_Context, m_Sema), prefix, force);
   }
 
-  StmtDiff ReverseModeVisitor::BuildPushPop(clang::Expr* E,
-                                            clang::QualType Type,
-                                            llvm::StringRef prefix,
-                                            bool force) {
-    if (isInsideLoop) {
-      auto CladTape = MakeCladTapeFor(Clone(E));
-      Expr* Push = CladTape.Push;
-      Expr* Pop = CladTape.Pop;
-      return {Push, Pop};
-    }
-    Expr* init = nullptr;
-    if (const auto* const AT = dyn_cast<ArrayType>(Type))
-      init = getArraySizeExpr(AT, m_Context, *this);
-
-    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
-    return {Ref, Ref};
-  }
-
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
                                                llvm::StringRef prefix,
                                                bool force) {
@@ -3018,10 +3000,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return {};
 
     if (isInsideLoop) {
-      auto pushPop = BuildPushPop(E, Type, prefix, true);
-      auto* popAssign = BuildOp(BinaryOperatorKind::BO_Assign, Clone(E),
-                                pushPop.getExpr_dx());
-      return {pushPop.getExpr(), popAssign};
+      auto CladTape = MakeCladTapeFor(Clone(E), prefix);
+      Expr* Push = CladTape.Push;
+      Expr* Pop = CladTape.Pop;
+      auto* popAssign = BuildOp(BinaryOperatorKind::BO_Assign, Clone(E), Pop);
+      return {Push, popAssign};
     }
 
     Expr* init = nullptr;

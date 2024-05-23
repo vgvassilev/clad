@@ -253,8 +253,6 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false);
-    StmtDiff BuildPushPop(clang::Expr* E, clang::QualType Type,
-                          llvm::StringRef prefix = "_t", bool force = false);
     StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
                              bool force = false);
 
