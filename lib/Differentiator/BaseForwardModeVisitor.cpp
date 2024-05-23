@@ -668,18 +668,60 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
   const Stmt* init = FS->getInit();
   StmtDiff initDiff = init ? Visit(init) : StmtDiff{};
   addToCurrentBlock(initDiff.getStmt_dx());
-  VarDecl* condVarDecl = FS->getConditionVariable();
-  VarDecl* condVarClone = nullptr;
-  if (condVarDecl) {
-    DeclDiff<VarDecl> condVarResult = DifferentiateVarDecl(condVarDecl);
-    condVarClone = condVarResult.getDecl();
+
+  StmtDiff condDiff = Clone(FS->getCond());
+  Expr* cond = condDiff.getExpr();
+
+  // The declaration in the condition needs to be differentiated.
+  if (VarDecl* condVarDecl = FS->getConditionVariable()) {
+    // Here we create a fictional cond that is equal to the assignment used in
+    // the declaration. The declaration itself is thrown before the for-loop
+    // without any init value. The fictional condition is then differentiated as
+    // a normal condition would be (see below). For example, the declaration
+    // inside `for (;double t = x;) {}` will be first processed into the
+    // following code:
+    // ```
+    // {
+    // double t;
+    // for (;t = x;) {}
+    // }
+    // ```
+    // which will then get differentiated normally as a for-loop with a
+    // differentiable condition in the next section.
+    DeclDiff<VarDecl> condVarResult =
+        DifferentiateVarDecl(condVarDecl, /*ignoreInit=*/true);
+    VarDecl* condVarClone = condVarResult.getDecl();
     if (condVarResult.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(condVarResult.getDecl_dx()));
+    auto condInit = condVarClone->getInit();
+    condVarClone->setInit(nullptr);
+    cond = BuildOp(BO_Assign, BuildDeclRef(condVarClone), condInit);
+    addToCurrentBlock(BuildDeclStmt(condVarClone));
   }
-  Expr* cond = FS->getCond() ? Clone(FS->getCond()) : nullptr;
-  const Expr* inc = FS->getInc();
+
+  // Condition differentiation.
+  // This adds support for assignments in conditions.
+  if (cond) {
+    cond = cond->IgnoreParenImpCasts();
+    // If it's a supported differentiable operator we wrap it back into
+    // parentheses and then visit. To ensure the correctness, a comma operator
+    // expression (cond_dx, cond) is generated and put instead of the condition.
+    // FIXME: Add support for other expressions in cond (unary operators,
+    // comparisons, function calls, etc.). Ideally, we should be able to simply
+    // always call Visit(cond)
+    BinaryOperator* condBO = dyn_cast<BinaryOperator>(cond);
+    if (condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) {
+      condDiff = Visit(cond);
+      if (condDiff.getExpr_dx() && !isUnusedResult(condDiff.getExpr_dx()))
+        cond = BuildOp(BO_Comma, BuildParens(condDiff.getExpr_dx()),
+                       BuildParens(condDiff.getExpr()));
+      else
+        cond = condDiff.getExpr();
+    }
+  }
 
   // Differentiate the increment expression of the for loop
+  const Expr* inc = FS->getInc();
   beginBlock();
   StmtDiff incDiff = inc ? Visit(inc) : StmtDiff{};
   CompoundStmt* decls = endBlock();
@@ -714,27 +756,24 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     incResult = incDiff.getExpr();
   }
 
+  // Build the derived for loop body.
   const Stmt* body = FS->getBody();
   beginScope(Scope::DeclScope);
   Stmt* bodyResult = nullptr;
-  if (isa<CompoundStmt>(body)) {
-    bodyResult = Visit(body).getStmt();
-  } else {
-    beginBlock();
-    StmtDiff Result = Visit(body);
-    for (Stmt* S : Result.getBothStmts())
-      addToCurrentBlock(S);
-    CompoundStmt* Block = endBlock();
-    if (Block->size() == 1)
-      bodyResult = Block->body_front();
-    else
-      bodyResult = Block;
-  }
+  beginBlock();
+  StmtDiff bodyVisited = Visit(body);
+  for (Stmt* S : bodyVisited.getBothStmts())
+    addToCurrentBlock(S);
+  CompoundStmt* bodyResultCmpd = endBlock();
+  if (bodyResultCmpd->size() == 1)
+    bodyResult = bodyResultCmpd->body_front();
+  else
+    bodyResult = bodyResultCmpd;
   endScope();
 
-  Stmt* forStmtDiff =
-      new (m_Context) ForStmt(m_Context, initDiff.getStmt(), cond, condVarClone,
-                              incResult, bodyResult, noLoc, noLoc, noLoc);
+  Stmt* forStmtDiff = new (m_Context)
+      ForStmt(m_Context, initDiff.getStmt(), cond, /*condVar=*/nullptr,
+              incResult, bodyResult, noLoc, noLoc, noLoc);
 
   addToCurrentBlock(forStmtDiff);
   CompoundStmt* Block = endBlock();
@@ -1366,6 +1405,25 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     } else
       opDiff = BuildOp(BO_Comma, BuildParens(Ldiff.getExpr()),
                        BuildParens(Rdiff.getExpr_dx()));
+  } else if (BinOp->isLogicalOp()) {
+    // For (A && B) return ((dA, A) && (dB, B)) to ensure correct evaluation and
+    // correct derivative execution.
+    auto buildOneSide = [this](StmtDiff& Xdiff) {
+      if (Xdiff.getExpr_dx() && !isUnusedResult(Xdiff.getExpr_dx()))
+        return BuildParens(BuildOp(BO_Comma, BuildParens(Xdiff.getExpr_dx()),
+                                   BuildParens(Xdiff.getExpr())));
+      return BuildParens(Xdiff.getExpr());
+    };
+    // dLL = (dL, L)
+    Expr* dLL = buildOneSide(Ldiff);
+    // dRR = (dR, R)
+    Expr* dRR = buildOneSide(Rdiff);
+    opDiff = BuildOp(opCode, dLL, dRR);
+
+    // Since the both parts are included in the opDiff, there's no point in
+    // including it as a Stmt_dx. Moreover, the fact that Stmt_dx is left
+    // nullptr is used for treating expressions like ((A && B) && C) correctly.
+    return StmtDiff(opDiff, nullptr);
   }
   if (!opDiff) {
     // FIXME: add support for other binary operators
@@ -1386,7 +1444,21 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
 
 DeclDiff<VarDecl>
 BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
-  StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
+  return DifferentiateVarDecl(VD, false);
+}
+
+DeclDiff<VarDecl>
+BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
+                                             bool ignoreInit) {
+  StmtDiff initDiff{};
+  const Expr* init = VD->getInit();
+  if (init) {
+    if (!ignoreInit)
+      initDiff = Visit(init);
+    else
+      initDiff = StmtDiff(Clone(init));
+  }
+
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
   VarDecl* VDClone =
