@@ -2125,11 +2125,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // FIXME: We should support boolean differentiation or ignore it
         // completely
         unsupportedOpWarn(UnOp->getEndLoc());
-
-      if (isa<DeclRefExpr>(E))
-        diff = Visit(E);
-      else
-        diff = StmtDiff(E);
+      diff = Visit(E);
+      ResultRef = diff.getExpr_dx();
     }
     Expr* op = BuildOp(opCode, diff.getExpr());
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
