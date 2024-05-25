@@ -602,6 +602,10 @@ namespace clad {
                                  bool isDerived);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
+
+    clang::TemplateDecl* GetCladIdentifyDecl();
+
+    clang::QualType GetCladIdentityOfType(clang::QualType T);
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);

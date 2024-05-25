@@ -812,4 +812,15 @@ namespace clad {
     return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
         .get();
   }
+
+  clang::TemplateDecl* VisitorBase::GetCladIdentifyDecl() {
+    static TemplateDecl *cladIdentifyDecl = nullptr;
+    if (!cladIdentifyDecl)
+      cladIdentifyDecl = LookupTemplateDeclInCladNamespace("Identify");
+    return cladIdentifyDecl;
+  }
+
+  clang::QualType VisitorBase::GetCladIdentityOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladIdentifyDecl(), {T});
+  }
 } // end namespace clad

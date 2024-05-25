@@ -27,6 +27,8 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <clad/Differentiator/DerivativeBuilder.h>
+#include <clang/Sema/Ownership.h>
 
 #include "clad/Differentiator/Compatibility.h"
 
@@ -1094,10 +1096,11 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // Try to find a user-defined overloaded derivative.
   std::string customPushforward =
       clad::utils::ComputeEffectiveFnName(FD) + GetPushForwardFunctionSuffix();
+  llvm::errs() << "customPushforward: " << customPushforward << "\n";
   Expr* callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
       customPushforward, customDerivativeArgs, getCurrentScope(),
       const_cast<DeclContext*>(FD->getDeclContext()));
-
+  llvm::errs() << "callDiff: " << callDiff << "\n";
   // Check if it is a recursive call.
   if (!callDiff && (FD == m_Function) && m_Mode == GetPushForwardMode()) {
     // The differentiated function is called recursively.
@@ -1844,11 +1847,47 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
 
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+  llvm::errs() << "[VisitCXXConstructExpr] begin!\n";
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
   for (auto arg : CE->arguments()) {
     auto argDiff = Visit(arg);
+    arg->dumpColor();
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
+    argDiff.getExpr()->dumpColor();
+    argDiff.getExpr_dx()->dumpColor();
+    llvm::errs()<<"\n";
+  }
+
+  // Try to use a custom derivative for differentiating constructor.
+  llvm::SmallVector<Expr*, 4> customPushforwardArgs;
+  QualType identifyClassT = GetCladIdentityOfType(CE->getType());
+  Expr* identifyClassArg =
+      m_Sema
+          .BuildCXXTypeConstructExpr(
+              m_Context.getTrivialTypeSourceInfo(identifyClassT,
+                                                 utils::GetValidSLoc(m_Sema)),
+              noLoc, MultiExprArg{}, noLoc, /*ListInitialization=*/false)
+          .get();
+  llvm::errs() << "Dumping identifyClassArg\n";
+  identifyClassArg->dumpColor();
+  customPushforwardArgs.push_back(identifyClassArg);
+  customPushforwardArgs.append(clonedArgs.begin(), clonedArgs.end());
+  customPushforwardArgs.append(derivedArgs.begin(), derivedArgs.end());
+  std::string customPushforwardName = clad::utils::ComputeEffectiveFnName(CE->getConstructor()) + GetPushForwardFunctionSuffix();
+  llvm::errs() << "customPushforwardName: " << customPushforwardName << "\n";
+  Expr* pushforwardCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+      customPushforwardName, customPushforwardArgs, getCurrentScope(),
+      const_cast<DeclContext*>(CE->getConstructor()->getDeclContext()));
+  llvm::errs() << "pushforwardCall: " << pushforwardCall << "\n";
+  if (pushforwardCall) {
+    pushforwardCall->dumpColor();
+    auto valueAndPushforwardExpr = StoreAndRef(pushforwardCall);
+    Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                          valueAndPushforwardExpr, "value");
+    Expr* pushforwardE = utils::BuildMemberExpr(
+        m_Sema, getCurrentScope(), valueAndPushforwardExpr, "pushforward");
+    return StmtDiff(valueE, pushforwardE);
   }
   Expr* clonedArgsE = nullptr;
   Expr* derivedArgsE = nullptr;
@@ -1877,8 +1916,10 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     clonedArgsE = clonedArgs[0];
     derivedArgsE = derivedArgs[0];
   }
+
   // `CXXConstructExpr` node will be created automatically by passing these
   // initialiser to higher level `ActOn`/`Build` Sema functions.
+  llvm::errs() << "[VisitCXXConstructExpr] end!\n";
   return {clonedArgsE, derivedArgsE};
 }
 
@@ -1910,6 +1951,7 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+  
   Expr* clonedTOE =
       m_Sema
           .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),

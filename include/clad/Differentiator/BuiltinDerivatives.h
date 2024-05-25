@@ -21,6 +21,10 @@ template <typename T, typename U> struct ValueAndPushforward {
   T value;
   U pushforward;
 };
+
+template <class T>
+class Identify {};
+
 namespace custom_derivatives {
 #ifdef __CUDACC__
 template <typename T>

@@ -163,6 +163,7 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
           OverloadCandidateSet::iterator Best = nullptr;
           OverloadingResult OverloadResult = CandidateSet.BestViableFunction(
               m_Sema, UnresolvedLookup->getBeginLoc(), Best);
+          llvm::errs() << "OverloadResult: " << OverloadResult << "\n";
           if (OverloadResult != 0U) // No overloads were found.
             return true;
         }
@@ -174,7 +175,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, clang::DeclContext* originalFnDC,
-      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
+      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {\
+      llvm::errs() << "[BuildCallToCustomDerivativeOrNumericalDiff] begin!\n";
     NamespaceDecl* NSD = nullptr;
     std::string namespaceID;
     if (forCustomDerv) {
@@ -238,6 +240,12 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
     Expr* OverloadedFn = nullptr;
+
+    llvm::errs() << "Looking for: " << name.getAsString() << "\n";
+    for (auto arg : CallArgs) {
+      arg->dumpColor();
+    }
+
     if (!R.empty()) {
       // FIXME: We should find a way to specify nested name specifier
       // after finding the custom derivative.
@@ -248,12 +256,15 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
       SourceLocation Loc;
 
-      if (noOverloadExists(UnresolvedLookup, MARargs))
+      if (noOverloadExists(UnresolvedLookup, MARargs)) {
+        llvm::errs() << "No overload exists!\n";
         return nullptr;
+      }
 
       OverloadedFn =
           m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc).get();
     }
+    llvm::errs() << "[BuildCallToCustomDerivativeOrNumericalDiff] end!\n";
     return OverloadedFn;
   }
 

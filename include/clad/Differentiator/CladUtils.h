@@ -11,6 +11,7 @@
 #include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <clang/AST/DeclTemplate.h>
 #include <string>
 
 namespace clang {
