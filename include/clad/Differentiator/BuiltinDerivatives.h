@@ -21,6 +21,26 @@ template <typename T, typename U> struct ValueAndPushforward {
   T value;
   U pushforward;
 };
+
+/// It is used to identify constructor custom pushforwards. For
+/// constructor custom pushforward functions, we cannot use the same
+/// strategy which we use for custom pushforward for member
+/// functions. Member functions custom pushforward have the following
+/// signature:
+///
+/// mem_fn_pushforward(ClassName *c, ..., ClassName *d_c, ...)
+///
+/// We use the first argument 'ClassName *c' to determine the class of member
+/// function for which the pushforward is defined.
+///
+/// In the case of constructor pushforward, there are no objects of the class
+/// type passed to the constructor. Therefore, we cannot simply use arguments
+/// to determine the class. To solve this, 'ConstructorPushforwardTag<T>' is
+/// used. A custom_derivative pushforward for constructor is required to have
+/// 'ConstructorPushforwardTag<T>' as the first argument, where 'T' is the
+/// class for which constructor pushforward is defined.
+template <class T> class ConstructorPushforwardTag {};
+
 namespace custom_derivatives {
 #ifdef __CUDACC__
 template <typename T>
