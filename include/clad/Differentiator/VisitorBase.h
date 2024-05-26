@@ -18,7 +18,6 @@ namespace clad {
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
-
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -600,6 +599,13 @@ namespace clad {
                                  bool isDerived);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
+
+    /// Returns clad::Identify template declaration.
+    clang::TemplateDecl* GetCladConstructorPushforwardTag();
+
+    /// Returns type clad::Identify<T>
+    clang::QualType GetCladConstructorPushforwardTagOfType(clang::QualType T);
+
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
@@ -644,6 +650,9 @@ namespace clad {
     void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
                                    clang::Expr*& derivedL,
                                    clang::Expr*& derivedR);
+
+  private:
+    clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
   };
 } // end namespace clad
 

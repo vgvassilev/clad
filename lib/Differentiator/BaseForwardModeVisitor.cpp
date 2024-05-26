@@ -1985,6 +1985,26 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+
+  Expr* pushforwardCall =
+      BuildCustomDerivativeConstructorPFCall(CE, clonedArgs, derivedArgs);
+  if (pushforwardCall) {
+    auto valueAndPushforwardE = StoreAndRef(pushforwardCall);
+    Expr* valueE = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                          valueAndPushforwardE, "value");
+    Expr* pushforwardE = utils::BuildMemberExpr(
+        m_Sema, getCurrentScope(), valueAndPushforwardE, "pushforward");
+    return StmtDiff(valueE, pushforwardE);
+  }
+
+  // Custom derivative not found. Create simple constructor calls based on the
+  // given arguments. For example, if the primal constructor call is
+  // 'C(a, b, c)' then we use the constructor call 'C(d_a, d_b, d_c)' for the
+  // derivative.
+  // FIXME: This is incorrect. It only works for very simple types such as
+  // std::complex. We should ideally treat a constructor like a function and
+  // thus differentiate its body, create a pushforward and use the pushforward
+  // in the derivative code instead of the original constructor.
   Expr* clonedArgsE = nullptr;
   Expr* derivedArgsE = nullptr;
   // FIXME: Currently if the original initialisation expression is `{a, 1,
@@ -1996,17 +2016,14 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
     if (CE->isListInitialization()) {
       clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
       derivedArgsE = m_Sema.ActOnInitList(noLoc, derivedArgs, noLoc).get();
+    } else if (CE->getNumArgs() == 0) {
+      // ParenList is empty -- default initialisation.
+      // Passing empty parenList here will silently cause 'most vexing
+      // parse' issue.
+      return StmtDiff();
     } else {
-      if (CE->getNumArgs() == 0) {
-        // ParenList is empty -- default initialisation.
-        // Passing empty parenList here will silently cause 'most vexing
-        // parse' issue.
-        return StmtDiff();
-      } else {
-        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
-        derivedArgsE =
-            m_Sema.ActOnParenListExpr(noLoc, noLoc, derivedArgs).get();
-      }
+      clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+      derivedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, derivedArgs).get();
     }
   } else {
     clonedArgsE = clonedArgs[0];
@@ -2045,6 +2062,7 @@ StmtDiff BaseForwardModeVisitor::VisitCXXTemporaryObjectExpr(
     clonedArgs.push_back(argDiff.getExpr());
     derivedArgs.push_back(argDiff.getExpr_dx());
   }
+
   Expr* clonedTOE =
       m_Sema
           .ActOnCXXTypeConstructExpr(OpaquePtr<QualType>::make(TOE->getType()),
@@ -2182,5 +2200,34 @@ BaseForwardModeVisitor::DifferentiateStaticAssertDecl(
 StmtDiff BaseForwardModeVisitor::VisitCXXStdInitializerListExpr(
     const clang::CXXStdInitializerListExpr* ILE) {
   return Visit(ILE->getSubExpr());
+}
+
+clang::Expr* BaseForwardModeVisitor::BuildCustomDerivativeConstructorPFCall(
+    const clang::CXXConstructExpr* CE,
+    llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
+    llvm::SmallVectorImpl<clang::Expr*>& derivedArgs) {
+  llvm::SmallVector<Expr*, 4> customPushforwardArgs;
+  QualType constructorPushforwardTagT = GetCladConstructorPushforwardTagOfType(
+      CE->getType().withoutLocalFastQualifiers());
+  // Builds clad::ConstructorPushforwardTag<T> declaration
+  Expr* constructorPushforwardTagArg =
+      m_Sema
+          .BuildCXXTypeConstructExpr(
+              m_Context.getTrivialTypeSourceInfo(constructorPushforwardTagT,
+                                                 utils::GetValidSLoc(m_Sema)),
+              noLoc, MultiExprArg{}, noLoc, /*ListInitialization=*/false)
+          .get();
+  customPushforwardArgs.push_back(constructorPushforwardTagArg);
+  customPushforwardArgs.append(clonedArgs.begin(), clonedArgs.end());
+  customPushforwardArgs.append(derivedArgs.begin(), derivedArgs.end());
+  std::string customPushforwardName =
+      clad::utils::ComputeEffectiveFnName(CE->getConstructor()) +
+      GetPushForwardFunctionSuffix();
+  // FIXME: We should not use const_cast to get the decl context here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  Expr* pushforwardCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+      customPushforwardName, customPushforwardArgs, getCurrentScope(),
+      const_cast<DeclContext*>(CE->getConstructor()->getDeclContext()));
+  return pushforwardCall;
 }
 } // end namespace clad

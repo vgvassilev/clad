@@ -3,6 +3,7 @@
 
 #include "Compatibility.h"
 #include "VisitorBase.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -140,6 +141,16 @@ protected:
   /// \return active switch case label after processing `stmt`
   clang::SwitchCase* DeriveSwitchStmtBodyHelper(const clang::Stmt* stmt,
                                                 clang::SwitchCase* activeSC);
+
+  /// Tries to build custom derivative constructor pushforward call for the
+  /// given CXXConstructExpr.
+  ///
+  /// \return A call expression if a suitable custom derivative is found;
+  /// Otherwise returns nullptr.
+  clang::Expr* BuildCustomDerivativeConstructorPFCall(
+      const clang::CXXConstructExpr* CE,
+      llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 };
 } // end namespace clad
 

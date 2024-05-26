@@ -10,6 +10,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
 #include "llvm/ADT/SmallVector.h"
+#include <clang/AST/DeclCXX.h>
 #include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
@@ -98,6 +99,8 @@ namespace clad {
       case OverloadedOperatorKind::OO_Subscript:
         return "operator_subscript";
       default:
+        if (isa<CXXConstructorDecl>(FD))
+          return "constructor";
         return FD->getNameAsString();
       }
     }

@@ -811,4 +811,16 @@ namespace clad {
     return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
         .get();
   }
+
+  clang::TemplateDecl* VisitorBase::GetCladConstructorPushforwardTag() {
+    if (!m_CladConstructorPushforwardTag)
+      m_CladConstructorPushforwardTag =
+          LookupTemplateDeclInCladNamespace("ConstructorPushforwardTag");
+    return m_CladConstructorPushforwardTag;
+  }
+
+  clang::QualType
+  VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladConstructorPushforwardTag(), {T});
+  }
 } // end namespace clad

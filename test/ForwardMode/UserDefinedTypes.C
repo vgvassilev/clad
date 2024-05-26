@@ -881,10 +881,10 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     vectorD _d_v;
 // CHECK-NEXT:     vectorD v;
 // CHECK-NEXT:     clad::custom_derivatives::class_functions::resize_pushforward(&v, 5, 0, &_d_v, 0, 0);
-// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t0 = v.operator_subscript_pushforward(0, &_d_v, 0);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<{{.*}}, {{.*}}> _t0 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&v, 0, &_d_v, 0);
 // CHECK-NEXT:     _t0.pushforward = 0 * i + 9 * _d_i;
 // CHECK-NEXT:     _t0.value = 9 * i;
-// CHECK-NEXT:     clad::ValueAndPushforward<{{.*}}, {{.*}}> _t1 = v.operator_subscript_pushforward(1, &_d_v, 0);
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<{{.*}}, {{.*}}> _t1 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&v, 1, &_d_v, 0);
 // CHECK-NEXT:     _t1.pushforward = 0 * i + 11 * _d_i;
 // CHECK-NEXT:     _t1.value = 11 * i;
 // CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.begin()), decltype({{.*}}.begin())> _t2 = begin_pushforward(v, _d_v);
