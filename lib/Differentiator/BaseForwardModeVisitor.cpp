@@ -764,11 +764,7 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
   StmtDiff bodyVisited = Visit(body);
   for (Stmt* S : bodyVisited.getBothStmts())
     addToCurrentBlock(S);
-  CompoundStmt* bodyResultCmpd = endBlock();
-  if (bodyResultCmpd->size() == 1)
-    bodyResult = bodyResultCmpd->body_front();
-  else
-    bodyResult = bodyResultCmpd;
+  bodyResult = utils::unwrapIfSingleStmt(endBlock());
   endScope();
 
   Stmt* forStmtDiff = new (m_Context)

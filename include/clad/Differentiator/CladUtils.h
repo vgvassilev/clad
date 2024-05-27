@@ -27,6 +27,10 @@ namespace clad {
     /// function `FD`.
     std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD);
 
+    // Unwraps S to a single statement if it's a compound statement only
+    // containing 1 statement.
+    clang::Stmt* unwrapIfSingleStmt(clang::Stmt* S);
+
     /// Creates and returns a compound statement having statements as follows:
     /// {`S`, all the statement of `initial` in sequence}
     clang::CompoundStmt* PrependAndCreateCompoundStmt(clang::ASTContext& C,

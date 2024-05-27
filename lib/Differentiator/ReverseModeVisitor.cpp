@@ -783,19 +783,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(Forward, Reverse);
   }
 
-  static Stmt* unwrapIfSingleStmt(Stmt* S) {
-    if (!S)
-      return nullptr;
-    if (!isa<CompoundStmt>(S))
-      return S;
-    auto* CS = cast<CompoundStmt>(S);
-    if (CS->size() == 0)
-      return nullptr;
-    if (CS->size() == 1)
-      return CS->body_front();
-    return CS;
-  }
-
   StmtDiff ReverseModeVisitor::VisitIfStmt(const clang::IfStmt* If) {
     // Control scope of the IfStmt. E.g., in if (double x = ...) {...}, x goes
     // to this scope.
@@ -862,8 +849,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_ExternalSource
             ->ActBeforeFinalizingVisitBranchSingleStmtInIfVisitStmt();
 
-      Stmt* Forward = unwrapIfSingleStmt(endBlock(direction::forward));
-      Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
+      Stmt* Forward = utils::unwrapIfSingleStmt(endBlock(direction::forward));
+      Stmt* Reverse = utils::unwrapIfSingleStmt(BranchDiff.getStmt_dx());
       return StmtDiff(Forward, Reverse);
     };
 
@@ -884,8 +871,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     CompoundStmt* ForwardBlock = endBlock(direction::forward);
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
     endScope();
-    return StmtDiff(unwrapIfSingleStmt(ForwardBlock),
-                    unwrapIfSingleStmt(ReverseBlock));
+    return StmtDiff(utils::unwrapIfSingleStmt(ForwardBlock),
+                    utils::unwrapIfSingleStmt(ReverseBlock));
   }
 
   StmtDiff ReverseModeVisitor::VisitConditionalOperator(
@@ -911,8 +898,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto Result = DifferentiateSingleExpr(Branch, dfdx);
       StmtDiff BranchDiff = Result.first;
       StmtDiff ExprDiff = Result.second;
-      Stmt* Forward = unwrapIfSingleStmt(BranchDiff.getStmt());
-      Stmt* Reverse = unwrapIfSingleStmt(BranchDiff.getStmt_dx());
+      Stmt* Forward = utils::unwrapIfSingleStmt(BranchDiff.getStmt());
+      Stmt* Reverse = utils::unwrapIfSingleStmt(BranchDiff.getStmt_dx());
       return {StmtDiff(Forward, Reverse), ExprDiff};
     };
 
@@ -967,7 +954,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                             .get();
       if (ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
         ResultRef = nullptr;
-      Stmt* revBlock = unwrapIfSingleStmt(endBlock(direction::reverse));
+      Stmt* revBlock = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
       addToCurrentBlock(revBlock, direction::reverse);
       return StmtDiff(condExpr, ResultRef);
     }
@@ -1082,7 +1069,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Reverse = endBlock(direction::reverse);
     endScope();
 
-    return {unwrapIfSingleStmt(Forward), unwrapIfSingleStmt(Reverse)};
+    return {utils::unwrapIfSingleStmt(Forward),
+            utils::unwrapIfSingleStmt(Reverse)};
   }
 
   StmtDiff
@@ -2661,7 +2649,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(SDiff.getStmt_dx(), direction::reverse);
     CompoundStmt* RCS = endBlock(direction::reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
-    Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
+    Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
     return StmtDiff(SDiff.getStmt(), ReverseResult);
   }
 
@@ -2675,7 +2663,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     CompoundStmt* RCS = endBlock(direction::reverse);
     Stmt* ForwardResult = endBlock(direction::forward);
     std::reverse(RCS->body_begin(), RCS->body_end());
-    Stmt* ReverseResult = unwrapIfSingleStmt(RCS);
+    Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
     return {StmtDiff(ForwardResult, ReverseResult), EDiff};
   }
 
@@ -2824,7 +2812,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (Decl* decl : decls)
         addToBlock(BuildDeclStmt(decl), m_Globals);
       Stmt* initAssignments = MakeCompoundStmt(inits);
-      initAssignments = unwrapIfSingleStmt(initAssignments);
+      initAssignments = utils::unwrapIfSingleStmt(initAssignments);
       return StmtDiff(initAssignments);
     }
 
@@ -3132,7 +3120,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // for while statement
     endScope();
     addToCurrentBlock(reverseWS, direction::reverse);
-    reverseWS = unwrapIfSingleStmt(endBlock(direction::reverse));
+    reverseWS = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
     return {forwardWS, reverseWS};
   }
 
@@ -3172,7 +3160,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // for do-while statement
     endScope();
     addToCurrentBlock(reverseDS, direction::reverse);
-    reverseDS = unwrapIfSingleStmt(endBlock(direction::reverse));
+    reverseDS = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
     return {forwardDS, reverseDS};
   }
 
@@ -3391,7 +3379,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActAfterProcessingSingleStmtBodyInVisitForLoop();
 
-      Stmt* reverseBlock = unwrapIfSingleStmt(bodyDiff.getStmt_dx());
+      Stmt* reverseBlock = utils::unwrapIfSingleStmt(bodyDiff.getStmt_dx());
       bodyDiff = {endBlock(direction::forward), reverseBlock};
       // for forward-pass loop statement body
       endScope();
@@ -3436,7 +3424,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     addToCurrentBlock(condVarDiff, direction::reverse);
     addToCurrentBlock(bodyDiff.getStmt_dx(), direction::reverse);
     bodyDiff = {bodyDiff.getStmt(),
-                unwrapIfSingleStmt(endBlock(direction::reverse))};
+                utils::unwrapIfSingleStmt(endBlock(direction::reverse))};
     return bodyDiff;
   }
 

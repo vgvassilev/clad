@@ -102,6 +102,19 @@ namespace clad {
       }
     }
 
+    Stmt* unwrapIfSingleStmt(Stmt* S) {
+      if (!S)
+        return nullptr;
+      if (!isa<CompoundStmt>(S))
+        return S;
+      auto* CS = cast<CompoundStmt>(S);
+      if (CS->size() == 0)
+        return nullptr;
+      if (CS->size() == 1)
+        return CS->body_front();
+      return CS;
+    }
+
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
                                                Stmt* S) {
       llvm::SmallVector<Stmt*, 16> block;
