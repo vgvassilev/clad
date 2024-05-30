@@ -281,6 +281,10 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/
   PATTERN "*.inc"
   )
 
+install(FILES cmake/modules/AddClad.cmake
+  DESTINATION lib/cmake/clad
+  )
+
 add_definitions( -D_GNU_SOURCE
   -DCLAD_SRCDIR_INCL="${CLAD_SOURCE_DIR}/include"
   -DCLAD_INSTDIR_INCL="${CLAD_BINARY_DIR}/include" )
