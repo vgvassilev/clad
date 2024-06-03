@@ -59,7 +59,8 @@ review quickly and successfully share several common traits:
   description mentions `Fixes: #<ISSUE_NUMBER>`. That will link both and will
   close the issue automatically upon merging.
 - Tested -- has a set of tests making sure that the issue will not resurface
-  without a notice. Usually
+  without a notice. Usually the codecov bots annotate the code paths that are
+  not tested in the pull request after being run.
 - Documented -- has good amount of code comment. The test cases are also a good
   source of documentation. [Here](https://stackoverflow.blog/2021/12/23/best-practices-for-writing-code-comments/)
   is a guideline about how write good code comments. [Here](https://stackoverflow.com/questions/184618/what-is-the-best-comment-in-source-code-you-have-ever-encountered)
