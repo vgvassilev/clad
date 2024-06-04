@@ -670,6 +670,25 @@ double fn19(double x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double weighted_sum(double* x, const double* w) {
+  return w[0] * x[0] + w[1] * x[1];
+}
+
+// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x);
+
+double fn20(double* x, const double* w) {
+  const double* auxW = w + 1;
+  return weighted_sum(x, auxW);
+}
+
+// CHECK: void fn20_grad_0(double *x, const double *w, double *_d_x) {
+// CHECK-NEXT:     const double *auxW = w + 1;
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     weighted_sum_pullback(x, auxW, 1, _d_x);
+// CHECK-NEXT: }
+
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -767,6 +786,12 @@ int main() {
 
   INIT(fn19);
   TEST1(fn19, 3);  // CHECK-EXEC: {1.00}
+
+  auto fn20_grad_0 = clad::gradient(fn20, "x");
+  double x1[] = {3.0, 5.0}, w1[] = {-1.0, 2.0, 3.0};
+  double dx1[] = {0.0, 0.0};
+  fn20_grad_0.execute(x1, w1, dx1);
+  printf("{%.2f, %.2f}\n", dx1[0], dx1[1]);  // CHECK-EXEC: {2.00, 3.00}
 }
 
 double sq_defined_later(double x) {
@@ -1009,4 +1034,13 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     goto _label0;
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_x += _d_y;
+// CHECK-NEXT: }
+
+// CHECK: void weighted_sum_pullback(double *x, const double *w, double _d_y, double *_d_x) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_x[0] += w[0] * _d_y;
+// CHECK-NEXT:         _d_x[1] += w[1] * _d_y;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
