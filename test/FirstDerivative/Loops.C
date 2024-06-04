@@ -499,6 +499,24 @@ double fn14_darg0(double x);
 // CHECK-NEXT:           return _d_x;
 // CHECK-NEXT:       }
 
+double fn15(double u, double v) {
+    double res = 0;
+    for (; !(res = u * v) ;) {}
+    return 2*res;
+}
+
+double fn15_darg0(double u, double v);
+//CHECK:       double fn15_darg0(double u, double v) {
+// CHECK-NEXT:      double _d_u = 1;
+// CHECK-NEXT:      double _d_v = 0;
+// CHECK-NEXT:      double _d_res = 0;
+// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      for (; (_d_res = _d_u * v + u * _d_v) , !(res = u * v);) {
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return 0 * res + 2 * _d_res;
+// CHECK-NEXT:  }
+
+
 #define TEST(fn)\
 auto d_##fn = clad::differentiate(fn, "i");\
 printf("%.2f\n", d_##fn.execute(3, 5));
@@ -556,4 +574,7 @@ int main() {
   printf("Result is = %.2f\n", fn14_darg0(3)); // CHECK-EXEC: Result is = 4.00
   printf("Result is = %.2f\n", fn14_darg0(-3)); // CHECK-EXEC: Result is = 4.00
   printf("Result is = %.2f\n", fn14_darg0(1)); // CHECK-EXEC: Result is = 4.00
+
+  clad::differentiate(fn15, 0);
+  printf("Result is = %.2f\n", fn15_darg0(7, 3)); // CHECK-EXEC: Result is = 6.00
 }

@@ -706,13 +706,16 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     // If it's a supported differentiable operator we wrap it back into
     // parentheses and then visit. To ensure the correctness, a comma operator
     // expression (cond_dx, cond) is generated and put instead of the condition.
-    // FIXME: Add support for other expressions in cond (unary operators,
-    // comparisons, function calls, etc.). Ideally, we should be able to simply
-    // always call Visit(cond)
-    BinaryOperator* condBO = dyn_cast<BinaryOperator>(cond);
-    if (condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) {
+    // FIXME: Add support for other expressions in cond (comparisons, function
+    // calls, etc.). Ideally, we should be able to simply always call
+    // Visit(cond)
+    auto* condBO = dyn_cast<BinaryOperator>(cond);
+    auto* condUO = dyn_cast<UnaryOperator>(cond);
+    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
+        condUO) {
       condDiff = Visit(cond);
-      if (condDiff.getExpr_dx() && !isUnusedResult(condDiff.getExpr_dx()))
+      if (condDiff.getExpr_dx() &&
+          (!isUnusedResult(condDiff.getExpr_dx()) || condUO))
         cond = BuildOp(BO_Comma, BuildParens(condDiff.getExpr_dx()),
                        BuildParens(condDiff.getExpr()));
       else
@@ -1286,6 +1289,8 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+  } else if (opKind == UnaryOperatorKind::UO_LNot) {
+    return StmtDiff(op, diff.getExpr_dx());
   } else {
     unsupportedOpWarn(UnOp->getEndLoc());
     auto zero =
