@@ -24,7 +24,7 @@ double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 #define TEST(var, i, j)                                                        \
   result[0] = result[1] = result[2] = result[3] = result[4] = result[5] =      \
       result[6] = result[7] = result[8] = 0;                                   \
-  var.execute(i, j, result_ref);                                               \
+  var.execute(i, j, result);                                               \
   printf("Result = {%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f}\n",          \
          result[0],                                                            \
          result[1],                                                            \
@@ -38,7 +38,6 @@ double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 
 int main() {
   double result[9];
-  clad::array_ref<double> result_ref(result, 9);
   double x[] = {3, 4};
 
   auto h1 = clad::hessian(f, "i, j[0:1]");

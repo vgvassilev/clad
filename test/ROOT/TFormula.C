@@ -105,8 +105,7 @@ int main() {
 
      auto hess1 = clad::hessian(TFormula_hess1, "p[0:1]");
      Double_t hess_result[4] = { 0 };
-     clad::array_ref<Double_t> hess_result_ref(hess_result, 4);
-     hess1.execute(x, p, hess_result_ref);
+     hess1.execute(x, p, hess_result);
      // hes_result[0] = -1 * x[0] * std::sin(p[0]);
      // hes_result[1] = 0;
      // hes_result[2] = 0;

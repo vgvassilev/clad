@@ -20,7 +20,6 @@ double f1(double x) {
 
 int main() {
   double result[3] = {};
-  clad::array_ref<double> result_ref(result, 3);
   TEST(f1, 3); // CHECK-EXEC: {27.00}
 
 }

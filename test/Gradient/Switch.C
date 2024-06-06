@@ -702,7 +702,6 @@ double fn7(double u, double v) {
 
 int main() {
   double result[2] = {};
-  clad::array_ref<double> result_ref(result, 2);
 
   TEST_2(fn1, 3, 5);  // CHECK-EXEC: {156.00, 100.00}
   TEST_2(fn2, 3, 5);  // CHECK-EXEC: {5.00, 3.00}
