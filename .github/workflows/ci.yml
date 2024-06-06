@@ -590,6 +590,7 @@ jobs:
         {
           echo "Unsupported compiler - fix YAML file"
         }
+
     - name: Setup LLVM/Clang on macOS
       if: runner.os == 'macOS'
       run: |
@@ -602,14 +603,10 @@ jobs:
 
         # For now Package llvm@18 is unsuported on brew, llvm <=@11 are deprecated or deleted.
         # Install llvm from github releases.
-        if [[ '${{ matrix.clang-runtime }}' == '18' || ${{ matrix.clang-runtime }} -le 11 ]]; then
+        if [[ ${{ matrix.clang-runtime }} -le 11 ]]; then
           PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
           pushd /usr/local/opt
-          w="0"
           q="0"
-          [ '${{ matrix.clang-runtime }}' == '17' ] && w="6"
-          [ '${{ matrix.clang-runtime }}' == '18' ] && q="1"
-          sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.$q.$w/clang+llvm-${{ matrix.clang-runtime }}.$q.$w-x86_64-apple-darwin.tar.xz | sudo xz -d -c | sudo tar -x
           sudo rm -fr /usr/local/clang*
           sudo mv clang+llvm-${{ matrix.clang-runtime }}.$q.$w-x86_64-apple-darwin/ llvm@${{ matrix.clang-runtime }}/
           # Use llvm/llvm@10/llvm@6 Filecheck
@@ -625,7 +622,7 @@ jobs:
           popd
         fi
 
-        if [[ '${{ matrix.clang-runtime }}' != '18' && ${{ matrix.clang-runtime }} -gt 11 ]]; then
+        if [[ ${{ matrix.clang-runtime }} -gt 11 ]]; then
           brew install llvm@${{ matrix.clang-runtime }}
         else
           # Remove the c++ headers that come with the llvm package from homebrew
