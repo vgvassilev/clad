@@ -24,10 +24,9 @@ int main() {
   Double_t x[] = { 3 };
   Double_t p[] = { -std::log(2), -1, 3 };
   Double_t matrix[9] = { 0 };
-  clad::array_ref<Double_t> matrix_ref(matrix, 9);
 
   auto hessian = clad::hessian(TFormula_example, "p[0:2]");
-  hessian.execute(x, p, matrix_ref);
+  hessian.execute(x, p, matrix);
 
   printf("Result is = {%.2f, %.2f, %.2f, %.2f,"
          " %.2f, %.2f, %.2f, %.2f, %.2f}\n",

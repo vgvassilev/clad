@@ -112,9 +112,8 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> log_pushforward(T x, T d_x) {
 }
 
 template <typename T1, typename T2, typename T3>
-CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y,
-                                   clad::array_ref<decltype(T1())> d_x,
-                                   clad::array_ref<decltype(T2())> d_exponent) {
+CUDA_HOST_DEVICE void pow_pullback(T1 x, T2 exponent, T3 d_y, T1* d_x,
+                                   T2* d_exponent) {
   auto t = pow_pushforward(x, exponent, static_cast<T1>(1), static_cast<T2>(0));
   *d_x += t.pushforward * d_y;
   t = pow_pushforward(x, exponent, static_cast<T1>(0), static_cast<T2>(1));
@@ -131,10 +130,8 @@ fma_pushforward(T1 a, T2 b, T3 c, T1 d_a, T2 d_b, T3 d_c) {
 }
 
 template <typename T1, typename T2, typename T3, typename T4>
-CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y,
-                                   clad::array_ref<decltype(T1())> d_a,
-                                   clad::array_ref<decltype(T2())> d_b,
-                                   clad::array_ref<decltype(T3())> d_c) {
+CUDA_HOST_DEVICE void fma_pullback(T1 a, T2 b, T3 c, T4 d_y, T1* d_a, T2* d_b,
+                                   T3* d_c) {
   *d_a += b * d_y;
   *d_b += a * d_y;
   *d_c += d_y;
@@ -153,9 +150,8 @@ max_pushforward(const T& a, const T& b, const T& d_a, const T& d_b) {
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y,
-                                   clad::array_ref<decltype(T())> d_a,
-                                   clad::array_ref<decltype(T())> d_b) {
+CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y, T* d_a,
+                                   T* d_b) {
   if (a < b)
     *d_a += d_y;
   else
@@ -163,9 +159,8 @@ CUDA_HOST_DEVICE void min_pullback(const T& a, const T& b, U d_y,
 }
 
 template <typename T, typename U>
-CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y,
-                                   clad::array_ref<decltype(T())> d_a,
-                                   clad::array_ref<decltype(T())> d_b) {
+CUDA_HOST_DEVICE void max_pullback(const T& a, const T& b, U d_y, T* d_a,
+                                   T* d_b) {
   if (a < b)
     *d_b += d_y;
   else
@@ -182,10 +177,7 @@ clamp_pushforward(const T& v, const T& lo, const T& hi, const T& d_v,
 
 template <typename T, typename U>
 CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
-                                     const U& d_y,
-                                     clad::array_ref<decltype(T())> d_v,
-                                     clad::array_ref<decltype(T())> d_lo,
-                                     clad::array_ref<decltype(T())> d_hi) {
+                                     const U& d_y, T* d_v, T* d_lo, T* d_hi) {
   if (v < lo)
     *d_lo += d_y;
   else if (hi < v)

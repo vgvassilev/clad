@@ -127,7 +127,6 @@ double fn1(double i, double j) {
 
 int main() {
   double result[2] = {};
-  clad::array_ref<double> result_ref(result, 2);
 
   TEST_2(fn1, 3, 5); // CHECK-EXEC: {156.00, 100.00}
 }
