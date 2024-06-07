@@ -104,12 +104,11 @@ API reference
         double matrix[4] = {0};
 
         // Clad requires array size information as well
-        clad::array_ref<double> matrix_ref(matrix, 4);
-        fn_hesn.execute(8, 2, matrix_ref);
+        fn_hesn.execute(8, 2, matrix);
 
         // Result is 16, 64, 64,0
-        printf("Result is %g, %g, %g,%g \n", matrix_ref[0], matrix_ref[1],
-               matrix_ref[2], matrix_ref[3]);
+        printf("Result is %g, %g, %g,%g \n", matrix[0], matrix[1],
+               matrix[2], matrix[3]);
       }
 
    .. cpp:function:: template<class Fn>\
