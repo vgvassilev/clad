@@ -945,20 +945,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                          .get();
     // If result is a glvalue, we should keep it as it can potentially be
     // assigned as in (c ? a : b) = x;
+    Expr* ResultRef = nullptr;
     if ((CO->isModifiableLvalue(m_Context) == Expr::MLV_Valid) &&
         ifTrueExprDiff.getExpr_dx() && ifFalseExprDiff.getExpr_dx()) {
-      Expr* ResultRef = m_Sema
-                            .ActOnConditionalOp(noLoc, noLoc, condStored,
-                                                ifTrueExprDiff.getExpr_dx(),
-                                                ifFalseExprDiff.getExpr_dx())
-                            .get();
+      ResultRef = m_Sema
+                      .ActOnConditionalOp(noLoc, noLoc, condStored,
+                                          ifTrueExprDiff.getExpr_dx(),
+                                          ifFalseExprDiff.getExpr_dx())
+                      .get();
       if (ResultRef->isModifiableLvalue(m_Context) != Expr::MLV_Valid)
         ResultRef = nullptr;
-      Stmt* revBlock = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
-      addToCurrentBlock(revBlock, direction::reverse);
-      return StmtDiff(condExpr, ResultRef);
     }
-    return StmtDiff(condExpr);
+    Stmt* revBlock = utils::unwrapIfSingleStmt(endBlock(direction::reverse));
+    addToCurrentBlock(revBlock, direction::reverse);
+    return StmtDiff(condExpr, ResultRef);
   }
 
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
