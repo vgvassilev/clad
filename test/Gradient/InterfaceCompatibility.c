@@ -17,14 +17,17 @@ double f2(double x[2], int* y) {
 
 int main() {
     double x[2] = {2, 5}, dx[2] = {0}, dy = 0;
+    clad::array_ref<double> dx_ref(dx, 2);
+    clad::array_ref<double> dy_ref(&dy, 1);
 
     auto df1 = clad::gradient(f1);
-    df1.execute(x, 5, dx, &dy);
-    printf("{%.2f, %.2f, %.2f}\n", dx[0], dx[1], dy);  // CHECK-EXEC: {0.00, 1.00, 0.00}
+    df1.execute(x, 5, dx_ref, dy_ref);
+    printf("{%.2f, %.2f, %.2f}\n", dx_ref[0], dx_ref[1], *dy_ref);  // CHECK-EXEC: {0.00, 1.00, 0.00}
 
-    dx[0] = dx[1] = 0;
+    dx_ref[0] = dx_ref[1] = 0;
     int y[] = {9}, dy2[] = {0};
+    clad::array_ref<int> dy2_ref(dy2, 1);
     auto df2 = clad::gradient(f2);
-    df2.execute(x, y, dx, dy2);
-    printf("{%.2f, %.2f, %.2f}\n", dx[0], dx[1], (double)*dy2);  // CHECK-EXEC: {9.00, 0.00, 2.00}
+    df2.execute(x, y, dx_ref, dy2_ref);
+    printf("{%.2f, %.2f, %.2f}\n", dx_ref[0], dx_ref[1], (double)*dy2_ref);  // CHECK-EXEC: {9.00, 0.00, 2.00}
 }
