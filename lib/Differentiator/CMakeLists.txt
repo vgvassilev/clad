@@ -31,7 +31,6 @@ llvm_add_library(cladDifferentiator
   ErrorEstimator.cpp
   EstimationModel.cpp
   HessianModeVisitor.cpp
-  JacobianModeVisitor.cpp
   MultiplexExternalRMVSource.cpp
   PushForwardModeVisitor.cpp
   ReverseModeForwPassVisitor.cpp
