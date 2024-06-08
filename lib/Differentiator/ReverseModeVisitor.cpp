@@ -1269,7 +1269,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // global. Ref-type declarations cannot be moved to the function global
       // scope because they can't be separated from their inits.
       if (DRE->getDecl()->getType()->isReferenceType() &&
-          clonedDRE->getType()->isPointerType())
+          !VD->getType()->isReferenceType())
         clonedDRE = BuildOp(UO_Deref, clonedDRE);
       if (isVectorValued) {
         if (m_VectorOutput.size() <= outputArrayCursor)
@@ -1583,8 +1583,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       for (auto* argDerivative : CallArgDx) {
         Expr* gradArgExpr = nullptr;
-        const Expr* arg = CE->getArg(idx);
-        if (utils::isArrayOrPointerType(arg->getType()) ||
+        QualType paramTy = FD->getParamDecl(idx)->getType();
+        if (utils::isArrayOrPointerType(paramTy) ||
             isCladArrayType(argDerivative->getType()))
           gradArgExpr = argDerivative;
         else
@@ -3709,9 +3709,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   clang::QualType ReverseModeVisitor::ComputeParamType(clang::QualType T) {
-      QualType TValueType = utils::GetValueType(T);
-      TValueType.removeLocalConst();
-      return m_Context.getPointerType(TValueType);
+    QualType TValueType = utils::GetValueType(T);
+    return m_Context.getPointerType(TValueType);
   }
 
   llvm::SmallVector<clang::QualType, 8>
