@@ -210,23 +210,16 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     // FIXME: Here `if` branch should be removed once we update
     // numerical diff to use correct declaration context.
     if (forCustomDerv) {
-      DeclContext* outermostDC = utils::GetOutermostDC(m_Sema, originalFnDC);
       // FIXME: We should ideally construct nested name specifier from the
       // found custom derivative function. Current way will compute incorrect
       // nested name specifier in some cases.
-      if (outermostDC &&
-          outermostDC->getPrimaryContext() == NSD->getPrimaryContext()) {
-        utils::BuildNNS(m_Sema, originalFnDC, SS);
-        DC = originalFnDC;
-      } else {
-        if (isa<RecordDecl>(originalFnDC))
-          DC = utils::LookupNSD(m_Sema, "class_functions",
-                                /*shouldExist=*/false, NSD);
-        else
-          DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
-        if (DC)
-          utils::BuildNNS(m_Sema, DC, SS);
-      }
+      if (isa<RecordDecl>(originalFnDC))
+        DC = utils::LookupNSD(m_Sema, "class_functions",
+                              /*shouldExist=*/false, NSD);
+      else
+        DC = utils::FindDeclContext(m_Sema, NSD, originalFnDC);
+      if (DC)
+        utils::BuildNNS(m_Sema, DC, SS);
     } else {
       SS.Extend(m_Context, NSD, noLoc, noLoc);
     }
