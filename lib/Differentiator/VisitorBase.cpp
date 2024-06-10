@@ -280,10 +280,10 @@ namespace clad {
         (isa<CXXOperatorCallExpr>(ENoCasts) &&
          cast<CXXOperatorCallExpr>(ENoCasts)->getNumArgs() == 2) ||
         isa<ConditionalOperator>(ENoCasts) ||
-        isa<CXXBindTemporaryExpr>(ENoCasts))
-      return m_Sema.ActOnParenExpr(noLoc, noLoc, E).get();
-    else
-      return E;
+        isa<CXXBindTemporaryExpr>(ENoCasts)) {
+      return m_Sema.ActOnParenExpr(E->getBeginLoc(), E->getEndLoc(), E).get();
+    }
+    return E;
   }
 
   Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
