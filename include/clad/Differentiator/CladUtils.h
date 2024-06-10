@@ -99,7 +99,8 @@ namespace clad {
     /// \returns  type with namespace specifier added.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
 
-    /// Finds declaration context associated with the DC1::DC2.
+    /// Finds declaration context associated with the DC1::DC2, but doesn't
+    /// replicate the common part of the declaration contexts.
     /// For example, consider DC1 corresponds to the following declaration
     /// context:
     ///
@@ -109,8 +110,10 @@ namespace clad {
     ///
     /// and DC2 corresponds to the following declaration context:
     /// ```
-    /// namespace A {
-    ///   namespace B {}
+    /// namespace custom_derivatives {
+    ///   namespace A {
+    ///     namespace B {}
+    ///   }
     /// }
     /// ```
     /// then the function returns declartion context that correponds to
@@ -136,26 +139,6 @@ namespace clad {
     clang::NamespaceDecl* LookupNSD(clang::Sema& S, llvm::StringRef namespc,
                                     bool shouldExist,
                                     clang::DeclContext* DC = nullptr);
-
-    /// Returns the outermost declaration context, other than the translation
-    /// unit declaration, associated with DC. For example, consider a struct `S`
-    /// as follows:
-    ///
-    /// ```
-    /// namespace A {
-    ///   namespace B {
-    //    struct S {};
-    ///   }
-    /// }
-    /// ```
-    ///
-    /// In this case, outermost declaration context associated with `S` is of
-    /// namespace `A`.
-    ///
-    /// \param semaRef
-    /// \param[in] DC
-    clang::DeclContext* GetOutermostDC(clang::Sema& semaRef,
-                                       clang::DeclContext* DC);
 
     /// Creates a `StringLiteral` node to represent string literal
     /// "`str`".

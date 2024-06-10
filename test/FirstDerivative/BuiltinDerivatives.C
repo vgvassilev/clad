@@ -219,6 +219,38 @@ double f12(double a, double b) { return std::fma(a, b, b); }
 //CHECK-NEXT:     return _t0.pushforward;
 //CHECK-NEXT: }
 
+namespace clad{
+  namespace custom_derivatives{
+    clad::ValueAndPushforward<double, double> custom_f13_pushforward(double x, double d_x) {
+      return {exp(x), exp(x)*d_x};
+    }
+    clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > custom_f13_pushforward_pushforward(double x, double d_x, double _d_x, double _d_d_x) {
+      return {{exp(x), exp(x)*d_x}, {exp(x)*_d_x, exp(x)*_d_x + exp(x)*_d_d_x}};
+    }
+  }
+}
+double custom_f13(double x) {
+  return exp(x);
+}
+double f13(double x) {
+  return custom_f13(x);
+}
+
+//CHECK: double f13_darg0(double x) {
+//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::custom_f13_pushforward(x, _d_x);
+//CHECK-NEXT:     return _t0.pushforward;
+//CHECK-NEXT: }
+//CHECK-NEXT: double f13_d2arg0(double x) {
+//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     double _d__d_x = 0;
+//CHECK-NEXT:     double _d_x0 = 1;
+//CHECK-NEXT:     clad::ValueAndPushforward<clad::ValueAndPushforward<double, double>, clad::ValueAndPushforward<double, double> > _t0 = clad::custom_derivatives::custom_f13_pushforward_pushforward(x, _d_x0, _d_x, _d__d_x);
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = _t0.pushforward;
+//CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = _t0.value;
+//CHECK-NEXT:     return _d__t0.pushforward;
+//CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -287,6 +319,9 @@ int main () { //expected-no-diagnostics
 
   auto f12_darg1 = clad::differentiate(f12, 1);
   printf("Result is = %f\n", f12_darg1.execute(2, 1)); //CHECK-EXEC: Result is = 3.000000
+
+  auto f13_ddx = clad::differentiate<2>(f13);
+  printf("Result is = %.2f\n", f13_ddx.execute(1)); //CHECK-EXEC: Result is = 2.72
 
   return 0;
 }

@@ -185,15 +185,14 @@ namespace clad {
 
     DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
                                  clang::DeclContext* DC2) {
-      // llvm::errs()<<"DC1 name: "<<DC1->getDeclKindName()<<"\n";
-      // llvm::errs()<<"DC2 name: "<<DC2->getDeclKindName()<<"\n";
-      // cast<Decl>(DC1)->dumpColor();
       llvm::SmallVector<clang::DeclContext*, 4> contexts;
       assert((isa<NamespaceDecl>(DC1) || isa<TranslationUnitDecl>(DC1)) &&
              "DC1 can only be extended if it is a "
              "namespace or translation unit decl.");
       while (DC2) {
-        // llvm::errs()<<"DC2 name: "<<DC2->getDeclKindName()<<"\n";
+        // If somewhere along the way we reach DC1, then we can break the loop.
+        if (DC2->Equals(DC1))
+          break;
         if (isa<TranslationUnitDecl>(DC2))
           break;
         if (isa<LinkageSpecDecl>(DC2)) {
@@ -264,17 +263,6 @@ namespace clad {
       assert(!R.empty() && "Cannot find the specified namespace!");
       NamespaceDecl* ND = cast<NamespaceDecl>(R.getFoundDecl());
       return cast<NamespaceDecl>(ND->getPrimaryContext());
-    }
-
-    clang::DeclContext* GetOutermostDC(Sema& semaRef, clang::DeclContext* DC) {
-      ASTContext& C = semaRef.getASTContext();
-      assert(DC && "Invalid DC");
-      while (DC) {
-        if (DC->getParent() == C.getTranslationUnitDecl())
-          break;
-        DC = DC->getParent();
-      }
-      return DC;
     }
 
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
