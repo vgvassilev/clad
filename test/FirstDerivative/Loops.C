@@ -3,7 +3,10 @@
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/STLBuiltins.h"
+#include <initializer_list>
 #include <cmath>
+#include "../TestUtils.h"
 
 double f1(double x, int y) {
     double r = 1.0;
@@ -548,6 +551,38 @@ double fn17_darg0(double x);
 // CHECK-NEXT:     return _d_x;
 // CHECK-NEXT: }
 
+double fn18(double u, double v) {
+    auto dl = {u, v, u*v};
+    double res = 0;
+    auto dl_end = dl.end();
+    for (auto i = dl.begin(); i != dl_end; ++i)
+        res += *i;
+    return res;
+}
+
+// CHECK: double fn18_darg0(double u, double v) {
+// CHECK-NEXT:     double _d_u = 1;
+// CHECK-NEXT:     double _d_v = 0;
+// CHECK-NEXT:     {{.*}}initializer_list<double> _d_dl = {_d_u, _d_v, _d_u * v + u * _d_v};
+// CHECK-NEXT:     {{.*}}initializer_list<double> dl = {u, v, u * v};
+// CHECK-NEXT:     double _d_res = 0;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<{{.*}}, {{.*}}> _t0 = {{.*}}end_pushforward(&dl, &_d_dl);
+// CHECK-NEXT:     {{.*}}_d_dl_end = _t0.pushforward;
+// CHECK-NEXT:     {{.*}}dl_end = _t0.value;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {{.*}}ValueAndPushforward<{{.*}}, {{.*}}> _t1 = {{.*}}begin_pushforward(&dl, &_d_dl);
+// CHECK-NEXT:         {{.*}}_d_i = _t1.pushforward;
+// CHECK-NEXT:         for ({{.*}}i = _t1.value; i != dl_end; ++_d_i , ++i) {
+// CHECK-NEXT:             _d_res += *_d_i;
+// CHECK-NEXT:             res += *i;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return _d_res;
+// CHECK-NEXT: }
+
+
+
 #define TEST(fn)\
 auto d_##fn = clad::differentiate(fn, "i");\
 printf("%.2f\n", d_##fn.execute(3, 5));
@@ -614,4 +649,7 @@ int main() {
 
   clad::differentiate(fn17, 0);
   printf("Result is = %.2f\n", fn17_darg0(5)); // CHECK-EXEC: Result is = 0
+
+  INIT_DIFFERENTIATE(fn18, "u");
+  TEST_DIFFERENTIATE(fn18, 3, 5);  // CHECK-EXEC: {6.00}
 }
