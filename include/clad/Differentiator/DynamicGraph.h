@@ -74,9 +74,12 @@ public:
   /// Add an edge from the current node being processed to the
   /// destination node.
   /// \param dest
-  void addEdgeToCurrentNode(const T& dest) {
+  /// \param alreadyProcessed If the destination node is already processed.
+  void addEdgeToCurrentNode(const T& dest, bool alreadyProcessed = false) {
     if (m_currentId != -1)
       addEdge(m_nodes[m_currentId], dest);
+    if (alreadyProcessed)
+      m_nodeMap[dest].first = true;
   }
 
   /// Set the current node being processed.

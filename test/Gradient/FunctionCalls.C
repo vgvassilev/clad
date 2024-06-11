@@ -230,12 +230,25 @@ double& identity(double& i) {
   return i;
 }
 
+namespace clad{
+namespace custom_derivatives{
+  clad::ValueAndAdjoint<double &, double &> custom_identity_forw(double &i, double *d_i) {
+    return {i, *d_i};
+  }
+} // namespace custom_derivatives
+} // namespace clad
+
+double& custom_identity(double& i) {
+  return i;
+}
+
 double fn7(double i, double j) {
   double& k = identity(i);
   double& l = identity(j);
+  double& temp = custom_identity(i);
   k += 7*j;
   l += 9*i;
-  return i + j;
+  return i + j + temp;
 }
 
 // CHECK: void fn6_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -249,13 +262,21 @@ double fn7(double i, double j) {
 
 // CHECK: clad::ValueAndAdjoint<double &, double &> identity_forw(double &i, double *_d_i);
 
+// CHECK: void custom_identity_pullback(double &i, double _d_y, double *_d_i);
+
+// CHECK: clad::ValueAndAdjoint<double &, double &> custom_identity_forw(double &i, double *d_i) {
+// CHECK-NEXT:     return {i, *d_i};
+// CHECK-NEXT: }
+
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double *_d_k = 0;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double *_d_l = 0;
 // CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     double _t5;
+// CHECK-NEXT:     double *_d_temp = 0;
+// CHECK-NEXT:     double _t6
+// CHECK-NEXT:     double _t7;
 // CHECK-NEXT:     _t0 = i;
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = identity_forw(i, &*_d_i);
 // CHECK-NEXT:     _d_k = &_t1.adjoint;
@@ -264,23 +285,32 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t3 = identity_forw(j, &*_d_j);
 // CHECK-NEXT:     _d_l = &_t3.adjoint;
 // CHECK-NEXT:     double &l = _t3.value;
-// CHECK-NEXT:     _t4 = k;
+// CHECK-NEXT:     _t4 = i;
+// CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t5 = custom_identity_forw(i, &*_d_i);
+// CHECK-NEXT:     _d_temp = &_t5.adjoint;
+// CHECK-NEXT:     double &temp = _t5.value;
+// CHECK-NEXT:     _t6 = k;
 // CHECK-NEXT:     k += 7 * j;
-// CHECK-NEXT:     _t5 = l;
+// CHECK-NEXT:     _t7 = l;
 // CHECK-NEXT:     l += 9 * i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1;
 // CHECK-NEXT:         *_d_j += 1;
+// CHECK-NEXT:         _d_temp += 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         l = _t5;
+// CHECK-NEXT:         l = _t7;
 // CHECK-NEXT:         double _r_d1 = *_d_l;
 // CHECK-NEXT:         *_d_i += 9 * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         k = _t4;
+// CHECK-NEXT:         k = _t6;
 // CHECK-NEXT:         double _r_d0 = *_d_k;
 // CHECK-NEXT:         *_d_j += 7 * _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         i = _t4;
+// CHECK-NEXT:         custom_identity_pullback(_t4, 0, &*_d_i);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t2;
@@ -669,6 +699,21 @@ double fn21(double x) {
 // CHECK-NEXT:         ptr = _t0;
 // CHECK-NEXT:         ptrRef_pullback(_t0, 1, &_d_ptr);
 // CHECK-NEXT:     }
+
+namespace clad{
+namespace custom_derivatives{
+  void fn22_grad_1(double x, double y, double *d_y) {
+    *d_y += x;
+  }
+}
+}
+
+double fn22(double x, double y) {
+  return x*y; // fn22 has a custom derivative defined.
+}
+
+// CHECK: void fn22_grad_1(double x, double y, double *d_y) {
+// CHECK-NEXT:   *d_y += x;
 // CHECK-NEXT: }
 
 template<typename T>
@@ -736,7 +781,7 @@ int main() {
   TEST_ARR5(fn4, arr, 5);       // CHECK-EXEC: {23.00, 3.00, 3.00, 3.00, 3.00}
   TEST_ARR5(fn5, arr, 5);       // CHECK-EXEC: {5.00, 1.00, 0.00, 0.00, 0.00}
   TEST2(fn6, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
-  TEST2(fn7, 3, 5);             // CHECK-EXEC: {10.00, 71.00}
+  TEST2(fn7, 3, 5);             // CHECK-EXEC: {11.00, 78.00}
   TEST2(fn8, 3, 5);             // CHECK-EXEC: {7.62, 4.57}
   TEST2(fn9, 3, 5);             // CHECK-EXEC: {5.00, 3.00}
   TEST2(fn10, 8, 5);            // CHECK-EXEC: {0.00, 7.00}
@@ -777,6 +822,11 @@ int main() {
 
   INIT(fn21);
   TEST1(fn21, 8);  // CHECK-EXEC: {1.00}
+
+  auto fn22_grad_1 = clad::gradient(fn22, "y");
+  double dy = 0;
+  fn22_grad_1.execute(3, 5, &dy);
+  printf("{%.2f}\n", dy);  // CHECK-EXEC: {3.00}
 }
 
 double sq_defined_later(double x) {
@@ -909,6 +959,12 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     _t0 = _d_i0;
 // CHECK-NEXT:     _d_i0 += 1;
 // CHECK-NEXT:     return {i, *_d_i};
+// CHECK-NEXT: }
+
+// CHECK: void custom_identity_pullback(double &i, double _d_y, double *_d_i) {
+// CHECK-NEXT:     goto _label0;
+// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     *_d_i += _d_y; 
 // CHECK-NEXT: }
 
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {

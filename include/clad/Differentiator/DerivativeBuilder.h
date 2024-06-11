@@ -133,6 +133,32 @@ namespace clad {
         stream << arg;
     }
 
+    /// Lookup the result of finding a custom derivative or numerical
+    /// differentiation function.
+    ///
+    /// \param[in] Name The name of the function to look up.
+    /// \param[in] originalFnDC The original function's DeclContext.
+    /// \param[in] SS The CXXScopeSpec to extend with the namespace of the
+    /// function.
+    /// \param[in] forCustomDerv A flag to keep track of which
+    /// namespace we should look in for the overloads.
+    /// \param[in] namespaceShouldExist A flag to enforce assertion failure
+    /// if the overload function namespace was not found. If false and
+    /// the function containing namespace was not found,
+    clang::LookupResult LookupCustomDerivativeOrNumericalDiff(
+        const std::string& Name, clang::DeclContext* originalFnDC,
+        clang::CXXScopeSpec& SS, bool forCustomDerv = true,
+        bool namespaceShouldExist = true);
+
+    /// Looks up if the user has defined a custom derivative for the given
+    /// derivative function.
+    /// \param[in] D
+    /// \returns The custom derivative function if found, nullptr otherwise.
+    clang::FunctionDecl*
+    LookupCustomDerivativeDecl(const std::string& Name,
+                               clang::DeclContext* originalFnDC,
+                               clang::QualType functionType);
+
   public:
     DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
                       DerivedFnCollector& DFC,
@@ -175,7 +201,10 @@ namespace clad {
     /// graph.
     ///
     /// \param[in] request The request to add the edge to.
-    void AddEdgeToGraph(const DiffRequest& request);
+    /// \param[in] alreadyDerived A flag to keep track of whether the request
+    /// is already derived or not.
+    void AddEdgeToGraph(const DiffRequest& request,
+                        bool alreadyDerived = false);
   };
 
 } // end namespace clad

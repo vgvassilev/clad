@@ -361,13 +361,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Cast to function pointer.
         originalFnType->getExtProtoInfo());
 
+    // Check if the function is already declared as a custom derivative.
+    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
+            gradientName, DC, gradientFunctionType))
+      return DerivativeAndOverload{customDerivative, nullptr};
+
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext result = m_Builder.cloneFunction(
         m_DiffReq.Function, *this, DC, noLoc, name, gradientFunctionType);
@@ -1805,20 +1808,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           clad::utils::ComputeEffectiveFnName(FD);
       calleeFnForwPassReq.VerboseDiags = true;
 
+      bool alreadyDerived = true;
       FunctionDecl* calleeFnForwPassFD =
           m_Builder.FindDerivedFunction(calleeFnForwPassReq);
       if (!calleeFnForwPassFD) {
+        alreadyDerived = false;
         // Derive declaration of the the forward pass function.
         calleeFnForwPassReq.DeclarationOnly = true;
         calleeFnForwPassFD =
             plugin::ProcessDiffRequest(m_CladPlugin, calleeFnForwPassReq);
+
+        // It is possible that user has provided a custom derivative for the
+        // derivative function. In that case, we should not derive the
+        // definition again.
+        if (calleeFnForwPassFD->getDefinition())
+          alreadyDerived = true;
 
         // Add the request to derive the definition of the forward pass
         // function.
         calleeFnForwPassReq.DeclarationOnly = false;
         calleeFnForwPassReq.DerivedFDPrototype = calleeFnForwPassFD;
       }
-      m_Builder.AddEdgeToGraph(calleeFnForwPassReq);
+      m_Builder.AddEdgeToGraph(calleeFnForwPassReq, alreadyDerived);
 
       assert(calleeFnForwPassFD &&
              "Clad failed to generate callee function forward pass function");

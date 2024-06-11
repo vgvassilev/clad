@@ -9,14 +9,20 @@
 #include "../TestUtils.h"
 extern "C" int printf(const char* fmt, ...);
 
+namespace clad{
+  namespace custom_derivatives{
+    float f1_darg0(float x) {
+      return cos(x);
+    }
+  }
+}
+
 float f1(float x) {
   return sin(x);
 }
 
 // CHECK: float f1_darg0(float x) {
-// CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, _d_x);
-// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT:    return cos(x);
 // CHECK-NEXT: }
 
 float f2(float x) {

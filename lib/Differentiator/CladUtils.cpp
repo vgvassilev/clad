@@ -238,8 +238,9 @@ namespace clad {
       DeclContext* DC = DC1;
       for (int i = contexts.size() - 1; i >= 0; --i) {
         NamespaceDecl* ND = cast<NamespaceDecl>(contexts[i]);
-        DC = LookupNSD(semaRef, ND->getIdentifier()->getName(),
-                       /*shouldExist=*/false, DC1);
+        if (ND->getIdentifier())
+          DC = LookupNSD(semaRef, ND->getIdentifier()->getName(),
+                         /*shouldExist=*/false, DC1);
         if (!DC)
           return nullptr;
         DC1 = DC;

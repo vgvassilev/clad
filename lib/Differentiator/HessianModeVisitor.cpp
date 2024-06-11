@@ -58,19 +58,27 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
     IndependentArgRequest.CallUpdateRequired = false;
     IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
     // FIXME: Find a way to do this without accessing plugin namespace functions
+    bool alreadyDerived = true;
     FunctionDecl* firstDerivative =
         Builder.FindDerivedFunction(IndependentArgRequest);
     if (!firstDerivative) {
+      alreadyDerived = false;
       // Derive declaration of the the forward mode derivative.
       IndependentArgRequest.DeclarationOnly = true;
       firstDerivative = plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+
+      // It is possible that user has provided a custom derivative for the
+      // derivative function. In that case, we should not derive the definition
+      // again.
+      if (firstDerivative->isDefined())
+        alreadyDerived = true;
 
       // Add the request to derive the definition of the forward mode derivative
       // to the schedule.
       IndependentArgRequest.DeclarationOnly = false;
       IndependentArgRequest.DerivedFDPrototype = firstDerivative;
     }
-    Builder.AddEdgeToGraph(IndependentArgRequest);
+    Builder.AddEdgeToGraph(IndependentArgRequest, alreadyDerived);
 
     // Further derives function w.r.t to ReverseModeArgs
     DiffRequest ReverseModeRequest{};
@@ -80,20 +88,27 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
     ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
     ReverseModeRequest.UpdateDiffParamsInfo(SemaRef);
 
+    alreadyDerived = true;
     FunctionDecl* secondDerivative =
         Builder.FindDerivedFunction(ReverseModeRequest);
     if (!secondDerivative) {
+      alreadyDerived = false;
       // Derive declaration of the the reverse mode derivative.
       ReverseModeRequest.DeclarationOnly = true;
       secondDerivative = plugin::ProcessDiffRequest(CP, ReverseModeRequest);
 
-      // Add the request to derive the definition of the reverse mode derivative
-      // to the schedule.
+      // It is possible that user has provided a custom derivative for the
+      // derivative function. In that case, we should not derive the definition
+      // again.
+      if (secondDerivative->isDefined())
+        alreadyDerived = true;
+
+      // Add the request to derive the definition of the reverse mode
+      // derivative to the schedule.
       ReverseModeRequest.DeclarationOnly = false;
       ReverseModeRequest.DerivedFDPrototype = secondDerivative;
     }
-    Builder.AddEdgeToGraph(ReverseModeRequest);
-
+    Builder.AddEdgeToGraph(ReverseModeRequest, alreadyDerived);
     return secondDerivative;
   }
 
@@ -247,10 +262,13 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
         // Cast to function pointer.
         originalFnProtoType->getExtProtoInfo());
 
-    // Create the gradient function declaration.
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    // Check if the function is already declared as a custom derivative.
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
+            hessianFuncName, DC, hessianFunctionType))
+      return DerivativeAndOverload{customDerivative, nullptr};
+
+    // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
