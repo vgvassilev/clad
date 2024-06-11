@@ -1725,6 +1725,53 @@ double fn21(double x) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn22(double param) {
+   double out = 0.0;
+   for (int i = 0; i < 1; i++) {
+      double arr[] = {1.};
+      out += arr[0] * param;
+   }
+   return out;
+}
+
+
+// CHECK: void fn22_grad(double param, double *_d_param) {
+// CHECK-NEXT:     double _d_out = 0;
+// CHECK-NEXT:     unsigned {{int|long}} _t0;
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
+// CHECK-NEXT:     double _d_arr[1] = {0};
+// CHECK-NEXT:     clad::array<double> arr({{1U|1UL}});
+// CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     double out = 0.;
+// CHECK-NEXT:    _t0 = {{0U|0UL}};
+// CHECK-NEXT:    for (i = 0; i < 1; i++) {
+// CHECK-NEXT:        _t0++;
+// CHECK-NEXT:        clad::push(_t1, arr) , arr = {1.};
+// CHECK-NEXT:        clad::push(_t2, out);
+// CHECK-NEXT:        clad::push(_t3, arr[0]);
+// CHECK-NEXT:        out += clad::back(_t3) * param;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    goto _label0;
+// CHECK-NEXT:  _label0:
+// CHECK-NEXT:    _d_out += 1;
+// CHECK-NEXT:    for (; _t0; _t0--) {
+// CHECK-NEXT:        i--;
+// CHECK-NEXT:        {
+// CHECK-NEXT:            out = clad::pop(_t2);
+// CHECK-NEXT:            double _r_d0 = _d_out;
+// CHECK-NEXT:            _d_arr[0] += _r_d0 * param;
+// CHECK-NEXT:            *_d_param += clad::back(_t3) * _r_d0;
+// CHECK-NEXT:            clad::pop(_t3);
+// CHECK-NEXT:        }
+// CHECK-NEXT:        {
+// CHECK-NEXT:            clad::zero_init(_d_arr);
+// CHECK-NEXT:            arr = clad::pop(_t1);
+// CHECK-NEXT:        }
+// CHECK-NEXT:    }
+// CHECK-NEXT: }
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -1797,6 +1844,7 @@ int main() {
   printf("{%.2f, %.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], result[3], result[4]); // CHECK-EXEC: {5.00, 5.00, 5.00, 5.00, 5.00}
   
   TEST(fn21, 5); // CHECK-EXEC: {5.00}
+  TEST(fn22, 5); // CHECK-EXEC: {1.00}
 }
 
 //CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
