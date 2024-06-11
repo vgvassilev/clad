@@ -33,7 +33,7 @@ namespace clad {
           size_t TotalIndependentArgsSize, std::string hessianFuncName);
 
   public:
-    HessianModeVisitor(DerivativeBuilder& builder);
+    HessianModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
     ~HessianModeVisitor();
 
     ///\brief Produces the hessian second derivative columns of a given

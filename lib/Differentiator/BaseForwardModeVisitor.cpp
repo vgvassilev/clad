@@ -33,8 +33,9 @@
 using namespace clang;
 
 namespace clad {
-BaseForwardModeVisitor::BaseForwardModeVisitor(DerivativeBuilder& builder)
-    : VisitorBase(builder) {}
+BaseForwardModeVisitor::BaseForwardModeVisitor(DerivativeBuilder& builder,
+                                               const DiffRequest& request)
+    : VisitorBase(builder, request) {}
 
 BaseForwardModeVisitor::~BaseForwardModeVisitor() {}
 
@@ -60,8 +61,8 @@ bool IsRealNonReferenceType(QualType T) {
 DerivativeAndOverload
 BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
                                const DiffRequest& request) {
+  assert(m_DiffReq == request && "Can't pass two different requests!");
   silenceDiags = !request.VerboseDiags;
-  m_Function = FD;
   m_Functor = request.Functor;
   m_Mode = DiffMode::forward;
   assert(!m_DerivativeInFlight &&
@@ -144,7 +145,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   // then the specified independent argument is a member variable of the
   // class defining the call operator.
   // Thus, we need to find index of the member variable instead.
-  if (m_Function->param_empty() && m_Functor) {
+  if (m_DiffReq->param_empty() && m_Functor) {
     m_ArgIndex =
         std::distance(m_Functor->field_begin(),
                       std::find(m_Functor->field_begin(),
@@ -161,11 +162,11 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 
   IdentifierInfo* II = &m_Context.Idents.get(
       request.BaseFunctionName + "_d" + s + "arg" + argInfo + derivativeSuffix);
-  SourceLocation validLoc{m_Function->getLocation()};
+  SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, validLoc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
   llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
-  DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+  DeclContext* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
       m_Builder.cloneFunction(FD, *this, DC, validLoc, name, FD->getType());
@@ -368,7 +369,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 
 clang::QualType BaseForwardModeVisitor::ComputePushforwardFnReturnType() {
   assert(m_Mode == GetPushForwardMode());
-  QualType originalFnRT = m_Function->getReturnType();
+  QualType originalFnRT = m_DiffReq->getReturnType();
   if (originalFnRT->isVoidType())
     return m_Context.VoidTy;
   TemplateDecl* valueAndPushforward =
@@ -382,7 +383,7 @@ clang::QualType BaseForwardModeVisitor::ComputePushforwardFnReturnType() {
 }
 
 void BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
-  Stmt* bodyDiff = Visit(m_Function->getBody()).getStmt();
+  Stmt* bodyDiff = Visit(m_DiffReq->getBody()).getStmt();
   auto* CS = cast<CompoundStmt>(bodyDiff);
   for (Stmt* S : CS->body())
     addToCurrentBlock(S);
@@ -391,7 +392,7 @@ void BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
 DerivativeAndOverload
 BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
                                           const DiffRequest& request) {
-  m_Function = FD;
+  const_cast<DiffRequest&>(m_DiffReq) = request;
   m_Functor = request.Functor;
   m_DerivativeOrder = request.CurrentDerivativeOrder;
   m_Mode = GetPushForwardMode();
@@ -399,11 +400,12 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
          "Doesn't support recursive diff. Use DiffPlan.");
   m_DerivativeInFlight = true;
 
-  auto originalFnEffectiveName = utils::ComputeEffectiveFnName(m_Function);
+  auto originalFnEffectiveName =
+      utils::ComputeEffectiveFnName(m_DiffReq.Function);
 
   IdentifierInfo* derivedFnII = &m_Context.Idents.get(
       originalFnEffectiveName + GetPushForwardFunctionSuffix());
-  DeclarationNameInfo derivedFnName(derivedFnII, m_Function->getLocation());
+  DeclarationNameInfo derivedFnName(derivedFnII, m_DiffReq->getLocation());
   llvm::SmallVector<QualType, 16> paramTypes;
   llvm::SmallVector<QualType, 16> derivedParamTypes;
 
@@ -417,7 +419,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
     }
   }
 
-  for (auto* PVD : m_Function->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters()) {
     paramTypes.push_back(PVD->getType());
 
     if (BaseForwardModeVisitor::IsDifferentiableType(PVD->getType()))
@@ -428,19 +430,19 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
                     derivedParamTypes.end());
 
   const auto* originalFnType =
-      dyn_cast<FunctionProtoType>(m_Function->getType());
+      dyn_cast<FunctionProtoType>(m_DiffReq->getType());
   QualType returnType = ComputePushforwardFnReturnType();
   QualType derivedFnType = m_Context.getFunctionType(
       returnType, paramTypes, originalFnType->getExtProtoInfo());
   llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                          getEnclosingNamespaceOrTUScope());
-  auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
 
-  SourceLocation loc{m_Function->getLocation()};
+  SourceLocation loc{m_DiffReq->getLocation()};
   DeclWithContext cloneFunctionResult = m_Builder.cloneFunction(
-      m_Function, *this, DC, loc, derivedFnName, derivedFnType);
+      m_DiffReq.Function, *this, DC, loc, derivedFnName, derivedFnType);
   m_Derivative = cloneFunctionResult.first;
 
   llvm::SmallVector<ParmVarDecl*, 16> params;
@@ -466,9 +468,9 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
     }
   }
 
-  std::size_t numParamsOriginalFn = m_Function->getNumParams();
+  std::size_t numParamsOriginalFn = m_DiffReq->getNumParams();
   for (std::size_t i = 0; i < numParamsOriginalFn; ++i) {
-    const auto* PVD = m_Function->getParamDecl(i);
+    const auto* PVD = m_DiffReq->getParamDecl(i);
     // Some of the special member functions created implicitly by compilers
     // have missing parameter identifier.
     bool identifierMissing = false;
@@ -1137,7 +1139,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
       const_cast<DeclContext*>(FD->getDeclContext()));
 
   // Check if it is a recursive call.
-  if (!callDiff && (FD == m_Function) && m_Mode == GetPushForwardMode()) {
+  if (!callDiff && (FD == m_DiffReq.Function) &&
+      m_Mode == GetPushForwardMode()) {
     // The differentiated function is called recursively.
     Expr* derivativeRef =
         m_Sema

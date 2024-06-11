@@ -105,6 +105,8 @@ struct DiffRequest {
            DeclarationOnly == other.DeclarationOnly;
   }
 
+  const clang::FunctionDecl* operator->() const { return Function; }
+
   // String operator for printing the node.
   operator std::string() const {
     std::string res = BaseFunctionName + "__order_" +

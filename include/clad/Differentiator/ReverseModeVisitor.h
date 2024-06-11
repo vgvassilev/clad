@@ -336,7 +336,7 @@ namespace clad {
         llvm::SmallVectorImpl<clang::Expr*>& outputArgs);
 
   public:
-    ReverseModeVisitor(DerivativeBuilder& builder);
+    ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
     virtual ~ReverseModeVisitor();
 
     ///\brief Produces the gradient of a given function.
@@ -629,18 +629,14 @@ namespace clad {
     /// Computes and returns the sequence of derived function parameter types.
     ///
     /// Information about the original function and the differentiation mode
-    /// are taken from the data member variables. In particular, `m_Function`,
-    /// `m_Mode` data members should be correctly set before using this
-    /// function.
+    /// are taken from the data member variables.
     llvm::SmallVector<clang::QualType, 8> ComputeParamTypes(const DiffParams& diffParams);
 
     /// Builds and returns the sequence of derived function parameters.
     ///
     /// Information about the original function, derived function, derived
     /// function parameter types and the differentiation mode are implicitly
-    /// taken from the data member variables. In particular, `m_Function`,
-    /// `m_Mode` and `m_Derivative` should be correctly set before using this
-    /// function.
+    /// taken from the data member variables.
     llvm::SmallVector<clang::ParmVarDecl*, 8>
     BuildParams(DiffParams& diffParams);
 

@@ -115,10 +115,9 @@ namespace clad {
                                      VarDecl::InitializationStyle IS) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto VD =
-        VarDecl::Create(m_Context, m_Sema.CurContext, m_Function->getLocation(),
-                        m_Function->getLocation(), Identifier, Type, TSI,
-                        SC_None);
+    auto VD = VarDecl::Create(
+        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
+        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 
     if (Init) {
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
@@ -133,7 +132,7 @@ namespace clad {
   }
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
-    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function,
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);
     up.TraverseStmt(InSubtree);
   }
@@ -356,7 +355,7 @@ namespace clad {
 
   QualType VisitorBase::CloneType(const QualType QT) {
     auto clonedType = m_Builder.m_NodeCloner->CloneType(QT);
-    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function,
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);
     up.updateType(clonedType);
     return clonedType;
@@ -531,7 +530,7 @@ namespace clad {
                                           MutableArrayRef<Expr*> ArgExprs,
                                           SourceLocation Loc /*=noLoc*/) {
     if (Loc.isInvalid())
-      Loc = m_Function->getLocation();
+      Loc = m_DiffReq->getLocation();
     UnqualifiedId Member;
     Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), Loc);
     CXXScopeSpec SS;
@@ -566,7 +565,7 @@ namespace clad {
     Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
     bool isArrow = true;
     if (Loc.isInvalid())
-      Loc = m_Function->getLocation();
+      Loc = m_DiffReq->getLocation();
 
     // C++ does not support perfect forwarding of `*this` object inside
     // a member function.
@@ -621,7 +620,7 @@ namespace clad {
                      /*Fn=*/exprFunc,
                      /*LParenLoc=*/noLoc,
                      /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
-                     /*RParenLoc=*/m_Function->getLocation())
+                     /*RParenLoc=*/m_DiffReq->getLocation())
                  .get();
     }
     return call;
