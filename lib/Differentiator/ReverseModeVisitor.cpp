@@ -258,12 +258,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     silenceDiags = !request.VerboseDiags;
     assert(m_DiffReq == request);
 
-    // reverse mode plugins may have request mode other than
+    // FIXME: reverse mode plugins may have request mode other than
     // `DiffMode::reverse`, but they still need the `DiffMode::reverse` mode
     // specific behaviour, because they are "reverse" mode plugins.
-    m_Mode = DiffMode::reverse;
-    if (request.Mode == DiffMode::jacobian)
-      m_Mode = DiffMode::jacobian;
+    // assert(m_DiffReq.Mode == DiffMode::reverse ||
+    //        m_DiffReq.Mode == DiffMode::jacobian && "Unexpected Mode.");
+    if (m_DiffReq.Mode == DiffMode::error_estimation)
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+      const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
+
     m_Pullback =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
     assert(m_DiffReq.Function && "Must not be null.");
@@ -488,7 +491,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // FIXME: We should not use const_cast to get the decl request here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     const_cast<DiffRequest&>(m_DiffReq) = request;
-    m_Mode = DiffMode::experimental_pullback;
+    assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
     assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
@@ -1666,7 +1669,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
       if (FD == m_DiffReq.Function &&
-          m_Mode == DiffMode::experimental_pullback) {
+          m_DiffReq.Mode == DiffMode::experimental_pullback) {
         // Recursive call.
         Expr* selfRef =
             m_Sema
@@ -2432,8 +2435,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // procedure is done to make declarations visible in the reverse sweep.
     // The reverse_mode_forward_pass mode does not have a reverse pass so
     // declarations don't have to be moved to the function global scope.
-    bool promoteToFnScope = !getCurrentScope()->isFunctionScope() &&
-                            m_Mode != DiffMode::reverse_mode_forward_pass;
+    bool promoteToFnScope =
+        !getCurrentScope()->isFunctionScope() &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
     QualType VDCloneType = CloneType(VD->getType());
     QualType VDDerivedType = ComputeAdjointType(VDCloneType);
     // If the cloned declaration is moved to the function global scope,
@@ -2706,8 +2710,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Decl*, 4> localDeclsDiff;
     // reverse_mode_forward_pass does not have a reverse pass so declarations
     // don't have to be moved to the function global scope.
-    bool promoteToFnScope = !getCurrentScope()->isFunctionScope() &&
-                            m_Mode != DiffMode::reverse_mode_forward_pass;
+    bool promoteToFnScope =
+        !getCurrentScope()->isFunctionScope() &&
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
     // For each variable declaration v, create another declaration _d_v to
     // store derivatives for potential reassignments. E.g.
     // double y = x;
@@ -3698,7 +3703,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
                                                           QualType xType) {
 
-    if (m_Mode == DiffMode::reverse)
+    if (m_DiffReq.Mode == DiffMode::reverse)
       assert(yType->isRealType() &&
              "yType should be a non-reference builtin-numerical scalar type!!");
     QualType xValueType = utils::GetValueType(xType);
@@ -3736,11 +3741,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (auto* PVD : m_DiffReq->parameters())
       paramTypes.push_back(PVD->getType());
     // TODO: Add DiffMode::experimental_pullback support here as well.
-    if (m_Mode == DiffMode::reverse ||
-        m_Mode == DiffMode::experimental_pullback) {
+    if (m_DiffReq.Mode == DiffMode::reverse ||
+        m_DiffReq.Mode == DiffMode::experimental_pullback) {
       QualType effectiveReturnType =
           m_DiffReq->getReturnType().getNonReferenceType();
-      if (m_Mode == DiffMode::experimental_pullback) {
+      if (m_DiffReq.Mode == DiffMode::experimental_pullback) {
         // FIXME: Generally, we use the function's return type as the argument's
         // derivative type. We cannot follow this strategy for `void` function
         // return type. Thus, temporarily use `double` type as the placeholder
@@ -3771,7 +3776,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (it != std::end(diffParams))
           paramTypes.push_back(ComputeParamType(PVD->getType()));
       }
-    } else if (m_Mode == DiffMode::jacobian) {
+    } else if (m_DiffReq.Mode == DiffMode::jacobian) {
       std::size_t lastArgIdx = m_DiffReq->getNumParams() - 1;
       QualType derivativeParamType =
           m_DiffReq->getParamDecl(lastArgIdx)->getType();
@@ -3789,7 +3794,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         cast<FunctionProtoType>(m_Derivative->getType());
     std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
-    if (m_Mode == DiffMode::experimental_pullback &&
+    if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
         !m_DiffReq->getReturnType()->isVoidType()) {
       ++dParamTypesIdx;
     }
@@ -3829,8 +3834,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
       if (it != std::end(diffParams)) {
         *it = newPVD;
-        if (m_Mode == DiffMode::reverse ||
-            m_Mode == DiffMode::experimental_pullback) {
+        if (m_DiffReq.Mode == DiffMode::reverse ||
+            m_DiffReq.Mode == DiffMode::experimental_pullback) {
           QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
           IdentifierInfo* dII =
               CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
@@ -3860,7 +3865,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
 
-    if (m_Mode == DiffMode::experimental_pullback &&
+    if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
         !m_DiffReq->getReturnType()->isVoidType()) {
       IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
       QualType pullbackType =
@@ -3877,7 +3882,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       ++dParamTypesIdx;
     }
 
-    if (m_Mode == DiffMode::jacobian) {
+    if (m_DiffReq.Mode == DiffMode::jacobian) {
       IdentifierInfo* II = CreateUniqueIdentifier("jacobianMatrix");
       // FIXME: Why are we taking storageClass of `params.front()`?
       auto* dPVD = utils::BuildParmVarDecl(
@@ -3894,8 +3899,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // FIXME: If we do not consider diffParams as an independent argument for
     // jacobian mode, then we should keep diffParams list empty for jacobian
     // mode and thus remove the if condition.
-    if (m_Mode == DiffMode::reverse ||
-        m_Mode == DiffMode::experimental_pullback)
+    if (m_DiffReq.Mode == DiffMode::reverse ||
+        m_DiffReq.Mode == DiffMode::experimental_pullback)
       m_IndependentVars.insert(m_IndependentVars.end(), diffParams.begin(),
                                diffParams.end());
     return params;

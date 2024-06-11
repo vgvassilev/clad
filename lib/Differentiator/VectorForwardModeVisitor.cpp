@@ -57,7 +57,7 @@ DerivativeAndOverload
 VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
                                            const DiffRequest& request) {
   assert(m_DiffReq == request);
-  m_Mode = DiffMode::vector_forward_mode;
+  assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
 
   DiffParams args{};
   DiffInputVarsInfo DVI;
