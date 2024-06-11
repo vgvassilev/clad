@@ -13,28 +13,29 @@ using namespace clang;
 namespace clad {
 
 ReverseModeForwPassVisitor::ReverseModeForwPassVisitor(
-    DerivativeBuilder& builder)
-    : ReverseModeVisitor(builder) {}
+    DerivativeBuilder& builder, const DiffRequest& request)
+    : ReverseModeVisitor(builder, request) {}
 
 DerivativeAndOverload
 ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
                                    const DiffRequest& request) {
+  assert(m_DiffReq == request);
   silenceDiags = !request.VerboseDiags;
-  m_Function = FD;
 
   m_Mode = DiffMode::reverse_mode_forward_pass;
 
-  assert(m_Function && "Must not be null.");
+  assert(m_DiffReq.Function && "Must not be null.");
 
   DiffParams args{};
   std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
-  auto fnName = clad::utils::ComputeEffectiveFnName(m_Function) + "_forw";
+  auto fnName =
+      clad::utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_forw";
   auto fnDNI = utils::BuildDeclarationNameInfo(m_Sema, fnName);
 
   auto paramTypes = ComputeParamTypes(args);
   auto returnType = ComputeReturnType();
-  const auto* sourceFnType = dyn_cast<FunctionProtoType>(m_Function->getType());
+  const auto* sourceFnType = dyn_cast<FunctionProtoType>(m_DiffReq->getType());
   auto fnType = m_Context.getFunctionType(returnType, paramTypes,
                                           sourceFnType->getExtProtoInfo());
 
@@ -42,11 +43,11 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                          getEnclosingNamespaceOrTUScope());
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
+  m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
-  SourceLocation validLoc{m_Function->getLocation()};
+  SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclWithContext fnBuildRes = m_Builder.cloneFunction(
-      m_Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
+      m_DiffReq.Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
   m_Derivative = fnBuildRes.first;
 
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -65,7 +66,7 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
     beginBlock();
     beginBlock(direction::reverse);
 
-    StmtDiff bodyDiff = Visit(m_Function->getBody());
+    StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
     Stmt* forward = bodyDiff.getStmt();
 
     for (Stmt* S : ReverseModeVisitor::m_Globals)
@@ -105,14 +106,14 @@ ReverseModeForwPassVisitor::GetParameterDerivativeType(QualType yType,
 llvm::SmallVector<clang::QualType, 8>
 ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
   llvm::SmallVector<clang::QualType, 8> paramTypes;
-  paramTypes.reserve(m_Function->getNumParams() * 2);
-  for (auto* PVD : m_Function->parameters())
+  paramTypes.reserve(m_DiffReq->getNumParams() * 2);
+  for (auto* PVD : m_DiffReq->parameters())
     paramTypes.push_back(PVD->getType());
 
   QualType effectiveReturnType =
-      m_Function->getReturnType().getNonReferenceType();
+      m_DiffReq->getReturnType().getNonReferenceType();
 
-  if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+  if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
     const CXXRecordDecl* RD = MD->getParent();
     if (MD->isInstance() && !RD->isLambda()) {
       QualType thisType = MD->getThisType();
@@ -121,7 +122,7 @@ ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
     }
   }
 
-  for (auto* PVD : m_Function->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters()) {
     const auto* it =
         std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
@@ -135,7 +136,7 @@ ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
 clang::QualType ReverseModeForwPassVisitor::ComputeReturnType() {
   auto* valAndAdjointTempDecl =
       LookupTemplateDeclInCladNamespace("ValueAndAdjoint");
-  auto RT = m_Function->getReturnType();
+  auto RT = m_DiffReq->getReturnType();
   auto T = InstantiateTemplate(valAndAdjointTempDecl, {RT, RT});
   return T;
 }
@@ -144,13 +145,13 @@ llvm::SmallVector<clang::ParmVarDecl*, 8>
 ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
   llvm::SmallVector<clang::ParmVarDecl*, 8> params;
   llvm::SmallVector<clang::ParmVarDecl*, 8> paramDerivatives;
-  params.reserve(m_Function->getNumParams() + diffParams.size());
+  params.reserve(m_DiffReq->getNumParams() + diffParams.size());
   const auto* derivativeFnType =
       cast<FunctionProtoType>(m_Derivative->getType());
 
-  std::size_t dParamTypesIdx = m_Function->getNumParams();
+  std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
-  if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+  if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
     const CXXRecordDecl* RD = MD->getParent();
     if (MD->isInstance() && !RD->isLambda()) {
       auto* thisDerivativePVD = utils::BuildParmVarDecl(
@@ -168,7 +169,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       ++dParamTypesIdx;
     }
   }
-  for (auto* PVD : m_Function->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters()) {
     // FIXME: Call expression may contain default arguments that we are now
     // removing. This may cause issues.
     auto* newPVD = utils::BuildParmVarDecl(
@@ -195,7 +196,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
         m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
       m_Variables[*it] =
-          BuildOp(UO_Deref, BuildDeclRef(dPVD), m_Function->getLocation());
+          BuildOp(UO_Deref, BuildDeclRef(dPVD), m_DiffReq->getLocation());
     }
   }
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
@@ -256,7 +257,7 @@ ReverseModeForwPassVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
   // and we should return it.
   Expr* ResultRef = nullptr;
   if (opCode == UnaryOperatorKind::UO_Deref) {
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
       if (MD->isInstance()) {
         diff = Visit(UnOp->getSubExpr());
         Expr* cloneE = BuildOp(UnaryOperatorKind::UO_Deref, diff.getExpr());

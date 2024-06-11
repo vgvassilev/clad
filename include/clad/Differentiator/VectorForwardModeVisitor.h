@@ -23,7 +23,8 @@ private:
   clang::Expr* m_IndVarCountExpr;
 
 public:
-  VectorForwardModeVisitor(DerivativeBuilder& builder);
+  VectorForwardModeVisitor(DerivativeBuilder& builder,
+                           const DiffRequest& request);
   ~VectorForwardModeVisitor();
 
   ///\brief Produces the first derivative of a given function with
@@ -53,9 +54,7 @@ public:
   ///
   /// Information about the original function, derived function, derived
   /// function parameter types and the differentiation mode are implicitly
-  /// taken from the data member variables. In particular, `m_Function`,
-  /// `m_Mode` and `m_Derivative` should be correctly set before using this
-  /// function.
+  /// taken from the data member variables.
   llvm::SmallVector<clang::ParmVarDecl*, 8>
   BuildVectorModeParams(DiffParams& diffParams);
 

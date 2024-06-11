@@ -14,8 +14,9 @@
 using namespace clang;
 
 namespace clad {
-PushForwardModeVisitor::PushForwardModeVisitor(DerivativeBuilder& builder)
-    : BaseForwardModeVisitor(builder) {}
+PushForwardModeVisitor::PushForwardModeVisitor(DerivativeBuilder& builder,
+                                               const DiffRequest& request)
+    : BaseForwardModeVisitor(builder, request) {}
 
 PushForwardModeVisitor::~PushForwardModeVisitor() = default;
 

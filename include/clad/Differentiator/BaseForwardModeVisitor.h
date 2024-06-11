@@ -24,7 +24,8 @@ protected:
   unsigned m_ArgIndex = ~0;
 
 public:
-  BaseForwardModeVisitor(DerivativeBuilder& builder);
+  BaseForwardModeVisitor(DerivativeBuilder& builder,
+                         const DiffRequest& request);
   virtual ~BaseForwardModeVisitor();
 
   ///\brief Produces the first derivative of a given function.
@@ -41,8 +42,7 @@ public:
                                           const DiffRequest& request);
 
   /// Returns the return type for the pushforward function of the function
-  /// `m_Function`.
-  /// \note `m_Function` field should be set before using this function.
+  /// `m_DiffReq->Function`.
   clang::QualType ComputePushforwardFnReturnType();
 
   virtual void ExecuteInsidePushforwardFunctionBlock();

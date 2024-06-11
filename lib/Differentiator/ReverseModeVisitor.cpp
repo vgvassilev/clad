@@ -78,7 +78,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         BuildDeclRef(GlobalStoreImpl(TapeType, prefix, getZeroInit(TapeType)));
     auto* VD = cast<VarDecl>(cast<DeclRefExpr>(TapeRef)->getDecl());
     // Add fake location, since Clang AST does assert(Loc.isValid()) somewhere.
-    VD->setLocation(m_Function->getLocation());
+    VD->setLocation(m_DiffReq->getLocation());
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
     auto* PopDRE = m_Sema
@@ -99,8 +99,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
-  ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder), m_Result(nullptr) {}
+  ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
+                                         const DiffRequest& request)
+      : VisitorBase(builder, request), m_Result(nullptr) {}
 
   ReverseModeVisitor::~ReverseModeVisitor() {
     if (m_ExternalSource) {
@@ -121,11 +122,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // requested.
     // FIXME: Here we are assuming all function parameters are of differentiable
     // type. Ideally, we should not make any such assumption.
-    std::size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
-    std::size_t numOfDerivativeParams = m_Function->getNumParams();
+    std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
+    std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
 
     // Account for the this pointer.
-    if (isa<CXXMethodDecl>(m_Function) && !utils::IsStaticMethod(m_Function))
+    if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
+        !utils::IsStaticMethod(m_DiffReq.Function))
       ++numOfDerivativeParams;
     // All output parameters will be of type `void*`. These
     // parameters will be casted to correct type before the call to the actual
@@ -138,7 +140,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<QualType, 16> paramTypes;
 
     // Add types for representing original function parameters.
-    for (auto* PVD : m_Function->parameters())
+    for (auto* PVD : m_DiffReq->parameters())
       paramTypes.push_back(PVD->getType());
     // Add types for representing parameter derivatives.
     // FIXME: We are assuming all function parameters are differentiable. We
@@ -147,17 +149,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       paramTypes.push_back(outputParamType);
 
     auto gradFuncOverloadEPI =
-        dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo();
+        dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo();
     QualType gradientFunctionOverloadType =
         m_Context.getFunctionType(m_Context.VoidTy, paramTypes,
                                   // Cast to function pointer.
                                   gradFuncOverloadEPI);
 
-    auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
-        m_Builder.cloneFunction(m_Function, *this, DC, noLoc, gradientNameInfo,
-                                gradientFunctionOverloadType);
+        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
+                                gradientNameInfo, gradientFunctionOverloadType);
     FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -171,7 +173,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     overloadParams.reserve(totalDerivedParamsSize);
     callArgs.reserve(gradientParams.size());
 
-    for (auto* PVD : m_Function->parameters()) {
+    for (auto* PVD : m_DiffReq->parameters()) {
       auto* VD = utils::BuildParmVarDecl(
           m_Sema, gradientOverloadFD, PVD->getIdentifier(), PVD->getType(),
           PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
@@ -182,7 +184,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (std::size_t i = 0; i < numOfDerivativeParams; ++i) {
       IdentifierInfo* II = nullptr;
       StorageClass SC = StorageClass::SC_None;
-      std::size_t effectiveGradientIndex = m_Function->getNumParams() + i;
+      std::size_t effectiveGradientIndex = m_DiffReq->getNumParams() + i;
       // `effectiveGradientIndex < gradientParams.size()` implies that this
       // parameter represents an actual derivative of one of the function
       // original parameters.
@@ -213,7 +215,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Build derivatives to be used in the call to the actual derived function.
     // These are initialised by effectively casting the derivative parameters of
     // overloaded derived function to the correct type.
-    for (std::size_t i = m_Function->getNumParams(); i < gradientParams.size();
+    for (std::size_t i = m_DiffReq->getNumParams(); i < gradientParams.size();
          ++i) {
       auto* overloadParam = overloadParams[i];
       auto* gradientParam = gradientParams[i];
@@ -252,7 +254,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
     silenceDiags = !request.VerboseDiags;
-    m_Function = FD;
+    assert(m_DiffReq == request);
 
     // reverse mode plugins may have request mode other than
     // `DiffMode::reverse`, but they still need the `DiffMode::reverse` mode
@@ -262,7 +264,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Mode = DiffMode::jacobian;
     m_Pullback =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
-    assert(m_Function && "Must not be null.");
+    assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
     DiffInputVarsInfo DVI;
@@ -282,8 +284,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // derived function
     if (request.Mode == DiffMode::jacobian) {
       isVectorValued = true;
-      unsigned lastArgN = m_Function->getNumParams() - 1;
-      outputArrayStr = m_Function->getParamDecl(lastArgN)->getNameAsString();
+      unsigned lastArgN = m_DiffReq->getNumParams() - 1;
+      outputArrayStr = m_DiffReq->getParamDecl(lastArgN)->getNameAsString();
     }
 
     // Check if DiffRequest asks for TBR analysis to be enabled
@@ -345,7 +347,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       shouldCreateOverload = false;
 
     const auto* originalFnType =
-        dyn_cast<FunctionProtoType>(m_Function->getType());
+        dyn_cast<FunctionProtoType>(m_DiffReq->getType());
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
@@ -361,10 +363,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
-    auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext result = m_Builder.cloneFunction(
-        m_Function, *this, DC, noLoc, name, gradientFunctionType);
+        m_DiffReq.Function, *this, DC, noLoc, name, gradientFunctionType);
     FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
@@ -475,9 +477,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
     silenceDiags = !request.VerboseDiags;
-    m_Function = FD;
+    const_cast<DiffRequest&>(m_DiffReq) = request;
     m_Mode = DiffMode::experimental_pullback;
-    assert(m_Function && "Must not be null.");
+    assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
     if (!request.DVI.empty())
@@ -496,12 +498,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActAfterParsingDiffArgs(request, args);
 
     auto derivativeName =
-        utils::ComputeEffectiveFnName(m_Function) + "_pullback";
+        utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);
     const auto* originalFnType =
-        dyn_cast<FunctionProtoType>(m_Function->getType());
+        dyn_cast<FunctionProtoType>(m_DiffReq->getType());
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
@@ -512,11 +514,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
-    m_Sema.CurContext = const_cast<DeclContext*>(m_Function->getDeclContext());
+    m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
-    SourceLocation validLoc{m_Function->getLocation()};
-    DeclWithContext fnBuildRes = m_Builder.cloneFunction(
-        m_Function, *this, m_Sema.CurContext, validLoc, DNI, pullbackFnType);
+    SourceLocation validLoc{m_DiffReq->getLocation()};
+    DeclWithContext fnBuildRes =
+        m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
+                                validLoc, DNI, pullbackFnType);
     m_Derivative = fnBuildRes.first;
 
     if (m_ExternalSource)
@@ -548,7 +551,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActOnStartOfDerivedFnBody(request);
 
-      StmtDiff bodyDiff = Visit(m_Function->getBody());
+      StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
       Stmt* forward = bodyDiff.getStmt();
       Stmt* reverse = bodyDiff.getStmt_dx();
 
@@ -586,7 +589,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   void ReverseModeVisitor::DifferentiateWithClad() {
     TBRAnalyzer analyzer(m_Context);
     if (enableTBR) {
-      analyzer.Analyze(m_Function);
+      analyzer.Analyze(m_DiffReq.Function);
       m_ToBeRecorded = analyzer.getResult();
     }
 
@@ -594,13 +597,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // create derived variables for parameters which are not part of
     // independent variables (args).
-    for (std::size_t i = 0; i < m_Function->getNumParams(); ++i) {
+    for (std::size_t i = 0; i < m_DiffReq->getNumParams(); ++i) {
       ParmVarDecl* param = paramsRef[i];
       // derived variables are already created for independent variables.
       if (m_Variables.count(param))
         continue;
       // in vector mode last non diff parameter is output parameter.
-      if (isVectorValued && i == m_Function->getNumParams() - 1)
+      if (isVectorValued && i == m_DiffReq->getNumParams() - 1)
         continue;
       auto VDDerivedType = param->getType();
       // We cannot initialize derived variable for pointer types because
@@ -615,7 +618,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     // Start the visitation process which outputs the statements in the
     // current block.
-    StmtDiff BodyDiff = Visit(m_Function->getBody());
+    StmtDiff BodyDiff = Visit(m_DiffReq->getBody());
     Stmt* Forward = BodyDiff.getStmt();
     Stmt* Reverse = BodyDiff.getStmt_dx();
     // Create the body of the function.
@@ -647,11 +650,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DifferentiateWithEnzyme() {
-    unsigned numParams = m_Function->getNumParams();
-    auto origParams = m_Function->parameters();
+    unsigned numParams = m_DiffReq->getNumParams();
+    auto origParams = m_DiffReq->parameters();
     llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
     const auto* originalFnType =
-        dyn_cast<FunctionProtoType>(m_Function->getType());
+        dyn_cast<FunctionProtoType>(m_DiffReq->getType());
 
     // Prepare Arguments and Parameters to enzyme_autodiff
     llvm::SmallVector<Expr*, 16> enzymeArgs;
@@ -660,11 +663,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParamsDerived;
 
     // First add the function itself as a parameter/argument
-    enzymeArgs.push_back(BuildDeclRef(const_cast<FunctionDecl*>(m_Function)));
-    auto* fdDeclContext =
-        const_cast<DeclContext*>(m_Function->getDeclContext());
+    enzymeArgs.push_back(
+        BuildDeclRef(const_cast<FunctionDecl*>(m_DiffReq.Function)));
+    auto* fdDeclContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
-        fdDeclContext, noLoc, m_Function->getType()));
+        fdDeclContext, noLoc, m_DiffReq->getType()));
 
     // Add rest of the parameters/arguments
     for (unsigned i = 0; i < numParams; i++) {
@@ -709,7 +712,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Prepare Function call
     std::string enzymeCallName =
-        "__enzyme_autodiff_" + m_Function->getNameAsString();
+        "__enzyme_autodiff_" + m_DiffReq->getNameAsString();
     IdentifierInfo* IIEnzyme = &m_Context.Idents.get(enzymeCallName);
     DeclarationName nameEnzyme(IIEnzyme);
     QualType enzymeFunctionType =
@@ -717,7 +720,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                  originalFnType->getExtProtoInfo());
     FunctionDecl* enzymeCallFD = FunctionDecl::Create(
         m_Context, fdDeclContext, noLoc, noLoc, nameEnzyme, enzymeFunctionType,
-        m_Function->getTypeSourceInfo(), SC_Extern);
+        m_DiffReq->getTypeSourceInfo(), SC_Extern);
     enzymeCallFD->setParams(enzymeParams);
     Expr* enzymeCall = BuildCallExprToFunction(enzymeCallFD, enzymeArgs);
 
@@ -1589,7 +1592,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           gradArgExpr = argDerivative;
         else
           gradArgExpr =
-              BuildOp(UO_AddrOf, argDerivative, m_Function->getLocation());
+              BuildOp(UO_AddrOf, argDerivative, m_DiffReq->getLocation());
         DerivedCallOutputArgs.push_back(gradArgExpr);
         idx++;
       }
@@ -1631,7 +1634,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
-      if (FD == m_Function && m_Mode == DiffMode::experimental_pullback) {
+      if (FD == m_DiffReq.Function &&
+          m_Mode == DiffMode::experimental_pullback) {
         // Recursive call.
         Expr* selfRef =
             m_Sema
@@ -1890,7 +1894,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_Context.IntTy, m_Context, printErrorInf));
 
     // Build the tape push expressions.
-    VD->setLocation(m_Function->getLocation());
+    VD->setLocation(m_DiffReq->getLocation());
     for (unsigned i = 0, e = numArgs; i < e; i++) {
       Expr* gradRef = BuildDeclRef(VD);
       Expr* idx =
@@ -1987,7 +1991,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* diff_dx = diff.getExpr_dx();
       bool specialDThisCase = false;
       Expr* derivedE = nullptr;
-      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         if (MD->isInstance() && !diff_dx->getType()->isPointerType())
           specialDThisCase = true; // _d_this is already dereferenced.
       }
@@ -2474,7 +2478,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Computation of hessian requires this code to be correctly
       // differentiated.
       bool specialThisDiffCase = false;
-      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         if (VDDerivedType->isPointerType() && MD->isInstance()) {
           specialThisDiffCase = true;
         }
@@ -3716,14 +3720,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   llvm::SmallVector<clang::QualType, 8>
   ReverseModeVisitor::ComputeParamTypes(const DiffParams& diffParams) {
     llvm::SmallVector<clang::QualType, 8> paramTypes;
-    paramTypes.reserve(m_Function->getNumParams() * 2);
-    for (auto* PVD : m_Function->parameters())
+    paramTypes.reserve(m_DiffReq->getNumParams() * 2);
+    for (auto* PVD : m_DiffReq->parameters())
       paramTypes.push_back(PVD->getType());
     // TODO: Add DiffMode::experimental_pullback support here as well.
     if (m_Mode == DiffMode::reverse ||
         m_Mode == DiffMode::experimental_pullback) {
       QualType effectiveReturnType =
-          m_Function->getReturnType().getNonReferenceType();
+          m_DiffReq->getReturnType().getNonReferenceType();
       if (m_Mode == DiffMode::experimental_pullback) {
         // FIXME: Generally, we use the function's return type as the argument's
         // derivative type. We cannot follow this strategy for `void` function
@@ -3740,7 +3744,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           paramTypes.push_back(effectiveReturnType);
       }
 
-      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         const CXXRecordDecl* RD = MD->getParent();
         if (MD->isInstance() && !RD->isLambda()) {
           QualType thisType = MD->getThisType();
@@ -3749,16 +3753,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
       }
 
-      for (auto* PVD : m_Function->parameters()) {
+      for (auto* PVD : m_DiffReq->parameters()) {
         const auto* it =
             std::find(std::begin(diffParams), std::end(diffParams), PVD);
         if (it != std::end(diffParams))
           paramTypes.push_back(ComputeParamType(PVD->getType()));
       }
     } else if (m_Mode == DiffMode::jacobian) {
-      std::size_t lastArgIdx = m_Function->getNumParams() - 1;
+      std::size_t lastArgIdx = m_DiffReq->getNumParams() - 1;
       QualType derivativeParamType =
-          m_Function->getParamDecl(lastArgIdx)->getType();
+          m_DiffReq->getParamDecl(lastArgIdx)->getType();
       paramTypes.push_back(derivativeParamType);
     }
     return paramTypes;
@@ -3768,17 +3772,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   ReverseModeVisitor::BuildParams(DiffParams& diffParams) {
     llvm::SmallVector<clang::ParmVarDecl*, 8> params;
     llvm::SmallVector<clang::ParmVarDecl*, 8> paramDerivatives;
-    params.reserve(m_Function->getNumParams() + diffParams.size());
+    params.reserve(m_DiffReq->getNumParams() + diffParams.size());
     const auto* derivativeFnType =
         cast<FunctionProtoType>(m_Derivative->getType());
-    std::size_t dParamTypesIdx = m_Function->getNumParams();
+    std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
     if (m_Mode == DiffMode::experimental_pullback &&
-        !m_Function->getReturnType()->isVoidType()) {
+        !m_DiffReq->getReturnType()->isVoidType()) {
       ++dParamTypesIdx;
     }
 
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
       const CXXRecordDecl* RD = MD->getParent();
       if (!isVectorValued && MD->isInstance() && !RD->isLambda()) {
         auto* thisDerivativePVD = utils::BuildParmVarDecl(
@@ -3799,7 +3803,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
 
-    for (auto* PVD : m_Function->parameters()) {
+    for (auto* PVD : m_DiffReq->parameters()) {
       auto* newPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
           PVD->getStorageClass(), /*DefArg=*/nullptr, PVD->getTypeSourceInfo());
@@ -3830,8 +3834,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             m_Variables[*it] = (Expr*)BuildDeclRef(dPVD);
           } else {
             QualType valueType = dPVD->getType()->getPointeeType();
-            m_Variables[*it] = BuildOp(UO_Deref, BuildDeclRef(dPVD),
-                                       m_Function->getLocation());
+            m_Variables[*it] =
+                BuildOp(UO_Deref, BuildDeclRef(dPVD), m_DiffReq->getLocation());
             // Add additional paranthesis if derivative is of record type
             // because `*derivative.someField` will be incorrectly evaluated if
             // the derived function is compiled standalone.
@@ -3844,10 +3848,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     if (m_Mode == DiffMode::experimental_pullback &&
-        !m_Function->getReturnType()->isVoidType()) {
+        !m_DiffReq->getReturnType()->isVoidType()) {
       IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
       QualType pullbackType =
-          derivativeFnType->getParamType(m_Function->getNumParams());
+          derivativeFnType->getParamType(m_DiffReq->getNumParams());
       ParmVarDecl* pullbackPVD = utils::BuildParmVarDecl(
           m_Sema, m_Derivative, pullbackParamII, pullbackType);
       paramDerivatives.insert(paramDerivatives.begin(), pullbackPVD);

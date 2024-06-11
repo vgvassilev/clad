@@ -9,8 +9,8 @@ using namespace clang;
 
 namespace clad {
 VectorPushForwardModeVisitor::VectorPushForwardModeVisitor(
-    DerivativeBuilder& builder)
-    : VectorForwardModeVisitor(builder) {}
+    DerivativeBuilder& builder, const DiffRequest& request)
+    : VectorForwardModeVisitor(builder, request) {}
 
 VectorPushForwardModeVisitor::~VectorPushForwardModeVisitor() = default;
 

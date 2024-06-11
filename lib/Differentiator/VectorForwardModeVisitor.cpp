@@ -10,8 +10,9 @@
 using namespace clang;
 
 namespace clad {
-VectorForwardModeVisitor::VectorForwardModeVisitor(DerivativeBuilder& builder)
-    : BaseForwardModeVisitor(builder), m_IndVarCountExpr(nullptr) {}
+VectorForwardModeVisitor::VectorForwardModeVisitor(DerivativeBuilder& builder,
+                                                   const DiffRequest& request)
+    : BaseForwardModeVisitor(builder, request), m_IndVarCountExpr(nullptr) {}
 
 VectorForwardModeVisitor::~VectorForwardModeVisitor() {}
 
@@ -55,7 +56,7 @@ void VectorForwardModeVisitor::SetIndependentVarsExpr(Expr* IndVarCountExpr) {
 DerivativeAndOverload
 VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
                                            const DiffRequest& request) {
-  m_Function = FD;
+  assert(m_DiffReq == request);
   m_Mode = DiffMode::vector_forward_mode;
 
   DiffParams args{};
@@ -74,16 +75,15 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
     }
   }
   IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
-  SourceLocation loc{m_Function->getLocation()};
+  SourceLocation loc{m_DiffReq->getLocation()};
   DeclarationNameInfo name(II, loc);
 
   // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
-  paramTypes.reserve(m_Function->getNumParams() + args.size());
-  for (auto PVD : m_Function->parameters()) {
+  paramTypes.reserve(m_DiffReq->getNumParams() + args.size());
+  for (auto PVD : m_DiffReq->parameters())
     paramTypes.push_back(PVD->getType());
-  }
-  for (auto PVD : m_Function->parameters()) {
+  for (auto PVD : m_DiffReq->parameters()) {
     auto it = std::find(std::begin(args), std::end(args), PVD);
     if (it == std::end(args))
       continue; // This parameter is not in the diff list.
@@ -105,13 +105,13 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
       m_Context.VoidTy,
       llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
       // Cast to function pointer.
-      dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo());
+      dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo());
 
   // Create the function declaration for the derivative.
-  DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+  DeclContext* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result = m_Builder.cloneFunction(
-      m_Function, *this, DC, loc, name, vectorDiffFunctionType);
+      m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
   FunctionDecl* vectorDiffFD = result.first;
   m_Derivative = vectorDiffFD;
 
@@ -153,15 +153,15 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   // Current Index of independent variable in the param list of the function.
   size_t independentVarIndex = 0;
 
-  for (size_t i = 0; i < m_Function->getNumParams(); ++i) {
+  for (size_t i = 0; i < m_DiffReq->getNumParams(); ++i) {
     bool is_array =
-        utils::isArrayOrPointerType(m_Function->getParamDecl(i)->getType());
+        utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
     auto param = params[i];
     QualType dParamType = clad::utils::GetValueType(param->getType());
 
     Expr* dVectorParam = nullptr;
     if (m_IndependentVars.size() > independentVarIndex &&
-        m_IndependentVars[independentVarIndex] == m_Function->getParamDecl(i)) {
+        m_IndependentVars[independentVarIndex] == m_DiffReq->getParamDecl(i)) {
 
       // Current offset for independent variable.
       Expr* offsetExpr = arrayIndVarCountExpr;
@@ -175,8 +175,8 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
 
       if (is_array) {
         // Get size of the array.
-        Expr* getSize = BuildArrayRefSizeExpr(
-            m_ParamVariables[m_Function->getParamDecl(i)]);
+        Expr* getSize =
+            BuildArrayRefSizeExpr(m_ParamVariables[m_DiffReq->getParamDecl(i)]);
 
         // Create an identity matrix for the parameter,
         // with number of rows equal to the size of the array,
@@ -259,36 +259,35 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   // Calculate the total number of parameters that would be required for
   // automatic differentiation in the derived function if all args are
   // requested.
-  std::size_t totalDerivedParamsSize = m_Function->getNumParams() * 2;
-  std::size_t numDerivativeParams = m_Function->getNumParams();
+  std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
+  std::size_t numDerivativeParams = m_DiffReq->getNumParams();
 
   // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
   paramTypes.reserve(totalDerivedParamsSize);
-  for (auto* PVD : m_Function->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters())
     paramTypes.push_back(PVD->getType());
-  }
 
   // instantiate output parameter type as void*
   QualType outputParamType = GetCladArrayRefOfType(m_Context.VoidTy);
 
   // Push param types for derived params.
-  for (std::size_t i = 0; i < m_Function->getNumParams(); ++i)
+  for (std::size_t i = 0; i < m_DiffReq->getNumParams(); ++i)
     paramTypes.push_back(outputParamType);
 
   auto vectorModeFuncOverloadEPI =
-      dyn_cast<FunctionProtoType>(m_Function->getType())->getExtProtoInfo();
+      dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo();
   QualType vectorModeFuncOverloadType = m_Context.getFunctionType(
       m_Context.VoidTy,
       llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
       vectorModeFuncOverloadEPI);
 
   // Create the function declaration for the derivative.
-  auto* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
-      m_Builder.cloneFunction(m_Function, *this, DC, noLoc, vectorModeNameInfo,
-                              vectorModeFuncOverloadType);
+      m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
+                              vectorModeNameInfo, vectorModeFuncOverloadType);
   FunctionDecl* vectorModeOverloadFD = result.first;
 
   // Function declaration scope
@@ -304,7 +303,7 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
                                         // vectormode function.
   callArgs.reserve(vectorModeParams.size());
 
-  for (auto* PVD : m_Function->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters()) {
     auto* VD = utils::BuildParmVarDecl(
         m_Sema, vectorModeOverloadFD, PVD->getIdentifier(), PVD->getType(),
         PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
@@ -314,7 +313,7 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
 
   for (std::size_t i = 0; i < numDerivativeParams; ++i) {
     ParmVarDecl* PVD = nullptr;
-    std::size_t effectiveIndex = m_Function->getNumParams() + i;
+    std::size_t effectiveIndex = m_DiffReq->getNumParams() + i;
 
     if (effectiveIndex < vectorModeParams.size()) {
       // This parameter represents an actual derivative parameter.
@@ -349,7 +348,7 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   // Build derivatives to be used in the call to the actual derived function.
   // These are initialised by effectively casting the derivative parameters of
   // overloaded derived function to the correct type.
-  for (std::size_t i = m_Function->getNumParams(); i < vectorModeParams.size();
+  for (std::size_t i = m_DiffReq->getNumParams(); i < vectorModeParams.size();
        ++i) {
     auto* overloadParam = overloadParams[i];
     auto* vectorModeParam = vectorModeParams[i];
@@ -393,15 +392,15 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
 llvm::SmallVector<clang::ParmVarDecl*, 8>
 VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
   llvm::SmallVector<clang::ParmVarDecl*, 8> params, paramDerivatives;
-  params.reserve(m_Function->getNumParams() + diffParams.size());
+  params.reserve(m_DiffReq->getNumParams() + diffParams.size());
   auto derivativeFnType = cast<FunctionProtoType>(m_Derivative->getType());
-  std::size_t dParamTypesIdx = m_Function->getNumParams();
+  std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
   // Count the number of non-array independent variables requested for
   // differentiation.
   size_t nonArrayIndVarCount = 0;
 
-  for (auto PVD : m_Function->parameters()) {
+  for (auto PVD : m_DiffReq->parameters()) {
     auto newPVD = utils::BuildParmVarDecl(
         m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
         PVD->getStorageClass(), /*DefArg=*/nullptr, PVD->getTypeSourceInfo());
@@ -499,7 +498,7 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   Expr* derivedRetValE = retValDiff.getExpr_dx();
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
-  SourceLocation loc{m_Function->getLocation()};
+  SourceLocation loc{m_DiffReq->getLocation()};
   llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, derivedRetValE};
   QualType cladArrayType = GetCladArrayOfType(utils::GetValueType(retType));
   TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(cladArrayType, loc);
@@ -597,7 +596,7 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   // clad::array<double> _d_vector_y(2, 1);
   // this means that we have to initialize the derivative vector of
   // size 2 with all elements equal to 1.
-  SourceLocation loc{m_Function->getLocation()};
+  SourceLocation loc{m_DiffReq->getLocation()};
   llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, initDiff.getExpr_dx()};
   QualType cladArrayType =
       GetCladArrayOfType(utils::GetValueType(VD->getType()));

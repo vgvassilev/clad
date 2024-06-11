@@ -27,25 +27,26 @@
 using namespace clang;
 
 namespace clad {
-  HessianModeVisitor::HessianModeVisitor(DerivativeBuilder& builder)
-      : VisitorBase(builder) {}
+HessianModeVisitor::HessianModeVisitor(DerivativeBuilder& builder,
+                                       const DiffRequest& request)
+    : VisitorBase(builder, request) {}
 
-  HessianModeVisitor::~HessianModeVisitor() {}
+HessianModeVisitor::~HessianModeVisitor() {}
 
-  /// Converts the string str into a StringLiteral
-  static const StringLiteral* CreateStringLiteral(ASTContext& C,
-                                                  std::string str) {
-    QualType CharTyConst = C.CharTy.withConst();
-    QualType StrTy = clad_compat::getConstantArrayType(
-        C, CharTyConst, llvm::APInt(/*numBits=*/32, str.size() + 1),
-        /*SizeExpr=*/nullptr,
-        /*ASM=*/clad_compat::ArraySizeModifier_Normal,
-        /*IndexTypeQuals*/ 0);
-    const StringLiteral* SL = StringLiteral::Create(
-        C, str, /*Kind=*/clad_compat::StringLiteralKind_Ordinary,
-        /*Pascal=*/false, StrTy, noLoc);
-    return SL;
-  }
+/// Converts the string str into a StringLiteral
+static const StringLiteral* CreateStringLiteral(ASTContext& C,
+                                                std::string str) {
+  QualType CharTyConst = C.CharTy.withConst();
+  QualType StrTy = clad_compat::getConstantArrayType(
+      C, CharTyConst, llvm::APInt(/*numBits=*/32, str.size() + 1),
+      /*SizeExpr=*/nullptr,
+      /*ASM=*/clad_compat::ArraySizeModifier_Normal,
+      /*IndexTypeQuals*/ 0);
+  const StringLiteral* SL = StringLiteral::Create(
+      C, str, /*Kind=*/clad_compat::StringLiteralKind_Ordinary,
+      /*Pascal=*/false, StrTy, noLoc);
+  return SL;
+}
 
   /// Derives the function w.r.t both forward and reverse mode and returns the
   /// FunctionDecl obtained from reverse mode differentiation
@@ -119,18 +120,18 @@ namespace clad {
     size_t TotalIndependentArgsSize = 0;
 
     // request.Function is original function passed in from clad::hessian
-    m_Function = request.Function;
+    assert(m_DiffReq == request);
 
     std::string hessianFuncName = request.BaseFunctionName + "_hessian";
     // To be consistent with older tests, nothing is appended to 'f_hessian' if
     // we differentiate w.r.t. all the parameters at once.
     if (args.size() != FD->getNumParams() ||
-        !std::equal(m_Function->param_begin(), m_Function->param_end(),
+        !std::equal(m_DiffReq->param_begin(), m_DiffReq->param_end(),
                     args.begin())) {
       for (auto arg : args) {
         auto it =
-            std::find(m_Function->param_begin(), m_Function->param_end(), arg);
-        auto idx = std::distance(m_Function->param_begin(), it);
+            std::find(m_DiffReq->param_begin(), m_DiffReq->param_end(), arg);
+        auto idx = std::distance(m_DiffReq->param_begin(), it);
         hessianFuncName += ('_' + std::to_string(idx));
       }
     }
@@ -226,23 +227,21 @@ namespace clad {
                             size_t TotalIndependentArgsSize,
                             std::string hessianFuncName) {
     DiffParams args;
-    std::copy(m_Function->param_begin(),
-              m_Function->param_end(),
+    std::copy(m_DiffReq->param_begin(), m_DiffReq->param_end(),
               std::back_inserter(args));
 
     IdentifierInfo* II = &m_Context.Idents.get(hessianFuncName);
     DeclarationNameInfo name(II, noLoc);
 
-    llvm::SmallVector<QualType, 16> paramTypes(m_Function->getNumParams() + 1);
+    llvm::SmallVector<QualType, 16> paramTypes(m_DiffReq->getNumParams() + 1);
 
-    std::transform(m_Function->param_begin(),
-                   m_Function->param_end(),
+    std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
                    std::begin(paramTypes),
                    [](const ParmVarDecl* PVD) { return PVD->getType(); });
 
-    paramTypes.back() = m_Context.getPointerType(m_Function->getReturnType());
+    paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
 
-    auto originalFnProtoType = cast<FunctionProtoType>(m_Function->getType());
+    auto originalFnProtoType = cast<FunctionProtoType>(m_DiffReq->getType());
     QualType hessianFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
@@ -250,14 +249,14 @@ namespace clad {
         originalFnProtoType->getExtProtoInfo());
 
     // Create the gradient function declaration.
-    DeclContext* DC = const_cast<DeclContext*>(m_Function->getDeclContext());
+    DeclContext* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
 
     DeclWithContext result = m_Builder.cloneFunction(
-        m_Function, *this, DC, noLoc, name, hessianFunctionType);
+        m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType);
     FunctionDecl* hessianFD = result.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -266,10 +265,8 @@ namespace clad {
     m_Sema.PushDeclContext(getCurrentScope(), hessianFD);
 
     llvm::SmallVector<ParmVarDecl*, 4> params(paramTypes.size());
-    std::transform(m_Function->param_begin(),
-                   m_Function->param_end(),
-                   std::begin(params),
-                   [&](const ParmVarDecl* PVD) {
+    std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
+                   std::begin(params), [&](const ParmVarDecl* PVD) {
                      auto VD =
                          ParmVarDecl::Create(m_Context,
                                              hessianFD,
@@ -344,7 +341,7 @@ namespace clad {
       // FIXME: Add support for class type in the hessian matrix. For this, we
       // need to add a way to represent hessian matrix when class type objects
       // are involved.
-      if (auto MD = dyn_cast<CXXMethodDecl>(m_Function)) {
+      if (auto MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         const CXXRecordDecl* RD = MD->getParent();
         if (MD->isInstance() && !RD->isLambda()) {
           QualType thisObjectType =

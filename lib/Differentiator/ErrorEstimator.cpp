@@ -313,7 +313,7 @@ void ErrorEstimationHandler::ActBeforeCreatingDerivedFnBodyScope() {
 void ErrorEstimationHandler::ActOnEndOfDerivedFnBody() {
   // Since 'return' is not an assignment, add its error to _final_error
   // given it is not a DeclRefExpr.
-  EmitFinalErrorStmts(*m_Params, m_RMV->m_Function->getNumParams());
+  EmitFinalErrorStmts(*m_Params, m_RMV->m_DiffReq->getNumParams());
 }
 
 void ErrorEstimationHandler::ActBeforeDifferentiatingStmtInVisitCompoundStmt() {

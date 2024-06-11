@@ -28,7 +28,10 @@ namespace clad {
     std::unordered_map<const clang::VarDecl*, clang::Expr*> m_EstimateVar;
 
   public:
-    FPErrorEstimationModel(DerivativeBuilder& builder) : VisitorBase(builder) {}
+    // FIXME: Add a proper parameter for the DiffRequest here.
+    FPErrorEstimationModel(DerivativeBuilder& builder,
+                           const DiffRequest& request)
+        : VisitorBase(builder, request) {}
     virtual ~FPErrorEstimationModel();
 
     /// Clear the variable estimate map so that we can start afresh.
@@ -83,10 +86,13 @@ namespace clad {
     /// custom model.
     /// \param[in] builder A build instance to pass to the custom model
     /// constructor.
+    /// \param[in] request The differentiation configuration passed to the
+    /// custom model
     /// \returns A reference to the custom class wrapped in the
     /// FPErrorEstimationModel class.
     virtual std::unique_ptr<FPErrorEstimationModel>
-    InstantiateCustomModel(DerivativeBuilder& builder) = 0;
+    InstantiateCustomModel(DerivativeBuilder& builder,
+                           const DiffRequest& request) = 0;
   };
 
   /// A class used to register custom plugins.
@@ -99,16 +105,18 @@ namespace clad {
     ///
     /// \param[in] builder The current instance of derivative builder.
     std::unique_ptr<FPErrorEstimationModel>
-    InstantiateCustomModel(DerivativeBuilder& builder) override {
-      return std::unique_ptr<FPErrorEstimationModel>(new CustomClass(builder));
+    InstantiateCustomModel(DerivativeBuilder& builder,
+                           const DiffRequest& request) override {
+      return std::unique_ptr<FPErrorEstimationModel>(
+          new CustomClass(builder, request));
     }
   };
 
   /// Example class for taylor series approximation based error estimation.
   class TaylorApprox : public FPErrorEstimationModel {
   public:
-    TaylorApprox(DerivativeBuilder& builder)
-        : FPErrorEstimationModel(builder) {}
+    TaylorApprox(DerivativeBuilder& builder, const DiffRequest& request)
+        : FPErrorEstimationModel(builder, request) {}
     // Return an expression of the following kind:
     // std::abs(dfdx * delta_x * Em)
     clang::Expr* AssignError(StmtDiff refExpr,

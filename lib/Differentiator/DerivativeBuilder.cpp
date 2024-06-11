@@ -268,7 +268,7 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   void InitErrorEstimation(
       llvm::SmallVectorImpl<std::unique_ptr<ErrorEstimationHandler>>& handler,
       llvm::SmallVectorImpl<std::unique_ptr<FPErrorEstimationModel>>& model,
-      DerivativeBuilder& builder) {
+      DerivativeBuilder& builder, const DiffRequest& request) {
     // Set the handler.
     std::unique_ptr<ErrorEstimationHandler> pHandler(
         new ErrorEstimationHandler());
@@ -276,7 +276,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     // Set error estimation model. If no custom model provided by user,
     // use the built in Taylor approximation model.
     if (model.size() != handler.size()) {
-      std::unique_ptr<FPErrorEstimationModel> pModel(new TaylorApprox(builder));
+      std::unique_ptr<FPErrorEstimationModel> pModel(
+          new TaylorApprox(builder, request));
       model.push_back(std::move(pModel));
     }
     handler.back()->SetErrorEstimationModel(model.back().get());
@@ -340,41 +341,41 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
     DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
-      BaseForwardModeVisitor V(*this);
+      BaseForwardModeVisitor V(*this, request);
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::experimental_pushforward) {
-      PushForwardModeVisitor V(*this);
+      PushForwardModeVisitor V(*this, request);
       result = V.DerivePushforward(FD, request);
     } else if (request.Mode == DiffMode::vector_forward_mode) {
-      VectorForwardModeVisitor V(*this);
+      VectorForwardModeVisitor V(*this, request);
       result = V.DeriveVectorMode(FD, request);
     } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
-      VectorPushForwardModeVisitor V(*this);
+      VectorPushForwardModeVisitor V(*this, request);
       result = V.DerivePushforward(FD, request);
     } else if (request.Mode == DiffMode::reverse) {
-      ReverseModeVisitor V(*this);
+      ReverseModeVisitor V(*this, request);
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::experimental_pullback) {
-      ReverseModeVisitor V(*this);
+      ReverseModeVisitor V(*this, request);
       if (!m_ErrorEstHandler.empty()) {
-        InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
+        InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
         V.AddExternalSource(*m_ErrorEstHandler.back());
       }
       result = V.DerivePullback(FD, request);
       if (!m_ErrorEstHandler.empty())
         CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
-      ReverseModeForwPassVisitor V(*this);
+      ReverseModeForwPassVisitor V(*this, request);
       result = V.Derive(FD, request);
     } else if (request.Mode == DiffMode::hessian) {
-      HessianModeVisitor H(*this);
+      HessianModeVisitor H(*this, request);
       result = H.Derive(FD, request);
     } else if (request.Mode == DiffMode::jacobian) {
-      ReverseModeVisitor R(*this);
+      ReverseModeVisitor R(*this, request);
       result = R.Derive(FD, request);
     } else if (request.Mode == DiffMode::error_estimation) {
-      ReverseModeVisitor R(*this);
-      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this);
+      ReverseModeVisitor R(*this, request);
+      InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
       R.AddExternalSource(*m_ErrorEstHandler.back());
       // Finally begin estimation.
       result = R.Derive(FD, request);

@@ -22,7 +22,8 @@ private:
                                              clang::QualType xType);
 
 public:
-  ReverseModeForwPassVisitor(DerivativeBuilder& builder);
+  ReverseModeForwPassVisitor(DerivativeBuilder& builder,
+                             const DiffRequest& request);
   DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
                                const DiffRequest& request);
 
