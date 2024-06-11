@@ -23,14 +23,12 @@ jobs:
           arch:  ${{ matrix.target }}
           branch: edge
           packages: >
-            llvm-dev
-            clang-dev
-            clang-static
+            llvm17-dev
+            clang17-dev
+            clang17-static
             llvm17-static
             llvm17-gtest
             cmake
-            llvm
-            clang
             make
             git
       - name: "Setup"
