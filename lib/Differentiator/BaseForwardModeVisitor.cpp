@@ -2159,4 +2159,9 @@ BaseForwardModeVisitor::DifferentiateStaticAssertDecl(
     const clang::StaticAssertDecl* SAD) {
   return DeclDiff<StaticAssertDecl>();
 }
+
+StmtDiff BaseForwardModeVisitor::VisitCXXStdInitializerListExpr(
+    const clang::CXXStdInitializerListExpr* ILE) {
+  return Visit(ILE->getSubExpr());
+}
 } // end namespace clad
