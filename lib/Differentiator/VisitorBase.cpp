@@ -115,7 +115,7 @@ namespace clad {
                                      VarDecl::InitializationStyle IS) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto VD = VarDecl::Create(
+    auto* VD = VarDecl::Create(
         m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
         m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 

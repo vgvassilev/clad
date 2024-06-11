@@ -34,7 +34,7 @@ namespace clad {
 
   public:
     HessianModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
-    ~HessianModeVisitor();
+    ~HessianModeVisitor() = default;
 
     ///\brief Produces the hessian second derivative columns of a given
     /// function.
