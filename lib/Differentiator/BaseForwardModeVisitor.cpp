@@ -166,7 +166,10 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   DeclarationNameInfo name(II, validLoc);
   llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
   llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope());
-  DeclContext* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+
+  // FIXME: We should not use const_cast to get the decl context here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
       m_Builder.cloneFunction(FD, *this, DC, validLoc, name, FD->getType());
@@ -392,6 +395,8 @@ void BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
 DerivativeAndOverload
 BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
                                           const DiffRequest& request) {
+  // FIXME: We must not reset the diff request here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   const_cast<DiffRequest&>(m_DiffReq) = request;
   m_Functor = request.Functor;
   m_DerivativeOrder = request.CurrentDerivativeOrder;
@@ -437,6 +442,8 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                          getEnclosingNamespaceOrTUScope());
+  // FIXME: We should not use const_cast to get the decl context here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
 

@@ -81,9 +81,9 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
   paramTypes.reserve(m_DiffReq->getNumParams() + args.size());
-  for (auto PVD : m_DiffReq->parameters())
+  for (auto* PVD : m_DiffReq->parameters())
     paramTypes.push_back(PVD->getType());
-  for (auto PVD : m_DiffReq->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters()) {
     auto it = std::find(std::begin(args), std::end(args), PVD);
     if (it == std::end(args))
       continue; // This parameter is not in the diff list.
@@ -108,7 +108,9 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
       dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo());
 
   // Create the function declaration for the derivative.
-  DeclContext* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  // FIXME: We should not use const_cast to get the decl context here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
@@ -283,6 +285,8 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
       vectorModeFuncOverloadEPI);
 
   // Create the function declaration for the derivative.
+  // FIXME: We should not use const_cast to get the decl context here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
   DeclWithContext result =
@@ -400,7 +404,7 @@ VectorForwardModeVisitor::BuildVectorModeParams(DiffParams& diffParams) {
   // differentiation.
   size_t nonArrayIndVarCount = 0;
 
-  for (auto PVD : m_DiffReq->parameters()) {
+  for (auto* PVD : m_DiffReq->parameters()) {
     auto newPVD = utils::BuildParmVarDecl(
         m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
         PVD->getStorageClass(), /*DefArg=*/nullptr, PVD->getTypeSourceInfo());

@@ -31,11 +31,9 @@ HessianModeVisitor::HessianModeVisitor(DerivativeBuilder& builder,
                                        const DiffRequest& request)
     : VisitorBase(builder, request) {}
 
-HessianModeVisitor::~HessianModeVisitor() {}
-
 /// Converts the string str into a StringLiteral
 static const StringLiteral* CreateStringLiteral(ASTContext& C,
-                                                std::string str) {
+                                                const std::string& str) {
   QualType CharTyConst = C.CharTy.withConst();
   QualType StrTy = clad_compat::getConstantArrayType(
       C, CharTyConst, llvm::APInt(/*numBits=*/32, str.size() + 1),
@@ -241,7 +239,8 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
 
     paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
 
-    auto originalFnProtoType = cast<FunctionProtoType>(m_DiffReq->getType());
+    const auto* originalFnProtoType =
+        cast<FunctionProtoType>(m_DiffReq->getType());
     QualType hessianFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
@@ -249,7 +248,9 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
         originalFnProtoType->getExtProtoInfo());
 
     // Create the gradient function declaration.
-    DeclContext* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
@@ -341,7 +342,7 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
       // FIXME: Add support for class type in the hessian matrix. For this, we
       // need to add a way to represent hessian matrix when class type objects
       // are involved.
-      if (auto MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
+      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         const CXXRecordDecl* RD = MD->getParent();
         if (MD->isInstance() && !RD->isLambda()) {
           QualType thisObjectType =

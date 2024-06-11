@@ -155,6 +155,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                   // Cast to function pointer.
                                   gradFuncOverloadEPI);
 
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
@@ -363,6 +365,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext result = m_Builder.cloneFunction(
@@ -477,6 +481,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
     silenceDiags = !request.VerboseDiags;
+    // FIXME: We should not use const_cast to get the decl request here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     const_cast<DiffRequest&>(m_DiffReq) = request;
     m_Mode = DiffMode::experimental_pullback;
     assert(m_DiffReq.Function && "Must not be null.");
@@ -514,6 +520,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
     SourceLocation validLoc{m_DiffReq->getLocation()};
@@ -663,8 +671,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<ParmVarDecl*, 16> enzymeRealParamsDerived;
 
     // First add the function itself as a parameter/argument
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     enzymeArgs.push_back(
         BuildDeclRef(const_cast<FunctionDecl*>(m_DiffReq.Function)));
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* fdDeclContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     enzymeParams.push_back(m_Sema.BuildParmVarDeclForTypedef(
         fdDeclContext, noLoc, m_DiffReq->getType()));
