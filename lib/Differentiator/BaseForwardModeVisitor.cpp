@@ -65,7 +65,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   assert(m_DiffReq == request && "Can't pass two different requests!");
   silenceDiags = !request.VerboseDiags;
   m_Functor = request.Functor;
-  m_Mode = DiffMode::forward;
+  assert(m_DiffReq.Mode == DiffMode::forward);
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
   m_DerivativeInFlight = true;
@@ -378,7 +378,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 }
 
 clang::QualType BaseForwardModeVisitor::ComputePushforwardFnReturnType() {
-  assert(m_Mode == GetPushForwardMode());
+  assert(m_DiffReq.Mode == GetPushForwardMode());
   QualType originalFnRT = m_DiffReq->getReturnType();
   if (originalFnRT->isVoidType())
     return m_Context.VoidTy;
@@ -407,7 +407,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   const_cast<DiffRequest&>(m_DiffReq) = request;
   m_Functor = request.Functor;
   m_DerivativeOrder = request.CurrentDerivativeOrder;
-  m_Mode = GetPushForwardMode();
+  assert(m_DiffReq.Mode == GetPushForwardMode());
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
   m_DerivativeInFlight = true;
@@ -1170,7 +1170,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   if (!isLambda) {
     // Check if it is a recursive call.
     if (!callDiff && (FD == m_DiffReq.Function) &&
-        m_Mode == GetPushForwardMode()) {
+        m_DiffReq.Mode == GetPushForwardMode()) {
       // The differentiated function is called recursively.
       Expr* derivativeRef =
           m_Sema

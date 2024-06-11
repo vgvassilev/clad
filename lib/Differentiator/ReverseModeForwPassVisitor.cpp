@@ -22,7 +22,7 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   assert(m_DiffReq == request);
   silenceDiags = !request.VerboseDiags;
 
-  m_Mode = DiffMode::reverse_mode_forward_pass;
+  assert(m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass);
 
   assert(m_DiffReq.Function && "Must not be null.");
 

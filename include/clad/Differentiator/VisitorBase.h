@@ -13,7 +13,6 @@ namespace clad {
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
-#include "clad/Differentiator/DiffMode.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
@@ -119,7 +118,6 @@ namespace clad {
     clang::FunctionDecl* m_Derivative;
     /// The differentiation request that is being currently processed.
     const DiffRequest& m_DiffReq;
-    DiffMode m_Mode;
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
     std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
