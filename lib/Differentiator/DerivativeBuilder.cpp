@@ -170,10 +170,16 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     return false;
   }
 
-  Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
-      const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
-      clang::Scope* S, clang::DeclContext* originalFnDC,
-      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
+  LookupResult DerivativeBuilder::LookupCustomDerivativeOrNumericalDiff(
+      const std::string& Name, clang::DeclContext* originalFnDC,
+      CXXScopeSpec& SS, bool forCustomDerv /*=true*/,
+      bool namespaceShouldExist /*=true*/) {
+
+    IdentifierInfo* II = &m_Context.Idents.get(Name);
+    DeclarationName name(II);
+    DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
+    LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
+
     NamespaceDecl* NSD = nullptr;
     std::string namespaceID;
     if (forCustomDerv) {
@@ -200,10 +206,9 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
              "flag, this means that every try to numerically differentiate a "
              "function will fail! Remove the flag to revert to default "
              "behaviour.");
-        return nullptr;
+        return R;
       }
     }
-    CXXScopeSpec SS;
     DeclContext* DC = NSD;
 
     // FIXME: Here `if` branch should be removed once we update
@@ -222,13 +227,37 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     } else {
       SS.Extend(m_Context, NSD, noLoc, noLoc);
     }
-    IdentifierInfo* II = &m_Context.Idents.get(Name);
-    DeclarationName name(II);
-    DeclarationNameInfo DNInfo(name, utils::GetValidSLoc(m_Sema));
-
-    LookupResult R(m_Sema, DNInfo, Sema::LookupOrdinaryName);
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
+    return R;
+  }
+
+  FunctionDecl* DerivativeBuilder::LookupCustomDerivativeDecl(
+      const std::string& Name, clang::DeclContext* originalFnDC,
+      QualType functionType) {
+    CXXScopeSpec SS;
+    LookupResult R =
+        LookupCustomDerivativeOrNumericalDiff(Name, originalFnDC, SS);
+
+    for (NamedDecl* ND : R)
+      if (auto* FD = dyn_cast<FunctionDecl>(ND))
+        // Check if FD and functionType have the same signature.
+        if (utils::SameCanonicalType(FD->getType(), functionType))
+          if (FD->isDefined() || !m_DFC.IsDerivative(FD))
+            return FD;
+
+    return nullptr;
+  }
+
+  Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
+      const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
+      clang::Scope* S, clang::DeclContext* originalFnDC,
+      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
+
+    CXXScopeSpec SS;
+    LookupResult R = LookupCustomDerivativeOrNumericalDiff(
+        Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
+
     Expr* OverloadedFn = nullptr;
     if (!R.empty()) {
       // FIXME: We should find a way to specify nested name specifier
@@ -402,7 +431,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     return nullptr;
   }
 
-  void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request) {
-    m_DiffRequestGraph.addEdgeToCurrentNode(request);
+  void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request,
+                                         bool alreadyDerived /*=false*/) {
+    m_DiffRequestGraph.addEdgeToCurrentNode(request, alreadyDerived);
   }
 }// end namespace clad

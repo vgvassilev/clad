@@ -43,8 +43,14 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                          getEnclosingNamespaceOrTUScope());
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
+  // Check if the function is already declared as a custom derivative.
+  if (FunctionDecl* customDerivative =
+          m_Builder.LookupCustomDerivativeDecl(fnName, DC, fnType))
+    return DerivativeAndOverload{customDerivative, nullptr};
+
+  m_Sema.CurContext = DC;
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclWithContext fnBuildRes = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
