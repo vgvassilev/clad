@@ -2096,9 +2096,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // df/dxr += df/dxi * dxi/xr = df/dxi * xl
       // Store left multiplier and assign it with L.
       StmtDiff LStored = Ldiff;
+      // Catch the pop statement and emit it after
+      // the LStored value is used.
+      // This workaround is necessary because GlobalStoreAndRef
+      // is designed to work with the reversed order of statements
+      // in the reverse sweep and in RMV::VisitBinaryOperator
+      // the order is not reversed.
+      beginBlock(direction::reverse);
       if (!ShouldRecompute(LStored.getExpr()))
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
+      Stmt* LPop = endBlock(direction::reverse);
       Expr::EvalResult dummy;
       if (RDelayed ||
           !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context)) {
@@ -2110,6 +2118,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (RDelayed)
           RDelayed->Finalize(Rdiff.getExpr());
       }
+      addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
       std::tie(Ldiff, Rdiff) =
           std::make_pair(LStored.getExpr(), RResult.getExpr());
     } else if (opCode == BO_Div) {
@@ -2125,9 +2134,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         dl = BuildOp(BO_Div, dfdx(), RStored);
       Ldiff = Visit(L, dl);
       StmtDiff LStored = Ldiff;
+      // Catch the pop statement and emit it after
+      // the LStored value is used.
+      // This workaround is necessary because GlobalStoreAndRef
+      // is designed to work with the reversed order of statements
+      // in the reverse sweep and in RMV::VisitBinaryOperator
+      // the order is not reversed.
+      beginBlock(direction::reverse);
       if (!ShouldRecompute(LStored.getExpr()))
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
+      Stmt* LPop = endBlock(direction::reverse);
       // dxi/xr = -xl / (xr * xr)
       // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
       // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
@@ -2145,6 +2162,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Rdiff = Visit(R, dr);
         RDelayed.Finalize(Rdiff.getExpr());
       }
+      addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
       std::tie(Ldiff, Rdiff) =
           std::make_pair(LStored.getExpr(), RResult.getExpr());
     } else if (BinOp->isAssignmentOp()) {
