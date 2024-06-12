@@ -48,69 +48,71 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
 
   /// Derives the function w.r.t both forward and reverse mode and returns the
   /// FunctionDecl obtained from reverse mode differentiation
-  static FunctionDecl* DeriveUsingForwardAndReverseMode(
-      Sema& SemaRef, clad::plugin::CladPlugin& CP,
-      clad::DerivativeBuilder& Builder, DiffRequest IndependentArgRequest,
-      const Expr* ForwardModeArgs, const Expr* ReverseModeArgs) {
-    // Derives function once in forward mode w.r.t to ForwardModeArgs
-    IndependentArgRequest.Args = ForwardModeArgs;
-    IndependentArgRequest.Mode = DiffMode::forward;
-    IndependentArgRequest.CallUpdateRequired = false;
-    IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
-    // FIXME: Find a way to do this without accessing plugin namespace functions
-    bool alreadyDerived = true;
-    FunctionDecl* firstDerivative =
-        Builder.FindDerivedFunction(IndependentArgRequest);
-    if (!firstDerivative) {
-      alreadyDerived = false;
-      // Derive declaration of the the forward mode derivative.
-      IndependentArgRequest.DeclarationOnly = true;
-      firstDerivative = plugin::ProcessDiffRequest(CP, IndependentArgRequest);
+static FunctionDecl* DeriveUsingForwardAndReverseMode(
+    Sema& SemaRef, clad::plugin::CladPlugin& CP,
+    clad::DerivativeBuilder& Builder, DiffRequest IndependentArgRequest,
+    const Expr* ForwardModeArgs, const Expr* ReverseModeArgs,
+    DerivedFnCollector& DFC) {
+  // Derives function once in forward mode w.r.t to ForwardModeArgs
+  IndependentArgRequest.Args = ForwardModeArgs;
+  IndependentArgRequest.Mode = DiffMode::forward;
+  IndependentArgRequest.CallUpdateRequired = false;
+  IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
+  // FIXME: Find a way to do this without accessing plugin namespace functions
+  bool alreadyDerived = true;
+  FunctionDecl* firstDerivative =
+      Builder.FindDerivedFunction(IndependentArgRequest);
+  if (!firstDerivative) {
+    alreadyDerived = false;
+    // Derive declaration of the the forward mode derivative.
+    IndependentArgRequest.DeclarationOnly = true;
+    firstDerivative = plugin::ProcessDiffRequest(CP, IndependentArgRequest);
 
-      // It is possible that user has provided a custom derivative for the
-      // derivative function. In that case, we should not derive the definition
-      // again.
-      if (firstDerivative->isDefined())
-        alreadyDerived = true;
+    // It is possible that user has provided a custom derivative for the
+    // derivative function. In that case, we should not derive the definition
+    // again.
+    if (firstDerivative->isDefined() || DFC.IsCustomDerivative(firstDerivative))
+      alreadyDerived = true;
 
-      // Add the request to derive the definition of the forward mode derivative
-      // to the schedule.
-      IndependentArgRequest.DeclarationOnly = false;
-      IndependentArgRequest.DerivedFDPrototype = firstDerivative;
-    }
-    Builder.AddEdgeToGraph(IndependentArgRequest, alreadyDerived);
-
-    // Further derives function w.r.t to ReverseModeArgs
-    DiffRequest ReverseModeRequest{};
-    ReverseModeRequest.Mode = DiffMode::reverse;
-    ReverseModeRequest.Function = firstDerivative;
-    ReverseModeRequest.Args = ReverseModeArgs;
-    ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
-    ReverseModeRequest.UpdateDiffParamsInfo(SemaRef);
-
-    alreadyDerived = true;
-    FunctionDecl* secondDerivative =
-        Builder.FindDerivedFunction(ReverseModeRequest);
-    if (!secondDerivative) {
-      alreadyDerived = false;
-      // Derive declaration of the the reverse mode derivative.
-      ReverseModeRequest.DeclarationOnly = true;
-      secondDerivative = plugin::ProcessDiffRequest(CP, ReverseModeRequest);
-
-      // It is possible that user has provided a custom derivative for the
-      // derivative function. In that case, we should not derive the definition
-      // again.
-      if (secondDerivative->isDefined())
-        alreadyDerived = true;
-
-      // Add the request to derive the definition of the reverse mode
-      // derivative to the schedule.
-      ReverseModeRequest.DeclarationOnly = false;
-      ReverseModeRequest.DerivedFDPrototype = secondDerivative;
-    }
-    Builder.AddEdgeToGraph(ReverseModeRequest, alreadyDerived);
-    return secondDerivative;
+    // Add the request to derive the definition of the forward mode derivative
+    // to the schedule.
+    IndependentArgRequest.DeclarationOnly = false;
+    IndependentArgRequest.DerivedFDPrototype = firstDerivative;
   }
+  Builder.AddEdgeToGraph(IndependentArgRequest, alreadyDerived);
+
+  // Further derives function w.r.t to ReverseModeArgs
+  DiffRequest ReverseModeRequest{};
+  ReverseModeRequest.Mode = DiffMode::reverse;
+  ReverseModeRequest.Function = firstDerivative;
+  ReverseModeRequest.Args = ReverseModeArgs;
+  ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
+  ReverseModeRequest.UpdateDiffParamsInfo(SemaRef);
+
+  alreadyDerived = true;
+  FunctionDecl* secondDerivative =
+      Builder.FindDerivedFunction(ReverseModeRequest);
+  if (!secondDerivative) {
+    alreadyDerived = false;
+    // Derive declaration of the the reverse mode derivative.
+    ReverseModeRequest.DeclarationOnly = true;
+    secondDerivative = plugin::ProcessDiffRequest(CP, ReverseModeRequest);
+
+    // It is possible that user has provided a custom derivative for the
+    // derivative function. In that case, we should not derive the definition
+    // again.
+    if (secondDerivative->isDefined() ||
+        DFC.IsCustomDerivative(secondDerivative))
+      alreadyDerived = true;
+
+    // Add the request to derive the definition of the reverse mode
+    // derivative to the schedule.
+    ReverseModeRequest.DeclarationOnly = false;
+    ReverseModeRequest.DerivedFDPrototype = secondDerivative;
+  }
+  Builder.AddEdgeToGraph(ReverseModeRequest, alreadyDerived);
+  return secondDerivative;
+}
 
   DerivativeAndOverload
   HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
@@ -148,6 +150,26 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
         hessianFuncName += ('_' + std::to_string(idx));
       }
     }
+
+    llvm::SmallVector<QualType, 16> paramTypes(m_DiffReq->getNumParams() + 1);
+    std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
+                   std::begin(paramTypes),
+                   [](const ParmVarDecl* PVD) { return PVD->getType(); });
+    paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
+
+    const auto* originalFnProtoType =
+        cast<FunctionProtoType>(m_DiffReq->getType());
+    QualType hessianFunctionType = m_Context.getFunctionType(
+        m_Context.VoidTy,
+        llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
+        // Cast to function pointer.
+        originalFnProtoType->getExtProtoInfo());
+
+    // Check if the function is already declared as a custom derivative.
+    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
+            hessianFuncName, DC, hessianFunctionType))
+      return DerivativeAndOverload{customDerivative, nullptr};
 
     // Ascertains the independent arguments and differentiates the function
     // in forward and reverse mode by calling ProcessDiffRequest twice each
@@ -209,7 +231,7 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
                 CreateStringLiteral(m_Context, independentArgString);
             auto* DFD = DeriveUsingForwardAndReverseMode(
                 m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
-                request.Args);
+                request.Args, m_Builder.m_DFC);
             secondDerivativeColumns.push_back(DFD);
           }
 
@@ -222,13 +244,14 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
               CreateStringLiteral(m_Context, PVD->getNameAsString());
           auto* DFD = DeriveUsingForwardAndReverseMode(
               m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
-              request.Args);
+              request.Args, m_Builder.m_DFC);
           secondDerivativeColumns.push_back(DFD);
         }
       }
     }
     return Merge(secondDerivativeColumns, IndependentArgsSize,
-                 TotalIndependentArgsSize, hessianFuncName);
+                 TotalIndependentArgsSize, hessianFuncName, DC,
+                 hessianFunctionType, paramTypes);
   }
 
   // Combines all generated second derivative functions into a
@@ -238,35 +261,15 @@ static const StringLiteral* CreateStringLiteral(ASTContext& C,
   HessianModeVisitor::Merge(std::vector<FunctionDecl*> secDerivFuncs,
                             SmallVector<size_t, 16> IndependentArgsSize,
                             size_t TotalIndependentArgsSize,
-                            std::string hessianFuncName) {
+                            const std::string& hessianFuncName, DeclContext* DC,
+                            QualType hessianFunctionType,
+                            llvm::SmallVector<QualType, 16> paramTypes) {
     DiffParams args;
     std::copy(m_DiffReq->param_begin(), m_DiffReq->param_end(),
               std::back_inserter(args));
 
     IdentifierInfo* II = &m_Context.Idents.get(hessianFuncName);
     DeclarationNameInfo name(II, noLoc);
-
-    llvm::SmallVector<QualType, 16> paramTypes(m_DiffReq->getNumParams() + 1);
-
-    std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
-                   std::begin(paramTypes),
-                   [](const ParmVarDecl* PVD) { return PVD->getType(); });
-
-    paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
-
-    const auto* originalFnProtoType =
-        cast<FunctionProtoType>(m_DiffReq->getType());
-    QualType hessianFunctionType = m_Context.getFunctionType(
-        m_Context.VoidTy,
-        llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
-        // Cast to function pointer.
-        originalFnProtoType->getExtProtoInfo());
-
-    // Check if the function is already declared as a custom derivative.
-    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-            hessianFuncName, DC, hessianFunctionType))
-      return DerivativeAndOverload{customDerivative, nullptr};
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
