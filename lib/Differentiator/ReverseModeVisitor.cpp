@@ -3703,9 +3703,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
                                                           QualType xType) {
 
-    if (m_DiffReq.Mode == DiffMode::reverse)
-      assert(yType->isRealType() &&
-             "yType should be a non-reference builtin-numerical scalar type!!");
+    assert((m_DiffReq.Mode != DiffMode::reverse || yType->isRealType()) &&
+           "yType should be a non-reference builtin-numerical scalar type!!");
     QualType xValueType = utils::GetValueType(xType);
     // derivative variables should always be of non-const type.
     xValueType.removeLocalConst();
