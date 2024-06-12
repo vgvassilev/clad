@@ -30,7 +30,9 @@ namespace clad {
     DerivativeAndOverload
     Merge(std::vector<clang::FunctionDecl*> secDerivFuncs,
           llvm::SmallVector<size_t, 16> IndependentArgsSize,
-          size_t TotalIndependentArgsSize, std::string hessianFuncName);
+          size_t TotalIndependentArgsSize, const std::string& hessianFuncName,
+          clang::DeclContext* FD, clang::QualType hessianFuncType,
+          llvm::SmallVector<clang::QualType, 16> paramTypes);
 
   public:
     HessianModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);

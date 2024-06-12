@@ -65,3 +65,32 @@ TEST(CallDeclOnly, CheckCustomDiff) {
   grad.execute(&x, &dx);
   EXPECT_DOUBLE_EQ(dx, 2.0);
 }
+
+namespace clad {
+namespace custom_derivatives {
+float custom_fn_darg0(float x, float y);
+
+void custom_fn_darg0_grad(float x, float y, float* d_x, float* d_y);
+
+float custom_fn_darg1(float x, float y) { return exp(y); }
+} // namespace custom_derivatives
+} // namespace clad
+
+float custom_fn(float x, float y) {
+  // This is to test that Clad actual doesn't generate a derivative for sin(x)
+  // as it is commented out, but use the user provided derivatives, which
+  // assumes function is sin(x) + exp(y).
+  return /*sin(x)*/ +exp(y);
+}
+
+TEST(CallDeclOnly, CheckCustomDiff2) {
+  auto hessian = clad::hessian(custom_fn);
+  float result[4] = {0.0, 0.0, 0.0, 0.0};
+  float x = 1.0;
+  float y = 2.0;
+  hessian.execute(x, y, result);
+  EXPECT_FLOAT_EQ(result[0], -sin(x));
+  EXPECT_FLOAT_EQ(result[1], 0.0);
+  EXPECT_FLOAT_EQ(result[2], 0.0);
+  EXPECT_FLOAT_EQ(result[3], exp(y));
+}

@@ -144,7 +144,10 @@ namespace clad {
     /// namespace we should look in for the overloads.
     /// \param[in] namespaceShouldExist A flag to enforce assertion failure
     /// if the overload function namespace was not found. If false and
-    /// the function containing namespace was not found,
+    /// the function containing namespace was not found, nullptr is returned.
+    ///
+    /// \returns The lookup result of the custom derivative or numerical
+    /// differentiation function.
     clang::LookupResult LookupCustomDerivativeOrNumericalDiff(
         const std::string& Name, clang::DeclContext* originalFnDC,
         clang::CXXScopeSpec& SS, bool forCustomDerv = true,

@@ -15,6 +15,11 @@ void DerivedFnCollector::AddToDerivativeSet(const clang::FunctionDecl* FD) {
   m_DerivativeSet.insert(FD);
 }
 
+void DerivedFnCollector::AddToCustomDerivativeSet(
+    const clang::FunctionDecl* FD) {
+  m_CustomDerivativeSet.insert(FD);
+}
+
 bool DerivedFnCollector::AlreadyExists(const DerivedFnInfo& DFI) const {
   auto subCollectionIt = m_DerivedFnInfoCollection.find(DFI.OriginalFn());
   if (subCollectionIt == m_DerivedFnInfoCollection.end())
@@ -42,7 +47,12 @@ DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
   return *it;
 }
 
-bool DerivedFnCollector::IsDerivative(const clang::FunctionDecl* FD) const {
+bool DerivedFnCollector::IsCladDerivative(const clang::FunctionDecl* FD) const {
   return m_DerivativeSet.count(FD);
+}
+
+bool DerivedFnCollector::IsCustomDerivative(
+    const clang::FunctionDecl* FD) const {
+  return m_CustomDerivativeSet.count(FD);
 }
 } // namespace clad

@@ -174,7 +174,8 @@ public:
           // setup, we exit early to give control to the non-standard setup for
           // code generation.
           // FIXME: This should go away if Cling starts using the clang driver.
-          if (!m_Multiplexer && m_DFC.IsDerivative(FD))
+          if (!m_Multiplexer &&
+              (m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD)))
             return true;
 
       HandleTopLevelDeclForClad(D);

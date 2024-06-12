@@ -20,5 +20,12 @@ void sq_pushforward_pullback(double x, double _dx,
     *_d_x += 2 * _d_y.pushforward;
   }
 }
+
+float custom_fn_darg0(float x, float y) { return cos(x); }
+
+void custom_fn_darg0_grad(float x, float y, float* d_x, float* d_y) {
+  *d_x -= sin(x);
+}
+
 } // namespace custom_derivatives
 } // namespace clad

@@ -9,25 +9,6 @@
 #include "clad/Differentiator/Differentiator.h"
 #include <math.h>
 
-namespace clad {
-  namespace custom_derivatives {
-    float f7_darg0(float x, float y) {
-      return cos(x);
-    }
-
-    float f7_darg1(float x, float y) {
-      return exp(y);
-    }
-
-    void f8_hessian(double x, double y, double *hessianMatrix) {
-      hessianMatrix[0] = 1.0;
-      hessianMatrix[1] = 1.0;
-      hessianMatrix[2] = 1.0;
-      hessianMatrix[3] = 1.0;
-    }
-  }
-}
-
 float f1(float x) {
   return sin(x) + cos(x);
 }
@@ -109,6 +90,29 @@ float f6(float x, float y) {
 // CHECK-NEXT:     f6_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
+namespace clad {
+  namespace custom_derivatives {
+    float f7_darg0(float x, float y) {
+      return cos(x);
+    }
+
+    float f7_darg1(float x, float y) {
+      return exp(y);
+    }
+
+    void f7_darg1_grad(float x, float y, float *d_x, float *d_y) {
+      *d_y += exp(y);
+    }
+
+    void f8_hessian(float x, float y, float *hessianMatrix) {
+      hessianMatrix[0] = 1.0;
+      hessianMatrix[1] = 1.0;
+      hessianMatrix[2] = 1.0;
+      hessianMatrix[3] = 1.0;
+    }
+  }
+}
+
 float f7(float x, float y) {
   return sin(x) + exp(y);
 }
@@ -123,11 +127,24 @@ float f7(float x, float y) {
 // CHECK-NEXT:     return exp(y);
 // CHECK-NEXT: }
 
-// CHECK: void f7_darg1_grad(float x, float y, float *_d_x, float *_d_y);
+// CHECK: void f7_darg1_grad(float x, float y, float *d_x, float *d_y) {
+// CHECK-NEXT:     *d_y += exp(y);
+// CHECK-NEXT: }
 
 // CHECK: void f7_hessian(float x, float y, float *hessianMatrix) {
 // CHECK-NEXT:     f7_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
 // CHECK-NEXT:     f7_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+// CHECK-NEXT: }
+
+float f8(float x, float y) {
+  return (x*x + y*y)/2 + x*y;
+}
+
+// CHECK: void f8_hessian(float x, float y, float *hessianMatrix) {
+// CHECK-NEXT:     hessianMatrix[0] = 1.;
+// CHECK-NEXT:     hessianMatrix[1] = 1.;
+// CHECK-NEXT:     hessianMatrix[2] = 1.;
+// CHECK-NEXT:     hessianMatrix[3] = 1.;
 // CHECK-NEXT: }
 
 #define TEST1(F, x) {                                \
@@ -155,6 +172,7 @@ int main() {
   TEST1(f5, 3); // CHECK-EXEC: Result is = {3.84}
   TEST2(f6, 3, 4); // CHECK-EXEC: Result is = {108.00, 145.65, 145.65, 97.76}
   TEST2(f7, 3, 4); // CHECK-EXEC: Result is = {-0.14, 0.00, 0.00, 54.60}
+  TEST2(f8, 3, 4); // CHECK-EXEC: Result is = {1.00, 1.00, 1.00, 1.00}
 
 // CHECK: float f1_darg0(float x) {
 // CHECK-NEXT:     float _d_x = 1;
@@ -349,18 +367,8 @@ int main() {
 // CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
-// CHECK-NEXT:         _r0 += 1 * clad::custom_derivatives::std::cos_pushforward(x, 1.F).pushforward; 
+// CHECK-NEXT:         _r0 += 1 * clad::custom_derivatives{{(::std)?}}::cos_pushforward(x, 1.F).pushforward; 
 // CHECK-NEXT:         *_d_x += _r0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: void f7_darg1_grad(float x, float y, float *_d_x, float *_d_y) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     {
-// CHECK-NEXT:         float _r0 = 0;
-// CHECK-NEXT:         _r0 += 1 * clad::custom_derivatives::std::exp_pushforward(y, 1.F).pushforward;
-// CHECK-NEXT:         *_d_y += _r0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
