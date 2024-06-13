@@ -22,8 +22,6 @@ double fn1(pairdd p, double i) {
 // CHECK: void fn1_grad(pairdd p, double i, pairdd *_d_p, double *_d_i) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = p.first + 2 * p.second + 3 * i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_p).first += _d_res;
@@ -80,8 +78,6 @@ double fn2(Tangent t, double i) {
 // CHECK-NEXT:     double res = sum(t);
 // CHECK-NEXT:     _t1 = res;
 // CHECK-NEXT:     res += sum(t.data) + i + 2 * t.data[0];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t1;
@@ -114,8 +110,6 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     _t1 = t.data[1];
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
 // CHECK-NEXT:     _t2 = t;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(_t2, 1, &_d_t);
@@ -146,8 +140,6 @@ double fn4(double i, double j) {
 // CHECK-NEXT:     pairdd _d_q({});
 // CHECK-NEXT:     pairdd p(1, 3);
 // CHECK-NEXT:     pairdd q({7, 5});
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p.first += 1 * i;
 // CHECK-NEXT:         *_d_i += p.first * 1;
@@ -161,8 +153,6 @@ double fn4(double i, double j) {
 // CHECK-NEXT: }
 
 // CHECK: void someMemFn_grad(double i, double j, Tangent *_d_this, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).data[0] += 1 * i;
 // CHECK-NEXT:         *_d_i += this->data[0] * 1;
@@ -183,8 +173,6 @@ double fn5(const Tangent& t, double i) {
 // CHECK: void fn5_grad(const Tangent &t, double i, Tangent *_d_t, double *_d_i) {
 // CHECK-NEXT:     Tangent _t0;
 // CHECK-NEXT:     _t0 = t;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;
@@ -227,8 +215,6 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     _t6 = c;
 // CHECK-NEXT:     _t5 = c.real();
 // CHECK-NEXT:     res += 4 * _t5;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t4;
@@ -268,8 +254,6 @@ double fn7(dcomplex c1, dcomplex c2) {
 // CHECK-NEXT:     _t4 = c1;
 // CHECK-NEXT:     _t6 = c1;
 // CHECK-NEXT:     _t5 = c1.imag();
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _t4.real_pullback(1, &(*_d_c1));
 // CHECK-NEXT:         _t6.imag_pullback(3 * 1, &(*_d_c1));
@@ -297,8 +281,6 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK-NEXT:     _t1 = t;
 // CHECK-NEXT:     t.updateTo(c.real());
 // CHECK-NEXT:     _t2 = t;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(_t2, 1, &(*_d_t));
@@ -342,8 +324,6 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     _t5 = res;
 // CHECK-NEXT:     _t6 = t;
 // CHECK-NEXT:     res += sum(t);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t5;
@@ -417,8 +397,6 @@ int main() {
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += t.data[i];
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
@@ -441,8 +419,6 @@ int main() {
 // CHECK-NEXT:         clad::push(_t1, res);
 // CHECK-NEXT:         res += data[i];
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
@@ -453,8 +429,6 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).data[0] += _d_y * i;
 // CHECK-NEXT:         *_d_i += this->data[0] * _d_y;
@@ -477,14 +451,10 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: constexpr void real_pullback(double _d_y, std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {{(__real)?}} (*_d_this).{{.*}} += _d_y;
 // CHECK-NEXT: }
 
 // CHECK: constexpr void imag_pullback(double _d_y, std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {{(__imag)?}} (*_d_this).{{.*}} += _d_y;
 // CHECK-NEXT: }
 

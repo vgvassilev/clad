@@ -15,8 +15,6 @@ double test_1(double x, double y){
 }
 // CHECK: warning: Falling back to numerical differentiation for 'hypot' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 // CHECK: void test_1_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;

@@ -51,8 +51,6 @@ double f2(double x, double y){
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
 // CHECK-NEXT:     double ans = _t00.value;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d__d_ans += 1;
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
@@ -89,8 +87,6 @@ double f2(double x, double y){
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
 // CHECK-NEXT:     double ans = _t00.value;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d__d_ans += 1;
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
@@ -112,8 +108,6 @@ double f2(double x, double y){
 // CHECK-NEXT: }
 
 // CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_x += _d_y0.value * x;
 // CHECK-NEXT:         *_d_x += x * _d_y0.value;

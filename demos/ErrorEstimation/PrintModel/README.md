@@ -47,8 +47,6 @@ The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double &
     float z;
     _t0 = z;
     z = x + y;
-    goto _label0;
-  _label0:
     _d_z += 1;
     {
         _final_error += _d_z * z;

@@ -1130,17 +1130,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff ReturnDiff = ReturnResult.first;
     StmtDiff ExprDiff = ReturnResult.second;
     Stmt* Reverse = ReturnDiff.getStmt_dx();
-    // If the original function returns at this point, some part of the reverse
-    // pass (corresponding to other branches that do not return here) must be
-    // skipped. We create a label in the reverse pass and jump to it via goto.
-    LabelDecl* LD = LabelDecl::Create(
-        m_Context, m_Sema.CurContext, noLoc, CreateUniqueIdentifier("_label"));
-    m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);
-    // Attach label to the last Stmt in the corresponding Reverse Stmt.
-    if (!Reverse)
-      Reverse = m_Sema.ActOnNullStmt(noLoc).get();
-    Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
-    addToCurrentBlock(LS, direction::reverse);
     for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
       addToCurrentBlock(S, direction::forward);
 
@@ -1153,6 +1142,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalizingVisitReturnStmt(ExprDiff);
     }
+
+    // If this return stmt is the last stmt in the function's body,
+    // adding goto will only introduce
+    // ```
+    // goto _label0; // the forward sweep ends
+    // _label0:  // the reverse sweep starts immediately
+    // ```
+    // Therefore, in this case, we can omit the goto.
+    const Stmt* lastFuncStmt = m_DiffReq.Function->getBody();
+    if (const auto* CS = dyn_cast<CompoundStmt>(lastFuncStmt))
+      lastFuncStmt = *CS->body_rbegin();
+    if (RS == lastFuncStmt)
+      return {nullptr, Reverse};
+
+    // If the original function returns at this point, some part of the reverse
+    // pass (corresponding to other branches that do not return here) must be
+    // skipped. We create a label in the reverse pass and jump to it via goto.
+    LabelDecl* LD = LabelDecl::Create(m_Context, m_Sema.CurContext, noLoc,
+                                      CreateUniqueIdentifier("_label"));
+    m_Sema.PushOnScopeChains(LD, m_DerivativeFnScope, true);
+    // Attach label to the last Stmt in the corresponding Reverse Stmt.
+    if (!Reverse)
+      Reverse = m_Sema.ActOnNullStmt(noLoc).get();
+    Stmt* LS = m_Sema.ActOnLabelStmt(noLoc, LD, noLoc, Reverse).get();
+    addToCurrentBlock(LS, direction::reverse);
 
     // Create goto to the label.
     return m_Sema.ActOnGotoStmt(noLoc, noLoc, LD).get();

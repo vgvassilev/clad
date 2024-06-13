@@ -12,8 +12,6 @@ double nonMemFn(double i) {
   return i*i;
 }
 // CHECK: void nonMemFn_grad(double i, double *_d_i) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1 * i;
 // CHECK-NEXT:         *_d_i += i * 1;
@@ -33,8 +31,6 @@ double minimalPointer(double x) {
 // CHECK-NEXT:     double *const p = &x;
 // CHECK-NEXT:     _t0 = *p;
 // CHECK-NEXT:     *p = *p * (*p);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_p += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t0;
@@ -107,8 +103,6 @@ double arrayPointer(const double* arr) {
 // CHECK-NEXT:     p = p - 2;
 // CHECK-NEXT:     _t11 = sum;
 // CHECK-NEXT:     sum += 5 * (*p);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t11;
@@ -194,8 +188,6 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         _d_arr = _d_arr + 1;
 // CHECK-NEXT:         arr = arr + 1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;
@@ -270,8 +262,6 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:     --a;
 // CHECK-NEXT:     _t7 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t7;
@@ -367,8 +357,6 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     _t1 = r[1];
 // CHECK-NEXT:     r[1] = i * j;
 // CHECK-NEXT:     double sum = *p + *q + r[0] + r[1];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_p += _d_sum;
@@ -418,8 +406,6 @@ double structPointer (double x) {
 // CHECK-NEXT:     _d_t = new T();
 // CHECK-NEXT:     T *t = new T({x, /*implicit*/(int)0});
 // CHECK-NEXT:     double res = t->x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     _d_t->x += _d_res;
 // CHECK-NEXT:     *_d_x += *_d_t.x;
@@ -472,8 +458,6 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     p[1] = 2 * x;
 // CHECK-NEXT:     _t5 = res;
 // CHECK-NEXT:     res += p[1];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t5;

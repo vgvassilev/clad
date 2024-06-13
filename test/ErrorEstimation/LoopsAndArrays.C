@@ -28,8 +28,6 @@ float func(float* p, int n) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += p[i];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -74,8 +72,6 @@ float func2(float x) {
 //CHECK-NEXT:         clad::push(_t2, z);
 //CHECK-NEXT:         z = m + m;
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_z += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -118,8 +114,6 @@ float func3(float x, float y) {
 //CHECK-NEXT:     arr[1] = x * x;
 //CHECK-NEXT:     _t2 = arr[2];
 //CHECK-NEXT:     arr[2] = arr[0] + arr[1];
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_arr[2] += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(_d_arr[2] * arr[2] * {{.+}});
@@ -176,8 +170,6 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:         clad::push(_t2, sum);
 //CHECK-NEXT:         sum += x[i];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -229,8 +221,6 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:     _t2 = output[2];
 //CHECK-NEXT:     output[2] = x[0] * y[1] - y[0] * x[1];
 //CHECK-NEXT:     _ret_value0 = output[0] + output[1] + output[2];
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_output[0] += 1;
 //CHECK-NEXT:         output_size = std::max(output_size, 0);

@@ -15,8 +15,6 @@ struct Experiment {
   Experiment& operator=(const Experiment& E) = default;
 
   // CHECK: void operator_call_grad(double i, double j, Experiment *_d_this, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -33,8 +31,6 @@ struct ExperimentConst {
 
   ExperimentConst& operator=(const ExperimentConst& E) = default;
   // CHECK: void operator_call_grad(double i, double j, ExperimentConst *_d_this, double *_d_i, double *_d_j) const {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -59,8 +55,6 @@ struct ExperimentVolatile {
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentVolatile *_d_this, double *_d_i, double *_d_j) volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     _t0 = this->x * i;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -85,8 +79,6 @@ struct ExperimentConstVolatile {
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile *_d_this, double *_d_i, double *_d_j) const volatile {
   // CHECK-NEXT:     double _t0;
   // CHECK-NEXT:     _t0 = this->x * i;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -106,8 +98,6 @@ struct ExperimentNNS {
   ExperimentNNS& operator=(const ExperimentNNS& E) = default;
 
   // CHECK: void operator_call_grad(double i, double j, outer::inner::ExperimentNNS *_d_this, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -170,8 +160,6 @@ int main() {
   auto lambda = [](double i, double j) { return i * i * j; };
 
   // CHECK: inline void operator_call_grad(double i, double j, double *_d_i, double *_d_j) const {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_i += 1 * j * i;
   // CHECK-NEXT:         *_d_i += i * 1 * j;
@@ -182,8 +170,6 @@ int main() {
   auto lambdaWithCapture = [&](double ii, double j) { return x * ii * j; };
 
   // CHECK: inline void operator_call_grad(double ii, double j, double *_d_ii, double *_d_j) const {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_ii += x * 1 * j;
   // CHECK-NEXT:         *_d_j += x * ii * 1;
@@ -243,8 +229,6 @@ int main() {
   // CHECK-NEXT:     Experiment _t0;
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     _t0 = E;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0;
   // CHECK-NEXT:         double _r1 = 0;
@@ -263,8 +247,6 @@ int main() {
   // CHECK: void FunctorAsArg_grad(Experiment fn, double i, double j, Experiment *_d_fn, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _t0;
   // CHECK-NEXT:     _t0 = fn;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0;
   // CHECK-NEXT:         double _r1 = 0;
@@ -286,8 +268,6 @@ int main() {
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _d_E({});
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         Experiment _r0 = {};
   // CHECK-NEXT:         double _r1 = 0;
@@ -308,8 +288,6 @@ int main() {
 // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Experiment _t0;
 // CHECK-NEXT:     _t0 = fn;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:     _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;

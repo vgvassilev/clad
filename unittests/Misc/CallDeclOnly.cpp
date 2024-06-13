@@ -26,8 +26,6 @@ TEST(CallDeclOnly, CheckNumDiff) {
 void wrapper1_grad(double *params, double *_d_params) {
     double _d_ix = 0;
     const double ix = 1 + params[0];
-    goto _label0;
-  _label0:
     {
         double _r0 = 0;
         double _r1 = 0;

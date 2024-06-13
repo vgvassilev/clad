@@ -61,8 +61,6 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{2U|2UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
@@ -183,8 +181,6 @@ double fn2(double i, double j) {
 // CHECK-NEXT:             clad::push(_t3, {{3U|3UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t3)) {
@@ -314,8 +310,6 @@ double fn3(double i, double j) {
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     while (_t0)
 // CHECK-NEXT:         {
@@ -430,8 +424,6 @@ double fn4(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{3U|3UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
@@ -499,8 +491,6 @@ double fn5(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{1U|1UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
@@ -550,8 +540,6 @@ double fn6(double u, double v) {
 // CHECK-NEXT:             clad::push(_t2, {{1U|1UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t2)) {
@@ -642,8 +630,6 @@ double fn7(double u, double v) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     for (; _t0; _t0--) {
 // CHECK-NEXT:         --i;

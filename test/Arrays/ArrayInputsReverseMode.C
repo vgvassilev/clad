@@ -22,8 +22,6 @@ double f(double *arr) {
 }
 
 //CHECK:   void f_grad(double *arr, double *_d_arr) {
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         int _r0 = 0;
 //CHECK-NEXT:         addArr_pullback(arr, 3, 1, _d_arr, &_r0);
@@ -55,8 +53,6 @@ float func(float* a, float* b) {
 //CHECK-NEXT:         clad::push(_t2, sum);
 //CHECK-NEXT:         sum += a[i];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -101,8 +97,6 @@ float func2(float* a) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += helper(a[i]);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -136,8 +130,6 @@ float func3(float* a, float* b) {
 //CHECK-NEXT:         clad::push(_t2, a[i]);
 //CHECK-NEXT:         sum += (a[i] += b[i]);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -174,8 +166,6 @@ double func4(double x) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -239,8 +229,6 @@ double func5(int k) {
 //CHECK-NEXT:         clad::push(_t3, sum);
 //CHECK-NEXT:         sum += addArr(arr, n);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t2; _t2--) {
 //CHECK-NEXT:         i0--;
@@ -290,8 +278,6 @@ double func6(double seed) {
 //CHECK-NEXT:         clad::push(_t2, sum);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -345,8 +331,6 @@ double func7(double *params) {
 //CHECK-NEXT:         clad::push(_t2, out);
 //CHECK-NEXT:         out = out + inv_square(paramsPrime);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_out += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         --i;
@@ -391,8 +375,6 @@ double func8(double i, double *arr, int n) {
 //CHECK-NEXT:     res = helper2(i, arr, n);
 //CHECK-NEXT:     _t2 = arr[0];
 //CHECK-NEXT:     arr[0] = 5;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_res += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         arr[0] = _t2;
@@ -444,8 +426,6 @@ double func9(double i, double j) {
 //CHECK-NEXT:         clad::push(_t1, arr[idx]);
 //CHECK-NEXT:         modify(arr[idx], i);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_arr[0] += 1;
 //CHECK-NEXT:         _d_arr[1] += 1;
@@ -496,8 +476,6 @@ double func10(double *arr, int n) {
 //CHECK-NEXT:         clad::push(_t2, arr[i]);
 //CHECK-NEXT:         res += sq(arr[i]);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_res += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         --i;
@@ -590,8 +568,6 @@ int main() {
 //CHECK-NEXT:         clad::push(_t1, ret);
 //CHECK-NEXT:         ret += arr[i];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_ret += _d_y;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -604,16 +580,12 @@ int main() {
 //CHECK-NEXT: }
 
 // CHECK: void helper_pullback(float x, float _d_y, float *_d_x) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_x += 2 * _d_y;
 // CHECK-NEXT: }
 
 //CHECK: void inv_square_pullback(double *params, double _d_y, double *_d_params) {
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     _t0 = (params[0] * params[0]);
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = _d_y * -(1 / (_t0 * _t0));
 //CHECK-NEXT:         _d_params[0] += _r0 * params[0];
@@ -622,8 +594,6 @@ int main() {
 //CHECK-NEXT: }
 
 //CHECK: void helper2_pullback(double i, double *arr, int n, double _d_y, double *_d_i, double *_d_arr, int *_d_n) {
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _d_arr[0] += _d_y * i;
 //CHECK-NEXT:         *_d_i += arr[0] * _d_y;
@@ -646,8 +616,6 @@ int main() {
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     _t0 = elem;
 //CHECK-NEXT:     elem = elem * elem;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_elem += _d_y;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         elem = _t0;

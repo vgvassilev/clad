@@ -29,8 +29,6 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += f[i] + f[i - 1];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -82,8 +80,6 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:             sum += a[i] * b[j];
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
@@ -137,8 +133,6 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         sum += a[i] / b[i];
 //CHECK-NEXT:     }
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     _d_sum += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
 //CHECK-NEXT:         i--;
