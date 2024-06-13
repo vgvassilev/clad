@@ -1209,19 +1209,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
     // Check if request already derived in DerivedFunctions.
     FunctionDecl* pushforwardFD =
-        m_Builder.FindDerivedFunction(pushforwardFnRequest);
-    if (!pushforwardFD) {
-      // Derive declaration of the pushforward function.
-      pushforwardFnRequest.DeclarationOnly = true;
-      pushforwardFD =
-          plugin::ProcessDiffRequest(m_CladPlugin, pushforwardFnRequest);
-
-      // Add the request to derive the definition of the pushforward function
-      // into the queue.
-      pushforwardFnRequest.DeclarationOnly = false;
-      pushforwardFnRequest.DerivedFDPrototype = pushforwardFD;
-    }
-    m_Builder.AddEdgeToGraph(pushforwardFnRequest);
+        m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
 
     if (pushforwardFD) {
       if (baseDiff.getExpr()) {
