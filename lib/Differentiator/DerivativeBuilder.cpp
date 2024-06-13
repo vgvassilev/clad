@@ -295,6 +295,33 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     return OverloadedFn;
   }
 
+  clang::FunctionDecl*
+  DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
+    // FIXME: Find a way to do this without accessing plugin namespace functions
+    bool alreadyDerived = true;
+    FunctionDecl* derivative = this->FindDerivedFunction(request);
+    if (!derivative) {
+      alreadyDerived = false;
+      // Derive declaration of the the forward mode derivative.
+      request.DeclarationOnly = true;
+      derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
+
+      // It is possible that user has provided a custom derivative for the
+      // derivative function. In that case, we should not derive the definition
+      // again.
+      if (derivative &&
+          (derivative->isDefined() || m_DFC.IsCustomDerivative(derivative)))
+        alreadyDerived = true;
+
+      // Add the request to derive the definition of the forward mode derivative
+      // to the schedule.
+      request.DeclarationOnly = false;
+      request.DerivedFDPrototype = derivative;
+    }
+    this->AddEdgeToGraph(request, alreadyDerived);
+    return derivative;
+  }
+
   void DerivativeBuilder::AddErrorEstimationModel(
       std::unique_ptr<FPErrorEstimationModel> estModel) {
     m_EstModel.push_back(std::move(estModel));
@@ -423,9 +450,9 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     // FIXME: if the derivatives aren't registered in this order and the
     //   derivative is a member function it goes into an infinite loop
     if (!m_DFC.IsCustomDerivative(result.derivative)) {
-      if (auto FD = result.derivative)
+      if (auto* FD = result.derivative)
         registerDerivative(FD, m_Sema);
-      if (auto OFD = result.overload)
+      if (auto* OFD = result.overload)
         registerDerivative(OFD, m_Sema);
     }
 

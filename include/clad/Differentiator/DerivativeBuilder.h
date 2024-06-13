@@ -208,6 +208,12 @@ namespace clad {
     /// is already derived or not.
     void AddEdgeToGraph(const DiffRequest& request,
                         bool alreadyDerived = false);
+
+    /// Handles processing of a diff request when an existing derivative is
+    /// being processed.
+    /// \param[in] Request The request to be processed.
+    /// \returns The derivative function if found, nullptr otherwise.
+    clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
   };
 
 } // end namespace clad

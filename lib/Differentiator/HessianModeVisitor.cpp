@@ -59,27 +59,8 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   IndependentArgRequest.CallUpdateRequired = false;
   IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
   // FIXME: Find a way to do this without accessing plugin namespace functions
-  bool alreadyDerived = true;
   FunctionDecl* firstDerivative =
-      Builder.FindDerivedFunction(IndependentArgRequest);
-  if (!firstDerivative) {
-    alreadyDerived = false;
-    // Derive declaration of the the forward mode derivative.
-    IndependentArgRequest.DeclarationOnly = true;
-    firstDerivative = plugin::ProcessDiffRequest(CP, IndependentArgRequest);
-
-    // It is possible that user has provided a custom derivative for the
-    // derivative function. In that case, we should not derive the definition
-    // again.
-    if (firstDerivative->isDefined() || DFC.IsCustomDerivative(firstDerivative))
-      alreadyDerived = true;
-
-    // Add the request to derive the definition of the forward mode derivative
-    // to the schedule.
-    IndependentArgRequest.DeclarationOnly = false;
-    IndependentArgRequest.DerivedFDPrototype = firstDerivative;
-  }
-  Builder.AddEdgeToGraph(IndependentArgRequest, alreadyDerived);
+      Builder.HandleNestedDiffRequest(IndependentArgRequest);
 
   // Further derives function w.r.t to ReverseModeArgs
   DiffRequest ReverseModeRequest{};
@@ -89,28 +70,8 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   ReverseModeRequest.BaseFunctionName = firstDerivative->getNameAsString();
   ReverseModeRequest.UpdateDiffParamsInfo(SemaRef);
 
-  alreadyDerived = true;
   FunctionDecl* secondDerivative =
-      Builder.FindDerivedFunction(ReverseModeRequest);
-  if (!secondDerivative) {
-    alreadyDerived = false;
-    // Derive declaration of the the reverse mode derivative.
-    ReverseModeRequest.DeclarationOnly = true;
-    secondDerivative = plugin::ProcessDiffRequest(CP, ReverseModeRequest);
-
-    // It is possible that user has provided a custom derivative for the
-    // derivative function. In that case, we should not derive the definition
-    // again.
-    if (secondDerivative->isDefined() ||
-        DFC.IsCustomDerivative(secondDerivative))
-      alreadyDerived = true;
-
-    // Add the request to derive the definition of the reverse mode
-    // derivative to the schedule.
-    ReverseModeRequest.DeclarationOnly = false;
-    ReverseModeRequest.DerivedFDPrototype = secondDerivative;
-  }
-  Builder.AddEdgeToGraph(ReverseModeRequest, alreadyDerived);
+      Builder.HandleNestedDiffRequest(ReverseModeRequest);
   return secondDerivative;
 }
 

@@ -364,8 +364,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Check if the function is already declared as a custom derivative.
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-            gradientName, DC, gradientFunctionType))
-      return DerivativeAndOverload{customDerivative, nullptr};
+            gradientName, DC, gradientFunctionType)) {
+      // Set m_Derivative for creating the overload.
+      m_Derivative = customDerivative;
+      FunctionDecl* gradientOverloadFD = nullptr;
+      if (shouldCreateOverload)
+        gradientOverloadFD = CreateGradientOverload();
+      return DerivativeAndOverload{customDerivative, gradientOverloadFD};
+    }
 
     // Create the gradient function declaration.
     llvm::SaveAndRestore<DeclContext*> SaveContext(m_Sema.CurContext);
@@ -1682,29 +1688,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           if (DerivedCallOutputArgs[i + isaMethod])
             pullbackRequest.DVI.push_back(FD->getParamDecl(i));
 
-        FunctionDecl* pullbackFD =
-            m_Builder.FindDerivedFunction(pullbackRequest);
-        if (!pullbackFD) {
-          if (!m_ExternalSource) {
-            // Derive the declaration of the pullback function.
-            pullbackRequest.DeclarationOnly = true;
-            pullbackFD =
-                plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
-
-            // Add the request to derive the definition of the pullback
-            // function.
-            pullbackRequest.DeclarationOnly = false;
-            pullbackRequest.DerivedFDPrototype = pullbackFD;
-          } else {
-            // FIXME: Error estimation currently uses singleton objects -
-            // m_ErrorEstHandler and m_EstModel, which is cleared after each
-            // error_estimate request. This requires the pullback to be derived
-            // at the same time to access the singleton objects.
-            pullbackFD =
-                plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
-          }
-        }
-        m_Builder.AddEdgeToGraph(pullbackRequest);
+        FunctionDecl* pullbackFD = nullptr;
+        if (m_ExternalSource)
+          // FIXME: Error estimation currently uses singleton objects -
+          // m_ErrorEstHandler and m_EstModel, which is cleared after each
+          // error_estimate request. This requires the pullback to be derived
+          // at the same time to access the singleton objects.
+          pullbackFD =
+              plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+        else
+          pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
         // Clad failed to derive it.
         // FIXME: Add support for reference arguments to the numerical diff. If
@@ -1794,28 +1787,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           clad::utils::ComputeEffectiveFnName(FD);
       calleeFnForwPassReq.VerboseDiags = true;
 
-      bool alreadyDerived = true;
       FunctionDecl* calleeFnForwPassFD =
-          m_Builder.FindDerivedFunction(calleeFnForwPassReq);
-      if (!calleeFnForwPassFD) {
-        alreadyDerived = false;
-        // Derive declaration of the the forward pass function.
-        calleeFnForwPassReq.DeclarationOnly = true;
-        calleeFnForwPassFD =
-            plugin::ProcessDiffRequest(m_CladPlugin, calleeFnForwPassReq);
-
-        // It is possible that user has provided a custom derivative for the
-        // derivative function. In that case, we should not derive the
-        // definition again.
-        if (calleeFnForwPassFD->getDefinition())
-          alreadyDerived = true;
-
-        // Add the request to derive the definition of the forward pass
-        // function.
-        calleeFnForwPassReq.DeclarationOnly = false;
-        calleeFnForwPassReq.DerivedFDPrototype = calleeFnForwPassFD;
-      }
-      m_Builder.AddEdgeToGraph(calleeFnForwPassReq, alreadyDerived);
+          m_Builder.HandleNestedDiffRequest(calleeFnForwPassReq);
 
       assert(calleeFnForwPassFD &&
              "Clad failed to generate callee function forward pass function");
