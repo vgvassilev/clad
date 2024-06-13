@@ -19,8 +19,6 @@ float func(float x, float y) {
 //CHECK-NEXT:     x = x + y;
 //CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     y = x;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         y = _t1;
@@ -49,8 +47,6 @@ float func2(float x, int y) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = y * x + x * x;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
@@ -74,8 +70,6 @@ float func3(int x, int y) {
 //CHECK-NEXT:     int _t0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
@@ -97,8 +91,6 @@ float func4(float x, float y) {
 //CHECK-NEXT:     double z = y;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = z + y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
@@ -125,8 +117,6 @@ float func5(float x, float y) {
 //CHECK-NEXT:     int z = 56;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = z + y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
@@ -143,8 +133,6 @@ float func5(float x, float y) {
 float func6(float x) { return x; }
 
 //CHECK: void func6_grad(float x, float *_d_x, double &_final_error) {
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT: }
@@ -154,8 +142,6 @@ float func7(float x, float y) { return (x * y); }
 //CHECK: void func7_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _ret_value0 = (x * y);
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += 1 * y;
 //CHECK-NEXT:         *_d_y += x * 1;
@@ -174,8 +160,6 @@ float func8(int x, int y) {
 //CHECK-NEXT:     int _t0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = y * y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;

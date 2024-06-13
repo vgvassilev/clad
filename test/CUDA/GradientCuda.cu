@@ -54,8 +54,6 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:     _t6 = std::pow(2 * 3.1415926535897931, -dim / 2.);
 //CHECK-NEXT:     _t5 = std::pow(sigma, -0.5);
 //CHECK-NEXT:     _t4 = std::exp(t);
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         double _r2 = 0;

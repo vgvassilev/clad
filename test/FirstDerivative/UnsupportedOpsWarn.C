@@ -20,9 +20,6 @@ int binOpWarn_1(int x){
 }
 
 // CHECK: void binOpWarn_1_grad(int x, int *_d_x) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
-// CHECK-NEXT:     ;
 // CHECK-NEXT: }
 
 int unOpWarn_0(int x){

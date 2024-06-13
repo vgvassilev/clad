@@ -17,8 +17,6 @@ double f1(double x, double y) {
 //CHECK-NEXT:       double _t0;
 //CHECK-NEXT:       _t0 = x;
 //CHECK-NEXT:       x = y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       *_d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t0;
@@ -45,8 +43,6 @@ double f2(double x, double y) {
 //CHECK-NEXT:               x = y;
 //CHECK-NEXT:           }
 //CHECK-NEXT:       }
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       *_d_x += 1;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           x = _t0;
@@ -78,8 +74,6 @@ double f3(double x, double y) {
 //CHECK-NEXT:       y = x * x;
 //CHECK-NEXT:       _t3 = x;
 //CHECK-NEXT:       x = y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       *_d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t3;
@@ -123,8 +117,6 @@ double f4(double x, double y) {
 //CHECK-NEXT:       y = x;
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       x = 0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       *_d_y += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t1;
@@ -178,8 +170,6 @@ double f5(double x, double y) {
 //CHECK-NEXT:           t = -t;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       }
-//CHECK-NEXT:       goto _label1;
-//CHECK-NEXT:     _label1:
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       if (_cond1) {
 //CHECK-NEXT:           {
@@ -245,8 +235,6 @@ double f6(double x, double y) {
 //CHECK-NEXT:           t = -t;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       }
-//CHECK-NEXT:       goto _label1;
-//CHECK-NEXT:     _label1:
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       if (_cond1) {
 //CHECK-NEXT:           {
@@ -317,8 +305,6 @@ double f7(double x, double y) {
 //CHECK-NEXT:       t[0] -= t[1];
 //CHECK-NEXT:       _t6 = x;
 //CHECK-NEXT:       x = ++t[0];
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       _d_t[0] += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           x = _t6;
@@ -393,8 +379,6 @@ double f8(double x, double y) {
 //CHECK-NEXT:       _t2 = t[0];
 //CHECK-NEXT:       _t3 = t[1];
 //CHECK-NEXT:       t[3] = (y *= (t[0] = t[1] = t[2]));
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:       _label0:
 //CHECK-NEXT:       _d_t[3] += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t[3] = _t0;
@@ -436,8 +420,6 @@ double f9(double x, double y) {
 //CHECK-NEXT:       double &_t1 = (t *= x);
 //CHECK-NEXT:       _t2 = t;
 //CHECK-NEXT:       _t1 *= y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:       _label0:
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t2;
@@ -468,8 +450,6 @@ double f10(double x, double y) {
 //CHECK-NEXT:       _t0 = t;
 //CHECK-NEXT:       _t1 = x;
 //CHECK-NEXT:       t = x = y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:       _label0:
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t0;
@@ -499,8 +479,6 @@ double f11(double x, double y) {
 //CHECK-NEXT:       double &_t1 = (t = x);
 //CHECK-NEXT:       _t2 = t;
 //CHECK-NEXT:       _t1 = y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:       _label0:
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t2;
@@ -538,8 +516,6 @@ double f12(double x, double y) {
 //CHECK-NEXT:       _t3 = t;
 //CHECK-NEXT:       _t4 = t;
 //CHECK-NEXT:       _t2 *= y;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:       _label0:
 //CHECK-NEXT:       _d_t += 1;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           t = _t3;
@@ -574,8 +550,6 @@ double f13(double x, double y) {
 //CHECK-NEXT:       _t1 = y;
 //CHECK-NEXT:       _t0 = (y = x);
 //CHECK-NEXT:       double t = x * _t0;
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:       _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_t += 1 * y;
 //CHECK-NEXT:           *_d_y += t * 1;
@@ -611,8 +585,6 @@ double f14(double i, double j) {
 // CHECK-NEXT:     a += i;
 // CHECK-NEXT:     _t2 = a;
 // CHECK-NEXT:     a *= i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:     _label0:
 // CHECK-NEXT:     *_d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         a = _t2;
@@ -670,8 +642,6 @@ double f15(double i, double j) {
 // CHECK-NEXT:     c += 3 * i;
 // CHECK-NEXT:     _t3 = d;
 // CHECK-NEXT:     d *= 3 * j;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_a += 1;
 // CHECK-NEXT:         *_d_c += 1;
@@ -728,8 +698,6 @@ double f16(double i, double j) {
 // CHECK-NEXT:     double &c = b;
 // CHECK-NEXT:     _t0 = c;
 // CHECK-NEXT:     c *= 4 * j;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:     _label0:
 // CHECK-NEXT:     *_d_i += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         c = _t0;
@@ -751,8 +719,6 @@ double f17(double i, double j, double k) {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     _t0 = j;
 // CHECK-NEXT:     j = 2 * i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:     _label0:
 // CHECK-NEXT:     _d_j += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         j = _t0;
@@ -776,8 +742,6 @@ double f18(double i, double j, double k) {
 // CHECK-NEXT:     k = 2 * i + 2 * j;
 // CHECK-NEXT:     _t1 = k;
 // CHECK-NEXT:     k += i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:     _label0:
 // CHECK-NEXT:     _d_k += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         k = _t1;
@@ -798,8 +762,6 @@ double f19(double a, double b) {
 }
 
 //CHECK: void f19_grad(double a, double b, double *_d_a, double *_d_b) {
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0;
 //CHECK-NEXT:         double _r1 = 0;
@@ -828,8 +790,6 @@ double f20(double x, double y) {
 //CHECK-NEXT:     r = 3;
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     x = r * y;
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t1;
@@ -854,8 +814,6 @@ double f21 (double x, double y) {
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     _t0 = y;
 //CHECK-NEXT:     y = (y++ , x);
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         y = _t0;

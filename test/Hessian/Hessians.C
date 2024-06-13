@@ -223,8 +223,6 @@ int main() {
 //CHECK-NEXT:    double _d_b0 = 0;
 //CHECK-NEXT:    double _t00 = a * a;
 //CHECK-NEXT:    double _t10 = b * b;
-//CHECK-NEXT:    goto _label0;
-//CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _d__d_a += 1 * a * a;
 //CHECK-NEXT:        *_d_a += _d_a0 * 1 * a;
@@ -260,8 +258,6 @@ int main() {
 //CHECK-NEXT:    double _d_b0 = 1;
 //CHECK-NEXT:    double _t00 = a * a;
 //CHECK-NEXT:    double _t10 = b * b;
-//CHECK-NEXT:    goto _label0;
-//CHECK-NEXT:  _label0:
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _d__d_a += 1 * a * a;
 //CHECK-NEXT:        *_d_a += _d_a0 * 1 * a;

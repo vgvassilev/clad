@@ -31,8 +31,6 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_i0 = 1;
 // CHECK-NEXT:     double _d_j0 = 0;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__d_i += 1 * j;
 // CHECK-NEXT:         *_d_j += _d_i0 * 1;
@@ -52,8 +50,6 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_i0 = 0;
 // CHECK-NEXT:     double _d_j0 = 1;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__d_i += 1 * j;
 // CHECK-NEXT:         *_d_j += _d_i0 * 1;

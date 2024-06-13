@@ -14,12 +14,11 @@ clad::ValueAndPushforward<double, double> sq_pushforward(double x,
 void sq_pushforward_pullback(double x, double _dx,
                              clad::ValueAndPushforward<double, double> _d_y,
                              double* _d_x, double* _d__d_x) {
-  goto _label0;
-_label0: {
-  *_d_x += _d_y.value * x;
-  *_d_x += x * _d_y.value;
-  *_d_x += 2 * _d_y.pushforward;
-}
+  {
+    *_d_x += _d_y.value * x;
+    *_d_x += x * _d_y.value;
+    *_d_x += 2 * _d_y.pushforward;
+  }
 }
 } // namespace custom_derivatives
 } // namespace clad

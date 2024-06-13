@@ -102,8 +102,6 @@ float f7(float x) {
 void f7_grad(float x, float *_d_x);
 
 // CHECK: void f7_grad(float x, float *_d_x) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;
@@ -125,8 +123,6 @@ double f8(float x) {
 void f8_grad(float x, float *_d_x);
 
 // CHECK: void f8_grad(float x, float *_d_x) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         int _r1 = 0;
@@ -149,8 +145,6 @@ float f9(float x, float y) {
 void f9_grad(float x, float y, float *_d_x, float *_d_y);
 
 // CHECK: void f9_grad(float x, float y, float *_d_x, float *_d_y) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         float _r1 = 0;
@@ -174,8 +168,6 @@ double f10(float x, int y) {
 void f10_grad(float x, int y, float *_d_x, int *_d_y);
 
 // CHECK: void f10_grad(float x, int y, float *_d_x, int *_d_y) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         int _r1 = 0;
@@ -192,8 +184,6 @@ double f11(double x, double y) {
 // CHECK: void f11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     typename {{.*}} _t0;
 // CHECK-NEXT:     _t0 = std::pow(y - std::pow(x, 2), 2);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         int _r1 = 0;

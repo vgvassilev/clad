@@ -119,8 +119,6 @@
 //CHECK_FLOAT_SUM:         clad::push(_t1, sum);
 //CHECK_FLOAT_SUM:         sum = sum + x;
 //CHECK_FLOAT_SUM:     }
-//CHECK_FLOAT_SUM:     goto _label0;
-//CHECK_FLOAT_SUM:   _label0:
 //CHECK_FLOAT_SUM:     _d_sum += 1;
 //CHECK_FLOAT_SUM:     for (; _t0; _t0--) {
 //CHECK_FLOAT_SUM:         i--;
@@ -156,8 +154,6 @@
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    goto _label0;
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:  _label0:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    {
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:        _final_error += _d_z * z;
@@ -190,8 +186,6 @@
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;
-// CHECK_PRINT_MODEL_EXEC-NEXT:    goto _label0;
-// CHECK_PRINT_MODEL_EXEC-NEXT:  _label0:
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _d_z += 1;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    {
 // CHECK_PRINT_MODEL_EXEC-NEXT:        _final_error += clad::getErrorVal(_d_z, z, "z");
@@ -218,8 +212,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT: void cost_grad(double theta_0, double theta_1, double x, double y, double *_d_theta_0, double *_d_theta_1, double *_d_x, double *_d_y) {
 //CHECK_GRADIENT_DESCENT-NEXT:     double _d_f_x = 0;
 //CHECK_GRADIENT_DESCENT-NEXT:     double f_x = f(theta_0, theta_1, x);
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         _d_f_x += 1 * (f_x - y);
 //CHECK_GRADIENT_DESCENT-NEXT:         *_d_y += -1 * (f_x - y);
@@ -238,8 +230,6 @@
 //CHECK_GRADIENT_DESCENT-NEXT: }
 
 //CHECK_GRADIENT_DESCENT: void f_pullback(double theta_0, double theta_1, double x, double _d_y, double *_d_theta_0, double *_d_theta_1, double *_d_x) {
-//CHECK_GRADIENT_DESCENT-NEXT:     goto _label0;
-//CHECK_GRADIENT_DESCENT-NEXT:   _label0:
 //CHECK_GRADIENT_DESCENT-NEXT:     {
 //CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_0 += _d_y;
 //CHECK_GRADIENT_DESCENT-NEXT:         *_d_theta_1 += _d_y * x;
