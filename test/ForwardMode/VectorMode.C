@@ -275,6 +275,24 @@ double f8(int n, const double* arr) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+namespace clad {
+  namespace custom_derivatives{
+    void f9_dvec(double x, double y, double *d_x, double *d_y) {
+      *d_x += 1;
+      *d_y += 1;
+    }
+  }
+}
+
+double f9(double x, double y) {
+  return x + y;
+}
+
+// CHECK: void f9_dvec(double x, double y, double *d_x, double *d_y) {
+// CHECK-NEXT:   *d_x += 1;
+// CHECK-NEXT:   *d_y += 1;
+// CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -337,6 +355,11 @@ int main() {
   clad::array_ref<double> darr2_ref(darr2, 3);
   f8_dvec.execute(3, arr2, darr2_ref);
   printf("Result is = {%.2f, %.2f, %.2f}\n", darr2[0], darr2[1], darr2[2]); // CHECK-EXEC: Result is = {1.00, 1.00, 1.00}
+
+  auto f9_dvec = clad::differentiate<clad::opts::vector_mode>(f9);
+  double dx = 0, dy = 0;
+  f9_dvec.execute(1, 2, &dx, &dy);
+  printf("Result is = {%.2f, %.2f}\n", dx, dy); // CHECK-EXEC: Result is = {1.00, 1.00}
 
 // CHECK: clad::ValueAndPushforward<double, clad::array<double> > square_vector_pushforward(const double &x, const clad::array<double> &_d_x) {
 // CHECK-NEXT:    unsigned long indepVarCount = _d_x.size();
