@@ -1626,27 +1626,50 @@ StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
-  // begin scope for while loop
+    // begin scope for while loop
   beginScope(Scope::ContinueScope | Scope::BreakScope | Scope::DeclScope |
              Scope::ControlScope);
 
   const VarDecl* condVar = WS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
   DeclDiff<VarDecl> condVarRes;
+
+  StmtDiff condDiff = Clone(WS->getCond());
+  Expr* cond = condDiff.getExpr();
+
+  //check if the condition contais a variable declaration and create a declaration before while-loop
   if (condVar) {
-    condVarRes = DifferentiateVarDecl(condVar);
+    condVarRes = DifferentiateVarDecl(condVar, true);
     condVarClone = condVarRes.getDecl();
+    if(condVarRes.getDecl_dx())
+      addToCurrentBlock(BuildDeclStmt(condVarRes.getDecl_dx()));
+    auto condInit = condVarClone->getInit();
+    condVarClone->setInit(nullptr);
+    cond = BuildOp(BO_Assign, BuildDeclRef(condVarClone), condInit);
+    addToCurrentBlock(BuildDeclStmt(condVarClone));
   }
-  Expr* condClone = WS->getCond() ? Clone(WS->getCond()) : nullptr;
+
+  //differentiate condition, allows assignments in the condition
+  if(cond){
+    cond = cond->IgnoreParenImpCasts();
+    auto* condBO = dyn_cast<BinaryOperator>(cond);
+    auto* condUO = dyn_cast<UnaryOperator>(cond);
+
+    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
+        condUO) {
+      auto condDiff = Visit(cond);
+      if (condDiff.getExpr_dx() &&
+          (!isUnusedResult(condDiff.getExpr_dx()) || condUO))
+        cond = BuildOp(BO_Comma, BuildParens(condDiff.getExpr_dx()),
+                       BuildParens(condDiff.getExpr()));
+      else
+        cond = condDiff.getExpr();
+    }
+  }
 
   Sema::ConditionResult condRes;
-  if (condVarClone) {
-    condRes = m_Sema.ActOnConditionVariable(condVarClone, noLoc,
-                                            Sema::ConditionKind::Boolean);
-  } else {
-    condRes = m_Sema.ActOnCondition(getCurrentScope(), noLoc, condClone,
+  condRes = m_Sema.ActOnCondition(getCurrentScope(), noLoc, cond,
                                     Sema::ConditionKind::Boolean);
-  }
 
   const Stmt* body = WS->getBody();
   Stmt* bodyResult = nullptr;
@@ -1661,29 +1684,6 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     CompoundStmt* Block = endBlock();
     endScope();
     bodyResult = Block;
-  }
-  // Since condition variable is created and initialized at each iteration,
-  // derivative of condition variable should also get created and initialized
-  // at each iteratrion. Therefore, we need to insert declaration statement
-  // of derivative of condition variable, if any, on top of the derived body
-  // of the while loop.
-  //
-  // while (double b = a) {
-  //   ...
-  //   ...
-  // }
-  //
-  // gets differentiated to,
-  //
-  // while (double b = a) {
-  //   double _d_b = _d_a;
-  //   ...
-  //   ...
-  // }
-  if (condVarClone) {
-    bodyResult = utils::PrependAndCreateCompoundStmt(
-        m_Sema.getASTContext(), cast<CompoundStmt>(bodyResult),
-        BuildDeclStmt(condVarRes.getDecl_dx()));
   }
 
   Stmt* WSDiff =
