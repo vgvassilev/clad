@@ -111,6 +111,14 @@ VectorForwardModeVisitor::DeriveVectorMode(const FunctionDecl* FD,
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
+          derivedFnName, DC, vectorDiffFunctionType)) {
+    // Set m_Derivative for creating the overload.
+    m_Derivative = customDerivative;
+    FunctionDecl* gradientOverloadFD = CreateVectorModeOverload();
+    return DerivativeAndOverload{customDerivative, gradientOverloadFD};
+  }
+
   m_Sema.CurContext = DC;
   DeclWithContext result = m_Builder.cloneFunction(
       m_DiffReq.Function, *this, DC, loc, name, vectorDiffFunctionType);
