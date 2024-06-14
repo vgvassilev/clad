@@ -127,6 +127,8 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
         originalFnProtoType->getExtProtoInfo());
 
     // Check if the function is already declared as a custom derivative.
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
             hessianFuncName, DC, hessianFunctionType))
