@@ -126,6 +126,12 @@ to understand for the new developers.
 Internal documentation can be visited 
 `here </en/latest/internalDocs/html/index.html>`_
 
+In case you are interested in seeing the big picture and are just getting 
+started with Clang, there is a document that might help you:
+`Introduction to Clang for Clad contributors </en/latest/user/IntroductionToClangForCladContributors.html>`_. It covers 
+most of the basic concepts in Clang that Clad uses and describes the operation
+of the latter with examples for newcomers specifically.
+
 Clad's Tests
 ============
 

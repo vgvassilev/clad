@@ -69,4 +69,9 @@ review quickly and successfully share several common traits:
 ### Developer Documentation
 
 We have documented several useful hints that usually help when addressing issues
-as they come during developement time in our [developer documentation](https://clad.readthedocs.io/en/latest/user/DevelopersDocumentation.html).
+as they come during developement time in our [developer documentation](https://clad.readthedocs.io/en/latest/user/DevelopersDocumentation.html). 
+
+In case you are interested in seeing the big picture and are just getting 
+started with Clang, there is a document that might interest you: [Introduction to Clang for Clad contributors](https://clad.readthedocs.io/en/latest/user/IntroductionToClangForCladContributors.html). 
+It covers most of the basic concepts in Clang that Clad uses and describes the operation
+of the latter with examples for newcomers specifically.
