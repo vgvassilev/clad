@@ -363,8 +363,6 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void f7_darg0_grad(float x, float y, float *_d_x, float *_d_y) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         _r0 += 1 * clad::custom_derivatives{{(::std)?}}::cos_pushforward(x, 1.F).pushforward; 
