@@ -962,8 +962,6 @@ double sq_defined_later(double x) {
 // CHECK-NEXT: }
 
 // CHECK: void custom_identity_pullback(double &i, double _d_y, double *_d_i) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_i += _d_y; 
 // CHECK-NEXT: }
 
