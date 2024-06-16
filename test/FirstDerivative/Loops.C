@@ -288,9 +288,10 @@ double fn7(double i, double j) {
 // CHECK-NEXT:     int b = 3;
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     while (double a = b)
+// CHECK-NEXT:     double _d_a;
+// CHECK-NEXT:     double a;
+// CHECK-NEXT:     while ((_d_a = _d_b) , (a = b))
 // CHECK-NEXT:         {
-// CHECK-NEXT:             double _d_a = _d_b;
 // CHECK-NEXT:             _d_a += _d_i;
 // CHECK-NEXT:             a += i;
 // CHECK-NEXT:             _d_res += _d_a;
@@ -343,9 +344,10 @@ double fn9(double i, double j) {
 // CHECK-NEXT:     int counter = 4;
 // CHECK-NEXT:     double _d_a = _d_i * j + i * _d_j;
 // CHECK-NEXT:     double a = i * j;
-// CHECK-NEXT:     while (int num = counter)
+// CHECK-NEXT:     int _d_num;
+// CHECK-NEXT:     int num;
+// CHECK-NEXT:     while ((_d_num = _d_counter) , (num = counter))
 // CHECK-NEXT:         {
-// CHECK-NEXT:             int _d_num = _d_counter;
 // CHECK-NEXT:             _d_counter -= 0;
 // CHECK-NEXT:             counter -= 1;
 // CHECK-NEXT:             if (num == 2)
@@ -516,6 +518,35 @@ double fn15_darg0(double u, double v);
 // CHECK-NEXT:      return 0 * res + 2 * _d_res;
 // CHECK-NEXT:  }
 
+double fn16(double x) {
+    while (double t = (x = 0)) {}
+    return x;
+} // = 0
+
+double fn16_darg0(double x);
+// CHECK:       double fn16_darg0(double x) {
+// CHECK-NEXT:       double _d_x = 1;
+// CHECK-NEXT:       double _d_t;
+// CHECK-NEXT:       double t;
+// CHECK-NEXT:       while ((_d_t = (_d_x = 0)) , (t = (x = 0)))
+// CHECK-NEXT:       {
+// CHECK-NEXT:       }
+// CHECK-NEXT:       return _d_x;
+// CHECK-NEXT: }
+
+double fn17(double x) {
+    while ((x = 0) || false) {}
+    return x;
+} // = 0
+
+double fn17_darg0(double x);
+// CHECK: double fn17_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     while (((_d_x = 0) , (x = 0)) || false)
+// CHECK-NEXT:         {
+// CHECK-NEXT:         }
+// CHECK-NEXT:     return _d_x;
+// CHECK-NEXT: }
 
 #define TEST(fn)\
 auto d_##fn = clad::differentiate(fn, "i");\
@@ -577,4 +608,10 @@ int main() {
 
   clad::differentiate(fn15, 0);
   printf("Result is = %.2f\n", fn15_darg0(7, 3)); // CHECK-EXEC: Result is = 6.00
+
+  clad::differentiate(fn16, 0);
+  printf("Result is = %.2f\n", fn16_darg0(5)); // CHECK-EXEC: Result is = 0
+
+  clad::differentiate(fn17, 0);
+  printf("Result is = %.2f\n", fn17_darg0(5)); // CHECK-EXEC: Result is = 0
 }
