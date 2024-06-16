@@ -727,6 +727,7 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     // Visit(cond)
     auto* condBO = dyn_cast<BinaryOperator>(cond);
     auto* condUO = dyn_cast<UnaryOperator>(cond);
+    // FIXME: Currently we only support logical and assignment operators.
     if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
         condUO) {
       condDiff = Visit(cond);
@@ -1650,20 +1651,52 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
   const VarDecl* condVar = WS->getConditionVariable();
   VarDecl* condVarClone = nullptr;
   DeclDiff<VarDecl> condVarRes;
+
+  StmtDiff condDiff = Clone(WS->getCond());
+  Expr* cond = condDiff.getExpr();
+
+  // Check if the condition contais a variable declaration and create a
+  // declaration of both the variable and it's adjoint before the while-loop.
   if (condVar) {
-    condVarRes = DifferentiateVarDecl(condVar);
+    condVarRes = DifferentiateVarDecl(condVar, /*ignoreInit=*/true);
     condVarClone = condVarRes.getDecl();
+    if (condVarRes.getDecl_dx())
+      addToCurrentBlock(BuildDeclStmt(condVarRes.getDecl_dx()));
+    auto* condInit = condVarClone->getInit();
+    condVarClone->setInit(nullptr);
+    cond = BuildOp(BO_Assign, BuildDeclRef(condVarClone), condInit);
+    addToCurrentBlock(BuildDeclStmt(condVarClone));
   }
-  Expr* condClone = WS->getCond() ? Clone(WS->getCond()) : nullptr;
+  // Assignments in the condition are allowed, differentiate.
+  if (cond) {
+    cond = cond->IgnoreParenImpCasts();
+    auto* condBO = dyn_cast<BinaryOperator>(cond);
+    auto* condUO = dyn_cast<UnaryOperator>(cond);
+    // FIXME: Currently we only support logical and assignment operators.
+    if ((condBO && (condBO->isLogicalOp() || condBO->isAssignmentOp())) ||
+        condUO) {
+      StmtDiff condDiff = Visit(cond);
+      // After Visit(cond) is called the derivative could either be recorded in
+      // condDiff.getExpr() or condDiff.getExpr_dx(), hence we should build cond
+      // differently which is implemented below visiting statements like "(x=0)"
+      // records the differentiated statement in condDiff.getExpr_dx(), meaning
+      // we have to build in the form ((cond_dx), (cond)), wrapping cond_dx and
+      // cond into parentheses.
+      //
+      // Visiting statements like "(x=0) || false" records the result in
+      // condDiff.getExpr(), meaning the differentiated condition is already.
+      if (condDiff.getExpr_dx() &&
+          (!isUnusedResult(condDiff.getExpr_dx()) || condUO))
+        cond = BuildOp(BO_Comma, BuildParens(condDiff.getExpr_dx()),
+                       BuildParens(condDiff.getExpr()));
+      else
+        cond = condDiff.getExpr();
+    }
+  }
 
   Sema::ConditionResult condRes;
-  if (condVarClone) {
-    condRes = m_Sema.ActOnConditionVariable(condVarClone, noLoc,
-                                            Sema::ConditionKind::Boolean);
-  } else {
-    condRes = m_Sema.ActOnCondition(getCurrentScope(), noLoc, condClone,
-                                    Sema::ConditionKind::Boolean);
-  }
+  condRes = m_Sema.ActOnCondition(getCurrentScope(), noLoc, cond,
+                                  Sema::ConditionKind::Boolean);
 
   const Stmt* body = WS->getBody();
   Stmt* bodyResult = nullptr;
@@ -1678,29 +1711,6 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     CompoundStmt* Block = endBlock();
     endScope();
     bodyResult = Block;
-  }
-  // Since condition variable is created and initialized at each iteration,
-  // derivative of condition variable should also get created and initialized
-  // at each iteratrion. Therefore, we need to insert declaration statement
-  // of derivative of condition variable, if any, on top of the derived body
-  // of the while loop.
-  //
-  // while (double b = a) {
-  //   ...
-  //   ...
-  // }
-  //
-  // gets differentiated to,
-  //
-  // while (double b = a) {
-  //   double _d_b = _d_a;
-  //   ...
-  //   ...
-  // }
-  if (condVarClone) {
-    bodyResult = utils::PrependAndCreateCompoundStmt(
-        m_Sema.getASTContext(), cast<CompoundStmt>(bodyResult),
-        BuildDeclStmt(condVarRes.getDecl_dx()));
   }
 
   Stmt* WSDiff =
