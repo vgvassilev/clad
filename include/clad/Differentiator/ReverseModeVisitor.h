@@ -63,7 +63,6 @@ namespace clad {
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
-    bool use_enzyme = false;
     bool enableTBR = false;
     // FIXME: Should we make this an object instead of a pointer?
     // Downside of making it an object: We will need to include
@@ -73,7 +72,7 @@ namespace clad {
     const char* funcPostfix() const {
       if (m_DiffReq.Mode == DiffMode::jacobian)
         return "_jac";
-      if (use_enzyme)
+      if (m_DiffReq.use_enzyme)
         return "_grad_enzyme";
       return "_grad";
     }

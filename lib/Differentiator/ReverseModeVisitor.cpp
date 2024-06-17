@@ -293,10 +293,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (request.EnableTBRAnalysis)
       enableTBR = true;
 
-    // Check if DiffRequest asks for use of enzyme as backend
-    if (request.use_enzyme)
-      use_enzyme = true;
-
     auto derivativeBaseName = request.BaseFunctionName;
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
@@ -448,7 +444,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       Stmt* gradientBody = nullptr;
 
-      if (!use_enzyme)
+      if (!m_DiffReq.use_enzyme)
         DifferentiateWithClad();
       else
         DifferentiateWithEnzyme();
