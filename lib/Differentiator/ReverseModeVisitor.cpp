@@ -285,7 +285,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
     if (request.Mode == DiffMode::jacobian) {
-      isVectorValued = true;
       unsigned lastArgN = m_DiffReq->getNumParams() - 1;
       outputArrayStr = m_DiffReq->getParamDecl(lastArgN)->getNameAsString();
     }
@@ -302,7 +301,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
-    if(isVectorValued){
+    if (request.Mode == DiffMode::jacobian) {
       // If Jacobian is asked, the last parameter is the result parameter
       // and should be ignored
       if (args.size() != FD->getNumParams()-1){
@@ -313,13 +312,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           gradientName += ('_' + std::to_string(idx));
         }
       }
-    }else{
-      if (args.size() != FD->getNumParams()){
-        for (const auto* arg : args) {
-          const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
-          auto idx = std::distance(FD->param_begin(), it);
-          gradientName += ('_' + std::to_string(idx));
-        }
+    } else if (args.size() != FD->getNumParams()) {
+      for (const auto* arg : args) {
+        const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
+        auto idx = std::distance(FD->param_begin(), it);
+        gradientName += ('_' + std::to_string(idx));
       }
     }
 
@@ -342,7 +339,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (!isVectorValued && numExtraParam == 0)
+    if (request.Mode != DiffMode::jacobian && numExtraParam == 0)
       shouldCreateOverload = true;
     if (request.DerivedFDPrototype)
       // If the overload is already created, we don't need to create it again.
@@ -408,7 +405,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     gradientFD->setBody(nullptr);
 
     if (!request.DeclarationOnly) {
-      if (isVectorValued) {
+      if (request.Mode == DiffMode::jacobian) {
         // Reference to the output parameter.
         m_Result = BuildDeclRef(params.back());
         numParams = args.size();
@@ -622,7 +619,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_Variables.count(param))
         continue;
       // in vector mode last non diff parameter is output parameter.
-      if (isVectorValued && i == m_DiffReq->getNumParams() - 1)
+      if (m_DiffReq.Mode == DiffMode::jacobian &&
+          i == m_DiffReq->getNumParams() - 1)
         continue;
       auto VDDerivedType = param->getType();
       // We cannot initialize derived variable for pointer types because
@@ -1311,7 +1309,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (DRE->getDecl()->getType()->isReferenceType() &&
           !VD->getType()->isReferenceType())
         clonedDRE = BuildOp(UO_Deref, clonedDRE);
-      if (isVectorValued) {
+      if (m_DiffReq.Mode == DiffMode::jacobian) {
         if (m_VectorOutput.size() <= outputArrayCursor)
           return StmtDiff(clonedDRE);
 
@@ -2201,7 +2199,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
           if (DRE_str == outputArrayStr && isIdxValid) {
             intIdx = res.Val.getInt();
-            if (isVectorValued) {
+            if (m_DiffReq.Mode == DiffMode::jacobian) {
               outputArrayCursor = intIdx.getExtValue();
 
               std::unordered_map<const clang::ValueDecl*, clang::Expr*>
@@ -3802,7 +3800,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
       const CXXRecordDecl* RD = MD->getParent();
-      if (!isVectorValued && MD->isInstance() && !RD->isLambda()) {
+      if (m_DiffReq.Mode != DiffMode::jacobian && MD->isInstance() &&
+          !RD->isLambda()) {
         auto* thisDerivativePVD = utils::BuildParmVarDecl(
             m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"),
             derivativeFnType->getParamType(dParamTypesIdx));
