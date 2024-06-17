@@ -157,3 +157,8 @@ confuse a newcomer.
   C++ compilation (those mostly start with a CXX- prefix), but also things that
   have an ObjC- prefix like ``clang::ObjCAtTryStmt`` that represent statements 
   of the Objective-C programming language that you likely don’t need.
+
+Further Reading
+===============
+
+- `“Changing Everything With Clang Plugins” — 2020 LLVM Developers’ Meeting: H. Finkel <https://www.youtube.com/watch?v=A9COzFs-gEg>`__
