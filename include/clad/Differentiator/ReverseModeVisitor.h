@@ -63,7 +63,6 @@ namespace clad {
     std::vector<Stmts> m_LoopBlock;
     unsigned outputArrayCursor = 0;
     unsigned numParams = 0;
-    bool isVectorValued = false;
     bool use_enzyme = false;
     bool enableTBR = false;
     // FIXME: Should we make this an object instead of a pointer?
@@ -72,12 +71,11 @@ namespace clad {
     MultiplexExternalRMVSource* m_ExternalSource = nullptr;
     clang::Expr* m_Pullback = nullptr;
     const char* funcPostfix() const {
-      if (isVectorValued)
+      if (m_DiffReq.Mode == DiffMode::jacobian)
         return "_jac";
-      else if (use_enzyme)
+      if (use_enzyme)
         return "_grad_enzyme";
-      else
-        return "_grad";
+      return "_grad";
     }
 
     /// Removes the local const qualifiers from a QualType and returns a new
