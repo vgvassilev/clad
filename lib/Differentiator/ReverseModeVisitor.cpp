@@ -2033,7 +2033,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
+      if (m_DiffReq.shouldBeRecorded(E)) {
         auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
@@ -2050,7 +2050,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
+      if (m_DiffReq.shouldBeRecorded(E)) {
         auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
@@ -2332,23 +2332,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // in Lblock
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
-      auto* Lblock = endBlock(direction::reverse);
-      llvm::SmallVector<Expr*, 4> ExprsToStore;
-      utils::GetInnermostReturnExpr(Ldiff.getExpr(), ExprsToStore);
-
-      // We need to store values of derivative pointer variables in forward pass
-      // and restore them in reverse pass.
-      if (isPointerOp) {
-        Expr* Edx = Ldiff.getExpr_dx();
-        ExprsToStore.push_back(Edx);
-      }
 
       if (L->HasSideEffects(m_Context)) {
         Expr* E = Ldiff.getExpr();
-        auto* storeE =
-            StoreAndRef(E, m_Context.getLValueReferenceType(E->getType()));
-        Ldiff.updateStmt(storeE);
+        auto* storeE = GlobalStoreAndRef(BuildOp(UO_AddrOf, E));
+        Ldiff.updateStmt(BuildOp(UO_Deref, storeE));
       }
+
+      Stmts Lblock = EndBlockWithoutCreatingCS(direction::reverse);
 
       Expr* LCloned = Ldiff.getExpr();
       // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
@@ -2358,16 +2349,23 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         return Clone(BinOp);
       ResultRef = AssignedDiff;
       // If assigned expr is dependent, first update its derivative;
-      auto Lblock_begin = Lblock->body_rbegin();
-      auto Lblock_end = Lblock->body_rend();
-
-      if (dfdx() && Lblock_begin != Lblock_end) {
-        addToCurrentBlock(*Lblock_begin, direction::reverse);
-        Lblock_begin = std::next(Lblock_begin);
+      if (dfdx() && !Lblock.empty()) {
+        addToCurrentBlock(*Lblock.begin(), direction::reverse);
+        Lblock.erase(Lblock.begin());
       }
 
-      for (auto& E : ExprsToStore) {
-        auto pushPop = StoreAndRestore(E);
+      // Store the value of the LHS of the assignment in the forward pass
+      // and restore it in the reverse pass
+      if (m_DiffReq.shouldBeRecorded(L)) {
+        StmtDiff pushPop = StoreAndRestore(LCloned);
+        addToCurrentBlock(pushPop.getExpr(), direction::forward);
+        addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
+      }
+
+      // We need to store values of derivative pointer variables in forward pass
+      // and restore them in reverse pass.
+      if (isPointerOp) {
+        StmtDiff pushPop = StoreAndRestore(Ldiff.getExpr_dx());
         addToCurrentBlock(pushPop.getExpr(), direction::forward);
         addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
       }
@@ -2469,8 +2467,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                       opCode);
 
       // Output statements from Visit(L).
-      for (auto it = Lblock_begin; it != Lblock_end; ++it)
-        addToCurrentBlock(*it, direction::reverse);
+      for (Stmt* S : Lblock)
+        addToCurrentBlock(S, direction::reverse);
     } else if (opCode == BO_Comma) {
       auto* zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
@@ -2736,8 +2734,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                           initDiff.getForwSweepExpr_dx()));
       addToCurrentBlock(assignDerivativeE);
       if (isInsideLoop) {
-        StmtDiff pushPop =
-            StoreAndRestore(derivedVDE, /*prefix=*/"_t", /*force=*/true);
+        StmtDiff pushPop = StoreAndRestore(derivedVDE);
         addToCurrentBlock(pushPop.getExpr(), direction::forward);
         m_LoopBlock.back().push_back(pushPop.getExpr_dx());
       }
@@ -2922,8 +2919,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             auto* declRef = BuildDeclRef(decl);
             auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
             if (isInsideLoop) {
-              auto pushPop =
-                  StoreAndRestore(declRef, /*prefix=*/"_t", /*force=*/true);
+              auto pushPop = StoreAndRestore(declRef);
               if (pushPop.getExpr() != declRef)
                 addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
@@ -3104,12 +3100,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isa<CallExpr>(B))
       return false;
 
-    // FIXME: Here will be the entry point of the advanced activity analysis.
-
-    // Check if the expression was marked as to-be recorded by an analysis.
-    if (m_DiffReq.EnableTBRAnalysis)
-      return m_DiffReq.shouldBeRecorded(B);
-
     // Assume E is useful to store.
     return true;
   }
@@ -3171,12 +3161,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
-                                               llvm::StringRef prefix,
-                                               bool force) {
+                                               llvm::StringRef prefix) {
     auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
-
-    if (!force && !UsefulToStoreGlobal(E))
-      return {};
 
     if (isInsideLoop) {
       auto CladTape = MakeCladTapeFor(Clone(E), prefix);
