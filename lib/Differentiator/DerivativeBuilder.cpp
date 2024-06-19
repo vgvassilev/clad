@@ -101,32 +101,25 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     NamespaceDecl* enclosingNS = nullptr;
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
-      returnedFD = CXXMethodDecl::Create(m_Context, 
-                                         CXXRD, 
-                                         noLoc, 
-                                         name,
-                                         functionType, 
-                                         FD->getTypeSourceInfo(),
-                                         FD->getStorageClass()
-                                         CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-                                         FD->isInlineSpecified(),
-                                         clad_compat::Function_GetConstexprKind
-                                         (FD), noLoc);
+      returnedFD = CXXMethodDecl::Create(
+          m_Context, CXXRD, noLoc, name, functionType, FD->getTypeSourceInfo(),
+          FD->getCanonicalDecl()->getStorageClass()
+              CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
+          FD->isInlineSpecified(), clad_compat::Function_GetConstexprKind(FD),
+          noLoc);
       returnedFD->setAccess(FD->getAccess());
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
       enclosingNS = VB.RebuildEnclosingNamespaces(DC);
-      returnedFD = FunctionDecl::Create(m_Context, 
-                                        m_Sema.CurContext, 
-                                        noLoc,
-                                        name, 
-                                        functionType,
-                                        FD->getTypeSourceInfo(),
-                                        FD->getStorageClass()
-                                        CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-                                        FD->isInlineSpecified(),
-                                        FD->hasWrittenPrototype(),
-                                        clad_compat::Function_GetConstexprKind(FD)CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(FD->getTrailingRequiresClause()));
+      returnedFD = FunctionDecl::Create(
+          m_Context, m_Sema.CurContext, noLoc, name, functionType,
+          FD->getTypeSourceInfo(),
+          FD->getCanonicalDecl()->getStorageClass()
+              CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
+          FD->isInlineSpecified(), FD->hasWrittenPrototype(),
+          clad_compat::Function_GetConstexprKind(FD)
+              CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(
+                  FD->getTrailingRequiresClause()));
     } 
 
     for (const FunctionDecl* NFD : FD->redecls())
