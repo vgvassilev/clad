@@ -405,7 +405,9 @@ namespace clad {
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
     VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPE);
-    StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
+    StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
+      return StmtDiff{Clone(NS), Clone(NS)};
+    };
     static DeclDiff<clang::StaticAssertDecl>
     DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
