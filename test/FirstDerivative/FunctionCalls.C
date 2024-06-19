@@ -162,6 +162,27 @@ double test_8(double x) {
 // CHECK-NEXT: return _t0.pushforward;
 // CHECK-NEXT: }
 
+class A {
+  public:
+  static double static_method(double x);
+};
+
+double A::static_method(double x) {
+  return x;
+}
+
+double test_9(double x) {
+  return A::static_method(x);
+}
+
+// CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x);
+
+// CHECK: double test_9_darg0(double x) {
+// CHECK-NEXT: double _d_x = 1;
+// CHECK-NEXT: clad::ValueAndPushforward<double, double> _t0 = static_method_pushforward(x, _d_x);
+// CHECK-NEXT: return _t0.pushforward;
+// CHECK-NEXT: }
+
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
@@ -173,6 +194,7 @@ int main () {
   clad::differentiate(test_8, "x");
   clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{TBR analysis is not meant for forward mode AD.}}
   clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
+  clad::differentiate(test_9);
   return 0;
 
 // CHECK: void increment_pushforward(int &i, int &_d_i) {
@@ -181,5 +203,9 @@ int main () {
 
 // CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x) {
 // CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
+
+// CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x) {
+// CHECK-NEXT: return {x, _d_x};
 // CHECK-NEXT: }
 }
