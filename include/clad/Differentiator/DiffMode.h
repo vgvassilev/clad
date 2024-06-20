@@ -11,6 +11,7 @@ enum class DiffMode {
   experimental_vector_pushforward,
   reverse,
   hessian,
+  hessian_diagonal,
   jacobian,
   reverse_mode_forward_pass,
   error_estimation
@@ -33,6 +34,8 @@ inline const char* DiffModeToString(DiffMode mode) {
     return "reverse";
   case DiffMode::hessian:
     return "hessian";
+  case DiffMode::hessian_diagonal:
+    return "hessian_diagonal";
   case DiffMode::jacobian:
     return "jacobian";
   case DiffMode::reverse_mode_forward_pass:

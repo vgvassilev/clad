@@ -65,9 +65,11 @@ struct DiffRequest {
   // A flag to enable the use of enzyme for backend instead of clad
   bool use_enzyme = false;
 
-  /// A pointer to keep track of the prototype of the derived function.
-  /// This will be particularly useful for pushforward and pullback functions.
-  clang::FunctionDecl* DerivedFDPrototype = nullptr;
+  /// A pointer to keep track of the prototype of the derived functions.
+  /// For higher order derivatives, we store the entire sequence of
+  /// prototypes declared for all orders of derivatives.
+  /// This will be useful for forward declaration of the derived functions.
+  llvm::SmallVector<clang::FunctionDecl*, 2> DerivedFDPrototypes;
 
   /// A boolean to indicate if only the declaration of the derived function
   /// is required (and not the definition or body).

@@ -295,6 +295,11 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
+
+      // Store the function and its order before processing the nested request.
+      const FunctionDecl* origFn = request.Function;
+      unsigned origFnOrder = request.CurrentDerivativeOrder;
+
       // Derive declaration of the the forward mode derivative.
       request.DeclarationOnly = true;
       derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
@@ -306,10 +311,13 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
           (derivative->isDefined() || m_DFC.IsCustomDerivative(derivative)))
         alreadyDerived = true;
 
+      // Restore the original function and its order.
+      request.CurrentDerivativeOrder = origFnOrder;
+      request.Function = origFn;
+
       // Add the request to derive the definition of the forward mode derivative
       // to the schedule.
       request.DeclarationOnly = false;
-      request.DerivedFDPrototype = derivative;
     }
     this->AddEdgeToGraph(request, alreadyDerived);
     return derivative;
@@ -423,7 +431,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);
       result = V.Derive(FD, request);
-    } else if (request.Mode == DiffMode::hessian) {
+    } else if (request.Mode == DiffMode::hessian ||
+               request.Mode == DiffMode::hessian_diagonal) {
       HessianModeVisitor H(*this, request);
       result = H.Derive(FD, request);
     } else if (request.Mode == DiffMode::jacobian) {

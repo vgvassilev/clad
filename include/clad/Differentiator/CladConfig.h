@@ -29,6 +29,9 @@ enum opts : unsigned {
   // 00 - default, 01 - enable, 10 - disable, 11 - not used / invalid
   enable_tbr = 1 << (ORDER_BITS + 2),
   disable_tbr = 1 << (ORDER_BITS + 3),
+
+  // Specifying whether we only want the diagonal of the hessian.
+  diagonal_only = 1 << (ORDER_BITS + 4),
 }; // enum opts
 
 constexpr unsigned GetDerivativeOrder(const unsigned bitmasked_opts) {

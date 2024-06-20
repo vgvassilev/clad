@@ -86,8 +86,9 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
     m_Derivative->setBody(fnBody);
     endScope();
 
-    if (request.DerivedFDPrototype)
-      m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+    if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+      m_Derivative->setPreviousDeclaration(
+          request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
   }
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
