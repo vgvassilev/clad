@@ -134,7 +134,7 @@ int main() {
   // This is how we return the derivative with respect to all arguments.
   // The order of being placed in this tape should be the same as the order of
   // the arguments being passed to the function.
-  clad::tape<clad::array_ref<
+  clad::old_tape<clad::array_ref<
       double /*This should be the return value of the function you want to differentiate.*/>>
       grad = {};
   // Place the l-value reference of the variables in the tape.
