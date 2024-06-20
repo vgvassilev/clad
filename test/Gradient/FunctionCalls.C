@@ -966,16 +966,36 @@ double sq_defined_later(double x) {
 // CHECK-NEXT: }
 
 // CHECK: void check_and_return_pullback(double x, char c, const char *s, double _d_y, double *_d_x, char *_d_c, char *_d_s) {
-// CHECK-NEXT:     bool _cond0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:     _cond0 = c == 'a' && s[0] == 'a';
-// CHECK-NEXT:     if (_cond0)
-// CHECK-NEXT:         goto _label0;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     if (_cond0)
-// CHECK-NEXT:       _label0:
-// CHECK-NEXT:         *_d_x += _d_y;
-// CHECK-NEXT: }
+// CHECK-NEXT:    bool _cond0;
+// CHECK-NEXT:    double _d_cond0;
+// CHECK-NEXT:    bool _cond1;
+// CHECK-NEXT:    bool _t0;
+// CHECK-NEXT:    bool _cond2;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        {
+// CHECK-NEXT:            _cond1 = c == 'a';
+// CHECK-NEXT:            if (_cond1) {
+// CHECK-NEXT:                _t0 = _cond0;
+// CHECK-NEXT:                _cond0 = s[0] == 'a';
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:        _cond2 = _cond1 && _cond0;
+// CHECK-NEXT:        if (_cond2)
+// CHECK-NEXT:            goto _label0;
+// CHECK-NEXT:    }
+// CHECK-NEXT:    {
+// CHECK-NEXT:        if (_cond2)
+// CHECK-NEXT:          _label0:
+// CHECK-NEXT:           *_d_x += _d_y;
+// CHECK-NEXT:        {
+// CHECK-NEXT:            if (_cond1) {
+// CHECK-NEXT:                _cond0 = _t0;
+// CHECK-NEXT:                double _r_d0 = _d_cond0;
+// CHECK-NEXT:                _d_cond0 -= _r_d0;
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
 
 // CHECK: void custom_max_pullback(const double &a, const double &b, double _d_y, double *_d_a, double *_d_b) {
 // CHECK-NEXT:     bool _cond0;

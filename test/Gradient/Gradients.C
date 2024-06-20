@@ -924,6 +924,154 @@ double fn_empty_if_else(double x) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+double fn_cond_false(double i, double j) {
+  double res = 0;
+  if (i*j && res > 0) {
+    res = 6 * i * j;
+  }
+  return res;
+}
+
+// CHECK: void fn_cond_false_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:    double _d_res = 0;
+// CHECK-NEXT:    bool _cond0;
+// CHECK-NEXT:    double _d_cond0;
+// CHECK-NEXT:    bool _cond1;
+// CHECK-NEXT:    bool _t0;
+// CHECK-NEXT:    bool _cond2;
+// CHECK-NEXT:    double _t1;
+// CHECK-NEXT:    double res = 0;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        {
+// CHECK-NEXT:            _cond1 = i * j;
+// CHECK-NEXT:            if (_cond1) {
+// CHECK-NEXT:                _t0 = _cond0;
+// CHECK-NEXT:                _cond0 = res > 0;
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:        _cond2 = _cond1 && _cond0;
+// CHECK-NEXT:        if (_cond2) {
+// CHECK-NEXT:            _t1 = res;
+// CHECK-NEXT:            res = 6 * i * j;
+// CHECK-NEXT:        }
+// CHECK-NEXT:    }
+// CHECK-NEXT:    _d_res += 1;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        if (_cond2) {
+// CHECK-NEXT:            {
+// CHECK-NEXT:                res = _t1;
+// CHECK-NEXT:                double _r_d1 = _d_res;
+// CHECK-NEXT:                _d_res -= _r_d1;
+// CHECK-NEXT:                *_d_i += 6 * _r_d1 * j;
+// CHECK-NEXT:                *_d_j += 6 * i * _r_d1;
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:        {
+// CHECK-NEXT:            if (_cond1) {
+// CHECK-NEXT:                _cond0 = _t0;
+// CHECK-NEXT:                double _r_d0 = _d_cond0;
+// CHECK-NEXT:                _d_cond0 -= _r_d0;
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
+double fn_cond_add_assign(double i, double j) {
+  double res = 0;
+  if ((res = 2 * i * j) && (res += 3 * i * j) && (res += 5 * i * j)) {
+    res += 6 * i * j;
+  }
+  return res;
+}
+
+// CHECK: void fn_cond_add_assign_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:    double _d_res = 0;
+// CHECK-NEXT:    bool _cond0;
+// CHECK-NEXT:    double _d_cond0;
+// CHECK-NEXT:    bool _cond1;
+// CHECK-NEXT:    double _d_cond1;
+// CHECK-NEXT:    double _t0;
+// CHECK-NEXT:    bool _cond2;
+// CHECK-NEXT:    bool _t1;
+// CHECK-NEXT:    double _t2;
+// CHECK-NEXT:    bool _cond3;
+// CHECK-NEXT:    bool _t3;
+// CHECK-NEXT:    double _t4;
+// CHECK-NEXT:    bool _cond4;
+// CHECK-NEXT:    double _t5;
+// CHECK-NEXT:    double res = 0;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        {
+// CHECK-NEXT:            {
+// CHECK-NEXT:                _t0 = res;
+// CHECK-NEXT:                _cond2 = (res = 2 * i * j);
+// CHECK-NEXT:                if (_cond2) {
+// CHECK-NEXT:                    _t1 = _cond1;
+// CHECK-NEXT:                    _t2 = res;
+// CHECK-NEXT:                    _cond1 = (res += 3 * i * j);
+// CHECK-NEXT:                }
+// CHECK-NEXT:            }
+// CHECK-NEXT:            _cond3 = _cond2 && _cond1;
+// CHECK-NEXT:            if (_cond3) {
+// CHECK-NEXT:                _t3 = _cond0;
+// CHECK-NEXT:                _t4 = res;
+// CHECK-NEXT:                _cond0 = (res += 5 * i * j);
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:        _cond4 = _cond3 && _cond0;
+// CHECK-NEXT:        if (_cond4) {
+// CHECK-NEXT:            _t5 = res;
+// CHECK-NEXT:            res += 6 * i * j;
+// CHECK-NEXT:        }
+// CHECK-NEXT:    }
+// CHECK-NEXT:    _d_res += 1;
+// CHECK-NEXT:    {
+// CHECK-NEXT:        if (_cond4) {
+// CHECK-NEXT:            {
+// CHECK-NEXT:                res = _t5;
+// CHECK-NEXT:                double _r_d5 = _d_res;
+// CHECK-NEXT:                *_d_i += 6 * _r_d5 * j;
+// CHECK-NEXT:                *_d_j += 6 * i * _r_d5;
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:        {
+// CHECK-NEXT:            {
+// CHECK-NEXT:                if (_cond3) {
+// CHECK-NEXT:                    _cond0 = _t3;
+// CHECK-NEXT:                    double _r_d3 = _d_cond0;
+// CHECK-NEXT:                    _d_cond0 -= _r_d3;
+// CHECK-NEXT:                    _d_res += _r_d3;
+// CHECK-NEXT:                    res = _t4;
+// CHECK-NEXT:                    double _r_d4 = _d_res;
+// CHECK-NEXT:                    *_d_i += 5 * _r_d4 * j;
+// CHECK-NEXT:                    *_d_j += 5 * i * _r_d4;
+// CHECK-NEXT:                }
+// CHECK-NEXT:                {
+// CHECK-NEXT:                    {
+// CHECK-NEXT:                        if (_cond2) {
+// CHECK-NEXT:                            _cond1 = _t1;
+// CHECK-NEXT:                            double _r_d1 = _d_cond1;
+// CHECK-NEXT:                            _d_cond1 -= _r_d1;
+// CHECK-NEXT:                            _d_res += _r_d1;
+// CHECK-NEXT:                            res = _t2;
+// CHECK-NEXT:                            double _r_d2 = _d_res;
+// CHECK-NEXT:                            *_d_i += 3 * _r_d2 * j;
+// CHECK-NEXT:                            *_d_j += 3 * i * _r_d2;
+// CHECK-NEXT:                        }
+// CHECK-NEXT:                        {
+// CHECK-NEXT:                            res = _t0;
+// CHECK-NEXT:                            double _r_d0 = _d_res;
+// CHECK-NEXT:                            _d_res -= _r_d0;
+// CHECK-NEXT:                            *_d_i += 2 * _r_d0 * j;
+// CHECK-NEXT:                            *_d_j += 2 * i * _r_d0;
+// CHECK-NEXT:                        }
+// CHECK-NEXT:                    }
+// CHECK-NEXT:                }
+// CHECK-NEXT:            }
+// CHECK-NEXT:        }
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -1005,5 +1153,12 @@ int main() {
 
   INIT_GRADIENT(fn_empty_if_else);
   TEST_GRADIENT(fn_empty_if_else, /*numOfDerivativeArgs=*/1, 1, &dx); // CHECK-EXEC: 5.00
+
+  INIT_GRADIENT(fn_cond_false);
+  TEST_GRADIENT(fn_cond_false, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {0.00, 0.00}
+
+  INIT_GRADIENT(fn_cond_add_assign);
+  TEST_GRADIENT(fn_cond_add_assign, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {80.00, 48.00}
+
 
 }
