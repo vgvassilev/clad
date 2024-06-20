@@ -895,7 +895,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
     endScope();
     return StmtDiff(utils::unwrapIfSingleStmt(ForwardBlock),
-                    utils::unwrapIfSingleStmt(ReverseBlock));
+                    utils::unwrapIfSingleStmt(ReverseBlock),
+                    /*forwSweepDiff=*/nullptr,
+                    /*valueForRevSweep=*/condDiffStored);
   }
 
   StmtDiff ReverseModeVisitor::VisitConditionalOperator(
@@ -2382,6 +2384,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Rdiff = Visit(R, dfdx());
       valueForRevPass = Ldiff.getRevSweepAsExpr();
       ResultRef = Ldiff.getExpr();
+    } else if (opCode == BO_LAnd) {
+      VarDecl* condVar = GlobalStoreImpl(m_Context.BoolTy, "_cond");
+      VarDecl* derivedCondVar = GlobalStoreImpl(
+          m_Context.DoubleTy, "_d" + condVar->getNameAsString());
+      Expr* condVarRef = BuildDeclRef(condVar);
+      Expr* assignExpr = BuildOp(BO_Assign, condVarRef, Clone(R));
+      m_Variables.emplace(condVar, BuildDeclRef(derivedCondVar));
+      auto* IfStmt = clad_compat::IfStmt_Create(
+          /*Ctx=*/m_Context, /*IL=*/noLoc, /*IsConstexpr=*/false,
+          /*Init=*/nullptr, /*Var=*/nullptr,
+          /*Cond=*/L, /*LPL=*/noLoc, /*RPL=*/noLoc, /*Then=*/assignExpr,
+          /*EL=*/noLoc,
+          /*Else=*/nullptr);
+
+      StmtDiff IfStmtDiff = VisitIfStmt(IfStmt);
+      addToCurrentBlock(utils::unwrapIfSingleStmt(IfStmtDiff.getStmt()));
+      addToCurrentBlock(utils::unwrapIfSingleStmt(IfStmtDiff.getStmt_dx()),
+                        direction::reverse);
+      auto* condDiffStored = IfStmtDiff.getRevSweepAsExpr();
+      return BuildOp(BO_LAnd, condDiffStored, condVarRef);
     } else {
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
