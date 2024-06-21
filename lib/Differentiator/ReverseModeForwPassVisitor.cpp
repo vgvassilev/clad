@@ -86,6 +86,8 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
     m_Derivative->setBody(fnBody);
     endScope();
 
+    // Size >= current derivative order means that there exists a declaration
+    // or prototype for the currently derived function.
     if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
       m_Derivative->setPreviousDeclaration(
           request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
