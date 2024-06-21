@@ -17,6 +17,7 @@
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTLambda.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
@@ -1596,13 +1597,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff baseDiff;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
+    const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     if (!OverloadedDerivedFn) {
       size_t idx = 0;
 
       /// Add base derivative expression in the derived call output args list if
       /// `CE` is a call to an instance member function.
-      if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
-        if (MD->isInstance()) {
+      if (MD) {
+        if (isLambdaCallOperator(MD)) {
+          QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
+              FD->getDeclContext()->getOuterLexicalRecordContext()));
+          baseDiff =
+              StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
+                       new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
+        } else if (MD->isInstance()) {
           const Expr* baseOriginalE = nullptr;
           if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
             baseOriginalE = MCE->getImplicitObjectArgument();
@@ -1700,7 +1708,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
         bool isaMethod = isa<CXXMethodDecl>(FD);
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
-          if (DerivedCallOutputArgs[i + isaMethod])
+          if (MD && isLambdaCallOperator(MD)) {
+            if (const auto* paramDecl = FD->getParamDecl(i))
+              pullbackRequest.DVI.push_back(paramDecl);
+          } else if (DerivedCallOutputArgs[i + isaMethod])
             pullbackRequest.DVI.push_back(FD->getParamDecl(i));
 
         FunctionDecl* pullbackFD = nullptr;
@@ -2735,6 +2746,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool promoteToFnScope =
         !getCurrentScope()->isFunctionScope() &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
+
+    // If the DeclStmt is not empty, check the first declaration in case it is a
+    // lambda function. This case it is treated separately for now and we don't
+    // create a variable for its derivative.
+    bool isLambda = false;
+    const auto* declsBegin = DS->decls().begin();
+    if (declsBegin != DS->decls().end() && isa<VarDecl>(*declsBegin)) {
+      auto* VD = dyn_cast<VarDecl>(*declsBegin);
+      QualType QT = VD->getType();
+      if (!QT->isPointerType()) {
+        auto* typeDecl = QT->getAsCXXRecordDecl();
+        // We should also simply copy the original lambda. The differentiation
+        // of lambdas is happening in the `VisitCallExpr`. For now, only the
+        // declarations with lambda expressions without captures are supported.
+        isLambda = typeDecl && typeDecl->isLambda();
+        if (isLambda) {
+          for (auto* D : DS->decls())
+            if (auto* VD = dyn_cast<VarDecl>(D))
+              decls.push_back(VD);
+          Stmt* DSClone = BuildDeclStmt(decls);
+          return StmtDiff(DSClone, nullptr);
+        }
+      }
+    }
+
     // For each variable declaration v, create another declaration _d_v to
     // store derivatives for potential reassignments. E.g.
     // double y = x;
@@ -2742,7 +2778,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // double _d_y = _d_x; double y = x;
     for (auto* D : DS->decls()) {
       if (auto* VD = dyn_cast<VarDecl>(D)) {
-        DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
+        DeclDiff<VarDecl> VDDiff;
+        if (!isLambda)
+          VDDiff = DifferentiateVarDecl(VD);
 
         // Check if decl's name is the same as before. The name may be changed
         // if decl name collides with something in the derivative body.
@@ -2762,8 +2800,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         //   double _d_y = x; // copied from original function, collides with
         //   _d_y
         // }
-        if (VDDiff.getDecl()->getDeclName() != VD->getDeclName() ||
-            VD->getType() != VDDiff.getDecl()->getType())
+        if (!isLambda &&
+            (VDDiff.getDecl()->getDeclName() != VD->getDeclName() ||
+             VD->getType() != VDDiff.getDecl()->getType()))
           m_DeclReplacements[VD] = VDDiff.getDecl();
 
         // Here, we move the declaration to the function global scope.
