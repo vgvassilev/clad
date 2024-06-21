@@ -398,32 +398,6 @@ public:
     x += 1.0;
     return *this;
   }
-
-  void mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void volatile_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_volatile_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void lval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_lval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void volatile_lval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_volatile_lval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void rval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_rval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void volatile_rval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_volatile_rval_ref_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void volatile_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_volatile_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void lval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_volatile_lval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void rval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void const_volatile_rval_ref_noexcept_mem_fn_grad(double i, double j, double *_d_i, double *_d_j);
-  void partial_mem_fn_grad(double i, double j, double *_d_i);
 };
 
 double fn(double i,double j) {

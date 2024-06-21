@@ -10,7 +10,6 @@
 double f(double x, double y) {
   return (x - 1) * (x - 1) + 100 * (y - x * x) * (y - x * x);
 }
-void f_grad(double x, double y, double *_d_x, double *_d_y);
 
 void f_grad_old(double x, double y, double* _d_x, double* _d_y) {
   auto dx = clad::differentiate(f, 0);
@@ -21,14 +20,15 @@ void f_grad_old(double x, double y, double* _d_x, double* _d_y) {
 }
 
 int main() {
-  clad::gradient(f).dump();
+  auto df = clad::gradient(f);
+  df.dump();
   
   auto test = [&] (double x, double y) { // expected-no-diagnostics
     double result_old[2] = {};
     double result_new[2] = {};
 
     f_grad_old(x, y, &result_old[0], &result_old[1]);
-    f_grad(x, y, &result_new[0], &result_new[1]);
+    df.execute(x, y, &result_new[0], &result_new[1]);
 
     for (int i = 0; i < 2; i++)
       if (result_old[i] != result_new[i])
