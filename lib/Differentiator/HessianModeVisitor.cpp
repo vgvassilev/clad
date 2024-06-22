@@ -75,6 +75,24 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
   return secondDerivative;
 }
 
+/// Derives the function two times with forward mode AD and returns the
+/// FunctionDecl obtained.
+static FunctionDecl* DeriveUsingForwardModeTwice(
+    Sema& SemaRef, clad::plugin::CladPlugin& CP,
+    clad::DerivativeBuilder& Builder, DiffRequest IndependentArgRequest,
+    const Expr* ForwardModeArgs, DerivedFnCollector& DFC) {
+  // Set derivative order in the request to 2.
+  IndependentArgRequest.RequestedDerivativeOrder = 2;
+  IndependentArgRequest.Args = ForwardModeArgs;
+  IndependentArgRequest.Mode = DiffMode::forward;
+  IndependentArgRequest.CallUpdateRequired = false;
+  IndependentArgRequest.UpdateDiffParamsInfo(SemaRef);
+  // Derive the function twice in forward mode.
+  FunctionDecl* secondDerivative =
+      Builder.HandleNestedDiffRequest(IndependentArgRequest);
+  return secondDerivative;
+}
+
   DerivativeAndOverload
   HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
                              const DiffRequest& request) {
@@ -91,7 +109,7 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
-    std::vector<FunctionDecl*> secondDerivativeColumns;
+    std::vector<FunctionDecl*> secondDerivativeFuncs;
     llvm::SmallVector<size_t, 16> IndependentArgsSize{};
     size_t TotalIndependentArgsSize = 0;
 
@@ -99,6 +117,8 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
     assert(m_DiffReq == request);
 
     std::string hessianFuncName = request.BaseFunctionName + "_hessian";
+    if (request.Mode == DiffMode::hessian_diagonal)
+      hessianFuncName += "_diagonal";
     // To be consistent with older tests, nothing is appended to 'f_hessian' if
     // we differentiate w.r.t. all the parameters at once.
     if (args.size() != FD->getNumParams() ||
@@ -192,12 +212,17 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
                 PVD->getNameAsString() + "[" + std::to_string(i) + "]";
             auto ForwardModeIASL =
                 CreateStringLiteral(m_Context, independentArgString);
-            auto* DFD = DeriveUsingForwardAndReverseMode(
-                m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
-                request.Args, m_Builder.m_DFC);
-            secondDerivativeColumns.push_back(DFD);
+            FunctionDecl* DFD = nullptr;
+            if (request.Mode == DiffMode::hessian_diagonal)
+              DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
+                                                request, ForwardModeIASL,
+                                                m_Builder.m_DFC);
+            else
+              DFD = DeriveUsingForwardAndReverseMode(
+                  m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
+                  request.Args, m_Builder.m_DFC);
+            secondDerivativeFuncs.push_back(DFD);
           }
-
         } else {
           IndependentArgsSize.push_back(1);
           TotalIndependentArgsSize++;
@@ -205,14 +230,20 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
           // then in reverse mode w.r.t to all requested args
           auto ForwardModeIASL =
               CreateStringLiteral(m_Context, PVD->getNameAsString());
-          auto* DFD = DeriveUsingForwardAndReverseMode(
-              m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
-              request.Args, m_Builder.m_DFC);
-          secondDerivativeColumns.push_back(DFD);
+          FunctionDecl* DFD = nullptr;
+          if (request.Mode == DiffMode::hessian_diagonal)
+            DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
+                                              request, ForwardModeIASL,
+                                              m_Builder.m_DFC);
+          else
+            DFD = DeriveUsingForwardAndReverseMode(
+                m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
+                request.Args, m_Builder.m_DFC);
+          secondDerivativeFuncs.push_back(DFD);
         }
       }
     }
-    return Merge(secondDerivativeColumns, IndependentArgsSize,
+    return Merge(secondDerivativeFuncs, IndependentArgsSize,
                  TotalIndependentArgsSize, hessianFuncName, DC,
                  hessianFunctionType, paramTypes);
   }
@@ -272,14 +303,13 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
                      return VD;
                    });
 
-    // The output parameter "hessianMatrix".
+    // The output parameter "hessianMatrix" or "diagonalHessianVector"
+    std::string outputParamName = "hessianMatrix";
+    if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
+      outputParamName = "diagonalHessianVector";
     params.back() = ParmVarDecl::Create(
-        m_Context,
-        hessianFD,
-        noLoc,
-        noLoc,
-        &m_Context.Idents.get("hessianMatrix"),
-        paramTypes.back(),
+        m_Context, hessianFD, noLoc, noLoc,
+        &m_Context.Idents.get(outputParamName), paramTypes.back(),
         m_Context.getTrivialTypeSourceInfo(paramTypes.back(), noLoc),
         params.front()->getStorageClass(),
         /* No default value */ nullptr);
@@ -301,7 +331,6 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
     // Creates callExprs to the second derivative functions genereated
     // and creates maps array elements to input array.
     for (size_t i = 0, e = secDerivFuncs.size(); i < e; ++i) {
-      const size_t HessianMatrixStartIndex = i * TotalIndependentArgsSize;
       auto size_type = m_Context.getSizeType();
       auto size_type_bits = m_Context.getIntWidth(size_type);
 
@@ -345,22 +374,40 @@ static FunctionDecl* DeriveUsingForwardAndReverseMode(
         }
       }
 
-      size_t columnIndex = 0;
-      // Create Expr parameters for each independent arg in the CallExpr
-      for (size_t indArgSize : IndependentArgsSize) {
-        llvm::APInt offsetValue(size_type_bits,
-                                HessianMatrixStartIndex + columnIndex);
+      if (m_DiffReq.Mode == DiffMode::hessian_diagonal) {
+        const size_t HessianMatrixStartIndex = i;
+        // Call the derived function for second derivative.
+        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
+
         // Create the offset argument.
+        llvm::APInt offsetValue(size_type_bits, HessianMatrixStartIndex);
         Expr* OffsetArg =
             IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
-        // Create the hessianMatrix + OffsetArg expression.
-        Expr* SliceExpr = BuildOp(BO_Add, m_Result, OffsetArg);
+        // Create a assignment expression to store the value of call expression
+        // into the diagonalHessianVector with index HessianMatrixStartIndex.
+        Expr* SliceExprLHS = BuildOp(BO_Add, m_Result, OffsetArg);
+        Expr* DerefExpr = BuildOp(UO_Deref, BuildParens(SliceExprLHS));
+        Expr* AssignExpr = BuildOp(BO_Assign, DerefExpr, call);
+        CompStmtSave.push_back(AssignExpr);
+      } else {
+        const size_t HessianMatrixStartIndex = i * TotalIndependentArgsSize;
+        size_t columnIndex = 0;
+        // Create Expr parameters for each independent arg in the CallExpr
+        for (size_t indArgSize : IndependentArgsSize) {
+          llvm::APInt offsetValue(size_type_bits,
+                                  HessianMatrixStartIndex + columnIndex);
+          // Create the offset argument.
+          Expr* OffsetArg =
+              IntegerLiteral::Create(m_Context, offsetValue, size_type, noLoc);
+          // Create the hessianMatrix + OffsetArg expression.
+          Expr* SliceExpr = BuildOp(BO_Add, m_Result, OffsetArg);
 
-        DeclRefToParams.push_back(SliceExpr);
-        columnIndex += indArgSize;
+          DeclRefToParams.push_back(SliceExpr);
+          columnIndex += indArgSize;
+        }
+        Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
+        CompStmtSave.push_back(call);
       }
-      Expr* call = BuildCallExprToFunction(secDerivFuncs[i], DeclRefToParams);
-      CompStmtSave.push_back(call);
     }
 
     auto StmtsRef =

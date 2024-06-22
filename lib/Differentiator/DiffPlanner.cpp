@@ -616,6 +616,14 @@ namespace clad {
         } else {
           request.EnableTBRAnalysis = m_Options.EnableTBRAnalysis;
         }
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
+          if (!A->getAnnotation().equals("H")) {
+            utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                            "Diagonal only option is only valid for Hessian "
+                            "mode.");
+            return true;
+          }
+        }
       }
 
       if (A->getAnnotation().equals("D")) {
@@ -651,7 +659,10 @@ namespace clad {
           }
         }
       } else if (A->getAnnotation().equals("H")) {
-        request.Mode = DiffMode::hessian;
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only))
+          request.Mode = DiffMode::hessian_diagonal;
+        else
+          request.Mode = DiffMode::hessian;
       } else if (A->getAnnotation().equals("J")) {
         request.Mode = DiffMode::jacobian;
       } else if (A->getAnnotation().equals("G")) {

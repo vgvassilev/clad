@@ -364,8 +364,11 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 
     endScope(); // Function body scope
 
-    if (request.DerivedFDPrototype)
-      m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+    // Size >= current derivative order means that there exists a declaration
+    // or prototype for the currently derived function.
+    if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+      m_Derivative->setPreviousDeclaration(
+          request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
   }
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
@@ -529,8 +532,11 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
 
     endScope(); // Function body scope
 
-    if (request.DerivedFDPrototype)
-      m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+    // Size >= current derivative order means that there exists a declaration
+    // or prototype for the currently derived function.
+    if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+      m_Derivative->setPreviousDeclaration(
+          request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
   }
 
   m_Sema.PopFunctionScopeInfo();

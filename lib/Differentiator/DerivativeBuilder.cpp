@@ -26,6 +26,8 @@
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
 
+#include "llvm/Support/SaveAndRestore.h"
+
 #include <algorithm>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -295,9 +297,17 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     FunctionDecl* derivative = this->FindDerivedFunction(request);
     if (!derivative) {
       alreadyDerived = false;
-      // Derive declaration of the the forward mode derivative.
-      request.DeclarationOnly = true;
-      derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
+
+      {
+        // Store and restore the original function and its order.
+        llvm::SaveAndRestore<const FunctionDecl*> origFn(request.Function);
+        llvm::SaveAndRestore<unsigned> origFnOrder(
+            request.CurrentDerivativeOrder);
+
+        // Derive declaration of the the forward mode derivative.
+        request.DeclarationOnly = true;
+        derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
+      }
 
       // It is possible that user has provided a custom derivative for the
       // derivative function. In that case, we should not derive the definition
@@ -309,7 +319,6 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       // Add the request to derive the definition of the forward mode derivative
       // to the schedule.
       request.DeclarationOnly = false;
-      request.DerivedFDPrototype = derivative;
     }
     this->AddEdgeToGraph(request, alreadyDerived);
     return derivative;
@@ -423,7 +432,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);
       result = V.Derive(FD, request);
-    } else if (request.Mode == DiffMode::hessian) {
+    } else if (request.Mode == DiffMode::hessian ||
+               request.Mode == DiffMode::hessian_diagonal) {
       HessianModeVisitor H(*this, request);
       result = H.Derive(FD, request);
     } else if (request.Mode == DiffMode::jacobian) {

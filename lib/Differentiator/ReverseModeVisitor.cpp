@@ -336,7 +336,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // added by the plugins yet.
     if (request.Mode != DiffMode::jacobian && numExtraParam == 0)
       shouldCreateOverload = true;
-    if (request.DerivedFDPrototype)
+    if (!request.DeclarationOnly && !request.DerivedFDPrototypes.empty())
       // If the overload is already created, we don't need to create it again.
       shouldCreateOverload = false;
 
@@ -452,8 +452,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Derivative->setBody(gradientBody);
       endScope(); // Function body scope
 
-      if (request.DerivedFDPrototype)
-        m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+      // Size >= current derivative order means that there exists a declaration
+      // or prototype for the currently derived function.
+      if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+        m_Derivative->setPreviousDeclaration(
+            request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
     }
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
@@ -585,8 +588,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Derivative->setBody(fnBody);
       endScope(); // Function body scope
 
-      if (request.DerivedFDPrototype)
-        m_Derivative->setPreviousDeclaration(request.DerivedFDPrototype);
+      // Size >= current derivative order means that there exists a declaration
+      // or prototype for the currently derived function.
+      if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+        m_Derivative->setPreviousDeclaration(
+            request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
     }
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
