@@ -26,6 +26,8 @@
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
 
+#include "llvm/Support/SaveAndRestore.h"
+
 #include <algorithm>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -296,13 +298,16 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     if (!derivative) {
       alreadyDerived = false;
 
-      // Store the function and its order before processing the nested request.
-      const FunctionDecl* origFn = request.Function;
-      unsigned origFnOrder = request.CurrentDerivativeOrder;
+      {
+        // Store and restore the original function and its order.
+        llvm::SaveAndRestore<const FunctionDecl*> origFn(request.Function);
+        llvm::SaveAndRestore<unsigned> origFnOrder(
+            request.CurrentDerivativeOrder);
 
-      // Derive declaration of the the forward mode derivative.
-      request.DeclarationOnly = true;
-      derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
+        // Derive declaration of the the forward mode derivative.
+        request.DeclarationOnly = true;
+        derivative = plugin::ProcessDiffRequest(m_CladPlugin, request);
+      }
 
       // It is possible that user has provided a custom derivative for the
       // derivative function. In that case, we should not derive the definition
@@ -310,10 +315,6 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       if (derivative &&
           (derivative->isDefined() || m_DFC.IsCustomDerivative(derivative)))
         alreadyDerived = true;
-
-      // Restore the original function and its order.
-      request.CurrentDerivativeOrder = origFnOrder;
-      request.Function = origFn;
 
       // Add the request to derive the definition of the forward mode derivative
       // to the schedule.
