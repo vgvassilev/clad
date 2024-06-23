@@ -682,6 +682,71 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
   return StmtDiff(condExpr, condExprDiff);
 }
 
+StmtDiff
+BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
+  beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
+             Scope::ContinueScope);
+  // Visiting for range-based ststement produces __range1, __begin1 and __end1
+  // variables, so for(auto i: a){
+  //      ...
+  //}
+  //
+  // is equivalent to
+  //
+  // auto&& __range1 = a
+  // auto __begin1 = __range1;
+  // auto __end1 = __range1 + OUL
+  // for(;__begin != __end1; ++__begin){
+  //  auto i = *__begin1;
+  //        ...
+  //}
+  const Stmt* RangeDecl = FRS->getRangeStmt();
+  const Stmt* BeginDecl = FRS->getBeginStmt();
+  const Stmt* EndDecl = FRS->getEndStmt();
+
+  StmtDiff VisitRange = Visit(RangeDecl);
+  StmtDiff VisitBegin = Visit(BeginDecl);
+  StmtDiff VisitEnd = Visit(EndDecl);
+  addToCurrentBlock(VisitRange.getStmt_dx());
+  addToCurrentBlock(VisitRange.getStmt());
+  addToCurrentBlock(VisitBegin.getStmt_dx());
+  addToCurrentBlock(VisitBegin.getStmt());
+  addToCurrentBlock(VisitEnd.getStmt());
+  // Build d_begin preincrementation.
+
+  auto* BeginAdjExpr = BuildDeclRef(
+      cast<VarDecl>(cast<DeclStmt>(VisitBegin.getStmt_dx())->getSingleDecl()));
+  // Build begin preincrementation.
+
+  Expr* IncAdjBegin = BuildOp(UO_PreInc, BeginAdjExpr);
+  auto* BeginVarDecl =
+      cast<VarDecl>(cast<DeclStmt>(VisitBegin.getStmt())->getSingleDecl());
+  DeclRefExpr* BeginExpr = BuildDeclRef(BeginVarDecl);
+  Expr* IncBegin = BuildOp(UO_PreInc, BeginExpr);
+  Expr* Inc = BuildOp(BO_Comma, IncAdjBegin, IncBegin);
+
+  auto* EndExpr = BuildDeclRef(
+      cast<VarDecl>(cast<DeclStmt>(VisitEnd.getStmt())->getSingleDecl()));
+  // Build begin != end condition.
+  Expr* cond = BuildOp(BO_NE, BeginExpr, EndExpr);
+
+  const VarDecl* VD = FRS->getLoopVariable();
+  DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
+  // Differentiate body and add both Item and it's derivative.
+  Stmt* body = Clone(FRS->getBody());
+  Stmt* bodyResult = Visit(body).getStmt();
+  Visit(body).getStmt();
+  Stmt* bodyWithItem = utils::PrependAndCreateCompoundStmt(
+      m_Sema.getASTContext(), bodyResult, BuildDeclStmt(VDDiff.getDecl()));
+  bodyResult = utils::PrependAndCreateCompoundStmt(
+      m_Sema.getASTContext(), bodyWithItem, BuildDeclStmt(VDDiff.getDecl_dx()));
+
+  Stmt* forStmtDiff = new (m_Context)
+      ForStmt(m_Context, nullptr, cond, /*condVar=*/nullptr, Inc, bodyResult,
+              FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+  return StmtDiff(forStmtDiff);
+}
+
 StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
   beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
              Scope::ContinueScope);
