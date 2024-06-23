@@ -86,6 +86,7 @@ public:
                          set to 0",
          args);
   }
+  StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
   StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
   StmtDiff VisitDoStmt(const clang::DoStmt* DS);
   StmtDiff VisitContinueStmt(const clang::ContinueStmt* ContStmt);
