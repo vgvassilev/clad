@@ -950,6 +950,21 @@ double fn17(A a, B b) {
 // CHECK-NEXT:     return _d_a.mem * _t1 + _t0 * _d_b.mem;
 // CHECK-NEXT: }
 
+double fn18(double i, double j) {
+  A v[2] = {2, 3};
+  v[0] = 9 * i;
+  return v[0].mem;
+}
+
+// CHECK: double fn18_darg0(double i, double j) {
+// CHECK-NEXT:     double _d_i = 1;
+// CHECK-NEXT:     double _d_j = 0;
+// CHECK-NEXT:     A _d_v[2] = {0, 0};
+// CHECK-NEXT:     A v[2] = {2, 3};
+// CHECK-NEXT:     clad::ValueAndPushforward<A &, A &> _t0 = v[0].operator_equal_pushforward(9 * i, &_d_v[0], 0 * i + 9 * _d_i);
+// CHECK-NEXT:     return _d_v[0].mem;
+// CHECK-NEXT: }
+
 template<unsigned N>
 void print(const Tensor<double, N>& t) {
   for (int i=0; i<N; ++i) {
@@ -977,6 +992,7 @@ int main() {
   INIT_DIFFERENTIATE(fn15, "u.first");
   INIT_DIFFERENTIATE(fn16, "v.second.second");
   INIT_DIFFERENTIATE(fn17, "b.mem");
+  INIT_DIFFERENTIATE(fn18, "i");
 
   TensorD5 t;
   t.updateTo(5);
@@ -999,6 +1015,7 @@ int main() {
   TEST_DIFFERENTIATE(fn15, pairdd(), pairdd());                   // CHECK-EXEC: {1.00}
   TEST_DIFFERENTIATE(fn16, pair_of_pairdd(), pair_of_pairdd());   // CHECK-EXEC: {2.00}
   TEST_DIFFERENTIATE(fn17, A(3.00), B(5.00));   // CHECK-EXEC: {3.00}
+  TEST_DIFFERENTIATE(fn18, 7, 3);   // CHECK-EXEC: {9.00}
 
 // CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(Tensor<double, 5> *_d_this) {
 // CHECK-NEXT:     double _d_res = 0;

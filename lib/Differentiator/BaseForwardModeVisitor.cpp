@@ -894,9 +894,9 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   std::transform(std::begin(Indices), std::end(Indices),
                  std::begin(clonedIndices),
                  [this](const Expr* E) { return Clone(E); });
-  auto cloned = BuildArraySubscript(clonedBase, clonedIndices);
+  Expr* cloned = BuildArraySubscript(clonedBase, clonedIndices);
 
-  auto zero = ConstantFolder::synthesizeLiteral(ExprTy, m_Context, 0);
+  Expr* zero = getZeroInit(ExprTy);
   ValueDecl* VD = nullptr;
   // Derived variables for member variables are also created when we are
   // differentiating a call operator.
