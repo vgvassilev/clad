@@ -41,7 +41,7 @@ clang++ -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/cla
 To verify your results, you can build the dummy `test.cpp` file with the commands shown above. Once you compile and run the test file correctly, you will notice the generated code is as follows:
 
 ```cpp
-The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
+The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
     float _d_z = 0;
     float _t0;
     float z;
@@ -49,18 +49,18 @@ The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double &
     z = x + y;
     _d_z += 1;
     {
-        _final_error += _d_z * z;
+        *_final_error += _d_z * z;
         z = _t0;
         float _r_d0 = _d_z;
         _d_z = 0;
         *_d_x += _r_d0;
         *_d_y += _r_d0;
     }
-    _final_error += *_d_x * x;
-    _final_error += *_d_y * y;
+    *_final_error += *_d_x * x;
+    *_final_error += *_d_y * y;
  }
 ```
 
-Here, notice that the result in the `_final_error` variable  now reflects the error expression defined in the custom model we just compiled!
+Here, notice that the result in the `*_final_error` variable  now reflects the error expression defined in the custom model we just compiled!
 
 This demo is also a runnable test under `CLAD_BASE/test/Misc/RunDemos.C` and will run as a part of the lit test suite. Thus, the same can be verified by running `make check-clad`.

@@ -115,7 +115,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
   }
 
-  FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
+  FunctionDecl*
+  ReverseModeVisitor::CreateGradientOverload(unsigned numExtraParams) {
     auto gradientParams = m_Derivative->parameters();
     auto gradientNameInfo = m_Derivative->getNameInfo();
     // Calculate the total number of parameters that would be required for
@@ -123,9 +124,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // requested.
     // FIXME: Here we are assuming all function parameters are of differentiable
     // type. Ideally, we should not make any such assumption.
-    std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
-    std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
-
+    std::size_t totalDerivedParamsSize =
+        m_DiffReq->getNumParams() * 2 + numExtraParams;
+    std::size_t numOfDerivativeParams =
+        m_DiffReq->getNumParams() + numExtraParams;
     // Account for the this pointer.
     if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
         !utils::IsStaticMethod(m_DiffReq.Function))
@@ -225,13 +227,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       TypeSourceInfo* typeInfo =
           m_Context.getTrivialTypeSourceInfo(gradientParam->getType());
       SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-      auto* init = m_Sema
+      Expr* init = m_Sema
                        .BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc,
                                             BuildDeclRef(overloadParam))
                        .get();
 
-      auto* gradientVD = BuildGlobalVarDecl(gradientParam->getType(),
-                                            gradientParam->getName(), init);
+      VarDecl* gradientVD = BuildGlobalVarDecl(gradientParam->getType(),
+                                               gradientParam->getName(), init);
       callArgs.push_back(BuildDeclRef(gradientVD));
       addToCurrentBlock(BuildDeclStmt(gradientVD));
     }
@@ -333,9 +335,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
-    // FIXME: Gradient overload doesn't know how to handle additional parameters
-    // added by the plugins yet.
-    if (request.Mode != DiffMode::jacobian && numExtraParam == 0)
+    if (request.Mode != DiffMode::jacobian)
       shouldCreateOverload = true;
     if (!request.DeclarationOnly && !request.DerivedFDPrototypes.empty())
       // If the overload is already created, we don't need to create it again.
@@ -347,7 +347,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
     // and for error estimation, the function type is
-    // void(A1, A2, ..., An, R*, R*, ..., R*, double&)
+    // void(A1, A2, ..., An, R*, R*, ..., R*, void*)
     QualType gradientFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
@@ -364,7 +364,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Derivative = customDerivative;
       FunctionDecl* gradientOverloadFD = nullptr;
       if (shouldCreateOverload)
-        gradientOverloadFD = CreateGradientOverload();
+        gradientOverloadFD = CreateGradientOverload(numExtraParam);
       return DerivativeAndOverload{customDerivative, gradientOverloadFD};
     }
 
@@ -465,8 +465,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     FunctionDecl* gradientOverloadFD = nullptr;
     if (shouldCreateOverload) {
-      gradientOverloadFD =
-          CreateGradientOverload();
+      gradientOverloadFD = CreateGradientOverload(numExtraParam);
     }
 
     return DerivativeAndOverload{result.first, gradientOverloadFD};

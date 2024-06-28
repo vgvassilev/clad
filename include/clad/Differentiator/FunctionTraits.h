@@ -482,8 +482,7 @@ namespace clad {
   // GradientDerivedEstFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
   struct GradientDerivedEstFnTraits<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputParamType_t<Args, Args>...,
-                          double&);
+    using type = void (*)(Args..., OutputParamType_t<Args, void>..., void*);
   };
 
   /// These macro expansions are used to cover all possible cases of
@@ -495,12 +494,12 @@ namespace clad {
   /// qualifier and reference respectively. The AddNOEX adds cases for noexcept
   /// qualifier only if it is supported and finally AddSPECS declares the
   /// function with all the cases
-#define GradientDerivedEstFnTraits_AddSPECS(var, cv, vol, ref, noex)           \
-  template <typename R, typename C, typename... Args>                          \
-  struct GradientDerivedEstFnTraits<R (C::*)(Args...) cv vol ref noex> {       \
-    using type = void (C::*)(Args..., OutputParamType_t<Args, Args>...,           \
-                             double&) cv vol ref noex;                         \
-  };
+#define GradientDerivedEstFnTraits_AddSPECS(var, cv, vol, ref, noex)         \
+    template <typename R, typename C, typename... Args>                        \
+    struct GradientDerivedEstFnTraits<R (C::*)(Args...) cv vol ref noex> {     \
+      using type = void (C::*)(Args..., OutputParamType_t<Args, void>...,      \
+                               void*) cv vol ref noex;                         \
+    };
 
 #if __cpp_noexcept_function_type > 0
 #define GradientDerivedEstFnTraits_AddNOEX(var, con, vol, ref)                 \
