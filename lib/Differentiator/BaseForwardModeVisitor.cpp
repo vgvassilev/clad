@@ -1601,6 +1601,25 @@ StmtDiff BaseForwardModeVisitor::VisitImplicitValueInitExpr(
 }
 
 StmtDiff
+BaseForwardModeVisitor::VisitCXXConstCastExpr(const CXXConstCastExpr* CCE) {
+  StmtDiff subExprDiff = Visit(CCE->getSubExpr());
+  Expr* castExpr =
+      m_Sema
+          .BuildCXXNamedCast(CCE->getBeginLoc(), tok::kw_const_cast,
+                             CCE->getTypeInfoAsWritten(), subExprDiff.getExpr(),
+                             CCE->getAngleBrackets(), CCE->getSourceRange())
+          .get();
+  Expr* castExprDiff =
+      m_Sema
+          .BuildCXXNamedCast(CCE->getBeginLoc(), tok::kw_const_cast,
+                             CCE->getTypeInfoAsWritten(),
+                             subExprDiff.getExpr_dx(), CCE->getAngleBrackets(),
+                             CCE->getSourceRange())
+          .get();
+  return StmtDiff(castExpr, castExprDiff);
+}
+
+StmtDiff
 BaseForwardModeVisitor::VisitCStyleCastExpr(const CStyleCastExpr* CSCE) {
   StmtDiff subExprDiff = Visit(CSCE->getSubExpr());
   // Create a new CStyleCastExpr with the same type and the same subexpression
