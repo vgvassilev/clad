@@ -18,7 +18,7 @@ double fn1(double i, double j) {
   return res;
 }
 
-// CHECK: void fn1_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn1_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int _cond0;
@@ -61,7 +61,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{2U|2UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{2U|2UL}}:
@@ -129,7 +129,7 @@ double fn2(double i, double j) {
   return res;
 }
 
-// CHECK: void fn2_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn2_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
@@ -181,7 +181,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:             clad::push(_t3, {{3U|3UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t3)) {
 // CHECK-NEXT:           case {{3U|3UL}}:
@@ -261,7 +261,7 @@ double fn3(double i, double j) {
   return res;
 }
 
-// CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn3_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
@@ -310,7 +310,7 @@ double fn3(double i, double j) {
 // CHECK-NEXT:                 }
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     while (_t0)
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {
@@ -386,7 +386,7 @@ double fn4(double i, double j) {
   return res;
 }
 
-// CHECK: void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn4_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
@@ -424,7 +424,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{3U|3UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{3U|3UL}}:
@@ -473,7 +473,7 @@ double fn5(double i, double j) {
   return res;
 }
 
-// CHECK: void fn5_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn5_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
@@ -491,7 +491,7 @@ double fn5(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{1U|1UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{1U|1UL}}:
@@ -518,7 +518,7 @@ double fn6(double u, double v) {
   return res;
 }
 
-// CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK: void fn6_pullback(double u, double v, double _d_y, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     int _d_res = 0;
 // CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     int _t0;
@@ -540,7 +540,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:             clad::push(_t2, {{1U|1UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t2)) {
 // CHECK-NEXT:           case {{1U|1UL}}:
@@ -583,7 +583,7 @@ double fn7(double u, double v) {
     return res;
 }
 
-// CHECK: void fn7_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK: void fn7_pullback(double u, double v, double _d_y, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
@@ -634,7 +634,7 @@ double fn7(double u, double v) {
 // CHECK-NEXT:             }
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     for (;; _t0--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!_t0)

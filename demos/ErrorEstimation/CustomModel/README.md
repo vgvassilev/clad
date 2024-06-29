@@ -42,13 +42,13 @@ clang++ -Xclang -add-plugin -Xclang clad -Xclang -load -Xclang CLAD_INST/lib/cla
 To verify your results, you can build the dummy `test.cpp` file with the commands shown above. Once you compile and run the test file correctly, you will notice the generated code is as follows:
 
 ```cpp
-The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+The code is: void func_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
     float _d_z = 0;
     float _t0;
     float z;
     _t0 = z;
     z = x + y;
-    _d_z += 1;
+    _d_z += _d_y0;
     {
         *_final_error += _d_z * z;
         z = _t0;

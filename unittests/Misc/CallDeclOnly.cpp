@@ -23,7 +23,7 @@ TEST(CallDeclOnly, CheckNumDiff) {
 
   // Check the generated code from grad.dump()
   std::string expected = R"(The code is: 
-void wrapper1_grad(double *params, double *_d_params) {
+void wrapper1_pullback(double *params, double _d_y, double *_d_params) {
     double _d_ix = 0;
     const double ix = 1 + params[0];
     {
@@ -33,10 +33,10 @@ void wrapper1_grad(double *params, double *_d_params) {
         double _r3 = 0;
         double _grad0[4] = {0};
         numerical_diff::central_difference(foo, _grad0, 0, 10., ix, 1., 0);
-        _r0 += 1 * _grad0[0];
-        _r1 += 1 * _grad0[1];
-        _r2 += 1 * _grad0[2];
-        _r3 += 1 * _grad0[3];
+        _r0 += _d_y * _grad0[0];
+        _r1 += _d_y * _grad0[1];
+        _r2 += _d_y * _grad0[2];
+        _r3 += _d_y * _grad0[3];
         _d_ix += _r1;
     }
     _d_params[0] += _d_ix;
@@ -70,7 +70,8 @@ namespace clad {
 namespace custom_derivatives {
 float custom_fn_darg0(float x, float y);
 
-void custom_fn_darg0_grad(float x, float y, float* d_x, float* d_y);
+void custom_fn_darg0_pullback(float x, float y, float _d_y0, float* d_x,
+                              float* d_y);
 
 float custom_fn_darg1(float x, float y) { return exp(y); }
 } // namespace custom_derivatives

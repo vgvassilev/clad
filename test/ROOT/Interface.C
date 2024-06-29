@@ -20,12 +20,10 @@ Double_t f(Double_t* x, Double_t* p) {
   return p[0] + x[0] * p[1];
 }
 
-void f_grad_1(Double_t* x, Double_t* p, Double_t *_d_p);
-
-// CHECK: void f_grad_1(Double_t *x, Double_t *p, Double_t *_d_p) {
+// CHECK: void f_pullback_1(Double_t *x, Double_t *p, Double_t _d_y, Double_t *_d_p) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d_p[0] += 1;
-// CHECK-NEXT:         _d_p[1] += x[0] * 1;
+// CHECK-NEXT:         _d_p[0] += _d_y;
+// CHECK-NEXT:         _d_p[1] += x[0] * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -34,7 +32,7 @@ int main() {
   Double_t p[] = { 2, 3 };
   Double_t result[2] = { 0 };
 
-  clad::gradient(f, "p");
+  auto df = clad::gradient(f, "p");
 
   // We create a struct of "array_ref_interface" type and store its address in
   // a void pointer. When the grad function is called this void pointer is
@@ -42,7 +40,7 @@ int main() {
   // to reinterpret_cast.
   array_ref_interface ari = array_ref_interface{result, 2};
   void *arg = &ari;
-  f_grad_1(x, p, *(Double_t **)arg);
+  df.execute(x, p, *(Double_t **)arg);
 
   printf("Result is = {%.2f, %.2f}\n", result[0], result[1]); // CHECK-EXEC: Result is = {1.00, 2.00}
 }

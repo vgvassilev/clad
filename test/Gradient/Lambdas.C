@@ -14,14 +14,14 @@ double f1(double i, double j) {
 }
 
 // CHECK:     inline void operator_call_pullback(double t, double _d_y, double *_d_t) const;
-// CHECK-NEXT:     void f1_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     void f1_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:         auto _f = []{{ ?}}(double t) {
 // CHECK-NEXT:             return t * t + 1.;
 // CHECK-NEXT:         }{{;?}}
 // CHECK:         {
-// CHECK-NEXT:             *_d_i += 1;
+// CHECK-NEXT:             *_d_i += _d_y;
 // CHECK-NEXT:             double _r0 = 0;
-// CHECK-NEXT:             _f.operator_call_pullback(j, 1, &_r0);
+// CHECK-NEXT:             _f.operator_call_pullback(j, _d_y, &_r0);
 // CHECK-NEXT:             *_d_j += _r0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
@@ -35,13 +35,13 @@ double f2(double i, double j) {
 }
 
 // CHECK:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const;
-// CHECK-NEXT:     void f2_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     void f2_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:         double _d_x = 0;
 // CHECK-NEXT:             auto _f = []{{ ?}}(double t, double k) {
 // CHECK-NEXT:                 return t + k;
 // CHECK-NEXT:             }{{;?}}
 // CHECK:             double x = operator()(i + j, i);
-// CHECK-NEXT:             _d_x += 1;
+// CHECK-NEXT:             _d_x += _d_y;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 double _r0 = 0;
 // CHECK-NEXT:                 double _r1 = 0;

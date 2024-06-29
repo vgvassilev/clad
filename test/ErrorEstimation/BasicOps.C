@@ -13,7 +13,7 @@ float func(float x, float y) {
   return z;
 }
 
-//CHECK: void func_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _d_z = 0;
@@ -22,7 +22,7 @@ float func(float x, float y) {
 //CHECK-NEXT:     _t1 = y;
 //CHECK-NEXT:     y = y + y++ + y;
 //CHECK-NEXT:     float z = y * x;
-//CHECK-NEXT:     _d_z += 1;
+//CHECK-NEXT:     _d_z += _d_y0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:         *_d_y += _d_z * x;
@@ -59,13 +59,13 @@ float func2(float x, float y) {
   return z;
 }
 
-//CHECK: void func2_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func2_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = x - y - y * y;
 //CHECK-NEXT:     float z = y / x;
-//CHECK-NEXT:     _d_z += 1;
+//CHECK-NEXT:     _d_z += _d_y0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:         *_d_y += _d_z / x;
@@ -95,7 +95,7 @@ float func3(float x, float y) {
   return t;
 }
 
-//CHECK: void func3_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func3_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float _t1;
@@ -107,7 +107,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:     _t2 = y;
 //CHECK-NEXT:     _t1 = (y = x + x);
 //CHECK-NEXT:     float t = x * z * _t1;
-//CHECK-NEXT:     _d_t += 1;
+//CHECK-NEXT:     _d_t += _d_y0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_final_error += std::abs(_d_t * t * {{.+}});
 //CHECK-NEXT:         *_final_error += std::abs(*_d_y * y * {{.+}});
@@ -138,13 +138,13 @@ float func3(float x, float y) {
 // Function call custom derivative exists but no assign expr
 float func4(float x, float y) { return std::pow(x, y); }
 
-//CHECK: void func4_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func4_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _ret_value0 = std::pow(x, y);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r0 = 0;
 //CHECK-NEXT:         float _r1 = 0;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_r0, &_r1);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(x, y, _d_y0, &_r0, &_r1);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:         *_d_y += _r1;
 //CHECK-NEXT:     }
@@ -159,15 +159,15 @@ float func5(float x, float y) {
   return y * y;
 }
 
-//CHECK: void func5_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func5_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _t0 = y;
 //CHECK-NEXT:     y = std::sin(x);
 //CHECK-NEXT:     _ret_value0 = y * y;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_y += 1 * y;
-//CHECK-NEXT:         *_d_y += y * 1;
+//CHECK-NEXT:         *_d_y += _d_y0 * y;
+//CHECK-NEXT:         *_d_y += y * _d_y0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_final_error += std::abs(*_d_y * y * {{.+}});
@@ -203,14 +203,14 @@ float func6(float x, float y) {
   return z * z;
 }
 
-//CHECK: void func6_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func6_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     float z = helper(x, y);
 //CHECK-NEXT:     _ret_value0 = z * z;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         _d_z += 1 * z;
-//CHECK-NEXT:         _d_z += z * 1;
+//CHECK-NEXT:         _d_z += _d_y0 * z;
+//CHECK-NEXT:         _d_z += z * _d_y0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0;
@@ -231,12 +231,12 @@ float func7(float x) {
   return z + z;
 }
 
-//CHECK: void func7_grad(float x, float *_d_x, double *_final_error) {
+//CHECK: void func7_pullback(float x, float _d_y, float *_d_x, double *_final_error) {
 //CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     int z = x;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         _d_z += 1;
-//CHECK-NEXT:         _d_z += 1;
+//CHECK-NEXT:         _d_z += _d_y;
+//CHECK-NEXT:         _d_z += _d_y;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     *_d_x += _d_z;
 //CHECK-NEXT:     *_final_error += std::abs(*_d_x * x * {{.+}});
@@ -261,7 +261,7 @@ float func8(float x, float y) {
   return z;
 }
 
-//CHECK: void func8_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func8_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
@@ -269,7 +269,7 @@ float func8(float x, float y) {
 //CHECK-NEXT:     _t0 = z;
 //CHECK-NEXT:     _t1 = x;
 //CHECK-NEXT:     z = y + helper2(x);
-//CHECK-NEXT:     _d_z += 1;
+//CHECK-NEXT:     _d_z += _d_y0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         z = _t0;
 //CHECK-NEXT:         float _r_d0 = _d_z;
@@ -291,7 +291,7 @@ float func9(float x, float y) {
   return z;
 }
 
-//CHECK: void func9_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func9_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     float _t1;
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float _t3;
@@ -307,7 +307,7 @@ float func9(float x, float y) {
 //CHECK-NEXT:     _t8 = y;
 //CHECK-NEXT:     _t4 = helper2(y);
 //CHECK-NEXT:     z += _t7 * _t4;
-//CHECK-NEXT:     _d_z += 1;
+//CHECK-NEXT:     _d_z += _d_y0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         z = _t3;
 //CHECK-NEXT:         float _r_d0 = _d_z;

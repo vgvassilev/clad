@@ -17,7 +17,7 @@ float func(float x, float y) {
   return x + y;
 }
 
-//CHECK: void func_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _d_temp = 0;
@@ -40,8 +40,8 @@ float func(float x, float y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _ret_value0 = x + y;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_x += 1;
-//CHECK-NEXT:         *_d_y += 1;
+//CHECK-NEXT:         *_d_x += _d_y0;
+//CHECK-NEXT:         *_d_y += _d_y0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         {
@@ -86,7 +86,7 @@ float func2(float x) {
     return x * x;
 }
 
-//CHECK: void func2_grad(float x, float *_d_x, double *_final_error) {
+//CHECK: void func2_pullback(float x, float _d_y, float *_d_x, double *_final_error) {
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _ret_value0 = 0;
@@ -104,14 +104,14 @@ float func2(float x) {
 //CHECK-NEXT:     if (_cond0)
 //CHECK-NEXT:       _label0:
 //CHECK-NEXT:         {
-//CHECK-NEXT:             *_d_x += 1;
-//CHECK-NEXT:             *_d_x += 1;
+//CHECK-NEXT:             *_d_x += _d_y;
+//CHECK-NEXT:             *_d_x += _d_y;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     else
 //CHECK-NEXT:       _label1:
 //CHECK-NEXT:         {
-//CHECK-NEXT:             *_d_x += 1 * x;
-//CHECK-NEXT:             *_d_x += x * 1;
+//CHECK-NEXT:             *_d_x += _d_y * x;
+//CHECK-NEXT:             *_d_x += x * _d_y;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_final_error += std::abs(_d_z * z * {{.+}});
@@ -124,17 +124,17 @@ float func2(float x) {
 
 float func3(float x, float y) { return x > 30 ? x * y : x + y; }
 
-//CHECK: void func3_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func3_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     _cond0 = x > 30;
 //CHECK-NEXT:     _ret_value0 = _cond0 ? x * y : x + y;
 //CHECK-NEXT:     if (_cond0) {
-//CHECK-NEXT:         *_d_x += 1 * y;
-//CHECK-NEXT:         *_d_y += x * 1;
+//CHECK-NEXT:         *_d_x += _d_y0 * y;
+//CHECK-NEXT:         *_d_y += x * _d_y0;
 //CHECK-NEXT:     } else {
-//CHECK-NEXT:         *_d_x += 1;
-//CHECK-NEXT:         *_d_y += 1;
+//CHECK-NEXT:         *_d_x += _d_y0;
+//CHECK-NEXT:         *_d_y += _d_y0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     *_final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:     *_final_error += std::abs(*_d_y * y * {{.+}});
@@ -146,7 +146,7 @@ float func4(float x, float y) {
   return y / x;
 }
 
-//CHECK: void func4_grad(float x, float y, float *_d_x, float *_d_y, double *_final_error) {
+//CHECK: void func4_pullback(float x, float y, float _d_y0, float *_d_x, float *_d_y, double *_final_error) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     float _t1;
@@ -159,8 +159,8 @@ float func4(float x, float y) {
 //CHECK-NEXT:     _cond0 ? (x += 1) : (x *= x);
 //CHECK-NEXT:     _ret_value0 = y / x;
 //CHECK-NEXT:     {
-//CHECK-NEXT:         *_d_y += 1 / x;
-//CHECK-NEXT:         float _r0 = 1 * -(y / (x * x));
+//CHECK-NEXT:         *_d_y += _d_y0 / x;
+//CHECK-NEXT:         float _r0 = _d_y0 * -(y / (x * x));
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     if (_cond0) {

@@ -346,6 +346,16 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
                      });
       DeclRefToParams.pop_back();
 
+      if (m_DiffReq.Mode == DiffMode::hessian) {
+        // Pass 1 as the middle parameter to the pullback to effectively get the
+        // gradient.
+        QualType intTy = m_Context.IntTy;
+        llvm::APInt APVal(m_Context.getIntWidth(intTy), 1);
+        Expr* one =
+            IntegerLiteral::Create(m_Context, APVal, m_Context.IntTy, noLoc);
+        DeclRefToParams.push_back(one);
+      }
+
       /// If we are differentiating a member function then create a parameter
       /// that can represent the derivative for the implicit `this` pointer. It
       /// is required because reverse mode derived function expects an explicit

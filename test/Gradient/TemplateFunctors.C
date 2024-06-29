@@ -14,13 +14,13 @@ template <typename T> struct Experiment {
   Experiment& operator=(const Experiment& E) = default;
 };
 
-// CHECK: void operator_call_grad(double i, double j, Experiment<double> *_d_this, double *_d_i, double *_d_j) {
+// CHECK: void operator_call_pullback(double i, double j, double _d_y, Experiment<double> *_d_this, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (*_d_this).x += 1 * i * i;
-// CHECK-NEXT:         *_d_i += this->x * 1 * i;
-// CHECK-NEXT:         *_d_i += this->x * i * 1;
-// CHECK-NEXT:         (*_d_this).y += 1 * j;
-// CHECK-NEXT:         *_d_j += this->y * 1;
+// CHECK-NEXT:         (*_d_this).x += _d_y * i * i;
+// CHECK-NEXT:         *_d_i += this->x * _d_y * i;
+// CHECK-NEXT:         *_d_i += this->x * i * _d_y;
+// CHECK-NEXT:         (*_d_this).y += _d_y * j;
+// CHECK-NEXT:         *_d_j += this->y * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -34,15 +34,15 @@ template <> struct Experiment<long double> {
   Experiment& operator=(const Experiment& E) = default;
 };
 
-// CHECK: void operator_call_grad(long double i, long double j, Experiment<long double>  *_d_this, long double  *_d_i, long double  *_d_j) {
+// CHECK: void operator_call_pullback(long double i, long double j, long double _d_y, Experiment<long double>  *_d_this, long double  *_d_i, long double  *_d_j) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
-// CHECK-NEXT:         *_d_i += this->x * 1 * j * i;
-// CHECK-NEXT:         *_d_i += this->x * i * 1 * j;
-// CHECK-NEXT:         *_d_j += this->x * i * i * 1;
-// CHECK-NEXT:         (*_d_this).y += 1 * i * j;
-// CHECK-NEXT:         *_d_j += this->y * 1 * i;
-// CHECK-NEXT:         *_d_i += this->y * j * 1;
+// CHECK-NEXT:         (*_d_this).x += _d_y * j * i * i;
+// CHECK-NEXT:         *_d_i += this->x * _d_y * j * i;
+// CHECK-NEXT:         *_d_i += this->x * i * _d_y * j;
+// CHECK-NEXT:         *_d_j += this->x * i * i * _d_y;
+// CHECK-NEXT:         (*_d_this).y += _d_y * i * j;
+// CHECK-NEXT:         *_d_j += this->y * _d_y * i;
+// CHECK-NEXT:         *_d_i += this->y * j * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -54,15 +54,15 @@ template <typename T> struct ExperimentConstVolatile {
   ExperimentConstVolatile& operator=(const ExperimentConstVolatile& E) = default;
 };
 
-// CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile<double> *_d_this, double *_d_i, double *_d_j) const volatile {
+// CHECK: void operator_call_pullback(double i, double j, double _d_y, volatile ExperimentConstVolatile<double> *_d_this, double *_d_i, double *_d_j) const volatile {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     _t0 = this->x * i;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (*_d_this).x += 1 * i * i;
-// CHECK-NEXT:         *_d_i += this->x * 1 * i;
-// CHECK-NEXT:         *_d_i += _t0 * 1;
-// CHECK-NEXT:         (*_d_this).y += 1 * j;
-// CHECK-NEXT:         *_d_j += this->y * 1;
+// CHECK-NEXT:         (*_d_this).x += _d_y * i * i;
+// CHECK-NEXT:         *_d_i += this->x * _d_y * i;
+// CHECK-NEXT:         *_d_i += _t0 * _d_y;
+// CHECK-NEXT:         (*_d_this).y += _d_y * j;
+// CHECK-NEXT:         *_d_j += this->y * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -76,19 +76,19 @@ template <> struct ExperimentConstVolatile<long double> {
   ExperimentConstVolatile& operator=(const ExperimentConstVolatile& E) = default;
 };
 
-// CHECK: void operator_call_grad(long double i, long double j, volatile ExperimentConstVolatile<long double> *_d_this, long double  *_d_i, long double  *_d_j) const volatile {
+// CHECK: void operator_call_pullback(long double i, long double j, long double _d_y, volatile ExperimentConstVolatile<long double> *_d_this, long double  *_d_i, long double  *_d_j) const volatile {
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t0 = this->x * i;
 // CHECK-NEXT:     _t1 = this->y * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
-// CHECK-NEXT:         *_d_i += this->x * 1 * j * i;
-// CHECK-NEXT:         *_d_i += _t0 * 1 * j;
-// CHECK-NEXT:         *_d_j += _t0 * i * 1;
-// CHECK-NEXT:         (*_d_this).y += 1 * i * j;
-// CHECK-NEXT:         *_d_j += this->y * 1 * i;
-// CHECK-NEXT:         *_d_i += _t1 * 1;
+// CHECK-NEXT:         (*_d_this).x += _d_y * j * i * i;
+// CHECK-NEXT:         *_d_i += this->x * _d_y * j * i;
+// CHECK-NEXT:         *_d_i += _t0 * _d_y * j;
+// CHECK-NEXT:         *_d_j += _t0 * i * _d_y;
+// CHECK-NEXT:         (*_d_this).y += _d_y * i * j;
+// CHECK-NEXT:         *_d_j += this->y * _d_y * i;
+// CHECK-NEXT:         *_d_i += _t1 * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
