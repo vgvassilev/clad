@@ -55,6 +55,7 @@ public:
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+  StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
   StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
   StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
