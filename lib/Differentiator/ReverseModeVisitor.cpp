@@ -118,7 +118,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   FunctionDecl*
   ReverseModeVisitor::CreateGradientOverload(unsigned numExtraParams) {
     auto gradientParams = m_Derivative->parameters();
-    std::string name = m_DiffReq.BaseFunctionName + funcPostfix();
+    std::string name =
+        m_DiffReq.BaseFunctionName + "_grad" + diffParamsPostfix(m_DiffReq);
     IdentifierInfo* II = &m_Context.Idents.get(name);
     DeclarationNameInfo DNI(II, noLoc);
     // Calculate the total number of parameters that would be required for
@@ -303,28 +304,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     auto derivativeBaseName = request.BaseFunctionName;
-    std::string gradientName = derivativeBaseName + "_pullback";
-    // To be consistent with older tests, nothing is appended to 'f_grad' if
-    // we differentiate w.r.t. all the parameters at once.
-    if (request.Mode == DiffMode::jacobian) {
-      gradientName = derivativeBaseName + "_jac";
-      // If Jacobian is asked, the last parameter is the result parameter
-      // and should be ignored
-      if (args.size() != FD->getNumParams()-1){
-        for (const auto* arg : args) {
-          const auto* const it =
-              std::find(FD->param_begin(), FD->param_end() - 1, arg);
-          auto idx = std::distance(FD->param_begin(), it);
-          gradientName += ('_' + std::to_string(idx));
-        }
-      }
-    } else if (args.size() != FD->getNumParams()) {
-      for (const auto* arg : args) {
-        const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
-        auto idx = std::distance(FD->param_begin(), it);
-        gradientName += ('_' + std::to_string(idx));
-      }
-    }
+    std::string gradientName = derivativeBaseName + funcPostfix(m_DiffReq);
 
     IdentifierInfo* II = &m_Context.Idents.get(gradientName);
     DeclarationNameInfo name(II, noLoc);
@@ -508,8 +488,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(request, args);
 
-    auto derivativeName =
-        utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
+    auto derivativeName = utils::ComputeEffectiveFnName(m_DiffReq.Function) +
+                          funcPostfix(m_DiffReq);
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);
