@@ -419,17 +419,13 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       result = V.DerivePushforward(FD, request);
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this, request);
-      if (request.CallUpdateRequired) {
-        result = V.Derive(FD, request);
-      } else {
-        if (!m_ErrorEstHandler.empty()) {
-          InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
-          V.AddExternalSource(*m_ErrorEstHandler.back());
-        }
-        result = V.DerivePullback(FD, request);
-        if (!m_ErrorEstHandler.empty())
-          CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
+      if (!request.CallUpdateRequired && !m_ErrorEstHandler.empty()) {
+        InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
+        V.AddExternalSource(*m_ErrorEstHandler.back());
       }
+      result = V.Derive(FD, request);
+      if (!request.CallUpdateRequired && !m_ErrorEstHandler.empty())
+        CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);
       result = V.Derive(FD, request);

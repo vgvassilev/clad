@@ -385,8 +385,6 @@ namespace clad {
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
     DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
                                  const DiffRequest& request);
-    DerivativeAndOverload DerivePullback(const clang::FunctionDecl* FD,
-                                         const DiffRequest& request);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
