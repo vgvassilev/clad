@@ -4,6 +4,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
+#include <string>
 
 double f_x(double x) {
   double t0 = x;
@@ -86,12 +87,44 @@ double f_sin(double x, double y) {
 // CHECK-NEXT:     return _d_xt + _d_yt;
 // CHECK-NEXT: }
 
+double f_string(double x) {
+  const char *s = "string literal";
+  return x;
+}
+
+// CHECK: double f_string_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     const char *_d_s = "";
+// CHECK-NEXT:     const char *s = "string literal";
+// CHECK-NEXT:     return _d_x;
+// CHECK-NEXT: }
+
+namespace clad {
+namespace custom_derivatives {
+clad::ValueAndPushforward<double, double> string_test_pushforward(double x, const char s[], double _d_x, const char *_d_s) {
+    return {0, 0};
+}
+}}
+double string_test(double x, const char s[]) {
+    return 1;
+}
+double f_string_call(double x) {
+  return string_test(x, "string literal");
+}
+
+// CHECK: double f_string_call_darg0(double x) {
+// CHECK-NEXT:         double _d_x = 1;
+// CHECK-NEXT:         clad::ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::string_test_pushforward(x, "string literal", _d_x, "");
+// CHECK-NEXT:         return _t0.pushforward;
+// CHECK-NEXT:     }
 
 int main() {
   clad::differentiate(f_x, 0);
   clad::differentiate(f_ops1, 0);
   clad::differentiate(f_ops2, 0);
   clad::differentiate(f_sin, 0);
+  clad::differentiate(f_string, 0);
+  clad::differentiate(f_string_call, 0);
 }
 
 
