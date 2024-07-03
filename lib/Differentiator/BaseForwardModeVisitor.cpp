@@ -1662,10 +1662,9 @@ BaseForwardModeVisitor::VisitCharacterLiteral(const CharacterLiteral* CL) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitStringLiteral(const StringLiteral* SL) {
-  llvm::APInt zero(m_Context.getIntWidth(m_Context.IntTy), /*value*/ 0);
-  auto* constant0 =
-      IntegerLiteral::Create(m_Context, zero, m_Context.IntTy, noLoc);
-  return StmtDiff(Clone(SL), constant0);
+  return StmtDiff(Clone(SL), StringLiteral::Create(
+                                 m_Context, "", SL->getKind(), SL->isPascal(),
+                                 SL->getType(), utils::GetValidSLoc(m_Sema)));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
