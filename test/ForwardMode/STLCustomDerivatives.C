@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out | %filecheck %s
-// RUN: ./UserDefinedTypes.out | %filecheck_exec %s
+// RUN: %cladclang %s -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
+// RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
