@@ -1,5 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "TBRAnalyzer.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
@@ -557,6 +559,29 @@ namespace clad {
                     "Failed to parse the parameters, must be a string or "
                     "numeric literal");
     return;
+  }
+
+  bool DiffRequest::shouldBeRecorded(Expr* E) const {
+    assert(EnableTBRAnalysis && "TBR not enabled!");
+
+    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
+        !isa<MemberExpr>(E))
+      return true;
+
+    // FIXME: currently, we allow all pointer operations to be stored.
+    // This is not correct, but we need to implement a more advanced analysis
+    // to determine which pointer operations are useful to store.
+    if (E->getType()->isPointerType())
+      return true;
+
+    if (!m_TbrRunInfo.HasAnalysisRun) {
+      TBRAnalyzer analyzer(Function->getASTContext(),
+                           m_TbrRunInfo.ToBeRecorded);
+      analyzer.Analyze(Function);
+      m_TbrRunInfo.HasAnalysisRun = true;
+    }
+    auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
+    return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
