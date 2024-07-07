@@ -224,7 +224,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
   enum Mode { kMarkingMode = 1, kNonLinearMode = 2 };
   /// Tells if the variable at a given location is required to store. Basically,
   /// is the result of analysis.
-  std::set<clang::SourceLocation> m_TBRLocs;
+  std::set<clang::SourceLocation>& m_TBRLocs;
 
   /// Stores modes in a stack (used to retrieve the old mode after entering
   /// a new one).
@@ -287,7 +287,8 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
 
 public:
   /// Constructor
-  TBRAnalyzer(ASTContext& Context) : m_Context(Context) {
+  TBRAnalyzer(ASTContext& Context, std::set<clang::SourceLocation>& Locs)
+      : m_TBRLocs(Locs), m_Context(Context) {
     m_ModeStack.push_back(0);
   }
 
@@ -299,9 +300,6 @@ public:
   TBRAnalyzer& operator=(const TBRAnalyzer&) = delete;
   TBRAnalyzer(const TBRAnalyzer&&) = delete;
   TBRAnalyzer& operator=(const TBRAnalyzer&&) = delete;
-
-  /// Returns the result of the whole analysis
-  std::set<clang::SourceLocation> getResult() { return m_TBRLocs; }
 
   /// Visitors
   void Analyze(const clang::FunctionDecl* FD);

@@ -8,21 +8,30 @@
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
 namespace clang {
-  class ASTContext;
-  class CallExpr;
-  class CompilerInstance;
-  class DeclGroupRef;
-  class Expr;
-  class FunctionDecl;
-  class ParmVarDecl;
-  class Sema;
-  class Type;
+class CallExpr;
+class CompilerInstance;
+class DeclGroupRef;
+class Expr;
+class FunctionDecl;
+class ParmVarDecl;
+class Sema;
+class Type;
 } // namespace clang
 
 namespace clad {
 
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
+private:
+  /// Based on To-Be-Recorded analysis performed before differentiation, tells
+  /// UsefulToStoreGlobal whether a variable with a given SourceLocation has to
+  /// be stored before being changed or not.
+  mutable struct TbrRunInfo {
+    std::set<clang::SourceLocation> ToBeRecorded;
+    bool HasAnalysisRun = false;
+  } m_TbrRunInfo;
+
+public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
   /// Name of the base function to be differentiated. Can be different from
@@ -118,6 +127,8 @@ struct DiffRequest {
       res += "__TBR";
     return res;
   }
+
+  bool shouldBeRecorded(clang::Expr* E) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;

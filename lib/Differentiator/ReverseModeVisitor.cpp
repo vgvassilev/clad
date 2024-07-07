@@ -475,12 +475,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   DerivativeAndOverload
   ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
                                      const DiffRequest& request) {
-    if (request.EnableTBRAnalysis) {
-      TBRAnalyzer analyzer(m_Context);
-      analyzer.Analyze(FD);
-      m_ToBeRecorded = analyzer.getResult();
-    }
-
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
@@ -603,12 +597,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
-    if (m_DiffReq.EnableTBRAnalysis) {
-      TBRAnalyzer analyzer(m_Context);
-      analyzer.Analyze(m_DiffReq.Function);
-      m_ToBeRecorded = analyzer.getResult();
-    }
-
     llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
 
     // create derived variables for parameters which are not part of
@@ -3065,27 +3053,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         return UsefulToStoreGlobal(UO->getSubExpr());
       return true;
     }
-    // We lack context to decide if this is useful to store or not. In the
-    // current system that should have been decided by the parent expression.
-    // FIXME: Here will be the entry point of the advanced activity analysis.
-    if (isa<DeclRefExpr>(B) || isa<ArraySubscriptExpr>(B) ||
-        isa<MemberExpr>(B)) {
-      // If TBR analysis is off, assume E is useful to store.
-      if (!m_DiffReq.EnableTBRAnalysis)
-        return true;
-      // FIXME: currently, we allow all pointer operations to be stored.
-      // This is not correct, but we need to implement a more advanced analysis
-      // to determine which pointer operations are useful to store.
-      if (E->getType()->isPointerType())
-        return true;
-      auto found = m_ToBeRecorded.find(B->getBeginLoc());
-      return found != m_ToBeRecorded.end();
-    }
 
     // FIXME: Attach checkpointing.
     if (isa<CallExpr>(B))
       return false;
 
+    // FIXME: Here will be the entry point of the advanced activity analysis.
+
+    // Check if the expression was marked as to-be recorded by an analysis.
+    if (m_DiffReq.EnableTBRAnalysis)
+      return m_DiffReq.shouldBeRecorded(B);
+
+    // Assume E is useful to store.
     return true;
   }
 
