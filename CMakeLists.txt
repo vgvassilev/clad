@@ -324,28 +324,34 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
   add_subdirectory(demos/ErrorEstimation/CustomModel)
   add_subdirectory(demos/ErrorEstimation/PrintModel)
 
-  # Change the default compiler to the clang which we run clad upon. Our unittests
-  # need to use a supported by clad compiler. Note that's a huge hack and it is
-  # not guaranteed to work with cmake.
-  set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
-  set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
+  if (NOT CLAD_DISABLE_TESTS OR CLAD_ENABLE_BENCHMARKS)
+    # Change the default compiler to the clang which we run clad upon. Our unittests
+    # need to use a supported by clad compiler. Note that's a huge hack and it is
+    # not guaranteed to work with cmake.
+    set(stored_cxx_compiler ${CMAKE_CXX_COMPILER})
+    set(stored_cxx_flags ${CMAKE_CXX_FLAGS})
 
-  set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
-  # Filter some unsupported flags by clang.
-  string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wno-class-memaccess" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)
+    # Filter some unsupported flags by clang.
+    string(REPLACE "-fno-lifetime-dse" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "-Wno-class-memaccess" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  endif()
 
-  add_subdirectory(unittests)
-  add_subdirectory(test)
+  if (NOT CLAD_DISABLE_TESTS)
+    add_subdirectory(unittests)
+    add_subdirectory(test)
+  endif()
 
   # Add benchmarking infrastructure.
   if (CLAD_ENABLE_BENCHMARKS)
     add_subdirectory(benchmark)
   endif(CLAD_ENABLE_BENCHMARKS)
 
-  # Restore the default compiler.
-  set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
-  set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
+  if (stored_cxx_compiler)
+    # Restore the default compiler.
+    set(CMAKE_CXX_COMPILER ${stored_cxx_compiler})
+    set(CMAKE_CXX_FLAGS ${stored_cxx_flags})
+  endif()
 endif()
 
 # Workaround for MSVS10 to avoid the Dialog Hell
