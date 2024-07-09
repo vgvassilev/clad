@@ -2012,17 +2012,17 @@ BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
   // forward mode derived constructor that would require same arguments as of
   // a pushforward function, that is, `{a, 1, b, _d_a, 0., _d_b}`.
   if (CE->getNumArgs() != 1) {
-    if (CE->isListInitialization()) {
-      clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
-      derivedArgsE = m_Sema.ActOnInitList(noLoc, derivedArgs, noLoc).get();
-    } else if (CE->getNumArgs() == 0) {
+    if (CE->getNumArgs() == 0 && !CE->isListInitialization()) {
       // ParenList is empty -- default initialisation.
       // Passing empty parenList here will silently cause 'most vexing
       // parse' issue.
       return StmtDiff();
     } else {
-      clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
-      derivedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, derivedArgs).get();
+      // Rely on the initializer list expressions as they seem to be more
+      // flexible in terms of conversions and other similar scenarios where a
+      // constructor is called implicitly.
+      clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
+      derivedArgsE = m_Sema.ActOnInitList(noLoc, derivedArgs, noLoc).get();
     }
   } else {
     clonedArgsE = clonedArgs[0];

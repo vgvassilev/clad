@@ -154,8 +154,8 @@ int main() {
   // CHECK: double fn_s1_mem_fn_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
-  // CHECK-NEXT:     SimpleFunctions1 _d_obj(0, 0);
-  // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
+  // CHECK-NEXT:     SimpleFunctions1 _d_obj({0, 0});
+  // CHECK-NEXT:     SimpleFunctions1 obj({2, 3});
   // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = obj.mem_fn_1_pushforward(i, j, &_d_obj, _d_i, _d_j);
   // CHECK-NEXT:     return _t0.pushforward + _d_i * j + i * _d_j;
   // CHECK-NEXT: }
@@ -163,8 +163,8 @@ int main() {
   // CHECK: double fn_s1_field_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
-  // CHECK-NEXT:     SimpleFunctions1 _d_obj(0, 0);
-  // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
+  // CHECK-NEXT:     SimpleFunctions1 _d_obj({0, 0});
+  // CHECK-NEXT:     SimpleFunctions1 obj({2, 3});
   // CHECK-NEXT:     double &_t0 = obj.x;
   // CHECK-NEXT:     double &_t1 = obj.y;
   // CHECK-NEXT:     return _d_obj.x * _t1 + _t0 * 0. + _d_i * j + i * _d_j;
@@ -175,10 +175,10 @@ int main() {
   // CHECK: double fn_s1_operator_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_j = 0;
-  // CHECK-NEXT:     SimpleFunctions1 _d_obj1(0, 0);
-  // CHECK-NEXT:     SimpleFunctions1 obj1(2, 3);
-  // CHECK-NEXT:     SimpleFunctions1 _d_obj2(0, 0);
-  // CHECK-NEXT:     SimpleFunctions1 obj2(3, 5);
+  // CHECK-NEXT:     SimpleFunctions1 _d_obj1({0, 0});
+  // CHECK-NEXT:     SimpleFunctions1 obj1({2, 3});
+  // CHECK-NEXT:     SimpleFunctions1 _d_obj2({0, 0});
+  // CHECK-NEXT:     SimpleFunctions1 obj2({3, 5});
   // CHECK-NEXT:     clad::ValueAndPushforward<SimpleFunctions1, SimpleFunctions1> _t0 = obj1.operator_plus_pushforward(obj2, &_d_obj1, _d_obj2);
   // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = _t0.value.mem_fn_1_pushforward(i, j, &_t0.pushforward, _d_i, _d_j);
   // CHECK-NEXT:     return _t1.pushforward;
