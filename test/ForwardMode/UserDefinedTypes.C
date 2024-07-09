@@ -30,8 +30,8 @@ std::pair<double, double> fn1(double i, double j) {
 // CHECK: std::pair<double, double> fn1_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     std::pair<double, double> _d_c(0, 0), _d_d({0., 0.});
-// CHECK-NEXT:     std::pair<double, double> c(3, 5), d({7., 9.});
+// CHECK-NEXT:     std::pair<double, double> _d_c({0, 0}), _d_d({0., 0.});
+// CHECK-NEXT:     std::pair<double, double> c({3, 5}), d({7., 9.});
 // CHECK-NEXT:     std::pair<double, double> _d_e = _d_d;
 // CHECK-NEXT:     std::pair<double, double> e = d;
 // CHECK-NEXT:     _d_c.first += _d_i;
@@ -498,8 +498,8 @@ complexD fn8(double i, TensorD5 t) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     TensorD5 _d_t;
 // CHECK-NEXT:     t.updateTo_pushforward(i * i, & _d_t, _d_i * i + i * _d_i);
-// CHECK-NEXT:     complexD _d_c(0., 0.);
-// CHECK-NEXT:     complexD c(0., 0.);
+// CHECK-NEXT:     complexD _d_c({0., 0.});
+// CHECK-NEXT:     complexD c({0., 0.});
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = t.sum_pushforward(& _d_t);
 // CHECK-NEXT:     double &_t1 = _t0.value;
 // CHECK-NEXT:     c.real_pushforward(7 * _t1, &_d_c, 0 * _t1 + 7 * _t0.pushforward);
@@ -525,8 +525,8 @@ complexD fn9(double i, complexD c) {
 // CHECK: complexD fn9_darg0(double i, complexD c) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     complexD _d_c;
-// CHECK-NEXT:     complexD _d_r(0., 0.);
-// CHECK-NEXT:     complexD r(0., 0.);
+// CHECK-NEXT:     complexD _d_r({0., 0.});
+// CHECK-NEXT:     complexD r({0., 0.});
 // CHECK-NEXT:     c.real_pushforward(i * i, &_d_c, _d_i * i + i * _d_i);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = c.real_pushforward(&_d_c);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = c.real_pushforward(&_d_c);
@@ -558,8 +558,8 @@ std::complex<double> fn10(double i, double j) {
 // CHECK: std::complex<double> fn10_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     std::complex<double> _d_c1(0., 0.), _d_c2(0., 0.);
-// CHECK-NEXT:     std::complex<double> c1(0., 0.), c2(0., 0.);
+// CHECK-NEXT:     std::complex<double> _d_c1({0., 0.}), _d_c2({0., 0.});
+// CHECK-NEXT:     std::complex<double> c1({0., 0.}), c2({0., 0.});
 // CHECK-NEXT:     c1.real_pushforward(2 * i, &_d_c1, 0 * i + 2 * _d_i);
 // CHECK-NEXT:     c1.imag_pushforward(5 * i, &_d_c1, 0 * i + 5 * _d_i);
 // CHECK-NEXT:     c2.real_pushforward(5 * i, &_d_c2, 0 * i + 5 * _d_i);
