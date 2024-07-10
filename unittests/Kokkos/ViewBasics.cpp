@@ -4,12 +4,11 @@
 // it has been modified to match gtest guidelines and improve readability
 
 #include "ParallelAdd.h"
-#include "TestUtils.h"
 #include <Kokkos_Core.hpp>
 #include "clad/Differentiator/Differentiator.h"
 #include "gtest/gtest.h"
 
-double f(double x, double y) {
+double f_basics(double x, double y) {
   const int N = 2;
 
   Kokkos::View<double* [N], Kokkos::HostSpace> a("a", N);
@@ -27,10 +26,10 @@ TEST(ViewBasics, TestAccessForward) {
   // const double tau = 1e-6; // tolerance
 
   // // TODO: uncomment this once it has been implemented
-  // auto f_x = clad::differentiate(f, "x");
+  // auto f_x = clad::differentiate(f_basics, "x");
   // for (double y = 3; y <= 5; y += 1) {
-  //   std::function<double(double)> f_tmp = [y](double t){ return f(t, y); };
-  //   for (double x = 3; x <= 5; x += 1) {
+  //   std::function<double(double)> f_tmp = [y](double t){ return f_basics(t,
+  //   y); }; for (double x = 3; x <= 5; x += 1) {
   //     double f_x_ex = f_x.execute(x, y);
   //     double dx_f_FD = finite_difference_tangent(f_tmp, x, eps);
   //     EXPECT_NEAR(f_x_ex, dx_f_FD, abs(tau*dx_f_FD));
@@ -44,10 +43,10 @@ TEST(ViewBasics, TestAccessReverse) {
   // const double tau = 1e-6; // tolerance
 
   // // TODO: uncomment this once it has been implemented
-  // auto f_grad_exe = clad::gradient(f);
+  // auto f_grad_exe = clad::gradient(f_basics);
   // for (double y = 3; y <= 5; y += 1) {
-  //   std::function<double(double)> f_tmp = [y](double t){ return f(t, y); };
-  //   for (double x = 3; x <= 5; x += 1) {
+  //   std::function<double(double)> f_tmp = [y](double t){ return f_basics(t,
+  //   y); }; for (double x = 3; x <= 5; x += 1) {
   //     double dx_f_FD = finite_difference_tangent(f_tmp, x, eps);
   //     double dx, dy;
   //     f_grad_exe.execute(x, y, &dx, &dy);
@@ -56,7 +55,7 @@ TEST(ViewBasics, TestAccessReverse) {
   // }
 }
 
-double f_2(double x, double y) {
+double f_basics_deep_copy(double x, double y) {
   const int N = 2;
 
   Kokkos::View<double* [4], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", N);
@@ -77,10 +76,11 @@ TEST(ViewBasics, TestDeepCopyForward) {
   // const double tau = 1e-6; // tolerance
 
   // // TODO: uncomment this once it has been implemented
-  // auto f_x = clad::differentiate(f_2, "x");
+  // auto f_x = clad::differentiate(f_basics_deep_copy, "x");
   // for (double y = 3; y <= 5; y += 1) {
-  //   std::function<double(double)> f_tmp = [y](double t){ return f_2(t, y); };
-  //   for (double x = 3; x <= 5; x += 1) {
+  //   std::function<double(double)> f_tmp = [y](double t){ return
+  //   f_basics_deep_copy(t, y);
+  //   }; for (double x = 3; x <= 5; x += 1) {
   //     double f_x_ex = f_x.execute(x, y);
   //     double dx_f_FD = finite_difference_tangent(f_tmp, x, eps);
   //     EXPECT_NEAR(f_x_ex, dx_f_FD, abs(tau*dx_f_FD));
@@ -94,10 +94,11 @@ TEST(ViewBasics, TestDeepCopyReverse) {
   // const double tau = 1e-6; // tolerance
 
   // // TODO: uncomment this once it has been implemented
-  // auto f_grad_exe = clad::gradient(f_2);
+  // auto f_grad_exe = clad::gradient(f_basics_deep_copy);
   // for (double y = 3; y <= 5; y += 1) {
-  //   std::function<double(double)> f_tmp = [y](double t){ return f_2(t, y); };
-  //   for (double x = 3; x <= 5; x += 1) {
+  //   std::function<double(double)> f_tmp = [y](double t){ return
+  //   f_basics_deep_copy(t, y);
+  //   }; for (double x = 3; x <= 5; x += 1) {
   //     double dx_f_FD = finite_difference_tangent(f_tmp, x, eps);
   //     double dx, dy;
   //     f_grad_exe.execute(x, y, &dx, &dy);
@@ -106,7 +107,7 @@ TEST(ViewBasics, TestDeepCopyReverse) {
   // }
 }
 
-double f_3(double x, double y) {
+double f_basics_deep_copy_2(double x, double y) {
   const int N = 2;
 
   Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", N);
@@ -130,10 +131,11 @@ TEST(ViewBasics, TestDeepCopy2Forward) {
   // const double tau = 1e-6; // tolerance
 
   // // TODO: uncomment this once it has been implemented
-  // auto f_y = clad::differentiate(f_3, "y");
+  // auto f_y = clad::differentiate(f_basics_deep_copy_2, "y");
   // for (double x = 3; x <= 5; x += 1) {
-  //   std::function<double(double)> f_tmp = [x](double t){ return f_3(x, t); };
-  //   for (double y = 3; y <= 5; y += 1) {
+  //   std::function<double(double)> f_tmp = [x](double t){ return
+  //   f_basics_deep_copy_2(x, t);
+  //   }; for (double y = 3; y <= 5; y += 1) {
   //     double f_y_ex = f_y.execute(x, y);
   //     double dy_f_FD = finite_difference_tangent(f_tmp, y, eps);
   //     EXPECT_NEAR(f_y_ex, dy_f_FD, abs(tau*dy_f_FD));
@@ -147,10 +149,11 @@ TEST(ViewBasics, TestDeepCopy2Reverse) {
   // const double tau = 1e-6; // tolerance
 
   // // TODO: uncomment this once it has been implemented
-  // auto f_grad_exe = clad::gradient(f_3);
+  // auto f_grad_exe = clad::gradient(f_basics_deep_copy_2);
   // for (double x = 3; x <= 5; x += 1) {
-  //   std::function<double(double)> f_tmp = [x](double t){ return f_3(x, t); };
-  //   for (double y = 3; y <= 5; y += 1) {
+  //   std::function<double(double)> f_tmp = [x](double t){ return
+  //   f_basics_deep_copy_2(x, t);
+  //   }; for (double y = 3; y <= 5; y += 1) {
   //     double dy_f_FD = finite_difference_tangent(f_tmp, y, eps);
   //     double dx, dy;
   //     f_grad_exe.execute(x, y, &dx, &dy);
