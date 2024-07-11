@@ -1005,8 +1005,11 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   }
   // Is not a variable or is a reference to something unrelated to independent
   // variable. Derivative is 0.
-  auto zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-  return StmtDiff(clonedDRE, zero);
+  // If DRE is of type pointer, then the derivative is a null pointer.
+  if (clonedDRE->getType()->isPointerType())
+    return StmtDiff(clonedDRE, nullptr);
+  return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
+                                 m_Context.IntTy, m_Context, /*val=*/0));
 }
 
 StmtDiff BaseForwardModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
@@ -1315,7 +1318,10 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
            opKind == UnaryOperatorKind::UO_Imag) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
-    return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
+    if (Expr* dx = diff.getExpr_dx())
+      return StmtDiff(op, BuildOp(opKind, dx));
+    return StmtDiff(op, ConstantFolder::synthesizeLiteral(
+                            m_Context.IntTy, m_Context, /*val=*/0));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else if (opKind == UnaryOperatorKind::UO_LNot) {
