@@ -2108,7 +2108,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           addToCurrentBlock(add_assign, direction::reverse);
         }
       }
-      return {cloneE, derivedE};
+      return {cloneE, derivedE, derivedE};
     } else {
       if (opCode != UO_LNot)
         // We should only output warnings on visiting boolean conditions
