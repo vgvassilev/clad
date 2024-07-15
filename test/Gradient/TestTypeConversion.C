@@ -50,15 +50,6 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-#define TEST(F, x, y)                                                 \
-  {                                                                   \
-    result_0 = 0;                                                     \
-    result_1 = 0;                                                     \
-    clad::gradient(F);                                                \
-    F##_grad(x, y, &result_0, &result_1);                             \
-    printf("Result is = {%.2f, %.2f}\n", result_0, (float)result_1);  \
-  }
-
 int main() {
   float result_0;
   int result_1;
