@@ -1460,13 +1460,13 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
     // including it as a Stmt_dx. Moreover, the fact that Stmt_dx is left
     // nullptr is used for treating expressions like ((A && B) && C) correctly.
     return StmtDiff(opDiff, nullptr);
-  }
-  if (!opDiff) {
+  } else {
     // FIXME: add support for other binary operators
     unsupportedOpWarn(BinOp->getEndLoc());
     opDiff = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
   }
-  opDiff = folder.fold(opDiff);
+  if (opDiff)
+    opDiff = folder.fold(opDiff);
   // Recover the original operation from the Ldiff and Rdiff instead of
   // cloning the tree.
   Expr* op;
@@ -1499,11 +1499,19 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
   // This may not necessarily be true in the future.
   VarDecl* VDClone =
       BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
-                   VD->isDirectInit(), nullptr, VD->getInitStyle());
+                   VD->isDirectInit(), /*TSI=*/nullptr, VD->getInitStyle());
   // FIXME: Create unique identifier for derivative.
-  VarDecl* VDDerived = BuildVarDecl(
-      VD->getType(), "_d_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-      VD->isDirectInit(), nullptr, VD->getInitStyle());
+  Expr* initDx = initDiff.getExpr_dx();
+  if (VD->getType()->isPointerType() && !initDx) {
+    // initialize with nullptr.
+    // NOLINTBEGIN(cppcoreguidelines-owned-memory)
+    initDx =
+        new (m_Context) CXXNullPtrLiteralExpr(VD->getType(), VD->getBeginLoc());
+    // NOLINTEND(cppcoreguidelines-owned-memory)
+  }
+  VarDecl* VDDerived =
+      BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(), initDx,
+                   VD->isDirectInit(), /*TSI=*/nullptr, VD->getInitStyle());
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }

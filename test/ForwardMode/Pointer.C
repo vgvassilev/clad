@@ -203,6 +203,16 @@ double fn9(double* params, const double *constants) {
 // CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
 // CHECK-NEXT: }
 
+double fn10(double *params, const double *constants) {
+  double c0 = *(constants + 0);
+  return params[0] * c0;
+}
+
+// CHECK: double fn10_darg0_0(double *params, const double *constants) {
+// CHECK-NEXT:     double _d_c0 = 0;
+// CHECK-NEXT:     double c0 = *(constants + 0);
+// CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
+// CHECK-NEXT: }
 
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
@@ -229,6 +239,10 @@ int main() {
   double constants[] = {5.0};
   auto fn9_dx = clad::differentiate(fn9, "params[0]");
   d_param = fn9_dx.execute(params, constants);
+  printf("{%.2f}\n", d_param); // CHECK-EXEC: {5.00}
+
+  auto fn10_dx = clad::differentiate(fn10, "params[0]");
+  d_param = fn10_dx.execute(params, constants);
   printf("{%.2f}\n", d_param); // CHECK-EXEC: {5.00}
 }
 

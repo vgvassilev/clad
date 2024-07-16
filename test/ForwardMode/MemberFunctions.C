@@ -719,7 +719,7 @@ public:
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       SimpleFunctions _d_this_obj;
   // CHECK-NEXT:       SimpleFunctions *_d_this = &_d_this_obj;
-  // CHECK-NEXT:       double *_d_p;
+  // CHECK-NEXT:       double *_d_p = nullptr;
   // CHECK-NEXT:       double *p;
   // CHECK-NEXT:       _d_p = _d_this->arr[1];
   // CHECK-NEXT:       p = this->arr[1];
