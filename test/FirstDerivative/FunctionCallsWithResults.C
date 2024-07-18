@@ -165,7 +165,7 @@ double fn4(double i, double j) {
 // CHECK: double fn4_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
-// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = nonRealParamFn(0, 0);
 // CHECK-NEXT:     _d_res += _d_i;
 // CHECK-NEXT:     res += i;
@@ -266,7 +266,7 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward, 0);
 // CHECK-NEXT:     double &_t2 = _t1.value;
 // CHECK-NEXT:     double _t3 = std::tanh(1.);
-// CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0.;
+// CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0;
 // CHECK-NEXT: }
 
 double g (double x) { return x; }
