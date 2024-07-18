@@ -658,6 +658,22 @@ namespace clad {
              isa<GNUNullExpr>(E);
     }
 
+    bool IsZeroOrNullValue(const clang::Expr* E) {
+      if (!E)
+        return true;
+      if (const auto* ICE = dyn_cast<ImplicitCastExpr>(E))
+        return IsZeroOrNullValue(ICE->getSubExpr());
+      if (isa<CXXNullPtrLiteralExpr>(E))
+        return true;
+      if (const auto* FL = dyn_cast<FloatingLiteral>(E))
+        return FL->getValue().isZero();
+      if (const auto* IL = dyn_cast<IntegerLiteral>(E))
+        return IL->getValue() == 0;
+      if (const auto* SL = dyn_cast<StringLiteral>(E))
+        return SL->getLength() == 0;
+      return false;
+    }
+
     bool IsMemoryFunction(const clang::FunctionDecl* FD) {
 
 #if CLANG_VERSION_MAJOR > 12

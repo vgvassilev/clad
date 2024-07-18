@@ -317,6 +317,7 @@ namespace clad {
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsLiteral(const clang::Expr* E);
+    bool IsZeroOrNullValue(const clang::Expr* E);
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);

@@ -385,7 +385,7 @@ int main () {
 
 // CHECK: clad::ValueAndPushforward<double, double> fn6_pushforward(double i, double j, double k, double _d_i, double _d_j, double _d_k) {
 // CHECK-NEXT:     if (i < 0.5)
-// CHECK-NEXT:         return {0, 0};
+// CHECK-NEXT:         return {(double)0, (double)0};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = fn6_pushforward(i - 1, j - 1, k - 1, _d_i - 0, _d_j - 0, _d_k - 0);
 // CHECK-NEXT:     return {i + j + k + _t0.value, _d_i + _d_j + _d_k + _t0.pushforward};
 // CHECK-NEXT: }
@@ -420,7 +420,7 @@ int main () {
 // CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c) {
 // CHECK-NEXT:   if (c == 'a')
 // CHECK-NEXT:     return {x, _d_x};
-// CHECK-NEXT:   return {1, 0};
+// CHECK-NEXT:   return {(double)1, (double)0};
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<double, double> g_pushforward(double x, double _d_x) {

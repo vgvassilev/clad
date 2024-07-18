@@ -107,7 +107,7 @@ int main () {
 
   // CHECK: clad::ValueAndPushforward<double, double> someFn_pushforward(double &i, double &j, double &_d_i, double &_d_j) {
   // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = someFn_1_pushforward(i, j, _d_i, _d_j);
-  // CHECK-NEXT:     return {3, 0};
+  // CHECK-NEXT:     return {(double)3, (double)0};
   // CHECK-NEXT: }
 
   // CHECK: clad::ValueAndPushforward<int, int> func4_pushforward(int x, int y, int _d_x, int _d_y) {
@@ -118,13 +118,13 @@ int main () {
 
   // CHECK: clad::ValueAndPushforward<double, double> someFn_1_pushforward(double &i, double j, double &_d_i, double _d_j) {
   // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = someFn_1_pushforward(i, j, j, _d_i, _d_j, _d_j);
-  // CHECK-NEXT:     return {2, 0};
+  // CHECK-NEXT:     return {(double)2, (double)0};
   // CHECK-NEXT: }
 
   // CHECK: clad::ValueAndPushforward<double, double> someFn_1_pushforward(double &i, double j, double k, double &_d_i, double _d_j, double _d_k) {
   // CHECK-NEXT:     _d_i = _d_j;
   // CHECK-NEXT:     i = j;
-  // CHECK-NEXT:     return {1, 0};
+  // CHECK-NEXT:     return {(double)1, (double)0};
   // CHECK-NEXT: }
 
   return 0;
