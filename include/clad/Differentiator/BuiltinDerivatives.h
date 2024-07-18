@@ -20,6 +20,14 @@ namespace clad {
 template <typename T, typename U> struct ValueAndPushforward {
   T value;
   U pushforward;
+
+  // Define the cast operator from ValueAndPushforward<T, U> to
+  // ValueAndPushforward<V, w> where V is convertible to T and W is
+  // convertible to U.
+  template <typename V = T, typename W = U>
+  operator ValueAndPushforward<V, W>() const {
+    return {static_cast<V>(value), static_cast<W>(pushforward)};
+  }
 };
 
 /// It is used to identify constructor custom pushforwards. For

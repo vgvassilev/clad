@@ -1071,7 +1071,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // Returning the function call and zero derivative
     return StmtDiff(Call, zero);
   }
-
   // Find the built-in derivatives namespace.
   std::string s = std::to_string(m_DerivativeOrder);
   if (m_DerivativeOrder == 1)
@@ -1200,19 +1199,17 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // FIXME: revert this when this is integrated in the activity analysis pass.
   if (!callDiff) {
     if (!isa<CXXOperatorCallExpr>(CE) && !isa<CXXMemberCallExpr>(CE)) {
-      bool allArgsAreConstantLiterals = true;
+      bool allArgsHaveZeroDerivatives = true;
       for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i) {
-        const Expr* arg = CE->getArg(i);
-        // if it's of type MaterializeTemporaryExpr, then check its
-        // subexpression.
-        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
-          arg = clad_compat::GetSubExpr(MTE);
-        if (!arg->isEvaluatable(m_Context)) {
-          allArgsAreConstantLiterals = false;
+        Expr* dArg = diffArgs[i];
+        // If argDiff.expr_dx is nullptr or is a constant 0, then the derivative
+        // of the function call is 0.
+        if (!clad::utils::IsZeroOrNullValue(dArg)) {
+          allArgsHaveZeroDerivatives = false;
           break;
         }
       }
-      if (allArgsAreConstantLiterals) {
+      if (allArgsHaveZeroDerivatives) {
         Expr* call =
             m_Sema
                 .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),

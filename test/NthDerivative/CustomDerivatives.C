@@ -163,7 +163,7 @@ int main() {
 // CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, _d_x);
 // CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, _d_x);
 // CHECK-NEXT:    float &_t2 = _t1.value;
-// CHECK-NEXT:    return {{[{][{]}}_t0.value, _t2 * d_x}, {_t0.pushforward, _t1.pushforward * d_x + _t2 * _d_d_x{{[}][}]}};
+// CHECK-NEXT:    return {{[{][(]ValueAndPushforward<float, float>[)][{]}}_t0.value, _t2 * d_x}, (ValueAndPushforward<float, float>){_t0.pushforward, _t1.pushforward * d_x + _t2 * _d_d_x{{[}][}]}};
 // CHECK-NEXT:}
 
 }
