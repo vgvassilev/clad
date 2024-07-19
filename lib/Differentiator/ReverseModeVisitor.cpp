@@ -1200,7 +1200,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // a return type being class is in pushforwards. Hence a special case has
     // been made to to not do the StoreAndRef operation when return type is
     // ValueAndPushforward.
-    if (!isCladValueAndPushforwardType(type)) {
+    if (!utils::IsCladValueAndPushforwardType(type)) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeFinalizingVisitReturnStmt(ExprDiff);
     }
@@ -1260,8 +1260,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(clonedILE);
     }
     // Check if type is a CXXRecordDecl and a struct.
-    if (!isCladValueAndPushforwardType(ILEType) && ILEType->isRecordType() &&
-        ILEType->getAsCXXRecordDecl()->isStruct()) {
+    if (!utils::IsCladValueAndPushforwardType(ILEType) &&
+        ILEType->isRecordType() && ILEType->getAsCXXRecordDecl()->isStruct()) {
       for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
         // fetch ith field of the struct.
         auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
@@ -1278,7 +1278,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // that represents a ValueAndPushforward type. Ideally this must be
     // differentiated at VisitCXXConstructExpr
 #ifndef NDEBUG
-    bool isValueAndPushforward = isCladValueAndPushforwardType(ILEType);
+    bool isValueAndPushforward = utils::IsCladValueAndPushforwardType(ILEType);
     assert(isValueAndPushforward &&
            "Only InitListExpr that represents arrays or ValueAndPushforward "
            "Object initialization is supported");
