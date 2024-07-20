@@ -457,11 +457,10 @@ jobs:
             extra_packages: 'libtrilinos-kokkos-dev ninja-build'
             extra_cmake_options: '-G Ninja'
 
-          # FIXME: Turn on llvm18 once https://github.com/llvm/llvm-project/issues/99453 is fixed.
-          #- name: ubu22-clang16-runtime18
-          #  os: ubuntu-22.04
-          #  compiler: clang-16
-          #  clang-runtime: '18'
+          - name: ubu22-clang16-runtime18
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '18'
 
           # Оld, still supported versions
 
