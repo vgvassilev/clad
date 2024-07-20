@@ -184,7 +184,7 @@ double test_9(double x) {
 // CHECK-NEXT: }
 
 void some_important_void_func(double y) {
-    assert(y < 1);
+    assert(y >= 1);
 }
 
 double test_10(double x) {
