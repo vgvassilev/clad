@@ -376,6 +376,8 @@ namespace clad {
 
   Expr* VisitorBase::getZeroInit(QualType T) {
     // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
+    if (T->isVoidType())
+      return nullptr;
     if (T->isScalarType()) {
       ExprResult Zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);

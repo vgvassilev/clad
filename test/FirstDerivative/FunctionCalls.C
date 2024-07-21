@@ -183,6 +183,21 @@ double test_9(double x) {
 // CHECK-NEXT: return _t0.pushforward;
 // CHECK-NEXT: }
 
+void some_important_void_func(double y) {
+    assert(y >= 1);
+}
+
+double test_10(double x) {
+  some_important_void_func(1);
+  return x;
+}
+
+// CHECK:      double test_10_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     some_important_void_func(1);
+// CHECK-NEXT:     return _d_x;
+// CHECK-NEXT: }
+
 int main () {
   clad::differentiate(test_1, 0);
   clad::differentiate(test_2, 0);
@@ -196,6 +211,7 @@ int main () {
   clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
   clad::differentiate<clad::opts::diagonal_only>(test_8); // expected-error {{Diagonal only option is only valid for Hessian mode.}}
   clad::differentiate(test_9);
+  clad::differentiate(test_10);
   return 0;
 
 // CHECK: void increment_pushforward(int &i, int &_d_i) {
