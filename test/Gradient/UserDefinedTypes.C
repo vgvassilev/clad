@@ -117,14 +117,14 @@ double fn3(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t.data[1] = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_t.data[1];
-// CHECK-NEXT:         _d_t.data[1] -= _r_d1;
+// CHECK-NEXT:         _d_t.data[1] = 0;
 // CHECK-NEXT:         *_d_i += 5 * _r_d1;
 // CHECK-NEXT:         *_d_j += 3 * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t.data[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_t.data[0];
-// CHECK-NEXT:         _d_t.data[0] -= _r_d0;
+// CHECK-NEXT:         _d_t.data[0] = 0;
 // CHECK-NEXT:         *_d_i += 2 * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -469,7 +469,7 @@ int main() {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{(__real)?}} this->[[_M_value:.*]] = _t0;
 // CHECK-NEXT:         double _r_d0 ={{( __real)?}} (*_d_this).[[_M_value]];
-// CHECK-NEXT:         {{(__real)?}} (*_d_this).[[_M_value]] -= _r_d0;
+// CHECK-NEXT:         {{(__real)?}} (*_d_this).[[_M_value]] = 0;
 // CHECK-NEXT:         *[[_d___val]] += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -505,7 +505,7 @@ int main() {
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         this->data[i] = clad::pop(_t1);
 // CHECK-NEXT:         double _r_d0 = (*_d_this).data[i];
-// CHECK-NEXT:         (*_d_this).data[i] -= _r_d0;
+// CHECK-NEXT:         (*_d_this).data[i] = 0;
 // CHECK-NEXT:         *_d_d += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

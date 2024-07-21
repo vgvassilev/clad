@@ -76,7 +76,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t3;
 // CHECK-NEXT:         double _r_d1 = _d_temp;
-// CHECK-NEXT:         _d_temp -= _r_d1;
+// CHECK-NEXT:         _d_temp = 0;
 // CHECK-NEXT:         i = _t4;
 // CHECK-NEXT:         j = _t5;
 // CHECK-NEXT:         modify1_pullback(_t4, _t5, _r_d1, &*_d_i, &*_d_j);
@@ -84,7 +84,7 @@ double fn2(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         temp = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_temp;
-// CHECK-NEXT:         _d_temp -= _r_d0;
+// CHECK-NEXT:         _d_temp = 0;
 // CHECK-NEXT:         i = _t1;
 // CHECK-NEXT:         j = _t2;
 // CHECK-NEXT:         modify1_pullback(_t1, _t2, _r_d0, &*_d_i, &*_d_j);
@@ -413,7 +413,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t4;
 // CHECK-NEXT:        double _r_d2 = _d_out;
-// CHECK-NEXT:        _d_out -= _r_d2;
+// CHECK-NEXT:        _d_out = 0;
 // CHECK-NEXT:        out = _t5;
 // CHECK-NEXT:        double _r2 = 0;
 // CHECK-NEXT:        double _r3 = 0;
@@ -422,7 +422,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t2;
 // CHECK-NEXT:        double _r_d1 = _d_out;
-// CHECK-NEXT:        _d_out -= _r_d1;
+// CHECK-NEXT:        _d_out = 0;
 // CHECK-NEXT:        out = _t3;
 // CHECK-NEXT:        double _r1 = 0;
 // CHECK-NEXT:        clad::custom_derivatives::std::min_pullback(_t3, 10., _r_d1, &_d_out, &_r1);
@@ -430,7 +430,7 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t0;
 // CHECK-NEXT:        double _r_d0 = _d_out;
-// CHECK-NEXT:        _d_out -= _r_d0;
+// CHECK-NEXT:        _d_out = 0;
 // CHECK-NEXT:        out = _t1;
 // CHECK-NEXT:        double _r0 = 0;
 // CHECK-NEXT:        clad::custom_derivatives::std::max_pullback(_t1, 0., _r_d0, &_d_out, &_r0);
@@ -528,7 +528,7 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             wCopy[i] = clad::pop(_t1);
 // CHECK-NEXT:             double _r_d0 = _d_wCopy[i];
-// CHECK-NEXT:             _d_wCopy[i] -= _r_d0;
+// CHECK-NEXT:             _d_wCopy[i] = 0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -623,7 +623,7 @@ double fn17 (double x, double* y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _r_d1 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d1;
+//CHECK-NEXT:         *_d_x = 0;
 //CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         add_pullback(x, &x, _r_d1, &_r1, &*_d_x);
 //CHECK-NEXT:         *_d_x += _r1;
@@ -631,7 +631,7 @@ double fn17 (double x, double* y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         double _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d0;
+//CHECK-NEXT:         *_d_x = 0;
 //CHECK-NEXT:         double _r0 = 0;
 //CHECK-NEXT:         add_pullback(x, y, _r_d0, &_r0);
 //CHECK-NEXT:         *_d_x += _r0;
@@ -942,7 +942,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         d = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_d;
-// CHECK-NEXT:         *_d_d -= _r_d0;
+// CHECK-NEXT:         *_d_d = 0;
 // CHECK-NEXT:         *_d_d += 2 * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -954,7 +954,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         arr[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_arr[0];
-// CHECK-NEXT:         _d_arr[0] -= _r_d0;
+// CHECK-NEXT:         _d_arr[0] = 0;
 // CHECK-NEXT:         _d_arr[0] += 5 * _r_d0;
 // CHECK-NEXT:         _d_arr[1] += _r_d0;
 // CHECK-NEXT:     }
@@ -1016,7 +1016,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:            if (_cond1) {
 // CHECK-NEXT:                _cond0 = _t0;
 // CHECK-NEXT:                double _r_d0 = _d_cond0;
-// CHECK-NEXT:                _d_cond0 -= _r_d0;
+// CHECK-NEXT:                _d_cond0 = 0;
 // CHECK-NEXT:            }
 // CHECK-NEXT:        }
 // CHECK-NEXT:    }

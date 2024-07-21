@@ -53,7 +53,7 @@ The code is: void func_grad(float x, float y, float *_d_x, float *_d_y, double &
         _final_error += _d_z * z;
         z = _t0;
         float _r_d0 = _d_z;
-        _d_z -= _r_d0;
+        _d_z = 0;
         *_d_x += _r_d0;
         *_d_y += _r_d0;
     }

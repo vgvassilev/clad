@@ -35,7 +35,7 @@ double minimalPointer(double x) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_p;
-// CHECK-NEXT:         *_d_p -= _r_d0;
+// CHECK-NEXT:         *_d_p = 0;
 // CHECK-NEXT:         *_d_p += _r_d0 * (*p);
 // CHECK-NEXT:         *_d_p += *p * _r_d0;
 // CHECK-NEXT:     }
@@ -375,14 +375,14 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         r[1] = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_r[1];
-// CHECK-NEXT:         _d_r[1] -= _r_d1;
+// CHECK-NEXT:         _d_r[1] = 0;
 // CHECK-NEXT:         *_d_i += _r_d1 * j;
 // CHECK-NEXT:         *_d_j += i * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         r[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_r[0];
-// CHECK-NEXT:         _d_r[0] -= _r_d0;
+// CHECK-NEXT:         _d_r[0] = 0;
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:         *_d_j += _r_d0;
 // CHECK-NEXT:     }
@@ -475,7 +475,7 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         p[1] = _t4;
 // CHECK-NEXT:         double _r_d2 = _d_p[1];
-// CHECK-NEXT:         _d_p[1] -= _r_d2;
+// CHECK-NEXT:         _d_p[1] = 0;
 // CHECK-NEXT:         *_d_x += 2 * _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -489,13 +489,13 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t1;
 // CHECK-NEXT:         double _r_d1 = *_d_p;
-// CHECK-NEXT:         *_d_p -= _r_d1;
+// CHECK-NEXT:         *_d_p = 0;
 // CHECK-NEXT:         *_d_x += _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t->x = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_t->x;
-// CHECK-NEXT:         _d_t->x -= _r_d0;
+// CHECK-NEXT:         _d_t->x = 0;
 // CHECK-NEXT:         *_d_x += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     free(p);

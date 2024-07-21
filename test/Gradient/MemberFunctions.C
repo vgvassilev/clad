@@ -611,13 +611,13 @@ int main() {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t1;
 // CHECK-NEXT:         double _r_d1 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x -= _r_d1;
+// CHECK-NEXT:         (*_d_this).x = 0;
 // CHECK-NEXT:         *_d_i += -_r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
 // CHECK-NEXT:         double _r_d0 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x -= _r_d0;
+// CHECK-NEXT:         (*_d_this).x = 0;
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }

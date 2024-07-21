@@ -72,7 +72,7 @@ float func(float* a, float* b) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             a[i] = clad::pop(_t1);
 //CHECK-NEXT:             float _r_d0 = _d_a[i];
-//CHECK-NEXT:             _d_a[i] -= _r_d0;
+//CHECK-NEXT:             _d_a[i] = 0;
 //CHECK-NEXT:             _d_a[i] += _r_d0 * b[i];
 //CHECK-NEXT:             _d_b[i] += a[i] * _r_d0;
 //CHECK-NEXT:         }
@@ -293,7 +293,7 @@ double func5(int k) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             arr[i] = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_arr[i];
-//CHECK-NEXT:             _d_arr[i] -= _r_d0;
+//CHECK-NEXT:             _d_arr[i] = 0;
 //CHECK-NEXT:             *_d_k += _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -401,7 +401,7 @@ double func7(double *params) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             out = clad::pop(_t2);
 //CHECK-NEXT:             double _r_d0 = _d_out;
-//CHECK-NEXT:             _d_out -= _r_d0;
+//CHECK-NEXT:             _d_out = 0;
 //CHECK-NEXT:             _d_out += _r_d0;
 //CHECK-NEXT:             inv_square_pullback(paramsPrime, _r_d0, _d_paramsPrime);
 //CHECK-NEXT:         }
@@ -443,12 +443,12 @@ double func8(double i, double *arr, int n) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         arr[0] = _t2;
 //CHECK-NEXT:         double _r_d2 = _d_arr[0];
-//CHECK-NEXT:         _d_arr[0] -= _r_d2;
+//CHECK-NEXT:         _d_arr[0] = 0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         res = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_res;
-//CHECK-NEXT:         _d_res -= _r_d1;
+//CHECK-NEXT:         _d_res = 0;
 //CHECK-NEXT:         double _r0 = 0;
 //CHECK-NEXT:         int _r1 = 0;
 //CHECK-NEXT:         helper2_pullback(i, arr, n, _r_d1, &_r0, _d_arr, &_r1);
@@ -458,7 +458,7 @@ double func8(double i, double *arr, int n) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         arr[0] = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_arr[0];
-//CHECK-NEXT:         _d_arr[0] -= _r_d0;
+//CHECK-NEXT:         _d_arr[0] = 0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
@@ -695,7 +695,7 @@ int main() {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         elem = _t0;
 //CHECK-NEXT:         double _r_d0 = *_d_elem;
-//CHECK-NEXT:         *_d_elem -= _r_d0;
+//CHECK-NEXT:         *_d_elem = 0;
 //CHECK-NEXT:         *_d_val += _r_d0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -708,7 +708,7 @@ int main() {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         elem = _t0;
 //CHECK-NEXT:         double _r_d0 = *_d_elem;
-//CHECK-NEXT:         *_d_elem -= _r_d0;
+//CHECK-NEXT:         *_d_elem = 0;
 //CHECK-NEXT:         *_d_elem += _r_d0 * elem;
 //CHECK-NEXT:         *_d_elem += elem * _r_d0;
 //CHECK-NEXT:     }

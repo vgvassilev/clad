@@ -33,7 +33,7 @@ float func(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_y * y * {{.+}});
 //CHECK-NEXT:         y = _t1;
 //CHECK-NEXT:         float _r_d1 = *_d_y;
-//CHECK-NEXT:         *_d_y -= _r_d1;
+//CHECK-NEXT:         *_d_y = 0;
 //CHECK-NEXT:         *_d_y += _r_d1;
 //CHECK-NEXT:         *_d_y += _r_d1;
 //CHECK-NEXT:         y--;
@@ -43,7 +43,7 @@ float func(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d0;
+//CHECK-NEXT:         *_d_x = 0;
 //CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
@@ -76,7 +76,7 @@ float func2(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d0;
+//CHECK-NEXT:         *_d_x = 0;
 //CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:         *_d_y += -_r_d0;
 //CHECK-NEXT:         *_d_y += -_r_d0 * y;
@@ -116,7 +116,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         *_d_y += x * z * _d_t;
 //CHECK-NEXT:         y = _t2;
 //CHECK-NEXT:         float _r_d1 = *_d_y;
-//CHECK-NEXT:         *_d_y -= _r_d1;
+//CHECK-NEXT:         *_d_y = 0;
 //CHECK-NEXT:         *_d_x += _r_d1;
 //CHECK-NEXT:         *_d_x += _r_d1;
 //CHECK-NEXT:     }
@@ -125,7 +125,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x -= _r_d0;
+//CHECK-NEXT:         *_d_x = 0;
 //CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:         *_d_y += -_r_d0;
 //CHECK-NEXT:         *_d_y += -_r_d0 * y;
@@ -173,7 +173,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_y * y * {{.+}});
 //CHECK-NEXT:         y = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_y;
-//CHECK-NEXT:         *_d_y -= _r_d0;
+//CHECK-NEXT:         *_d_y = 0;
 //CHECK-NEXT:         float _r0 = 0;
 //CHECK-NEXT:         _r0 += _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, 1.F).pushforward;
 //CHECK-NEXT:         *_d_x += _r0;
@@ -273,7 +273,7 @@ float func8(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         z = _t0;
 //CHECK-NEXT:         float _r_d0 = _d_z;
-//CHECK-NEXT:         _d_z -= _r_d0;
+//CHECK-NEXT:         _d_z = 0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:         x = _t1;
 //CHECK-NEXT:         double _t2 = 0;
