@@ -95,7 +95,7 @@ float func2(float x) {
 //CHECK-NEXT:             _final_error += std::abs(_d_z * z * {{.+}});
 //CHECK-NEXT:             z = clad::pop(_t2);
 //CHECK-NEXT:             float _r_d0 = _d_z;
-//CHECK-NEXT:             _d_z -= _r_d0;
+//CHECK-NEXT:             _d_z = 0;
 //CHECK-NEXT:             _d_m += _r_d0;
 //CHECK-NEXT:             _d_m += _r_d0;
 //CHECK-NEXT:         }
@@ -135,7 +135,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(_d_arr[2] * arr[2] * {{.+}});
 //CHECK-NEXT:         arr[2] = _t2;
 //CHECK-NEXT:         double _r_d2 = _d_arr[2];
-//CHECK-NEXT:         _d_arr[2] -= _r_d2;
+//CHECK-NEXT:         _d_arr[2] = 0;
 //CHECK-NEXT:         _d_arr[0] += _r_d2;
 //CHECK-NEXT:         _d_arr[1] += _r_d2;
 //CHECK-NEXT:     }
@@ -143,7 +143,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(_d_arr[1] * arr[1] * {{.+}});
 //CHECK-NEXT:         arr[1] = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_arr[1];
-//CHECK-NEXT:         _d_arr[1] -= _r_d1;
+//CHECK-NEXT:         _d_arr[1] = 0;
 //CHECK-NEXT:         *_d_x += _r_d1 * x;
 //CHECK-NEXT:         *_d_x += x * _r_d1;
 //CHECK-NEXT:     }
@@ -151,7 +151,7 @@ float func3(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(_d_arr[0] * arr[0] * {{.+}});
 //CHECK-NEXT:         arr[0] = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_arr[0];
-//CHECK-NEXT:         _d_arr[0] -= _r_d0;
+//CHECK-NEXT:         _d_arr[0] = 0;
 //CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
@@ -257,7 +257,7 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _final_error += std::abs(_d_output[2] * output[2] * {{.+}});
 //CHECK-NEXT:         output[2] = _t2;
 //CHECK-NEXT:         double _r_d2 = _d_output[2];
-//CHECK-NEXT:         _d_output[2] -= _r_d2;
+//CHECK-NEXT:         _d_output[2] = 0;
 //CHECK-NEXT:         _d_x[0] += _r_d2 * y[1];
 //CHECK-NEXT:         x_size = std::max(x_size, 0);
 //CHECK-NEXT:         _d_y[1] += x[0] * _r_d2;
@@ -272,7 +272,7 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _final_error += std::abs(_d_output[1] * output[1] * {{.+}});
 //CHECK-NEXT:         output[1] = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_output[1];
-//CHECK-NEXT:         _d_output[1] -= _r_d1;
+//CHECK-NEXT:         _d_output[1] = 0;
 //CHECK-NEXT:         _d_x[2] += _r_d1 * y[0];
 //CHECK-NEXT:         x_size = std::max(x_size, 2);
 //CHECK-NEXT:         _d_y[0] += x[2] * _r_d1;
@@ -287,7 +287,7 @@ double func5(double* x, double* y, double* output) {
 //CHECK-NEXT:         _final_error += std::abs(_d_output[0] * output[0] * {{.+}});
 //CHECK-NEXT:         output[0] = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_output[0];
-//CHECK-NEXT:         _d_output[0] -= _r_d0;
+//CHECK-NEXT:         _d_output[0] = 0;
 //CHECK-NEXT:         _d_x[1] += _r_d0 * y[2];
 //CHECK-NEXT:         x_size = std::max(x_size, 1);
 //CHECK-NEXT:         _d_y[2] += x[1] * _r_d0;

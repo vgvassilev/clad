@@ -549,7 +549,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:                 {
 // CHECK-NEXT:                     temp = _t1;
 // CHECK-NEXT:                     double _r_d1 = _d_temp;
-// CHECK-NEXT:                     _d_temp -= _r_d1;
+// CHECK-NEXT:                     _d_temp = 0;
 // CHECK-NEXT:                 }
 // CHECK-NEXT:                 if (true)
 // CHECK-NEXT:                     break;
@@ -558,7 +558,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             res = _t0;
 // CHECK-NEXT:             int _r_d0 = _d_res;
-// CHECK-NEXT:             _d_res -= _r_d0;
+// CHECK-NEXT:             _d_res = 0;
 // CHECK-NEXT:             *_d_u += _r_d0 * v;
 // CHECK-NEXT:             *_d_v += u * _r_d0;
 // CHECK-NEXT:         }

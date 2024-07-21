@@ -2357,9 +2357,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
                                /*forceDeclCreation=*/true);
       if (opCode == BO_Assign) {
-        // Add the statement `dl -= oldValue;`
-        addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue),
-                          direction::reverse);
+        if (!isPointerOp) {
+          // Add the statement `dl = 0;`
+          Expr* zero = getZeroInit(AssignedDiff->getType());
+          addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, zero),
+                            direction::reverse);
+        }
         Rdiff = Visit(R, oldValue);
         valueForRevPass = Rdiff.getRevSweepAsExpr();
       } else if (opCode == BO_AddAssign) {
@@ -2388,8 +2391,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         //   double r = _ref0 *= z;
         if (isInsideLoop)
           addToCurrentBlock(LCloned, direction::forward);
-        // Add the statement `dl -= oldValue;`
-        addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue),
+        // Add the statement `dl = 0;`
+        Expr* zero = getZeroInit(AssignedDiff->getType());
+        addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, zero),
                           direction::reverse);
         /// Capture all the emitted statements while visiting R
         /// and insert them after `dl += dl * R`
@@ -2407,8 +2411,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                   Ldiff.getRevSweepAsExpr());
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, Rdiff.getExpr());
       } else if (opCode == BO_DivAssign) {
-        // Add the statement `dl -= oldValue;`
-        addToCurrentBlock(BuildOp(BO_SubAssign, AssignedDiff, oldValue),
+        // Add the statement `dl = 0;`
+        Expr* zero = getZeroInit(AssignedDiff->getType());
+        addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, zero),
                           direction::reverse);
         auto RDelayed = DelayedGlobalStoreAndRef(R);
         StmtDiff RResult = RDelayed.Result;
