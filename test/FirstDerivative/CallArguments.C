@@ -165,7 +165,7 @@ float f_call_inline_fxn(float *params, float const *obs, float const *xlArr) {
 
 // CHECK: float f_call_inline_fxn_darg0_0(float *params, const float *obs, const float *xlArr) {
 // CHECK-NEXT:     clad::ValueAndPushforward<unsigned int, unsigned int> _t0 = getBin_pushforward(0., 1., params[0], 1, 0., 0., 1.F, 0);
-// CHECK-NEXT:     const float _d_t116 = 0;
+// CHECK-NEXT:     const float _d_t116 = 0.F;
 // CHECK-NEXT:     const float t116 = *(xlArr + _t0.value);
 // CHECK-NEXT:     return _d_t116 * params[0] + t116 * 1.F;
 // CHECK-NEXT: }
