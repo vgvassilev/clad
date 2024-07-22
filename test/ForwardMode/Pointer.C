@@ -198,7 +198,7 @@ double fn9(double* params, const double *constants) {
 }
 
 // CHECK: double fn9_darg0_0(double *params, const double *constants) {
-// CHECK-NEXT:     double _d_c0 = 0;
+// CHECK-NEXT:     double _d_c0 = 0.;
 // CHECK-NEXT:     double c0 = *constants;
 // CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
 // CHECK-NEXT: }
@@ -209,7 +209,7 @@ double fn10(double *params, const double *constants) {
 }
 
 // CHECK: double fn10_darg0_0(double *params, const double *constants) {
-// CHECK-NEXT:     double _d_c0 = 0;
+// CHECK-NEXT:     double _d_c0 = 0.;
 // CHECK-NEXT:     double c0 = *(constants + 0);
 // CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
 // CHECK-NEXT: }
