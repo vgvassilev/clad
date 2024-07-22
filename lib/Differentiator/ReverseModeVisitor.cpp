@@ -2335,8 +2335,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       if (L->HasSideEffects(m_Context)) {
         Expr* E = Ldiff.getExpr();
-        auto* storeE = GlobalStoreAndRef(BuildOp(UO_AddrOf, E));
-        Ldiff.updateStmt(BuildOp(UO_Deref, storeE));
+        llvm::SmallVector<Expr*, 4> returnExprs;
+        utils::GetInnermostReturnExpr(E, returnExprs);
+        if (returnExprs.size() == 1) {
+          addToCurrentBlock(E, direction::forward);
+          Ldiff.updateStmt(returnExprs[0]);
+        } else {
+          auto* storeE = GlobalStoreAndRef(BuildOp(UO_AddrOf, E));
+          Ldiff.updateStmt(BuildOp(UO_Deref, storeE));
+        }
       }
 
       Stmts Lblock = EndBlockWithoutCreatingCS(direction::reverse);
