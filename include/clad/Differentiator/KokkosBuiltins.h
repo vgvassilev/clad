@@ -40,24 +40,28 @@ inline void deep_copy_pushforward(const View1& dst, const View2& src, T param,
 }
 
 template <class View>
-inline void
-resize_pushforward(View& v, const size_t n0, const size_t n1, const size_t n2,
-                   const size_t n3, const size_t n4, const size_t n5,
-                   const size_t n6, const size_t n7, View& d_v,
-                   const size_t d_n0, const size_t d_n1, const size_t d_n2,
-                   const size_t d_n3, const size_t d_n4, const size_t d_n5,
-                   const size_t d_n6, const size_t d_n7) {
+inline void resize_pushforward(View& v, const size_t n0, const size_t n1,
+                               const size_t n2, const size_t n3,
+                               const size_t n4, const size_t n5,
+                               const size_t n6, const size_t n7, View& d_v,
+                               const size_t /*d_n0*/, const size_t /*d_n1*/,
+                               const size_t /*d_n2*/, const size_t /*d_n3*/,
+                               const size_t /*d_n4*/, const size_t /*d_n5*/,
+                               const size_t /*d_n6*/, const size_t /*d_n7*/) {
   ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
 
 template <class I, class dI, class View>
-inline void resize_pushforward(
-    const I& arg, View& v, const size_t n0, const size_t n1, const size_t n2,
-    const size_t n3, const size_t n4, const size_t n5, const size_t n6,
-    const size_t n7, const dI& d_arg, View& d_v, const size_t d_n0,
-    const size_t d_n1, const size_t d_n2, const size_t d_n3, const size_t d_n4,
-    const size_t d_n5, const size_t d_n6, const size_t d_n7) {
+inline void resize_pushforward(const I& arg, View& v, const size_t n0,
+                               const size_t n1, const size_t n2,
+                               const size_t n3, const size_t n4,
+                               const size_t n5, const size_t n6,
+                               const size_t n7, const dI& d_arg, View& d_v,
+                               const size_t /*d_n0*/, const size_t /*d_n1*/,
+                               const size_t /*d_n2*/, const size_t /*d_n3*/,
+                               const size_t /*d_n4*/, const size_t /*d_n5*/,
+                               const size_t /*d_n6*/, const size_t /*d_n7*/) {
   ::Kokkos::resize(arg, v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }

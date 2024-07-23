@@ -205,3 +205,47 @@ TEST(ViewBasics, TestResize2) {
     for (double y = 3; y <= 5; y += 1)
       EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
 }
+
+double f_basics_resize_3(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+  Kokkos::deep_copy(a, 3 * x + y);
+
+  Kokkos::resize(Kokkos::WithoutInitializing, a, 5, 5);
+
+  a(4, 4, 0) = x * y;
+
+  return a(4, 4, 0);
+}
+
+TEST(ViewBasics, TestResize3) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_3, 0);
+  auto df_true = [](double x, double y) { return y; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1)
+      EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
+}
+
+double f_basics_resize_4(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+  Kokkos::deep_copy(a, 3 * x + y);
+
+  Kokkos::resize(a, 5, 5);
+
+  a(4, 4, 0) = x * y;
+
+  return a(4, 4, 0);
+}
+
+TEST(ViewBasics, TestResize4) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_4, 0);
+  auto df_true = [](double x, double y) { return y; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1)
+      EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
+}
