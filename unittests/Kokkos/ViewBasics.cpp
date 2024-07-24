@@ -3,9 +3,9 @@
 // https://github.com/kliegeois/clad/blob/kokkos-PR/unittests/Kokkos/view_access.cpp
 // it has been modified to match gtest guidelines and improve readability
 
-#include "ParallelAdd.h"
 #include <Kokkos_Core.hpp>
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/KokkosBuiltins.h"
 #include "gtest/gtest.h"
 
 double f_basics(double x, double y) {
@@ -160,4 +160,92 @@ TEST(ViewBasics, TestDeepCopy2Reverse) {
   //     EXPECT_NEAR(dy_f_FD, dy, abs(tau*dy));
   //   }
   // }
+}
+
+double f_basics_resize_1(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+
+  Kokkos::deep_copy(a, 3 * x + y);
+  a(2, 1, 0) = x * y;
+
+  Kokkos::resize(Kokkos::WithoutInitializing, a, 5, 5);
+
+  return a(2, 1, 0);
+}
+
+TEST(ViewBasics, TestResize1) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_1, 0);
+  auto df_true = [](double x, double y) { return y; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1)
+      EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
+}
+
+double f_basics_resize_2(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+
+  Kokkos::deep_copy(a, 3 * x + y);
+  a(2, 1, 0) = x * y;
+
+  Kokkos::resize(a, 5, 5);
+
+  return a(2, 1, 0);
+}
+
+TEST(ViewBasics, TestResize2) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_2, 0);
+  auto df_true = [](double x, double y) { return y; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1)
+      EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
+}
+
+double f_basics_resize_3(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+  Kokkos::deep_copy(a, 3 * x + y);
+
+  Kokkos::resize(Kokkos::WithoutInitializing, a, 5, 5);
+
+  a(4, 4, 0) = x * y;
+
+  return a(4, 4, 0);
+}
+
+TEST(ViewBasics, TestResize3) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_3, 0);
+  auto df_true = [](double x, double y) { return y; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1)
+      EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
+}
+
+double f_basics_resize_4(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+  Kokkos::deep_copy(a, 3 * x + y);
+
+  Kokkos::resize(a, 5, 5);
+
+  a(4, 4, 0) = x * y;
+
+  return a(4, 4, 0);
+}
+
+TEST(ViewBasics, TestResize4) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_4, 0);
+  auto df_true = [](double x, double y) { return y; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1)
+      EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
 }
