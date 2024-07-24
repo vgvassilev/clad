@@ -150,6 +150,21 @@ void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMa
 // CHECK-NEXT:  }
 // CHECK-NEXT:}
 
+void f_5(float a, double output[]){
+  output[1]=a;
+  output[0]=a*a;  
+}
+
+//CHECK: void f_5_jac(float a, double output[], double *jacobianMatrix) {
+//CHECK-NEXT:    output[1] = a;
+//CHECK-NEXT:    output[0] = a * a;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += 1 * a;
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += a * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    jacobianMatrix[{{1U|1UL}}] += 1;
+//CHECK-NEXT:}
+
 #define TEST(F, x, y, z) { \
   result[0] = 0; result[1] = 0; result[2] = 0;\
   result[3] = 0; result[4] = 0; result[5] = 0;\
@@ -181,6 +196,11 @@ int main() {
   TEST(f_3, 1, 2, 3); // CHECK-EXEC: Result is = {22.69, 0.00, 0.00, 0.00, -17.48, 0.00, 0.00, 0.00, -41.58}
   TEST(f_4, 1, 2, 3); // CHECK-EXEC: Result is = {84.00, 42.00, 0.00, 0.00, 126.00, 84.00, 126.00, 0.00, 42.00}
   TEST_F_1_SINGLE_PARAM(1, 2, 3); // CHECK-EXEC: Result is = {3.00, 3.00, -2.00}
+
+  auto df5 = clad::jacobian(f_5);
+  result[0] = 0; result[1] = 0;
+  df5.execute(3, outputarr, result);
+  printf("Result is = {%.2f, %.2f}", result[0], result[1]); // CHECK-EXEC: Result is = {6.00, 1.00}
 }
 
 //CHECK: void multiply_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {

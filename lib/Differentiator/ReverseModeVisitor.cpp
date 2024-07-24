@@ -2308,7 +2308,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                         .get();
                 temp_m_Variables[m_IndependentVars[i]] = result_at_i;
               }
-              m_VectorOutput.push_back(temp_m_Variables);
+              if (m_VectorOutput.size() <= outputArrayCursor)
+                m_VectorOutput.resize(outputArrayCursor + 1);
+              m_VectorOutput[outputArrayCursor] = std::move(temp_m_Variables);
             }
 
             auto* dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
