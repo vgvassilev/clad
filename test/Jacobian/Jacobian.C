@@ -51,10 +51,10 @@ void f_3(double x, double y, double z, double *_result) {
 
 void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
 //CHECK: void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
-//CHECK-NEXT:  double _d_constant = 0;
 //CHECK-NEXT:  double _t0;
 //CHECK-NEXT:  double _t1;
 //CHECK-NEXT:  double _t2;
+//CHECK-NEXT:  double _d_constant = 0;
 //CHECK-NEXT:  double constant = 42;
 //CHECK-NEXT:  _t0 = sin(x);
 //CHECK-NEXT:  _result[0] = sin(x) * constant;
@@ -92,10 +92,10 @@ void f_4(double x, double y, double z, double *_result) {
 
 void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
 //CHECK: void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
-//CHECK-NEXT:    double _d_constant = 0;
 //CHECK-NEXT:    double _t0;
 //CHECK-NEXT:    double _t1;
 //CHECK-NEXT:    double _t2;
+//CHECK-NEXT:    double _d_constant = 0;
 //CHECK-NEXT:    double constant = 42;
 //CHECK-NEXT:    _t0 = multiply(x, y);
 //CHECK-NEXT:    _result[0] = multiply(x, y) * constant;
@@ -145,7 +145,6 @@ void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMa
 // CHECK-NEXT:  {
 // CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += 1 * a * a;
 // CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * 1 * a;
-
 // CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * a * 1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:}

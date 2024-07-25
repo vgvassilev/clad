@@ -587,8 +587,8 @@ int main() {
 // CHECK: void fn3_grad_2_3(double x, double y, double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_x = 0;
 // CHECK-NEXT:     double _d_y = 0;
-// CHECK-NEXT:     SimpleFunctions _d_sf({});
 // CHECK-NEXT:     SimpleFunctions _t0;
+// CHECK-NEXT:     SimpleFunctions _d_sf({});
 // CHECK-NEXT:     SimpleFunctions sf(x, y);
 // CHECK-NEXT:     _t0 = sf;
 // CHECK-NEXT:     {

@@ -87,9 +87,9 @@ float func2(float x) {
 }
 
 //CHECK: void func2_grad(float x, float *_d_x, double &_final_error) {
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _ret_value0 = 0;
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float z = x * x;
 //CHECK-NEXT:     {
 //CHECK-NEXT:     _cond0 = z > 9;

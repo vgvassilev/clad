@@ -2564,15 +2564,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool promoteToFnScope =
         !getCurrentScope()->isFunctionScope() &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
-    QualType VDCloneType = CloneType(VD->getType());
-    QualType VDDerivedType = ComputeAdjointType(VDCloneType);
+    QualType VDCloneType;
+    QualType VDDerivedType;
     // If the cloned declaration is moved to the function global scope,
     // change its type for the corresponding adjoint type.
     if (promoteToFnScope) {
+      VDDerivedType = ComputeAdjointType(CloneType(VD->getType()));
       VDCloneType = VDDerivedType;
       if (isa<ArrayType>(VDCloneType) && !isa<IncompleteArrayType>(VDCloneType))
         VDCloneType =
             GetCladArrayOfType(m_Context.getBaseElementType(VDCloneType));
+    } else {
+      VDCloneType = CloneType(VD->getType());
+      VDDerivedType = getNonConstType(VDCloneType, m_Context, m_Sema);
     }
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
@@ -2633,7 +2637,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               ComputeAdjointType(VD->getType().getNonReferenceType());
           isDerivativeOfRefType = false;
         }
-        VDDerivedInit = getZeroInit(VDDerivedType);
+        if (promoteToFnScope || !isDerivativeOfRefType)
+          VDDerivedInit = getZeroInit(VDDerivedType);
+        else
+          VDDerivedInit = initDiff.getForwSweepExpr_dx();
       }
 
       // FIXME: Remove the special cases introduced by `specialThisDiffCase`
@@ -2735,7 +2742,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
-    if (isDerivativeOfRefType) {
+    if (isDerivativeOfRefType && promoteToFnScope) {
       Expr* assignDerivativeE =
           BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
                   BuildOp(UnaryOperatorKind::UO_AddrOf,
@@ -2766,17 +2773,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                    initDiff.getExpr(), VD->isDirectInit(),
                                    nullptr, VD->getInitStyle());
     if (isPointerType && derivedVDE) {
-      Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
-                                        derivedVDE, initDiff.getExpr_dx());
-      addToCurrentBlock(assignDerivativeE, direction::forward);
-      if (isInsideLoop) {
-        auto tape = MakeCladTapeFor(derivedVDE);
-        addToCurrentBlock(tape.Push);
-        auto* reverseSweepDerivativePointerE =
-            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
-        m_LoopBlock.back().push_back(
-            BuildDeclStmt(reverseSweepDerivativePointerE));
-        derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
+      if (promoteToFnScope) {
+        Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
+                                          derivedVDE, initDiff.getExpr_dx());
+        addToCurrentBlock(assignDerivativeE, direction::forward);
+        if (isInsideLoop) {
+          auto tape = MakeCladTapeFor(derivedVDE);
+          addToCurrentBlock(tape.Push);
+          auto* reverseSweepDerivativePointerE =
+              BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
+          m_LoopBlock.back().push_back(
+              BuildDeclStmt(reverseSweepDerivativePointerE));
+          derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
+        }
+      } else {
+        VDDerived->setInit(initDiff.getExpr_dx());
       }
     }
     if (derivedVDE)
@@ -2984,7 +2995,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
-      addToBlock(DSDiff, m_Globals);
+      Stmts& block =
+          promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
+      addToBlock(DSDiff, block);
     }
 
     if (m_ExternalSource) {

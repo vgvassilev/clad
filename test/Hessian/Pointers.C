@@ -28,8 +28,8 @@ double nonMemFn(double i, double j) {
 
 // CHECK: void nonMemFn_darg0_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
-// CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_i0 = 1;
+// CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_j0 = 0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__d_i += 1 * j;
@@ -47,8 +47,8 @@ double nonMemFn(double i, double j) {
 
 // CHECK: void nonMemFn_darg1_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
-// CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_i0 = 0;
+// CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_j0 = 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__d_i += 1 * j;

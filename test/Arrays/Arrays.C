@@ -93,8 +93,8 @@ double const_dot_product(double x, double y, double z) {
 
 //CHECK:   void const_dot_product_grad(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
 //CHECK-NEXT:       double _d_vars[3] = {0};
-//CHECK-NEXT:       double _d_consts[3] = {0};
 //CHECK-NEXT:       double vars[3] = {x, y, z};
+//CHECK-NEXT:       double _d_consts[3] = {0};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_vars[0] += 1 * consts[0];

@@ -36,11 +36,11 @@ double f2(double i, double j) {
 
 // CHECK:     inline void operator_call_pullback(double t, double k, double _d_y, double *_d_t, double *_d_k) const;
 // CHECK-NEXT:     void f2_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:         double _d_x = 0;
 // CHECK-NEXT:             auto _f = []{{ ?}}(double t, double k) {
 // CHECK-NEXT:                 return t + k;
 // CHECK-NEXT:             }{{;?}}
-// CHECK:             double x = operator()(i + j, i);
+// CHECK:        double _d_x = 0;
+// CHECK-NEXT:             double x = operator()(i + j, i);
 // CHECK-NEXT:             _d_x += 1;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 double _r0 = 0;

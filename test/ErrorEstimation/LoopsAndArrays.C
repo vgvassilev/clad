@@ -15,12 +15,12 @@ float func(float* p, int n) {
 }
 
 //CHECK: void func_grad(float *p, int n, float *_d_p, int *_d_n, double &_final_error) {
-//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} p_size = 0;
+//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
@@ -64,7 +64,6 @@ float func2(float x) {
 }
 
 //CHECK: void func2_grad(float x, float *_d_x, double &_final_error) {
-//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
@@ -72,6 +71,7 @@ float func2(float x) {
 //CHECK-NEXT:     float _d_m = 0;
 //CHECK-NEXT:     float m = 0;
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
+//CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float z;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
@@ -119,10 +119,10 @@ float func3(float x, float y) {
 }
 
 //CHECK: void func3_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     double _t1;
 //CHECK-NEXT:     double _t2;
+//CHECK-NEXT:     double _d_arr[3] = {0};
 //CHECK-NEXT:     double arr[3];
 //CHECK-NEXT:     _t0 = arr[0];
 //CHECK-NEXT:     arr[0] = x + y;
@@ -169,7 +169,6 @@ float func4(float x[10], float y[10]) {
 }
 
 //CHECK: void func4_grad(float x[10], float y[10], float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
@@ -177,6 +176,7 @@ float func4(float x[10], float y[10]) {
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
 //CHECK-NEXT:     unsigned {{int|long}} y_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
+//CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     float sum = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {

@@ -107,11 +107,11 @@
 //CHECK_FLOAT_SUM-NOT: {{.*error|warning|note:.*}}
 
 //CHECK_FLOAT_SUM: void vanillaSum_grad(float x, unsigned int n, float *_d_x, unsigned int *_d_n, double &_final_error) {
-//CHECK_FLOAT_SUM:    float _d_sum = 0;
 //CHECK_FLOAT_SUM:    unsigned {{int|long}} _t0;
 //CHECK_FLOAT_SUM:    unsigned int _d_i = 0;
 //CHECK_FLOAT_SUM:    unsigned int i = 0;
 //CHECK_FLOAT_SUM:    clad::tape<float> _t1 = {};
+//CHECK_FLOAT_SUM:    float _d_sum = 0;
 //CHECK_FLOAT_SUM:    float sum = 0.;
 //CHECK_FLOAT_SUM:    _t0 = {{0U|0UL}};
 //CHECK_FLOAT_SUM:    for (i = 0; ; i++) {
@@ -157,8 +157,8 @@
 // CHECK_CUSTOM_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_CUSTOM_MODEL_EXEC: The code is:
 // CHECK_CUSTOM_MODEL_EXEC-NEXT: void func_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _t0;
+// CHECK_CUSTOM_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    float z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_CUSTOM_MODEL_EXEC-NEXT:    z = x + y;
@@ -189,8 +189,8 @@
 // CHECK_PRINT_MODEL_EXEC-NOT:{{.*error|warning|note:.*}}
 // CHECK_PRINT_MODEL_EXEC: The code is:
 // CHECK_PRINT_MODEL_EXEC-NEXT: void func_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-// CHECK_PRINT_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float _t0;
+// CHECK_PRINT_MODEL_EXEC-NEXT:    float _d_z = 0;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    float z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    _t0 = z;
 // CHECK_PRINT_MODEL_EXEC-NEXT:    z = x + y;

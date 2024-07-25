@@ -25,9 +25,8 @@ double minimalPointer(double x) {
 }
 
 // CHECK: void minimalPointer_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double *_d_p = 0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _d_p = &*_d_x;
+// CHECK-NEXT:     double *_d_p = &*_d_x;
 // CHECK-NEXT:     double *const p = &x;
 // CHECK-NEXT:     _t0 = *p;
 // CHECK-NEXT:     *p = *p * (*p);
@@ -58,10 +57,8 @@ double arrayPointer(const double* arr) {
 }
 
 // CHECK: void arrayPointer_grad(const double *arr, double *_d_arr) {
-// CHECK-NEXT:     double *_d_p = 0;
 // CHECK-NEXT:     const double *_t0;
 // CHECK-NEXT:     double *_t1;
-// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     const double *_t3;
 // CHECK-NEXT:     double *_t4;
@@ -72,12 +69,13 @@ double arrayPointer(const double* arr) {
 // CHECK-NEXT:     const double *_t9;
 // CHECK-NEXT:     double *_t10;
 // CHECK-NEXT:     double _t11;
-// CHECK-NEXT:     _d_p = _d_arr;
+// CHECK-NEXT:     double *_d_p = _d_arr;
 // CHECK-NEXT:     const double *p = arr;
 // CHECK-NEXT:     _t0 = p;
 // CHECK-NEXT:     _t1 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p + 1;
 // CHECK-NEXT:     p = p + 1;
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = *p;
 // CHECK-NEXT:     _d_p++;
 // CHECK-NEXT:     p++;
@@ -163,7 +161,6 @@ double pointerParam(const double* arr, size_t n) {
 
 // CHECK: void pointerParam_grad_0(const double *arr, size_t n, double *_d_arr) {
 // CHECK-NEXT:     size_t _d_n = 0;
-// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     size_t _d_i = 0;
 // CHECK-NEXT:     size_t i = 0;
@@ -174,6 +171,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
 // CHECK-NEXT:     clad::tape<const double *> _t5 = {};
 // CHECK-NEXT:     clad::tape<double *> _t6 = {};
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -230,7 +228,6 @@ double pointerMultipleParams(const double* a, const double* b) {
 }
 
 // CHECK: void pointerMultipleParams_grad(const double *a, const double *b, double *_d_a, double *_d_b) {
-// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     const double *_t0;
 // CHECK-NEXT:     double *_t1;
 // CHECK-NEXT:     const double *_t2;
@@ -239,6 +236,7 @@ double pointerMultipleParams(const double* a, const double* b) {
 // CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     double _t6;
 // CHECK-NEXT:     double _t7;
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = b[2];
 // CHECK-NEXT:     _t0 = b;
 // CHECK-NEXT:     _t1 = _d_b;
@@ -348,22 +346,19 @@ double newAndDeletePointer(double i, double j) {
 }
 
 // CHECK: void newAndDeletePointer_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double *_d_p = 0;
-// CHECK-NEXT:     double *_d_q = 0;
-// CHECK-NEXT:     double *_d_r = 0;
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     _d_p = new double(*_d_i);
+// CHECK-NEXT:     double *_d_p = new double(*_d_i);
 // CHECK-NEXT:     double *p = new double(i);
-// CHECK-NEXT:     _d_q = new double(*_d_j);
+// CHECK-NEXT:     double *_d_q = new double(*_d_j);
 // CHECK-NEXT:     double *q = new double(j);
-// CHECK-NEXT:     _d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
+// CHECK-NEXT:     double *_d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
 // CHECK-NEXT:     double *r = new double [2];
 // CHECK-NEXT:     _t0 = r[0];
 // CHECK-NEXT:     r[0] = i + j;
 // CHECK-NEXT:     _t1 = r[1];
 // CHECK-NEXT:     r[1] = i * j;
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = *p + *q + r[0] + r[1];
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
@@ -409,10 +404,9 @@ double structPointer (double x) {
 }
 
 // CHECK: void structPointer_grad(double x, double *_d_x) {
-// CHECK-NEXT:     T *_d_t = 0;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     _d_t = new T();
+// CHECK-NEXT:     T *_d_t = new T();
 // CHECK-NEXT:     T *t = new T({x, /*implicit*/(int)0});
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = t->x;
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     _d_t->x += _d_res;
@@ -438,25 +432,23 @@ double cStyleMemoryAlloc(double x, size_t n) {
 
 // CHECK: void cStyleMemoryAlloc_grad_0(double x, size_t n, double *_d_x) {
 // CHECK-NEXT:     size_t _d_n = 0;
-// CHECK-NEXT:     T *_d_t = 0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double *_d_p = 0;
 // CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double *_t2;
 // CHECK-NEXT:     double *_t3;
 // CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     _d_t = (T *)malloc(n * sizeof(T));
+// CHECK-NEXT:     T *_d_t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     T *t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     memset(_d_t, 0, n * sizeof(T));
 // CHECK-NEXT:     memset(t, 0, n * sizeof(T));
 // CHECK-NEXT:     _t0 = t->x;
 // CHECK-NEXT:     t->x = x;
-// CHECK-NEXT:     _d_p = (double *)calloc(1, sizeof(double));
+// CHECK-NEXT:     double *_d_p = (double *)calloc(1, sizeof(double));
 // CHECK-NEXT:     double *p = (double *)calloc(1, sizeof(double));
 // CHECK-NEXT:     _t1 = *p;
 // CHECK-NEXT:     *p = x;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = t->x + *p;
 // CHECK-NEXT:     _t2 = p;
 // CHECK-NEXT:     _t3 = _d_p;
