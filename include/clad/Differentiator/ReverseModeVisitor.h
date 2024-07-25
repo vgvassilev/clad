@@ -81,9 +81,15 @@ namespace clad {
     /// type.
     static clang::QualType
     getNonConstType(clang::QualType T, clang::ASTContext& C, clang::Sema& S) {
-        clang::Qualifiers quals(T.getQualifiers());
-        quals.removeConst();
-        return S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      bool isLValueRefType = T->isLValueReferenceType();
+      T = T.getNonReferenceType();
+      clang::Qualifiers quals(T.getQualifiers());
+      quals.removeConst();
+      clang::QualType nonConstType =
+          S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      if (isLValueRefType)
+        return C.getLValueReferenceType(nonConstType);
+      return nonConstType;
     }
     // Function to Differentiate with Clad as Backend
     void DifferentiateWithClad();

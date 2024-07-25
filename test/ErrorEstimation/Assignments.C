@@ -86,8 +86,8 @@ float func4(float x, float y) {
 }
 
 //CHECK: void func4_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     double _d_z = 0;
 //CHECK-NEXT:     float _t0;
+//CHECK-NEXT:     double _d_z = 0;
 //CHECK-NEXT:     double z = y;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = z + y;
@@ -112,8 +112,8 @@ float func5(float x, float y) {
 }
 
 //CHECK: void func5_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     float _t0;
+//CHECK-NEXT:     int _d_z = 0;
 //CHECK-NEXT:     int z = 56;
 //CHECK-NEXT:     _t0 = x;
 //CHECK-NEXT:     x = z + y;

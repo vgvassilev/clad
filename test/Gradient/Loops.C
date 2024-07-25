@@ -17,11 +17,11 @@ double f1(double x) {
 } // == x^3
 
 // CHECK: void f1_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -57,7 +57,6 @@ double f2(double x) {
 } // == x^9
 
 // CHECK: void f2_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -66,6 +65,7 @@ double f2(double x) {
 // CHECK-NEXT:     int _d_j = 0;
 // CHECK-NEXT:     int j = 0;
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -123,12 +123,12 @@ double f3(double x) {
 } // == x^2
 
 // CHECK: void f3_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
+// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -176,11 +176,11 @@ double f4(double x) {
 } // == x^3
 
 // CHECK: void f4_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_t = 0;
 // CHECK-NEXT:     double t = 1;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; clad::push(_t1, t) , (t *= x)) {
@@ -248,7 +248,6 @@ double f_const_local(double x) {
 } // == 3x^2 + 3x
 
 // CHECK: void f_const_local_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -256,6 +255,7 @@ double f_const_local(double x) {
 // CHECK-NEXT:     double _d_n = 0;
 // CHECK-NEXT:     double n = 0;
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -299,11 +299,11 @@ double f_sum(double *p, int n) {
 
 // CHECK: void f_sum_grad_0(double *p, int n, double *_d_p) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     double _d_s = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_s = 0;
 // CHECK-NEXT:     double s = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -340,11 +340,11 @@ double f_sum_squares(double *p, int n) {
 
 // CHECK: void f_sum_squares_grad_0(double *p, int n, double *_d_p) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     double _d_s = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_s = 0;
 // CHECK-NEXT:     double s = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -383,7 +383,6 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 // CHECK: void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, double *_d_p) {
 // CHECK-NEXT:     double _d_n = 0;
 // CHECK-NEXT:     double _d_sigma = 0;
-// CHECK-NEXT:     double _d_power = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -394,7 +393,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 // CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     double _t6;
 // CHECK-NEXT:     double _t7;
-// CHECK-NEXT:     double _d_gaus = 0;
+// CHECK-NEXT:     double _d_power = 0;
 // CHECK-NEXT:     double power = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -413,6 +412,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 // CHECK-NEXT:     _t7 = std::pow(2 * 3.1415926535897931, n);
 // CHECK-NEXT:     _t6 = std::sqrt(_t7 * sigma);
 // CHECK-NEXT:     _t5 = std::exp(power);
+// CHECK-NEXT:     double _d_gaus = 0;
 // CHECK-NEXT:     double gaus = 1. / _t6 * _t5;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r8 = 0;
@@ -466,7 +466,6 @@ double f_const(const double a, const double b) {
 
 void f_const_grad(const double, const double, double*, double*);
 // CHECK: void f_const_grad(const double a, const double b, double *_d_a, double *_d_b) {
-// CHECK-NEXT:     int _d_r = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -474,6 +473,7 @@ void f_const_grad(const double, const double, double*, double*);
 // CHECK-NEXT:     int _d_sq = 0;
 // CHECK-NEXT:     int sq0 = 0;
 // CHECK-NEXT:     clad::tape<int> _t2 = {};
+// CHECK-NEXT:     int _d_r = 0;
 // CHECK-NEXT:     int r = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -519,7 +519,6 @@ double f6 (double i, double j) {
 }
 
 // CHECK: void f6_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 0;
@@ -531,6 +530,7 @@ double f6 (double i, double j) {
 // CHECK-NEXT:     double c = 0;
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (counter = 0; ; ++counter) {
@@ -589,11 +589,11 @@ double fn7(double i, double j) {
 }
 
 // CHECK: void fn7_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     while (counter--)
@@ -627,12 +627,12 @@ double fn8(double i, double j) {
 }
 
 // CHECK: void fn8_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     while (counter > 0)
@@ -681,18 +681,18 @@ double fn9(double i, double j) {
 }
 
 // CHECK: void fn9_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_counter = 0, _d_counter_again = 0;
 // CHECK-NEXT:     int _t0;
 // CHECK-NEXT:     int _t1;
-// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t2;
 // CHECK-NEXT:     clad::tape<int> _t3 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t4 = {};
 // CHECK-NEXT:     clad::tape<double> _t5 = {};
+// CHECK-NEXT:     int _d_counter = 0, _d_counter_again = 0;
 // CHECK-NEXT:     int counter, counter_again;
 // CHECK-NEXT:     _t0 = counter;
 // CHECK-NEXT:     _t1 = counter_again;
 // CHECK-NEXT:     counter = counter_again = 3;
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
 // CHECK-NEXT:     _t2 = {{0U|0UL}};
 // CHECK-NEXT:     while (counter--)
@@ -759,8 +759,6 @@ double fn10(double i, double j) {
 }
 
 // CHECK: void fn10_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_a = 0;
-// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<int> _t1 = {};
 // CHECK-NEXT:     int _d_b = 0;
@@ -768,7 +766,9 @@ double fn10(double i, double j) {
 // CHECK-NEXT:     clad::tape<int> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<int> _t4 = {};
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     while (clad::push(_t1, b) , b = counter)
@@ -822,12 +822,12 @@ double fn11(double i, double j) {
 }
 
 // CHECK: void fn11_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_counter = 0;
-// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<int> _t2 = {};
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     do {
@@ -874,8 +874,6 @@ double fn12(double i, double j) {
 }
 
 // CHECK: void fn12_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_counter = 0;
-// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<int> _t1 = {};
 // CHECK-NEXT:     int _d_counter_again = 0;
@@ -886,7 +884,9 @@ double fn12(double i, double j) {
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t5 = {};
 // CHECK-NEXT:     clad::tape<double> _t6 = {};
 // CHECK-NEXT:     clad::tape<int> _t7 = {};
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
+// CHECK-NEXT:     double _d_a = 0;
 // CHECK-NEXT:     double a = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     do {
@@ -967,8 +967,6 @@ double fn13(double i, double j) {
 }
 
 // CHECK: void fn13_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<int> _t1 = {};
 // CHECK-NEXT:     int _d_k = 0;
@@ -979,7 +977,9 @@ double fn13(double i, double j) {
 // CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     double temp = 0;
 // CHECK-NEXT:     clad::tape<double> _t5 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 3;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (;; clad::push(_t2, counter) , (counter -= 1)) {
@@ -1052,8 +1052,6 @@ double fn14(double i, double j) {
 }
 
 // CHECK: void fn14_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
@@ -1062,7 +1060,9 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond2 = {};
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     int choice = 5;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     while (choice--)
@@ -1172,8 +1172,6 @@ double fn15(double i, double j) {
 }
 
 // CHECK: void fn15_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
@@ -1186,7 +1184,9 @@ double fn15(double i, double j) {
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t5 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond2 = {};
 // CHECK-NEXT:     clad::tape<double> _t6 = {};
+// CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     int choice = 5;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     while (choice--)
@@ -1298,8 +1298,6 @@ double fn16(double i, double j) {
 }
 
 // CHECK: void fn16_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_counter = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_ii = 0;
 // CHECK-NEXT:     int ii = 0;
@@ -1309,7 +1307,9 @@ double fn16(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond1 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 5;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (ii = 0; ; ++ii) {
@@ -1410,8 +1410,6 @@ double fn17(double i, double j) {
 }
 
 // CHECK: void fn17_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_counter = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_ii = 0;
 // CHECK-NEXT:     int ii = 0;
@@ -1425,7 +1423,9 @@ double fn17(double i, double j) {
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t5 = {};
 // CHECK-NEXT:     clad::tape<double> _t6 = {};
+// CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 5;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (ii = 0; ; ++ii) {
@@ -1544,8 +1544,6 @@ double fn18(double i, double j) {
 }
 
 // CHECK: void fn18_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     int _d_choice = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_counter = 0;
 // CHECK-NEXT:     int counter = 0;
@@ -1554,7 +1552,9 @@ double fn18(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond1 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     int _d_choice = 0;
 // CHECK-NEXT:     int choice = 5;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (counter = 0; ; ++counter) {
@@ -1632,7 +1632,6 @@ double fn19(double* arr, int n) {
 
 // CHECK: void fn19_grad_0(double *arr, int n, double *_d_arr) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -1641,6 +1640,7 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     double *_d_ref = 0;
 // CHECK-NEXT:     double *ref = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -1683,16 +1683,16 @@ double f_loop_init_var(double lower, double upper) {
 }
 
 // CHECK: void f_loop_init_var_grad(double lower, double upper, double *_d_lower, double *_d_upper) {
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     double _d_num_points = 0;
-// CHECK-NEXT:     double _d_interval = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     double _d_x = 0;
 // CHECK-NEXT:     double x = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_sum = 0;
 // CHECK-NEXT:     double sum = 0;
+// CHECK-NEXT:     double _d_num_points = 0;
 // CHECK-NEXT:     double num_points = 10000;
+// CHECK-NEXT:     double _d_interval = 0;
 // CHECK-NEXT:     double interval = (upper - lower) / num_points;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (x = lower; ; clad::push(_t1, x) , (x += interval)) {
@@ -1743,12 +1743,12 @@ double fn20(double *arr, int n) {
 
 // CHECK: void fn20_grad_0(double *arr, int n, double *_d_arr) {
 // CHECK-NEXT:     int _d_n = 0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -1791,7 +1791,6 @@ double fn21(double x) {
 
 
 // CHECK: void fn21_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -1799,6 +1798,7 @@ double fn21(double x) {
 // CHECK-NEXT:     double _d_arr[3] = {0};
 // CHECK-NEXT:     clad::array<double> arr({{3U|3UL}});
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -1843,7 +1843,6 @@ double fn22(double param) {
 
 
 // CHECK: void fn22_grad(double param, double *_d_param) {
-// CHECK-NEXT:     double _d_out = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -1852,6 +1851,7 @@ double fn22(double param) {
 // CHECK-NEXT:     clad::array<double> arr({{1U|1UL}});
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     double _d_out = 0;
 // CHECK-NEXT:     double out = 0.;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; i++) {
@@ -1896,13 +1896,13 @@ double fn23(double i, double j) {
 }
 
 // CHECK: void fn23_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; ++c) {
@@ -1958,11 +1958,11 @@ double fn24(double i, double j) {
 }
 
 // CHECK: void fn24_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; ++c) {
@@ -2004,7 +2004,6 @@ double fn25(double i, double j) {
 }
 
 // CHECK: void fn25_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
@@ -2012,6 +2011,7 @@ double fn25(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t3 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; ++c) {
@@ -2081,7 +2081,6 @@ double fn26(double i, double j) {
 }
 
 // CHECK: void fn26_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
@@ -2089,6 +2088,7 @@ double fn26(double i, double j) {
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t3 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; clad::push(_t2, res) , (++c , res = 7 * i * j)) {
@@ -2155,7 +2155,6 @@ double fn27(double i, double j) {
 }
 
 // CHECK: void fn27_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
@@ -2163,6 +2162,7 @@ double fn27(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 // CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; ++c) {
@@ -2228,12 +2228,12 @@ double fn28(double i, double j) {
 }
 
 // CHECK: void fn28_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; ++c) {
@@ -2280,12 +2280,12 @@ double fn29(double i, double j) {
 }
 
 // CHECK: void fn29_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; clad::push(_t2, res) , (++c , res = 3 * i * j)) {
@@ -2331,7 +2331,6 @@ double fn30(double i, double j) {
 }
 
 // CHECK: void fn30_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_c = 0;
 // CHECK-NEXT:     int c = 0;
@@ -2341,6 +2340,7 @@ double fn30(double i, double j) {
 // CHECK-NEXT:     clad::tape<bool> _cond1 = {};
 // CHECK-NEXT:     clad::tape<bool> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (c = 0; ; ++c) {
@@ -2391,12 +2391,12 @@ double fn31(double i, double j) {
 }
 
 //CHECK:void fn31_grad(double i, double j, double *_d_i, double *_d_j) {
-//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    unsigned {{int|long}} _t0;
 //CHECK-NEXT:    int _d_c = 0;
 //CHECK-NEXT:    int c = 0;
 //CHECK-NEXT:    clad::tape<double> _t1 = {};
 //CHECK-NEXT:    clad::tape<double> _t2 = {};
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (c = 0; ; ++c) {
@@ -2452,7 +2452,6 @@ double fn32(double i, double j) {
 }
 
 //CHECK:void fn32_grad(double i, double j, double *_d_i, double *_d_j) {
-//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    unsigned {{int|long}} _t0;
 //CHECK-NEXT:    int _d_c = 0;
 //CHECK-NEXT:    int c = 0;
@@ -2468,6 +2467,7 @@ double fn32(double i, double j) {
 //CHECK-NEXT:    clad::tape<bool> _cond1 = {};
 //CHECK-NEXT:    clad::tape<double> _t7 = {};
 //CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t8 = {};
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (c = 0; ; ++c) {
@@ -2599,7 +2599,6 @@ double fn33(double i, double j) {
 }
 
 //CHECK: void fn33_grad(double i, double j, double *_d_i, double *_d_j) {
-//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    unsigned {{int|long}} _t0;
 //CHECK-NEXT:    int _d_c = 0;
 //CHECK-NEXT:    int c = 0;
@@ -2619,6 +2618,7 @@ double fn33(double i, double j) {
 //CHECK-NEXT:    clad::tape<bool> _t5 = {};
 //CHECK-NEXT:    clad::tape<double> _t6 = {};
 //CHECK-NEXT:    clad::tape<bool> _cond5 = {};
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (c = 0; ; ++c) {

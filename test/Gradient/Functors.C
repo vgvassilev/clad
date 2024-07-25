@@ -225,8 +225,8 @@ int main() {
                                               // CHECK-EXEC: 54.00 42.00
 
   // CHECK: void CallFunctor_grad(double i, double j, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     Experiment _d_E({});
   // CHECK-NEXT:     Experiment _t0;
+  // CHECK-NEXT:     Experiment _d_E({});
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     _t0 = E;
   // CHECK-NEXT:     {

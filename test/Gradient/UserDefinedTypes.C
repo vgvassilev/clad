@@ -72,9 +72,9 @@ double fn2(Tangent t, double i) {
 
 // CHECK: void fn2_grad(Tangent t, double i, Tangent *_d_t, double *_d_i) {
 // CHECK-NEXT:     Tangent _t0;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     _t0 = t;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = sum(t);
 // CHECK-NEXT:     _t1 = res;
 // CHECK-NEXT:     res += sum(t.data) + i + 2 * t.data[0];
@@ -100,10 +100,10 @@ double fn3(double i, double j) {
 }
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     Tangent _d_t({});
 // CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _t1;
 // CHECK-NEXT:     Tangent _t2;
+// CHECK-NEXT:     Tangent _d_t({});
 // CHECK-NEXT:     Tangent t;
 // CHECK-NEXT:     _t0 = t.data[0];
 // CHECK-NEXT:     t.data[0] = 2 * i;
@@ -137,8 +137,8 @@ double fn4(double i, double j) {
 
 // CHECK: void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     pairdd _d_p({});
-// CHECK-NEXT:     pairdd _d_q({});
 // CHECK-NEXT:     pairdd p(1, 3);
+// CHECK-NEXT:     pairdd _d_q({});
 // CHECK-NEXT:     pairdd q({7, 5});
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p.first += 1 * i;
@@ -201,7 +201,6 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     dcomplex _t1;
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     dcomplex _t3;
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double _t4;
 // CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     dcomplex _t6;
@@ -210,6 +209,7 @@ double fn6(dcomplex c, double i) {
 // CHECK-NEXT:     _t1 = c;
 // CHECK-NEXT:     _t3 = c;
 // CHECK-NEXT:     _t2 = c.imag();
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = c.real() + 3 * _t2 + 6 * i;
 // CHECK-NEXT:     _t4 = res;
 // CHECK-NEXT:     _t6 = c;
@@ -302,7 +302,6 @@ double fn9(Tangent t, dcomplex c) {
 }
 
 // CHECK: void fn9_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -312,6 +311,7 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     clad::tape<dcomplex> _t4 = {};
 // CHECK-NEXT:     double _t5;
 // CHECK-NEXT:     Tangent _t6;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -393,11 +393,11 @@ int main() {
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
@@ -423,11 +423,11 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void sum_pullback(double *data, double _d_y, double *_d_data) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {

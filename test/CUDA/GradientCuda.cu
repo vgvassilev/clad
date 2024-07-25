@@ -31,7 +31,6 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 // CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
 //CHECK-NEXT:     int _d_dim = 0;
-//CHECK-NEXT:     double _d_t = 0;
 //CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
@@ -41,6 +40,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:     double _t4;
 //CHECK-NEXT:     double _t5;
 //CHECK-NEXT:     double _t6;
+//CHECK-NEXT:     double _d_t = 0;
 //CHECK-NEXT:     double t = 0;
 //CHECK-NEXT:     _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
