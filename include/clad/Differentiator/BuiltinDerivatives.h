@@ -72,6 +72,61 @@ ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
 }
 #endif
 
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_pow_pushforward(double x, double exponent, double d_x,
+                          double d_exponent) {
+  auto val = __builtin_pow(x, exponent);
+  double derivative = (exponent * __builtin_pow(x, exponent - 1)) * d_x;
+  // Only add directional derivative of base^exp w.r.t exp if the directional
+  // seed d_exponent is non-zero. This is required because if base is less than
+  // or equal to 0, then log(base) is undefined, and therefore if user only
+  // requested directional derivative of base^exp w.r.t base -- which is valid
+  // --, the result would be undefined because as per C++ valid number + NaN * 0
+  // = NaN.
+  if (d_exponent)
+    derivative += (__builtin_pow(x, exponent) * __builtin_log(x)) * d_exponent;
+  return {val, derivative};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_powf_pushforward(float x, float exponent, float d_x,
+                           float d_exponent) {
+  auto val = __builtin_powf(x, exponent);
+  float derivative = (exponent * __builtin_powf(x, exponent - 1)) * d_x;
+  // Only add directional derivative of base^exp w.r.t exp if the directional
+  // seed d_exponent is non-zero. This is required because if base is less than
+  // or equal to 0, then log(base) is undefined, and therefore if user only
+  // requested directional derivative of base^exp w.r.t base -- which is valid
+  // --, the result would be undefined because as per C++ valid number + NaN * 0
+  // = NaN.
+  if (d_exponent)
+    derivative +=
+        (__builtin_powf(x, exponent) * __builtin_logf(x)) * d_exponent;
+  return {val, derivative};
+}
+
+CUDA_HOST_DEVICE inline void __builtin_pow_pullback(double x, double exponent,
+                                                    double d_y, double* d_x,
+                                                    double* d_exponent) {
+  auto t =
+      __builtin_pow_pushforward(x, exponent, /*d_x=*/1., /*d_exponent=*/0.);
+  *d_x += t.pushforward * d_y;
+  t = __builtin_pow_pushforward(x, exponent, /*d_x=*/0., /*d_exponent=*/1.);
+  *d_exponent += t.pushforward * d_y;
+}
+
+CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
+                                                     float d_y, float* d_x,
+                                                     float* d_exponent) {
+  auto t =
+      __builtin_powf_pushforward(x, exponent, /*d_x=*/1., /*d_exponent=*/0.);
+  *d_x += t.pushforward * d_y;
+  t = __builtin_powf_pushforward(x, exponent, /*d_x=*/0., /*d_exponent=*/1.);
+  *d_exponent += t.pushforward * d_y;
+}
+
+// FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
+
 namespace std {
 template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T> abs_pushforward(T x, T d_x) {

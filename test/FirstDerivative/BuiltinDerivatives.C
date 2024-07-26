@@ -247,6 +247,10 @@ double f13(double x) {
 //CHECK-NEXT:     return _d__t0.pushforward;
 //CHECK-NEXT: }
 
+double f14(double x) {
+  return __builtin_pow(x, 2);
+}
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -318,6 +322,9 @@ int main () { //expected-no-diagnostics
 
   auto f13_ddx = clad::differentiate<2>(f13);
   printf("Result is = %.2f\n", f13_ddx.execute(1)); //CHECK-EXEC: Result is = 2.72
+
+  auto f14_darg0 = clad::differentiate(f14, 0);
+  printf("Result is = %f\n", f14_darg0.execute(1)); //CHECK-EXEC: Result is = 2.000000
 
   return 0;
 }
