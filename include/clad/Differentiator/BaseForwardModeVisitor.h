@@ -18,10 +18,10 @@ namespace clad {
 class BaseForwardModeVisitor
     : public clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>,
       public VisitorBase {
+  unsigned m_IndependentVarIndex = ~0;
+
 protected:
   const clang::ValueDecl* m_IndependentVar = nullptr;
-  unsigned m_IndependentVarIndex = ~0;
-  unsigned m_DerivativeOrder = ~0;
 
 public:
   BaseForwardModeVisitor(DerivativeBuilder& builder,
