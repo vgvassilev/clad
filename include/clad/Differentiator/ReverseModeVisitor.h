@@ -52,10 +52,6 @@ namespace clad {
     Stmts m_Globals;
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
-    /// Based on To-Be-Recorded analysis performed before differentiation,
-    /// tells UsefulToStoreGlobal whether a variable with a given
-    /// SourceLocation has to be stored before being changed or not.
-    std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
