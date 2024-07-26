@@ -146,7 +146,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   // then the specified independent argument is a member variable of the
   // class defining the call operator.
   // Thus, we need to find index of the member variable instead.
-  unsigned argIndex;
+  unsigned argIndex = ~0;
   if (m_DiffReq->param_empty() && m_Functor)
     argIndex =
         std::distance(m_Functor->field_begin(),
