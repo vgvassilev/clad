@@ -22,7 +22,6 @@ protected:
   const clang::ValueDecl* m_IndependentVar = nullptr;
   unsigned m_IndependentVarIndex = ~0;
   unsigned m_DerivativeOrder = ~0;
-  unsigned m_ArgIndex = ~0;
 
 public:
   BaseForwardModeVisitor(DerivativeBuilder& builder,
