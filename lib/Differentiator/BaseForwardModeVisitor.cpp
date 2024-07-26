@@ -137,10 +137,6 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
       return {};
     }
   }
-  m_DerivativeOrder = request.CurrentDerivativeOrder;
-  std::string s = std::to_string(m_DerivativeOrder);
-  if (m_DerivativeOrder == 1)
-    s = "";
 
   // If we are differentiating a call operator, that has no parameters,
   // then the specified independent argument is a member variable of the
@@ -160,6 +156,10 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   std::string argInfo = std::to_string(argIndex);
   for (auto field : diffVarInfo.fields)
     argInfo += "_" + field;
+
+  std::string s;
+  if (request.CurrentDerivativeOrder > 1)
+    s = std::to_string(request.CurrentDerivativeOrder);
 
   // Check if the function is already declared as a custom derivative.
   std::string gradientName =
@@ -409,7 +409,6 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   const_cast<DiffRequest&>(m_DiffReq) = request;
   m_Functor = request.Functor;
-  m_DerivativeOrder = request.CurrentDerivativeOrder;
   assert(m_DiffReq.Mode == GetPushForwardMode());
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
@@ -1071,11 +1070,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // Returning the function call and zero derivative
     return StmtDiff(Call, zero);
   }
-  // Find the built-in derivatives namespace.
-  std::string s = std::to_string(m_DerivativeOrder);
-  if (m_DerivativeOrder == 1)
-    s = "";
 
+  // Find the built-in derivatives namespace.
   llvm::SmallVector<Expr*, 4> CallArgs{};
   llvm::SmallVector<Expr*, 4> diffArgs;
 
@@ -1229,7 +1225,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.Function = FD;
     pushforwardFnRequest.Mode = GetPushForwardMode();
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
-    // pushforwardFnRequest.RequestedDerivativeOrder = m_DerivativeOrder;
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
 

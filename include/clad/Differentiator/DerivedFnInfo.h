@@ -15,7 +15,6 @@ struct DerivedFnInfo {
   clang::FunctionDecl* m_DerivedFn = nullptr;
   clang::FunctionDecl* m_OverloadedDerivedFn = nullptr;
   DiffMode m_Mode = DiffMode::unknown;
-  unsigned m_DerivativeOrder = 0;
   DiffInputVarsInfo m_DiffVarsInfo;
   bool m_UsesEnzyme = false;
   bool m_DeclarationOnly = false;
