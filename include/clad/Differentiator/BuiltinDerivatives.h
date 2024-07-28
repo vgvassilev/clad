@@ -72,6 +72,16 @@ ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
 }
 #endif
 
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_logf_pushforward(float x, float d_x) {
+  return {__builtin_logf(x), (1.F / x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_log_pushforward(double x, double d_x) {
+  return {__builtin_log(x), (1.0 / x) * d_x};
+}
+
 CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
 __builtin_pow_pushforward(double x, double exponent, double d_x,
                           double d_exponent) {
