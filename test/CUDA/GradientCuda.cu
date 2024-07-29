@@ -31,18 +31,12 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 // CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
 //CHECK-NEXT:     int _d_dim = 0;
-//CHECK-NEXT:     unsigned long _t0;
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     double _t2;
-//CHECK-NEXT:     double _t3;
-//CHECK-NEXT:     double _t4;
-//CHECK-NEXT:     double _t5;
-//CHECK-NEXT:     double _t6;
 //CHECK-NEXT:     double _d_t = 0;
 //CHECK-NEXT:     double t = 0;
-//CHECK-NEXT:     _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned long _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             if (!(i < dim))
@@ -52,12 +46,12 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:         clad::push(_t1, t);
 //CHECK-NEXT:         t += (x[i] - p[i]) * (x[i] - p[i]);
 //CHECK-NEXT:     }
-//CHECK-NEXT:     _t2 = t;
-//CHECK-NEXT:     _t3 = (2 * sigma * sigma);
+//CHECK-NEXT:     double _t2 = t;
+//CHECK-NEXT:     double _t3 = (2 * sigma * sigma);
 //CHECK-NEXT:     t = -t / _t3;
-//CHECK-NEXT:     _t6 = std::pow(2 * 3.1415926535897931, -dim / 2.);
-//CHECK-NEXT:     _t5 = std::pow(sigma, -0.5);
-//CHECK-NEXT:     _t4 = std::exp(t);
+//CHECK-NEXT:     double _t6 = std::pow(2 * 3.1415926535897931, -dim / 2.);
+//CHECK-NEXT:     double _t5 = std::pow(sigma, -0.5);
+//CHECK-NEXT:     double _t4 = std::exp(t);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         double _r2 = 0;

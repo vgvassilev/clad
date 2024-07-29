@@ -371,8 +371,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void sin_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = ::std::cos(x);
+// CHECK-NEXT:     float _t0 = ::std::cos(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         _r0 += _d_y.value * clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, 1.F).pushforward;
@@ -385,8 +384,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void cos_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = ::std::sin(x);
+// CHECK-NEXT:     float _t0 = ::std::sin(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         _r0 += _d_y.value * clad::custom_derivatives{{(::std)?}}::cos_pushforward(x, 1.F).pushforward;
@@ -399,8 +397,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void exp_pushforward_pullback(float x, float d_x, ValueAndPushforward<float, float> _d_y, float *_d_x, float *_d_d_x) {
-// CHECK-NEXT:     float _t0;
-// CHECK-NEXT:     _t0 = ::std::exp(x);
+// CHECK-NEXT:     float _t0 = ::std::exp(x);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         float _r0 = 0;
 // CHECK-NEXT:         _r0 += _d_y.value * clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, 1.F).pushforward;
@@ -424,14 +421,13 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void pow_pushforward_pullback(float x, float exponent, float d_x, float d_exponent, ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _d_y, float *_d_x, float *_d_exponent, float *_d_d_x, float *_d_d_exponent) {
-// CHECK-NEXT:     float _t0;
 // CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     float _t1;
 // CHECK-NEXT:     float _t2;
 // CHECK-NEXT:     float _t3;
 // CHECK-NEXT:     float _d_val = 0;
 // CHECK-NEXT:     float val = ::std::pow(x, exponent);
-// CHECK-NEXT:     _t0 = ::std::pow(x, exponent - 1);
+// CHECK-NEXT:     float _t0 = ::std::pow(x, exponent - 1);
 // CHECK-NEXT:     float _d_derivative = 0;
 // CHECK-NEXT:     float derivative = (exponent * _t0) * d_x;
 // CHECK-NEXT:     {

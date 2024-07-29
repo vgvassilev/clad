@@ -72,11 +72,9 @@ struct ExperimentVolatile {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     _t0 = this->x * i;
+  // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     _t1 = this->y * i;
+  // CHECK-NEXT:     double _t1 = this->y * i;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += this->y * 1 * j * j;
@@ -103,11 +101,9 @@ struct ExperimentConstVolatile {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     double _t1;
-  // CHECK-NEXT:     _t0 = this->x * i;
+  // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     _t1 = this->y * i;
+  // CHECK-NEXT:     double _t1 = this->y * i;
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += this->y * 1 * j * j;
