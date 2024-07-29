@@ -55,8 +55,7 @@ template <typename T> struct ExperimentConstVolatile {
 };
 
 // CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile<double> *_d_this, double *_d_i, double *_d_j) const volatile {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = this->x * i;
+// CHECK-NEXT:     double _t0 = this->x * i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).x += 1 * i * i;
 // CHECK-NEXT:         *_d_i += this->x * 1 * i;
@@ -77,10 +76,8 @@ template <> struct ExperimentConstVolatile<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, volatile ExperimentConstVolatile<long double> *_d_this, long double  *_d_i, long double  *_d_j) const volatile {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     _t0 = this->x * i;
-// CHECK-NEXT:     _t1 = this->y * j;
+// CHECK-NEXT:     double _t0 = this->x * i;
+// CHECK-NEXT:     double _t1 = this->y * j;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
 // CHECK-NEXT:         *_d_i += this->x * 1 * j * i;

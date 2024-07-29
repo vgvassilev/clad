@@ -268,14 +268,18 @@ namespace clad {
     struct DelayedStoreResult {
       ReverseModeVisitor& V;
       StmtDiff Result;
+      clang::VarDecl* Declaration;
       bool isConstant;
       bool isInsideLoop;
+      bool isFnScope;
       bool needsUpdate;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
-                         bool pIsConstant, bool pIsInsideLoop,
+                         clang::VarDecl* pDeclaration, bool pIsConstant,
+                         bool pIsInsideLoop, bool pIsFnScope,
                          bool pNeedsUpdate = false)
-          : V(pV), Result(pResult), isConstant(pIsConstant),
-            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
+          : V(pV), Result(pResult), Declaration(pDeclaration),
+            isConstant(pIsConstant), isInsideLoop(pIsInsideLoop),
+            isFnScope(pIsFnScope), needsUpdate(pNeedsUpdate) {}
       void Finalize(clang::Expr* New);
     };
 

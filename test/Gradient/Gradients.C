@@ -121,8 +121,7 @@ double f_div2(double x, double y) {
 }
 
 //CHECK:   void f_div2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = (4 * y);
+//CHECK-NEXT:       double _t0 = (4 * y);
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 3 * 1 / _t0;
 //CHECK-NEXT:           double _r0 = 1 * -(3 * x / (_t0 * _t0));
@@ -137,12 +136,9 @@ double f_div3(double x, double y) {
 }
 
 //CHECK: void f_div3_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     double _t1;
-//CHECK-NEXT:     double _t2;
-//CHECK-NEXT:     _t1 = x;
-//CHECK-NEXT:     _t2 = (x = y);
-//CHECK-NEXT:     _t0 = (y * y);
+//CHECK-NEXT:     double _t1 = x;
+//CHECK-NEXT:     double _t2 = (x = y);
+//CHECK-NEXT:     double _t0 = (y * y);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += 1 / _t0;
 //CHECK-NEXT:         x = _t1;
@@ -201,8 +197,7 @@ double f_cond1(double x, double y) {
 }
 
 //CHECK:   void f_cond1_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond0;
-//CHECK-NEXT:       _cond0 = x > y;
+//CHECK-NEXT:       bool _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:       else
@@ -216,9 +211,8 @@ double f_cond2(double x, double y) {
 }
 
 //CHECK:   void f_cond2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       bool _cond1;
-//CHECK-NEXT:       _cond0 = x > y;
+//CHECK-NEXT:       bool _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           ;
 //CHECK-NEXT:       else
@@ -238,8 +232,7 @@ double f_cond3(double x, double c) {
 }
 
 //CHECK:   void f_cond3_grad(double x, double c, double *_d_x, double *_d_c) {
-//CHECK-NEXT:       bool _cond0;
-//CHECK-NEXT:       _cond0 = c > 0;
+//CHECK-NEXT:       bool _cond0 = c > 0;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:           *_d_c += 1;
@@ -436,8 +429,7 @@ double f_sin(double x, double y) {
 
 void f_sin_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_sin_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = (std::sin(x) + std::sin(y));
+//CHECK-NEXT:       double _t0 = (std::sin(x) + std::sin(y));
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 0;
 //CHECK-NEXT:           _r0 += 1 * (x + y) * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
@@ -647,11 +639,10 @@ float running_sum(float* p, int n) {
 }
 
 // CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 1; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
@@ -699,10 +690,9 @@ double fn_increment_in_return(double i, double j) {
 void fn_increment_in_return_grad(double i, double j, double *_d_i, double *_d_j);
 
 // CHECK: void fn_increment_in_return_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double _d_temp = 0;
 // CHECK-NEXT:     double temp = i;
-// CHECK-NEXT:     _t0 = ++i;
+// CHECK-NEXT:     double _t0 = ++i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1 * temp;
 // CHECK-NEXT:         --i;
@@ -719,10 +709,9 @@ double fn_template_non_type(double x) {
 }
 
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
-// CHECK-NEXT:     bool _cond0;
 // CHECK-NEXT:     size_t _d_maxN = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
-// CHECK-NEXT:     _cond0 = maxN < {{15U|15UL}};
+// CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL}};
 // CHECK-NEXT:     size_t _d_m = 0;
 // CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
 // CHECK-NEXT:     *_d_x += 1 * m;
@@ -859,8 +848,7 @@ double fn_const_cond_op(double x) {
 }
 
 //CHECK:               void fn_const_cond_op_grad(double x, double *_d_x) {
-//CHECK-NEXT:              bool _cond0;
-//CHECK-NEXT:              _cond0 = x > 0;
+//CHECK-NEXT:              bool _cond0 = x > 0;
 //CHECK-NEXT:              *_d_x += 1;
 //CHECK-NEXT:          }
 
