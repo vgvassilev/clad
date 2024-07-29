@@ -2789,7 +2789,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
         }
       } else {
-        VDDerived->setInit(initDiff.getExpr_dx());
+        m_Sema.AddInitializerToDecl(VDDerived, initDiff.getExpr_dx(), true);
+        VDDerived->setInitStyle(VarDecl::InitializationStyle::CInit);
       }
     }
     if (derivedVDE)
@@ -2951,7 +2952,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                   decl, Clone(getArraySizeExpr(AT, m_Context, *this)), true);
               decl->setInitStyle(VarDecl::InitializationStyle::CallInit);
             } else {
-              decl->setInit(getZeroInit(VD->getType()));
+              m_Sema.AddInitializerToDecl(decl, getZeroInit(VD->getType()),
+                                          /*DirectInit=*/true);
+              decl->setInitStyle(VarDecl::InitializationStyle::CInit);
             }
           }
         }
