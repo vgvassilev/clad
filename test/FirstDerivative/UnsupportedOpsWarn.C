@@ -19,7 +19,7 @@ int binOpWarn_1(int x){
     return x ^ 1;   // expected-warning {{attempt to differentiate unsupported operator, ignored.}}
 }
 
-// CHECK: void binOpWarn_1_grad(int x, int *_d_x) {
+// CHECK: void binOpWarn_1_pullback(int x, int _d_y, int *_d_x) {
 // CHECK-NEXT: }
 
 int unOpWarn_0(int x){

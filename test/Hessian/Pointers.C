@@ -11,13 +11,13 @@ double nonMemFn(double i, double j) {
 }
 
 // CHECK: double nonMemFn_darg0(double i, double j);
-// CHECK: void nonMemFn_darg0_grad(double i, double j, double *_d_i, double *_d_j);
+// CHECK: void nonMemFn_darg0_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j);
 // CHECK: double nonMemFn_darg1(double i, double j);
-// CHECK: void nonMemFn_darg1_grad(double i, double j, double *_d_i, double *_d_j);
+// CHECK: void nonMemFn_darg1_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j);
 
 // CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
-// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+// CHECK-NEXT:     nonMemFn_darg0_pullback(i, j, 1, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+// CHECK-NEXT:     nonMemFn_darg1_pullback(i, j, 1, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 // CHECK: double nonMemFn_darg0(double i, double j) {
@@ -26,16 +26,16 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     return _d_i * j + i * _d_j;
 // CHECK-NEXT: }
 
-// CHECK: void nonMemFn_darg0_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void nonMemFn_darg0_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
 // CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_i0 = 1;
 // CHECK-NEXT:     double _d_j0 = 0;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d__d_i += 1 * j;
-// CHECK-NEXT:         *_d_j += _d_i0 * 1;
-// CHECK-NEXT:         *_d_i += 1 * _d_j0;
-// CHECK-NEXT:         _d__d_j += i * 1;
+// CHECK-NEXT:         _d__d_i += _d_y * j;
+// CHECK-NEXT:         *_d_j += _d_i0 * _d_y;
+// CHECK-NEXT:         *_d_i += _d_y * _d_j0;
+// CHECK-NEXT:         _d__d_j += i * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -45,16 +45,16 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT:     return _d_i * j + i * _d_j;
 // CHECK-NEXT: }
 
-// CHECK: void nonMemFn_darg1_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void nonMemFn_darg1_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d__d_i = 0;
 // CHECK-NEXT:     double _d__d_j = 0;
 // CHECK-NEXT:     double _d_i0 = 0;
 // CHECK-NEXT:     double _d_j0 = 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         _d__d_i += 1 * j;
-// CHECK-NEXT:         *_d_j += _d_i0 * 1;
-// CHECK-NEXT:         *_d_i += 1 * _d_j0;
-// CHECK-NEXT:         _d__d_j += i * 1;
+// CHECK-NEXT:         _d__d_i += _d_y * j;
+// CHECK-NEXT:         *_d_j += _d_i0 * _d_y;
+// CHECK-NEXT:         *_d_i += _d_y * _d_j0;
+// CHECK-NEXT:         _d__d_j += i * _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

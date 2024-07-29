@@ -14,64 +14,64 @@ double f_1(double x, double y, double z) {
 }
 
 // all
-//CHECK:   void f_1_grad(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
+//CHECK:   void f_1_pullback(double x, double y, double z, double _d_y0, double *_d_x, double *_d_y, double *_d_z) {
 //CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += 0 * 1;
-//CHECK-NEXT:           *_d_y += 1 * 1;
-//CHECK-NEXT:           *_d_z += 2 * 1;
+//CHECK-NEXT:           *_d_x += 0 * _d_y0;
+//CHECK-NEXT:           *_d_y += 1 * _d_y0;
+//CHECK-NEXT:           *_d_z += 2 * _d_y0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 // x
-//CHECK:   void f_1_grad_0(double x, double y, double z, double *_d_x) {
-//CHECK-NEXT:       double _d_y = 0;
+//CHECK:   void f_1_pullback_0(double x, double y, double z, double _d_y, double *_d_x) {
+//CHECK-NEXT:       double _d_y0 = 0;
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += 0 * 1;
-//CHECK-NEXT:           _d_y += 1 * 1;
-//CHECK-NEXT:           _d_z += 2 * 1;
+//CHECK-NEXT:           *_d_x += 0 * _d_y;
+//CHECK-NEXT:           _d_y0 += 1 * _d_y;
+//CHECK-NEXT:           _d_z += 2 * _d_y;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 // y
-//CHECK:   void f_1_grad_1(double x, double y, double z, double *_d_y) {
+//CHECK:   void f_1_pullback_1(double x, double y, double z, double _d_y0, double *_d_y) {
 //CHECK-NEXT:       double _d_x = 0;
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           _d_x += 0 * 1;
-//CHECK-NEXT:           *_d_y += 1 * 1;
-//CHECK-NEXT:           _d_z += 2 * 1;
+//CHECK-NEXT:           _d_x += 0 * _d_y0;
+//CHECK-NEXT:           *_d_y += 1 * _d_y0;
+//CHECK-NEXT:           _d_z += 2 * _d_y0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 // z
-//CHECK:   void f_1_grad_2(double x, double y, double z, double *_d_z) {
+//CHECK:   void f_1_pullback_2(double x, double y, double z, double _d_y, double *_d_z) {
 //CHECK-NEXT:       double _d_x = 0;
-//CHECK-NEXT:       double _d_y = 0;
+//CHECK-NEXT:       double _d_y0 = 0;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           _d_x += 0 * 1;
-//CHECK-NEXT:           _d_y += 1 * 1;
-//CHECK-NEXT:           *_d_z += 2 * 1;
+//CHECK-NEXT:           _d_x += 0 * _d_y;
+//CHECK-NEXT:           _d_y0 += 1 * _d_y;
+//CHECK-NEXT:           *_d_z += 2 * _d_y;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 // x, y
-//CHECK:   void f_1_grad_0_1(double x, double y, double z, double *_d_x, double *_d_y) {
+//CHECK:   void f_1_pullback_0_1(double x, double y, double z, double _d_y0, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       double _d_z = 0;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += 0 * 1;
-//CHECK-NEXT:           *_d_y += 1 * 1;
-//CHECK-NEXT:           _d_z += 2 * 1;
+//CHECK-NEXT:           *_d_x += 0 * _d_y0;
+//CHECK-NEXT:           *_d_y += 1 * _d_y0;
+//CHECK-NEXT:           _d_z += 2 * _d_y0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
 // y, z
-//CHECK:   void f_1_grad_1_2(double x, double y, double z, double *_d_y, double *_d_z) {
+//CHECK:   void f_1_pullback_1_2(double x, double y, double z, double _d_y0, double *_d_y, double *_d_z) {
 //CHECK-NEXT:       double _d_x = 0;
 //CHECK-NEXT:       {
-//CHECK-NEXT:           _d_x += 0 * 1;
-//CHECK-NEXT:           *_d_y += 1 * 1;
-//CHECK-NEXT:           *_d_z += 2 * 1;
+//CHECK-NEXT:           _d_x += 0 * _d_y0;
+//CHECK-NEXT:           *_d_y += 1 * _d_y0;
+//CHECK-NEXT:           *_d_z += 2 * _d_y0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
 
@@ -87,37 +87,37 @@ double f_1(double x, double y, double z) {
 int main () {
   double result[3];
 
-  auto f1_grad_all = clad::gradient(f_1);
-  TEST(f1_grad_all,
+  auto f1_pullback_all = clad::gradient(f_1);
+  TEST(f1_pullback_all,
        &result[0],
        &result[1],
        &result[2]); // CHECK-EXEC: {0.00, 1.00, 2.00}
 
-  auto f1_grad_x = clad::gradient(f_1, "x");
-  TEST(f1_grad_x, &result[0]); // CHECK-EXEC: {0.00, 0.00, 0.00}
+  auto f1_pullback_x = clad::gradient(f_1, "x");
+  TEST(f1_pullback_x, &result[0]); // CHECK-EXEC: {0.00, 0.00, 0.00}
 
-  auto f1_grad_y = clad::gradient(f_1, "y");
-  TEST(f1_grad_y, &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
-  auto f1_grad_z = clad::gradient(f_1, "z");
-  TEST(f1_grad_z, &result[2]); // CHECK-EXEC: {0.00, 0.00, 2.00}
+  auto f1_pullback_y = clad::gradient(f_1, "y");
+  TEST(f1_pullback_y, &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+  auto f1_pullback_z = clad::gradient(f_1, "z");
+  TEST(f1_pullback_z, &result[2]); // CHECK-EXEC: {0.00, 0.00, 2.00}
 
-  auto f1_grad_xy = clad::gradient(f_1, "x, y");
-  TEST(f1_grad_xy, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+  auto f1_pullback_xy = clad::gradient(f_1, "x, y");
+  TEST(f1_pullback_xy, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
 
-  auto f1_grad_yx = clad::gradient(f_1, "y, x");
-  TEST(f1_grad_yx, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+  auto f1_pullback_yx = clad::gradient(f_1, "y, x");
+  TEST(f1_pullback_yx, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
 
-  auto f1_grad_yz = clad::gradient(f_1, "y, z");
-  TEST(f1_grad_yz, &result[1], &result[2]); // CHECK-EXEC: {0.00, 1.00, 2.00}
+  auto f1_pullback_yz = clad::gradient(f_1, "y, z");
+  TEST(f1_pullback_yz, &result[1], &result[2]); // CHECK-EXEC: {0.00, 1.00, 2.00}
 
-  auto f1_grad_xyz = clad::gradient(f_1, "x, y, z");
-  TEST(f1_grad_xyz,
+  auto f1_pullback_xyz = clad::gradient(f_1, "x, y, z");
+  TEST(f1_pullback_xyz,
        &result[0],
        &result[1],
        &result[2]); // CHECK-EXEC: {0.00, 1.00, 2.00}
 
-  auto f1_grad_zyx = clad::gradient(f_1, "z,y,x");
-  TEST(f1_grad_zyx,
+  auto f1_pullback_zyx = clad::gradient(f_1, "z,y,x");
+  TEST(f1_pullback_zyx,
        &result[0],
        &result[1],
        &result[2]); // CHECK-EXEC: {0.00, 1.00, 2.00}

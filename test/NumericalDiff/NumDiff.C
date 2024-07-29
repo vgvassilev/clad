@@ -11,10 +11,10 @@ double test_1(double x){
 //CHECK: warning: Falling back to numerical differentiation for 'tanh' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 //CHECK: warning: Falling back to numerical differentiation for 'log10' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 
-//CHECK: void test_1_grad(double x, double *_d_x) {
+//CHECK: void test_1_pullback(double x, double _d_y, double *_d_x) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r0 = 0;
-//CHECK-NEXT:         _r0 += 1 * numerical_diff::forward_central_difference(tanh, x, 0, 0, x);
+//CHECK-NEXT:         _r0 += _d_y * numerical_diff::forward_central_difference(tanh, x, 0, 0, x);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
@@ -36,7 +36,7 @@ double test_3(double x) {
     }
     return 0;
 }
-//CHECK: void test_3_grad(double x, double *_d_x) {
+//CHECK: void test_3_pullback(double x, double _d_y, double *_d_x) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _d_constant = 0;
 //CHECK-NEXT:     double constant = 0;
@@ -54,8 +54,8 @@ double test_3(double x) {
 //CHECK-NEXT:             double _r1 = 0;
 //CHECK-NEXT:             double _grad0[2] = {0};
 //CHECK-NEXT:             numerical_diff::central_difference(std::hypot, _grad0, 0, x, constant);
-//CHECK-NEXT:             _r0 += 1 * _grad0[0];
-//CHECK-NEXT:             _r1 += 1 * _grad0[1];
+//CHECK-NEXT:             _r0 += _d_y * _grad0[0];
+//CHECK-NEXT:             _r1 += _d_y * _grad0[1];
 //CHECK-NEXT:             *_d_x += _r0;
 //CHECK-NEXT:             _d_constant += _r1;
 //CHECK-NEXT:         }

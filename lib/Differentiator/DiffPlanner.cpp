@@ -275,9 +275,10 @@ namespace clad {
   }
 
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
-    // Diff info for pullbacks is generated automatically,
+    // Some Diff info is generated automatically,
     // its parameters are not provided by the user.
-    if (Mode == DiffMode::experimental_pullback) {
+    // Update parameters only if no DVI info is present.
+    if (Mode == DiffMode::reverse && !DVI.empty()) {
       // Might need to update DVI args, as they may be pointing to the
       // declaration parameters, not the definition parameters.
       if (!Function->getPreviousDecl())

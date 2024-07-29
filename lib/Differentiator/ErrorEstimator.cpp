@@ -285,7 +285,7 @@ void ErrorEstimationHandler::ActAfterCreatingDerivedFnParamTypes(
   // If we are performing error estimation, our gradient function
   // will have an extra argument which will hold the final error value
   paramTypes.push_back(
-      m_RMV->m_Context.getLValueReferenceType(m_RMV->m_Context.DoubleTy));
+      m_RMV->m_Context.getPointerType(m_RMV->m_Context.DoubleTy));
 }
 
 void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
@@ -307,7 +307,8 @@ void ErrorEstimationHandler::ActAfterCreatingDerivedFnParams(
 
 void ErrorEstimationHandler::ActBeforeCreatingDerivedFnBodyScope() {
   // Reference to the final error statement
-  SetFinalErrorExpr(m_RMV->BuildDeclRef(m_Params->back()));
+  Expr* finalErrorPointer = m_RMV->BuildDeclRef(m_Params->back());
+  SetFinalErrorExpr(m_RMV->BuildOp(UO_Deref, finalErrorPointer));
 }
 
 void ErrorEstimationHandler::ActOnEndOfDerivedFnBody() {
@@ -473,7 +474,7 @@ void ErrorEstimationHandler::ActBeforeDifferentiatingCallExpr(
                           m_RMV->getZeroInit(m_RMV->m_Context.DoubleTy));
   ArgDecls.push_back(m_RMV->BuildDeclStmt(errorRef));
   auto finErr = m_RMV->BuildDeclRef(errorRef);
-  pullbackArgs.push_back(finErr);
+  pullbackArgs.push_back(m_RMV->BuildOp(UO_AddrOf, finErr));
   if (hasAssignee) {
     if (m_NestedFuncError)
       m_NestedFuncError = m_RMV->BuildOp(BO_Add, m_NestedFuncError, finErr);

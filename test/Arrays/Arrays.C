@@ -91,18 +91,18 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:       return _d_vars[0] * consts[0] + vars[0] * _d_consts[0] + _d_vars[1] * consts[1] + vars[1] * _d_consts[1] + _d_vars[2] * consts[2] + vars[2] * _d_consts[2];
 //CHECK-NEXT:   }
 
-//CHECK:   void const_dot_product_grad(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
+//CHECK:   void const_dot_product_pullback(double x, double y, double z, double _d_y0, double *_d_x, double *_d_y, double *_d_z) {
 //CHECK-NEXT:       double _d_vars[3] = {0};
 //CHECK-NEXT:       double _d_consts[3] = {0};
 //CHECK-NEXT:       double vars[3] = {x, y, z};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
 //CHECK-NEXT:       {
-//CHECK-NEXT:           _d_vars[0] += 1 * consts[0];
-//CHECK-NEXT:           _d_consts[0] += vars[0] * 1;
-//CHECK-NEXT:           _d_vars[1] += 1 * consts[1];
-//CHECK-NEXT:           _d_consts[1] += vars[1] * 1;
-//CHECK-NEXT:           _d_vars[2] += 1 * consts[2];
-//CHECK-NEXT:           _d_consts[2] += vars[2] * 1;
+//CHECK-NEXT:           _d_vars[0] += _d_y0 * consts[0];
+//CHECK-NEXT:           _d_consts[0] += vars[0] * _d_y0;
+//CHECK-NEXT:           _d_vars[1] += _d_y0 * consts[1];
+//CHECK-NEXT:           _d_consts[1] += vars[1] * _d_y0;
+//CHECK-NEXT:           _d_vars[2] += _d_y0 * consts[2];
+//CHECK-NEXT:           _d_consts[2] += vars[2] * _d_y0;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += _d_vars[0];
@@ -136,7 +136,7 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //:       return _d_C[0][0] + _d_C[0][1] + _d_C[1][0] + _d_C[1][1];
 //:   }
 
-//:   void const_matmul_sum_grad(double a, double b, double c, double d, double *_d_a, double *_d_b, double *_d_c, double *_d_d) {
+//:   void const_matmul_sum_pullback(double a, double b, double c, double d, double _d_y0, double *_d_a, double *_d_b, double *_d_c, double *_d_d) {
 //:       double _d_A[2][2] = {};
 //:       double _d_B[2][2] = {};
 //:       double _t0;
@@ -176,10 +176,10 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //:       _t14 = B[1][1];
 //:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
 //:       {
-//:           _d_C[0][0] += 1;
-//:           _d_C[0][1] += 1;
-//:           _d_C[1][0] += 1;
-//:           _d_C[1][1] += 1;
+//:           _d_C[0][0] += _d_y0;
+//:           _d_C[0][1] += _d_y0;
+//:           _d_C[1][0] += _d_y0;
+//:           _d_C[1][1] += _d_y0;
 //:       }
 //:       {
 //:           double _r0 = _d_C[0][0] * _t0;

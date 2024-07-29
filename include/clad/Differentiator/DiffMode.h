@@ -7,7 +7,6 @@ enum class DiffMode {
   forward,
   vector_forward_mode,
   experimental_pushforward,
-  experimental_pullback,
   experimental_vector_pushforward,
   reverse,
   hessian,
@@ -26,8 +25,6 @@ inline const char* DiffModeToString(DiffMode mode) {
     return "vector_forward_mode";
   case DiffMode::experimental_pushforward:
     return "pushforward";
-  case DiffMode::experimental_pullback:
-    return "pullback";
   case DiffMode::experimental_vector_pushforward:
     return "vector_pushforward";
   case DiffMode::reverse:

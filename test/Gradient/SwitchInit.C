@@ -16,7 +16,7 @@ double fn1(double i, double j) {
   return res;
 }
 
-// CHECK: void fn1_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK: void fn1_pullback(double i, double j, double _d_y, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
@@ -60,7 +60,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:             clad::push(_t1, {{2U|2UL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     _d_res += _d_y;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
 // CHECK-NEXT:           case {{2U|2UL}}:

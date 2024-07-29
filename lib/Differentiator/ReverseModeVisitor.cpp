@@ -115,17 +115,29 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
   }
 
-  FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
+  FunctionDecl*
+  ReverseModeVisitor::CreateGradientOverload(unsigned numExtraParams) {
     auto gradientParams = m_Derivative->parameters();
-    auto gradientNameInfo = m_Derivative->getNameInfo();
+    std::string name =
+        m_DiffReq.BaseFunctionName + "_grad" + diffParamsPostfix(m_DiffReq);
+    if (m_DiffReq.use_enzyme)
+      name += "_enzyme";
+    IdentifierInfo* II = &m_Context.Idents.get(name);
+    DeclarationNameInfo DNI(II, noLoc);
     // Calculate the total number of parameters that would be required for
     // automatic differentiation in the derived function if all args are
     // requested.
     // FIXME: Here we are assuming all function parameters are of differentiable
     // type. Ideally, we should not make any such assumption.
-    std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
-    std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
-
+    std::size_t totalDerivedParamsSize =
+        m_DiffReq->getNumParams() * 2 + numExtraParams;
+    std::size_t numOfDerivativeParams =
+        m_DiffReq->getNumParams() + numExtraParams;
+    // "Pullback parameter" here means the middle _d_y parameters used in
+    // pullbacks to represent the adjoint of the corresponding function call.
+    // Only Enzyme gradients and pullbacks of void functions don't have it.
+    bool hasPullbackParam =
+        !m_DiffReq.use_enzyme && !m_DiffReq->getReturnType()->isVoidType();
     // Account for the this pointer.
     if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
         !utils::IsStaticMethod(m_DiffReq.Function))
@@ -161,8 +173,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
-                                gradientNameInfo, gradientFunctionOverloadType);
+        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc, DNI,
+                                gradientFunctionOverloadType);
     FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -184,10 +196,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       callArgs.push_back(BuildDeclRef(VD));
     }
 
+    std::size_t firstAdjParamIdx = m_DiffReq->getNumParams();
+    if (hasPullbackParam)
+      ++firstAdjParamIdx;
     for (std::size_t i = 0; i < numOfDerivativeParams; ++i) {
       IdentifierInfo* II = nullptr;
       StorageClass SC = StorageClass::SC_None;
-      std::size_t effectiveGradientIndex = m_DiffReq->getNumParams() + i;
+      std::size_t effectiveGradientIndex = firstAdjParamIdx + i;
       // `effectiveGradientIndex < gradientParams.size()` implies that this
       // parameter represents an actual derivative of one of the function
       // original parameters.
@@ -215,23 +230,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
 
+    if (!m_DiffReq.use_enzyme) {
+      // Pass 1 as the middle parameter to the pullback to get the gradient.
+      Expr* one = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                    /*val=*/1);
+      callArgs.push_back(one);
+    }
     // Build derivatives to be used in the call to the actual derived function.
     // These are initialised by effectively casting the derivative parameters of
     // overloaded derived function to the correct type.
-    for (std::size_t i = m_DiffReq->getNumParams(); i < gradientParams.size();
-         ++i) {
-      auto* overloadParam = overloadParams[i];
+    for (std::size_t i = firstAdjParamIdx; i < gradientParams.size(); ++i) {
+      // Overloads don't have the _d_y parameter like most pullbacks.
+      // Therefore, we have to shift the parameter index by 1 if the pullback
+      // has it.
+      auto* overloadParam = overloadParams[i - hasPullbackParam];
       auto* gradientParam = gradientParams[i];
       TypeSourceInfo* typeInfo =
           m_Context.getTrivialTypeSourceInfo(gradientParam->getType());
       SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-      auto* init = m_Sema
+      Expr* init = m_Sema
                        .BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc,
                                             BuildDeclRef(overloadParam))
                        .get();
 
-      auto* gradientVD = BuildGlobalVarDecl(gradientParam->getType(),
-                                            gradientParam->getName(), init);
+      VarDecl* gradientVD = BuildGlobalVarDecl(gradientParam->getType(),
+                                               gradientParam->getName(), init);
       callArgs.push_back(BuildDeclRef(gradientVD));
       addToCurrentBlock(BuildDeclStmt(gradientVD));
     }
@@ -267,21 +290,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_DiffReq.Mode == DiffMode::error_estimation)
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
-
-    m_Pullback =
-        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
     assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
-    DiffInputVarsInfo DVI;
-    if (request.Args) {
-      DVI = request.DVI;
-      for (const auto& dParam : DVI)
+    if (!request.DVI.empty())
+      for (const auto& dParam : request.DVI)
         args.push_back(dParam.param);
-    }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
-    if (args.empty())
+    if (args.empty() && (!isa<CXXMethodDecl>(FD) || utils::IsStaticMethod(FD)))
       return {};
 
     if (m_ExternalSource)
@@ -293,30 +310,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       outputArrayStr = m_DiffReq->getParamDecl(lastArgN)->getNameAsString();
     }
 
-    auto derivativeBaseName = request.BaseFunctionName;
-    std::string gradientName = derivativeBaseName + funcPostfix();
-    // To be consistent with older tests, nothing is appended to 'f_grad' if
-    // we differentiate w.r.t. all the parameters at once.
-    if (request.Mode == DiffMode::jacobian) {
-      // If Jacobian is asked, the last parameter is the result parameter
-      // and should be ignored
-      if (args.size() != FD->getNumParams()-1){
-        for (const auto* arg : args) {
-          const auto* const it =
-              std::find(FD->param_begin(), FD->param_end() - 1, arg);
-          auto idx = std::distance(FD->param_begin(), it);
-          gradientName += ('_' + std::to_string(idx));
-        }
-      }
-    } else if (args.size() != FD->getNumParams()) {
-      for (const auto* arg : args) {
-        const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
-        auto idx = std::distance(FD->param_begin(), it);
-        gradientName += ('_' + std::to_string(idx));
-      }
-    }
+    std::string derivativeBaseName = request.BaseFunctionName;
+    std::string derivativeName = derivativeBaseName + funcPostfix(m_DiffReq);
 
-    IdentifierInfo* II = &m_Context.Idents.get(gradientName);
+    IdentifierInfo* II = &m_Context.Idents.get(derivativeName);
     DeclarationNameInfo name(II, noLoc);
 
     // If we are in error estimation mode, we have an extra `double&`
@@ -333,9 +330,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
-    // FIXME: Gradient overload doesn't know how to handle additional parameters
-    // added by the plugins yet.
-    if (request.Mode != DiffMode::jacobian && numExtraParam == 0)
+    if (request.Mode != DiffMode::jacobian && m_DiffReq.CallUpdateRequired)
       shouldCreateOverload = true;
     if (!request.DeclarationOnly && !request.DerivedFDPrototypes.empty())
       // If the overload is already created, we don't need to create it again.
@@ -347,7 +342,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
     // and for error estimation, the function type is
-    // void(A1, A2, ..., An, R*, R*, ..., R*, double&)
+    // void(A1, A2, ..., An, R*, R*, ..., R*, void*)
     QualType gradientFunctionType = m_Context.getFunctionType(
         m_Context.VoidTy,
         llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
@@ -359,12 +354,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-            gradientName, DC, gradientFunctionType)) {
+            derivativeName, DC, gradientFunctionType)) {
       // Set m_Derivative for creating the overload.
       m_Derivative = customDerivative;
       FunctionDecl* gradientOverloadFD = nullptr;
       if (shouldCreateOverload)
-        gradientOverloadFD = CreateGradientOverload();
+        gradientOverloadFD = CreateGradientOverload(numExtraParam);
       return DerivativeAndOverload{customDerivative, gradientOverloadFD};
     }
 
@@ -465,135 +460,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     FunctionDecl* gradientOverloadFD = nullptr;
     if (shouldCreateOverload) {
-      gradientOverloadFD =
-          CreateGradientOverload();
+      gradientOverloadFD = CreateGradientOverload(numExtraParam);
     }
 
     return DerivativeAndOverload{result.first, gradientOverloadFD};
-  }
-
-  DerivativeAndOverload
-  ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
-                                     const DiffRequest& request) {
-    // FIXME: Duplication of external source here is a workaround
-    // for the two 'Derive's being different functions.
-    if (m_ExternalSource)
-      m_ExternalSource->ActOnStartOfDerive();
-    silenceDiags = !request.VerboseDiags;
-    // FIXME: We should not use const_cast to get the decl request here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    const_cast<DiffRequest&>(m_DiffReq) = request;
-    assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
-    assert(m_DiffReq.Function && "Must not be null.");
-
-    DiffParams args{};
-    if (!request.DVI.empty())
-      for (const auto& dParam : request.DVI)
-        args.push_back(dParam.param);
-    else
-      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
-#ifndef NDEBUG
-    bool isStaticMethod = utils::IsStaticMethod(FD);
-    assert((!args.empty() || !isStaticMethod) &&
-           "Cannot generate pullback function of a function "
-           "with no differentiable arguments");
-#endif
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterParsingDiffArgs(request, args);
-
-    auto derivativeName =
-        utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
-    auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
-
-    auto paramTypes = ComputeParamTypes(args);
-    const auto* originalFnType =
-        dyn_cast<FunctionProtoType>(m_DiffReq->getType());
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
-
-    QualType pullbackFnType = m_Context.getFunctionType(
-        m_Context.VoidTy, paramTypes, originalFnType->getExtProtoInfo());
-
-    llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
-                                           getEnclosingNamespaceOrTUScope());
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-
-    SourceLocation validLoc{m_DiffReq->getLocation()};
-    DeclWithContext fnBuildRes =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
-                                validLoc, DNI, pullbackFnType);
-    m_Derivative = fnBuildRes.first;
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActBeforeCreatingDerivedFnScope();
-
-    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-               Scope::DeclScope);
-    m_Sema.PushFunctionScope();
-    m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnScope();
-
-    auto params = BuildParams(args);
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
-
-    m_Derivative->setParams(params);
-    m_Derivative->setBody(nullptr);
-
-    if (!request.DeclarationOnly) {
-      if (m_ExternalSource)
-        m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
-
-      beginScope(Scope::FnScope | Scope::DeclScope);
-      m_DerivativeFnScope = getCurrentScope();
-
-      beginBlock();
-      if (m_ExternalSource)
-        m_ExternalSource->ActOnStartOfDerivedFnBody(request);
-
-      StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
-      Stmt* forward = bodyDiff.getStmt();
-      Stmt* reverse = bodyDiff.getStmt_dx();
-
-      // Create the body of the function.
-      // Firstly, all "global" Stmts are put into fn's body.
-      for (Stmt* S : m_Globals)
-        addToCurrentBlock(S, direction::forward);
-      // Forward pass.
-      if (auto* CS = dyn_cast<CompoundStmt>(forward))
-        for (Stmt* S : CS->body())
-          addToCurrentBlock(S, direction::forward);
-
-      // Reverse pass.
-      if (auto* RCS = dyn_cast<CompoundStmt>(reverse))
-        for (Stmt* S : RCS->body())
-          addToCurrentBlock(S, direction::forward);
-
-      if (m_ExternalSource)
-        m_ExternalSource->ActOnEndOfDerivedFnBody();
-
-      Stmt* fnBody = endBlock();
-      m_Derivative->setBody(fnBody);
-      endScope(); // Function body scope
-
-      // Size >= current derivative order means that there exists a declaration
-      // or prototype for the currently derived function.
-      if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
-        m_Derivative->setPreviousDeclaration(
-            request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
-    }
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
-    endScope(); // Function decl scope
-
-    return DerivativeAndOverload{fnBuildRes.first, nullptr};
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
@@ -1749,8 +1619,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
-      if (FD == m_DiffReq.Function &&
-          m_DiffReq.Mode == DiffMode::experimental_pullback) {
+      if (FD == m_DiffReq.Function) {
         // Recursive call.
         Expr* selfRef =
             m_Sema
@@ -1773,7 +1642,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackRequest.Function = FD;
         pullbackRequest.BaseFunctionName =
             clad::utils::ComputeEffectiveFnName(FD);
-        pullbackRequest.Mode = DiffMode::experimental_pullback;
+        pullbackRequest.Mode = DiffMode::reverse;
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
@@ -3869,9 +3738,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
                                                           QualType xType) {
-
-    assert((m_DiffReq.Mode != DiffMode::reverse || yType->isRealType()) &&
-           "yType should be a non-reference builtin-numerical scalar type!!");
     QualType xValueType = utils::GetValueType(xType);
     // derivative variables should always be of non-const type.
     xValueType.removeLocalConst();
@@ -3906,26 +3772,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     paramTypes.reserve(m_DiffReq->getNumParams() * 2);
     for (auto* PVD : m_DiffReq->parameters())
       paramTypes.push_back(PVD->getType());
-    // TODO: Add DiffMode::experimental_pullback support here as well.
-    if (m_DiffReq.Mode == DiffMode::reverse ||
-        m_DiffReq.Mode == DiffMode::experimental_pullback) {
+    if (m_DiffReq.Mode == DiffMode::reverse) {
       QualType effectiveReturnType =
           m_DiffReq->getReturnType().getNonReferenceType();
-      if (m_DiffReq.Mode == DiffMode::experimental_pullback) {
-        // FIXME: Generally, we use the function's return type as the argument's
-        // derivative type. We cannot follow this strategy for `void` function
-        // return type. Thus, temporarily use `double` type as the placeholder
-        // type for argument derivatives. We should think of a more uniform and
-        // consistent solution to this problem. One effective strategy that may
-        // hold well: If we are differentiating a variable of type Y with
-        // respect to variable of type X, then the derivative should be of type
-        // X. Check this related issue for more details:
-        // https://github.com/vgvassilev/clad/issues/385
-        if (effectiveReturnType->isVoidType())
-          effectiveReturnType = m_Context.DoubleTy;
-        else
-          paramTypes.push_back(effectiveReturnType);
-      }
+      if (!effectiveReturnType->isVoidType() && !m_DiffReq.use_enzyme)
+        paramTypes.push_back(effectiveReturnType);
 
       if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         const CXXRecordDecl* RD = MD->getParent();
@@ -3960,8 +3811,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         cast<FunctionProtoType>(m_Derivative->getType());
     std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
-    if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
-        !m_DiffReq->getReturnType()->isVoidType()) {
+    if (m_DiffReq.Mode == DiffMode::reverse &&
+        !m_DiffReq->getReturnType()->isVoidType() && !m_DiffReq.use_enzyme) {
       ++dParamTypesIdx;
     }
 
@@ -4000,8 +3851,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
       if (it != std::end(diffParams)) {
         *it = newPVD;
-        if (m_DiffReq.Mode == DiffMode::reverse ||
-            m_DiffReq.Mode == DiffMode::experimental_pullback) {
+        if (m_DiffReq.Mode == DiffMode::reverse) {
           QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
           IdentifierInfo* dII =
               CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
@@ -4031,8 +3881,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
     }
 
-    if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
-        !m_DiffReq->getReturnType()->isVoidType()) {
+    if (!m_DiffReq.use_enzyme && !m_DiffReq->getReturnType()->isVoidType()) {
       IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
       QualType pullbackType =
           derivativeFnType->getParamType(m_DiffReq->getNumParams());
@@ -4065,8 +3914,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // FIXME: If we do not consider diffParams as an independent argument for
     // jacobian mode, then we should keep diffParams list empty for jacobian
     // mode and thus remove the if condition.
-    if (m_DiffReq.Mode == DiffMode::reverse ||
-        m_DiffReq.Mode == DiffMode::experimental_pullback)
+    if (m_DiffReq.Mode == DiffMode::reverse)
       m_IndependentVars.insert(m_IndependentVars.end(), diffParams.begin(),
                                diffParams.end());
     return params;

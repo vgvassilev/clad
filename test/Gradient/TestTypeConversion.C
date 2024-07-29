@@ -17,8 +17,8 @@ float fn_type_conversion(float z, int a) {
   return z;
 }
 
-void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
-// CHECK: void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a) {
+void fn_type_conversion_pullback(float z, int a, float *_d_z, int *_d_a);
+// CHECK: void fn_type_conversion_pullback(float z, int a, float _d_y, float *_d_z, int *_d_a) {
 // CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
@@ -33,7 +33,7 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:         clad::push(_t1, z);
 // CHECK-NEXT:         z = z * a;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     *_d_z += 1;
+// CHECK-NEXT:     *_d_z += _d_y;
 // CHECK-NEXT:     for (;; _t0--) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!_t0)
@@ -49,15 +49,6 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
-
-#define TEST(F, x, y)                                                 \
-  {                                                                   \
-    result_0 = 0;                                                     \
-    result_1 = 0;                                                     \
-    clad::gradient(F);                                                \
-    F##_grad(x, y, &result_0, &result_1);                             \
-    printf("Result is = {%.2f, %.2f}\n", result_0, (float)result_1);  \
-  }
 
 int main() {
   float result_0;

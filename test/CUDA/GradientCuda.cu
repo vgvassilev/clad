@@ -28,7 +28,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 }
 
 
-// CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
+// CHECK:    void gauss_pullback_1(double *x, double *p, double sigma, int dim, double _d_y, double *_d_p) __attribute__((device)) __attribute__((host)) {
 //CHECK-NEXT:     double _d_sigma = 0;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     double _d_t = 0;
@@ -61,14 +61,14 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         double _r1 = 0;
 //CHECK-NEXT:         double _r2 = 0;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / 2., 1 * _t4 * _t5, &_r1, &_r2);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(2 * 3.1415926535897931, -dim / 2., _d_y * _t4 * _t5, &_r1, &_r2);
 //CHECK-NEXT:         _d_dim += -_r2 / 2.;
 //CHECK-NEXT:         double _r3 = 0;
 //CHECK-NEXT:         double _r4 = 0;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, _t6 * 1 * _t4, &_r3, &_r4);
+//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(sigma, -0.5, _t6 * _d_y * _t4, &_r3, &_r4);
 //CHECK-NEXT:         _d_sigma += _r3;
 //CHECK-NEXT:         double _r5 = 0;
-//CHECK-NEXT:         _r5 += _t6 * _t5 * 1 * clad::custom_derivatives::exp_pushforward(t, 1.).pushforward;
+//CHECK-NEXT:         _r5 += _t6 * _t5 * _d_y * clad::custom_derivatives::exp_pushforward(t, 1.).pushforward;
 //CHECK-NEXT:         _d_t += _r5;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {

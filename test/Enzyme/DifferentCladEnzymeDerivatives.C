@@ -10,10 +10,10 @@ double foo(double x, double y){
     return x*y;
 }
 
-// CHECK: void foo_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK: void foo_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_x += 1 * y;
-// CHECK-NEXT:         *_d_y += x * 1;
+// CHECK-NEXT:         *_d_x += _d_y0 * y;
+// CHECK-NEXT:         *_d_y += x * _d_y0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
