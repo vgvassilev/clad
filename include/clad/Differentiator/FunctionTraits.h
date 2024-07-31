@@ -763,17 +763,15 @@ namespace clad {
   /// Specialization for free function pointer type
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
-      F*,
-      typename std::enable_if<std::is_function<F>::value>::type> {
+      F*, typename std::enable_if<std::is_function<F>::value>::type> {
     using type = remove_reference_and_pointer_t<F>*;
   };
 
   /// Specialization for member function pointer type
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
-      F,
-      typename std::enable_if<
-          std::is_member_function_pointer<F>::value>::type> {
+      F, typename std::enable_if<
+             std::is_member_function_pointer<F>::value>::type> {
     using type = typename std::decay<F>::type;
   };
 
@@ -783,20 +781,19 @@ namespace clad {
   /// defines member typedef `type` as the type of `NoFunction*`.
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
-      F,
-      typename std::enable_if<
-          std::is_class<remove_reference_and_pointer_t<F>>::value &&
-          has_call_operator<F>::value>::type> {
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             has_call_operator<F>::value>::type> {
     using ClassType =
         typename std::decay<remove_reference_and_pointer_t<F>>::type;
     using type = decltype(&ClassType::operator());
   };
+
   template <class F>
   struct ExtractDerivedFnTraitsForwMode<
-      F,
-      typename std::enable_if<
-          std::is_class<remove_reference_and_pointer_t<F>>::value &&
-          !has_call_operator<F>::value>::type> {
+      F, typename std::enable_if<
+             std::is_class<remove_reference_and_pointer_t<F>>::value &&
+             !has_call_operator<F>::value>::type> {
     using type = NoFunction*;
   };
 
