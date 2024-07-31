@@ -34,6 +34,9 @@ enum opts : unsigned {
 
   // Specifying whether we only want the diagonal of the hessian.
   diagonal_only = 1 << (ORDER_BITS + 4),
+
+  // Specify that we need a constexpr-enabled CladFunction
+  immediate_mode = 1 << (ORDER_BITS + 7),
 }; // enum opts
 
 constexpr unsigned GetDerivativeOrder(const unsigned bitmasked_opts) {
