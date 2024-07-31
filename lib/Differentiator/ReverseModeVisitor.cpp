@@ -2151,7 +2151,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // discontinuity in the function space.
         // FIXME: We should support boolean differentiation or ignore it
         // completely
-        unsupportedOpWarn(UnOp->getEndLoc());
+        unsupportedOpWarn(UnOp->getOperatorLoc());
       diff = Visit(E);
       ResultRef = diff.getExpr_dx();
     }
@@ -2467,7 +2467,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // FIXME: We should support boolean differentiation or ignore it
       // completely
       if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
-        unsupportedOpWarn(BinOp->getEndLoc());
+        unsupportedOpWarn(BinOp->getOperatorLoc());
 
       return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     }
