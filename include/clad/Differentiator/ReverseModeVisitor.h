@@ -406,6 +406,8 @@ namespace clad {
     StmtDiff VisitDoStmt(const clang::DoStmt* DS);
     StmtDiff VisitContinueStmt(const clang::ContinueStmt* CS);
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
+    StmtDiff
+    VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
     StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
     StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
