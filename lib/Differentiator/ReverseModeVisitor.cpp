@@ -976,6 +976,131 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(condExpr, ResultRef);
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
+    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
+               Scope::ContinueScope);
+    beginBlock(direction::reverse);
+
+    LoopCounter loopCounter(*this);
+    const VarDecl* LoopVD = FRS->getLoopVariable();
+
+    const Stmt* RangeDecl = FRS->getRangeStmt();
+    const Stmt* BeginDecl = FRS->getBeginStmt();
+    StmtDiff VisitRange = Visit(RangeDecl);
+    StmtDiff VisitBegin = Visit(BeginDecl);
+    Expr* BeginExpr = cast<BinaryOperator>(VisitBegin.getStmt())->getLHS();
+
+    beginBlock(direction::reverse);
+    // Create all declarations needed.
+    auto* BeginDeclRef = cast<DeclRefExpr>(BeginExpr);
+    Expr* d_BeginDeclRef = m_Variables[BeginDeclRef->getDecl()];
+
+    auto* RangeExpr =
+        cast<DeclRefExpr>(cast<BinaryOperator>(VisitRange.getStmt())->getLHS());
+
+    Expr* RangeInit = Clone(FRS->getRangeInit());
+    Expr* AssignRange =
+        BuildOp(BO_Assign, RangeExpr, BuildOp(UO_AddrOf, RangeInit));
+    Expr* AssignBegin =
+        BuildOp(BO_Assign, BeginDeclRef, BuildOp(UO_Deref, RangeExpr));
+    addToCurrentBlock(AssignRange);
+    addToCurrentBlock(AssignBegin);
+    const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
+
+    Expr* EndInit = cast<BinaryOperator>(EndDecl->getInit())->getRHS();
+    QualType EndType = CloneType(EndDecl->getType());
+    std::string EndName = EndDecl->getNameAsString();
+    Expr* EndAssign = BuildOp(BO_Add, BuildOp(UO_Deref, RangeExpr), EndInit);
+    VarDecl* EndVarDecl =
+        BuildGlobalVarDecl(EndType, EndName, EndAssign, /*DirectInit=*/false);
+    DeclStmt* AssignEnd = BuildDeclStmt(EndVarDecl);
+
+    addToCurrentBlock(AssignEnd);
+    auto* AssignEndVarDecl =
+        cast<VarDecl>(cast<DeclStmt>(AssignEnd)->getSingleDecl());
+    DeclRefExpr* EndExpr = BuildDeclRef(AssignEndVarDecl);
+    Expr* IncBegin = BuildOp(UO_PreInc, BeginDeclRef);
+
+    beginBlock(direction::forward);
+    DeclDiff<VarDecl> LoopVDDiff = DifferentiateVarDecl(LoopVD);
+    Stmt* AdjLoopVDAddAssign =
+        utils::unwrapIfSingleStmt(endBlock(direction::forward));
+
+    if ((LoopVDDiff.getDecl()->getDeclName() != LoopVD->getDeclName() ||
+         LoopVD->getType() != LoopVDDiff.getDecl()->getType()))
+      m_DeclReplacements[LoopVD] = LoopVDDiff.getDecl();
+    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop,
+                                                /*NewValue=*/true);
+
+    Expr* d_IncBegin = BuildOp(UO_PreInc, d_BeginDeclRef);
+    Expr* d_DecBegin = BuildOp(UO_PostDec, d_BeginDeclRef);
+    Expr* ForwardCond = BuildOp(BO_NE, BeginDeclRef, EndExpr);
+    // Add item assignment statement to the body.
+    const Stmt* body = FRS->getBody();
+    StmtDiff bodyDiff = Visit(body);
+
+    StmtDiff storeLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl()));
+    StmtDiff storeAdjLoop =
+        StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
+
+    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
+    Expr* CounterIncrement = loopCounter.getCounterIncrement();
+
+    Expr* LoopInit = LoopVDDiff.getDecl()->getInit();
+    LoopVDDiff.getDecl()->setInit(getZeroInit(LoopVDDiff.getDecl()->getType()));
+    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
+    Expr* AssignLoop =
+        BuildOp(BO_Assign, BuildDeclRef(LoopVDDiff.getDecl()), LoopInit);
+
+    if (!LoopVD->getType()->isReferenceType()) {
+      Expr* d_LoopVD = BuildDeclRef(LoopVDDiff.getDecl_dx());
+      AdjLoopVDAddAssign =
+          BuildOp(BO_Assign, d_LoopVD, BuildOp(UO_Deref, d_BeginDeclRef));
+    }
+
+    beginBlock(direction::forward);
+    addToCurrentBlock(CounterIncrement);
+    addToCurrentBlock(AdjLoopVDAddAssign);
+    addToCurrentBlock(AssignLoop);
+    addToCurrentBlock(storeLoop.getStmt());
+    addToCurrentBlock(storeAdjLoop.getStmt());
+    CompoundStmt* LoopVDForwardDiff = endBlock(direction::forward);
+    CompoundStmt* bodyForward = utils::PrependAndCreateCompoundStmt(
+        m_Sema.getASTContext(), bodyDiff.getStmt(), LoopVDForwardDiff);
+
+    beginBlock(direction::forward);
+    addToCurrentBlock(d_DecBegin);
+    addToCurrentBlock(storeLoop.getStmt_dx());
+    addToCurrentBlock(storeAdjLoop.getStmt_dx());
+    CompoundStmt* LoopVDReverseDiff = endBlock(direction::forward);
+    CompoundStmt* bodyReverse = utils::PrependAndCreateCompoundStmt(
+        m_Sema.getASTContext(), bodyDiff.getStmt_dx(), LoopVDReverseDiff);
+
+    Expr* Inc = BuildOp(BO_Comma, IncBegin, d_IncBegin);
+    Stmt* Forward = new (m_Context) ForStmt(
+        m_Context, /*Init=*/nullptr, ForwardCond, /*CondVar=*/nullptr, Inc,
+        bodyForward, FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+    Expr* CounterCondition =
+        loopCounter.getCounterConditionResult().get().second;
+    Expr* CounterDecrement = loopCounter.getCounterDecrement();
+
+    Stmt* Reverse = bodyReverse;
+    addToCurrentBlock(Reverse, direction::reverse);
+    Reverse = endBlock(direction::reverse);
+
+    Reverse = new (m_Context)
+        ForStmt(m_Context, /*Init=*/nullptr, CounterCondition,
+                /*CondVar=*/nullptr, CounterDecrement, Reverse,
+                FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+    addToCurrentBlock(Reverse, direction::reverse);
+    Reverse = endBlock(direction::reverse);
+    endScope();
+
+    return {utils::unwrapIfSingleStmt(Forward),
+            utils::unwrapIfSingleStmt(Reverse)};
+  }
+
   StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
@@ -2108,7 +2233,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           addToCurrentBlock(add_assign, direction::reverse);
         }
       }
-      return {cloneE, derivedE};
+      return {cloneE, derivedE, derivedE};
     } else {
       if (opCode != UO_LNot)
         // We should only output warnings on visiting boolean conditions

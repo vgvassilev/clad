@@ -381,6 +381,7 @@ namespace clad {
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
+    StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
