@@ -760,6 +760,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(enzymeCall);
     }
   }
+
+  StmtDiff ReverseModeVisitor::VisitCXXStdInitializerListExpr(
+      const clang::CXXStdInitializerListExpr* ILE) {
+    return Visit(ILE->getSubExpr(), dfdx());
+  }
+
   StmtDiff ReverseModeVisitor::VisitStmt(const Stmt* S) {
     diag(
         DiagnosticsEngine::Warning, S->getBeginLoc(),
@@ -1481,7 +1487,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // global. Ref-type declarations cannot be moved to the function global
       // scope because they can't be separated from their inits.
       if (DRE->getDecl()->getType()->isReferenceType() &&
-          !VD->getType()->isReferenceType())
+          VD->getType()->isPointerType())
         clonedDRE = BuildOp(UO_Deref, clonedDRE);
       if (m_DiffReq.Mode == DiffMode::jacobian) {
         if (m_VectorOutput.size() <= outputArrayCursor)
@@ -2725,11 +2731,45 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       VDCloneType = CloneType(VD->getType());
       VDDerivedType = getNonConstType(VDCloneType, m_Context, m_Sema);
     }
-    bool isDerivativeOfRefType = VD->getType()->isReferenceType();
+
+    bool isRefType = VD->getType()->isLValueReferenceType();
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VD->getType()->isPointerType();
     bool isInitializedByNewExpr = false;
     bool initializeDerivedVar = true;
+
+    // We need to replace std::initializer_list with clad::array because the
+    // former is temporary by design and it's not possible to create modifiable
+    // adjoints.
+    if (m_Sema.isStdInitializerList(utils::GetValueType(VD->getType()),
+                                    /*Element=*/nullptr)) {
+      if (const Expr* init = VD->getInit()) {
+        if (const auto* CXXILE =
+                dyn_cast<CXXStdInitializerListExpr>(init->IgnoreImplicit())) {
+          if (const auto* ILE = dyn_cast<InitListExpr>(
+                  CXXILE->getSubExpr()->IgnoreImplicit())) {
+            VDDerivedType =
+                GetCladArrayOfType(ILE->getInit(/*Init=*/0)->getType());
+            unsigned numInits = ILE->getNumInits();
+            VDDerivedInit = ConstantFolder::synthesizeLiteral(
+                m_Context.getSizeType(), m_Context, numInits);
+            VDCloneType = VDDerivedType;
+          }
+        } else if (isRefType) {
+          initDiff = Visit(init);
+          if (promoteToFnScope) {
+            VDDerivedInit = BuildOp(UO_AddrOf, initDiff.getExpr_dx());
+            VDDerivedType = VDDerivedInit->getType();
+          } else {
+            VDDerivedInit = initDiff.getExpr_dx();
+            VDDerivedType =
+                m_Context.getLValueReferenceType(VDDerivedInit->getType());
+          }
+          VDCloneType = VDDerivedType;
+        }
+      }
+    }
+
     // Check if the variable is pointer type and initialized by new expression
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
@@ -2760,7 +2800,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // `VDDerivedType` is the corresponding non-reference type and the initial
       // value is set to 0.
       // Otherwise, for non-reference types, the initial value is set to 0.
-      VDDerivedInit = getZeroInit(VD->getType());
+      if (!VDDerivedInit)
+        VDDerivedInit = getZeroInit(VD->getType());
 
       // `specialThisDiffCase` is only required for correctly differentiating
       // the following code:
@@ -2777,14 +2818,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         }
       }
 
-      if (isDerivativeOfRefType) {
+      if (isRefType) {
         initDiff = Visit(VD->getInit());
         if (!initDiff.getForwSweepExpr_dx()) {
           VDDerivedType =
               ComputeAdjointType(VD->getType().getNonReferenceType());
-          isDerivativeOfRefType = false;
+          isRefType = false;
         }
-        if (promoteToFnScope || !isDerivativeOfRefType)
+        if (promoteToFnScope || !isRefType)
           VDDerivedInit = getZeroInit(VDDerivedType);
         else
           VDDerivedInit = initDiff.getForwSweepExpr_dx();
@@ -2841,7 +2882,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
     // need to call `Visit` since non-local variables are not differentiated.
-    if (!isDerivativeOfRefType && (!isPointerType || isInitializedByNewExpr)) {
+    if (!isRefType && (!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
 
       if (!clad::utils::hasNonDifferentiableAttribute(VD)) {
@@ -2890,7 +2931,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
-    if (isDerivativeOfRefType && promoteToFnScope) {
+    if (isRefType && promoteToFnScope) {
       Expr* assignDerivativeE =
           BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
                   BuildOp(UnaryOperatorKind::UO_AddrOf,
@@ -2912,7 +2953,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // ->
     // double* ref;
     // ref = &x;
-    if (isDerivativeOfRefType && promoteToFnScope)
+    if (isRefType && promoteToFnScope)
       VDClone = BuildGlobalVarDecl(
           VDCloneType, VD->getNameAsString(),
           BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
