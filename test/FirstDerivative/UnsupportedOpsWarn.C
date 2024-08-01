@@ -6,12 +6,10 @@
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 int binOpWarn_0(int x){
-    return x << 1;  // expected-warning {{attempt to differentiate unsupported operator,  derivative                          set to 0}}
+    return x << 1;  // expected-warning {{attempt to differentiate unsupported operator, ignored.}}                        set to 0}}
 }
 
-// CHECK: int binOpWarn_0_darg0(int x) {
-// CHECK-NEXT:    int _d_x = 1;
-// CHECK-NEXT:    return 0;
+// CHECK: void binOpWarn_0_grad(int x, int *_d_x) {
 // CHECK-NEXT: }
 
 
@@ -23,17 +21,14 @@ int binOpWarn_1(int x){
 // CHECK-NEXT: }
 
 int unOpWarn_0(int x){
-    return ~x;  // expected-warning {{attempt to differentiate unsupported operator,  derivative                          set to 0}}
+    return ~x;  // expected-warning {{attempt to differentiate unsupported operator, ignored.}}                        set to 0}}
 }
 
-// CHECK: int unOpWarn_0_darg0(int x) {
-// CHECK-NEXT:   int _d_x = 1;
-// CHECK-NEXT:   return 0;
+// CHECK: void unOpWarn_0_grad(int x, int *_d_x) {
 // CHECK-NEXT: }
 
 int main(){
-
-    clad::differentiate(binOpWarn_0, 0);
+    clad::gradient(binOpWarn_0);
     clad::gradient(binOpWarn_1);
-    clad::differentiate(unOpWarn_0, 0);
+    clad::gradient(unOpWarn_0);
 }
