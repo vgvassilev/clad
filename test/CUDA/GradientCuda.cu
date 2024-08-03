@@ -92,6 +92,10 @@ __global__ void compute(double* d_x, double* d_p, int n, double* d_result) {
   gauss_g.execute(d_x, d_p, 2.0, n, d_result);
 }
 
+__global__ void kernel(int *a) {
+  *a *= *a;
+}
+
 int main(void) {
   double *x, *d_x;
   double *p, *d_p;
@@ -126,5 +130,7 @@ int main(void) {
     printf("Results are not equal\n");
     return 1;
   }
+
+  auto test = clad::gradient(kernel);
 
 }
