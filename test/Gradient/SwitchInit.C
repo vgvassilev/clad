@@ -17,7 +17,6 @@ double fn1(double i, double j) {
 }
 
 // CHECK: void fn1_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
@@ -26,6 +25,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         count = 1;

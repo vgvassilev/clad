@@ -52,15 +52,12 @@ void f_3(double x, double y, double z, double *_result) {
 void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
 //CHECK: void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
 //CHECK-NEXT:  double _d_constant = 0;
-//CHECK-NEXT:  double _t0;
-//CHECK-NEXT:  double _t1;
-//CHECK-NEXT:  double _t2;
 //CHECK-NEXT:  double constant = 42;
-//CHECK-NEXT:  _t0 = sin(x);
+//CHECK-NEXT:  double _t0 = sin(x);
 //CHECK-NEXT:  _result[0] = sin(x) * constant;
-//CHECK-NEXT:  _t1 = sin(y);
+//CHECK-NEXT:  double _t1 = sin(y);
 //CHECK-NEXT:  _result[1] = sin(y) * constant;
-//CHECK-NEXT:  _t2 = sin(z);
+//CHECK-NEXT:  double _t2 = sin(z);
 //CHECK-NEXT:  _result[2] = sin(z) * constant;
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r2 = 0;
@@ -93,15 +90,12 @@ void f_4(double x, double y, double z, double *_result) {
 void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
 //CHECK: void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
 //CHECK-NEXT:    double _d_constant = 0;
-//CHECK-NEXT:    double _t0;
-//CHECK-NEXT:    double _t1;
-//CHECK-NEXT:    double _t2;
 //CHECK-NEXT:    double constant = 42;
-//CHECK-NEXT:    _t0 = multiply(x, y);
+//CHECK-NEXT:    double _t0 = multiply(x, y);
 //CHECK-NEXT:    _result[0] = multiply(x, y) * constant;
-//CHECK-NEXT:    _t1 = multiply(y, z);
+//CHECK-NEXT:    double _t1 = multiply(y, z);
 //CHECK-NEXT:    _result[1] = multiply(y, z) * constant;
-//CHECK-NEXT:    _t2 = multiply(z, x);
+//CHECK-NEXT:    double _t2 = multiply(z, x);
 //CHECK-NEXT:    _result[2] = multiply(z, x) * constant;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r4 = 0;
@@ -145,10 +139,24 @@ void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMa
 // CHECK-NEXT:  {
 // CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += 1 * a * a;
 // CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * 1 * a;
-
 // CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * a * 1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:}
+
+void f_5(float a, double output[]){
+  output[1]=a;
+  output[0]=a*a;  
+}
+
+//CHECK: void f_5_jac(float a, double output[], double *jacobianMatrix) {
+//CHECK-NEXT:    output[1] = a;
+//CHECK-NEXT:    output[0] = a * a;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += 1 * a;
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += a * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    jacobianMatrix[{{1U|1UL}}] += 1;
+//CHECK-NEXT:}
 
 #define TEST(F, x, y, z) { \
   result[0] = 0; result[1] = 0; result[2] = 0;\
@@ -181,6 +189,11 @@ int main() {
   TEST(f_3, 1, 2, 3); // CHECK-EXEC: Result is = {22.69, 0.00, 0.00, 0.00, -17.48, 0.00, 0.00, 0.00, -41.58}
   TEST(f_4, 1, 2, 3); // CHECK-EXEC: Result is = {84.00, 42.00, 0.00, 0.00, 126.00, 84.00, 126.00, 0.00, 42.00}
   TEST_F_1_SINGLE_PARAM(1, 2, 3); // CHECK-EXEC: Result is = {3.00, 3.00, -2.00}
+
+  auto df5 = clad::jacobian(f_5);
+  result[0] = 0; result[1] = 0;
+  df5.execute(3, outputarr, result);
+  printf("Result is = {%.2f, %.2f}", result[0], result[1]); // CHECK-EXEC: Result is = {6.00, 1.00}
 }
 
 //CHECK: void multiply_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {

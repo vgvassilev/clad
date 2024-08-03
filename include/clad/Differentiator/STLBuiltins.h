@@ -128,6 +128,80 @@ operator_subscript_pushforward(const ::std::vector<T>* v, unsigned idx,
   return {(*v)[idx], (*d_v)[idx]};
 }
 
+template <typename T, ::std::size_t N>
+constexpr clad::ValueAndPushforward<T&, T&>
+operator_subscript_pushforward(::std::array<T, N>* a, ::std::size_t i,
+                               ::std::array<T, N>* d_a,
+                               ::std::size_t d_i) noexcept {
+  return {(*a)[i], (*d_a)[i]};
+}
+
+template <typename T, ::std::size_t N>
+constexpr clad::ValueAndPushforward<T&, T&>
+at_pushforward(::std::array<T, N>* a, ::std::size_t i, ::std::array<T, N>* d_a,
+               ::std::size_t d_i) noexcept {
+  return {(*a)[i], (*d_a)[i]};
+}
+
+template <typename T, ::std::size_t N>
+constexpr clad::ValueAndPushforward<const T&, const T&>
+operator_subscript_pushforward(const ::std::array<T, N>* a, ::std::size_t i,
+                               const ::std::array<T, N>* d_a,
+                               ::std::size_t d_i) noexcept {
+  return {(*a)[i], (*d_a)[i]};
+}
+
+template <typename T, ::std::size_t N>
+constexpr clad::ValueAndPushforward<const T&, const T&>
+at_pushforward(const ::std::array<T, N>* a, ::std::size_t i,
+               const ::std::array<T, N>* d_a, ::std::size_t d_i) noexcept {
+  return {(*a)[i], (*d_a)[i]};
+}
+
+template <typename T, ::std::size_t N>
+constexpr clad::ValueAndPushforward<::std::array<T, N>&, ::std::array<T, N>&>
+operator_equal_pushforward(::std::array<T, N>* a,
+                           const ::std::array<T, N>& param,
+                           ::std::array<T, N>* d_a,
+                           const ::std::array<T, N>& d_param) noexcept {
+  (*a) = param;
+  (*d_a) = d_param;
+  return {*a, *d_a};
+}
+
+template <typename T, ::std::size_t N>
+inline constexpr clad::ValueAndPushforward<const T&, const T&>
+front_pushforward(const ::std::array<T, N>* a,
+                  const ::std::array<T, N>* d_a) noexcept {
+  return {a->front(), d_a->front()};
+}
+
+template <typename T, ::std::size_t N>
+inline constexpr clad::ValueAndPushforward<T&, T&>
+front_pushforward(::std::array<T, N>* a, ::std::array<T, N>* d_a) noexcept {
+  return {a->front(), d_a->front()};
+}
+
+template <typename T, ::std::size_t N>
+inline constexpr clad::ValueAndPushforward<const T&, const T&>
+back_pushforward(const ::std::array<T, N>* a,
+                 const ::std::array<T, N>* d_a) noexcept {
+  return {a->back(), d_a->back()};
+}
+
+template <typename T, ::std::size_t N>
+inline constexpr clad::ValueAndPushforward<T&, T&>
+back_pushforward(::std::array<T, N>* a, ::std::array<T, N>* d_a) noexcept {
+  return {a->back(), d_a->back()};
+}
+
+template <typename T, ::std::size_t N>
+void fill_pushforward(::std::array<T, N>* a, const T& u,
+                      ::std::array<T, N>* d_a, const T& d_u) {
+  a->fill(u);
+  d_a->fill(d_u);
+}
+
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad

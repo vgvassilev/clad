@@ -71,12 +71,10 @@ double fn2(Tangent t, double i) {
 }
 
 // CHECK: void fn2_grad(Tangent t, double i, Tangent *_d_t, double *_d_i) {
-// CHECK-NEXT:     Tangent _t0;
+// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     _t0 = t;
 // CHECK-NEXT:     double res = sum(t);
-// CHECK-NEXT:     _t1 = res;
+// CHECK-NEXT:     double _t1 = res;
 // CHECK-NEXT:     res += sum(t.data) + i + 2 * t.data[0];
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
@@ -101,15 +99,12 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent _d_t({});
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     Tangent _t2;
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     _t0 = t.data[0];
+// CHECK-NEXT:     double _t0 = t.data[0];
 // CHECK-NEXT:     t.data[0] = 2 * i;
-// CHECK-NEXT:     _t1 = t.data[1];
+// CHECK-NEXT:     double _t1 = t.data[1];
 // CHECK-NEXT:     t.data[1] = 5 * i + 3 * j;
-// CHECK-NEXT:     _t2 = t;
+// CHECK-NEXT:     Tangent _t2 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(_t2, 1, &_d_t);
@@ -137,8 +132,8 @@ double fn4(double i, double j) {
 
 // CHECK: void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     pairdd _d_p({});
-// CHECK-NEXT:     pairdd _d_q({});
 // CHECK-NEXT:     pairdd p(1, 3);
+// CHECK-NEXT:     pairdd _d_q({});
 // CHECK-NEXT:     pairdd q({7, 5});
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p.first += 1 * i;
@@ -171,8 +166,7 @@ double fn5(const Tangent& t, double i) {
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const;
 
 // CHECK: void fn5_grad(const Tangent &t, double i, Tangent *_d_t, double *_d_i) {
-// CHECK-NEXT:     Tangent _t0;
-// CHECK-NEXT:     _t0 = t;
+// CHECK-NEXT:     Tangent _t0 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;
@@ -197,23 +191,16 @@ double fn6(dcomplex c, double i) {
 // CHECK: constexpr void imag_pullback(double _d_y, std{{(::__1)?}}::complex<double> *_d_this){{.*}};
 
 // CHECK: void fn6_grad(dcomplex c, double i, dcomplex *_d_c, double *_d_i) {
-// CHECK-NEXT:     dcomplex _t0;
-// CHECK-NEXT:     dcomplex _t1;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     dcomplex _t3;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     dcomplex _t6;
-// CHECK-NEXT:     _t0 = c;
+// CHECK-NEXT:     dcomplex _t0 = c;
 // CHECK-NEXT:     c.real(5 * i);
-// CHECK-NEXT:     _t1 = c;
-// CHECK-NEXT:     _t3 = c;
-// CHECK-NEXT:     _t2 = c.imag();
+// CHECK-NEXT:     dcomplex _t1 = c;
+// CHECK-NEXT:     dcomplex _t3 = c;
+// CHECK-NEXT:     double _t2 = c.imag();
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = c.real() + 3 * _t2 + 6 * i;
-// CHECK-NEXT:     _t4 = res;
-// CHECK-NEXT:     _t6 = c;
-// CHECK-NEXT:     _t5 = c.real();
+// CHECK-NEXT:     double _t4 = res;
+// CHECK-NEXT:     dcomplex _t6 = c;
+// CHECK-NEXT:     double _t5 = c.real();
 // CHECK-NEXT:     res += 4 * _t5;
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
@@ -239,21 +226,14 @@ double fn7(dcomplex c1, dcomplex c2) {
 }
 
 // CHECK: void fn7_grad(dcomplex c1, dcomplex c2, dcomplex *_d_c1, dcomplex *_d_c2) {
-// CHECK-NEXT:     dcomplex _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     dcomplex _t2;
-// CHECK-NEXT:     dcomplex _t3;
-// CHECK-NEXT:     dcomplex _t4;
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     dcomplex _t6;
-// CHECK-NEXT:     _t0 = c2;
-// CHECK-NEXT:     _t2 = c2;
-// CHECK-NEXT:     _t1 = c2.real();
-// CHECK-NEXT:     _t3 = c1;
+// CHECK-NEXT:     dcomplex _t0 = c2;
+// CHECK-NEXT:     dcomplex _t2 = c2;
+// CHECK-NEXT:     double _t1 = c2.real();
+// CHECK-NEXT:     dcomplex _t3 = c1;
 // CHECK-NEXT:     c1.real(c2.imag() + 5 * _t1);
-// CHECK-NEXT:     _t4 = c1;
-// CHECK-NEXT:     _t6 = c1;
-// CHECK-NEXT:     _t5 = c1.imag();
+// CHECK-NEXT:     dcomplex _t4 = c1;
+// CHECK-NEXT:     dcomplex _t6 = c1;
+// CHECK-NEXT:     double _t5 = c1.imag();
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _t4.real_pullback(1, &(*_d_c1));
 // CHECK-NEXT:         _t6.imag_pullback(3 * 1, &(*_d_c1));
@@ -274,13 +254,10 @@ double fn8(Tangent t, dcomplex c) {
 // CHECK: void updateTo_pullback(double d, Tangent *_d_this, double *_d_d);
 
 // CHECK: void fn8_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
-// CHECK-NEXT:     dcomplex _t0;
-// CHECK-NEXT:     Tangent _t1;
-// CHECK-NEXT:     Tangent _t2;
-// CHECK-NEXT:     _t0 = c;
-// CHECK-NEXT:     _t1 = t;
+// CHECK-NEXT:     dcomplex _t0 = c;
+// CHECK-NEXT:     Tangent _t1 = t;
 // CHECK-NEXT:     t.updateTo(c.real());
-// CHECK-NEXT:     _t2 = t;
+// CHECK-NEXT:     Tangent _t2 = t;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t = _t2;
 // CHECK-NEXT:         sum_pullback(_t2, 1, &(*_d_t));
@@ -302,18 +279,15 @@ double fn9(Tangent t, dcomplex c) {
 }
 
 // CHECK: void fn9_grad(Tangent t, dcomplex c, Tangent *_d_t, dcomplex *_d_c) {
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<dcomplex> _t2 = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     clad::tape<dcomplex> _t4 = {};
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     Tangent _t6;
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:          if (!(i < 5))
@@ -325,8 +299,8 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:         clad::push(_t4, c);
 // CHECK-NEXT:         res += c.real() + 2 * clad::push(_t3, c.imag());
 // CHECK-NEXT:     }
-// CHECK-NEXT:     _t5 = res;
-// CHECK-NEXT:     _t6 = t;
+// CHECK-NEXT:     double _t5 = res;
+// CHECK-NEXT:     Tangent _t6 = t;
 // CHECK-NEXT:     res += sum(t);
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
@@ -393,13 +367,12 @@ int main() {
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < 5))
@@ -423,13 +396,12 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void sum_pullback(double *data, double _d_y, double *_d_data) {
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < 5))
@@ -463,8 +435,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void real_pullback({{.*}} [[__val:.*]], std{{(::__1)?}}::complex<double> *_d_this, {{.*}} *[[_d___val:[a-zA-Z_]*]]){{.*}} {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 ={{( __real)?}} this->[[_M_value:.*]];
+// CHECK-NEXT:     double _t0 ={{( __real)?}} this->[[_M_value:.*]];
 // CHECK-NEXT:     {{(__real)?}} this->[[_M_value:.*]] = [[__val]];
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{(__real)?}} this->[[_M_value:.*]] = _t0;
@@ -483,11 +454,10 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: void updateTo_pullback(double d, Tangent *_d_this, double *_d_d) {
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < 5))

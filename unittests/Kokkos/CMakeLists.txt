@@ -1,5 +1,6 @@
 add_clad_unittest(KokkosTests
   main.cpp
+  ViewAccess.cpp
   ViewBasics.cpp
   ParallelReduce.cpp
   ParallelFor.cpp

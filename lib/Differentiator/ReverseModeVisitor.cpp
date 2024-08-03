@@ -908,7 +908,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     auto VisitBranch = [&](const Expr* Branch,
                            Expr* dfdx) -> std::pair<StmtDiff, StmtDiff> {
+      beginScope(Scope::DeclScope);
       auto Result = DifferentiateSingleExpr(Branch, dfdx);
+      endScope();
       StmtDiff BranchDiff = Result.first;
       StmtDiff ExprDiff = Result.second;
       Stmt* Forward = utils::unwrapIfSingleStmt(BranchDiff.getStmt());
@@ -974,11 +976,136 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(condExpr, ResultRef);
   }
 
-  StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
+  StmtDiff
+  ReverseModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
     beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
                Scope::ContinueScope);
     beginBlock(direction::reverse);
+
     LoopCounter loopCounter(*this);
+    const VarDecl* LoopVD = FRS->getLoopVariable();
+
+    const Stmt* RangeDecl = FRS->getRangeStmt();
+    const Stmt* BeginDecl = FRS->getBeginStmt();
+    StmtDiff VisitRange = Visit(RangeDecl);
+    StmtDiff VisitBegin = Visit(BeginDecl);
+    Expr* BeginExpr = cast<BinaryOperator>(VisitBegin.getStmt())->getLHS();
+
+    beginBlock(direction::reverse);
+    // Create all declarations needed.
+    auto* BeginDeclRef = cast<DeclRefExpr>(BeginExpr);
+    Expr* d_BeginDeclRef = m_Variables[BeginDeclRef->getDecl()];
+
+    auto* RangeExpr =
+        cast<DeclRefExpr>(cast<BinaryOperator>(VisitRange.getStmt())->getLHS());
+
+    Expr* RangeInit = Clone(FRS->getRangeInit());
+    Expr* AssignRange =
+        BuildOp(BO_Assign, RangeExpr, BuildOp(UO_AddrOf, RangeInit));
+    Expr* AssignBegin =
+        BuildOp(BO_Assign, BeginDeclRef, BuildOp(UO_Deref, RangeExpr));
+    addToCurrentBlock(AssignRange);
+    addToCurrentBlock(AssignBegin);
+    const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
+
+    Expr* EndInit = cast<BinaryOperator>(EndDecl->getInit())->getRHS();
+    QualType EndType = CloneType(EndDecl->getType());
+    std::string EndName = EndDecl->getNameAsString();
+    Expr* EndAssign = BuildOp(BO_Add, BuildOp(UO_Deref, RangeExpr), EndInit);
+    VarDecl* EndVarDecl =
+        BuildGlobalVarDecl(EndType, EndName, EndAssign, /*DirectInit=*/false);
+    DeclStmt* AssignEnd = BuildDeclStmt(EndVarDecl);
+
+    addToCurrentBlock(AssignEnd);
+    auto* AssignEndVarDecl =
+        cast<VarDecl>(cast<DeclStmt>(AssignEnd)->getSingleDecl());
+    DeclRefExpr* EndExpr = BuildDeclRef(AssignEndVarDecl);
+    Expr* IncBegin = BuildOp(UO_PreInc, BeginDeclRef);
+
+    beginBlock(direction::forward);
+    DeclDiff<VarDecl> LoopVDDiff = DifferentiateVarDecl(LoopVD);
+    Stmt* AdjLoopVDAddAssign =
+        utils::unwrapIfSingleStmt(endBlock(direction::forward));
+
+    if ((LoopVDDiff.getDecl()->getDeclName() != LoopVD->getDeclName() ||
+         LoopVD->getType() != LoopVDDiff.getDecl()->getType()))
+      m_DeclReplacements[LoopVD] = LoopVDDiff.getDecl();
+    llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop,
+                                                /*NewValue=*/true);
+
+    Expr* d_IncBegin = BuildOp(UO_PreInc, d_BeginDeclRef);
+    Expr* d_DecBegin = BuildOp(UO_PostDec, d_BeginDeclRef);
+    Expr* ForwardCond = BuildOp(BO_NE, BeginDeclRef, EndExpr);
+    // Add item assignment statement to the body.
+    const Stmt* body = FRS->getBody();
+    StmtDiff bodyDiff = Visit(body);
+
+    StmtDiff storeLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl()));
+    StmtDiff storeAdjLoop =
+        StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
+
+    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
+    Expr* CounterIncrement = loopCounter.getCounterIncrement();
+
+    Expr* LoopInit = LoopVDDiff.getDecl()->getInit();
+    LoopVDDiff.getDecl()->setInit(getZeroInit(LoopVDDiff.getDecl()->getType()));
+    addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
+    Expr* AssignLoop =
+        BuildOp(BO_Assign, BuildDeclRef(LoopVDDiff.getDecl()), LoopInit);
+
+    if (!LoopVD->getType()->isReferenceType()) {
+      Expr* d_LoopVD = BuildDeclRef(LoopVDDiff.getDecl_dx());
+      AdjLoopVDAddAssign =
+          BuildOp(BO_Assign, d_LoopVD, BuildOp(UO_Deref, d_BeginDeclRef));
+    }
+
+    beginBlock(direction::forward);
+    addToCurrentBlock(CounterIncrement);
+    addToCurrentBlock(AdjLoopVDAddAssign);
+    addToCurrentBlock(AssignLoop);
+    addToCurrentBlock(storeLoop.getStmt());
+    addToCurrentBlock(storeAdjLoop.getStmt());
+    CompoundStmt* LoopVDForwardDiff = endBlock(direction::forward);
+    CompoundStmt* bodyForward = utils::PrependAndCreateCompoundStmt(
+        m_Sema.getASTContext(), bodyDiff.getStmt(), LoopVDForwardDiff);
+
+    beginBlock(direction::forward);
+    addToCurrentBlock(d_DecBegin);
+    addToCurrentBlock(storeLoop.getStmt_dx());
+    addToCurrentBlock(storeAdjLoop.getStmt_dx());
+    CompoundStmt* LoopVDReverseDiff = endBlock(direction::forward);
+    CompoundStmt* bodyReverse = utils::PrependAndCreateCompoundStmt(
+        m_Sema.getASTContext(), bodyDiff.getStmt_dx(), LoopVDReverseDiff);
+
+    Expr* Inc = BuildOp(BO_Comma, IncBegin, d_IncBegin);
+    Stmt* Forward = new (m_Context) ForStmt(
+        m_Context, /*Init=*/nullptr, ForwardCond, /*CondVar=*/nullptr, Inc,
+        bodyForward, FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+    Expr* CounterCondition =
+        loopCounter.getCounterConditionResult().get().second;
+    Expr* CounterDecrement = loopCounter.getCounterDecrement();
+
+    Stmt* Reverse = bodyReverse;
+    addToCurrentBlock(Reverse, direction::reverse);
+    Reverse = endBlock(direction::reverse);
+
+    Reverse = new (m_Context)
+        ForStmt(m_Context, /*Init=*/nullptr, CounterCondition,
+                /*CondVar=*/nullptr, CounterDecrement, Reverse,
+                FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+    addToCurrentBlock(Reverse, direction::reverse);
+    Reverse = endBlock(direction::reverse);
+    endScope();
+
+    return {utils::unwrapIfSingleStmt(Forward),
+            utils::unwrapIfSingleStmt(Reverse)};
+  }
+
+  StmtDiff ReverseModeVisitor::VisitForStmt(const ForStmt* FS) {
+    beginBlock(direction::reverse);
+    LoopCounter loopCounter(*this);
+    beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
+               Scope::ContinueScope);
     llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
         m_CurrentBreakFlagExpr);
     m_CurrentBreakFlagExpr = nullptr;
@@ -2033,7 +2160,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
+      if (m_DiffReq.shouldBeRecorded(E)) {
         auto op = opCode == UO_PostInc ? UO_PostDec : UO_PostInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
@@ -2050,7 +2177,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* diff_dx = diff.getExpr_dx();
       if (isPointerOp)
         addToCurrentBlock(BuildOp(opCode, diff_dx), direction::forward);
-      if (UsefulToStoreGlobal(diff.getRevSweepAsExpr())) {
+      if (m_DiffReq.shouldBeRecorded(E)) {
         auto op = opCode == UO_PreInc ? UO_PreDec : UO_PreInc;
         addToCurrentBlock(BuildOp(op, Clone(diff.getRevSweepAsExpr())),
                           direction::reverse);
@@ -2106,7 +2233,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           addToCurrentBlock(add_assign, direction::reverse);
         }
       }
-      return {cloneE, derivedE};
+      return {cloneE, derivedE, derivedE};
     } else {
       if (opCode != UO_LNot)
         // We should only output warnings on visiting boolean conditions
@@ -2308,7 +2435,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                         .get();
                 temp_m_Variables[m_IndependentVars[i]] = result_at_i;
               }
-              m_VectorOutput.push_back(temp_m_Variables);
+              if (m_VectorOutput.size() <= outputArrayCursor)
+                m_VectorOutput.resize(outputArrayCursor + 1);
+              m_VectorOutput[outputArrayCursor] = std::move(temp_m_Variables);
             }
 
             auto* dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
@@ -2332,44 +2461,48 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // in Lblock
       beginBlock(direction::reverse);
       Ldiff = Visit(L, dfdx());
-      auto* Lblock = endBlock(direction::reverse);
-      llvm::SmallVector<Expr*, 4> ExprsToStore;
-      utils::GetInnermostReturnExpr(Ldiff.getExpr(), ExprsToStore);
+
+      if (L->HasSideEffects(m_Context)) {
+        Expr* E = Ldiff.getExpr();
+        llvm::SmallVector<Expr*, 4> returnExprs;
+        utils::GetInnermostReturnExpr(E, returnExprs);
+        if (returnExprs.size() == 1) {
+          addToCurrentBlock(E, direction::forward);
+          Ldiff.updateStmt(returnExprs[0]);
+        } else {
+          auto* storeE = GlobalStoreAndRef(BuildOp(UO_AddrOf, E));
+          Ldiff.updateStmt(BuildOp(UO_Deref, storeE));
+        }
+      }
+
+      Stmts Lblock = EndBlockWithoutCreatingCS(direction::reverse);
+
+      Expr* LCloned = Ldiff.getExpr();
+      // For x, ResultRef is _d_x, for x[i] its _d_x[i], for reference exprs
+      // like (x = y) it propagates recursively, so _d_x is also returned.
+      ResultRef = Ldiff.getExpr_dx();
+      if (!ResultRef)
+        return Clone(BinOp);
+      // If assigned expr is dependent, first update its derivative;
+      if (dfdx() && !Lblock.empty()) {
+        addToCurrentBlock(*Lblock.begin(), direction::reverse);
+        Lblock.erase(Lblock.begin());
+      }
+
+      // Store the value of the LHS of the assignment in the forward pass
+      // and restore it in the reverse pass
+      if (m_DiffReq.shouldBeRecorded(L)) {
+        StmtDiff pushPop = StoreAndRestore(LCloned);
+        addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+      }
 
       // We need to store values of derivative pointer variables in forward pass
       // and restore them in reverse pass.
       if (isPointerOp) {
-        Expr* Edx = Ldiff.getExpr_dx();
-        ExprsToStore.push_back(Edx);
-      }
-
-      if (L->HasSideEffects(m_Context)) {
-        Expr* E = Ldiff.getExpr();
-        auto* storeE =
-            StoreAndRef(E, m_Context.getLValueReferenceType(E->getType()));
-        Ldiff.updateStmt(storeE);
-      }
-
-      Expr* LCloned = Ldiff.getExpr();
-      // For x, AssignedDiff is _d_x, for x[i] its _d_x[i], for reference exprs
-      // like (x = y) it propagates recursively, so _d_x is also returned.
-      Expr* AssignedDiff = Ldiff.getExpr_dx();
-      if (!AssignedDiff)
-        return Clone(BinOp);
-      ResultRef = AssignedDiff;
-      // If assigned expr is dependent, first update its derivative;
-      auto Lblock_begin = Lblock->body_rbegin();
-      auto Lblock_end = Lblock->body_rend();
-
-      if (dfdx() && Lblock_begin != Lblock_end) {
-        addToCurrentBlock(*Lblock_begin, direction::reverse);
-        Lblock_begin = std::next(Lblock_begin);
-      }
-
-      for (auto& E : ExprsToStore) {
-        auto pushPop = StoreAndRestore(E);
-        addToCurrentBlock(pushPop.getExpr(), direction::forward);
-        addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
+        StmtDiff pushPop = StoreAndRestore(Ldiff.getExpr_dx());
+        addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
       }
 
       if (m_ExternalSource)
@@ -2381,13 +2514,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // For pointer types, no need to store old derivatives.
       if (!isPointerOp)
-        oldValue = StoreAndRef(AssignedDiff, direction::reverse, "_r_d",
+        oldValue = StoreAndRef(ResultRef, direction::reverse, "_r_d",
                                /*forceDeclCreation=*/true);
       if (opCode == BO_Assign) {
         if (!isPointerOp) {
           // Add the statement `dl = 0;`
-          Expr* zero = getZeroInit(AssignedDiff->getType());
-          addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, zero),
+          Expr* zero = getZeroInit(ResultRef->getType());
+          addToCurrentBlock(BuildOp(BO_Assign, ResultRef, zero),
                             direction::reverse);
         }
         Rdiff = Visit(R, oldValue);
@@ -2419,8 +2552,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (isInsideLoop)
           addToCurrentBlock(LCloned, direction::forward);
         // Add the statement `dl = 0;`
-        Expr* zero = getZeroInit(AssignedDiff->getType());
-        addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, zero),
+        Expr* zero = getZeroInit(ResultRef->getType());
+        addToCurrentBlock(BuildOp(BO_Assign, ResultRef, zero),
                           direction::reverse);
         /// Capture all the emitted statements while visiting R
         /// and insert them after `dl += dl * R`
@@ -2429,7 +2562,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Rdiff = Visit(R, dr);
         Stmts RBlock = EndBlockWithoutCreatingCS(direction::reverse);
         addToCurrentBlock(
-            BuildOp(BO_AddAssign, AssignedDiff,
+            BuildOp(BO_AddAssign, ResultRef,
                     BuildOp(BO_Mul, oldValue, Rdiff.getRevSweepAsExpr())),
             direction::reverse);
         for (auto& S : RBlock)
@@ -2439,14 +2572,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, Rdiff.getExpr());
       } else if (opCode == BO_DivAssign) {
         // Add the statement `dl = 0;`
-        Expr* zero = getZeroInit(AssignedDiff->getType());
-        addToCurrentBlock(BuildOp(BO_Assign, AssignedDiff, zero),
+        Expr* zero = getZeroInit(ResultRef->getType());
+        addToCurrentBlock(BuildOp(BO_Assign, ResultRef, zero),
                           direction::reverse);
         auto RDelayed = DelayedGlobalStoreAndRef(R);
         StmtDiff RResult = RDelayed.Result;
         Expr* RStored =
             StoreAndRef(RResult.getRevSweepAsExpr(), direction::reverse);
-        addToCurrentBlock(BuildOp(BO_AddAssign, AssignedDiff,
+        addToCurrentBlock(BuildOp(BO_AddAssign, ResultRef,
                                   BuildOp(BO_Div, oldValue, RStored)),
                           direction::reverse);
         if (!RDelayed.isConstant) {
@@ -2469,8 +2602,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                       opCode);
 
       // Output statements from Visit(L).
-      for (auto it = Lblock_begin; it != Lblock_end; ++it)
-        addToCurrentBlock(*it, direction::reverse);
+      for (Stmt* S : Lblock)
+        addToCurrentBlock(S, direction::reverse);
     } else if (opCode == BO_Comma) {
       auto* zero =
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
@@ -2558,15 +2691,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool promoteToFnScope =
         !getCurrentScope()->isFunctionScope() &&
         m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
-    QualType VDCloneType = CloneType(VD->getType());
-    QualType VDDerivedType = ComputeAdjointType(VDCloneType);
+    QualType VDCloneType;
+    QualType VDDerivedType;
     // If the cloned declaration is moved to the function global scope,
     // change its type for the corresponding adjoint type.
     if (promoteToFnScope) {
+      VDDerivedType = ComputeAdjointType(CloneType(VD->getType()));
       VDCloneType = VDDerivedType;
       if (isa<ArrayType>(VDCloneType) && !isa<IncompleteArrayType>(VDCloneType))
         VDCloneType =
             GetCladArrayOfType(m_Context.getBaseElementType(VDCloneType));
+    } else {
+      VDCloneType = CloneType(VD->getType());
+      VDDerivedType = getNonConstType(VDCloneType, m_Context, m_Sema);
     }
     bool isDerivativeOfRefType = VD->getType()->isReferenceType();
     VarDecl* VDDerived = nullptr;
@@ -2627,7 +2764,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               ComputeAdjointType(VD->getType().getNonReferenceType());
           isDerivativeOfRefType = false;
         }
-        VDDerivedInit = getZeroInit(VDDerivedType);
+        if (promoteToFnScope || !isDerivativeOfRefType)
+          VDDerivedInit = getZeroInit(VDDerivedType);
+        else
+          VDDerivedInit = initDiff.getForwSweepExpr_dx();
       }
 
       // FIXME: Remove the special cases introduced by `specialThisDiffCase`
@@ -2729,17 +2869,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
-    if (isDerivativeOfRefType) {
+    if (isDerivativeOfRefType && promoteToFnScope) {
       Expr* assignDerivativeE =
           BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
                   BuildOp(UnaryOperatorKind::UO_AddrOf,
                           initDiff.getForwSweepExpr_dx()));
       addToCurrentBlock(assignDerivativeE);
       if (isInsideLoop) {
-        StmtDiff pushPop =
-            StoreAndRestore(derivedVDE, /*prefix=*/"_t", /*force=*/true);
-        addToCurrentBlock(pushPop.getExpr(), direction::forward);
-        m_LoopBlock.back().push_back(pushPop.getExpr_dx());
+        StmtDiff pushPop = StoreAndRestore(derivedVDE);
+        addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        m_LoopBlock.back().push_back(pushPop.getStmt_dx());
       }
       derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
     }
@@ -2761,17 +2900,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                    initDiff.getExpr(), VD->isDirectInit(),
                                    nullptr, VD->getInitStyle());
     if (isPointerType && derivedVDE) {
-      Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
-                                        derivedVDE, initDiff.getExpr_dx());
-      addToCurrentBlock(assignDerivativeE, direction::forward);
-      if (isInsideLoop) {
-        auto tape = MakeCladTapeFor(derivedVDE);
-        addToCurrentBlock(tape.Push);
-        auto* reverseSweepDerivativePointerE =
-            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
-        m_LoopBlock.back().push_back(
-            BuildDeclStmt(reverseSweepDerivativePointerE));
-        derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
+      if (promoteToFnScope) {
+        Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
+                                          derivedVDE, initDiff.getExpr_dx());
+        addToCurrentBlock(assignDerivativeE, direction::forward);
+        if (isInsideLoop) {
+          auto tape = MakeCladTapeFor(derivedVDE);
+          addToCurrentBlock(tape.Push);
+          auto* reverseSweepDerivativePointerE =
+              BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
+          m_LoopBlock.back().push_back(
+              BuildDeclStmt(reverseSweepDerivativePointerE));
+          derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
+        }
+      } else {
+        m_Sema.AddInitializerToDecl(VDDerived, initDiff.getExpr_dx(), true);
+        VDDerived->setInitStyle(VarDecl::InitializationStyle::CInit);
       }
     }
     if (derivedVDE)
@@ -2922,8 +3066,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             auto* declRef = BuildDeclRef(decl);
             auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
             if (isInsideLoop) {
-              auto pushPop =
-                  StoreAndRestore(declRef, /*prefix=*/"_t", /*force=*/true);
+              auto pushPop = StoreAndRestore(declRef);
               if (pushPop.getExpr() != declRef)
                 addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
@@ -2934,7 +3077,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                   decl, Clone(getArraySizeExpr(AT, m_Context, *this)), true);
               decl->setInitStyle(VarDecl::InitializationStyle::CallInit);
             } else {
-              decl->setInit(getZeroInit(VD->getType()));
+              m_Sema.AddInitializerToDecl(decl, getZeroInit(VD->getType()),
+                                          /*DirectInit=*/true);
+              decl->setInitStyle(VarDecl::InitializationStyle::CInit);
             }
           }
         }
@@ -2980,7 +3125,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     if (!declsDiff.empty()) {
       Stmt* DSDiff = BuildDeclStmt(declsDiff);
-      addToBlock(DSDiff, m_Globals);
+      Stmts& block =
+          promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
+      addToBlock(DSDiff, block);
     }
 
     if (m_ExternalSource) {
@@ -3104,12 +3251,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isa<CallExpr>(B))
       return false;
 
-    // FIXME: Here will be the entry point of the advanced activity analysis.
-
-    // Check if the expression was marked as to-be recorded by an analysis.
-    if (m_DiffReq.EnableTBRAnalysis)
-      return m_DiffReq.shouldBeRecorded(B);
-
     // Assume E is useful to store.
     return true;
   }
@@ -3156,9 +3297,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return CladTape.Last();
     }
 
-    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix));
-    Expr* Set = BuildOp(BO_Assign, Ref, E);
-    addToCurrentBlock(Set, direction::forward);
+    VarDecl* VD = BuildGlobalVarDecl(Type, prefix);
+    DeclStmt* decl = BuildDeclStmt(VD);
+    Expr* Ref = BuildDeclRef(VD);
+    bool isFnScope = getCurrentScope()->isFunctionScope() ||
+                     m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
+    if (isFnScope) {
+      addToCurrentBlock(decl, direction::forward);
+      m_Sema.AddInitializerToDecl(VD, E, /*DirectInit=*/true);
+      VD->setInitStyle(VarDecl::InitializationStyle::CInit);
+    } else {
+      addToBlock(decl, m_Globals);
+      Expr* Set = BuildOp(BO_Assign, Ref, E);
+      addToCurrentBlock(Set, direction::forward);
+    }
 
     return Ref;
   }
@@ -3171,12 +3323,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
-                                               llvm::StringRef prefix,
-                                               bool force) {
+                                               llvm::StringRef prefix) {
+    assert(E && "must be provided");
     auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
-
-    if (!force && !UsefulToStoreGlobal(E))
-      return {};
 
     if (isInsideLoop) {
       auto CladTape = MakeCladTapeFor(Clone(E), prefix);
@@ -3190,17 +3339,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (const auto* AT = dyn_cast<ArrayType>(Type))
       init = getArraySizeExpr(AT, m_Context, *this);
 
-    Expr* Ref = BuildDeclRef(GlobalStoreImpl(Type, prefix, init));
-    if (E) {
-      Expr* Store = BuildOp(BO_Assign, Ref, Clone(E));
-      Expr* Restore = nullptr;
-      if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid) {
-        auto* r = Clone(E);
-        Restore = BuildOp(BO_Assign, r, Ref);
-      }
-      return {Store, Restore};
+    VarDecl* VD = BuildGlobalVarDecl(Type, prefix, init);
+    DeclStmt* decl = BuildDeclStmt(VD);
+    Expr* Ref = BuildDeclRef(VD);
+    Stmt* Store = nullptr;
+    bool isFnScope = getCurrentScope()->isFunctionScope() ||
+                     m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
+    if (isFnScope) {
+      Store = decl;
+      m_Sema.AddInitializerToDecl(VD, E, /*DirectInit=*/true);
+      VD->setInitStyle(VarDecl::InitializationStyle::CInit);
+    } else {
+      addToBlock(decl, m_Globals);
+      Store = BuildOp(BO_Assign, Ref, Clone(E));
     }
-    return {};
+
+    Stmt* Restore = nullptr;
+    if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
+      Restore = BuildOp(BO_Assign, Clone(E), Ref);
+
+    return {Store, Restore};
   }
 
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
@@ -3210,6 +3368,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto* Push = cast<CallExpr>(Result.getExpr());
       unsigned lastArg = Push->getNumArgs() - 1;
       Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
+    } else if (isFnScope) {
+      V.m_Sema.AddInitializerToDecl(Declaration, New, true);
+      Declaration->setInitStyle(VarDecl::InitializationStyle::CInit);
+      V.addToCurrentBlock(V.BuildDeclStmt(Declaration), direction::forward);
     } else {
       V.addToCurrentBlock(V.BuildOp(BO_Assign, Result.getExpr(), New),
                           direction::forward);
@@ -3225,9 +3387,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr::EvalResult evalRes;
       bool isConst =
           clad_compat::Expr_EvaluateAsConstantExpr(E, evalRes, m_Context);
-      return DelayedStoreResult{*this, Ediff,
-                                /*isConstant*/ isConst,
-                                /*isInsideLoop*/ false,
+      return DelayedStoreResult{*this,
+                                Ediff,
+                                /*Declaration=*/nullptr,
+                                /*isConstant=*/isConst,
+                                /*isInsideLoop=*/false,
+                                /*isFnScope=*/false,
                                 /*pNeedsUpdate=*/false};
     }
     if (isInsideLoop) {
@@ -3235,16 +3400,29 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       auto CladTape = MakeCladTapeFor(dummy);
       Expr* Push = CladTape.Push;
       Expr* Pop = CladTape.Pop;
-      return DelayedStoreResult{*this, StmtDiff{Push, nullptr, nullptr, Pop},
-                                /*isConstant*/ false,
-                                /*isInsideLoop*/ true, /*pNeedsUpdate=*/true};
+      return DelayedStoreResult{*this,
+                                StmtDiff{Push, nullptr, nullptr, Pop},
+                                /*Declaration=*/nullptr,
+                                /*isConstant=*/false,
+                                /*isInsideLoop=*/true,
+                                /*isFnScope=*/false,
+                                /*pNeedsUpdate=*/true};
     }
-    Expr* Ref = BuildDeclRef(GlobalStoreImpl(
-        getNonConstType(E->getType(), m_Context, m_Sema), prefix));
+    bool isFnScope = getCurrentScope()->isFunctionScope() ||
+                     m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
+    VarDecl* VD = BuildGlobalVarDecl(
+        getNonConstType(E->getType(), m_Context, m_Sema), prefix);
+    Expr* Ref = BuildDeclRef(VD);
+    if (!isFnScope)
+      addToBlock(BuildDeclStmt(VD), m_Globals);
     // Return reference to the declaration instead of original expression.
-    return DelayedStoreResult{*this, StmtDiff{Ref, nullptr, nullptr, Ref},
-                              /*isConstant*/ false,
-                              /*isInsideLoop*/ false, /*pNeedsUpdate=*/true};
+    return DelayedStoreResult{*this,
+                              StmtDiff{Ref, nullptr, nullptr, Ref},
+                              /*Declaration=*/VD,
+                              /*isConstant=*/false,
+                              /*isInsideLoop=*/false,
+                              /*isFnScope=*/isFnScope,
+                              /*pNeedsUpdate=*/true};
   }
 
   ReverseModeVisitor::LoopCounter::LoopCounter(ReverseModeVisitor& RMV)
@@ -3316,7 +3494,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitDoStmt(const DoStmt* DS) {
-
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
 

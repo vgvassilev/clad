@@ -121,8 +121,7 @@ double f_div2(double x, double y) {
 }
 
 //CHECK:   void f_div2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = (4 * y);
+//CHECK-NEXT:       double _t0 = (4 * y);
 //CHECK-NEXT:       {
 //CHECK-NEXT:           *_d_x += 3 * 1 / _t0;
 //CHECK-NEXT:           double _r0 = 1 * -(3 * x / (_t0 * _t0));
@@ -137,12 +136,9 @@ double f_div3(double x, double y) {
 }
 
 //CHECK: void f_div3_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:     double _t0;
-//CHECK-NEXT:     double _t1;
-//CHECK-NEXT:     double _t2;
-//CHECK-NEXT:     _t1 = x;
-//CHECK-NEXT:     _t2 = (x = y);
-//CHECK-NEXT:     _t0 = (y * y);
+//CHECK-NEXT:     double _t1 = x;
+//CHECK-NEXT:     double _t2 = (x = y);
+//CHECK-NEXT:     double _t0 = (y * y);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += 1 / _t0;
 //CHECK-NEXT:         x = _t1;
@@ -201,8 +197,7 @@ double f_cond1(double x, double y) {
 }
 
 //CHECK:   void f_cond1_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond0;
-//CHECK-NEXT:       _cond0 = x > y;
+//CHECK-NEXT:       bool _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:       else
@@ -216,9 +211,8 @@ double f_cond2(double x, double y) {
 }
 
 //CHECK:   void f_cond2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       bool _cond1;
-//CHECK-NEXT:       _cond0 = x > y;
+//CHECK-NEXT:       bool _cond0 = x > y;
 //CHECK-NEXT:       if (_cond0)
 //CHECK-NEXT:           ;
 //CHECK-NEXT:       else
@@ -238,8 +232,7 @@ double f_cond3(double x, double c) {
 }
 
 //CHECK:   void f_cond3_grad(double x, double c, double *_d_x, double *_d_c) {
-//CHECK-NEXT:       bool _cond0;
-//CHECK-NEXT:       _cond0 = c > 0;
+//CHECK-NEXT:       bool _cond0 = c > 0;
 //CHECK-NEXT:       if (_cond0) {
 //CHECK-NEXT:           *_d_x += 1;
 //CHECK-NEXT:           *_d_c += 1;
@@ -261,11 +254,11 @@ double f_cond4(double x, double y) {
 }
 
 //CHECK:   void f_cond4_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       int _d_i = 0;
-//CHECK-NEXT:       double _d_arr[2] = {0};
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       double _t0;
+//CHECK-NEXT:       int _d_i = 0;
 //CHECK-NEXT:       int i = 0;
+//CHECK-NEXT:       double _d_arr[2] = {0};
 //CHECK-NEXT:       double arr[2] = {x, y};
 //CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x > 0;
@@ -436,8 +429,7 @@ double f_sin(double x, double y) {
 
 void f_sin_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_sin_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _t0;
-//CHECK-NEXT:       _t0 = (std::sin(x) + std::sin(y));
+//CHECK-NEXT:       double _t0 = (std::sin(x) + std::sin(y));
 //CHECK-NEXT:       {
 //CHECK-NEXT:           double _r0 = 0;
 //CHECK-NEXT:           _r0 += 1 * (x + y) * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
@@ -478,10 +470,10 @@ double f_decls1(double x, double y) {
 void f_decls1_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_decls1_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       double _d_a = 0;
-//CHECK-NEXT:       double _d_b = 0;
-//CHECK-NEXT:       double _d_c = 0;
 //CHECK-NEXT:       double a = 3 * x;
+//CHECK-NEXT:       double _d_b = 0;
 //CHECK-NEXT:       double b = 5 * y;
+//CHECK-NEXT:       double _d_c = 0;
 //CHECK-NEXT:       double c = a + b;
 //CHECK-NEXT:       _d_c += 2 * 1;
 //CHECK-NEXT:       {
@@ -502,10 +494,10 @@ double f_decls2(double x, double y) {
 void f_decls2_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_decls2_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:       double _d_a = 0;
-//CHECK-NEXT:       double _d_b = 0;
-//CHECK-NEXT:       double _d_c = 0;
 //CHECK-NEXT:       double a = x * x;
+//CHECK-NEXT:       double _d_b = 0;
 //CHECK-NEXT:       double b = x * y;
+//CHECK-NEXT:       double _d_c = 0;
 //CHECK-NEXT:       double c = y * y;
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_a += 1;
@@ -539,12 +531,11 @@ double f_decls3(double x, double y) {
 
 void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK:   void f_decls3_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:       double _d_a = 0;
-//CHECK-NEXT:       double _d_c = 0;
 //CHECK-NEXT:       bool _cond0;
 //CHECK-NEXT:       bool _cond1;
-//CHECK-NEXT:       double _d_b = 0;
+//CHECK-NEXT:       double _d_a = 0;
 //CHECK-NEXT:       double a = 3 * x;
+//CHECK-NEXT:       double _d_c = 0;
 //CHECK-NEXT:       double c = 333 * y;
 //CHECK-NEXT:       {
 //CHECK-NEXT:       _cond0 = x > 1;
@@ -556,6 +547,7 @@ void f_decls3_grad(double x, double y, double *_d_x, double *_d_y);
 //CHECK-NEXT:               goto _label1;
 //CHECK-NEXT:       }
 //CHECK-NEXT:       }
+//CHECK-NEXT:       double _d_b = 0;
 //CHECK-NEXT:       double b = a * a;
 //CHECK-NEXT:       _d_b += 1;
 //CHECK-NEXT:       {
@@ -614,14 +606,13 @@ double f_const_reference(double i, double j) {
 void f_const_reference_grad(double i, double j, double *_d_i, double *_d_j);
 //CHECK: void f_const_reference_grad(double i, double j, double *_d_i, double *_d_j) {
 //CHECK-NEXT:    double _d_a = 0;
-//CHECK-NEXT:    double *_d_ar = 0;
-//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double a = i;
-//CHECK-NEXT:    _d_ar = &_d_a;
+//CHECK-NEXT:    double &_d_ar = _d_a;
 //CHECK-NEXT:    const double &ar = a;
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 2 * ar;
 //CHECK-NEXT:    _d_res += 1;
-//CHECK-NEXT:    *_d_ar += 2 * _d_res;
+//CHECK-NEXT:    _d_ar += 2 * _d_res;
 //CHECK-NEXT:    *_d_i += _d_a;
 //CHECK-NEXT:}
 double f_const02(double i, double j) {
@@ -632,8 +623,8 @@ double f_const02(double i, double j) {
 void f_const02_grad(double i, double j, double *_d_i, double *_d_j);
 //CHECK:  void f_const02_grad(double i, double j, double *_d_i, double *_d_j) {
 //CHECK-NEXT:       double _d_a = 0;
-//CHECK-NEXT:       double _d_res = 0;
 //CHECK-NEXT:       const double a = i;
+//CHECK-NEXT:       double _d_res = 0;
 //CHECK-NEXT:       double res = a;
 //CHECK-NEXT:       _d_res += 1;
 //CHECK-NEXT:       _d_a += _d_res;
@@ -648,11 +639,10 @@ float running_sum(float* p, int n) {
 }
 
 // CHECK: void running_sum_grad(float *p, int n, float *_d_p, int *_d_n) {
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 // CHECK-NEXT:     for (i = 1; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
@@ -701,9 +691,8 @@ void fn_increment_in_return_grad(double i, double j, double *_d_i, double *_d_j)
 
 // CHECK: void fn_increment_in_return_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_temp = 0;
-// CHECK-NEXT:     double _t0;
 // CHECK-NEXT:     double temp = i;
-// CHECK-NEXT:     _t0 = ++i;
+// CHECK-NEXT:     double _t0 = ++i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1 * temp;
 // CHECK-NEXT:         --i;
@@ -721,10 +710,9 @@ double fn_template_non_type(double x) {
 
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
 // CHECK-NEXT:     size_t _d_maxN = 0;
-// CHECK-NEXT:     bool _cond0;
-// CHECK-NEXT:     size_t _d_m = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
-// CHECK-NEXT:     _cond0 = maxN < {{15U|15UL}};
+// CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL}};
+// CHECK-NEXT:     size_t _d_m = 0;
 // CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
 // CHECK-NEXT:     *_d_x += 1 * m;
 // CHECK-NEXT:     if (_cond0)
@@ -750,10 +738,10 @@ double fn_cond_decl(double x, double y) {
 } // = y^2
 
 //CHECK:        void fn_cond_decl_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:            int _d_flag = 0;
 //CHECK-NEXT:            int _d_cond = 0;
 //CHECK-NEXT:            int cond = 0;
 //CHECK-NEXT:            bool _cond0;
+//CHECK-NEXT:            int _d_flag = 0;
 //CHECK-NEXT:            int flag = 1;
 //CHECK-NEXT:            {
 //CHECK-NEXT:                _cond0 = cond = flag;
@@ -860,8 +848,7 @@ double fn_const_cond_op(double x) {
 }
 
 //CHECK:               void fn_const_cond_op_grad(double x, double *_d_x) {
-//CHECK-NEXT:              bool _cond0;
-//CHECK-NEXT:              _cond0 = x > 0;
+//CHECK-NEXT:              bool _cond0 = x > 0;
 //CHECK-NEXT:              *_d_x += 1;
 //CHECK-NEXT:          }
 
@@ -874,8 +861,8 @@ double fn_empty_if_block(double x) {
 }
 
 //CHECK:void fn_empty_if_block_grad(double x, double *_d_x) {
-//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    bool _cond0;
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _cond0 = x > 0;
@@ -897,10 +884,10 @@ double fn_empty_if_else(double x) {
 }
 
 //CHECK: void fn_empty_if_else_grad(double x, double *_d_x) {
-//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double _t0;
 //CHECK-NEXT:    bool _cond0;
 //CHECK-NEXT:    double _t1;
+//CHECK-NEXT:    double _d_res = 0;
 //CHECK-NEXT:    double res = 0;
 //CHECK-NEXT:    {
 //CHECK-NEXT:        _t0 = res;
@@ -941,7 +928,6 @@ double fn_cond_false(double i, double j) {
 }
 
 // CHECK: void fn_cond_false_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:    double _d_res = 0;
 // CHECK-NEXT:    bool _cond0;
 // CHECK-NEXT:    double _d_cond0;
 // CHECK-NEXT:    _d_cond0 = 0.;
@@ -949,6 +935,7 @@ double fn_cond_false(double i, double j) {
 // CHECK-NEXT:    bool _t0;
 // CHECK-NEXT:    bool _cond2;
 // CHECK-NEXT:    double _t1;
+// CHECK-NEXT:    double _d_res = 0;
 // CHECK-NEXT:    double res = 0;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {
@@ -994,7 +981,6 @@ double fn_cond_add_assign(double i, double j) {
 }
 
 // CHECK: void fn_cond_add_assign_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:    double _d_res = 0;
 // CHECK-NEXT:    bool _cond0;
 // CHECK-NEXT:    double _d_cond0;
 // CHECK-NEXT:    _d_cond0 = 0.;
@@ -1010,6 +996,7 @@ double fn_cond_add_assign(double i, double j) {
 // CHECK-NEXT:    double _t4;
 // CHECK-NEXT:    bool _cond4;
 // CHECK-NEXT:    double _t5;
+// CHECK-NEXT:    double _d_res = 0;
 // CHECK-NEXT:    double res = 0;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        {

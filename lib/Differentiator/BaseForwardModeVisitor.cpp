@@ -137,29 +137,29 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
       return {};
     }
   }
-  m_DerivativeOrder = request.CurrentDerivativeOrder;
-  std::string s = std::to_string(m_DerivativeOrder);
-  if (m_DerivativeOrder == 1)
-    s = "";
 
   // If we are differentiating a call operator, that has no parameters,
   // then the specified independent argument is a member variable of the
   // class defining the call operator.
   // Thus, we need to find index of the member variable instead.
-  if (m_DiffReq->param_empty() && m_Functor) {
-    m_ArgIndex =
+  unsigned argIndex = ~0;
+  if (m_DiffReq->param_empty() && m_Functor)
+    argIndex =
         std::distance(m_Functor->field_begin(),
                       std::find(m_Functor->field_begin(),
                                 m_Functor->field_end(), m_IndependentVar));
-  } else {
-    m_ArgIndex = std::distance(
+  else
+    argIndex = std::distance(
         FD->param_begin(),
         std::find(FD->param_begin(), FD->param_end(), m_IndependentVar));
-  }
 
-  std::string argInfo = std::to_string(m_ArgIndex);
+  std::string argInfo = std::to_string(argIndex);
   for (auto field : diffVarInfo.fields)
     argInfo += "_" + field;
+
+  std::string s;
+  if (request.CurrentDerivativeOrder > 1)
+    s = std::to_string(request.CurrentDerivativeOrder);
 
   // Check if the function is already declared as a custom derivative.
   std::string gradientName =
@@ -409,7 +409,6 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   const_cast<DiffRequest&>(m_DiffReq) = request;
   m_Functor = request.Functor;
-  m_DerivativeOrder = request.CurrentDerivativeOrder;
   assert(m_DiffReq.Mode == GetPushForwardMode());
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
@@ -681,6 +680,71 @@ StmtDiff BaseForwardModeVisitor::VisitConditionalOperator(
           .get();
 
   return StmtDiff(condExpr, condExprDiff);
+}
+
+StmtDiff
+BaseForwardModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
+  beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
+             Scope::ContinueScope);
+  // Visiting for range-based ststement produces __range1, __begin1 and __end1
+  // variables, so for(auto i: a){
+  //      ...
+  //}
+  //
+  // is equivalent to
+  //
+  // auto&& __range1 = a
+  // auto __begin1 = __range1;
+  // auto __end1 = __range1 + OUL
+  // for(;__begin != __end1; ++__begin){
+  //  auto i = *__begin1;
+  //        ...
+  //}
+  const Stmt* RangeDecl = FRS->getRangeStmt();
+  const Stmt* BeginDecl = FRS->getBeginStmt();
+  const Stmt* EndDecl = FRS->getEndStmt();
+
+  StmtDiff VisitRange = Visit(RangeDecl);
+  StmtDiff VisitBegin = Visit(BeginDecl);
+  StmtDiff VisitEnd = Visit(EndDecl);
+  addToCurrentBlock(VisitRange.getStmt_dx());
+  addToCurrentBlock(VisitRange.getStmt());
+  addToCurrentBlock(VisitBegin.getStmt_dx());
+  addToCurrentBlock(VisitBegin.getStmt());
+  addToCurrentBlock(VisitEnd.getStmt());
+  // Build d_begin preincrementation.
+
+  auto* BeginAdjExpr = BuildDeclRef(
+      cast<VarDecl>(cast<DeclStmt>(VisitBegin.getStmt_dx())->getSingleDecl()));
+  // Build begin preincrementation.
+
+  Expr* IncAdjBegin = BuildOp(UO_PreInc, BeginAdjExpr);
+  auto* BeginVarDecl =
+      cast<VarDecl>(cast<DeclStmt>(VisitBegin.getStmt())->getSingleDecl());
+  DeclRefExpr* BeginExpr = BuildDeclRef(BeginVarDecl);
+  Expr* IncBegin = BuildOp(UO_PreInc, BeginExpr);
+  Expr* Inc = BuildOp(BO_Comma, IncAdjBegin, IncBegin);
+
+  auto* EndExpr = BuildDeclRef(
+      cast<VarDecl>(cast<DeclStmt>(VisitEnd.getStmt())->getSingleDecl()));
+  // Build begin != end condition.
+  Expr* cond = BuildOp(BO_NE, BeginExpr, EndExpr);
+
+  const VarDecl* VD = FRS->getLoopVariable();
+  DeclDiff<VarDecl> VDDiff = DifferentiateVarDecl(VD);
+  // Differentiate body and add both Item and it's derivative.
+  Stmt* body = Clone(FRS->getBody());
+  Stmt* bodyResult = Visit(body).getStmt();
+  Visit(body).getStmt();
+  Stmt* bodyWithItem = utils::PrependAndCreateCompoundStmt(
+      m_Sema.getASTContext(), bodyResult, BuildDeclStmt(VDDiff.getDecl()));
+  bodyResult = utils::PrependAndCreateCompoundStmt(
+      m_Sema.getASTContext(), bodyWithItem, BuildDeclStmt(VDDiff.getDecl_dx()));
+
+  Stmt* forStmtDiff = new (m_Context)
+      ForStmt(m_Context, nullptr, cond, /*condVar=*/nullptr, Inc, bodyResult,
+              FRS->getForLoc(), FRS->getBeginLoc(), FRS->getEndLoc());
+  return StmtDiff(forStmtDiff);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
@@ -1074,11 +1138,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // Returning the function call and zero derivative
     return StmtDiff(Call, zero);
   }
-  // Find the built-in derivatives namespace.
-  std::string s = std::to_string(m_DerivativeOrder);
-  if (m_DerivativeOrder == 1)
-    s = "";
 
+  // Find the built-in derivatives namespace.
   llvm::SmallVector<Expr*, 4> CallArgs{};
   llvm::SmallVector<Expr*, 4> diffArgs;
 
@@ -1232,7 +1293,6 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.Function = FD;
     pushforwardFnRequest.Mode = GetPushForwardMode();
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
-    // pushforwardFnRequest.RequestedDerivativeOrder = m_DerivativeOrder;
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
 

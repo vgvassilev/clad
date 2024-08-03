@@ -562,7 +562,8 @@ namespace clad {
   }
 
   bool DiffRequest::shouldBeRecorded(Expr* E) const {
-    assert(EnableTBRAnalysis && "TBR not enabled!");
+    if (!EnableTBRAnalysis)
+      return true;
 
     if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
         !isa<MemberExpr>(E))

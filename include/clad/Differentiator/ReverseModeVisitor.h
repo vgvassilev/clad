@@ -52,10 +52,6 @@ namespace clad {
     Stmts m_Globals;
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
-    /// Based on To-Be-Recorded analysis performed before differentiation,
-    /// tells UsefulToStoreGlobal whether a variable with a given
-    /// SourceLocation has to be stored before being changed or not.
-    std::set<clang::SourceLocation> m_ToBeRecorded;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
@@ -85,9 +81,15 @@ namespace clad {
     /// type.
     static clang::QualType
     getNonConstType(clang::QualType T, clang::ASTContext& C, clang::Sema& S) {
-        clang::Qualifiers quals(T.getQualifiers());
-        quals.removeConst();
-        return S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      bool isLValueRefType = T->isLValueReferenceType();
+      T = T.getNonReferenceType();
+      clang::Qualifiers quals(T.getQualifiers());
+      quals.removeConst();
+      clang::QualType nonConstType =
+          S.BuildQualifiedType(T.getUnqualifiedType(), noLoc, quals);
+      if (isLValueRefType)
+        return C.getLValueReferenceType(nonConstType);
+      return nonConstType;
     }
     // Function to Differentiate with Clad as Backend
     void DifferentiateWithClad();
@@ -254,8 +256,7 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false);
-    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool force = false);
+    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t");
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
@@ -267,14 +268,18 @@ namespace clad {
     struct DelayedStoreResult {
       ReverseModeVisitor& V;
       StmtDiff Result;
+      clang::VarDecl* Declaration;
       bool isConstant;
       bool isInsideLoop;
+      bool isFnScope;
       bool needsUpdate;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
-                         bool pIsConstant, bool pIsInsideLoop,
+                         clang::VarDecl* pDeclaration, bool pIsConstant,
+                         bool pIsInsideLoop, bool pIsFnScope,
                          bool pNeedsUpdate = false)
-          : V(pV), Result(pResult), isConstant(pIsConstant),
-            isInsideLoop(pIsInsideLoop), needsUpdate(pNeedsUpdate) {}
+          : V(pV), Result(pResult), Declaration(pDeclaration),
+            isConstant(pIsConstant), isInsideLoop(pIsInsideLoop),
+            isFnScope(pIsFnScope), needsUpdate(pNeedsUpdate) {}
       void Finalize(clang::Expr* New);
     };
 
@@ -376,6 +381,7 @@ namespace clad {
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
+    StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
     StmtDiff VisitForStmt(const clang::ForStmt* FS);
     StmtDiff VisitIfStmt(const clang::IfStmt* If);
     StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);

@@ -13,11 +13,9 @@ float func(float x, float y) {
 }
 
 //CHECK: void func_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     float _t0;
-//CHECK-NEXT:     float _t1;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     x = x + y;
-//CHECK-NEXT:     _t1 = y;
+//CHECK-NEXT:     float _t1 = y;
 //CHECK-NEXT:     y = x;
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
@@ -44,8 +42,7 @@ float func2(float x, int y) {
 }
 
 //CHECK: void func2_grad(float x, int y, float *_d_x, int *_d_y, double &_final_error) {
-//CHECK-NEXT:     float _t0;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     x = y * x + x * x;
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
@@ -67,8 +64,7 @@ float func3(int x, int y) {
 }
 
 //CHECK: void func3_grad(int x, int y, int *_d_x, int *_d_y, double &_final_error) {
-//CHECK-NEXT:     int _t0;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     int _t0 = x;
 //CHECK-NEXT:     x = y;
 //CHECK-NEXT:     *_d_y += 1;
 //CHECK-NEXT:     {
@@ -87,9 +83,8 @@ float func4(float x, float y) {
 
 //CHECK: void func4_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     double _d_z = 0;
-//CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     double z = y;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     x = z + y;
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
@@ -113,9 +108,8 @@ float func5(float x, float y) {
 
 //CHECK: void func5_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     int _d_z = 0;
-//CHECK-NEXT:     float _t0;
 //CHECK-NEXT:     int z = 56;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     x = z + y;
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {
@@ -157,8 +151,7 @@ float func8(int x, int y) {
 }
 
 //CHECK: void func8_grad(int x, int y, int *_d_x, int *_d_y, double &_final_error) {
-//CHECK-NEXT:     int _t0;
-//CHECK-NEXT:     _t0 = x;
+//CHECK-NEXT:     int _t0 = x;
 //CHECK-NEXT:     x = y * y;
 //CHECK-NEXT:     *_d_x += 1;
 //CHECK-NEXT:     {

@@ -127,9 +127,8 @@ int main() {
 
     // CHECK: void fn_s1_mem_fn_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     SimpleFunctions1 _d_obj({});
-    // CHECK-NEXT:     SimpleFunctions1 _t0;
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
-    // CHECK-NEXT:     _t0 = obj;
+    // CHECK-NEXT:     SimpleFunctions1 _t0 = obj;
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r0 = 0;
     // CHECK-NEXT:         double _r1 = 0;

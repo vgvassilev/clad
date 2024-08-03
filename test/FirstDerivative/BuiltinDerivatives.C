@@ -188,8 +188,7 @@ double f11(double x, double y) {
 }
 
 // CHECK: void f11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     typename {{.*}} _t0;
-// CHECK-NEXT:     _t0 = std::pow(y - std::pow(x, 2), 2);
+// CHECK-NEXT:     typename {{.*}} _t0 = std::pow(y - std::pow(x, 2), 2);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         int _r1 = 0;
@@ -246,6 +245,10 @@ double f13(double x) {
 //CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = _t0.value;
 //CHECK-NEXT:     return _d__t0.pushforward;
 //CHECK-NEXT: }
+
+double f14(double x) {
+  return __builtin_pow(x, 3);
+}
 
 int main () { //expected-no-diagnostics
   float f_result[2];
@@ -318,6 +321,12 @@ int main () { //expected-no-diagnostics
 
   auto f13_ddx = clad::differentiate<2>(f13);
   printf("Result is = %.2f\n", f13_ddx.execute(1)); //CHECK-EXEC: Result is = 2.72
+
+  auto f14_darg0 = clad::differentiate(f14, 0);
+  printf("Result is = %f\n", f14_darg0.execute(1)); //CHECK-EXEC: Result is = 3.000000
+
+  auto f14_ddarg0 = clad::differentiate<2>(f14, 0);
+  printf("Result is = %f\n", f14_ddarg0.execute(1)); //CHECK-EXEC: Result is = 6.000000
 
   return 0;
 }
