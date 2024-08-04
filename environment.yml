@@ -3,3 +3,4 @@ channels:
 dependencies:
   - xeus-cpp
   - clad
+  - clangdev=20
