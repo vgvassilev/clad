@@ -2271,6 +2271,11 @@ StmtDiff BaseForwardModeVisitor::VisitCXXStdInitializerListExpr(
   return Visit(ILE->getSubExpr());
 }
 
+StmtDiff BaseForwardModeVisitor::VisitCXXScalarValueInitExpr(
+    const CXXScalarValueInitExpr* SVIE) {
+  return {Clone(SVIE), Clone(SVIE)};
+}
+
 clang::Expr* BaseForwardModeVisitor::BuildCustomDerivativeConstructorPFCall(
     const clang::CXXConstructExpr* CE,
     llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
