@@ -98,11 +98,21 @@ int main () {
 
   auto f1_grad_y = clad::gradient(f_1, "y");
   TEST(f1_grad_y, &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+
+  auto f1_grad_0 = clad::gradient(f_1, "1");
+  TEST(f1_grad_0, &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+
   auto f1_grad_z = clad::gradient(f_1, "z");
   TEST(f1_grad_z, &result[2]); // CHECK-EXEC: {0.00, 0.00, 2.00}
 
   auto f1_grad_xy = clad::gradient(f_1, "x, y");
   TEST(f1_grad_xy, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+
+  auto f1_grad_0y = clad::gradient(f_1, "0, y");
+  TEST(f1_grad_0y, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
+
+  auto f1_grad_10 = clad::gradient(f_1, "1, 0");
+  TEST(f1_grad_10, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
 
   auto f1_grad_yx = clad::gradient(f_1, "y, x");
   TEST(f1_grad_yx, &result[0], &result[1]); // CHECK-EXEC: {0.00, 1.00, 0.00}
