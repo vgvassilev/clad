@@ -2689,7 +2689,7 @@ double fn34(double x, double y){
   double r = 0;
   double a[] = {y, x*y, x*x + y};
   for(auto& i: a){
-    r+=i;
+    r+=i*i;
   }
   return r;
 }
@@ -2724,7 +2724,7 @@ double fn34(double x, double y){
 //CHECK-NEXT:             clad::push(_t3, _d_i);
 //CHECK-NEXT:         }
 //CHECK-NEXT:         clad::push(_t1, r);
-//CHECK-NEXT:         r += *i;
+//CHECK-NEXT:         r += *i * *i;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_r += 1;
 //CHECK-NEXT:     for (; _t0; _t0--) {
@@ -2737,7 +2737,8 @@ double fn34(double x, double y){
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 r = clad::pop(_t1);
 //CHECK-NEXT:                 double _r_d0 = _d_r;
-//CHECK-NEXT:                 *_d_i += _r_d0;
+//CHECK-NEXT:                 *_d_i += _r_d0 * *i;
+//CHECK-NEXT:                 *_d_i += *i * _r_d0;
 //CHECK-NEXT:             }
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }
@@ -2750,6 +2751,7 @@ double fn34(double x, double y){
 //CHECK-NEXT:         *_d_y += _d_a[2];
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
+
 
 double fn35(double x, double y){
   double a[] = {1, 2, 3};
@@ -2901,7 +2903,7 @@ int main() {
   TEST_2(fn32, 3, 5);     // CHECK-EXEC: {45.00, 27.00}
   TEST_2(fn33, 3, 5);     // CHECK-EXEC: {15.00, 9.00}
 
-  TEST_2(fn34, 5, 2); // CHECK-EXEC: {12.00, 7.00}
+  TEST_2(fn34, 2, 2); // CHECK-EXEC: {64.00, 32.00}
   TEST_2(fn35, 1, 1); // CHECK-EXEC: {1.89, 0.00}
 }
 
