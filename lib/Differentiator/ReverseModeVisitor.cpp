@@ -256,7 +256,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                              const DiffRequest& request) {
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    silenceDiags = !request.VerboseDiags;
     assert(m_DiffReq == request);
 
     // FIXME: reverse mode plugins may have request mode other than
@@ -479,7 +478,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    silenceDiags = !request.VerboseDiags;
     // FIXME: We should not use const_cast to get the decl request here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     const_cast<DiffRequest&>(m_DiffReq) = request;
@@ -1943,8 +1941,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
                 DerivedCallArgs, CallArgDx);
           }
-          CallExprDiffDiagnostics(FD->getNameAsString(), CE->getBeginLoc(),
-                                  OverloadedDerivedFn);
+          CallExprDiffDiagnostics(FD, CE->getBeginLoc());
           if (!OverloadedDerivedFn) {
             Stmts& block = getCurrentBlock(direction::reverse);
             block.insert(block.begin(), PreCallStmts.begin(),

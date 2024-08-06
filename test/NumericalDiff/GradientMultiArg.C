@@ -1,6 +1,6 @@
-// RUN: %cladnumdiffclang %s -I%S/../../include -oGradientMultiArg.out 2>&1 | FileCheck -check-prefix=CHECK %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -oGradientMultiArg.out -Xclang -verify 2>&1 | FileCheck -check-prefix=CHECK %s
 // RUN: ./GradientMultiArg.out | %filecheck_exec %s
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oGradientMultiArg.out
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oGradientMultiArg.out -Xclang -verify
 // RUN: ./GradientMultiArg.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
@@ -11,9 +11,9 @@
 #include <algorithm>
 
 double test_1(double x, double y){
-   return std::hypot(x, y);
+  return std::hypot(x, y); // expected-warning {{function 'hypot' was not differentiated}}
+  // expected-note@14 {{falling back to numerical differentiation}}
 }
-// CHECK: warning: Falling back to numerical differentiation for 'hypot' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 // CHECK: void test_1_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;

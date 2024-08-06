@@ -1,15 +1,14 @@
-// RUN: %cladnumdiffclang %s -I%S/../../include -oNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
+// RUN: %cladnumdiffclang %s -I%S/../../include -oNumDiff.out -Xclang -verify 2>&1 | FileCheck -check-prefix=CHECK %s
 // RUN: ./NumDiff.out | %filecheck_exec %s
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oNumDiff.out
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -Xclang -verify %s -I%S/../../include -oNumDiff.out
 // RUN: ./NumDiff.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 double test_1(double x){
-   return tanh(x);
+  return tanh(x); // expected-warning {{function 'tanh' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  // expected-note@9 {{falling back to numerical differentiation for 'tanh'}}
 }
-//CHECK: warning: Falling back to numerical differentiation for 'tanh' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
-//CHECK: warning: Falling back to numerical differentiation for 'log10' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 
 //CHECK: void test_1_grad(double x, double *_d_x) {
 //CHECK-NEXT:     {
@@ -21,7 +20,8 @@ double test_1(double x){
 
 
 double test_2(double x){
-   return std::log10(x);
+   return std::log10(x);// expected-warning {{function 'log10' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  // expected-note@23 {{falling back to numerical differentiation for 'log10'}}
 }
 //CHECK: double test_2_darg0(double x) {
 //CHECK-NEXT:     double _d_x = 1;
@@ -32,7 +32,8 @@ double test_2(double x){
 double test_3(double x) {
     if (x > 0) {
         double constant = 11.;
-        return std::hypot(x, constant);
+        return std::hypot(x, constant); // expected-warning {{function 'hypot' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+  // expected-note@35 {{falling back to numerical differentiation for 'hypot'}}
     }
     return 0;
 }
