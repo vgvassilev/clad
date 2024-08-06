@@ -394,14 +394,12 @@ namespace clad {
     /// to avoid recomputation.
     static bool UsefulToStore(clang::Expr* E);
     /// A flag for silencing warnings/errors output by diag function.
-    bool silenceDiags = false;
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
     void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
               clang::SourceLocation loc, const char (&format)[N],
               llvm::ArrayRef<llvm::StringRef> args = {}) {
-      if (!silenceDiags)
-        m_Builder.diag(level, loc, format, args);
+      m_Builder.diag(level, loc, format, args);
     }
 
     /// Creates unique identifier of the form "_nameBase<number>" that is
@@ -584,17 +582,14 @@ namespace clad {
     clang::Expr* GetSingleArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args);
+
     /// Emits diagnostic messages on differentiation (or lack thereof) for
     /// call expressions.
     ///
-    /// \param[in] \c funcName The name of the underlying function of the
-    /// call expression.
+    /// \param[in] \c FD - The function declaration.
     /// \param[in] \c srcLoc Any associated source location information.
-    /// \param[in] \c isDerived A flag to determine if differentiation of the
-    /// call expression was successful.
-    void CallExprDiffDiagnostics(llvm::StringRef funcName,
-                                 clang::SourceLocation srcLoc,
-                                 bool isDerived);
+    void CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
+                                 clang::SourceLocation srcLoc);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
 

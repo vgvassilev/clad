@@ -29,6 +29,12 @@ non_differentiable double fn_s2_mem_fn(double i, double j) {
   return obj.mem_fn(i, j) + i * j;
 }
 
+double no_body(double x); 
+
+double fn1(double x) { return no_body(x); } //expected-warning {{function 'no_body' was not differentiated}}
+//expected-note@34 {{fallback to numerical differentiation is disabled}}
+double fn2(double x) { return fn1(x); }
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -48,4 +54,5 @@ int main() {
   INIT_EXPR(SimpleFunctions2);
   TEST_CLASS(SimpleFunctions2, mem_fn, 3, 5);
   TEST_FUNC(fn_s2_mem_fn, 3, 5);  // expected-error {{attempted differentiation of function 'fn_s2_mem_fn', which is marked as non-differentiable}}
+  auto fn2_grad = clad::gradient(fn2);
 }
