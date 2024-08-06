@@ -618,18 +618,13 @@ namespace clad {
       Expr* exprFunc = BuildDeclRef(FD, SS);
       Expr* configExpr = nullptr;
       if (FD->hasAttr<CUDAGlobalAttr>()){
-        llvm::APInt zero(/*numBits=*/8, /*value*/ 0);
-        llvm::APInt one(/*numBits=*/8, /*value*/ 1);
+        llvm::APInt one(/*numBits=*/32, /*value=*/ 1);
         Expr* gridSize =
-            IntegerLiteral::Create(m_Context, one, m_Context.Char8Ty, noLoc);
+            IntegerLiteral::Create(m_Context, one, m_Context.IntTy, noLoc);
         Expr* blockSize =
-            IntegerLiteral::Create(m_Context, one, m_Context.Char8Ty, noLoc);
-        Expr* sharedMem =
-            IntegerLiteral::Create(m_Context, zero, m_Context.Char8Ty, noLoc);
-        Expr* streamId =
-            IntegerLiteral::Create(m_Context, zero, m_Context.Char8Ty, noLoc);
-        llvm::SmallVector<Expr*, 4> config{gridSize, blockSize, sharedMem,
-                                               streamId};
+            IntegerLiteral::Create(m_Context, one, m_Context.IntTy, noLoc);
+        llvm::SmallVector<Expr*, 2> config{gridSize, blockSize};
+
         configExpr =
             m_Sema
                 .ActOnCUDAExecConfigExpr(
