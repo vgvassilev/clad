@@ -97,20 +97,6 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   return DerivativeAndOverload{m_Derivative, nullptr};
 }
 
-// FIXME: This function is copied from ReverseModeVisitor. Find a suitable place
-// for it.
-QualType
-ReverseModeForwPassVisitor::GetParameterDerivativeType(QualType yType,
-                                                       QualType xType) {
-  QualType xValueType = utils::GetValueType(xType);
-  // derivative variables should always be of non-const type.
-  xValueType.removeLocalConst();
-  QualType nonRefXValueType = xValueType.getNonReferenceType();
-  if (nonRefXValueType->isRealType())
-    return m_Context.getPointerType(yType);
-  return m_Context.getPointerType(nonRefXValueType);
-}
-
 llvm::SmallVector<clang::QualType, 8>
 ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
   llvm::SmallVector<clang::QualType, 8> paramTypes;
@@ -118,15 +104,11 @@ ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
   for (auto* PVD : m_DiffReq->parameters())
     paramTypes.push_back(PVD->getType());
 
-  QualType effectiveReturnType =
-      m_DiffReq->getReturnType().getNonReferenceType();
-
   if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
     const CXXRecordDecl* RD = MD->getParent();
     if (MD->isInstance() && !RD->isLambda()) {
       QualType thisType = MD->getThisType();
-      paramTypes.push_back(
-          GetParameterDerivativeType(effectiveReturnType, thisType));
+      paramTypes.push_back(thisType);
     }
   }
 
@@ -134,8 +116,7 @@ ReverseModeForwPassVisitor::ComputeParamTypes(const DiffParams& diffParams) {
     const auto* it =
         std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
-      paramTypes.push_back(
-          GetParameterDerivativeType(effectiveReturnType, PVD->getType()));
+      paramTypes.push_back(PVD->getType());
     }
   }
   return paramTypes;
@@ -203,8 +184,7 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
       if (dPVD->getIdentifier())
         m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
-      m_Variables[*it] =
-          BuildOp(UO_Deref, BuildDeclRef(dPVD), m_DiffReq->getLocation());
+      m_Variables[*it] = BuildDeclRef(dPVD), m_DiffReq->getLocation();
     }
   }
   params.insert(params.end(), paramDerivatives.begin(), paramDerivatives.end());
