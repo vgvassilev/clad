@@ -88,13 +88,15 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT: }
 
 __global__ void compute(double* d_x, double* d_p, int n, double* d_result) {
-  auto gauss_g = clad::gradient(gauss, "p");
-  gauss_g.execute(d_x, d_p, 2.0, n, d_result);
+  // auto gauss_g = clad::gradient(gauss, "p");
+  // gauss_g.execute(d_x, d_p, 2.0, n, d_result);
 }
 
 __global__ void kernel(int *a) {
+  printf("in kernel\n");
   *a *= *a;
 }
+
 
 int main(void) {
   double *x, *d_x;
@@ -123,14 +125,35 @@ int main(void) {
   printf("%f,%f,%f\n", result[0], result[1], result[2]);
 
   std::array<double, N> result_cpu{0};
-  auto gauss_g = clad::gradient(gauss, "p");
-  gauss_g.execute(x, p, 2.0, N, result_cpu.data());
+  // auto gauss_g = clad::gradient(gauss, "p");
+  // gauss_g.execute(x, p, 2.0, N, result_cpu.data());
 
   if (result != result_cpu) {
     printf("Results are not equal\n");
     return 1;
   }
 
-  auto test = clad::gradient(kernel);
+  int *a = (int*)malloc(sizeof(int));
+  *a = 2;
+  int *d_a;
+  cudaMalloc(&d_a, sizeof(int));
+  cudaMemcpy(d_a, a, sizeof(int), cudaMemcpyHostToDevice);
+
+  int *asquare = (int*)malloc(sizeof(int));
+  *asquare = 1;
+  int *d_square;
+  cudaMalloc(&d_square, sizeof(int));
+  cudaMemcpy(d_square, asquare, sizeof(int), cudaMemcpyHostToDevice);
+
+  // This is compiled for the host
+  #if !defined(__CUDA_ARCH__)
+    auto test = clad::gradient(kernel);
+    std::vector<int> config = {1,1,0,0};
+    test.execute_kernel(config, d_a, d_square);
+    cudaDeviceSynchronize();
+    cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
+    printf("a = %d, a^2 = %d\n", *a, *asquare);
+  #endif
 
 }

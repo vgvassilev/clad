@@ -132,6 +132,72 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     return f(static_cast<Args>(args)...);
   }
 
+  template <bool EnablePadding, class... Rest, class F, class... Args,
+            class... fArgTypes,
+            typename std::enable_if<!EnablePadding, bool>::type = true>
+  return_type_t<F>
+  execute_with_default_args_kernel(list<Rest...>, const F f, list<fArgTypes...>,
+                                   std::vector<int> config, Args&&... args) {
+    int gridDim = 1;
+    int blockDim = 1;
+    int sharedMem = 0;
+    int stream = 0;
+    switch (config.size()) {
+    case 4:
+      stream = config[3];
+    case 3:
+      sharedMem = config[2];
+    case 2:
+      blockDim = config[1];
+    case 1:
+      gridDim = config[0];
+    default:
+      break;
+    }
+
+    void* argPtrs[] = {(void*)&args...};
+
+    int error = cudaLaunchKernel((void*)f, 1, 1, argPtrs, 0, NULL);
+
+    if(error != 0)
+      printf("error code: %d\n", error);
+
+    return f(args...);
+  }
+
+  template <bool EnablePadding, class... Rest, class F, class... Args,
+            class... fArgTypes,
+            typename std::enable_if<EnablePadding, bool>::type = true>
+  return_type_t<F>
+  execute_with_default_args_kernel(list<Rest...>, const F f, list<fArgTypes...>,
+                                   std::vector<int> config, Args&&... args) {
+    int gridDim = 1;
+    int blockDim = 1;
+    int sharedMem = 0;
+    int stream = 0;
+    switch (config.size()) {
+    case 4:
+      stream = config[3];
+    case 3:
+      sharedMem = config[2];
+    case 2:
+      blockDim = config[1];
+    case 1:
+      gridDim = config[0];
+    default:
+      break;
+    }
+
+    void* argPtrs[] = {(void*)&args...};
+
+    int error = cudaLaunchKernel((void*)f, 1, 1, argPtrs, 0, NULL);
+
+    if (error != 0)
+      printf("error code: %d\n", error);
+
+    return f(args...);
+  }
+
   // for executing member-functions
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
             class Obj, class... Args, class... fArgTypes,
@@ -171,12 +237,14 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     CladFunctionType m_Function;
     char* m_Code;
     FunctorType *m_Functor = nullptr;
+    bool m_CUDAkernel = false;
 
   public:
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
-                                  const char* code,
+    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
+                                  bool CUDAkernel = false,
                                   FunctorType* functor = nullptr)
-        : m_Functor(functor) {
+        : m_CUDAkernel(CUDAkernel),
+          m_Functor(functor) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
         m_Function = f;
@@ -197,8 +265,9 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
     CUDA_HOST_DEVICE
-    CladFunction(CladFunctionType f, const char* code, FunctorType& functor)
-        : CladFunction(f, code, &functor) {};
+    CladFunction(CladFunctionType f, const char* code, bool CUDAkernel,
+                 FunctorType& functor)
+        : CladFunction(f, code, CUDAkernel, &functor) {};
 
     // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
     // i.e -lstdc++.
@@ -212,6 +281,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     execute(Args&&... args) CUDA_HOST_DEVICE {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+      if (m_CUDAkernel){
+        printf("Use execute_kernel() instead of execute() for CUDA kernels\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
       // here static_cast is used to achieve perfect forwarding
@@ -228,6 +301,24 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
                             return_type_t<F>>::type
     execute(Args&&... args) CUDA_HOST_DEVICE {
       return static_cast<return_type_t<F>>(0);
+    }
+
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute_kernel(std::vector<int> config, Args&&... args) CUDA_HOST_DEVICE {
+      if (!m_Function) {
+        printf("CladFunction is invalid\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+      if (!m_CUDAkernel) {
+        printf("Use execute() instead of execute() for non-CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+      dump();
+      // here static_cast is used to achieve perfect forwarding
+      return execute_helper_kernel(m_Function,
+                                   config, static_cast<Args>(args)...);
     }
 
     /// Return the string representation for the generated derivative.
@@ -262,6 +353,16 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
+      execute_helper_kernel(Fn f, std::vector<int> config, Args&&... args) {
+        // `static_cast` is required here for perfect forwarding.
+        return execute_with_default_args_kernel<EnablePadding>(
+            DropArgs_t<sizeof...(Args), F>{}, f,
+            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, config,
+            static_cast<Args>(args)...);
+      }
+      /// Helper function for executing non-member derived functions.
+      template <class Fn, class... Args>
+      CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
       return execute_with_default_args<EnablePadding>(
@@ -269,6 +370,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
           TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
           static_cast<Args>(args)...);
       }
+
+
 
       /// Helper functions for executing member derived functions.
       /// If user have passed object explicitly, then this specialization will
@@ -395,12 +498,12 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
       annotate("G"))) CUDA_HOST_DEVICE
-  gradient(F f, ArgSpec args = "",
-           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code);
+  gradient(F f, ArgSpec args = "", DerivedFnType derivedFn =
+               static_cast<DerivedFnType>(nullptr),
+           const char* code = "", bool CUDAkernel = false) {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by gradient*/, code, CUDAkernel);
   }
 
   /// Specialization for differentiating functors.
@@ -416,7 +519,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
       return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code, f);
+          derivedFn /* will be replaced by gradient*/, code, false, f);
   }
 
   /// Generates function which computes hessian matrix of the given function wrt
