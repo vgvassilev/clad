@@ -204,7 +204,7 @@ void fill_pushforward(::std::array<T, N>* a, const T& u,
 
 template <typename T, typename U>
 void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
-                            U* d_val) {
+                            U d_val) {
   v->push_back(val);
   d_v->push_back(0);
 }
@@ -219,7 +219,7 @@ void push_back_pullback(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
 template <typename T>
 clad::ValueAndAdjoint<T&, T&> operator_subscript_reverse_forw(
     ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
-    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type* d_idx) {
+    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type d_idx) {
   return {(*vec)[idx], (*d_vec)[idx]};
 }
 

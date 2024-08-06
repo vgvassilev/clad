@@ -18,8 +18,6 @@ private:
   ComputeParamTypes(const DiffParams& diffParams);
   clang::QualType ComputeReturnType();
   llvm::SmallVector<clang::ParmVarDecl*, 8> BuildParams(DiffParams& diffParams);
-  clang::QualType GetParameterDerivativeType(clang::QualType yType,
-                                             clang::QualType xType);
 
 public:
   ReverseModeForwPassVisitor(DerivativeBuilder& builder,
