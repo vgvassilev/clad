@@ -108,6 +108,11 @@ public:
 
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
+  /// Iterator functions
+  CUDA_HOST_DEVICE T* begin() { return m_arr; }
+  CUDA_HOST_DEVICE const T* begin() const { return m_arr; }
+  CUDA_HOST_DEVICE T* end() { return m_arr + m_size; }
+  CUDA_HOST_DEVICE const T* end() const { return m_arr + m_size; }
   /// Returns the ptr of the underlying array
   CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
   CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
