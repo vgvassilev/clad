@@ -462,6 +462,21 @@ namespace clad {
     /// Instantiate clad::tape<T> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
 
+    /// Helper to build a function call expression.
+    ///
+    /// \param[in] funcName The name of the function to build the expression
+    /// for.
+    /// \param[in] nmspace The name of the namespace for the function,
+    /// currently does not support nested namespaces.
+    /// \param[in] callArgs A vector of \c clang::Expr of all the parameters
+    /// to the function call.
+    ///
+    /// \return The function call expression that can be used to emit into
+    /// code.
+    clang::Expr* GetFunctionCall(const std::string& funcName,
+                                 const std::string& nmspace,
+                                 llvm::SmallVectorImpl<clang::Expr*>& callArgs);
+
     clang::DeclRefExpr* GetCladTapePushDRE();
 
     clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);

@@ -15,34 +15,6 @@ namespace clad {
 
   FPErrorEstimationModel::~FPErrorEstimationModel() {}
 
-  Expr* FPErrorEstimationModel::GetFunctionCall(
-      std::string funcName, std::string nmspace,
-      llvm::SmallVectorImpl<Expr*>& callArgs) {
-    NamespaceDecl* NSD =
-        utils::LookupNSD(m_Sema, nmspace, /*shouldExist=*/true);
-    DeclContext* DC = NSD;
-    CXXScopeSpec SS;
-    SS.Extend(m_Context, NSD, noLoc, noLoc);
-
-    IdentifierInfo* II = &m_Context.Idents.get(funcName);
-    DeclarationName name(II);
-    DeclarationNameInfo DNI(name, noLoc);
-    LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
-
-    if (DC)
-      m_Sema.LookupQualifiedName(R, DC);
-    Expr* UnresolvedLookup = nullptr;
-    if (!R.empty())
-      UnresolvedLookup =
-          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
-    llvm::MutableArrayRef<Expr*> MARargs =
-        llvm::MutableArrayRef<Expr*>(callArgs);
-    SourceLocation Loc;
-    return m_Sema
-        .ActOnCallExpr(getCurrentScope(), UnresolvedLookup, Loc, MARargs, Loc)
-        .get();
-  }
-
   Expr* TaylorApprox::AssignError(StmtDiff refExpr,
                                   const std::string& varName) {
     // Get the machine epsilon value.
