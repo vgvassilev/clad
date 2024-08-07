@@ -466,6 +466,37 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     free(_d_t);
 // CHECK-NEXT: }
 
+double* ptrValFn (double* x, int n) {
+  x += n;
+  return x;
+}
+
+// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n);
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n);
+
+double nestedPtrFn (double x, double y) {
+  double arr[] = {x, y}; 
+  double* z = ptrValFn(arr, 1);
+  return *z;
+}
+
+// CHECK: void nestedPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {x, y};
+// CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_forw(arr, 1, _d_arr, 0);
+// CHECK-NEXT:     double *_d_z = _t0.adjoint;
+// CHECK-NEXT:     double *z = _t0.value;
+// CHECK-NEXT:     *_d_z += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _r0 = 0;
+// CHECK-NEXT:         ptrValFn_pullback(arr, 1, _d_arr, &_r0);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0];
+// CHECK-NEXT:         *_d_y += _d_arr[1];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
 var.execute(5,res);\
@@ -573,4 +604,28 @@ int main() {
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 4.00
+
+  auto d_nestedPtrFn = clad::gradient(nestedPtrFn);
+  d_i = 0; d_j = 0;
+  d_nestedPtrFn.execute(5, 7, &d_i, &d_j);
+  printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 0.00 1.00
 }
+
+// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x = _t0;
+// CHECK-NEXT:         _d_x = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT: }
