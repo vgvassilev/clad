@@ -994,30 +994,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto* BeginDeclRef = cast<DeclRefExpr>(BeginExpr);
     Expr* d_BeginDeclRef = m_Variables[BeginDeclRef->getDecl()];
 
-    auto* RangeExpr =
-        cast<DeclRefExpr>(cast<BinaryOperator>(VisitRange.getStmt())->getLHS());
-
-    Expr* RangeInit = Clone(FRS->getRangeInit());
-    Expr* AssignRange =
-        BuildOp(BO_Assign, RangeExpr, BuildOp(UO_AddrOf, RangeInit));
-    Expr* AssignBegin =
-        BuildOp(BO_Assign, BeginDeclRef, BuildOp(UO_Deref, RangeExpr));
-    addToCurrentBlock(AssignRange);
-    addToCurrentBlock(AssignBegin);
+    addToCurrentBlock(VisitRange.getStmt());
+    addToCurrentBlock(VisitBegin.getStmt());
     const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
 
-    Expr* EndInit = cast<BinaryOperator>(EndDecl->getInit())->getRHS();
     QualType EndType = CloneType(EndDecl->getType());
     std::string EndName = EndDecl->getNameAsString();
-    Expr* EndAssign = BuildOp(BO_Add, BuildOp(UO_Deref, RangeExpr), EndInit);
+    Expr* EndInit = Visit(EndDecl->getInit()).getExpr();
     VarDecl* EndVarDecl =
-        BuildGlobalVarDecl(EndType, EndName, EndAssign, /*DirectInit=*/false);
-    DeclStmt* AssignEnd = BuildDeclStmt(EndVarDecl);
-
-    addToCurrentBlock(AssignEnd);
-    auto* AssignEndVarDecl =
-        cast<VarDecl>(cast<DeclStmt>(AssignEnd)->getSingleDecl());
-    DeclRefExpr* EndExpr = BuildDeclRef(AssignEndVarDecl);
+        BuildGlobalVarDecl(EndType, EndName, EndInit, /*DirectInit=*/false);
+    addToCurrentBlock(BuildDeclStmt(EndVarDecl));
+    DeclRefExpr* EndExpr = BuildDeclRef(EndVarDecl);
     Expr* IncBegin = BuildOp(UO_PreInc, BeginDeclRef);
 
     beginBlock(direction::forward);
@@ -1036,14 +1023,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* ForwardCond = BuildOp(BO_NE, BeginDeclRef, EndExpr);
     // Add item assignment statement to the body.
     const Stmt* body = FRS->getBody();
-    StmtDiff bodyDiff = Visit(body);
+    StmtDiff bodyDiff =
+        DifferentiateLoopBody(body, loopCounter, nullptr, nullptr,
+                              /*isForLoop=*/true);
 
     StmtDiff storeLoop = StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl()));
     StmtDiff storeAdjLoop =
         StoreAndRestore(BuildDeclRef(LoopVDDiff.getDecl_dx()));
 
     addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
-    Expr* CounterIncrement = loopCounter.getCounterIncrement();
 
     Expr* LoopInit = LoopVDDiff.getDecl()->getInit();
     LoopVDDiff.getDecl()->setInit(getZeroInit(LoopVDDiff.getDecl()->getType()));
@@ -1058,7 +1046,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     beginBlock(direction::forward);
-    addToCurrentBlock(CounterIncrement);
     addToCurrentBlock(AdjLoopVDAddAssign);
     addToCurrentBlock(AssignLoop);
     addToCurrentBlock(storeLoop.getStmt());
