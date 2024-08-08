@@ -2292,7 +2292,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       StmtDiff RResult;
       // If R has no side effects, it can be just cloned
       // (no need to store it).
-      if (!ShouldRecompute(R)) {
+
+      // Check if the local variable declaration is reference type, since it is
+      // moved to the global scope and the right side should be recomputed
+      bool promoteToFnScope = false;
+      if (auto* RDeclRef = dyn_cast<DeclRefExpr>(R->IgnoreImplicit()))
+        promoteToFnScope = RDeclRef->getDecl()->getType()->isReferenceType() &&
+                           !getCurrentScope()->isFunctionScope();
+
+      if (!ShouldRecompute(R) || promoteToFnScope) {
         RDelayed = std::unique_ptr<DelayedStoreResult>(
             new DelayedStoreResult(DelayedGlobalStoreAndRef(R)));
         RResult = RDelayed->Result;
