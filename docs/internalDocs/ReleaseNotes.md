@@ -26,36 +26,36 @@ External Dependencies
 
 Forward Mode & Reverse Mode
 ---------------------------
-*
+* Add propagators for `__builtin_pow` and `__builtin_log`
+* Support range-based for loops
+* Improve diagnostics clarity
 
 Forward Mode
 ------------
-*
+* Advance support of frameworks such as Kokkos
+* Support `std::array`
 
 Reverse Mode
 ------------
-*
+* Support non_differentiable attribute
 
-CUDA
-----
-*
-
-Error Estimation
-----------------
-*
-
-Misc
-----
-*
 
 Fixed Bugs
 ----------
 
-[XXX](https://github.com/vgvassilev/clad/issues/XXX)
+[46](https://github.com/vgvassilev/clad/issues/46)
+[381](https://github.com/vgvassilev/clad/issues/381)
+[479](https://github.com/vgvassilev/clad/issues/479)
+[525](https://github.com/vgvassilev/clad/issues/525)
+[717](https://github.com/vgvassilev/clad/issues/717)
+[723](https://github.com/vgvassilev/clad/issues/723)
+[829](https://github.com/vgvassilev/clad/issues/829)
+[979](https://github.com/vgvassilev/clad/issues/979)
+[983](https://github.com/vgvassilev/clad/issues/983)
+[986](https://github.com/vgvassilev/clad/issues/986)
+[988](https://github.com/vgvassilev/clad/issues/988)
+[1005](https://github.com/vgvassilev/clad/issues/1005)
 
- <!---Get release bugs. Check for close, fix, resolve
- git log v1.6..master | grep -i "close" | grep '#' | sed -E 's,.*\#([0-9]*).*,\[\1\]\(https://github.com/vgvassilev/clad/issues/\1\),g' | sort
- --->
 
 Special Kudos
 =============
@@ -67,6 +67,11 @@ FirstName LastName (#commits)
 
 A B (N)
 
-<!---Find contributor list for this release
- git log --pretty=format:"%an"  v1.6...master | sort | uniq -c | sort -rn | sed -E 's,^ *([0-9]+) (.*)$,\2 \(\1\),'
---->
+petro.zarytskyi (11)
+Vassil Vassilev (11)
+Atell Krasnopolski (5)
+Vaibhav Thakkar (2)
+Mihail Mihov (2)
+ovdiiuv (1)
+Rohan Julka (1)
+Max Andriychuk (1)
