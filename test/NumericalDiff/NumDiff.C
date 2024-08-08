@@ -13,7 +13,7 @@ double test_1(double x){
 
 //CHECK: void test_1_grad(double x, double *_d_x) {
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         _r0 += 1 * numerical_diff::forward_central_difference(tanh, x, 0, 0, x);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
@@ -24,7 +24,7 @@ double test_2(double x){
    return std::log10(x);
 }
 //CHECK: double test_2_darg0(double x) {
-//CHECK-NEXT:     double _d_x = 1;
+//CHECK-NEXT:     double _d_x = 1.;
 //CHECK-NEXT:     return numerical_diff::forward_central_difference(std::log10, x, 0, 0, x) * _d_x;
 //CHECK-NEXT: }
 
@@ -38,8 +38,8 @@ double test_3(double x) {
 }
 //CHECK: void test_3_grad(double x, double *_d_x) {
 //CHECK-NEXT:     bool _cond0;
-//CHECK-NEXT:     double _d_constant = 0;
-//CHECK-NEXT:     double constant = 0;
+//CHECK-NEXT:     double _d_constant = 0.;
+//CHECK-NEXT:     double constant = 0.;
 //CHECK-NEXT:     {
 //CHECK-NEXT:     _cond0 = x > 0;
 //CHECK-NEXT:     if (_cond0) {
@@ -50,8 +50,8 @@ double test_3(double x) {
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:       _label0:
 //CHECK-NEXT:         {
-//CHECK-NEXT:             double _r0 = 0;
-//CHECK-NEXT:             double _r1 = 0;
+//CHECK-NEXT:             double _r0 = 0.;
+//CHECK-NEXT:             double _r1 = 0.;
 //CHECK-NEXT:             double _grad0[2] = {0};
 //CHECK-NEXT:             numerical_diff::central_difference(std::hypot, _grad0, 0, x, constant);
 //CHECK-NEXT:             _r0 += 1 * _grad0[0];

@@ -148,7 +148,7 @@ float f_literal_args_func(float x, float y, float *z) {
 // CHECK-NEXT: float _d_y = 0;
 // CHECK-NEXT: printf("hello world ");
 // CHECK-NEXT: float _t0 = f_literal_helper(0.5, 'a', z, nullptr);
-// CHECK-NEXT: return _d_x * _t0 + x * 0;
+// CHECK-NEXT: return _d_x * _t0 + x * 0.F;
 // CHECK-NEXT: }
 
 inline unsigned int getBin(double low, double high, double val, unsigned int numBins) {

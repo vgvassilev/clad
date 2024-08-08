@@ -227,8 +227,8 @@ int main() {
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     Experiment _t0 = E;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0;
-  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         double _r0 = 0.;
+  // CHECK-NEXT:         double _r1 = 0.;
   // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
@@ -244,8 +244,8 @@ int main() {
   // CHECK: void FunctorAsArg_grad(Experiment fn, double i, double j, Experiment *_d_fn, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _t0 = fn;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0;
-  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         double _r0 = 0.;
+  // CHECK-NEXT:         double _r1 = 0.;
   // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &(*_d_fn), &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
@@ -266,8 +266,8 @@ int main() {
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     {
   // CHECK-NEXT:         Experiment _r0 = {};
-  // CHECK-NEXT:         double _r1 = 0;
-  // CHECK-NEXT:         double _r2 = 0;
+  // CHECK-NEXT:         double _r1 = 0.;
+  // CHECK-NEXT:         double _r2 = 0.;
   // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r0, &_r1, &_r2);
   // CHECK-NEXT:         *_d_i += _r1;
   // CHECK-NEXT:         *_d_j += _r2;
@@ -284,8 +284,8 @@ int main() {
 // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Experiment _t0 = fn;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
-// CHECK-NEXT:         double _r1 = 0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:         *_d_j += _r1;

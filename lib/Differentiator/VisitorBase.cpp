@@ -380,7 +380,7 @@ namespace clad {
       return nullptr;
     if (T->isScalarType()) {
       ExprResult Zero =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+          ConstantFolder::synthesizeLiteral(T, m_Context, 0);
       CastKind CK = m_Sema.PrepareScalarCast(Zero, T);
       return m_Sema.ImpCastExprToType(Zero.get(), T, CK).get();
     }
