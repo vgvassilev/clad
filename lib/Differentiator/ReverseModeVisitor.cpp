@@ -2238,7 +2238,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // discontinuity in the function space.
         // FIXME: We should support boolean differentiation or ignore it
         // completely
-        unsupportedOpWarn(UnOp->getEndLoc());
+        unsupportedOpWarn(UnOp->getOperatorLoc());
       diff = Visit(E);
       ResultRef = diff.getExpr_dx();
     }
@@ -2645,7 +2645,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // FIXME: We should support boolean differentiation or ignore it
       // completely
       if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
-        unsupportedOpWarn(BinOp->getEndLoc());
+        unsupportedOpWarn(BinOp->getOperatorLoc());
 
       // If either LHS or RHS is a declaration reference, visit it to avoid
       // naming collision
