@@ -89,8 +89,8 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT: }
 
 __global__ void compute(double* d_x, double* d_p, int n, double* d_result) {
-  // auto gauss_g = clad::gradient(gauss, "p");
-  // gauss_g.execute(d_x, d_p, 2.0, n, d_result);
+  auto gauss_g = clad::gradient(gauss, "p");
+  gauss_g.execute(d_x, d_p, 2.0, n, d_result);
 }
 
 __global__ void kernel(int *a) {
@@ -121,17 +121,17 @@ int main(void) {
   compute<<<1, 1>>>(d_x, d_p, N, d_result);
   cudaDeviceSynchronize();
 
-  // cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
-  // printf("%f,%f,%f\n", result[0], result[1], result[2]);
+  cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%f,%f,%f\n", result[0], result[1], result[2]);
 
-  // std::array<double, N> result_cpu{0};
-  // auto gauss_g = clad::gradient(gauss, "p");
-  // gauss_g.execute(x, p, 2.0, N, result_cpu.data());
+  std::array<double, N> result_cpu{0};
+  auto gauss_g = clad::gradient(gauss, "p");
+  gauss_g.execute(x, p, 2.0, N, result_cpu.data());
 
-  // if (result != result_cpu) {
-  //   printf("Results are not equal\n");
-  //   return 1;
-  // }
+  if (result != result_cpu) {
+    printf("Results are not equal\n");
+    return 1;
+  }
 
   int *a = (int*)malloc(sizeof(int));
   *a = 2;
@@ -148,34 +148,9 @@ int main(void) {
   // This is compiled for the host
   #ifndef __CUDA_ARCH__
     auto test = clad::gradient(kernel);
+    test.execute(d_a, d_square);
   #endif
 
-  // This cannot be executed at compile time
-  // Cuda modules are part of the runtime API
-  // but the ptx code can be stored at compile time
-  // in the CladFunction object
-  CUmodule cuModule;
-  CUfunction cuFunction;
-  CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");
-  if (error != CUDA_SUCCESS){
-    printf("error in module load: %s\n", cudaGetErrorString((cudaError_t)error));
-    exit(1);
-  }
-  error =  cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
-  if (error != CUDA_SUCCESS){
-    printf("error in getfunction\n");
-    exit(1);
-  }
-  void *args[] = {&d_a, &d_square};
-
-  dim3 block(1, 1, 1);
-  dim3 grid(1, 1, 1);
-
-  error = cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x, block.y, block.z, 0, NULL, args, NULL);
-   if (error){
-    printf("error in launch: %s\n", cudaGetErrorString((cudaError_t)error));
-    exit(1);
-  }
   cudaDeviceSynchronize();
 
   cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);

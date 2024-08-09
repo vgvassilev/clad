@@ -118,8 +118,38 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             class... fArgTypes,
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
-  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>, bool CUDAkernel,
                             Args&&... args) {
+#ifdef __CUDACC__
+#ifndef __CUDA_ARCH__
+    if (CUDAkernel){
+      CUmodule cuModule;
+      CUfunction cuFunction;
+      CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");
+      if (error != CUDA_SUCCESS) {
+        printf("error in module load: %s\n",
+              cudaGetErrorString((cudaError_t)error));
+        exit(1);
+      }
+      error = cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
+      if (error != CUDA_SUCCESS) {
+        printf("error in getfunction\n");
+        exit(1);
+      }
+      void* argPtrs[] = {(void*)&args...}; // add rest
+      dim3 block(1, 1, 1); // take config from the args -> use a separate function
+      dim3 grid(1, 1, 1);
+
+      error = cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x, block.y,
+                            block.z, 0, NULL, argPtrs, NULL);
+      if (error) {
+        printf("error in launch: %s\n", cudaGetErrorString((cudaError_t)error));
+        exit(1);
+      }
+    }
+#endif
+#endif
+
     return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
   }
 
@@ -127,8 +157,38 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
   return_type_t<F> execute_with_default_args(list<Rest...>, F f,
-                                             list<fArgTypes...>,
+                                             list<fArgTypes...>, bool CUDAkernel,
                                              Args&&... args) {
+#ifdef __CUDACC__
+#ifndef __CUDA_ARCH__
+    if (CUDAkernel) {
+      CUmodule cuModule;
+      CUfunction cuFunction;
+      CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");
+      if (error != CUDA_SUCCESS) {
+        printf("error in module load: %s\n",
+               cudaGetErrorString((cudaError_t)error));
+        exit(1);
+      }
+      error = cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
+      if (error != CUDA_SUCCESS) {
+        printf("error in getfunction\n");
+        exit(1);
+      }
+      void* argPtrs[] = {(void*)&args...};
+      dim3 block(1, 1, 1);
+      dim3 grid(1, 1, 1);
+
+      error = cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x,
+                             block.y, block.z, 0, NULL, argPtrs, NULL);
+      if (error) {
+        printf("error in launch: %s\n", cudaGetErrorString((cudaError_t)error));
+        exit(1);
+      }
+    }
+#endif
+#endif
+
     return f(static_cast<Args>(args)...);
   }
 
@@ -218,12 +278,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
-      if (m_CUDAkernel){
-        printf("Use execute_kernel() instead of execute() for CUDA kernels\n");
-        return static_cast<return_type_t<F>>(return_type_t<F>());
-      }
       // here static_cast is used to achieve perfect forwarding
-      return execute_helper(m_Function, static_cast<Args>(args)...);
+      return execute_helper(m_Function, m_CUDAkernel, static_cast<Args>(args)...);
     }
 
     /// `Execute` overload to be used when derived function type cannot be
@@ -270,15 +326,13 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
-      execute_helper(Fn f, Args&&... args) {
+      execute_helper(Fn f, bool CUDAkernel, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
       return execute_with_default_args<EnablePadding>(
           DropArgs_t<sizeof...(Args), F>{}, f,
           TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-          static_cast<Args>(args)...);
+          CUDAkernel, static_cast<Args>(args)...);
       }
-
-
 
       /// Helper functions for executing member derived functions.
       /// If user have passed object explicitly, then this specialization will
