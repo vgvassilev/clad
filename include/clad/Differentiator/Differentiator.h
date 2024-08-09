@@ -14,6 +14,7 @@
 #include "DynamicGraph.h"
 #include "FunctionTraits.h"
 #include "Matrix.h"
+#include "NewTape.h"
 #include "NumericalDiff.h"
 #include "Tape.h"
 
@@ -43,15 +44,16 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 }
 
   /// Tape type used for storing values in reverse-mode AD inside loops.
-  template <typename T>
-  using tape = tape_impl<T>;
+template <typename T> using tape = new_tape_impl<T>;
 
-  /// Add value to the end of the tape, return the same value.
-  template <typename T, typename... ArgsT>
-  CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
-    to.emplace_back(std::forward<ArgsT>(val)...);
-    return to.back();
-  }
+template <typename T> using old_tape = tape_impl<T>;
+
+/// Add value to the end of the tape, return the same value.
+template <typename T, typename... ArgsT>
+CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
+  to.emplace_back(std::forward<ArgsT>(val)...);
+  return to.back();
+}
 
   /// Add value to the end of the tape, return the same value.
   /// A specialization for clad::array_ref types to use in reverse mode.

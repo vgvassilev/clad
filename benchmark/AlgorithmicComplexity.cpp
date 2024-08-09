@@ -19,7 +19,7 @@ static void BM_NumericGausP(benchmark::State& state) {
   double p[] = {1, 2, 3, 4, 5};
   double dx[5] = {0, 0, 0, 0, 0};
   double dp[5] = {0, 0, 0, 0, 0};
-  clad::tape<clad::array_ref<double>> results = {};
+  clad::old_tape<clad::array_ref<double>> results = {};
   int dim = 5;
   results.emplace_back(dx, dim);
   results.emplace_back(dp, dim);
