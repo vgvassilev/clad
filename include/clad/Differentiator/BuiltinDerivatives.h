@@ -135,6 +135,11 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_exponent += t.pushforward * d_y;
 }
 
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_exp_pushforward(double x, double d_x) {
+  return {__builtin_exp(x), __builtin_exp(x) * d_x};
+}
+
 // FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
 
 namespace std {
