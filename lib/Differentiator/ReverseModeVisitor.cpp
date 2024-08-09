@@ -2655,18 +2655,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
         unsupportedOpWarn(BinOp->getEndLoc());
 
-      // If either LHS or RHS is a declaration reference, visit it to avoid
-      // naming collision
-      auto* LDRE = dyn_cast<DeclRefExpr>(L);
-      auto* RDRE = dyn_cast<DeclRefExpr>(R);
-
-      if (!LDRE && !RDRE)
-        return Clone(BinOp);
-
-      Expr* LExpr = LDRE ? Visit(L).getExpr() : L;
-      Expr* RExpr = RDRE ? Visit(R).getExpr() : R;
-
-      return BuildOp(opCode, LExpr, RExpr);
+      return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     }
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
 
