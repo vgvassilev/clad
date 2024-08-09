@@ -326,6 +326,29 @@ double fn9(Tangent t, dcomplex c) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+template <typename T>
+struct A {
+  using PtrType = T*;
+};
+
+double fn10(double x, double y) {
+  A<double>::PtrType ptr = &x;
+  ptr[0] += 6;
+  return *ptr;
+}
+
+// CHECK: void fn10_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     A<double>::PtrType _d_ptr = &*_d_x;
+// CHECK-NEXT:     A<double>::PtrType ptr = &x;
+// CHECK-NEXT:     double _t0 = ptr[0];
+// CHECK-NEXT:     ptr[0] += 6;
+// CHECK-NEXT:     *_d_ptr += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         ptr[0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_ptr[0];
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -351,6 +374,7 @@ int main() {
     INIT_GRADIENT(fn7);
     INIT_GRADIENT(fn8);
     INIT_GRADIENT(fn9);
+    INIT_GRADIENT(fn10);
     
     TEST_GRADIENT(fn1, /*numOfDerivativeArgs=*/2, p, i, &d_p, &d_i);    // CHECK-EXEC: {1.00, 2.00, 3.00}
     TEST_GRADIENT(fn2, /*numOfDerivativeArgs=*/2, t, i, &d_t, &d_i);    // CHECK-EXEC: {4.00, 2.00, 2.00, 2.00, 2.00, 1.00}
@@ -364,6 +388,7 @@ int main() {
     TEST_GRADIENT(fn7, /*numOfDerivativeArgs=*/2, c1, c2, &d_c1, &d_c2);// CHECK-EXEC: {0.00, 3.00, 5.00, 1.00}
     TEST_GRADIENT(fn8, /*numOfDerivativeArgs=*/2, t, c1, &d_t, &d_c1);  // CHECK-EXEC: {0.00, 0.00, 0.00, 0.00, 0.00, 5.00, 0.00}
     TEST_GRADIENT(fn9, /*numOfDerivativeArgs=*/2, t, c1, &d_t, &d_c1);  // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00, 1.00, 5.00, 10.00}
+    TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 5, 10, &d_i, &d_j);  // CHECK-EXEC: {1.00, 0.00}
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
