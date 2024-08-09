@@ -150,25 +150,10 @@ int main(void) {
     auto test = clad::gradient(kernel);
   #endif
 
-  int clang_cuda_exit_status = system(
-        (std::string("/usr/lib/llvm-17/bin/clang++ -c ") + " Derivatives.cu" 
-            ).c_str()
-  );
-
-  if (clang_cuda_exit_status) {
-          std::cerr << "ERROR: clang cuda exits with status code: " << clang_cuda_exit_status << std::endl;
-          exit(1);
-  }
-
-  clang_cuda_exit_status = system(
-        "cuobjdump -ptx Derivatives.o | awk \'/\\.version/ {found=1} found' > Derivatives.ptx"
-  );
-
-   if (clang_cuda_exit_status) {
-          std::cerr << "ERROR: cuobjdump exits with status code: " << clang_cuda_exit_status << std::endl;
-          exit(1);
-  }
-
+  // This cannot be executed at compile time
+  // Cuda modules are part of the runtime API
+  // but the ptx code can be stored at compile time
+  // in the CladFunction object
   CUmodule cuModule;
   CUfunction cuFunction;
   CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");

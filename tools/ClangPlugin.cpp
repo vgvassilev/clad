@@ -242,7 +242,7 @@ namespace clad {
           // if enabled, print the derivatives in a file.
           if (m_DO.GenerateSourceFile) {
             std::error_code err;
-            llvm::raw_fd_ostream f("Derivatives.cu", err,
+            llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                    CLAD_COMPAT_llvm_sys_fs_Append);
             DerivativeDecl->print(f, Policy);
             if (request.DeclarationOnly)
@@ -250,7 +250,38 @@ namespace clad {
             f.flush();
           }
 
-          S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
+          if (DerivativeDecl->hasAttr<CUDAGlobalAttr>()) {
+            std::error_code err;
+            llvm::raw_fd_ostream f("Derivatives.cu", err,
+                                   CLAD_COMPAT_llvm_sys_fs_Append);
+            DerivativeDecl->print(f, Policy);
+            if (request.DeclarationOnly)
+              f << ";\n";
+            f.flush();
+
+            int clang_cuda_exit_status =
+                system((std::string("/usr/lib/llvm-17/bin/clang++ -c ") +
+                        " Derivatives.cu")
+                           .c_str());
+
+            if (clang_cuda_exit_status) {
+              std::cerr << "ERROR: clang cuda exits with status code: "
+                        << clang_cuda_exit_status << std::endl;
+              exit(1);
+            }
+
+            clang_cuda_exit_status =
+                system("cuobjdump -ptx Derivatives.o | awk \'/\\.version/ "
+                       "{found=1} found' > Derivatives.ptx");
+
+            if (clang_cuda_exit_status) {
+              std::cerr << "ERROR: cuobjdump exits with status code: "
+                        << clang_cuda_exit_status << std::endl;
+              exit(1);
+            }
+          }
+
+            S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           if (OverloadedDerivativeDecl)
             S.MarkFunctionReferenced(SourceLocation(),
                                      OverloadedDerivativeDecl);
