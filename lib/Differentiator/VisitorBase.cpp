@@ -501,6 +501,33 @@ namespace clad {
     return clad_compat::llvm_Optional_GetValue(Result);
   }
 
+  Expr* VisitorBase::GetFunctionCall(const std::string& funcName,
+                                     const std::string& nmspace,
+                                     llvm::SmallVectorImpl<Expr*>& callArgs) {
+    NamespaceDecl* NSD =
+        utils::LookupNSD(m_Sema, nmspace, /*shouldExist=*/true);
+    DeclContext* DC = NSD;
+    CXXScopeSpec SS;
+    SS.Extend(m_Context, NSD, noLoc, noLoc);
+
+    IdentifierInfo* II = &m_Context.Idents.get(funcName);
+    DeclarationName name(II);
+    DeclarationNameInfo DNI(name, noLoc);
+    LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
+
+    if (DC)
+      m_Sema.LookupQualifiedName(R, DC);
+    Expr* UnresolvedLookup = nullptr;
+    if (!R.empty())
+      UnresolvedLookup =
+          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
+    auto MARargs = llvm::MutableArrayRef<Expr*>(callArgs);
+    SourceLocation Loc;
+    return m_Sema
+        .ActOnCallExpr(getCurrentScope(), UnresolvedLookup, Loc, MARargs, Loc)
+        .get();
+  }
+
   DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
     LookupResult& pushLR = GetCladTapePush();
     CXXScopeSpec CSS;

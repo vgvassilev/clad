@@ -2717,12 +2717,12 @@ double fn34(double x, double y){
 //CHECK-NEXT:     double *i = 0;
 //CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
 //CHECK-NEXT:         {
-//CHECK-NEXT:             _t0++;
 //CHECK-NEXT:             _d_i = &*_d___begin1;
 //CHECK-NEXT:             i = &*__begin10;
 //CHECK-NEXT:             clad::push(_t2, i);
 //CHECK-NEXT:             clad::push(_t3, _d_i);
 //CHECK-NEXT:         }
+//CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, r);
 //CHECK-NEXT:         r += *i * *i;
 //CHECK-NEXT:     }
@@ -2786,12 +2786,12 @@ double fn35(double x, double y){
 //CHECK-NEXT:     double i = 0;
 //CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
 //CHECK-NEXT:         {
-//CHECK-NEXT:             _t0++;
 //CHECK-NEXT:             _d_i = *_d___begin1;
 //CHECK-NEXT:             i = *__begin10;
 //CHECK-NEXT:             clad::push(_t3, i);
 //CHECK-NEXT:             clad::push(_t4, _d_i);
 //CHECK-NEXT:         }
+//CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, sum);
 //CHECK-NEXT:         clad::push(_t2, sin(i));
 //CHECK-NEXT:         sum += clad::back(_t2) * x;
@@ -2818,6 +2818,172 @@ double fn35(double x, double y){
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double fn36(double x, double y) {
+  double range[] = {x, 4., y};
+  double sum = 0;
+  for (auto elem : range)
+    sum += elem;
+  return sum;
+}
+
+//CHECK: void fn36_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     double (*_d___range1)[3] = 0;
+//CHECK-NEXT:     double (*__range10)[3] = {};
+//CHECK-NEXT:     double *_d___begin1 = 0;
+//CHECK-NEXT:     double *__begin10 = 0;
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     clad::tape<double> _t2 = {};
+//CHECK-NEXT:     clad::tape<double> _t3 = {};
+//CHECK-NEXT:     double _d_range[3] = {0};
+//CHECK-NEXT:     double range[3] = {x, 4., y};
+//CHECK-NEXT:     double _d_sum = 0;
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
+//CHECK-NEXT:     _d___range1 = &_d_range;
+//CHECK-NEXT:     _d___begin1 = *_d___range1;
+//CHECK-NEXT:     __range10 = &range;
+//CHECK-NEXT:     __begin10 = *__range10;
+//CHECK-NEXT:     double *__end10 = *__range10 + {{3|3L}};
+//CHECK-NEXT:     double _d_elem = 0;
+//CHECK-NEXT:     double elem = 0;
+//CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             _d_elem = *_d___begin1;
+//CHECK-NEXT:             elem = *__begin10;
+//CHECK-NEXT:             clad::push(_t2, elem);
+//CHECK-NEXT:             clad::push(_t3, _d_elem);
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, sum);
+//CHECK-NEXT:         sum += elem;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 _d___begin1--;
+//CHECK-NEXT:                 elem = clad::pop(_t2);
+//CHECK-NEXT:                 _d_elem = clad::pop(_t3);
+//CHECK-NEXT:             }
+//CHECK-NEXT:             sum = clad::pop(_t1);
+//CHECK-NEXT:             double _r_d0 = _d_sum;
+//CHECK-NEXT:             _d_elem += _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         *_d___begin1 += _d_elem;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_range[0];
+//CHECK-NEXT:         *_d_y += _d_range[2];
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double fn37(double x, double y) {
+  auto&& range = {1., x, 2., y, 3.};
+  double sum = 0;
+  for (auto elem : range)
+    sum += elem;
+  return sum;
+}
+
+//CHECK: void fn37_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     unsigned {{int|long}} _t0;
+//CHECK-NEXT:     clad::array<double> *_d___range1 = 0;
+//CHECK-NEXT:     clad::array<double> *__range10 = {};
+//CHECK-NEXT:     double *_d___begin1 = 0;
+//CHECK-NEXT:     const double *__begin10 = 0;
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     clad::tape<double> _t2 = {};
+//CHECK-NEXT:     clad::tape<double> _t3 = {};
+//CHECK-NEXT:     clad::array<double> _d_range = {{5U|5UL}};
+//CHECK-NEXT:     clad::array<double> range = {1., x, 2., y, 3.};
+//CHECK-NEXT:     double _d_sum = 0;
+//CHECK-NEXT:     double sum = 0;
+//CHECK-NEXT:     _t0 = {{0U|0UL}};
+//CHECK-NEXT:     _d___range1 = &_d_range;
+//CHECK-NEXT:     _d___begin1 = std::begin(*_d___range1);
+//CHECK-NEXT:     __range10 = &range;
+//CHECK-NEXT:     __begin10 = std::begin(*__range10);
+//CHECK-NEXT:     const double *__end10 = std::end(*__range10);
+//CHECK-NEXT:     double _d_elem = 0;
+//CHECK-NEXT:     double elem = 0;
+//CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             _d_elem = *_d___begin1;
+//CHECK-NEXT:             elem = *__begin10;
+//CHECK-NEXT:             clad::push(_t2, elem);
+//CHECK-NEXT:             clad::push(_t3, _d_elem);
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, sum);
+//CHECK-NEXT:         sum += elem;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_sum += 1;
+//CHECK-NEXT:     for (; _t0; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 _d___begin1--;
+//CHECK-NEXT:                 elem = clad::pop(_t2);
+//CHECK-NEXT:                 _d_elem = clad::pop(_t3);
+//CHECK-NEXT:             }
+//CHECK-NEXT:             sum = clad::pop(_t1);
+//CHECK-NEXT:             double _r_d0 = _d_sum;
+//CHECK-NEXT:             _d_elem += _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         *_d___begin1 += _d_elem;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_range[1];
+//CHECK-NEXT:         *_d_y += _d_range[3];
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double fn38(double x) {
+  double res = 0;
+  auto &&range = {1, 2, 3};
+  for (auto i = range.begin(); i != range.end(); i++) {
+    res += x * (*i);
+  }
+  return res;
+}
+
+//CHECK: void fn38_grad(double x, double *_d_x) {
+//CHECK-NEXT:     int *_d_i = 0;
+//CHECK-NEXT:     const int *i = 0;
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     double _d_res = 0;
+//CHECK-NEXT:     double res = 0;
+//CHECK-NEXT:     clad::array<int> _d_range = {{3U|3UL}};
+//CHECK-NEXT:     clad::array<int> range = {1, 2, 3};
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     _d_i = std::begin(_d_range);
+//CHECK-NEXT:     for (i = std::begin(range); ; _d_i++ , i++) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             if (!(i != range.end()))
+//CHECK-NEXT:                 break;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, res);
+//CHECK-NEXT:         res += x * (*i);
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_res += 1;
+//CHECK-NEXT:     for (;; _t0--) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             if (!_t0)
+//CHECK-NEXT:                 break;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         {
+//CHECK-NEXT:             i--;
+//CHECK-NEXT:             _d_i--;
+//CHECK-NEXT:         }
+//CHECK-NEXT:         {
+//CHECK-NEXT:             res = clad::pop(_t1);
+//CHECK-NEXT:             double _r_d0 = _d_res;
+//CHECK-NEXT:             *_d_x += _r_d0 * (*i);
+//CHECK-NEXT:             *_d_i += x * _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -2905,6 +3071,9 @@ int main() {
 
   TEST_2(fn34, 2, 2); // CHECK-EXEC: {64.00, 32.00}
   TEST_2(fn35, 1, 1); // CHECK-EXEC: {1.89, 0.00}
+  TEST_2(fn36, 6, 3); // CHECK-EXEC: {1.00, 1.00}
+  TEST_2(fn37, 6, 3); // CHECK-EXEC: {1.00, 1.00}
+  TEST(fn38, 9); // CHECK-EXEC: {6.00}
 }
 
 //CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
