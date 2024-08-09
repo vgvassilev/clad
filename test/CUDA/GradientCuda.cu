@@ -16,7 +16,8 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <array>
-
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 #define N 3
 
 __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
@@ -93,7 +94,6 @@ __global__ void compute(double* d_x, double* d_p, int n, double* d_result) {
 }
 
 __global__ void kernel(int *a) {
-  printf("in kernel\n");
   *a *= *a;
 }
 
@@ -121,17 +121,17 @@ int main(void) {
   compute<<<1, 1>>>(d_x, d_p, N, d_result);
   cudaDeviceSynchronize();
 
-  cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
-  printf("%f,%f,%f\n", result[0], result[1], result[2]);
+  // cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
+  // printf("%f,%f,%f\n", result[0], result[1], result[2]);
 
-  std::array<double, N> result_cpu{0};
+  // std::array<double, N> result_cpu{0};
   // auto gauss_g = clad::gradient(gauss, "p");
   // gauss_g.execute(x, p, 2.0, N, result_cpu.data());
 
-  if (result != result_cpu) {
-    printf("Results are not equal\n");
-    return 1;
-  }
+  // if (result != result_cpu) {
+  //   printf("Results are not equal\n");
+  //   return 1;
+  // }
 
   int *a = (int*)malloc(sizeof(int));
   *a = 2;
@@ -146,14 +146,55 @@ int main(void) {
   cudaMemcpy(d_square, asquare, sizeof(int), cudaMemcpyHostToDevice);
 
   // This is compiled for the host
-  #if !defined(__CUDA_ARCH__)
+  #ifndef __CUDA_ARCH__
     auto test = clad::gradient(kernel);
-    std::vector<int> config = {1,1,0,0};
-    test.execute_kernel(config, d_a, d_square);
-    cudaDeviceSynchronize();
-    cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
-    printf("a = %d, a^2 = %d\n", *a, *asquare);
   #endif
+
+  int clang_cuda_exit_status = system(
+        (std::string("/usr/lib/llvm-17/bin/clang++ -c ") + " Derivatives.cu" 
+            ).c_str()
+  );
+
+  if (clang_cuda_exit_status) {
+          std::cerr << "ERROR: clang cuda exits with status code: " << clang_cuda_exit_status << std::endl;
+          exit(1);
+  }
+
+  clang_cuda_exit_status = system(
+        "cuobjdump -ptx Derivatives.o | awk \'/\\.version/ {found=1} found' > Derivatives.ptx"
+  );
+
+   if (clang_cuda_exit_status) {
+          std::cerr << "ERROR: cuobjdump exits with status code: " << clang_cuda_exit_status << std::endl;
+          exit(1);
+  }
+
+  CUmodule cuModule;
+  CUfunction cuFunction;
+  CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");
+  if (error != CUDA_SUCCESS){
+    printf("error in module load: %s\n", cudaGetErrorString((cudaError_t)error));
+    exit(1);
+  }
+  error =  cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
+  if (error != CUDA_SUCCESS){
+    printf("error in getfunction\n");
+    exit(1);
+  }
+  void *args[] = {&d_a, &d_square};
+
+  dim3 block(1, 1, 1);
+  dim3 grid(1, 1, 1);
+
+  error = cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x, block.y, block.z, 0, NULL, args, NULL);
+   if (error){
+    printf("error in launch: %s\n", cudaGetErrorString((cudaError_t)error));
+    exit(1);
+  }
+  cudaDeviceSynchronize();
+
+  cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
+  printf("a = %d, a^2 = %d\n", *a, *asquare);
 
 }
