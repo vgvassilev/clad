@@ -430,7 +430,7 @@ int main() {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_jj = 0;
   // CHECK-NEXT:     double _t0 = x * i;
-  // CHECK-NEXT:     return (0 * i + x * _d_i) * jj + _t0 * _d_jj;
+  // CHECK-NEXT:     return (0. * i + x * _d_i) * jj + _t0 * _d_jj;
   // CHECK-NEXT: }
 
   auto lambdaNNS = outer::inner::lambdaNNS;
