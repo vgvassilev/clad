@@ -202,6 +202,35 @@ void fill_pushforward(::std::array<T, N>* a, const T& u,
   d_a->fill(d_u);
 }
 
+template <typename T, typename U>
+void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
+                            U* d_val) {
+  v->push_back(val);
+  d_v->push_back(0);
+}
+
+template <typename T, typename U>
+void push_back_pullback(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
+                        U* d_val) {
+  *d_val += d_v->back();
+  d_v->pop_back();
+}
+
+template <typename T>
+clad::ValueAndAdjoint<T&, T&> operator_subscript_reverse_forw(
+    ::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
+    ::std::vector<T>* d_vec, typename ::std::vector<T>::size_type* d_idx) {
+  return {(*vec)[idx], (*d_vec)[idx]};
+}
+
+template <typename T, typename P>
+void operator_subscript_pullback(::std::vector<T>* vec,
+                                 typename ::std::vector<T>::size_type idx,
+                                 P d_y, ::std::vector<T>* d_vec,
+                                 typename ::std::vector<T>::size_type* d_idx) {
+  (*d_vec)[idx] += d_y;
+}
+
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad
