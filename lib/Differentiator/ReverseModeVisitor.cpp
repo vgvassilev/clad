@@ -1799,6 +1799,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Stores differentiation result of implicit `this` object, if any.
     StmtDiff baseDiff;
+    Expr* baseExpr = nullptr;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -1822,6 +1823,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             baseOriginalE = OCE->getArg(0);
 
           baseDiff = Visit(baseOriginalE);
+          baseExpr = baseDiff.getExpr();
           Expr* baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
           baseDiff.updateStmt(baseDiffStore);
           Expr* baseDerivative = baseDiff.getExpr_dx();
@@ -2007,8 +2009,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* call = nullptr;
 
     QualType returnType = FD->getReturnType();
-    if (returnType->isReferenceType() &&
-        !returnType.getNonReferenceType().isConstQualified()) {
+    if (Expr* customForwardPassCE = BuildCallToCustomForwPassFn(
+            FD, CallArgs, DerivedCallOutputArgs, baseExpr)) {
+      if (!utils::isNonConstReferenceType(returnType))
+        return StmtDiff{customForwardPassCE};
+      auto* callRes = StoreAndRef(customForwardPassCE);
+      auto* resValue =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+      auto* resAdjoint =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      return StmtDiff(resValue, nullptr, resAdjoint);
+    }
+    if (utils::isNonConstReferenceType(returnType)) {
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
@@ -4259,5 +4271,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_IndependentVars.insert(m_IndependentVars.end(), diffParams.begin(),
                                diffParams.end());
     return params;
+  }
+
+  Expr* ReverseModeVisitor::BuildCallToCustomForwPassFn(
+      const FunctionDecl* FD, llvm::ArrayRef<Expr*> primalArgs,
+      llvm::ArrayRef<clang::Expr*> derivedArgs, Expr* baseExpr) {
+    std::string forwPassFnName =
+        clad::utils::ComputeEffectiveFnName(FD) + "_reverse_forw";
+    llvm::SmallVector<Expr*, 4> args;
+    if (baseExpr) {
+      baseExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, baseExpr,
+                         m_DiffReq->getLocation());
+      args.push_back(baseExpr);
+    }
+    args.append(primalArgs.begin(), primalArgs.end());
+    args.append(derivedArgs.begin(), derivedArgs.end());
+    Expr* customForwPassCE =
+        m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+            forwPassFnName, args, getCurrentScope(),
+            const_cast<DeclContext*>(FD->getDeclContext()));
+    return customForwPassCE;
   }
 } // end namespace clad
