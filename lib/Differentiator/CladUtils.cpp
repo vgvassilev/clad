@@ -705,5 +705,10 @@ namespace clad {
       return FD->getNameAsString() == "free";
 #endif
     }
+
+    bool isNonConstReferenceType(clang::QualType QT) {
+      return QT->isReferenceType() &&
+             !QT.getNonReferenceType().isConstQualified();
+    }
   } // namespace utils
 } // namespace clad

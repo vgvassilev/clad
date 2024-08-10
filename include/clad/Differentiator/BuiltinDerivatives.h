@@ -30,6 +30,11 @@ template <typename T, typename U> struct ValueAndPushforward {
   }
 };
 
+template <typename T, typename U> struct ValueAndAdjoint {
+  T value;
+  U adjoint;
+};
+
 /// It is used to identify constructor custom pushforwards. For
 /// constructor custom pushforward functions, we cannot use the same
 /// strategy which we use for custom pushforward for member

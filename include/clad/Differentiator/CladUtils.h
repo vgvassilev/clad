@@ -321,6 +321,9 @@ namespace clad {
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
+
+    /// Returns true if QT is a non-const reference type.
+    bool isNonConstReferenceType(clang::QualType QT);
     } // namespace utils
     } // namespace clad
 

@@ -203,9 +203,13 @@ TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
       elemType = pointerType->getPointeeType().getTypePtrOrNull();
     else
       elemType = QT->getArrayElementTypeNoTypeQual();
-    ProfileID nonConstIdxID;
-    auto& idxData = (*m_Val.m_ArrData)[nonConstIdxID];
-    idxData = VarData(QualType::getFromOpaquePtr(elemType));
+    // FIXME: In some cases for Mac, 'elemType' is nullptr for std::vector<T>
+    // internal members.
+    if (elemType) {
+      ProfileID nonConstIdxID;
+      auto& idxData = (*m_Val.m_ArrData)[nonConstIdxID];
+      idxData = VarData(QualType::getFromOpaquePtr(elemType));
+    }
   } else if (QT->isBuiltinType()) {
     m_Type = VarData::FUND_TYPE;
     m_Val.m_FundData = false;
