@@ -36,7 +36,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_t = 0;
 //CHECK-NEXT:     double t = 0;
-//CHECK-NEXT:     unsigned long _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned long _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             if (!(i < dim))

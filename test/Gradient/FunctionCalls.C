@@ -153,7 +153,7 @@ double fn4(double* arr, int n) {
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     double _t0 = res;
 // CHECK-NEXT:     res += sum(arr, n);
-// CHECK-NEXT:     unsigned {{int|long}} _t1 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t1 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:          if (!(i < n))
@@ -471,7 +471,7 @@ double fn13(double* x, const double* w) {
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     double wCopy[2];
-// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < 2))
@@ -856,7 +856,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
 // CHECK-NEXT:     float _d_res = 0;
 // CHECK-NEXT:     float res = 0;
-// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 0; ; ++i) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))

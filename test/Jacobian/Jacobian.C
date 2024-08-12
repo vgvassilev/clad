@@ -20,23 +20,23 @@ void f_1_jac(double a, double b, double c, double output[], double *_result);
 //CHECK-NEXT:  output[1] = a * a * a + b * b * b;
 //CHECK-NEXT:  output[2] = c * c * 10 - a * a;
 //CHECK-NEXT:  {
-//CHECK-NEXT:    jacobianMatrix[{{8U|8UL}}] += 1 * 10 * c;
-//CHECK-NEXT:    jacobianMatrix[{{8U|8UL}}] += c * 1 * 10;
-//CHECK-NEXT:    jacobianMatrix[{{6U|6UL}}] += -1 * a;
-//CHECK-NEXT:    jacobianMatrix[{{6U|6UL}}] += a * -1;
+//CHECK-NEXT:    jacobianMatrix[{{8U|8UL|8ULL}}] += 1 * 10 * c;
+//CHECK-NEXT:    jacobianMatrix[{{8U|8UL|8ULL}}] += c * 1 * 10;
+//CHECK-NEXT:    jacobianMatrix[{{6U|6UL|6ULL}}] += -1 * a;
+//CHECK-NEXT:    jacobianMatrix[{{6U|6UL|6ULL}}] += a * -1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    jacobianMatrix[{{3U|3UL}}] += 1 * a * a;
-//CHECK-NEXT:    jacobianMatrix[{{3U|3UL}}] += a * 1 * a;
-//CHECK-NEXT:    jacobianMatrix[{{3U|3UL}}] += a * a * 1;
-//CHECK-NEXT:    jacobianMatrix[{{4U|4UL}}] += 1 * b * b;
-//CHECK-NEXT:    jacobianMatrix[{{4U|4UL}}] += b * 1 * b;
-//CHECK-NEXT:    jacobianMatrix[{{4U|4UL}}] += b * b * 1;
+//CHECK-NEXT:    jacobianMatrix[{{3U|3UL|3ULL}}] += 1 * a * a;
+//CHECK-NEXT:    jacobianMatrix[{{3U|3UL|3ULL}}] += a * 1 * a;
+//CHECK-NEXT:    jacobianMatrix[{{3U|3UL|3ULL}}] += a * a * 1;
+//CHECK-NEXT:    jacobianMatrix[{{4U|4UL|4ULL}}] += 1 * b * b;
+//CHECK-NEXT:    jacobianMatrix[{{4U|4UL|4ULL}}] += b * 1 * b;
+//CHECK-NEXT:    jacobianMatrix[{{4U|4UL|4ULL}}] += b * b * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += 1 * a * a;
-//CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * 1 * a;
-//CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * a * 1;
+//CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * a * a;
+//CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += a * 1 * a;
+//CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += a * a * 1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:}
 
@@ -62,17 +62,17 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r2 = 0;
 //CHECK-NEXT:    _r2 += 1 * constant * clad::custom_derivatives::sin_pushforward(z, 1.).pushforward;
-//CHECK-NEXT:    jacobianMatrix[{{8U|8UL}}] += _r2;
+//CHECK-NEXT:    jacobianMatrix[{{8U|8UL|8ULL}}] += _r2;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r1 = 0;
 //CHECK-NEXT:    _r1 += 1 * constant * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
-//CHECK-NEXT:    jacobianMatrix[{{4U|4UL}}] += _r1;
+//CHECK-NEXT:    jacobianMatrix[{{4U|4UL|4ULL}}] += _r1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
 //CHECK-NEXT:    double _r0 = 0;
 //CHECK-NEXT:    _r0 += 1 * constant * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
-//CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += _r0;
+//CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += _r0;
 //CHECK-NEXT:  }
 //CHECK-NEXT:}
 
@@ -101,22 +101,22 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:        double _r4 = 0;
 //CHECK-NEXT:        double _r5 = 0;
 //CHECK-NEXT:        multiply_pullback(z, x, 1 * constant, &_r4, &_r5);
-//CHECK-NEXT:        jacobianMatrix[{{8U|8UL}}] += _r4;
-//CHECK-NEXT:        jacobianMatrix[{{6U|6UL}}] += _r5;
+//CHECK-NEXT:        jacobianMatrix[{{8U|8UL|8ULL}}] += _r4;
+//CHECK-NEXT:        jacobianMatrix[{{6U|6UL|6ULL}}] += _r5;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r2 = 0;
 //CHECK-NEXT:        double _r3 = 0;
 //CHECK-NEXT:        multiply_pullback(y, z, 1 * constant, &_r2, &_r3);
-//CHECK-NEXT:        jacobianMatrix[{{4U|4UL}}] += _r2;
-//CHECK-NEXT:        jacobianMatrix[{{5U|5UL}}] += _r3;
+//CHECK-NEXT:        jacobianMatrix[{{4U|4UL|4ULL}}] += _r2;
+//CHECK-NEXT:        jacobianMatrix[{{5U|5UL|5ULL}}] += _r3;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = 0;
 //CHECK-NEXT:        double _r1 = 0;
 //CHECK-NEXT:        multiply_pullback(x, y, 1 * constant, &_r0, &_r1);
-//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += _r0;
-//CHECK-NEXT:        jacobianMatrix[{{1U|1UL}}] += _r1;
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL|0ULL}}] += _r0;
+//CHECK-NEXT:        jacobianMatrix[{{1U|1UL|1ULL}}] += _r1;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -128,18 +128,18 @@ void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMa
 // CHECK-NEXT:  output[1] = a * a * a + b * b * b;
 // CHECK-NEXT:  output[2] = c * c * 10 - a * a;
 // CHECK-NEXT:  {
-// CHECK-NEXT:    jacobianMatrix[{{2U|2UL}}] += -1 * a;
-// CHECK-NEXT:    jacobianMatrix[{{2U|2UL}}] += a * -1;
+// CHECK-NEXT:    jacobianMatrix[{{2U|2UL|2ULL}}] += -1 * a;
+// CHECK-NEXT:    jacobianMatrix[{{2U|2UL|2ULL}}] += a * -1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:  {
-// CHECK-NEXT:    jacobianMatrix[{{1U|1UL}}] += 1 * a * a;
-// CHECK-NEXT:    jacobianMatrix[{{1U|1UL}}] += a * 1 * a;
-// CHECK-NEXT:    jacobianMatrix[{{1U|1UL}}] += a * a * 1;
+// CHECK-NEXT:    jacobianMatrix[{{1U|1UL|1ULL}}] += 1 * a * a;
+// CHECK-NEXT:    jacobianMatrix[{{1U|1UL|1ULL}}] += a * 1 * a;
+// CHECK-NEXT:    jacobianMatrix[{{1U|1UL|1ULL}}] += a * a * 1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:  {
-// CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += 1 * a * a;
-// CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * 1 * a;
-// CHECK-NEXT:    jacobianMatrix[{{0U|0UL}}] += a * a * 1;
+// CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * a * a;
+// CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += a * 1 * a;
+// CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += a * a * 1;
 // CHECK-NEXT:  }
 // CHECK-NEXT:}
 
@@ -152,10 +152,10 @@ void f_5(float a, double output[]){
 //CHECK-NEXT:    output[1] = a;
 //CHECK-NEXT:    output[0] = a * a;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += 1 * a;
-//CHECK-NEXT:        jacobianMatrix[{{0U|0UL}}] += a * 1;
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * a;
+//CHECK-NEXT:        jacobianMatrix[{{0U|0UL|0ULL}}] += a * 1;
 //CHECK-NEXT:    }
-//CHECK-NEXT:    jacobianMatrix[{{1U|1UL}}] += 1;
+//CHECK-NEXT:    jacobianMatrix[{{1U|1UL|1ULL}}] += 1;
 //CHECK-NEXT:}
 
 #define TEST(F, x, y, z) { \

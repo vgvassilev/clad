@@ -19,10 +19,10 @@ double runningSum(float* f, int n) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     unsigned {{int|long}} f_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} f_size = 0;
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 1; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
@@ -67,23 +67,23 @@ double mulSum(float* a, float* b, int n) {
 //CHECK: void mulSum_grad(float *a, float *b, int n, float *_d_a, float *_d_b, int *_d_n, double &_final_error) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
+//CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
 //CHECK-NEXT:     clad::tape<int> _t2 = {};
 //CHECK-NEXT:     int _d_j = 0;
 //CHECK-NEXT:     int j = 0;
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
-//CHECK-NEXT:     unsigned {{int|long}} a_size = 0;
-//CHECK-NEXT:     unsigned {{int|long}} b_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} a_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} b_size = 0;
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, {{0U|0UL}});
+//CHECK-NEXT:         clad::push(_t1, {{0U|0UL|0ULL}});
 //CHECK-NEXT:         for (clad::push(_t2, j) , j = 0; ; j++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(j < n))
@@ -144,11 +144,11 @@ double divSum(float* a, float* b, int n) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     unsigned {{int|long}} b_size = 0;
-//CHECK-NEXT:     unsigned {{int|long}} a_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} b_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} a_size = 0;
 //CHECK-NEXT:     double _d_sum = 0;
 //CHECK-NEXT:     double sum = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
