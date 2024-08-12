@@ -642,7 +642,7 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 1; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
@@ -711,9 +711,9 @@ double fn_template_non_type(double x) {
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
 // CHECK-NEXT:     size_t _d_maxN = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
-// CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL}};
+// CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
 // CHECK-NEXT:     size_t _d_m = 0;
-// CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
+// CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL|15ULL}};
 // CHECK-NEXT:     *_d_x += 1 * m;
 // CHECK-NEXT:     if (_cond0)
 // CHECK-NEXT:         _d_maxN += _d_m;

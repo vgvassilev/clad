@@ -14,8 +14,8 @@ void nonMemFn(double i, double j, double* out) {
 // CHECK: void nonMemFn_jac(double i, double j, double *out, double *jacobianMatrix) {
 // CHECK-NEXT:     out[0] = i;
 // CHECK-NEXT:     out[1] = j;
-// CHECK-NEXT:     jacobianMatrix[{{3U|3UL}}] += 1;
-// CHECK-NEXT:     jacobianMatrix[{{0U|0UL}}] += 1;
+// CHECK-NEXT:     jacobianMatrix[{{3U|3UL|3ULL}}] += 1;
+// CHECK-NEXT:     jacobianMatrix[{{0U|0UL|0ULL}}] += 1;
 // CHECK-NEXT: }
 
 

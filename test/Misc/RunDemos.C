@@ -112,7 +112,7 @@
 //CHECK_FLOAT_SUM:    clad::tape<float> _t1 = {};
 //CHECK_FLOAT_SUM:    float _d_sum = 0;
 //CHECK_FLOAT_SUM:    float sum = 0.;
-//CHECK_FLOAT_SUM:    unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK_FLOAT_SUM:    unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK_FLOAT_SUM:    for (i = 0; ; i++) {
 //CHECK_FLOAT_SUM:        {
 //CHECK_FLOAT_SUM:            if (!(i < n))
@@ -281,8 +281,8 @@
 //-----------------------------------------------------------------------------/
 // RUN: %cladclang %S/../../demos/VectorForwardMode.cpp -I%S/../../include -oVectorForwardMode.out 2>&1 | FileCheck -check-prefix CHECK_VECTOR_FORWARD_MODE %s
 // CHECK_VECTOR_FORWARD_MODE: void weighted_sum_dvec_0_1(double *arr, double *weights, int n, clad::array_ref<double> _d_arr, clad::array_ref<double> _d_weights) {
-// CHECK_VECTOR_FORWARD_MODE-NEXT    unsigned {{int|long}} indepVarCount = _d_arr.size() + _d_weights.size();
-// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL}});
+// CHECK_VECTOR_FORWARD_MODE-NEXT    unsigned {{int|long|long long}} indepVarCount = _d_arr.size() + _d_weights.size();
+// CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_arr = clad::identity_matrix(_d_arr.size(), indepVarCount, {{0U|0UL|0ULL}});
 // CHECK_VECTOR_FORWARD_MODE-NEXT    clad::matrix<double> _d_vector_weights = clad::identity_matrix(_d_weights.size(), indepVarCount, _d_arr.size());
 // CHECK_VECTOR_FORWARD_MODE-NEXT    clad::array<int> _d_vector_n = clad::zero_vector(indepVarCount);
 // CHECK_VECTOR_FORWARD_MODE-NEXT    clad::array<double> _d_vector_res(clad::array<double>(indepVarCount, 0));
@@ -296,7 +296,7 @@
 // CHECK_VECTOR_FORWARD_MODE-NEXT    }
 // CHECK_VECTOR_FORWARD_MODE-NEXT    {
 // CHECK_VECTOR_FORWARD_MODE-NEXT        clad::array<double> _d_vector_return(clad::array<double>(indepVarCount, _d_vector_res));
-// CHECK_VECTOR_FORWARD_MODE-NEXT        _d_arr = _d_vector_return.slice({{0U|0UL}}, _d_arr.size());
+// CHECK_VECTOR_FORWARD_MODE-NEXT        _d_arr = _d_vector_return.slice({{0U|0UL|0ULL}}, _d_arr.size());
 // CHECK_VECTOR_FORWARD_MODE-NEXT        _d_weights = _d_vector_return.slice(_d_arr.size(), _d_weights.size());
 // CHECK_VECTOR_FORWARD_MODE-NEXT        return;
 // CHECK_VECTOR_FORWARD_MODE-NEXT    }

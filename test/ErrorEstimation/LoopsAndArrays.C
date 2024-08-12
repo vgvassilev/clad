@@ -18,10 +18,10 @@ float func(float* p, int n) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
-//CHECK-NEXT:     unsigned {{int|long}} p_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} p_size = 0;
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
@@ -71,7 +71,7 @@ float func2(float x) {
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float _d_z = 0;
 //CHECK-NEXT:     float z;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < 9))
@@ -166,13 +166,13 @@ float func4(float x[10], float y[10]) {
 //CHECK: void func4_grad(float x[10], float y[10], float *_d_x, float *_d_y, double &_final_error) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
-//CHECK-NEXT:     unsigned {{int|long}} x_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} x_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t1 = {};
-//CHECK-NEXT:     unsigned {{int|long}} y_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} y_size = 0;
 //CHECK-NEXT:     clad::tape<float> _t2 = {};
 //CHECK-NEXT:     float _d_sum = 0;
 //CHECK-NEXT:     float sum = 0;
-//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < 10))
@@ -225,9 +225,9 @@ double func5(double* x, double* y, double* output) {
 }
 
 //CHECK: void func5_grad(double *x, double *y, double *output, double *_d_x, double *_d_y, double *_d_output, double &_final_error) {
-//CHECK-NEXT:     unsigned {{int|long}} output_size = 0;
-//CHECK-NEXT:     unsigned {{int|long}} x_size = 0;
-//CHECK-NEXT:     unsigned {{int|long}} y_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} output_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} x_size = 0;
+//CHECK-NEXT:     unsigned {{int|long|long long}} y_size = 0;
 //CHECK-NEXT:     double _ret_value0 = 0;
 //CHECK-NEXT:     double _t0 = output[0];
 //CHECK-NEXT:     output[0] = x[1] * y[2] - x[2] * y[1];
