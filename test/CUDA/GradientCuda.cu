@@ -16,8 +16,7 @@
 
 #include "clad/Differentiator/Differentiator.h"
 #include <array>
-#include <cuda.h>
-#include <cuda_runtime_api.h>
+
 #define N 3
 
 __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
@@ -97,7 +96,6 @@ __global__ void kernel(int *a) {
   *a *= *a;
 }
 
-
 int main(void) {
   double *x, *d_x;
   double *p, *d_p;
@@ -145,11 +143,11 @@ int main(void) {
   cudaMalloc(&d_square, sizeof(int));
   cudaMemcpy(d_square, asquare, sizeof(int), cudaMemcpyHostToDevice);
 
-  // This is compiled for the host
-  #ifndef __CUDA_ARCH__
-    auto test = clad::gradient(kernel);
-    test.execute(d_a, d_square);
-  #endif
+  auto test = clad::gradient(kernel);
+  test.compile_kernel();
+  dim3 grid(1);
+  dim3 block(1);
+  test.execute_kernel(grid, block, 0, nullptr, d_a, d_square);
 
   cudaDeviceSynchronize();
 

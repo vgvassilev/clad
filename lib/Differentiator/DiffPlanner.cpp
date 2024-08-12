@@ -193,12 +193,10 @@ namespace clad {
 
     FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
 
-    if (replacementFD->hasAttr<CUDAGlobalAttr>()){
-      auto cudaKernelFlag =
-          new (C) CXXBoolLiteralExpr(true, C.BoolTy, noLoc);
-      call->setArg(kernelArgIdx, cudaKernelFlag);
-    }
-
+    auto cudaKernelFlag =
+        new (C) CXXBoolLiteralExpr(this->CUDAkernel, C.BoolTy, noLoc);
+    call->setArg(kernelArgIdx, cudaKernelFlag);
+    
     // Create ref to generated FD.
     DeclRefExpr* DRE =
         DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc, replacementFD,
@@ -719,6 +717,7 @@ namespace clad {
       auto derivedFD = cast<FunctionDecl>(DRE->getDecl());
       request.Function = derivedFD;
       request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
+      request.CUDAkernel = derivedFD->hasAttr<CUDAGlobalAttr>();
 
       if (isCallOperator(m_Sema.getASTContext(), request.Function)) {
         request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();

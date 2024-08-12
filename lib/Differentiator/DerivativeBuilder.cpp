@@ -126,7 +126,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
     for (const FunctionDecl* NFD : FD->redecls())
       for (const auto* Attr : NFD->attrs())
-        if (!hasAttribute(returnedFD, Attr->getKind()))
+        if (!hasAttribute(returnedFD, Attr->getKind()) &&
+             Attr->getKind() != attr::Kind::CUDAGlobal)
           returnedFD->addAttr(Attr->clone(m_Context));
 
     return { returnedFD, enclosingNS };

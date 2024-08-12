@@ -20,6 +20,9 @@
 #include <assert.h>
 #include <stddef.h>
 #include <cstring>
+#ifdef __CUDACC__
+#include <nvrtc.h>
+#endif
 
 namespace clad {
 template <typename T, typename U> struct ValueAndAdjoint {
@@ -118,38 +121,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             class... fArgTypes,
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
-  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>, bool CUDAkernel,
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
                             Args&&... args) {
-#ifdef __CUDACC__
-#ifndef __CUDA_ARCH__
-    if (CUDAkernel){
-      CUmodule cuModule;
-      CUfunction cuFunction;
-      CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");
-      if (error != CUDA_SUCCESS) {
-        printf("error in module load: %s\n",
-              cudaGetErrorString((cudaError_t)error));
-        exit(1);
-      }
-      error = cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
-      if (error != CUDA_SUCCESS) {
-        printf("error in getfunction\n");
-        exit(1);
-      }
-      void* argPtrs[] = {(void*)&args...}; // add rest
-      dim3 block(1, 1, 1); // take config from the args -> use a separate function
-      dim3 grid(1, 1, 1);
-
-      error = cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x, block.y,
-                            block.z, 0, NULL, argPtrs, NULL);
-      if (error) {
-        printf("error in launch: %s\n", cudaGetErrorString((cudaError_t)error));
-        exit(1);
-      }
-    }
-#endif
-#endif
-
     return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
   }
 
@@ -157,38 +130,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
   return_type_t<F> execute_with_default_args(list<Rest...>, F f,
-                                             list<fArgTypes...>, bool CUDAkernel,
+                                             list<fArgTypes...>,
                                              Args&&... args) {
-#ifdef __CUDACC__
-#ifndef __CUDA_ARCH__
-    if (CUDAkernel) {
-      CUmodule cuModule;
-      CUfunction cuFunction;
-      CUresult error = cuModuleLoad(&cuModule, "Derivatives.ptx");
-      if (error != CUDA_SUCCESS) {
-        printf("error in module load: %s\n",
-               cudaGetErrorString((cudaError_t)error));
-        exit(1);
-      }
-      error = cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
-      if (error != CUDA_SUCCESS) {
-        printf("error in getfunction\n");
-        exit(1);
-      }
-      void* argPtrs[] = {(void*)&args...};
-      dim3 block(1, 1, 1);
-      dim3 grid(1, 1, 1);
-
-      error = cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x,
-                             block.y, block.z, 0, NULL, argPtrs, NULL);
-      if (error) {
-        printf("error in launch: %s\n", cudaGetErrorString((cudaError_t)error));
-        exit(1);
-      }
-    }
-#endif
-#endif
-
     return f(static_cast<Args>(args)...);
   }
 
@@ -233,6 +176,9 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     char* m_Code;
     FunctorType *m_Functor = nullptr;
     bool m_CUDAkernel = false;
+    #ifdef __CUDACC__
+    CUfunction cuFunction;
+    #endif
 
   public:
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
@@ -243,8 +189,17 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
         m_Function = f;
-        char* temp = (char*)malloc(length + 1);
-        m_Code = temp;
+        char* temp;
+        if (m_CUDAkernel) {
+          const char* kernel = "__global__ ";
+          temp = (char*)malloc(length + GetLength(kernel) + 1);
+          m_Code = temp;
+          while ((*temp++ = *kernel++));
+          temp--;
+        } else {
+          temp = (char*)malloc(length + 1);
+          m_Code = temp;
+        }
         while ((*temp++ = *code++));
       } else {
         // clad did not place the derivative in this object. This can happen
@@ -278,8 +233,12 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
+      if (m_CUDAkernel) {
+        printf("Use execute_kernel() for global CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
       // here static_cast is used to achieve perfect forwarding
-      return execute_helper(m_Function, m_CUDAkernel, static_cast<Args>(args)...);
+      return execute_helper(m_Function, static_cast<Args>(args)...);
     }
 
     /// `Execute` overload to be used when derived function type cannot be
@@ -293,6 +252,93 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     execute(Args&&... args) CUDA_HOST_DEVICE {
       return static_cast<return_type_t<F>>(0);
     }
+
+    void compile_kernel() {
+      if (!m_CUDAkernel) {
+        printf("This function is not a CUDA kernel\n");
+        return;
+      }
+      #ifdef __CUDACC__
+      nvrtcProgram prog;
+      nvrtcResult result =
+          nvrtcCreateProgram(&prog, m_Code, "Derivatives.cu", 0, NULL, NULL);
+      assert(result == NVRTC_SUCCESS);
+      result = nvrtcCompileProgram(prog, 0, NULL);
+      if (result != NVRTC_SUCCESS) {
+        size_t logSize;
+        nvrtcGetProgramLogSize(prog, &logSize);
+        char* log = (char*)malloc(logSize);
+        nvrtcGetProgramLog(prog, log);
+        printf("Compilation error: %s\n", log);
+        exit(1);
+      }
+      assert(result == NVRTC_SUCCESS);
+
+      size_t ptx_size;
+      result = nvrtcGetPTXSize(prog, &ptx_size);
+      if (result != NVRTC_SUCCESS) {
+        size_t logSize;
+        nvrtcGetProgramLogSize(prog, &logSize);
+        char* log = (char*)malloc(logSize);
+        nvrtcGetProgramLog(prog, log);
+        printf("Compilation error: %s\n", log);
+        exit(1);
+      }
+      assert(result == NVRTC_SUCCESS);
+
+      char* ptx_code = (char*)malloc(ptx_size * sizeof(char));
+      result = nvrtcGetPTX(prog, ptx_code);
+      if (result != NVRTC_SUCCESS) {
+        size_t logSize;
+        nvrtcGetProgramLogSize(prog, &logSize);
+        char* log = (char*)malloc(logSize);
+        nvrtcGetProgramLog(prog, log);
+        printf("Compilation error: %s\n", log);
+        exit(1);
+      }
+      assert(result == NVRTC_SUCCESS);
+
+      CUmodule cuModule;
+      CUresult error = cuModuleLoadData(&cuModule, ptx_code);
+      if (error != CUDA_SUCCESS) {
+        printf("error in module load: %s\n",
+               cudaGetErrorString((cudaError_t)error));
+        exit(1);
+      }
+      error = cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
+      if (error != CUDA_SUCCESS) {
+        printf("error in getfunction\n");
+        exit(1);
+      }
+      #endif
+    }
+
+#ifdef __CUDACC__
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute_kernel(dim3 grid,dim3 block, size_t shared_mem,
+                   cudaStream_t stream, Args&&... args) CUDA_HOST_DEVICE {
+      if (!m_Function) {
+        printf("CladFunction is invalid\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+      if (!m_CUDAkernel) {
+        printf("Use execute() for non-global CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+
+      void* argPtrs[] = {(void*)&args...};
+      CUresult error =
+          cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x, block.y,
+                          block.z, 0, NULL, argPtrs, NULL);
+      if (error) {
+        printf("error in launch: %s\n",
+                cudaGetErrorString((cudaError_t)error));
+        exit(1);
+      }
+    }
+#endif
 
     /// Return the string representation for the generated derivative.
     const char* getCode() const {
@@ -326,12 +372,12 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
-      execute_helper(Fn f, bool CUDAkernel, Args&&... args) {
+      execute_helper(Fn f, Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
       return execute_with_default_args<EnablePadding>(
           DropArgs_t<sizeof...(Args), F>{}, f,
           TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-          CUDAkernel, static_cast<Args>(args)...);
+          static_cast<Args>(args)...);
       }
 
       /// Helper functions for executing member derived functions.
