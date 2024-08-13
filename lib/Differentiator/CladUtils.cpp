@@ -372,7 +372,7 @@ namespace clad {
       else if (T->isArrayType())
         valueType =
             T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
-      else if (T->isEnumeralType()){
+      else if (T->isEnumeralType()) {
         if (const auto* ET = dyn_cast<EnumType>(T))
           valueType = ET->getDecl()->getIntegerType();
       }
