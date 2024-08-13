@@ -278,13 +278,14 @@ namespace clad {
       bool isInsideLoop;
       bool isFnScope;
       bool needsUpdate;
+      clang::Expr* Placeholder;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
-                         clang::VarDecl* pDeclaration, bool pIsConstant,
-                         bool pIsInsideLoop, bool pIsFnScope,
-                         bool pNeedsUpdate = false)
+                         clang::VarDecl* pDeclaration, bool pIsInsideLoop,
+                         bool pIsFnScope, bool pNeedsUpdate = false,
+                         clang::Expr* pPlaceholder = nullptr)
           : V(pV), Result(pResult), Declaration(pDeclaration),
-            isConstant(pIsConstant), isInsideLoop(pIsInsideLoop),
-            isFnScope(pIsFnScope), needsUpdate(pNeedsUpdate) {}
+            isInsideLoop(pIsInsideLoop), isFnScope(pIsFnScope),
+            needsUpdate(pNeedsUpdate), Placeholder(pPlaceholder) {}
       void Finalize(clang::Expr* New);
     };
 
@@ -297,7 +298,8 @@ namespace clad {
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
     /// original (uncloned) expression.
     DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
-                                                llvm::StringRef prefix = "_t");
+                                                llvm::StringRef prefix = "_t",
+                                                bool forceStore = false);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;

@@ -2319,25 +2319,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // to reduce cloning complexity and only clones once. Storing it in a
       // global variable allows to save current result and make it accessible
       // in the reverse pass.
-      std::unique_ptr<DelayedStoreResult> RDelayed;
-      StmtDiff RResult;
-      // If R has no side effects, it can be just cloned
-      // (no need to store it).
-
-      // Check if the local variable declaration is reference type, since it is
-      // moved to the global scope and the right side should be recomputed
-      bool promoteToFnScope = false;
-      if (auto* RDeclRef = dyn_cast<DeclRefExpr>(R->IgnoreImplicit()))
-        promoteToFnScope = RDeclRef->getDecl()->getType()->isReferenceType() &&
-                           !getCurrentScope()->isFunctionScope();
-
-      if (!ShouldRecompute(R) || promoteToFnScope) {
-        RDelayed = std::unique_ptr<DelayedStoreResult>(
-            new DelayedStoreResult(DelayedGlobalStoreAndRef(R)));
-        RResult = RDelayed->Result;
-      } else {
-        RResult = StmtDiff(Clone(R));
-      }
+      DelayedStoreResult RDelayed = DelayedGlobalStoreAndRef(R);
+      StmtDiff& RResult = RDelayed.Result;
 
       Expr* dl = nullptr;
       if (dfdx())
@@ -2358,31 +2341,24 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
-      Expr::EvalResult dummy;
-      if (RDelayed ||
-          !clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context)) {
-        Expr* dr = nullptr;
-        if (dfdx())
-          dr = BuildOp(BO_Mul, LStored.getRevSweepAsExpr(), dfdx());
-        Rdiff = Visit(R, dr);
-        // Assign right multiplier's variable with R.
-        if (RDelayed)
-          RDelayed->Finalize(Rdiff.getExpr());
-      }
+      Expr* dr = nullptr;
+      if (dfdx())
+        dr = BuildOp(BO_Mul, LStored.getRevSweepAsExpr(), dfdx());
+      Rdiff = Visit(R, dr);
+      // Assign right multiplier's variable with R.
+      RDelayed.Finalize(Rdiff.getExpr());
       addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
-      std::tie(Ldiff, Rdiff) =
-          std::make_pair(LStored.getExpr(), RResult.getExpr());
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult);
     } else if (opCode == BO_Div) {
       // xi = xl / xr
       // dxi/xl = 1 / xr
       // df/dxl += df/dxi * dxi/xl = df/dxi * (1/xr)
-      auto RDelayed = DelayedGlobalStoreAndRef(R);
-      StmtDiff RResult = RDelayed.Result;
-      Expr* RStored =
-          StoreAndRef(RResult.getRevSweepAsExpr(), direction::reverse);
+      auto RDelayed = DelayedGlobalStoreAndRef(R, /*prefix=*/"_t",
+                                               /*forceStore=*/true);
+      StmtDiff& RResult = RDelayed.Result;
       Expr* dl = nullptr;
       if (dfdx())
-        dl = BuildOp(BO_Div, dfdx(), RStored);
+        dl = BuildOp(BO_Div, dfdx(), RResult.getExpr());
       Ldiff = Visit(L, dl);
       StmtDiff LStored = Ldiff;
       // Catch the pop statement and emit it after
@@ -2396,14 +2372,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         LStored = GlobalStoreAndRef(LStored.getExpr(), /*prefix=*/"_t",
                                     /*force=*/true);
       Stmt* LPop = endBlock(direction::reverse);
-      // dxi/xr = -xl / (xr * xr)
-      // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
-      // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
-      // produced instead of 1 / (R * R).
-      if (!RDelayed.isConstant) {
+      Expr::EvalResult dummy;
+      if (!clad_compat::Expr_EvaluateAsConstantExpr(R, dummy, m_Context) ||
+          RDelayed.needsUpdate) {
+        // dxi/xr = -xl / (xr * xr)
+        // df/dxl += df/dxi * dxi/xr = df/dxi * (-xl /(xr * xr))
+        // Wrap R * R in parentheses: (R * R). otherwise code like 1 / R * R is
+        // produced instead of 1 / (R * R).
         Expr* dr = nullptr;
         if (dfdx()) {
-          Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
+          Expr* RxR = BuildParens(
+              BuildOp(BO_Mul, RResult.getExpr(), RResult.getExpr()));
           dr = BuildOp(BO_Mul, dfdx(),
                        BuildOp(UO_Minus,
                                BuildParens(BuildOp(
@@ -2414,8 +2393,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         RDelayed.Finalize(Rdiff.getExpr());
       }
       addToCurrentBlock(utils::unwrapIfSingleStmt(LPop), direction::reverse);
-      std::tie(Ldiff, Rdiff) =
-          std::make_pair(LStored.getExpr(), RResult.getExpr());
+      std::tie(Ldiff, Rdiff) = std::make_pair(LStored, RResult);
     } else if (BinOp->isAssignmentOp()) {
       if (L->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
         diag(DiagnosticsEngine::Warning,
@@ -2611,26 +2589,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Expr* zero = getZeroInit(ResultRef->getType());
         addToCurrentBlock(BuildOp(BO_Assign, ResultRef, zero),
                           direction::reverse);
-        auto RDelayed = DelayedGlobalStoreAndRef(R);
-        StmtDiff RResult = RDelayed.Result;
+        auto RDelayed = DelayedGlobalStoreAndRef(R, /*prefix=*/"_t",
+                                                 /*forceStore=*/true);
+        StmtDiff& RResult = RDelayed.Result;
         Expr* RStored =
             StoreAndRef(RResult.getRevSweepAsExpr(), direction::reverse);
         addToCurrentBlock(BuildOp(BO_AddAssign, ResultRef,
                                   BuildOp(BO_Div, oldValue, RStored)),
                           direction::reverse);
-        if (!RDelayed.isConstant) {
-          if (isInsideLoop)
-            addToCurrentBlock(LCloned, direction::forward);
-          Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
-          Expr* dr = BuildOp(BO_Mul, oldValue,
-                             BuildOp(UO_Minus, BuildOp(BO_Div, LCloned, RxR)));
-          dr = StoreAndRef(dr, direction::reverse);
-          Rdiff = Visit(R, dr);
-          RDelayed.Finalize(Rdiff.getExpr());
-        }
+        if (isInsideLoop)
+          addToCurrentBlock(LCloned, direction::forward);
+        Expr* RxR = BuildParens(BuildOp(BO_Mul, RStored, RStored));
+        Expr* dr = BuildOp(BO_Mul, oldValue,
+                           BuildOp(UO_Minus, BuildOp(BO_Div, LCloned, RxR)));
+        dr = StoreAndRef(dr, direction::reverse);
+        Rdiff = Visit(R, dr);
+        RDelayed.Finalize(Rdiff.getExpr());
         valueForRevPass = BuildOp(BO_Div, Rdiff.getRevSweepAsExpr(),
                                   Ldiff.getRevSweepAsExpr());
-        std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult.getExpr());
+        std::tie(Ldiff, Rdiff) = std::make_pair(LCloned, RResult);
       } else
         llvm_unreachable("unknown assignment opCode");
       if (m_ExternalSource)
@@ -3424,8 +3401,61 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DelayedStoreResult::Finalize(Expr* New) {
-    if (isConstant || !needsUpdate)
+    // Placeholders are used when we have to use an expr before we have that.
+    // For instance, this is necessary for multiplication and division when the
+    // RHS and LHS need the derivatives of each other to be differentiated. We
+    // need placeholders to break this loop.
+    class PlaceholderReplacer
+        : public RecursiveASTVisitor<PlaceholderReplacer> {
+    public:
+      const Expr* placeholder;
+      Sema& m_Sema;
+      ASTContext& m_Context;
+      Expr* newExpr{nullptr};
+      PlaceholderReplacer(const Expr* Placeholder, Sema& S)
+          : placeholder(Placeholder), m_Sema(S), m_Context(S.getASTContext()) {}
+
+      void Replace(ReverseModeVisitor& RMV, Expr* New, StmtDiff& Result) {
+        newExpr = New;
+        for (Stmt* S : RMV.getCurrentBlock(direction::forward))
+          TraverseStmt(S);
+        for (Stmt* S : RMV.getCurrentBlock(direction::reverse))
+          TraverseStmt(S);
+        Result = New;
+      }
+
+      // We chose iteration rather than visiting because we only do this for
+      // simple Expression subtrees and it is not worth it to implement an
+      // entire visitor infrastructure for simple replacements.
+      bool VisitExpr(Expr* E) const {
+        for (Stmt*& S : E->children())
+          if (S == placeholder) {
+            // Since we are manually replacing the statement, implicit casts are
+            // not generated automatically.
+            ExprResult newExprRes{newExpr};
+            QualType targetTy = cast<Expr>(S)->getType();
+            CastKind kind = m_Sema.PrepareScalarCast(newExprRes, targetTy);
+            // CK_NoOp casts trigger an assertion on debug Clang
+            if (kind == CK_NoOp)
+              S = newExpr;
+            else
+              S = m_Sema.ImpCastExprToType(newExpr, targetTy, kind).get();
+          }
+        return true;
+      }
+      PlaceholderReplacer(const PlaceholderReplacer&) = delete;
+      PlaceholderReplacer(PlaceholderReplacer&&) = delete;
+    };
+
+    if (!needsUpdate)
       return;
+
+    if (Placeholder) {
+      PlaceholderReplacer repl(Placeholder, V.m_Sema);
+      repl.Replace(V, New, Result);
+      return;
+    }
+
     if (isInsideLoop) {
       auto* Push = cast<CallExpr>(Result.getExpr());
       unsigned lastArg = Push->getNumArgs() - 1;
@@ -3441,21 +3471,30 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   ReverseModeVisitor::DelayedStoreResult
-  ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E,
-                                               llvm::StringRef prefix) {
+  ReverseModeVisitor::DelayedGlobalStoreAndRef(Expr* E, llvm::StringRef prefix,
+                                               bool forceStore) {
     assert(E && "must be provided");
     if (!UsefulToStore(E)) {
       StmtDiff Ediff = Visit(E);
       Expr::EvalResult evalRes;
-      bool isConst =
-          clad_compat::Expr_EvaluateAsConstantExpr(E, evalRes, m_Context);
-      return DelayedStoreResult{*this,
-                                Ediff,
+      return DelayedStoreResult{*this, Ediff,
                                 /*Declaration=*/nullptr,
-                                /*isConstant=*/isConst,
                                 /*isInsideLoop=*/false,
-                                /*isFnScope=*/false,
-                                /*pNeedsUpdate=*/false};
+                                /*isFnScope=*/false};
+    }
+    if (!forceStore && ShouldRecompute(E)) {
+      // The value of the literal has no. It's given a very particular value for
+      // easier debugging.
+      Expr* PH = ConstantFolder::synthesizeLiteral(E->getType(), m_Context,
+                                                   /*val=*/~0U);
+      return DelayedStoreResult{
+          *this,
+          StmtDiff{PH, /*diff=*/nullptr, /*forwSweepDiff=*/nullptr, PH},
+          /*Declaration=*/nullptr,
+          /*isInsideLoop=*/false,
+          /*isFnScope=*/false,
+          /*pNeedsUpdate=*/true,
+          /*pPlaceholder=*/PH};
     }
     if (isInsideLoop) {
       Expr* dummy = E;
@@ -3465,7 +3504,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DelayedStoreResult{*this,
                                 StmtDiff{Push, nullptr, nullptr, Pop},
                                 /*Declaration=*/nullptr,
-                                /*isConstant=*/false,
                                 /*isInsideLoop=*/true,
                                 /*isFnScope=*/false,
                                 /*pNeedsUpdate=*/true};
@@ -3481,7 +3519,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return DelayedStoreResult{*this,
                               StmtDiff{Ref, nullptr, nullptr, Ref},
                               /*Declaration=*/VD,
-                              /*isConstant=*/false,
                               /*isInsideLoop=*/false,
                               /*isFnScope=*/isFnScope,
                               /*pNeedsUpdate=*/true};
