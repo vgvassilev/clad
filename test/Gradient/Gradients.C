@@ -709,10 +709,10 @@ double fn_template_non_type(double x) {
 }
 
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
-// CHECK-NEXT:     size_t _d_maxN = 0UL;
+// CHECK-NEXT:     size_t _d_maxN = {{0U|0UL}};
 // CHECK-NEXT:     const size_t maxN = 53;
 // CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL}};
-// CHECK-NEXT:     size_t _d_m = 0UL;
+// CHECK-NEXT:     size_t _d_m = {{0U|0UL}};
 // CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
 // CHECK-NEXT:     *_d_x += 1 * m;
 // CHECK-NEXT:     if (_cond0)

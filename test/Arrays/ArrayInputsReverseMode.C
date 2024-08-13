@@ -364,8 +364,8 @@ double func7(double *params) {
 }
 
 //CHECK: void func7_grad(double *params, double *_d_params) {
-//CHECK-NEXT:     std::size_t _d_i = 0UL;
-//CHECK-NEXT:     std::size_t i = 0UL;
+//CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
+//CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 //CHECK-NEXT:     clad::tape<clad::array<double> > _t1 = {};
 //CHECK-NEXT:     double _d_paramsPrime[1] = {0};
 //CHECK-NEXT:     clad::array<double> paramsPrime({{1U|1UL}});

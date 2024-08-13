@@ -470,8 +470,8 @@ double fn13(double* x, const double* w) {
 }
 
 // CHECK: void fn13_grad_0(double *x, const double *w, double *_d_x) {
-// CHECK-NEXT:     std::size_t _d_i = 0UL;
-// CHECK-NEXT:     std::size_t i = 0UL;
+// CHECK-NEXT:     std::size_t _d_i = {{0U|0UL}};
+// CHECK-NEXT:     std::size_t i = {{0U|0UL}};
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_wCopy[2] = {0};
 // CHECK-NEXT:     double wCopy[2];
