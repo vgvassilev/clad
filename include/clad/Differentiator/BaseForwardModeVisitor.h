@@ -47,6 +47,8 @@ public:
 
   virtual void ExecuteInsidePushforwardFunctionBlock();
 
+  virtual void DifferentiateCallOperatorIfFunctor(clang::QualType QT);
+
   static bool IsDifferentiableType(clang::QualType T);
 
   virtual StmtDiff

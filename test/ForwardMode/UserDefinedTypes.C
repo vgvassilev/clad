@@ -420,6 +420,8 @@ Tensor<double, 5> fn5(double i, double j) {
   return T;
 } 
 
+// CHECK: void operator_call_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val);
+
 // CHECK: Tensor<double, 5> fn5_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
@@ -592,8 +594,6 @@ TensorD5 fn11(double i, double j) {
   res2++;
   return res1;
 }
-
-// CHECK: void operator_call_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val);
 
 // CHECK: clad::ValueAndPushforward<double &, double &> operator_subscript_pushforward(std::size_t idx, Tensor<double, 5> *_d_this, std::size_t _d_idx);
 
@@ -965,6 +965,16 @@ double fn18(double i, double j) {
 // CHECK-NEXT:     return _d_v[0].mem;
 // CHECK-NEXT: }
 
+// CHECK: void operator_call_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         unsigned int _d_i = 0;
+// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
+// CHECK-NEXT:             _d_this->data[i] = _d_val;
+// CHECK-NEXT:             this->data[i] = val;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<unsigned N>
 void print(const Tensor<double, N>& t) {
   for (int i=0; i<N; ++i) {
@@ -1069,16 +1079,6 @@ int main() {
 
 // CHECK: constexpr clad::ValueAndPushforward<double, double> imag_pushforward(const std{{(::__1)?}}::complex<double> *_d_this){{.*}} {
 // CHECK-NEXT:     return {{[{](__imag )?}}this->[[_M_value:[a-zA-Z_]+]],{{( __imag)?}} _d_this->[[_M_value:[a-zA-Z_]+]]};
-// CHECK-NEXT: }
-
-// CHECK: void operator_call_pushforward(double val, Tensor<double, 5> *_d_this, double _d_val) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         unsigned int _d_i = 0;
-// CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             _d_this->data[i] = _d_val;
-// CHECK-NEXT:             this->data[i] = val;
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<double &, double &> operator_subscript_pushforward(std::size_t idx, Tensor<double, 5> *_d_this, std::size_t _d_idx) {

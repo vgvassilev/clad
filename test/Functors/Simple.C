@@ -58,6 +58,50 @@ float f(float x) {
   return x;
 }
 
+namespace clad {
+namespace custom_derivatives {
+  template <typename F>
+  void use_functor_pushforward(double x, F& f, double d_x, F& d_f) {
+      f.operator_call_pushforward(x, &d_f, d_x);
+  }
+}
+}
+template <typename F>
+void use_functor(double x, F& f) {
+    f(x);
+}
+
+struct Foo {
+    double &y;
+    Foo(double &y): y(y) {} 
+
+    double operator()(double x) {
+        y = 2*x;
+
+        return x;
+    }
+};
+
+double fn0(double x) {
+    Foo func = Foo({x});
+    use_functor(x, func);
+    return x;
+}
+
+// CHECK: clad::ValueAndPushforward<double, double> operator_call_pushforward(double x, Foo *_d_this, double _d_x);
+// CHECK: double fn0_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:    Foo _d_func = Foo({_d_x});
+// CHECK-NEXT:    Foo func = Foo({x});
+// CHECK-NEXT:    clad::custom_derivatives::use_functor_pushforward(x, func, _d_x, _d_func);
+// CHECK-NEXT:    return _d_x;
+// CHECK-NEXT:}
+// CHECK: clad::ValueAndPushforward<double, double> operator_call_pushforward(double x, Foo *_d_this, double _d_x) {
+// CHECK-NEXT:    _d_this->y = 0 * x + 2 * _d_x;
+// CHECK-NEXT:    this->y = 2 * x;
+// CHECK-NEXT:    return {x, _d_x};
+// CHECK-NEXT:}
+
 int main() {
   AFunctor doubler;
   int x = doubler(5);
@@ -72,6 +116,9 @@ int main() {
 
   auto f1_darg1 = clad::differentiate(&SimpleExpression::operator(), 1);
   printf("Result is = %f\n", f1_darg1.execute(expr, 3.5, 4.5)); // CHECK-EXEC: Result is = 9
+
+  auto dfn0 = clad::differentiate(fn0, "x");
+  printf("RES: %f\n", dfn0.execute(3.0)); // CHECK-EXEC: RES: 2
 
   return 0;
 }
