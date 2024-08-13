@@ -106,7 +106,7 @@ public:
   bool isProcessingNode() { return m_currentId != -1; }
 
   /// Get the nodes in the graph.
-  std::vector<T> getNodes() { return m_nodes; }
+  const std::vector<T>& getNodes() { return m_nodes; }
 
   /// Print the nodes and edges in the graph.
   void print() {
