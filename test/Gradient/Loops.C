@@ -3113,7 +3113,7 @@ double fn39(double x) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
 //CHECK-NEXT:         clad::push(_t1, res);
-//CHECK-NEXT:         res += x * (*i);
+//CHECK-NEXT:         res += x * *i;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _d_res += 1;
 //CHECK-NEXT:     for (;; _t0--) {
@@ -3128,7 +3128,7 @@ double fn39(double x) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             res = clad::pop(_t1);
 //CHECK-NEXT:             double _r_d0 = _d_res;
-//CHECK-NEXT:             *_d_x += _r_d0 * (*i);
+//CHECK-NEXT:             *_d_x += _r_d0 * *i;
 //CHECK-NEXT:             *_d_i += x * _r_d0;
 //CHECK-NEXT:         }
 //CHECK-NEXT:     }

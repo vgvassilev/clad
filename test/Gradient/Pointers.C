@@ -28,13 +28,13 @@ double minimalPointer(double x) {
 // CHECK-NEXT:     double *_d_p = &*_d_x;
 // CHECK-NEXT:     double *const p = &x;
 // CHECK-NEXT:     double _t0 = *p;
-// CHECK-NEXT:     *p = *p * (*p);
+// CHECK-NEXT:     *p = *p * *p;
 // CHECK-NEXT:     *_d_p += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_p;
 // CHECK-NEXT:         *_d_p = 0;
-// CHECK-NEXT:         *_d_p += _r_d0 * (*p);
+// CHECK-NEXT:         *_d_p += _r_d0 * *p;
 // CHECK-NEXT:         *_d_p += *p * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -87,7 +87,7 @@ double arrayPointer(const double* arr) {
 // CHECK-NEXT:     _d_p = _d_p - 2;
 // CHECK-NEXT:     p = p - 2;
 // CHECK-NEXT:     double _t11 = sum;
-// CHECK-NEXT:     sum += 5 * (*p);
+// CHECK-NEXT:     sum += 5 * *p;
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t11;
@@ -170,7 +170,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         clad::push(_t1, _d_j);
 // CHECK-NEXT:         clad::push(_t3, j) , j = &i;
 // CHECK-NEXT:         clad::push(_t4, sum);
-// CHECK-NEXT:         sum += arr[0] * (*j);
+// CHECK-NEXT:         sum += arr[0] * *j;
 // CHECK-NEXT:         clad::push(_t5, arr);
 // CHECK-NEXT:         clad::push(_t6, _d_arr);
 // CHECK-NEXT:         _d_arr = _d_arr + 1;
@@ -191,7 +191,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             sum = clad::pop(_t4);
 // CHECK-NEXT:             double _r_d0 = _d_sum;
-// CHECK-NEXT:             _d_arr[0] += _r_d0 * (*j);
+// CHECK-NEXT:             _d_arr[0] += _r_d0 * *j;
 // CHECK-NEXT:             *_t2 += arr[0] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         j = clad::pop(_t3);
