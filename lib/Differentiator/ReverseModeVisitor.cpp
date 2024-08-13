@@ -976,6 +976,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff
   ReverseModeVisitor::VisitCXXForRangeStmt(const CXXForRangeStmt* FRS) {
+    const auto* RangeDecl = cast<VarDecl>(FRS->getRangeStmt()->getSingleDecl());
+    const auto* BeginDecl = cast<VarDecl>(FRS->getBeginStmt()->getSingleDecl());
+    DeclDiff<VarDecl> VisitRange =
+        DifferentiateVarDecl(RangeDecl, /*keepLocal=*/true);
+    DeclDiff<VarDecl> VisitBegin =
+        DifferentiateVarDecl(BeginDecl, /*keepLocal=*/true);
+
     beginBlock(direction::reverse);
     LoopCounter loopCounter(*this);
     beginScope(Scope::DeclScope | Scope::ControlScope | Scope::BreakScope |
@@ -991,33 +998,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<bool> SaveIsInside(isInsideLoop,
                                             /*NewValue=*/false);
 
-    const auto* RangeDecl = cast<VarDecl>(FRS->getRangeStmt()->getSingleDecl());
-    const auto* BeginDecl = cast<VarDecl>(FRS->getBeginStmt()->getSingleDecl());
-
-    DeclDiff<VarDecl> VisitRange = DifferentiateVarDecl(RangeDecl, false);
-    DeclDiff<VarDecl> VisitBegin = DifferentiateVarDecl(BeginDecl, false);
-
     beginBlock(direction::reverse);
     // Create all declarations needed.
     DeclRefExpr* beginDeclRef = BuildDeclRef(VisitBegin.getDecl());
     Expr* d_beginDeclRef = m_Variables[beginDeclRef->getDecl()];
-    DeclRefExpr* rangeDeclRef = BuildDeclRef(VisitRange.getDecl());
-    Expr* d_rangeDeclRef = m_Variables[rangeDeclRef->getDecl()];
-
-    Expr* rangeInit = Clone(FRS->getRangeInit());
-    Expr* d_rangeInitDeclRef =
-        m_Variables[cast<DeclRefExpr>(rangeInit)->getDecl()];
-    VisitRange.getDecl_dx()->setInit(BuildOp(UO_AddrOf, d_rangeInitDeclRef));
-    Expr* assignAdjBegin = BuildOp(BO_Assign, d_beginDeclRef, d_rangeDeclRef);
-    Expr* assignRange =
-        BuildOp(BO_Assign, rangeDeclRef, BuildOp(UO_AddrOf, rangeInit));
-
     addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl()));
     addToCurrentBlock(BuildDeclStmt(VisitRange.getDecl_dx()));
     addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl()));
     addToCurrentBlock(BuildDeclStmt(VisitBegin.getDecl_dx()));
-    addToCurrentBlock(assignAdjBegin);
-    addToCurrentBlock(assignRange);
 
     const auto* EndDecl = cast<VarDecl>(FRS->getEndStmt()->getSingleDecl());
     QualType endType = CloneType(EndDecl->getType());
@@ -2712,7 +2700,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
-                                                             bool addToBlock) {
+                                                             bool keepLocal) {
     StmtDiff initDiff;
     Expr* VDDerivedInit = nullptr;
 
@@ -2722,7 +2710,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // declarations don't have to be moved to the function global scope.
     bool promoteToFnScope =
         !getCurrentScope()->isFunctionScope() &&
-        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass;
+        m_DiffReq.Mode != DiffMode::reverse_mode_forward_pass && !keepLocal;
     QualType VDCloneType;
     QualType VDDerivedType;
     // If the cloned declaration is moved to the function global scope,
@@ -2890,7 +2878,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                  getZeroInit(VDDerivedType));
         else
           assignToZero = GetCladZeroInit(declRef);
-        if (addToBlock)
+        if (!keepLocal)
           addToCurrentBlock(assignToZero, direction::reverse);
       }
     }
@@ -2907,11 +2895,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
                   BuildOp(UnaryOperatorKind::UO_AddrOf,
                           initDiff.getForwSweepExpr_dx()));
-      if (addToBlock)
-        addToCurrentBlock(assignDerivativeE);
+      addToCurrentBlock(assignDerivativeE);
       if (isInsideLoop) {
         StmtDiff pushPop = StoreAndRestore(derivedVDE);
-        if (addToBlock)
+        if (!keepLocal)
           addToCurrentBlock(pushPop.getStmt(), direction::forward);
         m_LoopBlock.back().push_back(pushPop.getStmt_dx());
       }
@@ -2938,11 +2925,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (promoteToFnScope) {
         Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
                                           derivedVDE, initDiff.getExpr_dx());
-        if (addToBlock)
-          addToCurrentBlock(assignDerivativeE, direction::forward);
+        addToCurrentBlock(assignDerivativeE, direction::forward);
         if (isInsideLoop) {
           auto tape = MakeCladTapeFor(derivedVDE);
-          if (addToBlock)
+          if (!keepLocal)
             addToCurrentBlock(tape.Push);
           auto* reverseSweepDerivativePointerE =
               BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
