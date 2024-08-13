@@ -4107,6 +4107,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return Visit(NTTP->getReplacement());
   }
 
+  StmtDiff ReverseModeVisitor::VisitUnaryExprOrTypeTraitExpr(
+      const clang::UnaryExprOrTypeTraitExpr* UE) {
+    return {Clone(UE), Clone(UE)};
+  }
+
   DeclDiff<StaticAssertDecl> ReverseModeVisitor::DifferentiateStaticAssertDecl(
       const clang::StaticAssertDecl* SAD) {
     return DeclDiff<StaticAssertDecl>(nullptr, nullptr);
