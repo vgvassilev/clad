@@ -24,7 +24,7 @@ double test_2(double x){
    return std::log10(x);
 }
 //CHECK: double test_2_darg0(double x) {
-//CHECK-NEXT:     double _d_x = 1.;
+//CHECK-NEXT:     double _d_x = 1;
 //CHECK-NEXT:     return numerical_diff::forward_central_difference(std::log10, x, 0, 0, x) * _d_x;
 //CHECK-NEXT: }
 

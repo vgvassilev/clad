@@ -378,7 +378,7 @@ namespace clad {
     // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
     if (T->isVoidType())
       return nullptr;
-    if (T->isScalarType()) {
+    else if (T->isScalarType() && !T->isPointerType()) {
       ExprResult Zero =
           ConstantFolder::synthesizeLiteral(T, m_Context, 0);
       CastKind CK = m_Sema.PrepareScalarCast(Zero, T);

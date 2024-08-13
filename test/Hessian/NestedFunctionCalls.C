@@ -41,24 +41,24 @@ double f2(double x, double y){
 // CHECK: void f_pushforward_pullback(double x, double y, double _d_x, double _d_y, clad::ValueAndPushforward<double, double> _d_y0, double *_d_x, double *_d_y, double *_d__d_x, double *_d__d_y);
 
 // CHECK: void f2_darg0_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     double _d__d_x = 0;
+// CHECK-NEXT:     double _d__d_x = 0.;
 // CHECK-NEXT:     double _d_x0 = 1;
-// CHECK-NEXT:     double _d__d_y = 0;
+// CHECK-NEXT:     double _d__d_y = 0.;
 // CHECK-NEXT:     double _d_y0 = 0;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
-// CHECK-NEXT:     double _d__d_ans = 0;
+// CHECK-NEXT:     double _d__d_ans = 0.;
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
-// CHECK-NEXT:     double _d_ans0 = 0;
+// CHECK-NEXT:     double _d_ans0 = 0.;
 // CHECK-NEXT:     double ans = _t00.value;
 // CHECK-NEXT:     _d__d_ans += 1;
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
-// CHECK-NEXT:         double _r1 = 0;
-// CHECK-NEXT:         double _r2 = 0;
-// CHECK-NEXT:         double _r3 = 0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         double _r2 = 0.;
+// CHECK-NEXT:         double _r3 = 0.;
 // CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         *_d_y += _r1;
@@ -77,24 +77,24 @@ double f2(double x, double y){
 // CHECK-NEXT: }
 
 // CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     double _d__d_x = 0;
+// CHECK-NEXT:     double _d__d_x = 0.;
 // CHECK-NEXT:     double _d_x0 = 0;
-// CHECK-NEXT:     double _d__d_y = 0;
+// CHECK-NEXT:     double _d__d_y = 0.;
 // CHECK-NEXT:     double _d_y0 = 1;
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
-// CHECK-NEXT:     double _d__d_ans = 0;
+// CHECK-NEXT:     double _d__d_ans = 0.;
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
-// CHECK-NEXT:     double _d_ans0 = 0;
+// CHECK-NEXT:     double _d_ans0 = 0.;
 // CHECK-NEXT:     double ans = _t00.value;
 // CHECK-NEXT:     _d__d_ans += 1;
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
-// CHECK-NEXT:         double _r1 = 0;
-// CHECK-NEXT:         double _r2 = 0;
-// CHECK-NEXT:         double _r3 = 0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         double _r2 = 0.;
+// CHECK-NEXT:         double _r3 = 0.;
 // CHECK-NEXT:         f_pushforward_pullback(x, y, _d_x0, _d_y0, _d__t0, &_r0, &_r1, &_r2, &_r3);
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         *_d_y += _r1;

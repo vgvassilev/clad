@@ -13,7 +13,7 @@ constexpr double mul (double a, double b, double c) {
 }
 
 //CHECK: constexpr void mul_grad(double a, double b, double c, double *_d_a, double *_d_b, double *_d_c) {
-//CHECK-NEXT:    double _d_result = 0;
+//CHECK-NEXT:    double _d_result = 0.;
 //CHECK-NEXT:    double result = a * b * c;
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {
@@ -30,9 +30,9 @@ constexpr double fn( double a, double b, double c) {
 }
 
 //CHECK: constexpr void fn_grad(double a, double b, double c, double *_d_a, double *_d_b, double *_d_c) {
-//CHECK-NEXT:    double _d_val = 0;
+//CHECK-NEXT:    double _d_val = 0.;
 //CHECK-NEXT:    double val = 98.;
-//CHECK-NEXT:    double _d_result = 0;
+//CHECK-NEXT:    double _d_result = 0.;
 //CHECK-NEXT:    double result = a * b / c * (a + b) * 100 + c;
 //CHECK-NEXT:    _d_result += 1;
 //CHECK-NEXT:    {

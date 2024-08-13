@@ -42,7 +42,7 @@ void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK-NEXT:         {
 // CHECK-NEXT:             z = clad::pop(_t1);
 // CHECK-NEXT:             float _r_d0 = *_d_z;
-// CHECK-NEXT:             *_d_z = 0;
+// CHECK-NEXT:             *_d_z = 0.F;
 // CHECK-NEXT:             *_d_z += _r_d0 * a;
 // CHECK-NEXT:             *_d_a += z * _r_d0;
 // CHECK-NEXT:         }

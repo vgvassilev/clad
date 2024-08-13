@@ -1605,7 +1605,7 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double *> _t1 = {};
 // CHECK-NEXT:     clad::tape<double *> _t2 = {};
-// CHECK-NEXT:     double *_d_ref = 0.;
+// CHECK-NEXT:     double *_d_ref = {};
 // CHECK-NEXT:     double *ref = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double _d_res = 0.;
@@ -1652,7 +1652,7 @@ double f_loop_init_var(double lower, double upper) {
 
 // CHECK: void f_loop_init_var_grad(double lower, double upper, double *_d_lower, double *_d_upper) {
 // CHECK-NEXT:     double _d_x = 0.;
-// CHECK-NEXT:     double x = 0;
+// CHECK-NEXT:     double x = 0.;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     clad::tape<double> _t2 = {};
 // CHECK-NEXT:     double _d_sum = 0.;
@@ -2696,10 +2696,10 @@ double fn34(double x, double y){
 
 //CHECK: void fn34_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     double (*_d___range1)[3] = 0.;
+//CHECK-NEXT:     double (*_d___range1)[3] = {};
 //CHECK-NEXT:     double (*__range10)[3] = {};
-//CHECK-NEXT:     double *_d___begin1 = 0;
-//CHECK-NEXT:     double *__begin10 = 0;
+//CHECK-NEXT:     double *_d___begin1 = {};
+//CHECK-NEXT:     double *__begin10 = {};
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     clad::tape<double *> _t2 = {};
 //CHECK-NEXT:     clad::tape<double *> _t3 = {};
@@ -2713,8 +2713,8 @@ double fn34(double x, double y){
 //CHECK-NEXT:     __range10 = &a;
 //CHECK-NEXT:     __begin10 = *__range10;
 //CHECK-NEXT:     double *__end10 = *__range10 + {{3|3L}};
-//CHECK-NEXT:     double *_d_i = 0.;
-//CHECK-NEXT:     double *i = 0;
+//CHECK-NEXT:     double *_d_i = {};
+//CHECK-NEXT:     double *i = {};
 //CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _t0++;
@@ -2762,10 +2762,10 @@ double fn35(double x, double y){
 
 //CHECK: void fn35_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     unsigned {{int|long}} _t0;
-//CHECK-NEXT:     double (*_d___range1)[3] = 0.;
+//CHECK-NEXT:     double (*_d___range1)[3] = {};
 //CHECK-NEXT:     double (*__range10)[3] = {};
-//CHECK-NEXT:     double *_d___begin1 = 0.;
-//CHECK-NEXT:     double *__begin10 = 0;
+//CHECK-NEXT:     double *_d___begin1 = {};
+//CHECK-NEXT:     double *__begin10 = {};
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     clad::tape<double> _t2 = {};
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
@@ -2781,7 +2781,7 @@ double fn35(double x, double y){
 //CHECK-NEXT:     __begin10 = *__range10;
 //CHECK-NEXT:     double *__end10 = *__range10 + {{3|3L}};
 //CHECK-NEXT:     double _d_i = 0.;
-//CHECK-NEXT:     double i = 0;
+//CHECK-NEXT:     double i = 0.;
 //CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _t0++;
