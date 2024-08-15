@@ -826,4 +826,16 @@ namespace clad {
   VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
     return InstantiateTemplate(GetCladConstructorPushforwardTag(), {T});
   }
+
+  clang::TemplateDecl* VisitorBase::GetCladConstructorReverseForwTag() {
+    if (!m_CladConstructorPushforwardTag)
+      m_CladConstructorReverseForwTag =
+          LookupTemplateDeclInCladNamespace("ConstructorReverseForwTag");
+    return m_CladConstructorReverseForwTag;
+  }
+
+  clang::QualType
+  VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladConstructorReverseForwTag(), {T});
+  }
 } // end namespace clad

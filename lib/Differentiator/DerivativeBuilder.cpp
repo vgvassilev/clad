@@ -247,7 +247,16 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, clang::DeclContext* originalFnDC,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
-
+    llvm::errs()
+        << "[DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff] "
+           "Name: "
+        << Name << "\n";
+    llvm::errs()
+        << "[DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff] "
+           "Dumping CallArgs\n";
+    for (auto arg : CallArgs)
+      arg->dumpColor();
+    llvm::errs() << "\n";
     CXXScopeSpec SS;
     LookupResult R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);

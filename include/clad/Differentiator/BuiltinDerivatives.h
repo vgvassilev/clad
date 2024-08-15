@@ -54,6 +54,8 @@ template <typename T, typename U> struct ValueAndAdjoint {
 /// class for which constructor pushforward is defined.
 template <class T> class ConstructorPushforwardTag {};
 
+template <class T> class ConstructorReverseForwTag {};
+
 namespace custom_derivatives {
 #ifdef __CUDACC__
 template <typename T>

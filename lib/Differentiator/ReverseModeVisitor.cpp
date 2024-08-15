@@ -33,6 +33,9 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <clang/AST/DeclCXX.h>
+#include <clang/AST/OperationKinds.h>
+#include <clang/Sema/Ownership.h>
 #include <numeric>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -1285,7 +1288,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff
   ReverseModeVisitor::VisitCXXDefaultArgExpr(const CXXDefaultArgExpr* DE) {
-    return Visit(DE->getExpr(), dfdx());
+    return {Clone(DE), Clone(DE)};
   }
 
   StmtDiff
@@ -2784,6 +2787,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         else
           VDDerivedInit = initDiff.getForwSweepExpr_dx();
       }
+      if (VD->getType()->isRecordType()) {
+        initDiff = Visit(VD->getInit());
+        VDDerivedInit = initDiff.getForwSweepExpr_dx();
+      }
 
       // FIXME: Remove the special cases introduced by `specialThisDiffCase`
       // once reverse mode supports pointers. `specialThisDiffCase` is only
@@ -2846,8 +2853,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
 
       if (VD->getInit()) {
-        if (isa<CXXConstructExpr>(VD->getInit()))
-          initDiff = Visit(VD->getInit());
+        if (isa<CXXConstructExpr>(VD->getInit())) {
+          if (!initDiff.getExpr())
+            initDiff = Visit(VD->getInit());
+        }
         else
           initDiff = Visit(VD->getInit(), derivedE);
       }
@@ -4019,20 +4028,76 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {nullptr, nullptr};
   }
 
-  // FIXME: Add support for differentiating calls to constructors.
-  // We currently assume that constructor arguments are non-differentiable.
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
-    llvm::SmallVector<Expr*, 4> clonedArgs;
+    
+    llvm::errs() << "[ReverseModeVisitor::VisitCXXConstructExpr] begin!\n";
+    llvm::SmallVector<Expr*, 4> primalArgs;
+    llvm::SmallVector<Expr *, 4> adjointArgs;
+    llvm::SmallVector<Stmt*, 4> prePullbackCallStmts;
+    llvm::SmallVector<Stmt*, 4> postPullbackCallStmts;
+    std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
+
     for (const auto* arg : CE->arguments()) {
-      auto argDiff = Visit(arg, dfdx());
-      clonedArgs.push_back(argDiff.getExpr());
+      StmtDiff argDiff{};
+      Expr *adjointArg = nullptr;
+      if (utils::IsReferenceOrPointerArg(arg)) {
+        argDiff = Visit(arg);
+        adjointArg = argDiff.getExpr_dx();
+      } else {
+        QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        prePullbackCallStmts.push_back(BuildDeclStmt(dArgDecl));
+        adjointArg = BuildDeclRef(dArgDecl);
+        argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+      }
+      if (utils::isArrayOrPointerType(arg->getType()))
+        adjointArgs.push_back(adjointArg);
+      else
+        adjointArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, adjointArg,
+                                      m_DiffReq->getLocation()));
+      primalArgs.push_back(argDiff.getExpr());
     }
+    StmtDiff returnVal;
+    if (Expr* customReverseForwFnCall =
+            BuildCallToCustomForwPassFn(CE->getConstructor(), primalArgs,
+                                        adjointArgs, /*baseExpr=*/nullptr)) {
+      llvm::errs() << "Dumping reverseForwFnCall! \n";
+      customReverseForwFnCall->dumpColor();
+      Expr* callRes = StoreAndRef(customReverseForwFnCall);
+      Expr* val =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+      Expr* adjoint =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      returnVal = {val, nullptr, adjoint};
+    }
+    llvm::SmallVector<Expr*, 4> pullbackArgs;
+    pullbackArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf,
+                                   returnVal.getExpr(),
+                                   m_DiffReq->getLocation()));
+    pullbackArgs.append(primalArgs.begin(), primalArgs.end());
+    pullbackArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf,
+                                   returnVal.getForwSweepExpr_dx(),
+                                   m_DiffReq->getLocation()));
+    pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
+
+    std::string customPullbackName = "constructor_pullback";
+    if (Expr* customPullbackCall =
+            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                customPullbackName, pullbackArgs, getCurrentScope(),
+                const_cast<DeclContext*>(
+                    CE->getConstructor()->getDeclContext()))) {
+      llvm::errs() << "Dumping constructor_pullback:\n";
+      customPullbackCall->dumpColor();
+    }
+    if (returnVal.getStmt())
+      return returnVal;
     Expr* clonedArgsE = nullptr;
+    
 
     if (CE->getNumArgs() != 1) {
       if (CE->isListInitialization()) {
-        clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
+        clonedArgsE = m_Sema.ActOnInitList(noLoc, primalArgs, noLoc).get();
       } else {
         if (CE->getNumArgs() == 0) {
           // ParenList is empty -- default initialisation.
@@ -4040,10 +4105,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // parse' issue.
           return StmtDiff();
         }
-        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, primalArgs).get();
       }
     } else {
-      clonedArgsE = clonedArgs[0];
+      clonedArgsE = primalArgs[0];
     }
     // `CXXConstructExpr` node will be created automatically by passing these
     // initialiser to higher level `ActOn`/`Build` Sema functions.
@@ -4278,18 +4343,59 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       llvm::ArrayRef<clang::Expr*> derivedArgs, Expr* baseExpr) {
     std::string forwPassFnName =
         clad::utils::ComputeEffectiveFnName(FD) + "_reverse_forw";
+    llvm::errs()
+        << "[ReverseModeVisitor::BuildCallToCustomForwPassFn] forwPassFnName: "
+        << forwPassFnName << "\n";
     llvm::SmallVector<Expr*, 4> args;
     if (baseExpr) {
       baseExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, baseExpr,
                          m_DiffReq->getLocation());
       args.push_back(baseExpr);
     }
+    if (auto CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
+      const RecordDecl* RD = CD->getParent();
+      QualType constructorReverseForwTagT =
+          GetCladConstructorReverseForwTagOfType(m_Context.getRecordType(RD));
+      Expr* constructorReverseForwTagArg =
+          m_Sema
+              .BuildCXXTypeConstructExpr(m_Context.getTrivialTypeSourceInfo(
+                                             constructorReverseForwTagT),
+                                         noLoc, MultiExprArg{}, noLoc,
+                                         /*ListInitialization=*/false)
+              .get();
+      args.push_back(constructorReverseForwTagArg);
+    }
     args.append(primalArgs.begin(), primalArgs.end());
     args.append(derivedArgs.begin(), derivedArgs.end());
+    llvm::errs()
+        << "[ReverseModeVisitor::BuildCallToCustomForwPassFn] Dumping args!\n";
+    for (auto arg : args)
+      arg->dumpColor();
+    llvm::errs() << "\n\n";
     Expr* customForwPassCE =
         m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
             forwPassFnName, args, getCurrentScope(),
             const_cast<DeclContext*>(FD->getDeclContext()));
+    llvm::errs() << "[ReverseModeVisitor::BuildCAllToCustomForwPassFn] "
+                    "customForwPassCE: "
+                 << customForwPassCE << "\n";
     return customForwPassCE;
   }
+
+  // clang::Expr* ReverseModeVisitor::BuildCallToCustomForwPassConstructor(
+  //     const clang::CXXConstructExpr* CE,
+  //     llvm::ArrayRef<clang::Expr*> primalArgs,
+  //     llvm::ArrayRef<clang::Expr*> derivedArgs) {
+  //   llvm::SmallVector<Expr*, 4> reverseForwCallArgs;
+  //   QualType constructorReverseForwTagT =
+  //       GetCladConstructorReverseForwTagOfType(
+  //           CE->getType().withoutLocalFastQualifiers());
+  //   Expr* constructorReverseForwTagArg = m_Sema.BuildCXXTypeConstructExpr(
+  //       m_Context.getTrivialTypeSourceInfo(constructorReverseForwTagT), noLoc,
+  //       MultiExprArg{}, noLoc, /*ListInitialization=*/false).get();
+  //   reverseForwCallArgs.push_back(constructorReverseForwTagArg);
+  //   reverseForwCallArgs.append(clonedArgs.begin(), clonedArgs.end());
+  //   reverseForwCallArgs.append(derivedArgs.begin(), derivedArgs.end());
+  //   std::string reverseForw
+  // }
 } // end namespace clad
