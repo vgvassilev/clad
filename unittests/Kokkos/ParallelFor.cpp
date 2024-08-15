@@ -102,6 +102,22 @@ template <typename View> struct Foo {
   void operator()(const int i) const { res(i) = x * i; }
 };
 
+double parallel_for_functor_simplest_case_fence(double x) {
+  Kokkos::View<double[5], Kokkos::HostSpace> res("res");
+
+  // Kokkos::fence("named fence"); // Does not work on some versions of Kokkos.
+
+  Foo<Kokkos::View<double[5], Kokkos::HostSpace>> f(res, x);
+
+  f(0); // FIXME: this is a workaround to put Foo::operator() into the
+        // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_for(5, f);
+  Kokkos::fence();
+
+  return res(3);
+}
+
 double parallel_for_functor_simplest_case_intpol(double x) {
   Kokkos::View<double[5], Kokkos::HostSpace> res("res");
 
@@ -190,6 +206,10 @@ double parallel_for_functor_simplest_case_mdpol_space_and_anon(double x) {
 
 TEST(ParallelFor, FunctorSimplestCases) {
   const double eps = 1e-8;
+
+  auto df0 = clad::differentiate(parallel_for_functor_simplest_case_fence, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df0.execute(x), 3, eps);
 
   auto df1 = clad::differentiate(parallel_for_functor_simplest_case_intpol, 0);
   for (double x = 3; x <= 5; x += 1)
