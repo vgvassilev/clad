@@ -20,7 +20,6 @@ DerivativeAndOverload
 ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
                                    const DiffRequest& request) {
   assert(m_DiffReq == request);
-  silenceDiags = !request.VerboseDiags;
 
   assert(m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass);
 

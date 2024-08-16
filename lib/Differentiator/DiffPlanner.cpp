@@ -434,6 +434,21 @@ namespace clad {
         DiffInputVarInfo dVarInfo;
 
         dVarInfo.source = diffSpec.str();
+        // Check if diffSpec represents an index of an independent variable.
+        if ('0' <= diffSpec[0] && diffSpec[0] <= '9') {
+          unsigned idx = std::stoi(dVarInfo.source);
+          // Fail if the specified index is invalid.
+          if (idx >= FD->getNumParams()) {
+            utils::EmitDiag(
+                semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
+                "Invalid argument index '%0' of '%1' argument(s)",
+                {std::to_string(idx), std::to_string(FD->getNumParams())});
+            return;
+          }
+          dVarInfo.param = FD->getParamDecl(idx);
+          DVI.push_back(dVarInfo);
+          continue;
+        }
         llvm::StringRef pName = computeParamName(diffSpec);
         auto it = std::find_if(std::begin(candidates), std::end(candidates),
                                [&pName](

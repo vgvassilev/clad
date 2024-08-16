@@ -195,15 +195,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     }
     if (!NSD) {
       NSD = utils::LookupNSD(m_Sema, namespaceID, namespaceShouldExist);
-      if (!forCustomDerv && !NSD) {
-        diag(DiagnosticsEngine::Warning, noLoc,
-             "Numerical differentiation is diabled using the "
-             "-DCLAD_NO_NUM_DIFF "
-             "flag, this means that every try to numerically differentiate a "
-             "function will fail! Remove the flag to revert to default "
-             "behaviour.");
+      if (!NSD)
         return R;
-      }
     }
     DeclContext* DC = NSD;
 
