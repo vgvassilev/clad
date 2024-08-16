@@ -176,10 +176,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     char* m_Code;
     FunctorType *m_Functor = nullptr;
     bool m_CUDAkernel = false;
-    #ifdef __CUDACC__
-    CUfunction cuFunction;
-    char *m_PtxCode;
+    char* m_PtxCode;
     char* m_KernelName;
+#ifdef __CUDACC__
+    CUfunction cuFunction;
 #endif
 
   public:

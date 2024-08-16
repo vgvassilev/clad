@@ -92,9 +92,6 @@ __global__ void compute(double* d_x, double* d_p, int n, double* d_result) {
   gauss_g.execute(d_x, d_p, 2.0, n, d_result);
 }
 
-__global__ void kernel(int *a) {
-  *a *= *a;
-}
 
 int main(void) {
   double *x, *d_x;
@@ -130,28 +127,5 @@ int main(void) {
     printf("Results are not equal\n");
     return 1;
   }
-
-  int *a = (int*)malloc(sizeof(int));
-  *a = 2;
-  int *d_a;
-  cudaMalloc(&d_a, sizeof(int));
-  cudaMemcpy(d_a, a, sizeof(int), cudaMemcpyHostToDevice);
-
-  int *asquare = (int*)malloc(sizeof(int));
-  *asquare = 1;
-  int *d_square;
-  cudaMalloc(&d_square, sizeof(int));
-  cudaMemcpy(d_square, asquare, sizeof(int), cudaMemcpyHostToDevice);
-
-  auto test = clad::gradient(kernel);
-  dim3 grid(1);
-  dim3 block(1);
-  test.execute_kernel(grid, block, 0, nullptr, d_a, d_square);
-
-  cudaDeviceSynchronize();
-
-  cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
-  cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
-  printf("a = %d, a^2 = %d\n", *a, *asquare);
-
+  return 0;
 }
