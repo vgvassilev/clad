@@ -53,7 +53,7 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   m_Sema.CurContext = DC;
   SourceLocation validLoc{m_DiffReq->getLocation()};
   DeclWithContext fnBuildRes = m_Builder.cloneFunction(
-      m_DiffReq.Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType);
+      m_DiffReq.Function, *this, m_Sema.CurContext, validLoc, fnDNI, fnType, false);
   m_Derivative = fnBuildRes.first;
 
   beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |

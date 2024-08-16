@@ -272,7 +272,7 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
     m_Sema.CurContext = DC;
 
     DeclWithContext result = m_Builder.cloneFunction(
-        m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType);
+        m_DiffReq.Function, *this, DC, noLoc, name, hessianFunctionType, true);
     FunctionDecl* hessianFD = result.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |

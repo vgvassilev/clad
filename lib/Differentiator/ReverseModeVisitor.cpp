@@ -162,7 +162,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Sema.CurContext = DC;
     DeclWithContext gradientOverloadFDWC =
         m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
-                                gradientNameInfo, gradientFunctionOverloadType);
+                                gradientNameInfo, gradientFunctionOverloadType, false);
     FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -374,7 +374,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
     DeclWithContext result = m_Builder.cloneFunction(
-        m_DiffReq.Function, *this, DC, noLoc, name, gradientFunctionType);
+        m_DiffReq.Function, *this, DC, noLoc, name, gradientFunctionType, false);
     FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 
@@ -526,7 +526,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     SourceLocation validLoc{m_DiffReq->getLocation()};
     DeclWithContext fnBuildRes =
         m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
-                                validLoc, DNI, pullbackFnType);
+                                validLoc, DNI, pullbackFnType, false);
     m_Derivative = fnBuildRes.first;
 
     if (m_ExternalSource)

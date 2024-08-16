@@ -179,7 +179,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 
   m_Sema.CurContext = DC;
   DeclWithContext result =
-      m_Builder.cloneFunction(FD, *this, DC, validLoc, name, FD->getType());
+      m_Builder.cloneFunction(FD, *this, DC, validLoc, name, FD->getType(), true);
   FunctionDecl* derivedFD = result.first;
   m_Derivative = derivedFD;
 
@@ -458,7 +458,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
 
   SourceLocation loc{m_DiffReq->getLocation()};
   DeclWithContext cloneFunctionResult = m_Builder.cloneFunction(
-      m_DiffReq.Function, *this, DC, loc, derivedFnName, derivedFnType);
+      m_DiffReq.Function, *this, DC, loc, derivedFnName, derivedFnType, true);
   m_Derivative = cloneFunctionResult.first;
 
   llvm::SmallVector<ParmVarDecl*, 16> params;

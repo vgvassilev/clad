@@ -186,7 +186,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   bool CUDAkernel = false, char *ptxCode = nullptr, char *kernelName = nullptr,
                                   FunctorType* functor = nullptr)
-        : m_CUDAkernel(CUDAkernel),
+        : m_CUDAkernel(CUDAkernel), m_PtxCode(ptxCode), m_KernelName(kernelName),
           m_Functor(functor) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
@@ -198,9 +198,6 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 #ifdef __CUDACC__ 
 #ifndef __CUDA_ARCH__
         if (CUDAkernel) {
-          m_PtxCode = ptxCode;
-          m_KernelName = kernelName;
-
           CUmodule cuModule;
           cuModuleLoadDataEx(&cuModule, m_PtxCode, 0, 0, 0);
           cuModuleGetFunction(&cuFunction, cuModule, m_KernelName);
@@ -221,9 +218,9 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
     CUDA_HOST_DEVICE
-        CladFunction(CladFunctionType f, const char* code, bool CUDAkernel,
-                 FunctorType& functor)
-        : CladFunction(f, code, CUDAkernel, &functor) {};
+    CladFunction(CladFunctionType f, const char* code, bool CUDAkernel,
+                 char* ptxCode, char* kernelName, FunctorType& functor)
+        : CladFunction(f, code, CUDAkernel, ptxCode, kernelName, &functor) {};
 
     // Intentionally leak m_Code, otherwise we have to link against c++ runtime,
     // i.e -lstdc++.
@@ -389,10 +386,11 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("D")))
   differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-                const char* code = "") {
-      assert(fn && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
-                                                                    code);
+                const char* code = "", bool CUDAkernel = false,
+                char* ptxCode = nullptr, char* kernelName = nullptr) {
+    assert(fn && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                  code);
   }
 
   /// Specialization for differentiating functors.
@@ -409,9 +407,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("D")))
   differentiate(F&& f, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-                const char* code = "") {
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
-                                                                    code, f);
+                const char* code = "", bool CUDAkernel = false,
+                char* ptxCode = nullptr, char* kernelName = nullptr) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                  code, false, nullptr, nullptr, f);
   }
 
   /// Generates function which computes derivative of `fn` argument w.r.t
@@ -432,10 +431,11 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("D")))
   differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-                const char* code = "") {
-      assert(fn && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn, code);
+                const char* code = "", bool CUDAkernel = false,
+                char* ptxCode = nullptr, char* kernelName = nullptr) {
+    assert(fn && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn, code);
   }
 
   /// Generates function which computes gradient of the given function wrt the
@@ -470,9 +470,11 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F&& f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code, false, f);
+           const char* code = "", bool CUDAkernel = false,
+           char* ptxCode = nullptr, char* kernelName = nullptr) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by gradient*/, code, false, nullptr,
+        nullptr, f);
   }
 
   /// Generates function which computes hessian matrix of the given function wrt
@@ -490,10 +492,11 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("H")))
   hessian(F f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-          const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-          derivedFn /* will be replaced by hessian*/, code);
+          const char* code = "", bool CUDAkernel = false,
+          char* ptxCode = nullptr, char* kernelName = nullptr) {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn /* will be replaced by hessian*/, code);
   }
 
   /// Specialization for differentiating functors.
@@ -507,9 +510,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("H")))
   hessian(F&& f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-          const char* code = "") {
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-          derivedFn /* will be replaced by hessian*/, code, f);
+          const char* code = "", bool CUDAkernel = false,
+          char* ptxCode = nullptr, char* kernelName = nullptr) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn /* will be replaced by hessian*/, code, false, nullptr, nullptr, f);
   }
 
   /// Generates function which computes jacobian matrix of the given function
@@ -527,10 +531,11 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("J")))
   jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-          derivedFn /* will be replaced by Jacobian*/, code);
+           const char* code = "", bool CUDAkernel = false,
+           char* ptxCode = nullptr, char* kernelName = nullptr) {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn /* will be replaced by Jacobian*/, code);
   }
 
   /// Specialization for differentiating functors.
@@ -544,9 +549,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("J")))
   jacobian(F&& f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-          derivedFn /* will be replaced by Jacobian*/, code, f);
+           const char* code = "", bool CUDAkernel = false,
+           char* ptxCode = nullptr, char* kernelName = nullptr) {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn /* will be replaced by Jacobian*/, code, false, nullptr, nullptr, f);
   }
 
   template <typename ArgSpec = const char*, typename F,
@@ -554,7 +560,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   CladFunction<DerivedFnType> __attribute__((annotate("E")))
   estimate_error(F f, ArgSpec args = "",
                  DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-                 const char* code = "") {
+                 const char* code = "", bool CUDAkernel = false,
+                 char* ptxCode = nullptr, char* kernelName = nullptr) {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<
         DerivedFnType>(derivedFn /* will be replaced by estimation code*/,

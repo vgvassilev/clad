@@ -100,7 +100,8 @@ namespace clad {
                                   clad::VisitorBase& VB, clang::DeclContext* DC,
                                   clang::SourceLocation& noLoc,
                                   clang::DeclarationNameInfo name,
-                                  clang::QualType functionType);
+                                  clang::QualType functionType,
+                                  bool cloneKernelGlobalAttr);
     /// Looks for a suitable overload for a given function.
     ///
     /// \param[in] Name The identification information of the function

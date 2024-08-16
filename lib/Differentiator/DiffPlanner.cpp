@@ -773,6 +773,13 @@ namespace clad {
       request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
       request.CUDAkernel = derivedFD->hasAttr<CUDAGlobalAttr>();
 
+      if (request.CUDAkernel && !(request.Mode == DiffMode::reverse ||
+                                  request.Mode == DiffMode::reverse_mode_forward_pass)) { 
+        utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                        "CUDA kernels are only supported in reverse mode.");
+        return true;
+      }
+
       if (isCallOperator(m_Sema.getASTContext(), request.Function)) {
         request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
       }

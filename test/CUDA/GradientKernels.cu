@@ -6,7 +6,7 @@
 
 // RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
 // RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
-// RUN: -ldl -lrt -pthread -lm -lstdc++
+// RUN: -ldl -lrt -pthread -lm -lstdc++ -lcuda -lnvrtc
 
 // REQUIRES: cuda-runtime
 

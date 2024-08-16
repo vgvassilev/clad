@@ -250,7 +250,7 @@ namespace clad {
             f.flush();
           }
 
-            S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
+          S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           if (OverloadedDerivativeDecl)
             S.MarkFunctionReferenced(SourceLocation(),
                                      OverloadedDerivativeDecl);
