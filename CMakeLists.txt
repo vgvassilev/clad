@@ -186,6 +186,18 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
+  find_package(CUDA)
+  if(CUDA_FOUND)
+    include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
+    add_definitions(-DCUDA_ON)
+  endif()
+
+  find_package(CUDAToolkit REQUIRED)
+  if (CUDAToolkit_FOUND)
+    include_directories(SYSTEM ${CUDAToolkit_INCLUDE_DIRS})
+    add_definitions(-DCUDA_ON)
+  endif()
+
   # If the llvm sources are present add them with higher priority.
   if (LLVM_BUILD_MAIN_SRC_DIR)
     # LLVM_INCLUDE_DIRS contains the include paths to both LLVM's source and

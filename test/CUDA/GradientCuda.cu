@@ -144,7 +144,6 @@ int main(void) {
   cudaMemcpy(d_square, asquare, sizeof(int), cudaMemcpyHostToDevice);
 
   auto test = clad::gradient(kernel);
-  test.compile_kernel();
   dim3 grid(1);
   dim3 block(1);
   test.execute_kernel(grid, block, 0, nullptr, d_a, d_square);

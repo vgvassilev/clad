@@ -16,6 +16,12 @@
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
 
+#ifdef CUDA_ON
+#include "cuda.h"
+#include "cuda_runtime_api.h"
+#include "nvrtc.h"
+#endif
+
 #include <algorithm>
 
 using namespace clang;
@@ -177,10 +183,12 @@ namespace clad {
   void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
                                Sema& SemaRef) {
     CallExpr* call = this->CallContext;
-    // Index of "CUDAkernel" parameter:
-    auto kernelArgIdx  = static_cast<int>(call->getNumArgs()) - 1;
-    auto codeArgIdx = kernelArgIdx - 1;
-    auto derivedFnArgIdx = kernelArgIdx - 2;
+    // Index of "kernelName" parameter:
+    auto kernelNameArgIdx = static_cast<int>(call->getNumArgs()) - 1;
+    auto ptxCodeArgIdx = kernelNameArgIdx - 1;
+    auto kernelArgIdx = kernelNameArgIdx - 2;
+    auto codeArgIdx = kernelNameArgIdx - 3;
+    auto derivedFnArgIdx = kernelNameArgIdx - 4;
 
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
@@ -228,6 +236,52 @@ namespace clad {
       std::string s;
       llvm::raw_string_ostream Out(s);
       FD->print(Out, Policy);
+
+#ifdef CUDA_ON
+      if (this->CUDAkernel) {
+        Out.str().insert(0, "extern \"C\"  __global__ ");
+        Out.flush();
+
+        const char* code = Out.str().c_str();
+
+        nvrtcProgram prog;
+        nvrtcResult result =
+            nvrtcCreateProgram(&prog, code, "Derivatives.cu", 0, NULL, NULL);
+        assert(result == NVRTC_SUCCESS);
+        result = nvrtcCompileProgram(prog, 0, NULL);
+        assert(result == NVRTC_SUCCESS);
+
+        size_t ptx_size;
+        result = nvrtcGetPTXSize(prog, &ptx_size);
+        assert(result == NVRTC_SUCCESS);
+
+        char* ptx_code = (char*)malloc(ptx_size * sizeof(char));
+        result = nvrtcGetPTX(prog, ptx_code);
+        assert(result == NVRTC_SUCCESS);
+
+        result = nvrtcDestroyProgram(&prog);
+        assert(result == NVRTC_SUCCESS);
+
+        StringLiteral* PTXString =
+            utils::CreateStringLiteral(C, std::string(ptx_code));
+        Expr* PTXExpr = SemaRef
+                           .ImpCastExprToType(PTXString, Arg->getType(),
+                                              CK_ArrayToPointerDecay)
+                           .get();
+
+        call->setArg(ptxCodeArgIdx, PTXExpr);
+
+        std::string kernelName = replacementFD->getNameAsString();
+        StringLiteral* KernelString = utils::CreateStringLiteral(C, kernelName);
+        Expr* KernelNameExpr =
+            SemaRef
+                .ImpCastExprToType(KernelString, Arg->getType(),
+                                   CK_ArrayToPointerDecay)
+                .get();
+
+        call->setArg(kernelNameArgIdx, KernelNameExpr);
+      }
+#endif
       Out.flush();
 
       StringLiteral* SL = utils::CreateStringLiteral(C, Out.str());

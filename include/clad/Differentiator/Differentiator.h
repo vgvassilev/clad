@@ -21,7 +21,7 @@
 #include <stddef.h>
 #include <cstring>
 #ifdef __CUDACC__
-#include <nvrtc.h>
+#include <cuda.h>
 #endif
 
 namespace clad {
@@ -178,11 +178,13 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     bool m_CUDAkernel = false;
     #ifdef __CUDACC__
     CUfunction cuFunction;
-    #endif
+    char *m_PtxCode;
+    char* m_KernelName;
+#endif
 
   public:
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
-                                  bool CUDAkernel = false,
+                                  bool CUDAkernel = false, char *ptxCode = nullptr, char *kernelName = nullptr,
                                   FunctorType* functor = nullptr)
         : m_CUDAkernel(CUDAkernel),
           m_Functor(functor) {
@@ -190,17 +192,21 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       if (size_t length = GetLength(code)) {
         m_Function = f;
         char* temp;
-        if (m_CUDAkernel) {
-          const char* kernel = "__global__ ";
-          temp = (char*)malloc(length + GetLength(kernel) + 1);
-          m_Code = temp;
-          while ((*temp++ = *kernel++));
-          temp--;
-        } else {
-          temp = (char*)malloc(length + 1);
-          m_Code = temp;
-        }
+        temp = (char*)malloc(length + 1);
+        m_Code = temp;
         while ((*temp++ = *code++));
+#ifdef __CUDACC__ 
+#ifndef __CUDA_ARCH__
+        if (CUDAkernel) {
+          m_PtxCode = ptxCode;
+          m_KernelName = kernelName;
+
+          CUmodule cuModule;
+          cuModuleLoadDataEx(&cuModule, m_PtxCode, 0, 0, 0);
+          cuModuleGetFunction(&cuFunction, cuModule, m_KernelName);
+        }
+#endif
+#endif
       } else {
         // clad did not place the derivative in this object. This can happen
         // upon error of if clad was disabled. Diagnose.
@@ -251,66 +257,6 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
                             return_type_t<F>>::type
     execute(Args&&... args) CUDA_HOST_DEVICE {
       return static_cast<return_type_t<F>>(0);
-    }
-
-    void compile_kernel() {
-      if (!m_CUDAkernel) {
-        printf("This function is not a CUDA kernel\n");
-        return;
-      }
-      #ifdef __CUDACC__
-      nvrtcProgram prog;
-      nvrtcResult result =
-          nvrtcCreateProgram(&prog, m_Code, "Derivatives.cu", 0, NULL, NULL);
-      assert(result == NVRTC_SUCCESS);
-      result = nvrtcCompileProgram(prog, 0, NULL);
-      if (result != NVRTC_SUCCESS) {
-        size_t logSize;
-        nvrtcGetProgramLogSize(prog, &logSize);
-        char* log = (char*)malloc(logSize);
-        nvrtcGetProgramLog(prog, log);
-        printf("Compilation error: %s\n", log);
-        exit(1);
-      }
-      assert(result == NVRTC_SUCCESS);
-
-      size_t ptx_size;
-      result = nvrtcGetPTXSize(prog, &ptx_size);
-      if (result != NVRTC_SUCCESS) {
-        size_t logSize;
-        nvrtcGetProgramLogSize(prog, &logSize);
-        char* log = (char*)malloc(logSize);
-        nvrtcGetProgramLog(prog, log);
-        printf("Compilation error: %s\n", log);
-        exit(1);
-      }
-      assert(result == NVRTC_SUCCESS);
-
-      char* ptx_code = (char*)malloc(ptx_size * sizeof(char));
-      result = nvrtcGetPTX(prog, ptx_code);
-      if (result != NVRTC_SUCCESS) {
-        size_t logSize;
-        nvrtcGetProgramLogSize(prog, &logSize);
-        char* log = (char*)malloc(logSize);
-        nvrtcGetProgramLog(prog, log);
-        printf("Compilation error: %s\n", log);
-        exit(1);
-      }
-      assert(result == NVRTC_SUCCESS);
-
-      CUmodule cuModule;
-      CUresult error = cuModuleLoadData(&cuModule, ptx_code);
-      if (error != CUDA_SUCCESS) {
-        printf("error in module load: %s\n",
-               cudaGetErrorString((cudaError_t)error));
-        exit(1);
-      }
-      error = cuModuleGetFunction(&cuFunction, cuModule, "_Z11kernel_gradPiS_");
-      if (error != CUDA_SUCCESS) {
-        printf("error in getfunction\n");
-        exit(1);
-      }
-      #endif
     }
 
 #ifdef __CUDACC__
@@ -507,10 +453,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F f, ArgSpec args = "", DerivedFnType derivedFn =
                static_cast<DerivedFnType>(nullptr),
-           const char* code = "", bool CUDAkernel = false) {
+           const char* code = "", bool CUDAkernel = false, char *ptxCode = nullptr, char *kernelName = nullptr) {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-        derivedFn /* will be replaced by gradient*/, code, CUDAkernel);
+        derivedFn /* will be replaced by gradient*/, code, CUDAkernel, ptxCode, kernelName);
   }
 
   /// Specialization for differentiating functors.
