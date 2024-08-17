@@ -185,8 +185,6 @@ namespace clad {
     CallExpr* call = this->CallContext;
     // Index of "kernelName" parameter:
     auto kernelNameArgIdx = static_cast<int>(call->getNumArgs()) - 1;
-    auto ptxCodeArgIdx = kernelNameArgIdx - 1;
-    auto kernelArgIdx = kernelNameArgIdx - 2;
     auto codeArgIdx = kernelNameArgIdx - 3;
     auto derivedFnArgIdx = kernelNameArgIdx - 4;
 
@@ -239,6 +237,10 @@ namespace clad {
 
 #ifdef CUDA_ON
       if (this->CUDAkernel) {
+
+        auto ptxCodeArgIdx = kernelNameArgIdx - 1;
+        auto kernelArgIdx = kernelNameArgIdx - 2;
+        
         Out.str().insert(0, "extern \"C\"  __global__ ");
         Out.flush();
 
