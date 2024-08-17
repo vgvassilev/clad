@@ -186,16 +186,12 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
-  find_package(CUDA)
+  find_package(CUDA QUIET)
   if(CUDA_FOUND)
     include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
     add_definitions(-DCUDA_ON)
-  endif()
-
-  find_package(CUDAToolkit REQUIRED)
-  if (CUDAToolkit_FOUND)
+    find_package(CUDAToolkit REQUIRED)
     include_directories(SYSTEM ${CUDAToolkit_INCLUDE_DIRS})
-    add_definitions(-DCUDA_ON)
   endif()
 
   # If the llvm sources are present add them with higher priority.
