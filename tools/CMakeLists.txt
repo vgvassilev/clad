@@ -59,7 +59,7 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
         # For 64-bit systems
         set(cuda_lib_dir ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
     endif()
-    set (cuda_flags -L${cuda_lib_dir} -lcudart_static -ldl -lrt -pthread -lm -lstdc++ -lcuda -lnvrtc)
+    set (cuda_flags -L${cuda_lib_dir} -lcudart_static -ldl -lrt -pthread -lm -lstdc++ ${CUDA_nvrtc_LIBRARY} ${CUDA_cuda_driver_LIBRARY})
   endif()
   target_link_libraries(clad PRIVATE ${link_libs} ${cuda_flags})
 
