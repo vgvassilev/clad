@@ -297,9 +297,9 @@ clang::FunctionDecl* VectorForwardModeVisitor::CreateVectorModeOverload() {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
   m_Sema.CurContext = DC;
-  DeclWithContext result =
-      m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
-                              vectorModeNameInfo, vectorModeFuncOverloadType, true);
+  DeclWithContext result = m_Builder.cloneFunction(
+      m_DiffReq.Function, *this, DC, noLoc, vectorModeNameInfo, 
+      vectorModeFuncOverloadType, true);
   FunctionDecl* vectorModeOverloadFD = result.first;
 
   // Function declaration scope

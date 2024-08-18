@@ -618,8 +618,8 @@ namespace clad {
     } else {
       Expr* exprFunc = BuildDeclRef(FD, SS);
       Expr* configExpr = nullptr;
-      if (FD->hasAttr<CUDAGlobalAttr>()){
-        llvm::APInt one(/*numBits=*/32, /*value=*/ 1);
+      if (FD->hasAttr<CUDAGlobalAttr>()) {
+        llvm::APInt one(/*numBits=*/32, /*value=*/1);
         Expr* gridSize =
             IntegerLiteral::Create(m_Context, one, m_Context.IntTy, noLoc);
         Expr* blockSize =

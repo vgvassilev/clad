@@ -183,11 +183,12 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 #endif
 
   public:
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
-                                  bool CUDAkernel = false, char *ptxCode = nullptr, char *kernelName = nullptr,
-                                  FunctorType* functor = nullptr)
-        : m_CUDAkernel(CUDAkernel), m_PtxCode(ptxCode), m_KernelName(kernelName),
-          m_Functor(functor) {
+    CUDA_HOST_DEVICE 
+    CladFunction(CladFunctionType f, const char* code, bool CUDAkernel = false, 
+                 char *ptxCode = nullptr, char *kernelName = nullptr,
+                 FunctorType* functor = nullptr)
+        : m_CUDAkernel(CUDAkernel), m_PtxCode(ptxCode),
+          m_KernelName(kernelName), m_Functor(functor) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
         m_Function = f;
@@ -260,7 +261,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type
-    execute_kernel(dim3 grid,dim3 block, size_t shared_mem,
+    execute_kernel(dim3 grid, dim3 block, size_t shared_mem,
                    cudaStream_t stream, Args&&... args) CUDA_HOST_DEVICE {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
@@ -274,12 +275,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       void* argPtrs[] = {(void*)&args...};
       CUresult error =
           cuLaunchKernel(cuFunction, grid.x, grid.y, grid.z, block.x, block.y,
-                          block.z, 0, NULL, argPtrs, NULL);
-      if (error) {
-        printf("error in launch: %s\n",
-                cudaGetErrorString((cudaError_t)error));
-        exit(1);
-      }
+                        block.z, 0, NULL, argPtrs, NULL);
     }
 #endif
 
@@ -409,8 +405,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "", bool CUDAkernel = false,
                 char* ptxCode = nullptr, char* kernelName = nullptr) {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
-                                                                  code, false, nullptr, nullptr, f);
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn, code, false, nullptr, nullptr, f);
   }
 
   /// Generates function which computes derivative of `fn` argument w.r.t
@@ -452,11 +448,13 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F f, ArgSpec args = "", DerivedFnType derivedFn =
-               static_cast<DerivedFnType>(nullptr),
-           const char* code = "", bool CUDAkernel = false, char *ptxCode = nullptr, char *kernelName = nullptr) {
+           static_cast<DerivedFnType>(nullptr),
+           const char* code = "", bool CUDAkernel = false, 
+           char *ptxCode = nullptr, char *kernelName = nullptr) {
     assert(f && "Must pass in a non-0 argument");
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-        derivedFn /* will be replaced by gradient*/, code, CUDAkernel, ptxCode, kernelName);
+        derivedFn /* will be replaced by gradient*/, code, CUDAkernel, ptxCode,
+        kernelName);
   }
 
   /// Specialization for differentiating functors.
@@ -513,7 +511,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
           const char* code = "", bool CUDAkernel = false,
           char* ptxCode = nullptr, char* kernelName = nullptr) {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-        derivedFn /* will be replaced by hessian*/, code, false, nullptr, nullptr, f);
+        derivedFn /* will be replaced by hessian*/, code, false, nullptr, 
+        nullptr, f);
   }
 
   /// Generates function which computes jacobian matrix of the given function
@@ -552,7 +551,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
            const char* code = "", bool CUDAkernel = false,
            char* ptxCode = nullptr, char* kernelName = nullptr) {
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-        derivedFn /* will be replaced by Jacobian*/, code, false, nullptr, nullptr, f);
+        derivedFn /* will be replaced by Jacobian*/, code, false, nullptr, 
+        nullptr, f);
   }
 
   template <typename ArgSpec = const char*, typename F,

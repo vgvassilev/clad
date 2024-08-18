@@ -160,9 +160,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
     m_Sema.CurContext = DC;
-    DeclWithContext gradientOverloadFDWC =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
-                                gradientNameInfo, gradientFunctionOverloadType, false);
+    DeclWithContext gradientOverloadFDWC = m_Builder.cloneFunction(
+        m_DiffReq.Function, *this, DC, noLoc, gradientNameInfo, 
+        gradientFunctionOverloadType, false);
     FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
 
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
@@ -372,8 +372,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
-    DeclWithContext result = m_Builder.cloneFunction(
-        m_DiffReq.Function, *this, DC, noLoc, name, gradientFunctionType, false);
+    DeclWithContext result = 
+        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc, name,
+                                gradientFunctionType, false);
     FunctionDecl* gradientFD = result.first;
     m_Derivative = gradientFD;
 

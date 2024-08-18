@@ -98,7 +98,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   DeclWithContext DerivativeBuilder::cloneFunction(
       const clang::FunctionDecl* FD, clad::VisitorBase& VB,
       clang::DeclContext* DC, clang::SourceLocation& noLoc,
-      clang::DeclarationNameInfo name, clang::QualType functionType, bool cloneKernelGlobalAttr) {
+      clang::DeclarationNameInfo name, clang::QualType functionType, 
+      bool cloneKernelGlobalAttr) {
     FunctionDecl* returnedFD = nullptr;
     NamespaceDecl* enclosingNS = nullptr;
     if (isa<CXXMethodDecl>(FD)) {
@@ -127,7 +128,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     for (const FunctionDecl* NFD : FD->redecls())
       for (const auto* Attr : NFD->attrs())
         if (!hasAttribute(returnedFD, Attr->getKind()) &&
-             !(Attr->getKind() == attr::Kind::CUDAGlobal && !cloneKernelGlobalAttr))
+            !(Attr->getKind() == attr::Kind::CUDAGlobal &&
+              !cloneKernelGlobalAttr))
           returnedFD->addAttr(Attr->clone(m_Context));
 
     return { returnedFD, enclosingNS };

@@ -267,9 +267,9 @@ namespace clad {
         StringLiteral* PTXString =
             utils::CreateStringLiteral(C, std::string(ptx_code));
         Expr* PTXExpr = SemaRef
-                           .ImpCastExprToType(PTXString, Arg->getType(),
+                            .ImpCastExprToType(PTXString, Arg->getType(),
                                               CK_ArrayToPointerDecay)
-                           .get();
+                            .get();
 
         call->setArg(ptxCodeArgIdx, PTXExpr);
 
@@ -790,8 +790,8 @@ namespace clad {
       request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
       request.CUDAkernel = derivedFD->hasAttr<CUDAGlobalAttr>();
 
-      if (request.CUDAkernel && !(request.Mode == DiffMode::reverse ||
-                                  request.Mode == DiffMode::reverse_mode_forward_pass)) { 
+      if (request.CUDAkernel && request.Mode != DiffMode::reverse &&
+          request.Mode != DiffMode::reverse_mode_forward_pass) {
         utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
                         "CUDA kernels are only supported in reverse mode.");
         return true;
