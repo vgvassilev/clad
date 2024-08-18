@@ -145,6 +145,15 @@ double fn4(double i, double j) {
 // CHECK-NEXT:         _d_q.second += 1 * j;
 // CHECK-NEXT:         *_d_j += q.second * 1;
 // CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {{.*}} _r2 = {};
+// CHECK-NEXT:         int _r3 = 0;
+// CHECK-NEXT:         int _r4 = 0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _r0 = 0;
+// CHECK-NEXT:         int _r1 = 0;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: void someMemFn_grad(double i, double j, Tangent *_d_this, double *_d_i, double *_d_j) {

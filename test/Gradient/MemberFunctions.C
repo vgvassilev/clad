@@ -574,11 +574,17 @@ int main() {
 // CHECK-NEXT:     SimpleFunctions sf(x, y);
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
 // CHECK-NEXT:     {
+// CHECK-NEXT:         double _r2 = 0;
+// CHECK-NEXT:         double _r3 = 0;
+// CHECK-NEXT:         _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
+// CHECK-NEXT:         *_d_i += _r2;
+// CHECK-NEXT:         *_d_j += _r3;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;
-// CHECK-NEXT:         _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
-// CHECK-NEXT:         *_d_i += _r0;
-// CHECK-NEXT:         *_d_j += _r1;
+// CHECK-NEXT:         _d_x += _r0;
+// CHECK-NEXT:         _d_y += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

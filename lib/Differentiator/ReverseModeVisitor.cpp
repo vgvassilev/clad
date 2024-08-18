@@ -33,6 +33,10 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <clang/AST/DeclCXX.h>
+#include <clang/AST/ExprCXX.h>
+#include <clang/AST/OperationKinds.h>
+#include <clang/Sema/Ownership.h>
 #include <numeric>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -2752,6 +2756,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
 
+    ConstructorPullbackCallInfo constructorPullbackInfo;
+
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (const auto* AT = dyn_cast<ArrayType>(VDType)) {
@@ -2805,6 +2811,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (promoteToFnScope || !isRefType)
           VDDerivedInit = getZeroInit(VDDerivedType);
         else
+          VDDerivedInit = initDiff.getForwSweepExpr_dx();
+      }
+
+      if (VD->getType()->isStructureOrClassType()) {
+        m_TrackConstructorPullbackInfo = true;
+        initDiff = Visit(VD->getInit());
+        m_TrackConstructorPullbackInfo = false;
+        constructorPullbackInfo = getConstructorPullbackCallInfo();
+        resetConstructorPullbackCallInfo();
+        if (initDiff.getForwSweepExpr_dx())
           VDDerivedInit = initDiff.getForwSweepExpr_dx();
       }
 
@@ -2869,9 +2885,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
 
       if (VD->getInit()) {
-        if (isa<CXXConstructExpr>(VD->getInit()))
-          initDiff = Visit(VD->getInit());
-        else
+        if (VD->getType()->isStructureOrClassType()) {
+          if (!initDiff.getExpr())
+            initDiff = Visit(VD->getInit());
+        } else
           initDiff = Visit(VD->getInit(), derivedE);
       }
 
@@ -2983,6 +3000,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
          VDType != VDClone->getType()))
       m_DeclReplacements[VD] = VDClone;
 
+    if (!constructorPullbackInfo.empty()) {
+      Expr* thisE =
+          BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(VDClone));
+      Expr* dThisE =
+          BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(VDDerived));
+      constructorPullbackInfo.updateThisParmArgs(thisE, dThisE);
+    }
     return DeclDiff<VarDecl>(VDClone, VDDerived);
   }
 
@@ -4100,20 +4124,139 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {nullptr, nullptr};
   }
 
-  // FIXME: Add support for differentiating calls to constructors.
-  // We currently assume that constructor arguments are non-differentiable.
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
-    llvm::SmallVector<Expr*, 4> clonedArgs;
+
+    llvm::SmallVector<Expr*, 4> primalArgs;
+    llvm::SmallVector<Expr*, 4> adjointArgs;
+    llvm::SmallVector<Expr*, 4> reverseForwAdjointArgs;
+    // It is used to store '_r0' temporary gradient variables that are used for
+    // differentiating non-reference args.
+    llvm::SmallVector<Stmt*, 4> prePullbackCallStmts;
+
+    // Insertion point is required because we need to insert pullback call
+    // before the statements inserted by 'Visit(arg, ...)' calls for arguments.
+    std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
+
+    // FIXME: Restore arguments passed as non-const reference.
     for (const auto* arg : CE->arguments()) {
-      auto argDiff = Visit(arg, dfdx());
-      clonedArgs.push_back(argDiff.getExpr());
+      StmtDiff argDiff{};
+      Expr* adjointArg = nullptr;
+      if (utils::IsReferenceOrPointerArg(arg)) {
+        argDiff = Visit(arg);
+        adjointArg = argDiff.getExpr_dx();
+      } else {
+        // non-reference arguments are differentiated as follows:
+        //
+        // primal code:
+        // ```
+        // SomeClass c(u, ...);
+        // ```
+        //
+        // Derivative code:
+        // ```
+        // // forward pass
+        // ...
+        // // reverse pass
+        // double _r0 = 0;
+        // SomeClass_pullback(c, u, ..., &_d_c, &_r0, ...);
+        // _d_u += _r0;
+        QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        prePullbackCallStmts.push_back(BuildDeclStmt(dArgDecl));
+        adjointArg = BuildDeclRef(dArgDecl);
+        argDiff = Visit(arg, BuildDeclRef(dArgDecl));
+      }
+
+      if (utils::isArrayOrPointerType(arg->getType())) {
+        reverseForwAdjointArgs.push_back(adjointArg);
+        adjointArgs.push_back(adjointArg);
+      } else {
+        if (arg->getType()->isReferenceType())
+          reverseForwAdjointArgs.push_back(adjointArg);
+        else
+          reverseForwAdjointArgs.push_back(getZeroInit(arg->getType()));
+        adjointArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, adjointArg,
+                                      m_DiffReq->getLocation()));
+      }
+      primalArgs.push_back(argDiff.getExpr());
     }
+    // Try to create a pullback constructor call
+
+    llvm::SmallVector<Expr*, 4> pullbackArgs;
+    QualType recordType =
+        m_Context.getRecordType(CE->getConstructor()->getParent());
+    QualType recordPointerType = m_Context.getPointerType(recordType);
+    // thisE = object being created by this constructor call.
+    // dThisE = adjoint of the object being created by this constructor call.
+    //
+    // We cannot fill these args yet because these objects have not yet been
+    // created. The caller which triggers 'VisitCXXConstructExpr' is
+    // responsible for updating these args.
+    Expr* thisE = getZeroInit(recordPointerType);
+    Expr* dThisE = getZeroInit(recordPointerType);
+
+    pullbackArgs.push_back(thisE);
+    pullbackArgs.append(primalArgs.begin(), primalArgs.end());
+    pullbackArgs.push_back(dThisE);
+    pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
+
+    Stmts& curRevBlock = getCurrentBlock(direction::reverse);
+    Stmts::iterator it = std::begin(curRevBlock) + insertionPoint;
+    curRevBlock.insert(it, prePullbackCallStmts.begin(),
+                       prePullbackCallStmts.end());
+    it += prePullbackCallStmts.size();
+    std::string customPullbackName = "constructor_pullback";
+    if (Expr* customPullbackCall =
+            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                customPullbackName, pullbackArgs, getCurrentScope(),
+                const_cast<DeclContext*>(
+                    CE->getConstructor()->getDeclContext()))) {
+      curRevBlock.insert(it, customPullbackCall);
+      if (m_TrackConstructorPullbackInfo) {
+        setConstructorPullbackCallInfo(llvm::cast<CallExpr>(customPullbackCall),
+                                       primalArgs.size() + 1);
+        m_TrackConstructorPullbackInfo = false;
+      }
+    }
+    // FIXME: If no compatible custom constructor pullback is found then try
+    // to automatically differentiate the constructor.
+
+    // Create the constructor call in the forward-pass, or creates
+    // 'constructor_forw' call if possible.
+
+    // This works as follows:
+    //
+    // primal code:
+    // ```
+    // SomeClass c(u, v);
+    // ```
+    //
+    // adjoint code:
+    // ```
+    // // forward-pass
+    // clad::ValueAndAdjoint<SomeClass, SomeClass> _t0 =
+    //   constructor_forw(clad::ConstructorReverseForwTag<SomeClass>{}, u, v,
+    //     _d_u, _d_v);
+    // SomeClass _d_c = _t0.adjoint;
+    // SomeClass c = _t0.value;
+    // ```
+    if (Expr* customReverseForwFnCall = BuildCallToCustomForwPassFn(
+            CE->getConstructor(), primalArgs, reverseForwAdjointArgs,
+            /*baseExpr=*/nullptr)) {
+      Expr* callRes = StoreAndRef(customReverseForwFnCall);
+      Expr* val =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+      Expr* adjoint =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      return {val, nullptr, adjoint};
+    }
+
     Expr* clonedArgsE = nullptr;
 
     if (CE->getNumArgs() != 1) {
       if (CE->isListInitialization()) {
-        clonedArgsE = m_Sema.ActOnInitList(noLoc, clonedArgs, noLoc).get();
+        clonedArgsE = m_Sema.ActOnInitList(noLoc, primalArgs, noLoc).get();
       } else {
         if (CE->getNumArgs() == 0) {
           // ParenList is empty -- default initialisation.
@@ -4121,10 +4264,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // parse' issue.
           return StmtDiff();
         }
-        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, clonedArgs).get();
+        clonedArgsE = m_Sema.ActOnParenListExpr(noLoc, noLoc, primalArgs).get();
       }
     } else {
-      clonedArgsE = clonedArgs[0];
+      clonedArgsE = primalArgs[0];
     }
     // `CXXConstructExpr` node will be created automatically by passing these
     // initialiser to higher level `ActOn`/`Build` Sema functions.
@@ -4373,6 +4516,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                          m_DiffReq->getLocation());
       args.push_back(baseExpr);
     }
+    if (auto CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
+      const RecordDecl* RD = CD->getParent();
+      QualType constructorReverseForwTagT =
+          GetCladConstructorReverseForwTagOfType(m_Context.getRecordType(RD));
+      Expr* constructorReverseForwTagArg =
+          m_Sema
+              .BuildCXXTypeConstructExpr(
+                  m_Context.getTrivialTypeSourceInfo(
+                      constructorReverseForwTagT, utils::GetValidSLoc(m_Sema)),
+                  utils::GetValidSLoc(m_Sema), MultiExprArg{},
+                  utils::GetValidSLoc(m_Sema),
+                  /*ListInitialization=*/false)
+              .get();
+      args.push_back(constructorReverseForwTagArg);
+    }
     args.append(primalArgs.begin(), primalArgs.end());
     args.append(derivedArgs.begin(), derivedArgs.end());
     Expr* customForwPassCE =
@@ -4380,5 +4538,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             forwPassFnName, args, getCurrentScope(),
             const_cast<DeclContext*>(FD->getDeclContext()));
     return customForwPassCE;
+  }
+
+  // clang::Expr* ReverseModeVisitor::BuildCallToCustomForwPassConstructor(
+  //     const clang::CXXConstructExpr* CE,
+  //     llvm::ArrayRef<clang::Expr*> primalArgs,
+  //     llvm::ArrayRef<clang::Expr*> derivedArgs) {
+  //   llvm::SmallVector<Expr*, 4> reverseForwCallArgs;
+  //   QualType constructorReverseForwTagT =
+  //       GetCladConstructorReverseForwTagOfType(
+  //           CE->getType().withoutLocalFastQualifiers());
+  //   Expr* constructorReverseForwTagArg = m_Sema.BuildCXXTypeConstructExpr(
+  //       m_Context.getTrivialTypeSourceInfo(constructorReverseForwTagT),
+  //       noLoc, MultiExprArg{}, noLoc, /*ListInitialization=*/false).get();
+  //   reverseForwCallArgs.push_back(constructorReverseForwTagArg);
+  //   reverseForwCallArgs.append(clonedArgs.begin(), clonedArgs.end());
+  //   reverseForwCallArgs.append(derivedArgs.begin(), derivedArgs.end());
+  //   std::string reverseForw
+  // }
+
+  void ReverseModeVisitor::ConstructorPullbackCallInfo::updateThisParmArgs(
+      Expr* thisE, Expr* dThisE) const {
+    pullbackCE->setArg(0, thisE);
+    pullbackCE->setArg(thisAdjointArgIdx, dThisE);
   }
 } // end namespace clad

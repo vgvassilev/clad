@@ -54,6 +54,8 @@ template <typename T, typename U> struct ValueAndAdjoint {
 /// class for which constructor pushforward is defined.
 template <class T> class ConstructorPushforwardTag {};
 
+template <class T> class ConstructorReverseForwTag {};
+
 namespace custom_derivatives {
 #ifdef __CUDACC__
 template <typename T>
@@ -329,6 +331,16 @@ using std::pow_pullback;
 using std::pow_pushforward;
 using std::sin_pushforward;
 using std::sqrt_pushforward;
+
+namespace class_functions {
+template <typename T, typename U>
+void constructor_pullback(ValueAndPushforward<T, U>* lhs,
+                          ValueAndPushforward<T, U> rhs,
+                          ValueAndPushforward<T, U>* d_lhs,
+                          ValueAndPushforward<T, U>* d_rhs) {
+  d_rhs->pushforward += d_lhs->pushforward;
+}
+} // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad
 
