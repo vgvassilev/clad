@@ -22,12 +22,8 @@
 #include <cstring>
 
 namespace clad {
-template <typename T, typename U> struct ValueAndAdjoint {
-  T value;
-  U adjoint;
-};
 
-  /// \returns the size of a c-style string
+/// \returns the size of a c-style string
 inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   const char* code_copy = code;
 #ifdef __CUDACC__
@@ -507,7 +503,7 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 
   // Gradient Structure for Reverse Mode Enzyme
   template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
-}
+  } // namespace clad
 #endif // CLAD_DIFFERENTIATOR
 
 // Enable clad after the header was included.

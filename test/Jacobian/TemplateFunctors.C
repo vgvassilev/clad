@@ -20,12 +20,12 @@ template <typename T> struct Experiment {
 // CHECK-NEXT:     output[0] = this->x * this->y * i * j;
 // CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += 2 * this->x * this->y * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{3U|3UL}}] += 2 * this->x * this->y * i * 1;
+// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL}}] += this->x * this->y * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{1U|1UL}}] += this->x * this->y * i * 1;
+// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -43,14 +43,14 @@ template <> struct Experiment<long double> {
 // CHECK-NEXT:     output[0] = this->x * this->y * i * i * j;
 // CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * i * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += 2 * this->x * this->y * 1 * j * i;
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += 2 * this->x * this->y * i * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{3U|3UL}}] += 2 * this->x * this->y * i * i * 1;
+// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j * i;
+// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * i * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL}}] += this->x * this->y * 1 * j * i;
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL}}] += this->x * this->y * i * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{1U|1UL}}] += this->x * this->y * i * i * 1;
+// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j * i;
+// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * i * 1 * j;
+// CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * i * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

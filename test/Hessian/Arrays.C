@@ -9,16 +9,16 @@
 
 double f(double i, double j[2]) { return i * j[0] * j[1]; }
 // CHECK: void f_hessian(double i, double j[2], double *hessianMatrix) {
-// CHECK-NEXT:     f_darg0_grad(i, j, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:     f_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL}}, hessianMatrix + {{4U|4UL}});
-// CHECK-NEXT:     f_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL}}, hessianMatrix + {{7U|7UL}});
+// CHECK-NEXT:     f_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     f_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:     f_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
 // CHECK-NEXT: }
 
 double g(double i, double j[2]) { return i * (j[0] + j[1]); }
 // CHECK: void g_hessian(double i, double j[2], double *hessianMatrix) {
-// CHECK-NEXT:   g_darg0_grad(i, j, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:   g_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL}}, hessianMatrix + {{4U|4UL}});
-// CHECK-NEXT:   g_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL}}, hessianMatrix + {{7U|7UL}});
+// CHECK-NEXT:   g_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:   g_darg1_0_grad(i, j, hessianMatrix + {{3U|3UL|3ULL}}, hessianMatrix + {{4U|4UL|4ULL}});
+// CHECK-NEXT:   g_darg1_1_grad(i, j, hessianMatrix + {{6U|6UL|6ULL}}, hessianMatrix + {{7U|7UL|7ULL}});
 // CHECK-NEXT: }
 
 double h(double arr[3], double weights[3], double multiplier) {

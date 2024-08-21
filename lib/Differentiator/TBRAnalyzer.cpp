@@ -188,7 +188,9 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
   return EData;
 }
 
-TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
+TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
+                              bool forceNonRefType) {
+  QT = QT.getDesugaredType(C);
   if (forceNonRefType && QT->isReferenceType())
     QT = QT->getPointeeType();
 
@@ -205,7 +207,7 @@ TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
       elemType = QT->getArrayElementTypeNoTypeQual();
     ProfileID nonConstIdxID;
     auto& idxData = (*m_Val.m_ArrData)[nonConstIdxID];
-    idxData = VarData(QualType::getFromOpaquePtr(elemType));
+    idxData = VarData(QualType::getFromOpaquePtr(elemType), C);
   } else if (QT->isBuiltinType()) {
     m_Type = VarData::FUND_TYPE;
     m_Val.m_FundData = false;
@@ -216,7 +218,7 @@ TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
     newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
     for (const auto* field : recordDecl->fields()) {
       const auto varType = field->getType();
-      (*newArrMap)[getProfileID(field)] = VarData(varType);
+      (*newArrMap)[getProfileID(field)] = VarData(varType, C);
     }
   }
 }
@@ -287,11 +289,11 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   if (const auto* const pointerType = dyn_cast<clang::PointerType>(varType)) {
     const auto* elemType = pointerType->getPointeeType().getTypePtrOrNull();
     if (elemType && elemType->isRecordType()) {
-      curBranch[VD] = VarData(QualType::getFromOpaquePtr(elemType));
+      curBranch[VD] = VarData(QualType::getFromOpaquePtr(elemType), m_Context);
       return;
     }
   }
-  curBranch[VD] = VarData(varType, forceNonRefType);
+  curBranch[VD] = VarData(varType, m_Context, forceNonRefType);
 }
 
 void TBRAnalyzer::markLocation(const clang::Expr* E) {
@@ -331,7 +333,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   if (MD && !MD->isStatic()) {
     const Type* recordType = MD->getParent()->getTypeForDecl();
     getCurBlockVarsData()[nullptr] =
-        VarData(QualType::getFromOpaquePtr(recordType));
+        VarData(QualType::getFromOpaquePtr(recordType), m_Context);
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)

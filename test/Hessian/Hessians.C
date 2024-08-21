@@ -20,8 +20,8 @@ void f_cubed_add1_darg1_grad(double a, double b, double *_d_a, double *_d_b);
 
 void f_cubed_add1_hessian(double a, double b, double *hessianMatrix);
 //CHECK:{{[__attribute__((always_inline)) ]*}}void f_cubed_add1_hessian(double a, double b, double *hessianMatrix){{[ __attribute__((always_inline))]*}} {
-//CHECK-NEXT:    f_cubed_add1_darg0_grad(a, b, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-//CHECK-NEXT:    f_cubed_add1_darg1_grad(a, b, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+//CHECK-NEXT:    f_cubed_add1_darg0_grad(a, b, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    f_cubed_add1_darg1_grad(a, b, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
 //CHECK-NEXT: }
 
 double f_suvat1(double u, double t) {
@@ -33,8 +33,8 @@ void f_suvat1_darg1_grad(double u, double t, double *_d_u, double *_d_t);
 
 void f_suvat1_hessian(double u, double t, double *hessianMatrix);
 //CHECK:void f_suvat1_hessian(double u, double t, double *hessianMatrix) {
-//CHECK-NEXT:    f_suvat1_darg0_grad(u, t, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-//CHECK-NEXT:    f_suvat1_darg1_grad(u, t, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+//CHECK-NEXT:    f_suvat1_darg0_grad(u, t, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    f_suvat1_darg1_grad(u, t, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
 //CHECK-NEXT:}
 
 double f_cond3(double x, double c) {
@@ -51,8 +51,8 @@ void f_cond3_darg1_grad(double x, double c, double *_d_x, double *_d_c);
 
 void f_cond3_hessian(double x, double c, double *hessianMatrix);
 //CHECK:void f_cond3_hessian(double x, double c, double *hessianMatrix) {
-//CHECK-NEXT:    f_cond3_darg0_grad(x, c, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-//CHECK-NEXT:    f_cond3_darg1_grad(x, c, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+//CHECK-NEXT:    f_cond3_darg0_grad(x, c, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+//CHECK-NEXT:    f_cond3_darg1_grad(x, c, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
 //CHECK-NEXT:}
 
 double f_power10(double x) {
@@ -63,7 +63,7 @@ void f_power10_darg0_grad(double x, double *_d_x);
 
 void f_power10_hessian(double x, double *hessianMatrix);
 //CHECK: void f_power10_hessian(double x, double *hessianMatrix) {
-//CHECK-NEXT:     f_power10_darg0_grad(x, hessianMatrix + {{0U|0UL}});
+//CHECK-NEXT:     f_power10_darg0_grad(x, hessianMatrix + {{0U|0UL|0ULL}});
 //CHECK-NEXT: }
 
 struct Experiment {
@@ -85,9 +85,9 @@ struct Experiment {
   void someMethod_hessian(double x, double *hessianMatrix);
   // CHECK: void someMethod_hessian(double i, double j, double *hessianMatrix) {
   // CHECK-NEXT:     Experiment _d_this;
-  // CHECK-NEXT:     this->someMethod_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+  // CHECK-NEXT:     this->someMethod_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   // CHECK-NEXT:     Experiment _d_this0;
-  // CHECK-NEXT:     this->someMethod_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+  // CHECK-NEXT:     this->someMethod_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
   // CHECK-NEXT: }
 };
 
@@ -112,9 +112,9 @@ struct Widget {
                        double *hessianMatrix);
   // CHECK: void memFn_1_hessian(double i, double j, double *hessianMatrix) {
   // CHECK-NEXT:     Widget _d_this;
-  // CHECK-NEXT:     this->memFn_1_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+  // CHECK-NEXT:     this->memFn_1_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   // CHECK-NEXT:     Widget _d_this0;
-  // CHECK-NEXT:     this->memFn_1_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+  // CHECK-NEXT:     this->memFn_1_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
   // CHECK-NEXT: }
 
   double memFn_2(double i, double j) {
@@ -137,9 +137,9 @@ struct Widget {
                        double *hessianMatrix);
   // CHECK: void memFn_2_hessian(double i, double j, double *hessianMatrix) {
   // CHECK-NEXT:     Widget _d_this;
-  // CHECK-NEXT:     this->memFn_2_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
+  // CHECK-NEXT:     this->memFn_2_darg0_grad(i, j, &_d_this, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
   // CHECK-NEXT:     Widget _d_this0;
-  // CHECK-NEXT:     this->memFn_2_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+  // CHECK-NEXT:     this->memFn_2_darg1_grad(i, j, &_d_this0, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
   // CHECK-NEXT: }
 };
 

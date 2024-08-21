@@ -1314,7 +1314,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     auto* dfdf = m_Pullback;
-    if (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) {
+    if (dfdf && (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf))) {
       ExprResult tmp = dfdf;
       dfdf = m_Sema
                  .ImpCastExprToType(tmp.get(), type,
@@ -1799,6 +1799,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Stores differentiation result of implicit `this` object, if any.
     StmtDiff baseDiff;
+    Expr* baseExpr = nullptr;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
@@ -1822,6 +1823,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             baseOriginalE = OCE->getArg(0);
 
           baseDiff = Visit(baseOriginalE);
+          baseExpr = baseDiff.getExpr();
           Expr* baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
           baseDiff.updateStmt(baseDiffStore);
           Expr* baseDerivative = baseDiff.getExpr_dx();
@@ -2007,8 +2009,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* call = nullptr;
 
     QualType returnType = FD->getReturnType();
-    if (returnType->isReferenceType() &&
-        !returnType.getNonReferenceType().isConstQualified()) {
+    if (baseDiff.getExpr_dx() &&
+        !baseDiff.getExpr_dx()->getType()->isPointerType())
+      CallArgDx.insert(CallArgDx.begin(), BuildOp(UnaryOperatorKind::UO_AddrOf,
+                                                  baseDiff.getExpr_dx(), Loc));
+
+    if (Expr* customForwardPassCE =
+            BuildCallToCustomForwPassFn(FD, CallArgs, CallArgDx, baseExpr)) {
+      if (!utils::isNonConstReferenceType(returnType) &&
+          !returnType->isPointerType())
+        return StmtDiff{customForwardPassCE};
+      auto* callRes = StoreAndRef(customForwardPassCE);
+      auto* resValue =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
+      auto* resAdjoint =
+          utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      return StmtDiff(resValue, nullptr, resAdjoint);
+    }
+    if (utils::isNonConstReferenceType(returnType) ||
+        returnType->isPointerType()) {
       DiffRequest calleeFnForwPassReq;
       calleeFnForwPassReq.Function = FD;
       calleeFnForwPassReq.Mode = DiffMode::reverse_mode_forward_pass;
@@ -2047,21 +2066,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                        e = CE->getNumArgs();
            i != e; ++i) {
         const Expr* arg = CE->getArg(i);
-        const ParmVarDecl* PVD =
-            FD->getParamDecl(i - static_cast<unsigned long>(isCXXOperatorCall));
         StmtDiff argDiff = Visit(arg);
-        if ((argDiff.getExpr_dx() != nullptr) &&
-            PVD->getType()->isReferenceType()) {
-          Expr* derivedArg = argDiff.getExpr_dx();
-          // FIXME: We may need this if-block once we support pointers, and
-          // passing pointers-by-reference if
-          // (isCladArrayType(derivedArg->getType()))
-          //   CallArgs.push_back(derivedArg);
-          // else
-          CallArgs.push_back(
-              BuildOp(UnaryOperatorKind::UO_AddrOf, derivedArg, Loc));
-        } else
-          CallArgs.push_back(m_Sema.ActOnCXXNullPtrLiteral(Loc).get());
+        CallArgs.push_back(argDiff.getExpr_dx());
       }
       if (baseDiff.getExpr()) {
         Expr* baseE = baseDiff.getExpr();
@@ -2079,7 +2085,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       auto* resAdjoint =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
-      return StmtDiff(resValue, nullptr, resAdjoint);
+      return StmtDiff(resValue, resAdjoint, resAdjoint);
     } // Recreate the original call expression.
     call = m_Sema
                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
@@ -4110,7 +4116,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // respect to variable of type X, then the derivative should be of type
         // X. Check this related issue for more details:
         // https://github.com/vgvassilev/clad/issues/385
-        if (effectiveReturnType->isVoidType())
+        if (effectiveReturnType->isVoidType() ||
+            effectiveReturnType->isPointerType())
           effectiveReturnType = m_Context.DoubleTy;
         else
           paramTypes.push_back(effectiveReturnType);
@@ -4150,7 +4157,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     std::size_t dParamTypesIdx = m_DiffReq->getNumParams();
 
     if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
-        !m_DiffReq->getReturnType()->isVoidType()) {
+        !m_DiffReq->getReturnType()->isVoidType() &&
+        !m_DiffReq->getReturnType()->isPointerType()) {
       ++dParamTypesIdx;
     }
 
@@ -4221,7 +4229,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
-        !m_DiffReq->getReturnType()->isVoidType()) {
+        !m_DiffReq->getReturnType()->isVoidType() &&
+        !m_DiffReq->getReturnType()->isPointerType()) {
       IdentifierInfo* pullbackParamII = CreateUniqueIdentifier("_d_y");
       QualType pullbackType =
           derivativeFnType->getParamType(m_DiffReq->getNumParams());
@@ -4259,5 +4268,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_IndependentVars.insert(m_IndependentVars.end(), diffParams.begin(),
                                diffParams.end());
     return params;
+  }
+
+  Expr* ReverseModeVisitor::BuildCallToCustomForwPassFn(
+      const FunctionDecl* FD, llvm::ArrayRef<Expr*> primalArgs,
+      llvm::ArrayRef<clang::Expr*> derivedArgs, Expr* baseExpr) {
+    std::string forwPassFnName =
+        clad::utils::ComputeEffectiveFnName(FD) + "_reverse_forw";
+    llvm::SmallVector<Expr*, 4> args;
+    if (baseExpr) {
+      baseExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, baseExpr,
+                         m_DiffReq->getLocation());
+      args.push_back(baseExpr);
+    }
+    args.append(primalArgs.begin(), primalArgs.end());
+    args.append(derivedArgs.begin(), derivedArgs.end());
+    Expr* customForwPassCE =
+        m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+            forwPassFnName, args, getCurrentScope(),
+            const_cast<DeclContext*>(FD->getDeclContext()));
+    return customForwPassCE;
   }
 } // end namespace clad

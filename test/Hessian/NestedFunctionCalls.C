@@ -23,8 +23,8 @@ double f2(double x, double y){
 // CHECK: void f2_darg1_grad(double x, double y, double *_d_x, double *_d_y);
 
 // CHECK: void f2_hessian(double x, double y, double *hessianMatrix) {
-// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
+// CHECK-NEXT:     f2_darg0_grad(x, y, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     f2_darg1_grad(x, y, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
 // CHECK-NEXT: }
 
 // CHECK: clad::ValueAndPushforward<double, double> f_pushforward(double x, double y, double _d_x, double _d_y);
