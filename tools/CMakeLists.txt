@@ -51,15 +51,15 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     clad ${CLAD_PLUGIN_SRC} DISABLE_LLVM_LINK_LLVM_DYLIB PLUGIN_TOOL clang
     )
 
-  if (CUDA_FOUND)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-        # For 32-bit systems
-        set(cuda_lib_dir ${CUDA_TOOLKIT_ROOT_DIR}/lib)
-    else()
-        # For 64-bit systems
-        set(cuda_lib_dir ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
-    endif()
-    set (cuda_flags -L${cuda_lib_dir} -lcudart_static -ldl -lrt -pthread -lm -lstdc++ ${CUDA_nvrtc_LIBRARY} ${cuda_lib_dir}/stubs/libcuda.so)
+  if (CUDAToolkit_FOUND)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+          # For 32-bit systems
+          set(cuda_lib_dir ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+      else()
+          # For 64-bit systems
+          set(cuda_lib_dir ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
+      endif()
+    set (cuda_flags -L${cuda_lib_dir} -L${cuda_lib_dir}/stubs -lcudart_static -ldl -lrt -pthread -lm -lstdc++ -lcuda -nvrtc)
   endif()
   target_link_libraries(clad PRIVATE ${link_libs} ${cuda_flags})
 

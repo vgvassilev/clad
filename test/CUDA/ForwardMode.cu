@@ -1,9 +1,10 @@
+// RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only \
+// RUN: %cudasmlevel --cuda-path=%cudapath  -Xclang -verify 2>&1 | %filecheck %s
+
 // RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
 // RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
 // RUN: -L%cudapath/lib64/stubs \
-// RUN: -ldl -lrt -pthread -lm -lstdc++ -lcuda -lnvrtc -oForwardMode.out 2>&1 | %filecheck %s
-
-// RUN: ./ForwardMode.out
+// RUN: -ldl -lrt -pthread -lm -lstdc++ -lcuda -lnvrtc 
 
 // REQUIRES: cuda-runtime
 

@@ -1,6 +1,3 @@
-// The Test checks whether a clad gradient can be successfully be generated on
-// the device having all the dependencies also as device functions.
-
 // RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only \
 // RUN: %cudasmlevel --cuda-path=%cudapath  -Xclang -verify 2>&1 | %filecheck %s
 
