@@ -11,6 +11,16 @@ double f1(double x) {
   return t;
 } // == x^3
 
+double f2(double val) {
+  double res = 0;
+  for (int i=1; i<5; ++i) {
+    if (i == 3)
+      continue;
+    res += i * val;
+  }
+  return res;
+}
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_tbr>(F);\
@@ -21,5 +31,5 @@ double f1(double x) {
 int main() {
   double result[3] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
-
+  TEST(f2, 3); // CHECK-EXEC: {9.00}
 }

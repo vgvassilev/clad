@@ -484,7 +484,7 @@ TBRAnalyzer::collectDataFromPredecessors(VarsData* varsData,
   std::unordered_map<const clang::VarDecl*, VarData*> result;
   if (varsData != limit) {
     // Copy data from every predecessor.
-    for (auto* pred = varsData->m_Prev; pred != limit; pred = pred->m_Prev) {
+    for (auto* pred = varsData; pred != limit; pred = pred->m_Prev) {
       // If a variable from 'pred' is not present in 'result', place it there.
       for (auto& pair : *pred)
         if (result.find(pair.first) == result.end())
