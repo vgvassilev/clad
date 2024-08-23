@@ -1,8 +1,8 @@
 #include <Kokkos_Core.hpp>
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/KokkosBuiltins.h"
 #include "gtest/gtest.h"
 // #include "TestUtils.h"
-#include "ParallelAdd.h"
 
 TEST(ParallelReduce, HelloWorldLambdaLoopForward) {
   // // check finite difference and forward mode similarity
@@ -92,4 +92,91 @@ TEST(ParallelReduce, ParallelPolynomialReverse) {
   //   f_grad.execute(x, &dx);
   //   EXPECT_NEAR(dx_f_true, dx, abs(tau*dx));
   // }
+}
+
+struct Foo3 {
+  double& x;
+
+  Foo3(double& _x) : x(_x) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const int& i, double& value) const {
+    // 1+x*(value) -> 1+x(1+x(1+x(...)))
+    value = x * value + 1;
+  }
+};
+
+double parallel_recursive_polynomial_reduce(double x) {
+  double r = 0;
+
+  Foo3 f(x);
+
+  f(0, r); // FIXME: this is a workaround to put Foo3::operator() into the
+           // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_reduce("polynomial", 3, f, r);
+
+  return r;
+}
+
+double parallel_recursive_polynomial_reduce_rangepol(double x) {
+  double r = 0;
+
+  Foo3 f(x);
+
+  f(0, r); // FIXME: this is a workaround to put Foo3::operator() into the
+           // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_reduce(
+      "polynomial",
+      Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(0, 3), f, r);
+
+  return r;
+}
+
+struct Foo4 {
+  double& x;
+
+  Foo4(double& _x) : x(_x) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const int& i, const int& j, double& value) const {
+    value += j * i * x;
+  }
+};
+
+double parallel_MD_polynomial_reduce(double x) {
+  double r = 0;
+
+  Foo4 f(x);
+
+  f(1, 1, r); // FIXME: this is a workaround to put Foo4::operator() into the
+              // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_reduce(
+      "polynomial",
+      Kokkos::MDRangePolicy<
+          Kokkos::DefaultHostExecutionSpace,
+          Kokkos::Rank<2, Kokkos::Iterate::Right, Kokkos::Iterate::Left>>(
+          {1, 1}, {5, 5}, {1, 1}),
+      f, r);
+
+  return r;
+}
+
+TEST(ParallelReduce, FunctorSimplestCases) {
+  const double eps = 1e-8;
+
+  auto df1 = clad::differentiate(parallel_recursive_polynomial_reduce, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df1.execute(x), (1 + 2 * x), eps);
+
+  auto df2 =
+      clad::differentiate(parallel_recursive_polynomial_reduce_rangepol, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df2.execute(x), (1 + 2 * x), eps);
+
+  auto df3 = clad::differentiate(parallel_MD_polynomial_reduce, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df3.execute(x), 100, eps);
 }

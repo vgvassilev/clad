@@ -3,7 +3,6 @@
 #include "clad/Differentiator/KokkosBuiltins.h"
 #include "gtest/gtest.h"
 // #include "TestUtils.h"
-#include "ParallelAdd.h"
 
 TEST(ParallelFor, HelloWorldLambdaLoopForward) {
   // // check finite difference and forward mode similarity
