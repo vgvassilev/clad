@@ -878,10 +878,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         elseDiff.getStmt());
     addToCurrentBlock(Forward, direction::forward);
 
-    Stmt* Reverse = clad_compat::IfStmt_Create(
-        m_Context, noLoc, If->isConstexpr(), /*Init=*/nullptr, /*Var=*/nullptr,
-        condDiffStored, noLoc, noLoc, thenDiff.getStmt_dx(), noLoc,
-        elseDiff.getStmt_dx());
+    Stmt* Reverse = nullptr;
+    // thenDiff.getStmt_dx() might be empty if TBR is on leadinf to a crash in
+    // case of the braceless if.
+    if (thenDiff.getStmt_dx())
+      Reverse = clad_compat::IfStmt_Create(
+          m_Context, noLoc, If->isConstexpr(), /*Init=*/nullptr,
+          /*Var=*/nullptr, condDiffStored, noLoc, noLoc, thenDiff.getStmt_dx(),
+          noLoc, elseDiff.getStmt_dx());
+    else if (elseDiff.getStmt_dx())
+      Reverse = clad_compat::IfStmt_Create(
+          m_Context, noLoc, If->isConstexpr(), /*Init=*/nullptr,
+          /*Var=*/nullptr,
+          BuildOp(clang::UnaryOperatorKind::UO_LNot,
+                  BuildParens(condDiffStored)),
+          noLoc, noLoc, elseDiff.getStmt_dx(), noLoc, {});
     addToCurrentBlock(Reverse, direction::reverse);
     CompoundStmt* ForwardBlock = endBlock(direction::forward);
     CompoundStmt* ReverseBlock = endBlock(direction::reverse);
