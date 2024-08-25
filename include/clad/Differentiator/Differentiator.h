@@ -132,6 +132,30 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     return f(static_cast<Args>(args)...);
   }
 
+#ifdef __CUDACC__
+  template <bool EnablePadding, class... Rest, class F, class... Args,
+            class... fArgTypes,
+            typename std::enable_if<EnablePadding, bool>::type = true>
+  CUDA_HOST_DEVICE void
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>, dim3 grid,
+                            dim3 block, size_t shared_mem, cudaStream_t stream,
+                            Args&&... args) {
+    void* argPtrs[] = {(void*)&args..., (void*)static_cast<Rest>(nullptr)...};
+    cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+  }
+
+  template <bool EnablePadding, class... Rest, class F, class... Args,
+            class... fArgTypes,
+            typename std::enable_if<!EnablePadding, bool>::type = true>
+  CUDA_HOST_DEVICE void
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>, dim3 grid,
+                            dim3 block, size_t shared_mem, cudaStream_t stream,
+                            Args&&... args) {
+    void* argPtrs[] = {(void*)&args...};
+    cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+  }
+#endif
+
   // for executing member-functions
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
             class Obj, class... Args, class... fArgTypes,
@@ -215,9 +239,33 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
+      if (m_CUDAkernel) {
+        printf("Use execute_kernel() for global CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
       // here static_cast is used to achieve perfect forwarding
       return execute_helper(m_Function, static_cast<Args>(args)...);
     }
+
+#ifdef __CUDACC__
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute_kernel(dim3 grid, dim3 block, size_t shared_mem,
+                   cudaStream_t stream, Args&&... args) CUDA_HOST_DEVICE {
+      if (!m_Function) {
+        printf("CladFunction is invalid\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+      if (!m_CUDAkernel) {
+        printf("Use execute() for non-global CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+
+      return execute_helper(m_Function, grid, block, shared_mem, stream,
+                            static_cast<Args>(args)...);
+    }
+#endif
 
     /// `Execute` overload to be used when derived function type cannot be
     /// deduced. One reason for this can be when user tries to differentiate
@@ -270,6 +318,20 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
           TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
           static_cast<Args>(args)...);
       }
+
+#ifdef __CUDACC__
+      /// Helper function for executing non-member global derived functions.
+      template <class Fn, class... Args>
+      CUDA_HOST_DEVICE return_type_t<CladFunctionType>
+      execute_helper(Fn f, dim3 grid, dim3 block, size_t shared_mem,
+                     cudaStream_t stream, Args&&... args) {
+        // `static_cast` is required here for perfect forwarding.
+        return execute_with_default_args<EnablePadding>(
+            DropArgs_t<sizeof...(Args), F>{}, f,
+            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, grid, block,
+            shared_mem, stream, static_cast<Args>(args)...);
+      }
+#endif
 
       /// Helper functions for executing member derived functions.
       /// If user have passed object explicitly, then this specialization will
