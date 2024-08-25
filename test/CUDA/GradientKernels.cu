@@ -30,6 +30,10 @@ __global__ void kernel(int *a) {
 //CHECK-NEXT:    }
 //CHECK-NEXT: }
 
+void fake_kernel(int *a) {
+  *a *= *a;
+}
+
 int main(void) {
   int *a = (int*)malloc(sizeof(int));
   *a = 2;
@@ -53,6 +57,11 @@ int main(void) {
   cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
   cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
   printf("a = %d, a^2 = %d\n", *a, *asquare);
+
+  auto error = clad::gradient(fake_kernel);
+  error.execute_kernel(grid, block, 0, nullptr, d_a, d_square);
+
+  test.execute(d_a, d_square);
 
   return 0;
 }
