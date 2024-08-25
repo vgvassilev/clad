@@ -110,21 +110,46 @@ public:
 
   /// Print the nodes and edges in the graph.
   void print() {
-    // First print the nodes with their insertion order.
-    for (const T& node : m_nodes) {
-      std::pair<bool, int> nodeInfo = m_nodeMap[node];
-      std::cout << (std::string)node << ": #" << nodeInfo.second;
-      if (m_sources.find(nodeInfo.second) != m_sources.end())
-        std::cout << " (source)";
-      if (nodeInfo.first)
-        std::cout << ", (done)\n";
-      else
-        std::cout << ", (unprocessed)\n";
+    std::unordered_set<size_t> visited;
+
+    // Recursive function to print nodes with indentation based on depth.
+    std::function<void(size_t, int)> printNode = [&](size_t nodeId, int depth) {
+        // Check if the node has been visited already to avoid cycles.
+        if (visited.find(nodeId) != visited.end())
+            return;
+        visited.insert(nodeId);
+
+        // Print the node with the appropriate indentation.
+        const T& node = m_nodes[nodeId];
+        std::pair<bool, int> nodeInfo = m_nodeMap[node];
+        std::string indent(depth * 4, ' ');
+        std::cout << indent << "`" << (std::string)node << ": #" << nodeInfo.second;
+
+        // Indicate if the node is a source and/or done.
+        if (m_sources.find(nodeInfo.second) != m_sources.end())
+            std::cout << " (source)";
+        if (nodeInfo.first)
+            std::cout << ", (done)\n";
+        else
+            std::cout << ", (unprocessed)\n";
+
+        // Recursively print all children (nodes connected by edges).
+        for (size_t destId : m_adjList[nodeId]) {
+            printNode(destId, depth + 1);
+        }
+    };
+
+    // Start printing from the source nodes.
+    for (size_t sourceId : m_sources) {
+        printNode(sourceId, 0);
     }
-    // Then print the edges.
-    for (int i = 0; i < m_nodes.size(); i++)
-      for (size_t dest : m_adjList[i])
-        std::cout << i << " -> " << dest << "\n";
+
+    // If there are unvisited nodes, they are disconnected from sources, print them separately.
+    for (size_t i = 0; i < m_nodes.size(); ++i) {
+        if (visited.find(i) == visited.end()) {
+            printNode(i, 0);
+        }
+    }
   }
 
   /// Get the next node to be processed from the queue of nodes to be
