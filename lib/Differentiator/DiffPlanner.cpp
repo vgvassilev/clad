@@ -193,7 +193,7 @@ namespace clad {
     int numArgs = static_cast<int>(call->getNumArgs());
     if (numArgs > 4) {
       auto kernelArgIdx = numArgs - 1;
-      auto cudaKernelFlag = new (C) CXXBoolLiteralExpr(
+      auto* cudaKernelFlag = new (C) CXXBoolLiteralExpr(
           replacementFD->hasAttr<CUDAGlobalAttr>(), C.BoolTy, noLoc);
       call->setArg(kernelArgIdx, cudaKernelFlag);
       numArgs--;
