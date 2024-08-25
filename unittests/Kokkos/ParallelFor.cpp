@@ -1,5 +1,6 @@
 #include <Kokkos_Core.hpp>
 #include "clad/Differentiator/Differentiator.h"
+#include "clad/Differentiator/KokkosBuiltins.h"
 #include "gtest/gtest.h"
 // #include "TestUtils.h"
 #include "ParallelAdd.h"
@@ -89,4 +90,142 @@ TEST(ParallelFor, ParallelPolynomialReverse) {
   //   f_grad.execute(x, &dx);
   //   EXPECT_NEAR(dx_f_true, dx, abs(tau*dx));
   // }
+}
+
+template <typename View> struct Foo {
+  View& res;
+  double& x;
+
+  Foo(View& _res, double& _x) : res(_res), x(_x) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const int i) const { res(i) = x * i; }
+};
+
+double parallel_for_functor_simplest_case_fence(double x) {
+  Kokkos::View<double[5], Kokkos::HostSpace> res("res");
+
+  // Kokkos::fence("named fence"); // Does not work on some versions of Kokkos.
+
+  Foo<Kokkos::View<double[5], Kokkos::HostSpace>> f(res, x);
+
+  f(0); // FIXME: this is a workaround to put Foo::operator() into the
+        // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_for(5, f);
+  Kokkos::fence();
+
+  return res(3);
+}
+
+double parallel_for_functor_simplest_case_intpol(double x) {
+  Kokkos::View<double[5], Kokkos::HostSpace> res("res");
+
+  Foo<Kokkos::View<double[5], Kokkos::HostSpace>> f(res, x);
+
+  f(0); // FIXME: this is a workaround to put Foo::operator() into the
+        // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_for("polynomial", 5, f);
+  Kokkos::parallel_for(5, f);
+
+  return res(3);
+}
+
+double parallel_for_functor_simplest_case_rangepol(double x) {
+  Kokkos::View<double[5], Kokkos::HostSpace> res("res");
+
+  Foo<Kokkos::View<double[5], Kokkos::HostSpace>> f(res, x);
+
+  f(0); // FIXME: this is a workaround to put Foo::operator() into the
+        // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_for(
+      "polynomial",
+      Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(1, 5), f);
+  // Overwrite with another parallel_for (not named)
+  Kokkos::parallel_for(
+      Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(1, 5), f);
+
+  return res(3);
+}
+
+template <typename View> struct Foo2 {
+  View& res;
+  double& x;
+
+  Foo2(View& _res, double& _x) : res(_res), x(_x) {}
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const int i, const int j) const { res(i, j) = x * i * j; }
+};
+
+double parallel_for_functor_simplest_case_mdpol(double x) {
+  Kokkos::View<double[5][5], Kokkos::HostSpace> res("res");
+
+  Foo2<Kokkos::View<double[5][5], Kokkos::HostSpace>> f(res, x);
+
+  f(0, 0); // FIXME: this is a workaround to put Foo::operator() into the
+           // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_for(
+      "polynomial",
+      Kokkos::MDRangePolicy<
+          Kokkos::Rank<2, Kokkos::Iterate::Right, Kokkos::Iterate::Left>>(
+          {1, 1}, {5, 5}, {1, 1}),
+      f);
+
+  return res(3, 4);
+}
+
+double parallel_for_functor_simplest_case_mdpol_space_and_anon(double x) {
+  Kokkos::View<double[5][5], Kokkos::HostSpace> res("res");
+
+  Foo2<Kokkos::View<double[5][5], Kokkos::HostSpace>> f(res, x);
+
+  f(0, 0); // FIXME: this is a workaround to put Foo::operator() into the
+           // differentiation plan. This needs to be solved in clad.
+
+  Kokkos::parallel_for(
+      "polynomial",
+      Kokkos::MDRangePolicy<
+          Kokkos::DefaultHostExecutionSpace,
+          Kokkos::Rank<2, Kokkos::Iterate::Right, Kokkos::Iterate::Left>>(
+          {1, 1}, {5, 5}, {1, 1}),
+      f);
+  // Overwrite with another parallel_for (not named)
+  Kokkos::parallel_for(
+      Kokkos::MDRangePolicy<
+          Kokkos::DefaultHostExecutionSpace,
+          Kokkos::Rank<2, Kokkos::Iterate::Right, Kokkos::Iterate::Left>>(
+          {1, 1}, {5, 5}, {1, 1}),
+      f);
+
+  return res(3, 4);
+}
+
+TEST(ParallelFor, FunctorSimplestCases) {
+  const double eps = 1e-8;
+
+  auto df0 = clad::differentiate(parallel_for_functor_simplest_case_fence, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df0.execute(x), 3, eps);
+
+  auto df1 = clad::differentiate(parallel_for_functor_simplest_case_intpol, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df1.execute(x), 3, eps);
+
+  auto df2 =
+      clad::differentiate(parallel_for_functor_simplest_case_rangepol, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df2.execute(x), 3, eps);
+
+  auto df3 = clad::differentiate(parallel_for_functor_simplest_case_mdpol, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df3.execute(x), 12, eps);
+
+  auto df4 = clad::differentiate(
+      parallel_for_functor_simplest_case_mdpol_space_and_anon, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df4.execute(x), 12, eps);
 }

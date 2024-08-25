@@ -22,15 +22,15 @@ void fn1(double i, double j, double* output) {
 // CHECK-NEXT:         double _r2 = 0;
 // CHECK-NEXT:         double _r3 = 0;
 // CHECK-NEXT:         clad::custom_derivatives::pow_pullback(j, i, 1, &_r2, &_r3);
-// CHECK-NEXT:         jacobianMatrix[{{3U|3UL}}] += _r2;
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL}}] += _r3;
+// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += _r2;
+// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += _r3;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0;
 // CHECK-NEXT:         double _r1 = 0;
 // CHECK-NEXT:         clad::custom_derivatives::pow_pullback(i, j, 1, &_r0, &_r1);
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL}}] += _r0;
-// CHECK-NEXT:         jacobianMatrix[{{1U|1UL}}] += _r1;
+// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += _r0;
+// CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += _r1;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 

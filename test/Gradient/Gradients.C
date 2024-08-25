@@ -642,7 +642,7 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (i = 1; ; i++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(i < n))
@@ -711,10 +711,13 @@ double fn_template_non_type(double x) {
 // CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
 // CHECK-NEXT:     size_t _d_maxN = 0;
 // CHECK-NEXT:     const size_t maxN = 53;
-// CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL}};
+// CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
 // CHECK-NEXT:     size_t _d_m = 0;
-// CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL}};
-// CHECK-NEXT:     *_d_x += 1 * m;
+// CHECK-NEXT:     const size_t m = _cond0 ? maxN : {{15U|15UL|15ULL}};
+// CHECK-NEXT:     {
+// CHECK-NEXT:       *_d_x += 1 * m;
+// CHECK-NEXT:       _d_m += x * 1;
+// CHECK-NEXT:     }
 // CHECK-NEXT:     if (_cond0)
 // CHECK-NEXT:         _d_maxN += _d_m;
 // CHECK-NEXT: }
@@ -1070,6 +1073,78 @@ double fn_cond_add_assign(double i, double j) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
+double f_mult3(double i, double j) {
+  i = (i + j) * (i < 10 ? i : j);
+  return i;
+}
+
+//CHECK: void f_mult3_grad(double i, double j, double *_d_i, double *_d_j) {
+//CHECK-NEXT:     double _t0 = i;
+//CHECK-NEXT:     bool _cond0 = i < 10;
+//CHECK-NEXT:     i = (i + j) * (_cond0 ? i : j);
+//CHECK-NEXT:     *_d_i += 1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         i = _t0;
+//CHECK-NEXT:         double _r_d0 = *_d_i;
+//CHECK-NEXT:         *_d_i = 0;
+//CHECK-NEXT:         *_d_i += _r_d0 * (_cond0 ? i : j);
+//CHECK-NEXT:         *_d_j += _r_d0 * (_cond0 ? i : j);
+//CHECK-NEXT:         if (_cond0)
+//CHECK-NEXT:             *_d_i += (i + j) * _r_d0;
+//CHECK-NEXT:         else
+//CHECK-NEXT:             *_d_j += (i + j) * _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double f_const_denom(double x, double y) {
+  const double m = 0.5;
+  return x * y / m;
+}
+
+//CHECK: void f_const_denom_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     double _d_m = 0;
+//CHECK-NEXT:     const double m = 0.5;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += 1 / m * y;
+//CHECK-NEXT:         *_d_y += x * 1 / m;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double f_ref_in_rhs(double x, double y) {
+  if (x != 55) {
+    double& ref_x = x;
+    double& ref_y = y;
+    return ref_y * (ref_x + y);
+  }
+  return 1;
+}
+
+//CHECK: void f_ref_in_rhs_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     double *_d_ref_x = 0;
+//CHECK-NEXT:     double *ref_x = {};
+//CHECK-NEXT:     double *_d_ref_y = 0;
+//CHECK-NEXT:     double *ref_y = {};
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _cond0 = x != 55;
+//CHECK-NEXT:         if (_cond0) {
+//CHECK-NEXT:             _d_ref_x = &*_d_x;
+//CHECK-NEXT:             ref_x = &x;
+//CHECK-NEXT:             _d_ref_y = &*_d_y;
+//CHECK-NEXT:             ref_y = &y;
+//CHECK-NEXT:             goto _label0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:       _label0:
+//CHECK-NEXT:         {
+//CHECK-NEXT:             *_d_ref_y += 1 * (*ref_x + y);
+//CHECK-NEXT:             *_d_ref_x += *ref_y * 1;
+//CHECK-NEXT:             *_d_y += *ref_y * 1;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -1158,5 +1233,12 @@ int main() {
   INIT_GRADIENT(fn_cond_add_assign);
   TEST_GRADIENT(fn_cond_add_assign, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {80.00, 48.00}
 
+  INIT_GRADIENT(f_mult3);
+  TEST_GRADIENT(f_mult3, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {11.00, 3.00}
 
+  INIT_GRADIENT(f_const_denom);
+  TEST_GRADIENT(f_const_denom, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {10.00, 6.00}
+
+  INIT_GRADIENT(f_ref_in_rhs);
+  TEST_GRADIENT(f_ref_in_rhs, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {5.00, 13.00}
 }

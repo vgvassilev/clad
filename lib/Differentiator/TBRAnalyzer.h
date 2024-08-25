@@ -102,7 +102,7 @@ class TBRAnalyzer : public clang::RecursiveASTVisitor<TBRAnalyzer> {
     /// reference type (it will store TBR information itself without referring
     /// to other VarData's). This is necessary for reference-type parameters,
     /// when the referenced expressions are out of the function's scope.
-    VarData(QualType QT, bool forceNonRefType = false);
+    VarData(QualType QT, const ASTContext& C, bool forceNonRefType = false);
 
     /// Erases all children VarData's of this VarData.
     ~VarData() {

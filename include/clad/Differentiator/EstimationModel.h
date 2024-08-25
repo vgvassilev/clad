@@ -37,20 +37,6 @@ namespace clad {
     /// Clear the variable estimate map so that we can start afresh.
     void clearEstimationVariables() { m_EstimateVar.clear(); }
 
-    /// Helper to build a function call expression.
-    ///
-    /// \param[in] funcName The name of the function to build the expression
-    /// for.
-    /// \param[in] nmspace The name of the namespace for the function,
-    /// currently does not support nested namespaces.
-    /// \param[in] callArgs A vector of \c clang::Expr of all the parameters
-    /// to the function call.
-    ///
-    /// \return The function call expression that can be used to emit into
-    /// code.
-    clang::Expr* GetFunctionCall(std::string funcName, std::string nmspace,
-                                 llvm::SmallVectorImpl<clang::Expr*>& callArgs);
-
     /// User overridden function to return the error expression of a
     /// specific estimation model. The error expression is returned in the form
     /// of a clang::Expr, the user may use BuildOp() to build the final

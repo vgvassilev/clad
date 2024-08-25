@@ -97,6 +97,11 @@ namespace clad {
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
 
+    /// Tries to find and build call to user-provided `_forw` function.
+    clang::Expr* BuildCallToCustomForwPassFn(
+        const clang::FunctionDecl* FD, llvm::ArrayRef<clang::Expr*> primalArgs,
+        llvm::ArrayRef<clang::Expr*> derivedArgs, clang::Expr* baseExpr);
+
   public:
     using direction = rmv::direction;
     clang::Expr* dfdx() {
@@ -273,13 +278,14 @@ namespace clad {
       bool isInsideLoop;
       bool isFnScope;
       bool needsUpdate;
+      clang::Expr* Placeholder;
       DelayedStoreResult(ReverseModeVisitor& pV, StmtDiff pResult,
-                         clang::VarDecl* pDeclaration, bool pIsConstant,
-                         bool pIsInsideLoop, bool pIsFnScope,
-                         bool pNeedsUpdate = false)
+                         clang::VarDecl* pDeclaration, bool pIsInsideLoop,
+                         bool pIsFnScope, bool pNeedsUpdate = false,
+                         clang::Expr* pPlaceholder = nullptr)
           : V(pV), Result(pResult), Declaration(pDeclaration),
-            isConstant(pIsConstant), isInsideLoop(pIsInsideLoop),
-            isFnScope(pIsFnScope), needsUpdate(pNeedsUpdate) {}
+            isInsideLoop(pIsInsideLoop), isFnScope(pIsFnScope),
+            needsUpdate(pNeedsUpdate), Placeholder(pPlaceholder) {}
       void Finalize(clang::Expr* New);
     };
 
@@ -292,7 +298,8 @@ namespace clad {
     /// This is what DelayedGlobalStoreAndRef does. E is expected to be the
     /// original (uncloned) expression.
     DelayedStoreResult DelayedGlobalStoreAndRef(clang::Expr* E,
-                                                llvm::StringRef prefix = "_t");
+                                                llvm::StringRef prefix = "_t",
+                                                bool forceStore = false);
 
     struct CladTapeResult {
       ReverseModeVisitor& V;
@@ -395,12 +402,16 @@ namespace clad {
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     virtual StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
+    StmtDiff
+    VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
     StmtDiff VisitExprWithCleanups(const clang::ExprWithCleanups* EWC);
     /// Decl is not Stmt, so it cannot be visited directly.
     StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
     StmtDiff VisitDoStmt(const clang::DoStmt* DS);
     StmtDiff VisitContinueStmt(const clang::ContinueStmt* CS);
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
+    StmtDiff
+    VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
     StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
     StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
@@ -412,7 +423,7 @@ namespace clad {
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
     DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD,
-                                                  bool AddToBlock = true);
+                                                  bool keepLocal = false);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
