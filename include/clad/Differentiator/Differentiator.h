@@ -171,12 +171,13 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     CladFunctionType m_Function;
     char* m_Code;
     FunctorType *m_Functor = nullptr;
+    bool m_CUDAkernel = false;
 
   public:
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
-                                  const char* code,
-                                  FunctorType* functor = nullptr)
-        : m_Functor(functor) {
+    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
+                                  FunctorType* functor = nullptr,
+                                  bool CUDAkernel = false)
+        : m_Functor(functor), m_CUDAkernel(CUDAkernel) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
         m_Function = f;
@@ -397,10 +398,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code);
+           const char* code = "", bool CUDAkernel = false) {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by gradient*/, code, nullptr, CUDAkernel);
   }
 
   /// Specialization for differentiating functors.

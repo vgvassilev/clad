@@ -616,6 +616,13 @@ namespace clad {
     if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
       call = BuildCallExprToMemFn(derMethod, argExprs, useRefQualifiedThisObj);
     } else {
+      // If the function is a global kernel, we need to transform it
+      // into a device function when calling it inside the overload function
+      // which is the final global kernel returned.
+      if (FD->hasAttr<CUDAGlobalAttr>()) {
+        FD->dropAttr<CUDAGlobalAttr>();
+        FD->addAttr(CUDADeviceAttr::CreateImplicit(m_Context));
+      }
       Expr* exprFunc = BuildDeclRef(FD, SS);
       call = m_Sema
                  .ActOnCallExpr(
