@@ -28,6 +28,75 @@ constructor_pushforward(
           Kokkos::View<DataType, ViewParams...>(
               "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
 }
+
+/// View indexing
+template <typename View, typename Idx>
+inline clad::ValueAndPushforward<typename View::reference_type,
+                                 typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, const View* d_v,
+                          Idx /*d_i0*/) {
+  return {(*v)(i0), (*d_v)(i0)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, const View* d_v,
+                          Idx /*d_i0*/, Idx /*d_i1*/) {
+  return {(*v)(i0, i1), (*d_v)(i0, i1)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, Idx i2,
+                          const View* d_v, Idx /*d_i0*/, Idx /*d_i1*/,
+                          Idx /*d_i2*/) {
+  return {(*v)(i0, i1, i2), (*d_v)(i0, i1, i2)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, Idx i2, Idx i3,
+                          const View* d_v, Idx /*d_i0*/, Idx /*d_i1*/,
+                          Idx /*d_i2*/, Idx /*d_i3*/) {
+  return {(*v)(i0, i1, i2, i3), (*d_v)(i0, i1, i2, i3)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, Idx i2, Idx i3, Idx i4,
+                          const View* d_v, Idx /*d_i0*/, Idx /*d_i1*/,
+                          Idx /*d_i2*/, Idx /*d_i3*/, Idx /*d_i4*/) {
+  return {(*v)(i0, i1, i2, i3, i4), (*d_v)(i0, i1, i2, i3, i4)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, Idx i2, Idx i3, Idx i4,
+                          Idx i5, const View* d_v, Idx /*d_i0*/, Idx /*d_i1*/,
+                          Idx /*d_i2*/, Idx /*d_i3*/, Idx /*d_i4*/,
+                          Idx /*d_i5*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5), (*d_v)(i0, i1, i2, i3, i4, i5)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, Idx i2, Idx i3, Idx i4,
+                          Idx i5, Idx i6, const View* d_v, Idx /*d_i0*/,
+                          Idx /*d_i1*/, Idx /*d_i2*/, Idx /*d_i3*/,
+                          Idx /*d_i4*/, Idx /*d_i5*/, Idx /*d_i6*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5, i6), (*d_v)(i0, i1, i2, i3, i4, i5, i6)};
+}
+template <typename View, typename Idx>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, Idx i1, Idx i2, Idx i3, Idx i4,
+                          Idx i5, Idx i6, Idx i7, const View* d_v, Idx /*d_i0*/,
+                          Idx /*d_i1*/, Idx /*d_i2*/, Idx /*d_i3*/,
+                          Idx /*d_i4*/, Idx /*d_i5*/, Idx /*d_i6*/,
+                          Idx /*d_i7*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5, i6, i7),
+          (*d_v)(i0, i1, i2, i3, i4, i5, i6, i7)};
+}
 } // namespace class_functions
 
 /// Kokkos functions (view utils)
@@ -39,7 +108,6 @@ inline void deep_copy_pushforward(const View1& dst, const View2& src, T param,
   deep_copy(dst, src);
   deep_copy(d_dst, d_src);
 }
-
 template <class View>
 inline void resize_pushforward(View& v, const size_t n0, const size_t n1,
                                const size_t n2, const size_t n3,
@@ -52,7 +120,6 @@ inline void resize_pushforward(View& v, const size_t n0, const size_t n1,
   ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-
 template <class I, class dI, class View>
 inline void resize_pushforward(const I& arg, View& v, const size_t n0,
                                const size_t n1, const size_t n2,
