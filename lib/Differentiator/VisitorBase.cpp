@@ -382,10 +382,6 @@ namespace clad {
     if (T->isScalarType() && !T->isPointerType()) {
       ExprResult Zero =
           ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
-      if (T != Zero.get()->getType()) {
-        CastKind CK = m_Sema.PrepareScalarCast(Zero, T);
-        return m_Sema.ImpCastExprToType(Zero.get(), T, CK).get();
-      }
       return Zero.get();
     }
     return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();

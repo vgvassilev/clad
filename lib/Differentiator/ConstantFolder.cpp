@@ -135,7 +135,6 @@ namespace clad {
     //SourceLocation noLoc;
     Expr* Result = 0;
     if (QT->isBooleanType()) {
-      printf("synthesizing boolean literal\n");
       Result = clad::synthesizeLiteral(QT, C, (bool)val);
     } else if (QT->isIntegralType(C)) {
       llvm::APInt APVal(C.getIntWidth(QT), val,
@@ -144,8 +143,6 @@ namespace clad {
     } else if (QT->isRealFloatingType()) {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
-    } else {
-      Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, /*val=*/0);
     }
     assert(Result && "Must not be zero.");
     return Result;
