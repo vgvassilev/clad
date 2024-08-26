@@ -249,3 +249,34 @@ TEST(ViewBasics, TestResize4) {
     for (double y = 3; y <= 5; y += 1)
       EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
 }
+
+template <typename View> struct FooModifier {
+  double x;
+
+  FooModifier(View& v, double x) : x(x) {}
+
+  void operator()(View& v) { v(1, 0, 1, 0, 1, 0, 1) += x; }
+};
+
+double f_basics_call(double x) {
+  Kokkos::View<double[2][2][2][2][2][2][2], Kokkos::LayoutLeft,
+               Kokkos::HostSpace>
+      a("a");
+  Kokkos::deep_copy(a, 3 * x);
+
+  FooModifier<Kokkos::View<double[2][2][2][2][2][2][2], Kokkos::LayoutLeft,
+                           Kokkos::HostSpace>>
+      f(a, x);
+
+  f(a);
+
+  return a(1, 0, 1, 0, 1, 0, 1);
+}
+
+TEST(ViewBasics, FunctorCall4) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_call, 0);
+  for (double x = 3; x <= 5; x += 1)
+    EXPECT_NEAR(df.execute(x), 4, eps);
+}
