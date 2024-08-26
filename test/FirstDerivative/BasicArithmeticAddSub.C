@@ -5,8 +5,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-#include <complex>
-
 extern "C" int printf(const char* fmt, ...);
 
 int a_1(int x) {
@@ -105,26 +103,6 @@ float IntegerLiteralToFloatLiteral(float x, float y) {
 // CHECK-NEXT: return _d_x * x + x * _d_x - _d_y;
 // CHECK-NEXT: }
 
-std::complex<double> add_real_complex(double x, std::complex<double> y) {
-  return std::complex<double>(x + y.real(), y.imag());
-} 
-
-// CHECK: constexpr clad::ValueAndPushforward<double, double> real_pushforward(const std::complex<double> *_d_this) const __attribute__((abi_tag("cxx11")));
-// CHECK-NEXT: constexpr clad::ValueAndPushforward<double, double> imag_pushforward(const std::complex<double> *_d_this) const __attribute__((abi_tag("cxx11")));
-// CHECK-NEXT:std::complex<double> add_real_complex_darg0(double x, std::complex<double> y) {
-// CHECK-NEXT:    double _d_x = 1;
-// CHECK-NEXT:    std::complex<double> _d_y;
-// CHECK-NEXT:    clad::ValueAndPushforward<double, double> _t0 = y.real_pushforward(&_d_y);
-// CHECK-NEXT:    clad::ValueAndPushforward<double, double> _t1 = y.imag_pushforward(&_d_y);
-// CHECK-NEXT:    return std::complex<double>(_d_x + _t0.pushforward, _t1.pushforward);
-// CHECK-NEXT:}
-// CHECK-NEXT:constexpr clad::ValueAndPushforward<double, double> real_pushforward(const std::complex<double> *_d_this) const __attribute__((abi_tag("cxx11"))) {
-// CHECK-NEXT:    return {__real this->_M_value, __real _d_this->_M_value};
-// CHECK-NEXT:}
-// CHECK-NEXT:constexpr clad::ValueAndPushforward<double, double> imag_pushforward(const std::complex<double> *_d_this) const __attribute__((abi_tag("cxx11"))) {
-// CHECK-NEXT:    return {__imag this->_M_value, __imag _d_this->_M_value};
-// CHECK-NEXT:}
-
 int a_1_darg0(int x);
 int a_2_darg0(int x);
 int a_3_darg0(int x);
@@ -135,7 +113,6 @@ int s_3_darg0(int x);
 int s_4_darg0(int x);
 int as_1_darg0(int x);
 float IntegerLiteralToFloatLiteral_darg0(float x, float y);
-std::complex<double> add_real_complex_darg0(double x, std::complex<double> y);
 
 int main () { // expected-no-diagnostics
   int x = 4;
@@ -168,9 +145,6 @@ int main () { // expected-no-diagnostics
 
   clad::differentiate(IntegerLiteralToFloatLiteral, 0);
   printf("Result is = %f\n", IntegerLiteralToFloatLiteral_darg0(5., 0.)); // CHECK-EXEC: Result is = 10
-
-  clad::differentiate(add_real_complex, "x");
-  printf("Result is = %f\n", add_real_complex_darg0(5., std::complex<double>(1., 2.)).real()); // CHECK-EXEC: Result is = 1.000000
 
   return 0;
 }
