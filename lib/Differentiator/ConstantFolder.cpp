@@ -52,7 +52,7 @@ namespace clad {
   static Expr* synthesizeLiteral(QualType QT, ASTContext& C, bool val) {
     assert(QT->isBooleanType() && "Not a boolean type.");
     SourceLocation noLoc;
-    return CXXBoolLiteralExpr::Create(C, val, QT, noLoc);
+    return new (C) CXXBoolLiteralExpr(val, QT, noLoc);
   }
 
   Expr* ConstantFolder::trivialFold(Expr* E) {
@@ -145,7 +145,7 @@ namespace clad {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
     } else {
-      Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, 0);
+      Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, /*val=*/0);
     }
     assert(Result && "Must not be zero.");
     return Result;
