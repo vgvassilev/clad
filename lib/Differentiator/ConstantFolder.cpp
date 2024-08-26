@@ -49,6 +49,12 @@ namespace clad {
     return FloatingLiteral::Create(C, val, /*isexact*/true, QT, noLoc);
   }
 
+  static Expr* synthesizeLiteral(QualType QT, ASTContext& C, bool val) {
+    assert(QT->isBooleanType() && "Not a boolean type.");
+    SourceLocation noLoc;
+    return CXXBoolLiteralExpr::Create(C, val, QT, noLoc);
+  }
+
   Expr* ConstantFolder::trivialFold(Expr* E) {
     Expr::EvalResult Result;
     if (E->EvaluateAsRValue(Result, m_Context)) {
@@ -128,14 +134,18 @@ namespace clad {
                                           uint64_t val) {
     //SourceLocation noLoc;
     Expr* Result = 0;
-    if (QT->isIntegralType(C)) {
+    if (QT->isBooleanType()) {
+      printf("synthesizing boolean literal\n");
+      Result = clad::synthesizeLiteral(QT, C, (bool)val);
+    } else if (QT->isIntegralType(C)) {
       llvm::APInt APVal(C.getIntWidth(QT), val,
                          QT->isSignedIntegerOrEnumerationType());
       Result = clad::synthesizeLiteral(QT, C, APVal);
-    }
-    else {
+    } else if (QT->isRealFloatingType()) {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
+    } else {
+      Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, 0);
     }
     assert(Result && "Must not be zero.");
     return Result;

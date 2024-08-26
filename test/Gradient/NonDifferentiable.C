@@ -154,7 +154,7 @@ int main() {
     // CHECK-NEXT:     SimpleFunctions1 _d_obj({});
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         *_d_obj.x_pointer += 1 * (*obj.y_pointer);
+    // CHECK-NEXT:         *_d_obj.x_pointer += 1 * *obj.y_pointer;
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }

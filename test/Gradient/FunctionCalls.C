@@ -689,6 +689,26 @@ double fn22(double x, double y) {
 // CHECK-NEXT:   *d_y += x;
 // CHECK-NEXT: }
 
+inline double identity_with_bool(double x, bool b)
+{
+   return x;
+}
+
+// CHECK: inline void identity_with_bool_pullback(double x, bool b, double _d_y, double *_d_x, bool *_d_b);
+
+double fn23(double x) {
+  return identity_with_bool(x, true);
+}
+
+// CHECK: void fn23_grad(double x, double *_d_x) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         bool _r1 = false;
+// CHECK-NEXT:         identity_with_bool_pullback(x, true, 1, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 template<typename T>
 void reset(T* arr, int n) {
   for (int i=0; i<n; ++i)
@@ -800,6 +820,9 @@ int main() {
   double dy = 0;
   fn22_grad_1.execute(3, 5, &dy);
   printf("{%.2f}\n", dy);  // CHECK-EXEC: {3.00}
+
+  INIT(fn23);
+  TEST1(fn23, 3);  // CHECK-EXEC: {1.00}
 }
 
 double sq_defined_later(double x) {
@@ -1044,4 +1067,8 @@ double sq_defined_later(double x) {
 
 // CHECK: void ptrRef_pullback(double *&ptr_ref, double _d_y, double **_d_ptr_ref) {
 // CHECK-NEXT:     **_d_ptr_ref += _d_y;
+// CHECK-NEXT: }
+
+// CHECK: inline void identity_with_bool_pullback(double x, bool b, double _d_y, double *_d_x, bool *_d_b) {
+// CHECK-NEXT:     *_d_x += _d_y;
 // CHECK-NEXT: }

@@ -777,6 +777,49 @@ double f22(double x, double y) {
   return t;
 }
 
+double f23(double x, double y) {
+  auto&& list = {1., x+y};
+  double res = 5;
+  if (x > y) {
+    auto& ref = list;
+    res = *(std::end(ref) - 1);
+  }
+  return res;
+}
+
+//CHECK: void f23_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:     bool _cond0;
+//CHECK-NEXT:     clad::array<double> *_d_ref = {};
+//CHECK-NEXT:     clad::array<double> *ref = {};
+//CHECK-NEXT:     double _t0;
+//CHECK-NEXT:     clad::array<double> _d_list = {{2U|2UL}};
+//CHECK-NEXT:     clad::array<double> list = {1., x + y};
+//CHECK-NEXT:     double _d_res = 0.;
+//CHECK-NEXT:     double res = 5;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         _cond0 = x > y;
+//CHECK-NEXT:         if (_cond0) {
+//CHECK-NEXT:             _d_ref = &_d_list;
+//CHECK-NEXT:             ref = &list;
+//CHECK-NEXT:             _t0 = res;
+//CHECK-NEXT:             res = *(std::end(*ref) - 1);
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_res += 1;
+//CHECK-NEXT:     if (_cond0) {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             res = _t0;
+//CHECK-NEXT:             double _r_d0 = _d_res;
+//CHECK-NEXT:             _d_res = 0.;
+//CHECK-NEXT:             *(std::end(*_d_ref) - 1) += _r_d0;
+//CHECK-NEXT:         }
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         *_d_x += _d_list[1];
+//CHECK-NEXT:         *_d_y += _d_list[1];
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -841,4 +884,5 @@ int main() {
   TEST(f20, 1, 2); // CHECK-EXEC: {0.00, 3.00}
   TEST(f21, 6, 4); // CHECK-EXEC: {1.00, 0.00}
   TEST(f22, 6, 4); // CHECK-EXEC: {0.00, 0.00}
+  TEST(f23, 7, 5); // CHECK-EXEC: {1.00, 1.00}
 }

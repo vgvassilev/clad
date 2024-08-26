@@ -72,8 +72,8 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:     int _d_j = 0;
 //CHECK-NEXT:     int j = 0;
 //CHECK-NEXT:     clad::tape<double> _t3 = {};
-//CHECK-NEXT:     unsigned {{int|long}} a_size = {{0U|0UL}};
 //CHECK-NEXT:     unsigned {{int|long}} b_size = {{0U|0UL}};
+//CHECK-NEXT:     unsigned {{int|long}} a_size = {{0U|0UL}};
 //CHECK-NEXT:     double _d_sum = 0.;
 //CHECK-NEXT:     double sum = 0;
 //CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
@@ -111,6 +111,7 @@ double mulSum(float* a, float* b, int n) {
 //CHECK-NEXT:                 _final_error += std::abs(_d_sum * sum * {{.+}});
 //CHECK-NEXT:                 sum = clad::pop(_t3);
 //CHECK-NEXT:                 double _r_d0 = _d_sum;
+//CHECK-NEXT:                 b_size = std::max(b_size, j);
 //CHECK-NEXT:                 _d_a[i] += _r_d0 * b[j];
 //CHECK-NEXT:                 a_size = std::max(a_size, i);
 //CHECK-NEXT:                 _d_b[j] += a[i] * _r_d0;

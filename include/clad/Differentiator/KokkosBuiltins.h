@@ -67,6 +67,11 @@ inline void resize_pushforward(const I& arg, View& v, const size_t n0,
   ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
 
+/// Fence
+template <typename S> void fence_pushforward(const S& s, const S& /*d_s*/) {
+  ::Kokkos::fence(s);
+}
+
 /// Parallel for
 template <class... PolicyParams, class FunctorType> // range policy
 void parallel_for_pushforward(
