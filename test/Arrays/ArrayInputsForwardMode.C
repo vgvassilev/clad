@@ -79,6 +79,55 @@ double numMultIndex(double* arr, size_t n, double x) {
 // CHECK-NEXT:     return flag ? _d_idx * x + idx * _d_x : 0;
 // CHECK-NEXT: }
 
+double modifyArr(double* arr, double x) {
+  arr[3] *= x;
+  for (int i = 0; i < 5; ++i)
+    arr[i] /= 2;
+  return *(arr + 3);
+}
+
+// CHECK: double modifyArr_darg1(double *arr, double x) {
+// CHECK-NEXT:     clad::array<double> _d_arr = {};
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     _d_arr.extend(4);
+// CHECK-NEXT:     double &_t0 = _d_arr.ptr()[3];
+// CHECK-NEXT:     _t0 = _t0 * x + arr[3] * _d_x;
+// CHECK-NEXT:     arr[3] *= x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:             _d_arr.extend(i + 1);
+// CHECK-NEXT:             double &_t1 = _d_arr.ptr()[i];
+// CHECK-NEXT:             _t1 = (_t1 * 2 - arr[i] * 0) / (2 * 2);
+// CHECK-NEXT:             arr[i] /= 2;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_arr.extend(4);
+// CHECK-NEXT:     return *(_d_arr.ptr() + 3);
+// CHECK-NEXT: }
+
+double modifyConstArr(double arr[5], double x) {
+  arr[3] *= x;
+  for (int i = 0; i < 5; ++i)
+    arr[i] /= 2;
+  return *(arr + 3);
+}
+
+// CHECK: double modifyConstArr_darg1(double arr[5], double x) {
+// CHECK-NEXT:     double _d_arr[5] = {0};
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     _d_arr[3] = _d_arr[3] * x + arr[3] * _d_x;
+// CHECK-NEXT:     arr[3] *= x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < 5; ++i) {
+// CHECK-NEXT:             _d_arr[i] = (_d_arr[i] * 2 - arr[i] * 0) / (2 * 2);
+// CHECK-NEXT:             arr[i] /= 2;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return *(_d_arr + 3);
+// CHECK-NEXT: }
+
 int main() {
   double arr[] = {1, 2, 3, 4, 5};
   auto multiply_dx = clad::differentiate(multiply, "arr[1]");
@@ -92,4 +141,12 @@ int main() {
 
   auto numMultIndex_dx = clad::differentiate(numMultIndex, "x");
   printf("Result = {%.2f}\n", numMultIndex_dx.execute(arr, 5, 4)); // CHECK-EXEC: Result = {3.00}
+
+  auto modifyArr_dx = clad::differentiate(modifyArr, "x");
+  printf("Result = {%.2f}\n", modifyArr_dx.execute(arr, 5)); // CHECK-EXEC: Result = {2.00}
+  arr[0] = 1;  arr[1] = 2;  arr[2] = 3;  arr[3] = 4;  arr[4] = 5;
+
+  auto modifyConstArr_dx = clad::differentiate(modifyConstArr, "x");
+  printf("Result = {%.2f}\n", modifyConstArr_dx.execute(arr, 5)); // CHECK-EXEC: Result = {2.00}
+  arr[0] = 1;  arr[1] = 2;  arr[2] = 3;  arr[3] = 4;  arr[4] = 5;
 }
