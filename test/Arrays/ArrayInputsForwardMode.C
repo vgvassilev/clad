@@ -57,6 +57,7 @@ double numMultIndex(double* arr, size_t n, double x) {
 }
 
 // CHECK:   double numMultIndex_darg2(double *arr, size_t n, double x) {
+// CHECK-NEXT:     clad::array<double> _d_arr = {};
 // CHECK-NEXT:     size_t _d_n = 0;
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     bool _d_flag = 0;
