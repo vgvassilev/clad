@@ -113,7 +113,7 @@ public:
     std::unordered_set<size_t> visited;
 
     // Recursive function to print nodes with indentation based on depth.
-    auto printNode = [&](size_t nodeId, int depth) {
+    std::function<void(size_t, int)> printNode = [&](size_t nodeId, int depth) {
         // Check if the node has been visited already to avoid cycles.
         if (visited.find(nodeId) != visited.end())
             return;
