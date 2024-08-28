@@ -449,8 +449,8 @@ namespace clad {
   QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
                                             TemplateArgumentListInfo& TLI) {
     // This will instantiate tape<T> type and return it.
-    QualType TT =
-        m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl), utils::GetValidSLoc(m_Sema), TLI);
+    QualType TT = m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl),
+                                             utils::GetValidSLoc(m_Sema), TLI);
     // Get clad namespace and its identifier clad::.
     CXXScopeSpec CSS;
     CSS.Extend(m_Context, GetCladNamespace(), utils::GetValidSLoc(m_Sema),

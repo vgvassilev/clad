@@ -103,11 +103,6 @@ namespace clad {
         const clang::FunctionDecl* FD, llvm::ArrayRef<clang::Expr*> primalArgs,
         llvm::ArrayRef<clang::Expr*> derivedArgs, clang::Expr* baseExpr);
 
-    // clang::Expr* BuildCallToCustomForwPassConstructor(
-    //     const clang::CXXConstructExpr* CE,
-    //     llvm::ArrayRef<clang::Expr*> clonedArgs,
-    //     llvm::ArrayRef<clang::Expr*> derivedArgs);
-
   public:
     using direction = rmv::direction;
     clang::Expr* dfdx() {

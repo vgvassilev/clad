@@ -361,27 +361,23 @@ int main() {
 // CHECK-NEXT:     {{.*}}allocator_type allocator;
 // CHECK-NEXT:     {{.*}} _d_count = 0;
 // CHECK-NEXT:     {{.*}} count = 3;
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<{{.*}}vector<{{.*}}>, {{.*}}vector<{{.*}}> > _t0 = {{.*}}class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<vector<{{.*}}> >(), count, u, allocator, 0, 0, {});
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<{{.*}}vector<{{.*}}>, {{.*}}vector<{{.*}}> > _t0 = {{.*}}class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<vector<{{.*}}> >(), count, u, allocator, _d_count, *_d_u, _d_allocator);
 // CHECK-NEXT:     std::vector<double> _d_vec(_t0.adjoint);
 // CHECK-NEXT:     std::vector<double> vec(_t0.value);
 // CHECK-NEXT:     std::vector<double> _t1 = vec;
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t2 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, _r1);
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t2 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 0, &_d_vec, _r0);
 // CHECK-NEXT:     std::vector<double> _t3 = vec;
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t4 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 1, &_d_vec, _r2);
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t4 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 1, &_d_vec, _r1);
 // CHECK-NEXT:     std::vector<double> _t5 = vec;
-// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t6 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 2, &_d_vec, _r3);
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t6 = {{.*}}class_functions::operator_subscript_reverse_forw(&vec, 2, &_d_vec, _r2);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r1 = 0;
-// CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&_t1, 0, 1, &_d_vec, &_r1);
-// CHECK-NEXT:         {{.*}} _r2 = 0;
-// CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&_t3, 1, 1, &_d_vec, &_r2);
-// CHECK-NEXT:         {{.*}} _r3 = 0;
-// CHECK-NEXT:         {{.*}}class_functions::operator_subscript_pullback(&_t5, 2, 1, &_d_vec, &_r3);
+// CHECK-NEXT:             {{.*}} _r0 = 0;
+// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t1, 0, 1, &_d_vec, &_r0);
+// CHECK-NEXT:             {{.*}} _r1 = 0;
+// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t3, 1, 1, &_d_vec, &_r1);
+// CHECK-NEXT:             {{.*}} _r2 = 0;
+// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t5, 2, 1, &_d_vec, &_r2);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {{.*}}constructor_pullback(&vec, count, u, allocator, &_d_vec, &_d_count, &*_d_u, &_d_allocator);
+// CHECK-NEXT:        *_d_u += _d_res;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r0 = 0;
-// CHECK-NEXT:         {{.*}}class_functions::constructor_pullback(&vec, count, u, allocator, &_d_vec, &_r0, &*_d_u, &_d_allocator);
-// CHECK-NEXT:         _d_count += _r0;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     *_d_u += _d_res;
-// CHECK-NEXT: }

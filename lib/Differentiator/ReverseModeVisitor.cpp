@@ -29,14 +29,14 @@
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
-
-#include "llvm/Support/SaveAndRestore.h"
-
-#include <algorithm>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/ExprCXX.h>
 #include <clang/AST/OperationKinds.h>
 #include <clang/Sema/Ownership.h>
+
+#include "llvm/Support/SaveAndRestore.h"
+
+#include <algorithm>
 #include <numeric>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -4142,7 +4142,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (const auto* arg : CE->arguments()) {
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
-      if (utils::IsReferenceOrPointerArg(arg)) {
+      if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts())) {
         argDiff = Visit(arg);
         adjointArg = argDiff.getExpr_dx();
       } else {
@@ -4172,7 +4172,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {
-        if (arg->getType()->isReferenceType())
+        if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts()))
           reverseForwAdjointArgs.push_back(adjointArg);
         else
           reverseForwAdjointArgs.push_back(getZeroInit(arg->getType()));
@@ -4181,8 +4181,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
       primalArgs.push_back(argDiff.getExpr());
     }
-    // Try to create a pullback constructor call
 
+    // Try to create a pullback constructor call
     llvm::SmallVector<Expr*, 4> pullbackArgs;
     QualType recordType =
         m_Context.getRecordType(CE->getConstructor()->getParent());
@@ -4539,23 +4539,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             const_cast<DeclContext*>(FD->getDeclContext()));
     return customForwPassCE;
   }
-
-  // clang::Expr* ReverseModeVisitor::BuildCallToCustomForwPassConstructor(
-  //     const clang::CXXConstructExpr* CE,
-  //     llvm::ArrayRef<clang::Expr*> primalArgs,
-  //     llvm::ArrayRef<clang::Expr*> derivedArgs) {
-  //   llvm::SmallVector<Expr*, 4> reverseForwCallArgs;
-  //   QualType constructorReverseForwTagT =
-  //       GetCladConstructorReverseForwTagOfType(
-  //           CE->getType().withoutLocalFastQualifiers());
-  //   Expr* constructorReverseForwTagArg = m_Sema.BuildCXXTypeConstructExpr(
-  //       m_Context.getTrivialTypeSourceInfo(constructorReverseForwTagT),
-  //       noLoc, MultiExprArg{}, noLoc, /*ListInitialization=*/false).get();
-  //   reverseForwCallArgs.push_back(constructorReverseForwTagArg);
-  //   reverseForwCallArgs.append(clonedArgs.begin(), clonedArgs.end());
-  //   reverseForwCallArgs.append(derivedArgs.begin(), derivedArgs.end());
-  //   std::string reverseForw
-  // }
 
   void ReverseModeVisitor::ConstructorPullbackCallInfo::updateThisParmArgs(
       Expr* thisE, Expr* dThisE) const {
