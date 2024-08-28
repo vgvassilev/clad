@@ -137,6 +137,17 @@ namespace clad {
       SetRequestOptions(opts);
       DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
                               opts);
+
+      for (DiffRequest& request : m_DiffRequestGraph.getNodes()) {
+        if (!request.Function->isImmediateFunction() &&
+            !request.Function->isConstexpr())
+          continue;
+
+        m_DiffRequestGraph.setCurrentProcessingNode(request);
+        ProcessDiffRequest(request);
+        m_DiffRequestGraph.markCurrentNodeProcessed();
+      }
+
       // We could not delay the processing of derivatives, inform act as if each
       // call is final. That would still have vgvassilev/clad#248 unresolved.
       if (!m_Multiplexer)
