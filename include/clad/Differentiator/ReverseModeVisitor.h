@@ -16,6 +16,7 @@
 #include "clang/Sema/Sema.h"
 
 #include <array>
+#include <limits>
 #include <memory>
 #include <stack>
 #include <unordered_map>
@@ -689,6 +690,35 @@ namespace clad {
     }
 
     void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
+
+    struct ConstructorPullbackCallInfo {
+      clang::CallExpr* pullbackCE = nullptr;
+      size_t thisAdjointArgIdx = std::numeric_limits<size_t>::max();
+      void updateThisParmArgs(clang::Expr* thisE, clang::Expr* dThisE) const;
+      ConstructorPullbackCallInfo() = default;
+      ConstructorPullbackCallInfo(clang::CallExpr* pPullbackCE,
+                                  size_t pThisAdjointArgIdx)
+          : pullbackCE(pPullbackCE), thisAdjointArgIdx(pThisAdjointArgIdx) {}
+
+      bool empty() const { return !pullbackCE; }
+    };
+
+    void setConstructorPullbackCallInfo(clang::CallExpr* pullbackCE,
+                                        size_t thisAdjointArgIdx) {
+      m_ConstructorPullbackCallInfo = {pullbackCE, thisAdjointArgIdx};
+    }
+
+    ConstructorPullbackCallInfo getConstructorPullbackCallInfo() {
+      return m_ConstructorPullbackCallInfo;
+    }
+
+    void resetConstructorPullbackCallInfo() {
+      m_ConstructorPullbackCallInfo = ConstructorPullbackCallInfo{};
+    }
+
+  private:
+    ConstructorPullbackCallInfo m_ConstructorPullbackCallInfo;
+    bool m_TrackConstructorPullbackInfo = false;
   };
 } // end namespace clad
 

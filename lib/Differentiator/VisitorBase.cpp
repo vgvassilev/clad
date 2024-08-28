@@ -449,11 +449,12 @@ namespace clad {
   QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
                                             TemplateArgumentListInfo& TLI) {
     // This will instantiate tape<T> type and return it.
-    QualType TT =
-        m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl), noLoc, TLI);
+    QualType TT = m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl),
+                                             utils::GetValidSLoc(m_Sema), TLI);
     // Get clad namespace and its identifier clad::.
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    CSS.Extend(m_Context, GetCladNamespace(), utils::GetValidSLoc(m_Sema),
+               utils::GetValidSLoc(m_Sema));
     NestedNameSpecifier* NS = CSS.getScopeRep();
 
     // Create elaborated type with namespace specifier,
@@ -852,5 +853,17 @@ namespace clad {
   clang::QualType
   VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
     return InstantiateTemplate(GetCladConstructorPushforwardTag(), {T});
+  }
+
+  clang::TemplateDecl* VisitorBase::GetCladConstructorReverseForwTag() {
+    if (!m_CladConstructorPushforwardTag)
+      m_CladConstructorReverseForwTag =
+          LookupTemplateDeclInCladNamespace("ConstructorReverseForwTag");
+    return m_CladConstructorReverseForwTag;
+  }
+
+  clang::QualType
+  VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladConstructorReverseForwTag(), {T});
   }
 } // end namespace clad

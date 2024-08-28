@@ -36,5 +36,5 @@ int main() {
     double arr[5] = {1, 2, 3, 4, 5};
     double d_arr[5] = {0, 0, 0, 0, 0};
     d_pointerParam.execute(arr, 5, d_arr);
-    printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 0.00 1.00 2.00 3.00 4.00
+    printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 0.00 2.00 6.00 12.00 20.00
 }
