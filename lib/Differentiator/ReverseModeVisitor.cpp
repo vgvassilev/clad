@@ -2814,7 +2814,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           VDDerivedInit = initDiff.getForwSweepExpr_dx();
       }
 
-      if (VD->getType()->isStructureOrClassType()) {
+      if (VDType->isStructureOrClassType()) {
         m_TrackConstructorPullbackInfo = true;
         initDiff = Visit(VD->getInit());
         m_TrackConstructorPullbackInfo = false;
@@ -2885,7 +2885,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       }
 
       if (VD->getInit()) {
-        if (VD->getType()->isStructureOrClassType()) {
+        if (VDType->isStructureOrClassType()) {
           if (!initDiff.getExpr())
             initDiff = Visit(VD->getInit());
         } else
@@ -4140,6 +4140,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // FIXME: Restore arguments passed as non-const reference.
     for (const auto* arg : CE->arguments()) {
+      QualType ArgTy = arg->getType();
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;
       if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts())) {
@@ -4161,21 +4162,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // double _r0 = 0;
         // SomeClass_pullback(c, u, ..., &_d_c, &_r0, ...);
         // _d_u += _r0;
-        QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
+        QualType dArgTy = getNonConstType(ArgTy, m_Context, m_Sema);
         VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
         prePullbackCallStmts.push_back(BuildDeclStmt(dArgDecl));
         adjointArg = BuildDeclRef(dArgDecl);
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
       }
 
-      if (utils::isArrayOrPointerType(arg->getType())) {
+      if (utils::isArrayOrPointerType(ArgTy)) {
         reverseForwAdjointArgs.push_back(adjointArg);
         adjointArgs.push_back(adjointArg);
       } else {
         if (utils::IsReferenceOrPointerArg(arg->IgnoreParenImpCasts()))
           reverseForwAdjointArgs.push_back(adjointArg);
         else
-          reverseForwAdjointArgs.push_back(getZeroInit(arg->getType()));
+          reverseForwAdjointArgs.push_back(getZeroInit(ArgTy));
         adjointArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, adjointArg,
                                       m_DiffReq->getLocation()));
       }
