@@ -130,13 +130,17 @@ int main() {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
     // CHECK-NEXT:     SimpleFunctions1 _t0 = obj;
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:         _t0.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r0, &_r1);
-    // CHECK-NEXT:         *_d_i += _r0;
-    // CHECK-NEXT:         *_d_j += _r1;
+    // CHECK-NEXT:         double _r2 = 0.;
+    // CHECK-NEXT:         double _r3 = 0.;
+    // CHECK-NEXT:         _t0.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r2, &_r3);
+    // CHECK-NEXT:         *_d_i += _r2;
+    // CHECK-NEXT:         *_d_j += _r3;
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
+    // CHECK-NEXT:     }
+    // CHECK-NEXT:     {
+    // CHECK-NEXT:         double _r0 = 0.;
+    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
@@ -148,6 +152,10 @@ int main() {
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
+    // CHECK-NEXT:     {
+    // CHECK-NEXT:         double _r0 = 0.;
+    // CHECK-NEXT:         double _r1 = 0.;
+    // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
     // CHECK: void fn_s1_field_pointer_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -157,6 +165,10 @@ int main() {
     // CHECK-NEXT:         *_d_obj.x_pointer += 1 * *obj.y_pointer;
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
+    // CHECK-NEXT:     }
+    // CHECK-NEXT:     {
+    // CHECK-NEXT:         double _r0 = 0.;
+    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
 

@@ -231,6 +231,28 @@ void operator_subscript_pullback(::std::vector<T>* vec,
   (*d_vec)[idx] += d_y;
 }
 
+template <typename T, typename S, typename U>
+::clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
+constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::vector<T>>,
+                         S count, U val,
+                         typename ::std::vector<T>::allocator_type alloc,
+                         S d_count, U d_val,
+                         typename ::std::vector<T>::allocator_type d_alloc) {
+  ::std::vector<T> v(count, val);
+  ::std::vector<T> d_v(count, 0);
+  return {v, d_v};
+}
+
+template <typename T, typename S, typename U>
+void constructor_pullback(::std::vector<T>* v, S count, U val,
+                          typename ::std::vector<T>::allocator_type alloc,
+                          ::std::vector<T>* d_v, S* d_count, U* d_val,
+                          typename ::std::vector<T>::allocator_type* d_alloc) {
+  for (unsigned i = 0; i < count; ++i)
+    *d_val += (*d_v)[i];
+  d_v->clear();
+}
+
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad

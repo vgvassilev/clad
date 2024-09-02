@@ -227,11 +227,15 @@ int main() {
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     Experiment _t0 = E;
   // CHECK-NEXT:     {
+  // CHECK-NEXT:         double _r2 = 0.;
+  // CHECK-NEXT:         double _r3 = 0.;
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_r2, &_r3);
+  // CHECK-NEXT:         *_d_i += _r2;
+  // CHECK-NEXT:         *_d_j += _r3;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
   // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_r0, &_r1);
-  // CHECK-NEXT:         *_d_i += _r0;
-  // CHECK-NEXT:         *_d_j += _r1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -265,12 +269,16 @@ int main() {
   // CHECK-NEXT:     Experiment _d_E({});
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         Experiment _r0 = {};
-  // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:         double _r2 = 0.;
-  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r0, &_r1, &_r2);
-  // CHECK-NEXT:         *_d_i += _r1;
-  // CHECK-NEXT:         *_d_j += _r2;
+  // CHECK-NEXT:         Experiment _r2 = {};
+  // CHECK-NEXT:         double _r3 = 0.;
+  // CHECK-NEXT:         double _r4 = 0.;
+  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r2, &_r3, &_r4);
+  // CHECK-NEXT:         *_d_i += _r3;
+  // CHECK-NEXT:         *_d_j += _r4;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:      double _r0 = 0.;
+  // CHECK-NEXT:      double _r1 = 0.;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 

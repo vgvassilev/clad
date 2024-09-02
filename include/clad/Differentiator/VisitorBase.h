@@ -614,6 +614,12 @@ namespace clad {
     /// Returns type clad::Identify<T>
     clang::QualType GetCladConstructorPushforwardTagOfType(clang::QualType T);
 
+    /// Returns clad::ConstructorReverseForwTag template declaration.
+    clang::TemplateDecl* GetCladConstructorReverseForwTag();
+
+    /// Returns type clad::ConstructorReverseForwTag<T>
+    clang::QualType GetCladConstructorReverseForwTagOfType(clang::QualType T);
+
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
@@ -661,6 +667,7 @@ namespace clad {
 
   private:
     clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
+    clang::TemplateDecl* m_CladConstructorReverseForwTag = nullptr;
   };
 } // end namespace clad
 

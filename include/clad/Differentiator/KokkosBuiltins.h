@@ -20,13 +20,92 @@ constructor_pushforward(
     const ::std::string& name, const size_t& idx0, const size_t& idx1,
     const size_t& idx2, const size_t& idx3, const size_t& idx4,
     const size_t& idx5, const size_t& idx6, const size_t& idx7,
-    const ::std::string& d_name, const size_t& d_idx0, const size_t& d_idx1,
-    const size_t& d_idx2, const size_t& d_idx3, const size_t& d_idx4,
-    const size_t& d_idx5, const size_t& d_idx6, const size_t& d_idx7) {
+    const ::std::string& /*d_name*/, const size_t& /*d_idx0*/,
+    const size_t& /*d_idx1*/, const size_t& /*d_idx2*/,
+    const size_t& /*d_idx3*/, const size_t& /*d_idx4*/,
+    const size_t& /*d_idx5*/, const size_t& /*d_idx6*/,
+    const size_t& /*d_idx7*/) {
   return {Kokkos::View<DataType, ViewParams...>(name, idx0, idx1, idx2, idx3,
                                                 idx4, idx5, idx6, idx7),
           Kokkos::View<DataType, ViewParams...>(
               "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
+}
+
+/// View indexing
+template <typename View, typename Idx>
+inline clad::ValueAndPushforward<typename View::reference_type,
+                                 typename View::reference_type>
+operator_call_pushforward(const View* v, Idx i0, const View* d_v,
+                          Idx /*d_i0*/) {
+  return {(*v)(i0), (*d_v)(i0)};
+}
+template <typename View, typename Idx0, typename Idx1>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, const View* d_v,
+                          Idx0 /*d_i0*/, Idx1 /*d_i1*/) {
+  return {(*v)(i0, i1), (*d_v)(i0, i1)};
+}
+template <typename View, typename Idx0, typename Idx1, typename Idx2>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2,
+                          const View* d_v, Idx0 /*d_i0*/, Idx1 /*d_i1*/,
+                          Idx2 /*d_i2*/) {
+  return {(*v)(i0, i1, i2), (*d_v)(i0, i1, i2)};
+}
+template <typename View, typename Idx0, typename Idx1, typename Idx2,
+          typename Idx3>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
+                          const View* d_v, Idx0 /*d_i0*/, Idx1 /*d_i1*/,
+                          Idx2 /*d_i2*/, Idx3 /*d_i3*/) {
+  return {(*v)(i0, i1, i2, i3), (*d_v)(i0, i1, i2, i3)};
+}
+template <typename View, typename Idx0, typename Idx1, typename Idx2,
+          typename Idx3, typename Idx4>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
+                          Idx4 i4, const View* d_v, Idx0 /*d_i0*/,
+                          Idx1 /*d_i1*/, Idx2 /*d_i2*/, Idx3 /*d_i3*/,
+                          Idx4 /*d_i4*/) {
+  return {(*v)(i0, i1, i2, i3, i4), (*d_v)(i0, i1, i2, i3, i4)};
+}
+template <typename View, typename Idx0, typename Idx1, typename Idx2,
+          typename Idx3, typename Idx4, typename Idx5>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
+                          Idx4 i4, Idx5 i5, const View* d_v, Idx0 /*d_i0*/,
+                          Idx1 /*d_i1*/, Idx2 /*d_i2*/, Idx3 /*d_i3*/,
+                          Idx4 /*d_i4*/, Idx5 /*d_i5*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5), (*d_v)(i0, i1, i2, i3, i4, i5)};
+}
+template <typename View, typename Idx0, typename Idx1, typename Idx2,
+          typename Idx3, typename Idx4, typename Idx5, typename Idx6>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
+                          Idx4 i4, Idx5 i5, Idx6 i6, const View* d_v,
+                          Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                          Idx3 /*d_i3*/, Idx4 /*d_i4*/, Idx5 /*d_i5*/,
+                          Idx6 /*d_i6*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5, i6), (*d_v)(i0, i1, i2, i3, i4, i5, i6)};
+}
+template <typename View, typename Idx0, typename Idx1, typename Idx2,
+          typename Idx3, typename Idx4, typename Idx5, typename Idx6,
+          typename Idx7>
+clad::ValueAndPushforward<typename View::reference_type,
+                          typename View::reference_type>
+operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
+                          Idx4 i4, Idx5 i5, Idx6 i6, Idx7 i7, const View* d_v,
+                          Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                          Idx3 /*d_i3*/, Idx4 /*d_i4*/, Idx5 /*d_i5*/,
+                          Idx6 /*d_i6*/, Idx7 /*d_i7*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5, i6, i7),
+          (*d_v)(i0, i1, i2, i3, i4, i5, i6, i7)};
 }
 } // namespace class_functions
 
@@ -39,30 +118,29 @@ inline void deep_copy_pushforward(const View1& dst, const View2& src, T param,
   deep_copy(dst, src);
   deep_copy(d_dst, d_src);
 }
-
-template <class View>
-inline void resize_pushforward(View& v, const size_t n0, const size_t n1,
-                               const size_t n2, const size_t n3,
-                               const size_t n4, const size_t n5,
-                               const size_t n6, const size_t n7, View& d_v,
-                               const size_t /*d_n0*/, const size_t /*d_n1*/,
-                               const size_t /*d_n2*/, const size_t /*d_n3*/,
-                               const size_t /*d_n4*/, const size_t /*d_n5*/,
-                               const size_t /*d_n6*/, const size_t /*d_n7*/) {
+template <typename View, typename Idx0, typename Idx1, typename Idx2,
+          typename Idx3, typename Idx4, typename Idx5, typename Idx6,
+          typename Idx7>
+inline void
+resize_pushforward(View& v, const Idx0 n0, const Idx1 n1, const Idx2 n2,
+                   const Idx3 n3, const Idx4 n4, const Idx5 n5, const Idx6 n6,
+                   const Idx7 n7, View& d_v, const Idx0 /*d_n*/,
+                   const Idx1 /*d_n*/, const Idx2 /*d_n*/, const Idx3 /*d_n*/,
+                   const Idx4 /*d_n*/, const Idx5 /*d_n*/, const Idx6 /*d_n*/,
+                   const Idx7 /*d_n*/) {
   ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-
-template <class I, class dI, class View>
-inline void resize_pushforward(const I& arg, View& v, const size_t n0,
-                               const size_t n1, const size_t n2,
-                               const size_t n3, const size_t n4,
-                               const size_t n5, const size_t n6,
-                               const size_t n7, const dI& /*d_arg*/, View& d_v,
-                               const size_t /*d_n0*/, const size_t /*d_n1*/,
-                               const size_t /*d_n2*/, const size_t /*d_n3*/,
-                               const size_t /*d_n4*/, const size_t /*d_n5*/,
-                               const size_t /*d_n6*/, const size_t /*d_n7*/) {
+template <class I, class dI, class View, typename Idx0, typename Idx1,
+          typename Idx2, typename Idx3, typename Idx4, typename Idx5,
+          typename Idx6, typename Idx7>
+inline void
+resize_pushforward(const I& arg, View& v, const Idx0 n0, const Idx1 n1,
+                   const Idx2 n2, const Idx3 n3, const Idx4 n4, const Idx5 n5,
+                   const Idx6 n6, const Idx7 n7, const dI& /*d_arg*/, View& d_v,
+                   const Idx0 /*d_n*/, const Idx1 /*d_n*/, const Idx2 /*d_n*/,
+                   const Idx3 /*d_n*/, const Idx4 /*d_n*/, const Idx5 /*d_n*/,
+                   const Idx6 /*d_n*/, const Idx7 /*d_n*/) {
   ::Kokkos::resize(arg, v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
@@ -101,11 +179,11 @@ template <class Policy, class FunctorType, class T>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 2> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](const T x, auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 x, args..., &d_functor, &x, 0, 0);
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy,
+        [&functor, &d_functor](const auto x, auto&&... args) {
+          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0);
+        });
   }
 };
 template <class Policy, class FunctorType>
@@ -122,11 +200,12 @@ template <class Policy, class FunctorType, class T>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 3> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](const T x, auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 x, args..., &d_functor, &x, 0, 0, 0);
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy,
+        [&functor, &d_functor](const auto x, auto&&... args) {
+          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0,
+                                            0);
+        });
   }
 };
 template <class Policy, class FunctorType>
@@ -143,11 +222,12 @@ template <class Policy, class FunctorType, class T>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 4> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](const T x, auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 x, args..., &d_functor, &x, 0, 0, 0, 0);
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy,
+        [&functor, &d_functor](const auto x, auto&&... args) {
+          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0, 0,
+                                            0);
+        });
   }
 };
 template <class Policy, class FunctorType>
@@ -164,11 +244,12 @@ template <class Policy, class FunctorType, class T>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 5> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](const T x, auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 x, args..., &d_functor, &x, 0, 0, 0, 0, 0);
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy,
+        [&functor, &d_functor](const auto x, auto&&... args) {
+          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0, 0,
+                                            0, 0);
+        });
   }
 };
 template <class Policy, class FunctorType>
@@ -185,11 +266,12 @@ template <class Policy, class FunctorType, class T>
 struct diff_parallel_for_MDP_call_dispatch<Policy, FunctorType, T, 6> {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](const T x, auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 x, args..., &d_functor, &x, 0, 0, 0, 0, 0, 0);
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy,
+        [&functor, &d_functor](const auto x, auto&&... args) {
+          functor.operator_call_pushforward(x, args..., &d_functor, {}, 0, 0, 0,
+                                            0, 0, 0);
+        });
   }
 };
 template <class Policy, class FunctorType>
@@ -227,11 +309,11 @@ template <class Policy, class FunctorType, class T>
 struct diff_parallel_for_OP_call_dispatch {
   static void run(const ::std::string& str, const Policy& policy,
                   const FunctorType& functor, const FunctorType& d_functor) {
-    ::Kokkos::parallel_for("_diff_" + str, policy,
-                           [&functor, &d_functor](const T x, auto&&... args) {
-                             functor.operator_call_pushforward(
-                                 x, args..., &d_functor, &x, {});
-                           });
+    ::Kokkos::parallel_for(
+        "_diff_" + str, policy,
+        [&functor, &d_functor](const auto x, auto&&... args) {
+          functor.operator_call_pushforward(x, args..., &d_functor, {}, {});
+        });
   }
 };
 template <class Policy, class FunctorType>
@@ -317,6 +399,303 @@ void parallel_for_pushforward(
     ::std::enable_if_t<
         ::Kokkos::is_execution_policy<Policy>::value>* /*d_param*/) {
   parallel_for_pushforward(str, policy, functor, d_str, d_policy, d_functor);
+}
+
+/// Parallel reduce
+// TODO: ADD SUPORT FOR MULTIPLE REDUCED ARGUMENTS
+// TODO: ADD SUPPORT FOR UNNAMED LOOPS
+
+// This structure is used to dispatch parallel reduce pushforward calls for
+// multidimentional policies
+template <class Policy, class FunctorType, class Reduced, class WT, int Rank>
+struct diff_parallel_reduce_MDP_dispatch { // non-MDPolicy
+  static void run(const ::std::string& str, const Policy& policy,
+                  const FunctorType& functor, Reduced& res,
+                  const FunctorType& d_functor, Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto _work_tag, const auto& i, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(_work_tag, i, r, &d_functor, {}, {},
+                                            d_r);
+        },
+        res, d_res);
+  }
+};
+template <class Policy, class FunctorType, class Reduced, int Rank>
+struct diff_parallel_reduce_MDP_dispatch<Policy, FunctorType, Reduced, void,
+                                         Rank> { // non-MDPolicy
+  static void run(const ::std::string& str, const Policy& policy,
+                  const FunctorType& functor, Reduced& res,
+                  const FunctorType& d_functor, Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(i, r, &d_functor, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced, class WT>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced, WT,
+    2> { // MDPolicy, rank = 2
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto _work_tag, const auto& i0, const auto& i1, auto& r,
+            auto& d_r) {
+          functor.operator_call_pushforward(_work_tag, i0, i1, r, &d_functor,
+                                            {}, {}, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+    void, 2> { // MDPolicy, rank = 2
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i0, const auto& i1, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(i0, i1, r, &d_functor, {}, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced, class WT>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced, WT,
+    3> { // MDPolicy, rank = 3
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto _work_tag, const auto& i0, const auto& i1,
+            const auto& i2, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(_work_tag, i0, i1, i2, r,
+                                            &d_functor, {}, {}, {}, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+    void, 3> { // MDPolicy, rank = 3
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i0, const auto& i1, const auto& i2, auto& r,
+            auto& d_r) {
+          functor.operator_call_pushforward(i0, i1, i2, r, &d_functor, {}, {},
+                                            {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced, class WT>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced, WT,
+    4> { // MDPolicy, rank = 4
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto wt, const auto& i0, const auto& i1, const auto& i2,
+            const auto& i3, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(wt, i0, i1, i2, i3, r, &d_functor,
+                                            {}, {}, {}, {}, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+    void, 4> { // MDPolicy, rank = 4
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i0, const auto& i1, const auto& i2, const auto& i3,
+            auto& r, auto& d_r) {
+          functor.operator_call_pushforward(i0, i1, i2, i3, r, &d_functor, {},
+                                            {}, {}, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced, class WT>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced, WT,
+    5> { // MDPolicy, rank = 5
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto wt, const auto& i0, const auto& i1, const auto& i2,
+            const auto& i3, const auto& i4, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(wt, i0, i1, i2, i3, i4, r,
+                                            &d_functor, {}, {}, {}, {}, {}, {},
+                                            d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+    void, 5> { // MDPolicy, rank = 5
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i0, const auto& i1, const auto& i2, const auto& i3,
+            const auto& i4, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(i0, i1, i2, i3, i4, r, &d_functor,
+                                            {}, {}, {}, {}, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced, class WT>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced, WT,
+    6> { // MDPolicy, rank = 6
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto wt, const auto& i0, const auto& i1, const auto& i2,
+            const auto& i3, const auto& i4, const auto& i5, auto& r,
+            auto& d_r) {
+          functor.operator_call_pushforward(wt, i0, i1, i2, i3, i4, i5, r,
+                                            &d_functor, {}, {}, {}, {}, {}, {},
+                                            {}, d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+    void, 6> { // MDPolicy, rank = 6
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i0, const auto& i1, const auto& i2, const auto& i3,
+            const auto& i4, const auto& i5, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(i0, i1, i2, i3, i4, i5, r,
+                                            &d_functor, {}, {}, {}, {}, {}, {},
+                                            d_r);
+        },
+        res, d_res);
+  }
+};
+template <class PolicyP, class... PolicyParams, class FunctorType,
+          class Reduced>
+struct diff_parallel_reduce_MDP_dispatch<
+    ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+    void, 0> { // MDPolicy matched, now figure out the rank
+  static void
+  run(const ::std::string& str,
+      const ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>& policy,
+      const FunctorType& functor, Reduced& res, const FunctorType& d_functor,
+      Reduced& d_res) {
+    diff_parallel_reduce_MDP_dispatch<
+        ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>, FunctorType, Reduced,
+        typename ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>::work_tag,
+        ::Kokkos::MDRangePolicy<PolicyP, PolicyParams...>::rank>::run(str,
+                                                                      policy,
+                                                                      functor,
+                                                                      res,
+                                                                      d_functor,
+                                                                      d_res);
+  }
+};
+
+// This structure is used to dispatch parallel reduce pushforward calls for
+// integral policies
+template <class Policy, class FunctorType, class Reduced, bool isInt>
+struct diff_parallel_reduce_int_dispatch { // non-integral policy
+  static void run(const ::std::string& str, const Policy& policy,
+                  const FunctorType& functor, Reduced& res,
+                  const FunctorType& d_functor, Reduced& d_res) {
+    diff_parallel_reduce_MDP_dispatch<Policy, FunctorType, Reduced, void,
+                                      0>::run(str, policy, functor, res,
+                                              d_functor, d_res);
+  }
+};
+template <class Policy, class FunctorType, class Reduced> // integral policy
+struct diff_parallel_reduce_int_dispatch<Policy, FunctorType, Reduced, true> {
+  static void run(const ::std::string& str, const Policy& policy,
+                  const FunctorType& functor, Reduced& res,
+                  const FunctorType& d_functor, Reduced& d_res) {
+    ::Kokkos::parallel_reduce(
+        "_diff_" + str, policy,
+        [&](const auto& i, auto& r, auto& d_r) {
+          functor.operator_call_pushforward(i, r, &d_functor, {}, d_r);
+        },
+        res, d_res);
+  }
+};
+
+template <class Policy, class FunctorType,
+          class Reduced> // generally, this is matched
+void parallel_reduce_pushforward(const ::std::string& str, const Policy& policy,
+                                 const FunctorType& functor, Reduced& res,
+                                 const ::std::string& /*d_str*/,
+                                 const Policy& /*d_policy*/,
+                                 const FunctorType& d_functor, Reduced& d_res) {
+  diff_parallel_reduce_int_dispatch<
+      Policy, FunctorType, Reduced,
+      ::std::is_integral<Policy>::value>::run(str, policy, functor, res,
+                                              d_functor, d_res);
 }
 
 } // namespace Kokkos
