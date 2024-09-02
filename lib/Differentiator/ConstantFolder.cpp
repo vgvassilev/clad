@@ -152,7 +152,7 @@ namespace clad {
     } else if (QT->isRealFloatingType()) {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
-    } else { 
+    } else {
       // FIXME: Handle other types, like Complex, Structs, typedefs, etc.
       Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, val);
     }
