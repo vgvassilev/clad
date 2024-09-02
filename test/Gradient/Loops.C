@@ -1605,7 +1605,7 @@ double fn19(double* arr, int n) {
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<double *> _t1 = {};
 // CHECK-NEXT:     clad::tape<double *> _t2 = {};
-// CHECK-NEXT:     double *_d_ref = {};
+// CHECK-NEXT:     double *_d_ref = nullptr;
 // CHECK-NEXT:     double *ref = {};
 // CHECK-NEXT:     clad::tape<double> _t3 = {};
 // CHECK-NEXT:     double _d_res = 0.;
@@ -2708,8 +2708,8 @@ double fn34(double x, double y){
 //CHECK-NEXT:     double *__begin10 = __range10;
 //CHECK-NEXT:     double *_d___begin1 = _d___range1;
 //CHECK-NEXT:     double *__end10 = __range10 + {{3|3L}};
-//CHECK-NEXT:     double *_d_i = {};
-//CHECK-NEXT:     double *i = {};
+//CHECK-NEXT:     double *_d_i = nullptr;
+//CHECK-NEXT:     double *i = nullptr;
 //CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _d_i = &*_d___begin1;
@@ -2782,8 +2782,8 @@ double fn35(double x, double y){
 //CHECK-NEXT:     double *__begin10 = __range10;
 //CHECK-NEXT:     double *_d___begin1 = _d___range1;
 //CHECK-NEXT:     double *__end10 = __range10 + {{3|3L}};
-//CHECK-NEXT:     double *_d_i = {};
-//CHECK-NEXT:     double *i = {};
+//CHECK-NEXT:     double *_d_i = nullptr;
+//CHECK-NEXT:     double *i = nullptr;
 //CHECK-NEXT:     for (; __begin10 != __end10; ++__begin10 , ++_d___begin1) {
 //CHECK-NEXT:         {
 //CHECK-NEXT:             _d_i = &*_d___begin1;
@@ -2798,8 +2798,8 @@ double fn35(double x, double y){
 //CHECK-NEXT:         double *__begin20 = __range20;
 //CHECK-NEXT:         double *_d___begin2 = _d___range2;
 //CHECK-NEXT:         double *__end20 = __range20 + {{3|3L}};
-//CHECK-NEXT:         double *_d_j = {};
-//CHECK-NEXT:         double *j = {};
+//CHECK-NEXT:         double *_d_j = nullptr;
+//CHECK-NEXT:         double *j = nullptr;
 //CHECK-NEXT:         for (; __begin20 != __end20; ++__begin20 , ++_d___begin2) {
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 _d_j = &*_d___begin2;
@@ -3097,8 +3097,8 @@ double fn39(double x) {
 }
 
 //CHECK: void fn39_grad(double x, double *_d_x) {
-//CHECK-NEXT:     int *_d_i = {};
-//CHECK-NEXT:     {{const int *\*|const_iterator }}i = {};
+//CHECK-NEXT:     int *_d_i = nullptr;
+//CHECK-NEXT:     {{const int *\*|const_iterator }}i = nullptr;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
 //CHECK-NEXT:     double _d_res = 0.;
 //CHECK-NEXT:     double res = 0;

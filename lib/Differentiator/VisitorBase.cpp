@@ -379,7 +379,7 @@ namespace clad {
     // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
     if (T->isVoidType())
       return nullptr;
-    if (T->isScalarType() && !T->isPointerType()) {
+    if ((T->isScalarType() || T->isPointerType()) && !T->isReferenceType()) {
       ExprResult Zero =
           ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
       return Zero.get();

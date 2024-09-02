@@ -789,7 +789,7 @@ double f23(double x, double y) {
 
 //CHECK: void f23_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0;
-//CHECK-NEXT:     clad::array<double> *_d_ref = {};
+//CHECK-NEXT:     clad::array<double> *_d_ref = nullptr;
 //CHECK-NEXT:     clad::array<double> *ref = {};
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     clad::array<double> _d_list = {{2U|2UL}};

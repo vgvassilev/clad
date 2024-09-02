@@ -152,8 +152,8 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:     size_t i = 0UL;
 // CHECK-NEXT:     clad::tape<size_t *> _t1 = {};
 // CHECK-NEXT:     clad::tape<size_t *> _t3 = {};
-// CHECK-NEXT:     size_t *_d_j = {};
-// CHECK-NEXT:     size_t *j = {};
+// CHECK-NEXT:     size_t *_d_j = nullptr;
+// CHECK-NEXT:     size_t *j = nullptr;
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
 // CHECK-NEXT:     clad::tape<const double *> _t5 = {};
 // CHECK-NEXT:     clad::tape<double *> _t6 = {};

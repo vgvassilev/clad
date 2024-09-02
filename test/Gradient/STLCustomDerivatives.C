@@ -181,22 +181,22 @@ int main() {
 
 // CHECK: void fn12_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> _t1;
-// CHECK-NEXT:     double *_d_ref0 = {};
+// CHECK-NEXT:     double *_d_ref0 = nullptr;
 // CHECK-NEXT:     double *ref0 = {};
 // CHECK-NEXT:     std::vector<double> _t3;
-// CHECK-NEXT:     double *_d_ref1 = {};
+// CHECK-NEXT:     double *_d_ref1 = nullptr;
 // CHECK-NEXT:     double *ref1 = {};
 // CHECK-NEXT:     std::vector<double> _t5;
-// CHECK-NEXT:     double *_d_ref2 = {};
+// CHECK-NEXT:     double *_d_ref2 = nullptr;
 // CHECK-NEXT:     double *ref2 = {};
 // CHECK-NEXT:     double _t7;
 // CHECK-NEXT:     double _t8;
 // CHECK-NEXT:     double _t9;
 // CHECK-NEXT:     std::vector<double> _t19;
-// CHECK-NEXT:     double *_d_ref00 = {};
+// CHECK-NEXT:     double *_d_ref00 = nullptr;
 // CHECK-NEXT:     double *ref00 = {};
 // CHECK-NEXT:     std::vector<double> _t21;
-// CHECK-NEXT:     double *_d_ref10 = {};
+// CHECK-NEXT:     double *_d_ref10 = nullptr;
 // CHECK-NEXT:     double *ref10 = {};
 // CHECK-NEXT:     double _t23;
 // CHECK-NEXT:     double _t24;

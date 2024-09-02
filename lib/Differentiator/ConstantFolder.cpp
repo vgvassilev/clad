@@ -55,6 +55,12 @@ namespace clad {
     return new (C) CXXBoolLiteralExpr(val, QT, noLoc);
   }
 
+  static Expr* synthesizeLiteral(QualType QT, ASTContext& C) {
+    assert(QT->isPointerType() && "Not a pointer type.");
+    SourceLocation noLoc;
+    return new (C) CXXNullPtrLiteralExpr(QT, noLoc);
+  }
+
   Expr* ConstantFolder::trivialFold(Expr* E) {
     Expr::EvalResult Result;
     if (E->EvaluateAsRValue(Result, m_Context)) {
@@ -132,9 +138,12 @@ namespace clad {
 
   Expr* ConstantFolder::synthesizeLiteral(QualType QT, ASTContext& C,
                                           uint64_t val) {
-    //SourceLocation noLoc;
+    // SourceLocation noLoc;
     Expr* Result = 0;
-    if (QT->isBooleanType()) {
+    QT = QT.getCanonicalType();
+    if (QT->isPointerType()) {
+      Result = clad::synthesizeLiteral(QT, C);
+    } else if (QT->isBooleanType()) {
       Result = clad::synthesizeLiteral(QT, C, (bool)val);
     } else if (QT->isIntegralType(C)) {
       llvm::APInt APVal(C.getIntWidth(QT), val,
@@ -143,8 +152,11 @@ namespace clad {
     } else if (QT->isRealFloatingType()) {
       llvm::APFloat APVal(C.getFloatTypeSemantics(QT), val);
       Result = clad::synthesizeLiteral(QT, C, APVal);
+    } else { 
+      // FIXME: Handle other types, like Complex, Structs, typedefs, etc.
+      Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, val);
     }
-    assert(Result && "Must not be zero.");
+    assert(Result && "Unsupported type for constant folding.");
     return Result;
   }
 } // end namespace clad

@@ -1121,9 +1121,9 @@ double f_ref_in_rhs(double x, double y) {
 
 //CHECK: void f_ref_in_rhs_grad(double x, double y, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0;
-//CHECK-NEXT:     double *_d_ref_x = {};
+//CHECK-NEXT:     double *_d_ref_x = nullptr;
 //CHECK-NEXT:     double *ref_x = {};
-//CHECK-NEXT:     double *_d_ref_y = {};
+//CHECK-NEXT:     double *_d_ref_y = nullptr;
 //CHECK-NEXT:     double *ref_y = {};
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = x != 55;
