@@ -527,7 +527,7 @@ jobs:
           echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
         fi
-        sudo apt install llvm-${{ matrix.clang-runtime }}-dev \
+        sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev \
                          llvm-${{ matrix.clang-runtime }}-tools \
                          clang-${{ matrix.clang-runtime }} \
                          libclang-${{ matrix.clang-runtime }}-dev \
@@ -713,7 +713,7 @@ jobs:
         # llvm-8-tools is broken as it depends on python2.7 we use FileCheck from llvm-7-tools
         if [[ '${{ matrix.clang-runtime }}' == '8' ]]; then
           if [[ ! -f $PATH_TO_LLVM_BUILD/bin/FileCheck ]]; then
-            sudo apt install llvm-9-dev llvm-9-tools
+            sudo apt install -y llvm-9-dev llvm-9-tools
             sudo ln -s /usr/lib/llvm-9/bin/FileCheck $PATH_TO_LLVM_BUILD/bin/FileCheck
           fi
         fi
@@ -748,7 +748,7 @@ jobs:
     - name: Setup code coverage
       if: ${{ (matrix.coverage == true) }}
       run: |
-        sudo apt install lcov
+        sudo apt install -y lcov
         echo "CLAD_CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config *nix
