@@ -1071,8 +1071,6 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   if (clonedDRE->getType()->isPointerType())
     return StmtDiff(clonedDRE, nullptr);
   QualType literalTy = utils::GetValueType(clonedDRE->getType());
-  if (!literalTy->isRealType())
-    literalTy = m_Context.IntTy;
   return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
                                  literalTy, m_Context, /*val=*/0));
 }
@@ -1379,8 +1377,6 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
       return StmtDiff(op, BuildOp(opKind, dx));
     QualType literalTy =
         utils::GetValueType(UnOp->getSubExpr()->getType()->getPointeeType());
-    if (!literalTy->isRealType())
-      literalTy = m_Context.IntTy;
     return StmtDiff(
         op, ConstantFolder::synthesizeLiteral(literalTy, m_Context, /*val=*/0));
   } else if (opKind == UnaryOperatorKind::UO_AddrOf) {
