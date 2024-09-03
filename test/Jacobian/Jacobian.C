@@ -51,7 +51,7 @@ void f_3(double x, double y, double z, double *_result) {
 
 void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
 //CHECK: void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
-//CHECK-NEXT:  double _d_constant = 0;
+//CHECK-NEXT:  double _d_constant = 0.;
 //CHECK-NEXT:  double constant = 42;
 //CHECK-NEXT:  double _t0 = sin(x);
 //CHECK-NEXT:  _result[0] = sin(x) * constant;
@@ -60,17 +60,17 @@ void f_3_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:  double _t2 = sin(z);
 //CHECK-NEXT:  _result[2] = sin(z) * constant;
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r2 = 0;
+//CHECK-NEXT:    double _r2 = 0.;
 //CHECK-NEXT:    _r2 += 1 * constant * clad::custom_derivatives::sin_pushforward(z, 1.).pushforward;
 //CHECK-NEXT:    jacobianMatrix[{{8U|8UL|8ULL}}] += _r2;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r1 = 0;
+//CHECK-NEXT:    double _r1 = 0.;
 //CHECK-NEXT:    _r1 += 1 * constant * clad::custom_derivatives::sin_pushforward(y, 1.).pushforward;
 //CHECK-NEXT:    jacobianMatrix[{{4U|4UL|4ULL}}] += _r1;
 //CHECK-NEXT:  }
 //CHECK-NEXT:  {
-//CHECK-NEXT:    double _r0 = 0;
+//CHECK-NEXT:    double _r0 = 0.;
 //CHECK-NEXT:    _r0 += 1 * constant * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
 //CHECK-NEXT:    jacobianMatrix[{{0U|0UL|0ULL}}] += _r0;
 //CHECK-NEXT:  }
@@ -89,7 +89,7 @@ void f_4(double x, double y, double z, double *_result) {
 
 void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix);
 //CHECK: void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatrix) {
-//CHECK-NEXT:    double _d_constant = 0;
+//CHECK-NEXT:    double _d_constant = 0.;
 //CHECK-NEXT:    double constant = 42;
 //CHECK-NEXT:    double _t0 = multiply(x, y);
 //CHECK-NEXT:    _result[0] = multiply(x, y) * constant;
@@ -98,22 +98,22 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 //CHECK-NEXT:    double _t2 = multiply(z, x);
 //CHECK-NEXT:    _result[2] = multiply(z, x) * constant;
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r4 = 0;
-//CHECK-NEXT:        double _r5 = 0;
+//CHECK-NEXT:        double _r4 = 0.;
+//CHECK-NEXT:        double _r5 = 0.;
 //CHECK-NEXT:        multiply_pullback(z, x, 1 * constant, &_r4, &_r5);
 //CHECK-NEXT:        jacobianMatrix[{{8U|8UL|8ULL}}] += _r4;
 //CHECK-NEXT:        jacobianMatrix[{{6U|6UL|6ULL}}] += _r5;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r2 = 0;
-//CHECK-NEXT:        double _r3 = 0;
+//CHECK-NEXT:        double _r2 = 0.;
+//CHECK-NEXT:        double _r3 = 0.;
 //CHECK-NEXT:        multiply_pullback(y, z, 1 * constant, &_r2, &_r3);
 //CHECK-NEXT:        jacobianMatrix[{{4U|4UL|4ULL}}] += _r2;
 //CHECK-NEXT:        jacobianMatrix[{{5U|5UL|5ULL}}] += _r3;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        double _r0 = 0;
-//CHECK-NEXT:        double _r1 = 0;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        double _r1 = 0.;
 //CHECK-NEXT:        multiply_pullback(x, y, 1 * constant, &_r0, &_r1);
 //CHECK-NEXT:        jacobianMatrix[{{0U|0UL|0ULL}}] += _r0;
 //CHECK-NEXT:        jacobianMatrix[{{1U|1UL|1ULL}}] += _r1;
@@ -122,8 +122,8 @@ void f_4_jac(double x, double y, double z, double *_result, double *jacobianMatr
 
 void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMatrix);
 // CHECK: void f_1_jac_0(double a, double b, double c, double output[], double *jacobianMatrix) {
-// CHECK-NEXT:  double _d_b = 0;
-// CHECK-NEXT:  double _d_c = 0;
+// CHECK-NEXT:  double _d_b = 0.;
+// CHECK-NEXT:  double _d_c = 0.;
 // CHECK-NEXT:  output[0] = a * a * a;
 // CHECK-NEXT:  output[1] = a * a * a + b * b * b;
 // CHECK-NEXT:  output[2] = c * c * 10 - a * a;

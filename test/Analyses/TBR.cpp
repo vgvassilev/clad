@@ -17,7 +17,7 @@ double f1(double x) {
 //CHECK-NEXT:     int _d_i = 0;
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<double> _t1 = {};
-//CHECK-NEXT:     double _d_t = 0;
+//CHECK-NEXT:     double _d_t = 0.;
 //CHECK-NEXT:     double t = 1;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 0; ; i++) {
@@ -37,7 +37,7 @@ double f1(double x) {
 //CHECK-NEXT:         }
 //CHECK-NEXT:         t = clad::pop(_t1);
 //CHECK-NEXT:         double _r_d0 = _d_t;
-//CHECK-NEXT:         _d_t = 0;
+//CHECK-NEXT:         _d_t = 0.;
 //CHECK-NEXT:         _d_t += _r_d0 * x;
 //CHECK-NEXT:         *_d_x += t * _r_d0;
 //CHECK-NEXT:     }
@@ -58,7 +58,7 @@ double f2(double val) {
 //CHECK-NEXT:     int i = 0;
 //CHECK-NEXT:     clad::tape<bool> _cond0 = {};
 //CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
-//CHECK-NEXT:     double _d_res = 0;
+//CHECK-NEXT:     double _d_res = 0.;
 //CHECK-NEXT:     double res = 0;
 //CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:     for (i = 1; ; ++i) {
@@ -120,11 +120,11 @@ double f3 (double x){
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     bool _cond1;
 //CHECK-NEXT:     bool _cond2;
-//CHECK-NEXT:     double _d_i = 0;
+//CHECK-NEXT:     double _d_i = 0.;
 //CHECK-NEXT:     double i = 1;
-//CHECK-NEXT:     double _d_j = 0;
+//CHECK-NEXT:     double _d_j = 0.;
 //CHECK-NEXT:     double j = 0;
-//CHECK-NEXT:     double _d_res = 0;
+//CHECK-NEXT:     double _d_res = 0.;
 //CHECK-NEXT:     double res = 0;
 //CHECK-NEXT:     res += i * x;
 //CHECK-NEXT:     {

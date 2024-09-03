@@ -20,7 +20,7 @@ double f1(double i, double j) {
 // CHECK-NEXT:         }{{;?}}
 // CHECK:         {
 // CHECK-NEXT:             *_d_i += 1;
-// CHECK-NEXT:             double _r0 = 0;
+// CHECK-NEXT:             double _r0 = 0.;
 // CHECK-NEXT:             _f.operator_call_pullback(j, 1, &_r0);
 // CHECK-NEXT:             *_d_j += _r0;
 // CHECK-NEXT:         }
@@ -39,12 +39,12 @@ double f2(double i, double j) {
 // CHECK-NEXT:             auto _f = []{{ ?}}(double t, double k) {
 // CHECK-NEXT:                 return t + k;
 // CHECK-NEXT:             }{{;?}}
-// CHECK:        double _d_x = 0;
+// CHECK:        double _d_x = 0.;
 // CHECK-NEXT:             double x = operator()(i + j, i);
 // CHECK-NEXT:             _d_x += 1;
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 double _r0 = 0;
-// CHECK-NEXT:                 double _r1 = 0;
+// CHECK-NEXT:                 double _r0 = 0.;
+// CHECK-NEXT:                 double _r1 = 0.;
 // CHECK-NEXT:                 _f.operator_call_pullback(i + j, i, _d_x, &_r0, &_r1);
 // CHECK-NEXT:                 *_d_i += _r0;
 // CHECK-NEXT:                 *_d_j += _r0;

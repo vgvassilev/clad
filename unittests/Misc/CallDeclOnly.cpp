@@ -24,13 +24,13 @@ TEST(CallDeclOnly, CheckNumDiff) {
   // Check the generated code from grad.dump()
   std::string expected = R"(The code is: 
 void wrapper1_grad(double *params, double *_d_params) {
-    double _d_ix = 0;
+    double _d_ix = 0.;
     const double ix = 1 + params[0];
     {
-        double _r0 = 0;
-        double _r1 = 0;
-        double _r2 = 0;
-        double _r3 = 0;
+        double _r0 = 0.;
+        double _r1 = 0.;
+        double _r2 = 0.;
+        double _r3 = 0.;
         double _grad0[4] = {0};
         numerical_diff::central_difference(foo, _grad0, 0, 10., ix, 1., 0);
         _r0 += 1 * _grad0[0];

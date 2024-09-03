@@ -130,8 +130,8 @@ int main() {
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
     // CHECK-NEXT:     SimpleFunctions1 _t0 = obj;
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r2 = 0;
-    // CHECK-NEXT:         double _r3 = 0;
+    // CHECK-NEXT:         double _r2 = 0.;
+    // CHECK-NEXT:         double _r3 = 0.;
     // CHECK-NEXT:         _t0.mem_fn_1_pullback(i, j, 1, &_d_obj, &_r2, &_r3);
     // CHECK-NEXT:         *_d_i += _r2;
     // CHECK-NEXT:         *_d_j += _r3;
@@ -139,8 +139,8 @@ int main() {
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0;
-    // CHECK-NEXT:         double _r1 = 0;
+    // CHECK-NEXT:         double _r0 = 0.;
+    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
@@ -153,8 +153,8 @@ int main() {
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0;
-    // CHECK-NEXT:         double _r1 = 0;
+    // CHECK-NEXT:         double _r0 = 0.;
+    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
@@ -167,8 +167,8 @@ int main() {
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0;
-    // CHECK-NEXT:         double _r1 = 0;
+    // CHECK-NEXT:         double _r0 = 0.;
+    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
 
@@ -181,7 +181,7 @@ int main() {
     // CHECK-NEXT: }
 
     // CHECK: void fn_non_diff_var_grad(double i, double j, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     double _d_k = 0;
+    // CHECK-NEXT:     double _d_k = 0.;
     // CHECK-NEXT:     double k = i * i * j;
     // CHECK-NEXT:     _d_k += 1;
     // CHECK-NEXT: }

@@ -18,7 +18,7 @@ double test_1(double x){
 
 //CHECK: void test_1_grad(double x, double *_d_x) {
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         _r0 += 1 * numerical_diff::forward_central_difference(tanh, x, 0, 1, x);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
