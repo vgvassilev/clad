@@ -2056,7 +2056,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       auto* resAdjoint =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
-      return StmtDiff(resValue, nullptr, resAdjoint);
+      return StmtDiff(resValue, resAdjoint, resAdjoint);
     }
     if (utils::isNonConstReferenceType(returnType) ||
         returnType->isPointerType()) {
