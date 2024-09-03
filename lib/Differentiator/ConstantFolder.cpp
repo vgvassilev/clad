@@ -146,7 +146,7 @@ namespace clad {
     } else if (QT->isBooleanType()) {
       Result = clad::synthesizeLiteral(QT, C, (bool)val);
     } else if (QT->isIntegralType(C)) {
-      if (QT->isCharType())
+      if (QT->isAnyCharacterType())
         QT = C.IntTy;
       llvm::APInt APVal(C.getIntWidth(QT), val,
                          QT->isSignedIntegerOrEnumerationType());
