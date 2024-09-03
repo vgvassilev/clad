@@ -146,6 +146,8 @@ namespace clad {
     } else if (QT->isBooleanType()) {
       Result = clad::synthesizeLiteral(QT, C, (bool)val);
     } else if (QT->isIntegralType(C)) {
+      if (QT->isCharType())
+        QT = C.IntTy;
       llvm::APInt APVal(C.getIntWidth(QT), val,
                          QT->isSignedIntegerOrEnumerationType());
       Result = clad::synthesizeLiteral(QT, C, APVal);
@@ -154,6 +156,7 @@ namespace clad {
       Result = clad::synthesizeLiteral(QT, C, APVal);
     } else {
       // FIXME: Handle other types, like Complex, Structs, typedefs, etc.
+      // typecasting may be needed right now
       Result = ConstantFolder::synthesizeLiteral(C.IntTy, C, val);
     }
     assert(Result && "Unsupported type for constant folding.");

@@ -324,7 +324,7 @@ double fn8(double x, double y) {
 // CHECK-NEXT:     double _t0 = std::max(1., 2.);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         char _r1 = 0i8;
+// CHECK-NEXT:         char _r1 = 0;
 // CHECK-NEXT:         check_and_return_pullback(x, 'a', "aa", 1 * _t0 * _t1 * y, &_r0, &_r1, "");
 // CHECK-NEXT:         *_d_x += _r0;
 // CHECK-NEXT:         *_d_y += _t2 * 1 * _t0 * _t1;
