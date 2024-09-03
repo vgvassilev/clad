@@ -59,10 +59,10 @@ double sq(double x) { return x * x; }
 double wrapper2(double* params) { return sq(params[0]); }
 
 TEST(CallDeclOnly, CheckCustomDiff) {
-  auto grad = clad::hessian(wrapper2, "params[0]");
+  auto hess = clad::hessian(wrapper2, "params[0]");
   double x = 4.0;
   double dx = 0.0;
-  grad.execute(&x, &dx);
+  hess.execute(&x, &dx);
   EXPECT_DOUBLE_EQ(dx, 2.0);
 }
 
