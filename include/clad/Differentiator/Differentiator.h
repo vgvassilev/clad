@@ -38,15 +38,22 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   return count;
 }
 
-  /// Tape type used for storing values in reverse-mode AD inside loops.
-  template <typename T>
-  using tape = tape_impl<T>;
+#ifdef __CUDACC__
+#define CUDA_ARGS                                                              \
+  bool CUDAkernel, dim3 grid, dim3 block, size_t shared_mem,                   \
+      cudaStream_t stream,
+#else
+#define CUDA_ARGS
+#endif
 
-  /// Add value to the end of the tape, return the same value.
-  template <typename T, typename... ArgsT>
-  CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
-    to.emplace_back(std::forward<ArgsT>(val)...);
-    return to.back();
+/// Tape type used for storing values in reverse-mode AD inside loops.
+template <typename T> using tape = tape_impl<T>;
+
+/// Add value to the end of the tape, return the same value.
+template <typename T, typename... ArgsT>
+CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
+  to.emplace_back(std::forward<ArgsT>(val)...);
+  return to.back();
   }
 
   /// Add value to the end of the tape, return the same value.
@@ -115,8 +122,17 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
-                            Args&&... args) {
+                            CUDA_ARGS Args&&... args) {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+    if (CUDAkernel) {
+      void* argPtrs[] = {(void*)&args..., (void*)static_cast<Rest>(nullptr)...};
+      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+    } else {
+      return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+    }
+#else
     return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+#endif
   }
 
   template <bool EnablePadding, class... Rest, class F, class... Args,
@@ -124,33 +140,18 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             typename std::enable_if<!EnablePadding, bool>::type = true>
   return_type_t<F> execute_with_default_args(list<Rest...>, F f,
                                              list<fArgTypes...>,
-                                             Args&&... args) {
+                                             CUDA_ARGS Args&&... args) {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+    if (CUDAkernel) {
+      void* argPtrs[] = {(void*)&args...};
+      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+    } else {
+      return f(static_cast<Args>(args)...);
+    }
+#else
     return f(static_cast<Args>(args)...);
-  }
-
-#ifdef __CUDACC__
-  template <bool EnablePadding, class... Rest, class F, class... Args,
-            class... fArgTypes,
-            typename std::enable_if<EnablePadding, bool>::type = true>
-  CUDA_HOST_DEVICE void
-  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>, dim3 grid,
-                            dim3 block, size_t shared_mem, cudaStream_t stream,
-                            Args&&... args) {
-    void* argPtrs[] = {(void*)&args..., (void*)static_cast<Rest>(nullptr)...};
-    cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
-  }
-
-  template <bool EnablePadding, class... Rest, class F, class... Args,
-            class... fArgTypes,
-            typename std::enable_if<!EnablePadding, bool>::type = true>
-  CUDA_HOST_DEVICE void
-  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>, dim3 grid,
-                            dim3 block, size_t shared_mem, cudaStream_t stream,
-                            Args&&... args) {
-    void* argPtrs[] = {(void*)&args...};
-    cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
-  }
 #endif
+  }
 
   // for executing member-functions
   template <bool EnablePadding, class... Rest, class ReturnType, class C,
@@ -240,7 +241,12 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
       // here static_cast is used to achieve perfect forwarding
+#ifdef __CUDACC__
+      return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0), 0,
+                            nullptr, static_cast<Args>(args)...);
+#else
       return execute_helper(m_Function, static_cast<Args>(args)...);
+#endif
     }
 
 #ifdef __CUDACC__
@@ -258,8 +264,8 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
 
-      return execute_helper(m_Function, grid, block, shared_mem, stream,
-                            static_cast<Args>(args)...);
+      return execute_helper(m_Function, m_CUDAkernel, grid, block, shared_mem,
+                            stream, static_cast<Args>(args)...);
     }
 #endif
 
@@ -307,27 +313,20 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
-      execute_helper(Fn f, Args&&... args) {
+      execute_helper(Fn f, CUDA_ARGS Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-      return execute_with_default_args<EnablePadding>(
-          DropArgs_t<sizeof...(Args), F>{}, f,
-          TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-          static_cast<Args>(args)...);
-      }
-
 #ifdef __CUDACC__
-      /// Helper function for executing non-member global derived functions.
-      template <class Fn, class... Args>
-      CUDA_HOST_DEVICE return_type_t<CladFunctionType>
-      execute_helper(Fn f, dim3 grid, dim3 block, size_t shared_mem,
-                     cudaStream_t stream, Args&&... args) {
-        // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), F>{}, f,
-            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, grid, block,
-            shared_mem, stream, static_cast<Args>(args)...);
-      }
+            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel, grid,
+            block, shared_mem, stream, static_cast<Args>(args)...);
+#else
+        return execute_with_default_args<EnablePadding>(
+            DropArgs_t<sizeof...(Args), F>{}, f,
+            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
+            static_cast<Args>(args)...);
 #endif
+      }
 
       /// Helper functions for executing member derived functions.
       /// If user have passed object explicitly, then this specialization will
