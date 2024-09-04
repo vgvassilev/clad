@@ -54,7 +54,7 @@ template <typename T, typename... ArgsT>
 CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   to.emplace_back(std::forward<ArgsT>(val)...);
   return to.back();
-  }
+}
 
   /// Add value to the end of the tape, return the same value.
   /// A specialization for clad::array_ref types to use in reverse mode.
