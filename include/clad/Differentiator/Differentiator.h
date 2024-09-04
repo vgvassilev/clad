@@ -39,11 +39,11 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
 }
 
 #ifdef __CUDACC__
-#define CUDA_ARGS                                                              \
-  bool CUDAkernel, dim3 grid, dim3 block, size_t shared_mem,                   \
-      cudaStream_t stream,
+#define CUDA_ARGS bool CUDAkernel, dim3 grid, dim3 block,
+#define CUDA_REST_ARGS size_t shared_mem, cudaStream_t stream,
 #else
 #define CUDA_ARGS
+#define CUDA_REST_ARGS
 #endif
 
 /// Tape type used for storing values in reverse-mode AD inside loops.
@@ -122,7 +122,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
-                            CUDA_ARGS Args&&... args) {
+                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       void* argPtrs[] = {(void*)&args..., (void*)static_cast<Rest>(nullptr)...};
@@ -138,9 +138,9 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   template <bool EnablePadding, class... Rest, class F, class... Args,
             class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
-  return_type_t<F> execute_with_default_args(list<Rest...>, F f,
-                                             list<fArgTypes...>,
-                                             CUDA_ARGS Args&&... args) {
+  return_type_t<F>
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
+                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       void* argPtrs[] = {(void*)&args...};
@@ -242,8 +242,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
       }
       // here static_cast is used to achieve perfect forwarding
 #ifdef __CUDACC__
-      return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0), 0,
-                            nullptr, static_cast<Args>(args)...);
+      return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
+                            static_cast<Args>(args)...);
 #else
       return execute_helper(m_Function, static_cast<Args>(args)...);
 #endif
@@ -253,8 +253,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     template <typename... Args, class FnType = CladFunctionType>
     typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
                             return_type_t<F>>::type
-    execute_kernel(dim3 grid, dim3 block, size_t shared_mem,
-                   cudaStream_t stream, Args&&... args) CUDA_HOST_DEVICE {
+    execute_kernel(dim3 grid, dim3 block, Args&&... args) CUDA_HOST_DEVICE {
       if (!m_Function) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
@@ -264,8 +263,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
 
-      return execute_helper(m_Function, m_CUDAkernel, grid, block, shared_mem,
-                            stream, static_cast<Args>(args)...);
+      return execute_helper(m_Function, m_CUDAkernel, grid, block,
+                            static_cast<Args>(args)...);
     }
 #endif
 
@@ -315,11 +314,31 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
       execute_helper(Fn f, CUDA_ARGS Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-#ifdef __CUDACC__
-        return execute_with_default_args<EnablePadding>(
-            DropArgs_t<sizeof...(Args), F>{}, f,
-            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel, grid,
-            block, shared_mem, stream, static_cast<Args>(args)...);
+#if defined(__CUDACC__)
+        if constexpr (sizeof...(Args) >= 2) {
+          auto secondArg =
+              std::get<1>(std::forward_as_tuple(std::forward<Args>(args)...));
+          if constexpr (std::is_same<std::decay_t<decltype(secondArg)>,
+                                     cudaStream_t>::value) {
+            return [&](auto shared_mem, cudaStream_t stream, auto&&... args_) {
+              return execute_with_default_args<EnablePadding>(
+                  DropArgs_t<sizeof...(Args) - 2, F>{}, f,
+                  TakeNFirstArgs_t<sizeof...(Args) - 2, decltype(f)>{},
+                  CUDAkernel, grid, block, shared_mem, stream,
+                  static_cast<decltype(args_)>(args_)...);
+            }(static_cast<Args>(args)...);
+          } else {
+            return execute_with_default_args<EnablePadding>(
+                DropArgs_t<sizeof...(Args), F>{}, f,
+                TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
+                grid, block, 0, nullptr, static_cast<Args>(args)...);
+          }
+        } else {
+          return execute_with_default_args<EnablePadding>(
+              DropArgs_t<sizeof...(Args), F>{}, f,
+              TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
+              grid, block, 0, nullptr, static_cast<Args>(args)...);
+        }
 #else
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), F>{}, f,

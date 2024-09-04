@@ -50,18 +50,30 @@ int main(void) {
   auto test = clad::gradient(kernel);
   dim3 grid(1);
   dim3 block(1);
-  test.execute_kernel(grid, block, 0, nullptr, d_a, d_square);
+  cudaStream_t cudaStream;
+  cudaStreamCreate(&cudaStream);
+  test.execute_kernel(grid, block, 0, cudaStream, d_a, d_square);
 
   cudaDeviceSynchronize();
 
   cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
   cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
-  printf("a = %d, a^2 = %d\n", *a, *asquare);
+  printf("a = %d, a^2 = %d\n", *a, *asquare); // CHECK-EXEC: a = 2, a^2 = 4
 
   auto error = clad::gradient(fake_kernel);
-  error.execute_kernel(grid, block, 0, nullptr, d_a, d_square);
+  error.execute_kernel(grid, block, d_a, d_square); // CHECK-EXEC: Use execute() for non-global CUDA kernels
 
-  test.execute(d_a, d_square);
+  test.execute(d_a, d_square); // CHECK-EXEC: Use execute_kernel() for global CUDA kernels
+
+  cudaMemset(d_a, 5, 1); // first byte is set to 5
+  cudaMemset(d_square, 1, 1);
+
+  test.execute_kernel(grid, block, d_a, d_square); 
+  cudaDeviceSynchronize();
+
+  cudaMemcpy(asquare, d_square, sizeof(int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
+  printf("a = %d, a^2 = %d\n", *a, *asquare); // CHECK-EXEC: a = 5, a^2 = 10
 
   return 0;
 }
