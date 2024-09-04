@@ -395,24 +395,34 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
       assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code);
+      // Add a special case to handle the situation where a reference 
+      // variable is initialized with a pointer dereference
+    if (std::is_reference<F>::value && std::is_pointer
+        <typename std::remove_reference<F>::type>::value) {
+        // Replace the reference variable with its original pointer
+        F original_f = *(typename std::remove_reference<F>::type*)&f;
+        return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+            derivedFn /* will be replaced by gradient*/, code, original_f);
+    } else {
+        return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+            derivedFn /* will be replaced by gradient*/, code, f);
+    }
   }
 
   /// Specialization for differentiating functors.
   /// The specialization is needed because objects have to be passed
   /// by reference whereas functions have to be passed by value.
-  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*,
-            typename F, typename DerivedFnType = GradientDerivedFnTraits_t<F>,
+  template <unsigned... BitMaskedOpts, typename ArgSpec = const char*, typename F,
+            typename DerivedFnType = GradientDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
   CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true> __attribute__((
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F&& f, ArgSpec args = "",
-           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code, f);
+          DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
+          const char* code = "") {
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by gradient*/, code, f);
   }
 
   /// Generates function which computes hessian matrix of the given function wrt
