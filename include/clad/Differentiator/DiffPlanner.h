@@ -31,6 +31,11 @@ private:
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
 
+  mutable struct ActivityRunInfo {
+    std::set<const clang::VarDecl*> ToBeRecorded;
+    bool HasAnalysisRun = false;
+  } m_ActivityRunInfo;
+
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
@@ -55,6 +60,7 @@ public:
   bool VerboseDiags = false;
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
+  bool EnableActivityAnalysis = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -111,7 +117,7 @@ public:
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            CallContext == other.CallContext && Args == other.Args &&
-           Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
+           Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis && EnableActivityAnalysis == other.EnableActivityAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly;
   }
@@ -129,6 +135,7 @@ public:
   }
 
   bool shouldBeRecorded(clang::Expr* E) const;
+  bool shouldHaveAdjoint(clang::VarDecl* VD) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -137,6 +144,7 @@ public:
     /// This is a flag to indicate the default behaviour to enable/disable
     /// TBR analysis during reverse-mode differentiation.
     bool EnableTBRAnalysis = false;
+    bool EnableActivityAnalysis = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

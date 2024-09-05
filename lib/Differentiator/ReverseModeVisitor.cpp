@@ -2890,6 +2890,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             nullptr, VD->getInitStyle());
     }
 
+
     // If `VD` is a reference to a local variable, then it is already
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
@@ -2939,7 +2940,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
-    if (VDDerived)
+    if (VDDerived && m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD)))
       derivedVDE = BuildDeclRef(VDDerived);
 
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
@@ -2995,8 +2996,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         VDDerived->setInitStyle(VarDecl::InitializationStyle::CInit);
       }
     }
+    if(!m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD))){
+      derivedVDE = nullptr;
+      llvm::errs() << "\nBALUBA";
+      VD->dump();
+    }
+
     if (derivedVDE)
       m_Variables.emplace(VDClone, derivedVDE);
+
+
     // Check if decl's name is the same as before. The name may be changed
     // if decl name collides with something in the derivative body.
     // This can happen in rare cases, e.g. when the original function
@@ -3034,6 +3043,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   // need to be done to
   StmtDiff
   ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS) {
+
+    // bool adjInsert = false;
+    // if(auto* binOp = dyn_cast<BinaryOperator>(S)){
+    //   if(auto* lhsDeclRef = dyn_cast<DeclRefExpr>(binOp->getLHS())){
+    //     auto* lhsVarDecl = dyn_cast<VarDecl>(lhsDeclRef->getDecl());
+    //     if(m_DiffReq.shouldHaveAdjoint(lhsVarDecl))
+    //       adjInsert = true;
+    //   }
+    // }else if(auto* declStmt = dyn_cast<DeclStmt>(S)){
+    //   auto* decl = dyn_cast<VarDecl>(declStmt->getSingleDecl());
+    //   if(decl){
+    //     if(m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(decl))){
+    //       adjInsert = true;
+    //     }
+    //   }
+    // }else{
+    //   adjInsert = true;
+    // }
+    
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);
@@ -3060,6 +3088,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     CompoundStmt* RCS = endBlock(direction::reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
+
+    // if(!adjInsert)
+    //   ReverseResult = nullptr;
+
+
     return StmtDiff(SDiff.getStmt(), ReverseResult);
   }
 

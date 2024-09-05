@@ -1,6 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
 #include "TBRAnalyzer.h"
+#include "ActivityAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -615,6 +616,30 @@ namespace clad {
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
+  bool DiffRequest::shouldHaveAdjoint(VarDecl* VD) const {
+    if (!EnableActivityAnalysis)
+      return true;
+    
+    if(VD->getType()->isPointerType())
+      return true;
+
+    if (!m_ActivityRunInfo.HasAnalysisRun) {
+      if (Args) {
+        for (const auto& dParam : DVI)
+          m_ActivityRunInfo.ToBeRecorded.insert(cast<VarDecl>(dParam.param));
+      }else{
+        std::copy(Function->param_begin(), Function->param_end(), std::inserter(m_ActivityRunInfo.ToBeRecorded, m_ActivityRunInfo.ToBeRecorded.end()));
+      }
+      
+      VariedAnalyzer analyzer(Function->getASTContext(),
+                           m_ActivityRunInfo.ToBeRecorded);
+      analyzer.Analyze(Function);
+      m_ActivityRunInfo.HasAnalysisRun = true;
+    }
+    auto found = m_ActivityRunInfo.ToBeRecorded.find(VD);
+    return found != m_ActivityRunInfo.ToBeRecorded.end();
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     // FIXME: Generated code does not usually have valid source locations.
@@ -646,6 +671,8 @@ namespace clad {
       unsigned bitmasked_opts_value = 0;
       bool enable_tbr_in_req = false;
       bool disable_tbr_in_req = false;
+      bool enable_aa_in_req = false;
+      bool disable_aa_in_req = false;
       if (!A->getAnnotation().equals("E") &&
           FD->getTemplateSpecializationArgs()) {
         const auto template_arg = FD->getTemplateSpecializationArgs()->get(0);
@@ -661,9 +688,19 @@ namespace clad {
             clad::HasOption(bitmasked_opts_value, clad::opts::enable_tbr);
         disable_tbr_in_req =
             clad::HasOption(bitmasked_opts_value, clad::opts::disable_tbr);
+        // Set option for Activity analysis.
+        enable_aa_in_req =
+            clad::HasOption(bitmasked_opts_value, clad::opts::enable_aa);
+        disable_aa_in_req =
+            clad::HasOption(bitmasked_opts_value, clad::opts::disable_aa);
         if (enable_tbr_in_req && disable_tbr_in_req) {
           utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
                           "Both enable and disable TBR options are specified.");
+          return true;
+        }
+        if (enable_aa_in_req && disable_aa_in_req) {
+          utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                          "Both enable and disable AA options are specified.");
           return true;
         }
         if (enable_tbr_in_req || disable_tbr_in_req) {
@@ -671,6 +708,12 @@ namespace clad {
           request.EnableTBRAnalysis = enable_tbr_in_req && !disable_tbr_in_req;
         } else {
           request.EnableTBRAnalysis = m_Options.EnableTBRAnalysis;
+        }
+        if (enable_aa_in_req || disable_aa_in_req) {
+          // override the default value of TBR analysis.
+          request.EnableActivityAnalysis = enable_aa_in_req && !disable_aa_in_req;
+        } else {
+          request.EnableActivityAnalysis = m_Options.EnableActivityAnalysis;
         }
         if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
           if (!A->getAnnotation().equals("H")) {
