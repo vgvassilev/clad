@@ -38,16 +38,23 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
   return count;
 }
 
-  /// Tape type used for storing values in reverse-mode AD inside loops.
-  template <typename T>
-  using tape = tape_impl<T>;
+#ifdef __CUDACC__
+#define CUDA_ARGS bool CUDAkernel, dim3 grid, dim3 block,
+#define CUDA_REST_ARGS size_t shared_mem, cudaStream_t stream,
+#else
+#define CUDA_ARGS
+#define CUDA_REST_ARGS
+#endif
 
-  /// Add value to the end of the tape, return the same value.
-  template <typename T, typename... ArgsT>
-  CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
-    to.emplace_back(std::forward<ArgsT>(val)...);
-    return to.back();
-  }
+/// Tape type used for storing values in reverse-mode AD inside loops.
+template <typename T> using tape = tape_impl<T>;
+
+/// Add value to the end of the tape, return the same value.
+template <typename T, typename... ArgsT>
+CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
+  to.emplace_back(std::forward<ArgsT>(val)...);
+  return to.back();
+}
 
   /// Add value to the end of the tape, return the same value.
   /// A specialization for clad::array_ref types to use in reverse mode.
@@ -115,17 +122,35 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
             typename std::enable_if<EnablePadding, bool>::type = true>
   CUDA_HOST_DEVICE return_type_t<F>
   execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
-                            Args&&... args) {
+                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+    if (CUDAkernel) {
+      void* argPtrs[] = {(void*)&args..., (void*)static_cast<Rest>(nullptr)...};
+      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+    } else {
+      return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+    }
+#else
     return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
+#endif
   }
 
   template <bool EnablePadding, class... Rest, class F, class... Args,
             class... fArgTypes,
             typename std::enable_if<!EnablePadding, bool>::type = true>
-  return_type_t<F> execute_with_default_args(list<Rest...>, F f,
-                                             list<fArgTypes...>,
-                                             Args&&... args) {
+  return_type_t<F>
+  execute_with_default_args(list<Rest...>, F f, list<fArgTypes...>,
+                            CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
+#if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
+    if (CUDAkernel) {
+      void* argPtrs[] = {(void*)&args...};
+      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+    } else {
+      return f(static_cast<Args>(args)...);
+    }
+#else
     return f(static_cast<Args>(args)...);
+#endif
   }
 
   // for executing member-functions
@@ -167,12 +192,13 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
     CladFunctionType m_Function;
     char* m_Code;
     FunctorType *m_Functor = nullptr;
+    bool m_CUDAkernel = false;
 
   public:
-    CUDA_HOST_DEVICE CladFunction(CladFunctionType f,
-                                  const char* code,
-                                  FunctorType* functor = nullptr)
-        : m_Functor(functor) {
+    CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
+                                  FunctorType* functor = nullptr,
+                                  bool CUDAkernel = false)
+        : m_Functor(functor), m_CUDAkernel(CUDAkernel) {
       assert(f && "Must pass a non-0 argument.");
       if (size_t length = GetLength(code)) {
         m_Function = f;
@@ -210,9 +236,37 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
         printf("CladFunction is invalid\n");
         return static_cast<return_type_t<F>>(return_type_t<F>());
       }
+      if (m_CUDAkernel) {
+        printf("Use execute_kernel() for global CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
       // here static_cast is used to achieve perfect forwarding
+#ifdef __CUDACC__
+      return execute_helper(m_Function, m_CUDAkernel, dim3(0), dim3(0),
+                            static_cast<Args>(args)...);
+#else
       return execute_helper(m_Function, static_cast<Args>(args)...);
+#endif
     }
+
+#ifdef __CUDACC__
+    template <typename... Args, class FnType = CladFunctionType>
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type
+    execute_kernel(dim3 grid, dim3 block, Args&&... args) CUDA_HOST_DEVICE {
+      if (!m_Function) {
+        printf("CladFunction is invalid\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+      if (!m_CUDAkernel) {
+        printf("Use execute() for non-global CUDA kernels\n");
+        return static_cast<return_type_t<F>>(return_type_t<F>());
+      }
+
+      return execute_helper(m_Function, m_CUDAkernel, grid, block,
+                            static_cast<Args>(args)...);
+    }
+#endif
 
     /// `Execute` overload to be used when derived function type cannot be
     /// deduced. One reason for this can be when user tries to differentiate
@@ -258,12 +312,39 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       /// Helper function for executing non-member derived functions.
       template <class Fn, class... Args>
       CUDA_HOST_DEVICE return_type_t<CladFunctionType>
-      execute_helper(Fn f, Args&&... args) {
+      execute_helper(Fn f, CUDA_ARGS Args&&... args) {
         // `static_cast` is required here for perfect forwarding.
-      return execute_with_default_args<EnablePadding>(
-          DropArgs_t<sizeof...(Args), F>{}, f,
-          TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
-          static_cast<Args>(args)...);
+#if defined(__CUDACC__)
+        if constexpr (sizeof...(Args) >= 2) {
+          auto secondArg =
+              std::get<1>(std::forward_as_tuple(std::forward<Args>(args)...));
+          if constexpr (std::is_same<std::decay_t<decltype(secondArg)>,
+                                     cudaStream_t>::value) {
+            return [&](auto shared_mem, cudaStream_t stream, auto&&... args_) {
+              return execute_with_default_args<EnablePadding>(
+                  DropArgs_t<sizeof...(Args) - 2, F>{}, f,
+                  TakeNFirstArgs_t<sizeof...(Args) - 2, decltype(f)>{},
+                  CUDAkernel, grid, block, shared_mem, stream,
+                  static_cast<decltype(args_)>(args_)...);
+            }(static_cast<Args>(args)...);
+          } else {
+            return execute_with_default_args<EnablePadding>(
+                DropArgs_t<sizeof...(Args), F>{}, f,
+                TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
+                grid, block, 0, nullptr, static_cast<Args>(args)...);
+          }
+        } else {
+          return execute_with_default_args<EnablePadding>(
+              DropArgs_t<sizeof...(Args), F>{}, f,
+              TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{}, CUDAkernel,
+              grid, block, 0, nullptr, static_cast<Args>(args)...);
+        }
+#else
+        return execute_with_default_args<EnablePadding>(
+            DropArgs_t<sizeof...(Args), F>{}, f,
+            TakeNFirstArgs_t<sizeof...(Args), decltype(f)>{},
+            static_cast<Args>(args)...);
+#endif
       }
 
       /// Helper functions for executing member derived functions.
@@ -393,10 +474,10 @@ inline CUDA_HOST_DEVICE unsigned int GetLength(const char* code) {
       annotate("G"))) CUDA_HOST_DEVICE
   gradient(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
-           const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn /* will be replaced by gradient*/, code);
+           const char* code = "", bool CUDAkernel = false) {
+    assert(f && "Must pass in a non-0 argument");
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn /* will be replaced by gradient*/, code, nullptr, CUDAkernel);
   }
 
   /// Specialization for differentiating functors.

@@ -240,6 +240,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(BuildDeclStmt(gradientVD));
     }
 
+    // If the function is a global kernel, we need to transform it
+    // into a device function when calling it inside the overload function
+    // which is the final global kernel returned.
+    if (m_Derivative->hasAttr<clang::CUDAGlobalAttr>()) {
+      m_Derivative->dropAttr<clang::CUDAGlobalAttr>();
+      m_Derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
+    }
+
     Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
                                              /*UseRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);

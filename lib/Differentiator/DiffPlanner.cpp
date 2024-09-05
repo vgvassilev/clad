@@ -177,9 +177,6 @@ namespace clad {
   void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
                                Sema& SemaRef) {
     CallExpr* call = this->CallContext;
-    // Index of "code" parameter:
-    auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
-    auto derivedFnArgIdx = codeArgIdx - 1;
 
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
@@ -191,6 +188,24 @@ namespace clad {
     ASTContext& C = SemaRef.getASTContext();
 
     FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
+
+    // Index of "CUDAkernel" parameter:
+    int numArgs = static_cast<int>(call->getNumArgs());
+    if (numArgs > 4) {
+      auto kernelArgIdx = numArgs - 1;
+      auto* cudaKernelFlag =
+          SemaRef
+              .ActOnCXXBoolLiteral(noLoc,
+                                   replacementFD->hasAttr<CUDAGlobalAttr>()
+                                       ? tok::kw_true
+                                       : tok::kw_false)
+              .get();
+      call->setArg(kernelArgIdx, cudaKernelFlag);
+      numArgs--;
+    }
+    auto codeArgIdx = numArgs - 1;
+    auto derivedFnArgIdx = numArgs - 2;
+
     // Create ref to generated FD.
     DeclRefExpr* DRE =
         DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc, replacementFD,
