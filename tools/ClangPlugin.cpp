@@ -398,8 +398,18 @@ namespace clad {
         opts.EnableTBRAnalysis = false; // Default mode.
     }
 
+    static void SetActivityAnalysisOptions(const DifferentiationOptions& DO,
+                                      RequestOptions& opts) {
+      // If user has explicitly specified the mode for AA, use it.
+      if (DO.EnableActivityAnalysis || DO.DisableActivityAnalysis)
+        opts.EnableActivityAnalysis = DO.EnableActivityAnalysis && !DO.DisableActivityAnalysis;
+      else
+        opts.EnableActivityAnalysis = false; // Default mode.
+    }
+
     void CladPlugin::SetRequestOptions(RequestOptions& opts) const {
       SetTBRAnalysisOptions(m_DO, opts);
+      SetActivityAnalysisOptions(m_DO, opts);
     }
 
     void CladPlugin::FinalizeTranslationUnit() {

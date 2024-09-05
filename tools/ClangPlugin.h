@@ -55,7 +55,7 @@ public:
         : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
           DumpDerivedAST(false), GenerateSourceFile(false),
           ValidateClangVersion(true), EnableTBRAnalysis(false),
-          DisableTBRAnalysis(false), CustomEstimationModel(false),
+          DisableTBRAnalysis(false), EnableActivityAnalysis(false), DisableActivityAnalysis(false), CustomEstimationModel(false),
           PrintNumDiffErrorInfo(false) {}
 
     bool DumpSourceFn : 1;
@@ -66,6 +66,8 @@ public:
     bool ValidateClangVersion : 1;
     bool EnableTBRAnalysis : 1;
     bool DisableTBRAnalysis : 1;
+    bool EnableActivityAnalysis : 1;
+    bool DisableActivityAnalysis : 1;
     bool CustomEstimationModel : 1;
     bool PrintNumDiffErrorInfo : 1;
     std::string CustomModelName;
@@ -314,7 +316,11 @@ public:
             m_DO.EnableTBRAnalysis = true;
           } else if (args[i] == "-disable-tbr") {
             m_DO.DisableTBRAnalysis = true;
-          } else if (args[i] == "-fcustom-estimation-model") {
+          }else if(args[i] == "-enable-aa"){
+            m_DO.EnableActivityAnalysis = true;
+          }else if(args[i] == "-disable-aa"){
+            m_DO.DisableActivityAnalysis = true;
+          }else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
               llvm::errs() << "No shared object was specified.";
@@ -364,6 +370,11 @@ public:
         }
         if (m_DO.EnableTBRAnalysis && m_DO.DisableTBRAnalysis) {
           llvm::errs() << "clad: Error: -enable-tbr and -disable-tbr cannot "
+                          "be used together.\n";
+          return false;
+        }
+        if (m_DO.EnableActivityAnalysis && m_DO.DisableActivityAnalysis) {
+          llvm::errs() << "clad: Error: -enable-aa and -disable-aa cannot "
                           "be used together.\n";
           return false;
         }
