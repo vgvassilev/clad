@@ -37,7 +37,7 @@ double fn_array(double i, double j) {
 // CHECK-NEXT: double _d_j = 0;
 // CHECK-NEXT: double &_t0 = array.data[0];
 // CHECK-NEXT: double &_t1 = array.data[1];
-// CHECK-NEXT: return 0 * i + _t0 * _d_i + 0 * j + _t1 * _d_j;
+// CHECK-NEXT: return 0. * i + _t0 * _d_i + 0. * j + _t1 * _d_j;
 // CHECK-NEXT: }
 
 int main () {

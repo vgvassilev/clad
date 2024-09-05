@@ -16,8 +16,8 @@ double test_1(double x, double y){
 }
 // CHECK: void test_1_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
-// CHECK-NEXT:         double _r1 = 0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _grad0[2] = {0};
 // CHECK-NEXT:         numerical_diff::central_difference(std::hypot, _grad0, 0, x, y);
 // CHECK-NEXT:         _r0 += 1 * _grad0[0];

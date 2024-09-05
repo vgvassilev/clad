@@ -247,7 +247,6 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, clang::DeclContext* originalFnDC,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
-
     CXXScopeSpec SS;
     LookupResult R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);

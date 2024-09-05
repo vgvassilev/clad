@@ -21,14 +21,14 @@ float func(float x, float y) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         y = _t1;
 //CHECK-NEXT:         float _r_d1 = *_d_y;
-//CHECK-NEXT:         *_d_y = 0;
+//CHECK-NEXT:         *_d_y = 0.F;
 //CHECK-NEXT:         *_d_x += _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x = 0;
+//CHECK-NEXT:         *_d_x = 0.F;
 //CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
@@ -49,7 +49,7 @@ float func2(float x, int y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x = 0;
+//CHECK-NEXT:         *_d_x = 0.F;
 //CHECK-NEXT:         *_d_y += _r_d0 * x;
 //CHECK-NEXT:         *_d_x += y * _r_d0;
 //CHECK-NEXT:         *_d_x += _r_d0 * x;
@@ -82,7 +82,7 @@ float func4(float x, float y) {
 }
 
 //CHECK: void func4_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     double _d_z = 0;
+//CHECK-NEXT:     double _d_z = 0.;
 //CHECK-NEXT:     double z = y;
 //CHECK-NEXT:     float _t0 = x;
 //CHECK-NEXT:     x = z + y;
@@ -91,7 +91,7 @@ float func4(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x = 0;
+//CHECK-NEXT:         *_d_x = 0.F;
 //CHECK-NEXT:         _d_z += _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
@@ -116,7 +116,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:         _final_error += std::abs(*_d_x * x * {{.+}});
 //CHECK-NEXT:         x = _t0;
 //CHECK-NEXT:         float _r_d0 = *_d_x;
-//CHECK-NEXT:         *_d_x = 0;
+//CHECK-NEXT:         *_d_x = 0.F;
 //CHECK-NEXT:         _d_z += _r_d0;
 //CHECK-NEXT:         *_d_y += _r_d0;
 //CHECK-NEXT:     }
@@ -134,7 +134,7 @@ float func6(float x) { return x; }
 float func7(float x, float y) { return (x * y); }
 
 //CHECK: void func7_grad(float x, float y, float *_d_x, float *_d_y, double &_final_error) {
-//CHECK-NEXT:     double _ret_value0 = 0;
+//CHECK-NEXT:     double _ret_value0 = 0.;
 //CHECK-NEXT:     _ret_value0 = (x * y);
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += 1 * y;

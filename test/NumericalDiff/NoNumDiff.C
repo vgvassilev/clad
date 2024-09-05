@@ -16,7 +16,7 @@ double func(double x) { return std::tanh(x); } // expected-warning 2{{function '
 
 //CHECK: void func_grad(double x, double *_d_x) {
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT: }

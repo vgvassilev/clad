@@ -363,7 +363,7 @@ public:
   double partial_mem_fn(double i, double j) { return (x + y) * i + i * j; }
 
   // CHECK: void partial_mem_fn_grad_0(double i, double j, SimpleFunctions *_d_this, double *_d_i) {
-  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     double _d_j = 0.;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * i;
   // CHECK-NEXT:         (*_d_this).y += 1 * i;
@@ -438,7 +438,7 @@ double fn2(SimpleFunctions& sf, double i) {
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
 // CHECK-NEXT:     clad::ValueAndAdjoint<double &, double &> _t1 = _t0.ref_mem_fn_forw(i, &(*_d_sf), *_d_i);
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         _t0.ref_mem_fn_pullback(i, 1, &(*_d_sf), &_r0);
 // CHECK-NEXT:         *_d_i += _r0;
 // CHECK-NEXT:     }
@@ -463,7 +463,7 @@ double fn5(SimpleFunctions& v, double value) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<SimpleFunctions &, SimpleFunctions &> _t1 = _t0.operator_plus_equal_forw(value, &(*_d_v), *_d_value);
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
+// CHECK-NEXT:         double _r0 = 0.;
 // CHECK-NEXT:         _t0.operator_plus_equal_pullback(value, {}, &(*_d_v), &_r0);
 // CHECK-NEXT:         *_d_value += _r0;
 // CHECK-NEXT:     }
@@ -484,6 +484,63 @@ double fn4(SimpleFunctions& v) {
 // CHECK-NEXT:     (*_d_v).x += 1;
 // CHECK-NEXT:     _t0.operator_plus_plus_pullback({}, &(*_d_v));
 // CHECK-NEXT: }
+
+class SafeTestClass {
+    public:
+    SafeTestClass() {};
+    SafeTestClass(double &x) {
+    }
+    SafeTestClass(double x, double* y) {
+        *y = x;
+    }
+};
+
+namespace clad {
+namespace custom_derivatives {
+namespace class_functions {
+    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>, double x, double* y, double d_x, double* d_y) {
+        return {SafeTestClass(x, y), SafeTestClass(d_x, d_y)};
+    }
+    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>, double &x, double &d_x) {
+        return {SafeTestClass(x), SafeTestClass(d_x)};
+    }
+    clad::ValueAndAdjoint<SafeTestClass, SafeTestClass>
+    constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>) {
+        return {SafeTestClass(), SafeTestClass()};
+    }
+
+    void constructor_pullback(SafeTestClass *c, double x, double* y, SafeTestClass *d_c, double* d_x, double* d_y) {
+        *d_x += *d_y;
+        *d_y = 0;
+    }
+}}}
+
+double fn6(double u, double v) {
+    double &w = u;
+    SafeTestClass s1;
+    SafeTestClass s2(u, &v);
+    SafeTestClass s3(w);
+    return v;
+}
+
+// CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      double &_d_w = *_d_u;
+// CHECK-NEXT:      double &w = u;
+// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t0 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>());
+// CHECK-NEXT:      SafeTestClass _d_s1(_t0.adjoint);
+// CHECK-NEXT:      SafeTestClass s1(_t0.value);
+// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), u, &v, *_d_u, &*_d_v);
+// CHECK-NEXT:      SafeTestClass _d_s2(_t1.adjoint);
+// CHECK-NEXT:      SafeTestClass s2(_t1.value);
+// CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t2 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), w, _d_w);
+// CHECK-NEXT:      SafeTestClass _d_s3(_t2.adjoint);
+// CHECK-NEXT:          SafeTestClass s3(_t2.value);
+// CHECK-NEXT:          *_d_v += 1;
+// CHECK-NEXT:          {{.*}}constructor_pullback(&s2, u, &v, &_d_s2, &*_d_u, &*_d_v);
+// CHECK-NEXT:      }
+
 
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
@@ -534,10 +591,16 @@ int main() {
   d_fn4.execute(sf3, &d_sf);
   printf("%.2f", d_sf.x); //CHECK-EXEC: 2.00
 
+  double dx = 0, dy = 0;
+  auto d_fn6 = clad::gradient(fn6);
+  d_fn6.execute(3, 5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: 1.00
+  printf("%.2f", dy); //CHECK-EXEC: 0.00
+
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
   // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i) const volatile & {
-  // CHECK-NEXT:       double _d_j = 0;
+  // CHECK-NEXT:       double _d_j = 0.;
   // CHECK-NEXT:       double _t0 = (this->x + this->y);
   // CHECK-NEXT:       {
   // CHECK-NEXT:           (*_d_this).x += 1 * i;
@@ -551,7 +614,7 @@ int main() {
   auto d_const_volatile_rval_ref_mem_fn_j = clad::gradient(&SimpleFunctions::const_volatile_rval_ref_mem_fn, "j");
 
   // CHECK:   void const_volatile_rval_ref_mem_fn_grad_1(double i, double j, volatile SimpleFunctions *_d_this, double *_d_j) const volatile && {
-  // CHECK-NEXT:       double _d_i = 0;
+  // CHECK-NEXT:       double _d_i = 0.;
   // CHECK-NEXT:       double _t0 = (this->x + this->y);
   // CHECK-NEXT:       {
   // CHECK-NEXT:           (*_d_this).x += 1 * i;
@@ -568,19 +631,20 @@ int main() {
   printf("%.2f %.2f", result[0], result[1]); // CHECK-EXEC: 10.00 4.00
 
 // CHECK: void fn3_grad_2_3(double x, double y, double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_x = 0;
-// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     double _d_x = 0.;
+// CHECK-NEXT:     double _d_y = 0.;
 // CHECK-NEXT:     SimpleFunctions _d_sf({});
 // CHECK-NEXT:     SimpleFunctions sf(x, y);
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0;
-// CHECK-NEXT:         double _r1 = 0;
-// CHECK-NEXT:         _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
-// CHECK-NEXT:         *_d_i += _r0;
-// CHECK-NEXT:         *_d_j += _r1;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             double _r0 = 0.;
+// CHECK-NEXT:             double _r1 = 0.;
+// CHECK-NEXT:             _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r0, &_r1);
+// CHECK-NEXT:             *_d_i += _r0;
+// CHECK-NEXT:             *_d_j += _r1;
+// CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT: }
+
 
 // CHECK: void ref_mem_fn_pullback(double i, double _d_y, SimpleFunctions *_d_this, double *_d_i) {
 // CHECK-NEXT:     double _t0 = this->x;
@@ -591,13 +655,13 @@ int main() {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t1;
 // CHECK-NEXT:         double _r_d1 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x = 0;
+// CHECK-NEXT:         (*_d_this).x = 0.;
 // CHECK-NEXT:         *_d_i += -_r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         this->x = _t0;
 // CHECK-NEXT:         double _r_d0 = (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x = 0;
+// CHECK-NEXT:         (*_d_this).x = 0.;
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
