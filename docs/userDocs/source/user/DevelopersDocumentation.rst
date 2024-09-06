@@ -300,6 +300,37 @@ Now, to ssh into the GitHub runner do, simply do::
 
 No username or password is required.
 
+Please note that there are some specifics of debugging the "Architecture" check. If you need to build Clad after logging into this particular GitHub runner (the one performing the "Arch / architecture (x86)" check), please perform the following steps first.
+
+In the debug output on GitHub (typically displayed in purple), find the line:
+
+.. code-block:: bash
+
+   /home/runner/rootfs/alpine-edge-x86/abin/alpine.sh /home/runner/work/_temp/%UNIQUE_FILENAME%
+
+Copy the name of the second file in that line (everything after the spacebar) and do:
+
+.. code-block:: bash
+
+   bash
+   vim /home/runner/work/_temp/%UNIQUE_FILENAME%
+
+So you need to switch to bash to have access to some text editors and then inside Vim (or any other editor you find there, you can even use ``cat`` for this), you need to edit the contents of this file to only contain the following:
+
+.. code-block:: bash
+
+   export CC=/usr/bin/clang-17
+   export CXX=/usr/bin/clang++-17
+   sh
+
+Basically, you need to replace the last several lines with just ``sh``. Now do,
+
+.. code-block:: bash
+
+   /home/runner/rootfs/alpine-edge-x86/abin/alpine.sh /home/runner/work/_temp/%UNIQUE_FILENAME%
+
+After this you're able to do ``cd build && make check-clad`` and build Clad on that runner.
+
 Debugging x86 builds locally
 ============================
 
