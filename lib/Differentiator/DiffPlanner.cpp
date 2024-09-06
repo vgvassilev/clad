@@ -1,7 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
-#include "TBRAnalyzer.h"
 #include "ActivityAnalyzer.h"
+#include "TBRAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -619,20 +619,22 @@ namespace clad {
   bool DiffRequest::shouldHaveAdjoint(VarDecl* VD) const {
     if (!EnableActivityAnalysis)
       return true;
-    
-    if(VD->getType()->isPointerType())
+
+    if (VD->getType()->isPointerType())
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {
       if (Args) {
         for (const auto& dParam : DVI)
           m_ActivityRunInfo.ToBeRecorded.insert(cast<VarDecl>(dParam.param));
-      }else{
-        std::copy(Function->param_begin(), Function->param_end(), std::inserter(m_ActivityRunInfo.ToBeRecorded, m_ActivityRunInfo.ToBeRecorded.end()));
+      } else {
+        std::copy(Function->param_begin(), Function->param_end(),
+                  std::inserter(m_ActivityRunInfo.ToBeRecorded,
+                                m_ActivityRunInfo.ToBeRecorded.end()));
       }
-      
+
       VariedAnalyzer analyzer(Function->getASTContext(),
-                           m_ActivityRunInfo.ToBeRecorded);
+                              m_ActivityRunInfo.ToBeRecorded);
       analyzer.Analyze(Function);
       m_ActivityRunInfo.HasAnalysisRun = true;
     }
@@ -711,7 +713,8 @@ namespace clad {
         }
         if (enable_aa_in_req || disable_aa_in_req) {
           // override the default value of TBR analysis.
-          request.EnableActivityAnalysis = enable_aa_in_req && !disable_aa_in_req;
+          request.EnableActivityAnalysis =
+              enable_aa_in_req && !disable_aa_in_req;
         } else {
           request.EnableActivityAnalysis = m_Options.EnableActivityAnalysis;
         }

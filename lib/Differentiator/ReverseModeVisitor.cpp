@@ -3001,7 +3001,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (derivedVDE)
       m_Variables.emplace(VDClone, derivedVDE);
 
-
     // Check if decl's name is the same as before. The name may be changed
     // if decl name collides with something in the derivative body.
     // This can happen in rare cases, e.g. when the original function
@@ -3057,7 +3056,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // }else{
     //   adjInsert = true;
     // }
-    
+
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);
@@ -3087,7 +3086,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // if(!adjInsert)
     //   ReverseResult = nullptr;
-
 
     return StmtDiff(SDiff.getStmt(), ReverseResult);
   }

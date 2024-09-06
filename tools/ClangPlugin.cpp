@@ -399,10 +399,11 @@ namespace clad {
     }
 
     static void SetActivityAnalysisOptions(const DifferentiationOptions& DO,
-                                      RequestOptions& opts) {
+                                           RequestOptions& opts) {
       // If user has explicitly specified the mode for AA, use it.
       if (DO.EnableActivityAnalysis || DO.DisableActivityAnalysis)
-        opts.EnableActivityAnalysis = DO.EnableActivityAnalysis && !DO.DisableActivityAnalysis;
+        opts.EnableActivityAnalysis =
+            DO.EnableActivityAnalysis && !DO.DisableActivityAnalysis;
       else
         opts.EnableActivityAnalysis = false; // Default mode.
     }
