@@ -2890,6 +2890,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             nullptr, VD->getInitStyle());
     }
 
+    if (!m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD)))
+      VDDerived = nullptr;
 
     // If `VD` is a reference to a local variable, then it is already
     // differentiated and should not be differentiated again.
@@ -2898,7 +2900,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!isRefType && (!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
 
-      if (!clad::utils::hasNonDifferentiableAttribute(VD)) {
+      if (VDDerived && !clad::utils::hasNonDifferentiableAttribute(VD)) {
         derivedE = BuildDeclRef(VDDerived);
         if (isInitializedByNewExpr)
           derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
@@ -2925,7 +2927,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       //   *_d_i += _d_localVar;
       //   _d_localVar = 0;
       // }
-      if (isInsideLoop) {
+      if (VDDerived && isInsideLoop) {
         Stmt* assignToZero = nullptr;
         Expr* declRef = BuildDeclRef(VDDerived);
         if (!isa<ArrayType>(VDDerivedType))
@@ -2940,9 +2942,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
-    if (VDDerived && m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD)))
+    if (VDDerived)
       derivedVDE = BuildDeclRef(VDDerived);
-
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
     if (isRefType && promoteToFnScope) {
@@ -2995,11 +2996,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_Sema.AddInitializerToDecl(VDDerived, initDiff.getExpr_dx(), true);
         VDDerived->setInitStyle(VarDecl::InitializationStyle::CInit);
       }
-    }
-    if(!m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD))){
-      derivedVDE = nullptr;
-      llvm::errs() << "\nBALUBA";
-      VD->dump();
     }
 
     if (derivedVDE)

@@ -115,7 +115,11 @@ bool VariedAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   return true;
 }
 
-bool VariedAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
+bool VariedAnalyzer::VisitConditionalOperator(ConditionalOperator* CO) {
+  return true;
+}
+
+bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   return true;
 }
 
