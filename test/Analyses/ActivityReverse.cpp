@@ -15,13 +15,13 @@ double f1(double x){
 }
 
 //CHECK: void f1_grad(double x, double *_d_x) {
-//CHECK-NEXT:     double _d_a = 0;
+//CHECK-NEXT:     double _d_a = 0.;
 //CHECK-NEXT:     double a = x * x;
-//CHECK-NEXT:     double _d_b = 0;
 //CHECK-NEXT:     double b = 1;
 //CHECK-NEXT:     double _t0 = b;
 //CHECK-NEXT:     b = b * b;
 //CHECK-NEXT:     _d_a += 1;
+//CHECK-NEXT:     b = _t0;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_x += _d_a * x;
 //CHECK-NEXT:         *_d_x += x * _d_a;
@@ -45,14 +45,13 @@ double f2(double x){
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     double _t0;
 //CHECK-NEXT:     bool _cond1;
-//CHECK-NEXT:     double _d_d = 0;
-//CHECK-NEXT:     double d = 0;
+//CHECK-NEXT:     double d = 0.;
 //CHECK-NEXT:     double _t1;
-//CHECK-NEXT:     double _d_a = 0;
+//CHECK-NEXT:     double _d_a = 0.;
 //CHECK-NEXT:     double a = x * x;
-//CHECK-NEXT:     double _d_b = 0;
+//CHECK-NEXT:     double _d_b = 0.;
 //CHECK-NEXT:     double b = 1;
-//CHECK-NEXT:     double _d_g = 0;
+//CHECK-NEXT:     double _d_g = 0.;
 //CHECK-NEXT:     double g;
 //CHECK-NEXT:     {
 //CHECK-NEXT:         _cond0 = a;
@@ -73,12 +72,12 @@ double f2(double x){
 //CHECK-NEXT:     if (_cond0) {
 //CHECK-NEXT:         b = _t0;
 //CHECK-NEXT:         double _r_d0 = _d_b;
-//CHECK-NEXT:         _d_b = 0;
+//CHECK-NEXT:         _d_b = 0.;
 //CHECK-NEXT:         *_d_x += _r_d0;
 //CHECK-NEXT:     } else if (!_cond1) {
 //CHECK-NEXT:         g = _t1;
 //CHECK-NEXT:         double _r_d1 = _d_g;
-//CHECK-NEXT:         _d_g = 0;
+//CHECK-NEXT:         _d_g = 0.;
 //CHECK-NEXT:         _d_a += _r_d1;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     {
@@ -87,6 +86,79 @@ double f2(double x){
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double f3(double x){
+  double x1, x2, x3, x4, x5 = 0;
+  while(!x3){
+    x5 = x4;
+    x4 = x3;
+    x3 = x2;
+    x2 = x1;
+    x1 = x;
+  }
+  return x5;
+}
+
+//CHECK: void f3_grad(double x, double *_d_x) {
+//CHECK-NEXT:     clad::tape<double> _t1 = {};
+//CHECK-NEXT:     clad::tape<double> _t2 = {};
+//CHECK-NEXT:     clad::tape<double> _t3 = {};
+//CHECK-NEXT:     clad::tape<double> _t4 = {};
+//CHECK-NEXT:     clad::tape<double> _t5 = {};
+//CHECK-NEXT:     double _d_x1 = 0., _d_x2 = 0., _d_x3 = 0., _d_x4 = 0., _d_x5 = 0.;
+//CHECK-NEXT:     double x1, x2, x3, x4, x5 = 0;
+//CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+//CHECK-NEXT:     while (!x3) 
+//CHECK-NEXT:      {
+//CHECK-NEXT:         _t0++;
+//CHECK-NEXT:         clad::push(_t1, x5);
+//CHECK-NEXT:         x5 = x4;
+//CHECK-NEXT:         clad::push(_t2, x4);
+//CHECK-NEXT:         x4 = x3;
+//CHECK-NEXT:         clad::push(_t3, x3);
+//CHECK-NEXT:         x3 = x2;
+//CHECK-NEXT:         clad::push(_t4, x2);
+//CHECK-NEXT:         x2 = x1;
+//CHECK-NEXT:         clad::push(_t5, x1);
+//CHECK-NEXT:         x1 = x;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     _d_x5 += 1;
+//CHECK-NEXT:     while (_t0) 
+//CHECK-NEXT:      {
+//CHECK-NEXT:         {
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 x1 = clad::pop(_t5);
+//CHECK-NEXT:                 double _r_d4 = _d_x1;
+//CHECK-NEXT:                 _d_x1 = 0.;
+//CHECK-NEXT:                 *_d_x += _r_d4;
+//CHECK-NEXT:             }
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 x2 = clad::pop(_t4);
+//CHECK-NEXT:                 double _r_d3 = _d_x2;
+//CHECK-NEXT:                 _d_x2 = 0.;
+//CHECK-NEXT:                 _d_x1 += _r_d3;
+//CHECK-NEXT:             }
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 x3 = clad::pop(_t3);
+//CHECK-NEXT:                 double _r_d2 = _d_x3;
+//CHECK-NEXT:                 _d_x3 = 0.;
+//CHECK-NEXT:                 _d_x2 += _r_d2;
+//CHECK-NEXT:             }
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 x4 = clad::pop(_t2);
+//CHECK-NEXT:                 double _r_d1 = _d_x4;
+//CHECK-NEXT:                 _d_x4 = 0.;
+//CHECK-NEXT:                 _d_x3 += _r_d1;
+//CHECK-NEXT:             }
+//CHECK-NEXT:             {
+//CHECK-NEXT:                 x5 = clad::pop(_t1);
+//CHECK-NEXT:                 double _r_d0 = _d_x5;
+//CHECK-NEXT:                 _d_x5 = 0.;
+//CHECK-NEXT:                 _d_x4 += _r_d0;
+//CHECK-NEXT:             }
+//CHECK-NEXT:         }
+//CHECK-NEXT:         _t0--;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
 
 #define TEST(F, x) { \
   result[0] = 0; \
@@ -99,4 +171,5 @@ int main(){
     double result[3] = {};
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
+    TEST(f3, 3);// CHECK-EXEC: {0.00}
 }
