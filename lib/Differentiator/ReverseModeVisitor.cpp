@@ -3272,6 +3272,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return {castExpr, castExprDiff};
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitPseudoObjectExpr(const PseudoObjectExpr* POE) {
+    // Used for CUDA Builtins
+    return {Clone(POE), Clone(POE)};
+  }
+
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
     auto* field = ME->getMemberDecl();
