@@ -304,11 +304,12 @@ namespace clad {
            i < e && paramIdx < FD->getNumParams(); ++i) {
         const auto* param = DVI[i].param;
         while (paramIdx < FD->getNumParams() &&
-               FD->getParamDecl(paramIdx) != param)
-          ++paramIdx;
+               FD->getParamDecl(paramIdx) != param) {
+            ++paramIdx;
+        }
         if (paramIdx != FD->getNumParams())
-          // Update the parameter to point to the definition parameter.
-          DVI[i].param = Function->getParamDecl(paramIdx);
+            // Update the parameter to point to the definition parameter.
+            DVI[i].param = Function->getParamDecl(paramIdx);
       }
       return;
     }

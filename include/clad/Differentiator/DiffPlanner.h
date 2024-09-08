@@ -169,13 +169,13 @@ public:
 
 // Define the hash function for DiffRequest.
 template <> struct std::hash<clad::DiffRequest> {
-  std::size_t operator()(const clad::DiffRequest& DR) const {
-    // Use the function pointer as the hash of the DiffRequest, it
-    // is sufficient to break a reasonable number of collisions.
-    if (DR.Function->getPreviousDecl())
-      return std::hash<const void*>{}(DR.Function->getPreviousDecl());
-    return std::hash<const void*>{}(DR.Function);
-  }
+    std::size_t operator()(const clad::DiffRequest& DR) const {
+      // Use the function pointer as the hash of the DiffRequest, it
+      // is sufficient to break a reasonable number of collisions.
+      if (DR.Function->getPreviousDecl())
+        return std::hash<const void*>{}(DR.Function->getPreviousDecl());
+      return std::hash<const void*>{}(DR.Function);
+    }
 };
 
 #endif

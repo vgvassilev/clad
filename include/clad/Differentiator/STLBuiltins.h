@@ -253,6 +253,91 @@ void constructor_pullback(::std::vector<T>* v, S count, U val,
   d_v->clear();
 }
 
+template <typename T, ::std::size_t N>
+clad::ValueAndAdjoint<T&, T&> operator_subscript_reverse_forw(
+    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx) {
+  return {(*arr)[idx], (*d_arr)[idx]};
+}
+template <typename T, ::std::size_t N, typename P>
+void operator_subscript_pullback(
+    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx, P d_y,
+    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type* d_idx) {
+  (*d_arr)[idx] += d_y;
+}
+template <typename T, ::std::size_t N>
+clad::ValueAndAdjoint<T&, T&> at_reverse_forw(
+    ::std::array<T, N>* arr, typename ::std::array<T, N>::size_type idx,
+    ::std::array<T, N>* d_arr, typename ::std::array<T, N>::size_type d_idx) {
+  return {(*arr)[idx], (*d_arr)[idx]};
+}
+template <typename T, ::std::size_t N, typename P>
+void at_pullback(::std::array<T, N>* arr,
+                 typename ::std::array<T, N>::size_type idx, P d_y,
+                 ::std::array<T, N>* d_arr,
+                 typename ::std::array<T, N>::size_type* d_idx) {
+  (*d_arr)[idx] += d_y;
+}
+template <typename T, ::std::size_t N>
+void fill_reverse_forw(::std::array<T, N>* a,
+                       const typename ::std::array<T, N>::value_type& u,
+                       ::std::array<T, N>* d_a,
+                       const typename ::std::array<T, N>::value_type& d_u) {
+  a->fill(u);
+  d_a->fill(0);
+}
+template <typename T, ::std::size_t N>
+void fill_pullback(::std::array<T, N>* arr,
+                   const typename ::std::array<T, N>::value_type& u,
+                   ::std::array<T, N>* d_arr,
+                   typename ::std::array<T, N>::value_type* d_u) {
+  for (size_t i = 0; i < N; ++i) {
+    typename ::std::array<T, N>::value_type r_d0 = (*d_arr)[i];
+    (*d_arr)[i] = 0;
+    *d_u += r_d0;
+  }
+}
+template <typename T, ::std::size_t N>
+clad::ValueAndAdjoint<T&, T&>
+back_reverse_forw(::std::array<T, N>* arr, ::std::array<T, N>* d_arr) noexcept {
+  return {arr->back(), d_arr->back()};
+}
+template <typename T, ::std::size_t N>
+void back_pullback(::std::array<T, N>* arr,
+                   typename ::std::array<T, N>::value_type d_u,
+                   ::std::array<T, N>* d_arr) noexcept {
+  (*d_arr)[d_arr->size() - 1] += d_u;
+}
+template <typename T, ::std::size_t N>
+clad::ValueAndAdjoint<T&, T&>
+front_reverse_forw(::std::array<T, N>* arr,
+                   ::std::array<T, N>* d_arr) noexcept {
+  return {arr->front(), d_arr->front()};
+}
+template <typename T, ::std::size_t N>
+void front_pullback(::std::array<T, N>* arr,
+                    typename ::std::array<T, N>::value_type d_u,
+                    ::std::array<T, N>* d_arr) {
+  (*d_arr)[0] += d_u;
+}
+template <typename T, ::std::size_t N>
+void size_pullback(::std::array<T, N>* a, ::std::array<T, N>* d_a) noexcept {}
+template <typename T, ::std::size_t N>
+::clad::ValueAndAdjoint<::std::array<T, N>, ::std::array<T, N>>
+constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::array<T, N>>,
+                         const ::std::array<T, N>& arr,
+                         const ::std::array<T, N>& d_arr) {
+  ::std::array<T, N> a = arr;
+  ::std::array<T, N> d_a = d_arr;
+  return {a, d_a};
+}
+template <typename T, ::std::size_t N>
+void constructor_pullback(::std::array<T, N>* a, const ::std::array<T, N>& arr,
+                          ::std::array<T, N>* d_a, ::std::array<T, N>* d_arr) {
+  for (size_t i = 0; i < N; ++i)
+    (*d_arr)[i] += (*d_a)[i];
+}
+
 } // namespace class_functions
 } // namespace custom_derivatives
 } // namespace clad
