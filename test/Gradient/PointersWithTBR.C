@@ -1,5 +1,5 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointersWithTBR.out
-// RUN: ./PointersWithTBR.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./PointersWithTBR.out | %filecheck_exec %s
 // XFAIL: *
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -35,7 +35,6 @@ int main() {
     auto d_pointerParam = clad::gradient(pointerParam, "arr");
     double arr[5] = {1, 2, 3, 4, 5};
     double d_arr[5] = {0, 0, 0, 0, 0};
-    clad::array_ref<double> d_arr_ref(d_arr, 5);
-    d_pointerParam.execute(arr, 5, d_arr_ref);
-    printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 0.00 1.00 2.00 3.00 4.00
+    d_pointerParam.execute(arr, 5, d_arr);
+    printf("%.2f %.2f %.2f %.2f %.2f\n", d_arr[0], d_arr[1], d_arr[2], d_arr[3], d_arr[4]); // CHECK-EXEC: 0.00 2.00 6.00 12.00 20.00
 }

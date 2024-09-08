@@ -76,13 +76,12 @@ It returns the hessian matrix as a flattened vector in row major format.
    // Workflow similar to clad::gradient for non-array input arguments.
    auto f_hess = clad::hessian(f, "x, y");
    double matrix_f[9] = {0};
-   clad::array_ref<double> matrix_f_ref(matrix_f, 9);
-   f_hess.execute(3, 4, 5, matrix_f_ref);
-   std::cout << "[" << matrix_f_ref[0] << ", " << matrix_f_ref[1]
-             << matrix_f_ref[2] << "\n"
-             << matrix_f_ref[3] << ", " << matrix_f_ref[4] << matrix_f_ref[5]
+   f_hess.execute(3, 4, 5, matrix_f);
+   std::cout << "[" << matrix_f[0] << ", " << matrix_f[1]
+             << matrix_f[2] << "\n"
+             << matrix_f[3] << ", " << matrix_f[4] << matrix_f[5]
              << "\n"
-             << matrix_f_ref[6] << ", " << matrix_f_ref[7] << matrix_f_ref[8]
+             << matrix_f[6] << ", " << matrix_f[7] << matrix_f[8]
              << "]"
              << "\n";
  }
@@ -91,7 +90,7 @@ When arrays are involved we need to specify the array index that needs to be
 differentiated. For example if we want to differentiate w.r.t to the first two 
 elements of the array along with `x` and `y` we will write `clad::hessian(f_arr, z[0:1])` 
 for the above example rest of the steps for execution are similar to reverse mode.
-Here the `clad::array_ref` variable stores the hessian matrix.
+Here the array variable stores the hessian matrix.
 
 
 **The Jacobian Mode**

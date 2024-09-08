@@ -161,7 +161,7 @@ public:
   /// \param[in] VDDiff The variable declaration to calculate the error in.
   /// \param[in] isInsideLoop A flag to keep track of if we are inside a
   /// loop.
-  void EmitDeclErrorStmts(VarDeclDiff VDDiff, bool isInsideLoop);
+  void EmitDeclErrorStmts(DeclDiff<clang::VarDecl> VDDiff, bool isInsideLoop);
 
   /// This function returns the size expression for a given variable
   /// (`var.size()` for clad::array/clad::array_ref

@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oCasts.out 2>&1 | FileCheck %s
-// RUN: ./Casts.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oCasts.out 2>&1 | %filecheck %s
+// RUN: ./Casts.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

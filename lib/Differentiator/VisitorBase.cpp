@@ -17,6 +17,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -34,7 +35,11 @@ using namespace clang;
 namespace clad {
   clang::CompoundStmt* VisitorBase::MakeCompoundStmt(const Stmts& Stmts) {
     auto Stmts_ref = clad_compat::makeArrayRef(Stmts.data(), Stmts.size());
-    return clad_compat::CompoundStmt_Create(m_Context, Stmts_ref /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(FPOptionsOverride()), noLoc, noLoc);
+    return clad_compat::CompoundStmt_Create(
+        m_Context,
+        Stmts_ref /**/ CLAD_COMPAT_CLANG15_CompoundStmt_Create_ExtraParam2(
+            FPOptionsOverride()),
+        utils::GetValidSLoc(m_Sema), utils::GetValidSLoc(m_Sema));
   }
 
   bool VisitorBase::isUnusedResult(const Expr* E) {
@@ -111,10 +116,9 @@ namespace clad {
                                      VarDecl::InitializationStyle IS) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto VD =
-        VarDecl::Create(m_Context, m_Sema.CurContext, m_Function->getLocation(),
-                        m_Function->getLocation(), Identifier, Type, TSI,
-                        SC_None);
+    auto* VD = VarDecl::Create(
+        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
+        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 
     if (Init) {
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
@@ -129,7 +133,7 @@ namespace clad {
   }
 
   void VisitorBase::updateReferencesOf(Stmt* InSubtree) {
-    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function,
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);
     up.TraverseStmt(InSubtree);
   }
@@ -277,9 +281,8 @@ namespace clad {
          cast<CXXOperatorCallExpr>(ENoCasts)->getNumArgs() == 2) ||
         isa<ConditionalOperator>(ENoCasts) ||
         isa<CXXBindTemporaryExpr>(ENoCasts))
-      return m_Sema.ActOnParenExpr(noLoc, noLoc, E).get();
-    else
-      return E;
+      return m_Sema.ActOnParenExpr(E->getBeginLoc(), E->getEndLoc(), E).get();
+    return E;
   }
 
   Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
@@ -352,7 +355,7 @@ namespace clad {
 
   QualType VisitorBase::CloneType(const QualType QT) {
     auto clonedType = m_Builder.m_NodeCloner->CloneType(QT);
-    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_Function,
+    utils::ReferencesUpdater up(m_Sema, getCurrentScope(), m_DiffReq.Function,
                                 m_DeclReplacements);
     up.updateType(clonedType);
     return clonedType;
@@ -373,11 +376,12 @@ namespace clad {
 
   Expr* VisitorBase::getZeroInit(QualType T) {
     // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
-    if (T->isScalarType()) {
+    if (T->isVoidType())
+      return nullptr;
+    if ((T->isScalarType() || T->isPointerType()) && !T->isReferenceType()) {
       ExprResult Zero =
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
-      CastKind CK = m_Sema.PrepareScalarCast(Zero, T);
-      return m_Sema.ImpCastExprToType(Zero.get(), T, CK).get();
+          ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
+      return Zero.get();
     }
     return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
   }
@@ -443,11 +447,12 @@ namespace clad {
   QualType VisitorBase::InstantiateTemplate(TemplateDecl* CladClassDecl,
                                             TemplateArgumentListInfo& TLI) {
     // This will instantiate tape<T> type and return it.
-    QualType TT =
-        m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl), noLoc, TLI);
+    QualType TT = m_Sema.CheckTemplateIdType(TemplateName(CladClassDecl),
+                                             utils::GetValidSLoc(m_Sema), TLI);
     // Get clad namespace and its identifier clad::.
     CXXScopeSpec CSS;
-    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    CSS.Extend(m_Context, GetCladNamespace(), utils::GetValidSLoc(m_Sema),
+               utils::GetValidSLoc(m_Sema));
     NestedNameSpecifier* NS = CSS.getScopeRep();
 
     // Create elaborated type with namespace specifier,
@@ -495,6 +500,33 @@ namespace clad {
     return clad_compat::llvm_Optional_GetValue(Result);
   }
 
+  Expr* VisitorBase::GetFunctionCall(const std::string& funcName,
+                                     const std::string& nmspace,
+                                     llvm::SmallVectorImpl<Expr*>& callArgs) {
+    NamespaceDecl* NSD =
+        utils::LookupNSD(m_Sema, nmspace, /*shouldExist=*/true);
+    DeclContext* DC = NSD;
+    CXXScopeSpec SS;
+    SS.Extend(m_Context, NSD, noLoc, noLoc);
+
+    IdentifierInfo* II = &m_Context.Idents.get(funcName);
+    DeclarationName name(II);
+    DeclarationNameInfo DNI(name, noLoc);
+    LookupResult R(m_Sema, DNI, Sema::LookupOrdinaryName);
+
+    if (DC)
+      m_Sema.LookupQualifiedName(R, DC);
+    Expr* UnresolvedLookup = nullptr;
+    if (!R.empty())
+      UnresolvedLookup =
+          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL=*/false).get();
+    auto MARargs = llvm::MutableArrayRef<Expr*>(callArgs);
+    SourceLocation Loc;
+    return m_Sema
+        .ActOnCallExpr(getCurrentScope(), UnresolvedLookup, Loc, MARargs, Loc)
+        .get();
+  }
+
   DeclRefExpr* VisitorBase::GetCladTapePushDRE() {
     LookupResult& pushLR = GetCladTapePush();
     CXXScopeSpec CSS;
@@ -518,38 +550,35 @@ namespace clad {
     return clad_compat::llvm_Optional_GetValue(Result);
   }
 
+  LookupResult& VisitorBase::GetCladTapeSize() {
+    static clad_compat::llvm_Optional<LookupResult> Result{};
+    if (!Result)
+      Result = LookupCladTapeMethod("size");
+    return clad_compat::llvm_Optional_GetValue(Result);
+  }
+
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
     return InstantiateTemplate(GetCladTapeDecl(), {T});
   }
 
   Expr* VisitorBase::BuildCallExprToMemFn(Expr* Base,
                                           StringRef MemberFunctionName,
-                                          MutableArrayRef<Expr*> ArgExprs, ValueDecl* memberDecl) {
+                                          MutableArrayRef<Expr*> ArgExprs,
+                                          SourceLocation Loc /*=noLoc*/) {
+    if (Loc.isInvalid())
+      Loc = m_DiffReq->getLocation();
     UnqualifiedId Member;
-    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), noLoc);
+    Member.setIdentifier(&m_Context.Idents.get(MemberFunctionName), Loc);
     CXXScopeSpec SS;
     bool isArrow = Base->getType()->isPointerType();
     auto ME = m_Sema
-                  .ActOnMemberAccessExpr(getCurrentScope(), Base, noLoc,
+                  .ActOnMemberAccessExpr(getCurrentScope(), Base, Loc,
                                          isArrow ? tok::TokenKind::arrow
                                                  : tok::TokenKind::period,
                                          SS, noLoc, Member,
                                          /*ObjCImpDecl=*/nullptr)
                   .getAs<MemberExpr>();
-    // FIXME: This is a workaround and it's dependency should be removed soon.
-    // Currently, member function derivatives are not being registered properly.
-    // If there are member function derivatives overloads then only one of the
-    // overload is being found by Sema lookup.
-    // Ideally, if `MemberFunctionName` corresponds to an overloaded member
-    // function name, then `Sema::ActOnMemberAccessExpr` should return an
-    // unresolved expression and `Sema::ActOnCallExpr` should automatically
-    // resolve this unresolved expression on the basis of the call arguments
-    // provided. But currently, since only one of the member function overload
-    // is found by the lookup, unresolved expression is not created and thus, we
-    // explicitly should assign the correct member function whenever we can.
-    if (memberDecl)
-      ME->setMemberDecl(memberDecl);
-    return m_Sema.ActOnCallExpr(getCurrentScope(), ME, noLoc, ArgExprs, noLoc)
+    return m_Sema.ActOnCallExpr(getCurrentScope(), ME, Loc, ArgExprs, Loc)
         .get();
   }
 
@@ -568,9 +597,11 @@ namespace clad {
 
   Expr* VisitorBase::BuildCallExprToMemFn(
       clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
-      bool useRefQualifiedThisObj) {
+      bool useRefQualifiedThisObj, SourceLocation Loc /*=noLoc*/) {
     Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
     bool isArrow = true;
+    if (Loc.isInvalid())
+      Loc = m_DiffReq->getLocation();
 
     // C++ does not support perfect forwarding of `*this` object inside
     // a member function.
@@ -596,16 +627,16 @@ namespace clad {
     NestedNameSpecifierLoc NNS(FD->getQualifier(),
                                /*Data=*/nullptr);
     auto DAP = DeclAccessPair::make(FD, FD->getAccess());
-    auto memberExpr = MemberExpr::
-        Create(m_Context, thisExpr, isArrow, noLoc, NNS, noLoc, FD, DAP,
-               FD->getNameInfo(),
-               /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-               CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-               ExprObjectKind::OK_Ordinary
-                   CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(NOUR_None));
+    auto* memberExpr = MemberExpr::Create(
+        m_Context, thisExpr, isArrow, Loc, NNS, noLoc, FD, DAP,
+        FD->getNameInfo(),
+        /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+        CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+        ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+            NOUR_None));
     return m_Sema
-        .BuildCallToMemberFunction(getCurrentScope(), memberExpr, noLoc,
-                                   argExprs, noLoc)
+        .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc, argExprs,
+                                   Loc)
         .get();
   }
 
@@ -625,7 +656,7 @@ namespace clad {
                      /*Fn=*/exprFunc,
                      /*LParenLoc=*/noLoc,
                      /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(argExprs),
-                     /*RParenLoc=*/m_Function->getLocation())
+                     /*RParenLoc=*/m_DiffReq->getLocation())
                  .get();
     }
     return call;
@@ -703,19 +734,10 @@ namespace clad {
     return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"slice", Args);
   }
 
-  Expr* VisitorBase::BuildArrayRefPtrRefExpr(Expr* Base) {
-    return BuildCallExprToMemFn(Base, /*MemberFunctionName=*/"ptr_ref", {});
-  }
-
   bool VisitorBase::isCladArrayType(QualType QT) {
     // FIXME: Replace this check with a clang decl check
     return QT.getAsString().find("clad::array") != std::string::npos ||
            QT.getAsString().find("clad::array_ref") != std::string::npos;
-  }
-
-  bool VisitorBase::isCladValueAndPushforwardType(clang::QualType QT) {
-    // FIXME: Replace this check with a clang decl check
-    return QT.getAsString().find("ValueAndPushforward") != std::string::npos;
   }
 
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
@@ -745,23 +767,28 @@ namespace clad {
         /*namespaceShouldExist=*/false);
   }
 
-  void VisitorBase::CallExprDiffDiagnostics(llvm::StringRef funcName,
-                                 SourceLocation srcLoc, bool isDerived){
-    if (!isDerived) {
-      // Function was not derived => issue a warning.
-      diag(DiagnosticsEngine::Warning,
-           srcLoc,
-           "function '%0' was not differentiated because clad failed to "
-           "differentiate it and no suitable overload was found in "
-           "namespace 'custom_derivatives', and function may not be "
-            "eligible for numerical differentiation.",
+  void VisitorBase::CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
+                                            SourceLocation srcLoc) {
+    bool NumDiffEnabled =
+        !m_Sema.getPreprocessor().isMacroDefined("CLAD_NO_NUM_DIFF");
+    // FIXME: Switch to the real diagnostics engine and pass FD directly.
+    std::string funcName = FD->getNameAsString();
+    diag(DiagnosticsEngine::Warning, srcLoc,
+         "function '%0' was not differentiated because clad failed to "
+         "differentiate it and no suitable overload was found in "
+         "namespace 'custom_derivatives'",
+         {funcName});
+    if (NumDiffEnabled) {
+      diag(DiagnosticsEngine::Note, srcLoc,
+           "falling back to numerical differentiation for '%0' since no "
+           "suitable overload was found and clad could not derive it; "
+           "to disable this feature, compile your programs with "
+           "-DCLAD_NO_NUM_DIFF",
            {funcName});
     } else {
-      diag(DiagnosticsEngine::Warning, noLoc,
-           "Falling back to numerical differentiation for '%0' since no "
-           "suitable overload was found and clad could not derive it. "
-           "To disable this feature, compile your programs with "
-           "-DCLAD_NO_NUM_DIFF.",
+      diag(DiagnosticsEngine::Note, srcLoc,
+           "fallback to numerical differentiation is disabled by the "
+           "'CLAD_NO_NUM_DIFF' macro; considering '%0' as 0",
            {funcName});
     }
   }
@@ -769,13 +796,16 @@ namespace clad {
   ParmVarDecl* VisitorBase::CloneParmVarDecl(const ParmVarDecl* PVD,
                                              IdentifierInfo* II,
                                              bool pushOnScopeChains,
-                                             bool cloneDefaultArg) {
+                                             bool cloneDefaultArg,
+                                             SourceLocation Loc) {
     Expr* newPVDDefaultArg = nullptr;
     if (PVD->hasDefaultArg() && cloneDefaultArg) {
       newPVDDefaultArg = Clone(PVD->getDefaultArg());
     }
+    if (Loc.isInvalid())
+      Loc = PVD->getLocation();
     auto newPVD = ParmVarDecl::Create(
-        m_Context, m_Sema.CurContext, noLoc, noLoc, II, PVD->getType(),
+        m_Context, m_Sema.CurContext, Loc, Loc, II, PVD->getType(),
         PVD->getTypeSourceInfo(), PVD->getStorageClass(), newPVDDefaultArg);
     if (pushOnScopeChains && newPVD->getIdentifier()) {
       m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
@@ -798,23 +828,47 @@ namespace clad {
     derivedL = LDiff.getExpr_dx();
     derivedR = RDiff.getExpr_dx();
     if (utils::isArrayOrPointerType(LDiff.getExpr()->getType()) &&
-        utils::isArrayOrPointerType(RDiff.getExpr()->getType())) {
-      if (isCladArrayType(derivedL->getType()))
-        derivedL = BuildArrayRefPtrRefExpr(derivedL);
-      if (isCladArrayType(derivedR->getType()))
-        derivedR = BuildArrayRefPtrRefExpr(derivedR);
-    } else if (utils::isArrayOrPointerType(LDiff.getExpr()->getType()) &&
-               !utils::isArrayOrPointerType(RDiff.getExpr()->getType())) {
-      derivedL = LDiff.getExpr_dx();
-      if (isCladArrayType(derivedL->getType()))
-        derivedL = BuildArrayRefPtrRefExpr(derivedL);
+        !utils::isArrayOrPointerType(RDiff.getExpr()->getType()))
       derivedR = RDiff.getExpr();
-    } else if (utils::isArrayOrPointerType(RDiff.getExpr()->getType()) &&
-               !utils::isArrayOrPointerType(LDiff.getExpr()->getType())) {
+    else if (utils::isArrayOrPointerType(RDiff.getExpr()->getType()) &&
+             !utils::isArrayOrPointerType(LDiff.getExpr()->getType()))
       derivedL = LDiff.getExpr();
-      derivedR = RDiff.getExpr_dx();
-      if (isCladArrayType(derivedR->getType()))
-        derivedR = BuildArrayRefPtrRefExpr(derivedR);
-    }
+  }
+
+  Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
+    static clad_compat::llvm_Optional<LookupResult> Result{};
+    if (!Result)
+      Result = LookupCladTapeMethod("zero_init");
+    LookupResult& init = clad_compat::llvm_Optional_GetValue(Result);
+    CXXScopeSpec CSS;
+    CSS.Extend(m_Context, GetCladNamespace(), noLoc, noLoc);
+    auto* pushDRE =
+        m_Sema.BuildDeclarationNameExpr(CSS, init, false).getAs<DeclRefExpr>();
+    return m_Sema.ActOnCallExpr(getCurrentScope(), pushDRE, noLoc, args, noLoc)
+        .get();
+  }
+
+  clang::TemplateDecl* VisitorBase::GetCladConstructorPushforwardTag() {
+    if (!m_CladConstructorPushforwardTag)
+      m_CladConstructorPushforwardTag =
+          LookupTemplateDeclInCladNamespace("ConstructorPushforwardTag");
+    return m_CladConstructorPushforwardTag;
+  }
+
+  clang::QualType
+  VisitorBase::GetCladConstructorPushforwardTagOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladConstructorPushforwardTag(), {T});
+  }
+
+  clang::TemplateDecl* VisitorBase::GetCladConstructorReverseForwTag() {
+    if (!m_CladConstructorPushforwardTag)
+      m_CladConstructorReverseForwTag =
+          LookupTemplateDeclInCladNamespace("ConstructorReverseForwTag");
+    return m_CladConstructorReverseForwTag;
+  }
+
+  clang::QualType
+  VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
+    return InstantiateTemplate(GetCladConstructorReverseForwTag(), {T});
   }
 } // end namespace clad

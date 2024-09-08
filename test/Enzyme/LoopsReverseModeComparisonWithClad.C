@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out 2>&1 | FileCheck %s
-// RUN: ./EnzymeLoops.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out 2>&1 | %filecheck %s
+// RUN: ./EnzymeLoops.out | %filecheck_exec %s
 // REQUIRES: Enzyme
 // CHECK-NOT: {{.*error|warning|note:.*}}
 

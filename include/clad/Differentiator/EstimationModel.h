@@ -28,25 +28,14 @@ namespace clad {
     std::unordered_map<const clang::VarDecl*, clang::Expr*> m_EstimateVar;
 
   public:
-    FPErrorEstimationModel(DerivativeBuilder& builder) : VisitorBase(builder) {}
+    // FIXME: Add a proper parameter for the DiffRequest here.
+    FPErrorEstimationModel(DerivativeBuilder& builder,
+                           const DiffRequest& request)
+        : VisitorBase(builder, request) {}
     virtual ~FPErrorEstimationModel();
 
     /// Clear the variable estimate map so that we can start afresh.
     void clearEstimationVariables() { m_EstimateVar.clear(); }
-
-    /// Helper to build a function call expression.
-    ///
-    /// \param[in] funcName The name of the function to build the expression
-    /// for.
-    /// \param[in] nmspace The name of the namespace for the function,
-    /// currently does not support nested namespaces.
-    /// \param[in] callArgs A vector of \c clang::Expr of all the parameters
-    /// to the function call.
-    ///
-    /// \return The function call expression that can be used to emit into
-    /// code.
-    clang::Expr* GetFunctionCall(std::string funcName, std::string nmspace,
-                                 llvm::SmallVectorImpl<clang::Expr*>& callArgs);
 
     /// User overridden function to return the error expression of a
     /// specific estimation model. The error expression is returned in the form
@@ -83,10 +72,13 @@ namespace clad {
     /// custom model.
     /// \param[in] builder A build instance to pass to the custom model
     /// constructor.
+    /// \param[in] request The differentiation configuration passed to the
+    /// custom model
     /// \returns A reference to the custom class wrapped in the
     /// FPErrorEstimationModel class.
     virtual std::unique_ptr<FPErrorEstimationModel>
-    InstantiateCustomModel(DerivativeBuilder& builder) = 0;
+    InstantiateCustomModel(DerivativeBuilder& builder,
+                           const DiffRequest& request) = 0;
   };
 
   /// A class used to register custom plugins.
@@ -99,16 +91,18 @@ namespace clad {
     ///
     /// \param[in] builder The current instance of derivative builder.
     std::unique_ptr<FPErrorEstimationModel>
-    InstantiateCustomModel(DerivativeBuilder& builder) override {
-      return std::unique_ptr<FPErrorEstimationModel>(new CustomClass(builder));
+    InstantiateCustomModel(DerivativeBuilder& builder,
+                           const DiffRequest& request) override {
+      return std::unique_ptr<FPErrorEstimationModel>(
+          new CustomClass(builder, request));
     }
   };
 
   /// Example class for taylor series approximation based error estimation.
   class TaylorApprox : public FPErrorEstimationModel {
   public:
-    TaylorApprox(DerivativeBuilder& builder)
-        : FPErrorEstimationModel(builder) {}
+    TaylorApprox(DerivativeBuilder& builder, const DiffRequest& request)
+        : FPErrorEstimationModel(builder, request) {}
     // Return an expression of the following kind:
     // std::abs(dfdx * delta_x * Em)
     clang::Expr* AssignError(StmtDiff refExpr,

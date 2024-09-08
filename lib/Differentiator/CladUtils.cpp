@@ -10,6 +10,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
 #include "llvm/ADT/SmallVector.h"
+#include <clang/AST/DeclCXX.h>
 #include "clad/Differentiator/Compatibility.h"
 
 using namespace clang;
@@ -98,8 +99,23 @@ namespace clad {
       case OverloadedOperatorKind::OO_Subscript:
         return "operator_subscript";
       default:
+        if (isa<CXXConstructorDecl>(FD))
+          return "constructor";
         return FD->getNameAsString();
       }
+    }
+
+    Stmt* unwrapIfSingleStmt(Stmt* S) {
+      if (!S)
+        return nullptr;
+      if (!isa<CompoundStmt>(S))
+        return S;
+      auto* CS = cast<CompoundStmt>(S);
+      if (CS->size() == 0)
+        return nullptr;
+      if (CS->size() == 1)
+        return CS->body_front();
+      return CS;
     }
 
     CompoundStmt* PrependAndCreateCompoundStmt(ASTContext& C, Stmt* initial,
@@ -172,15 +188,14 @@ namespace clad {
 
     DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
                                  clang::DeclContext* DC2) {
-      // llvm::errs()<<"DC1 name: "<<DC1->getDeclKindName()<<"\n";
-      // llvm::errs()<<"DC2 name: "<<DC2->getDeclKindName()<<"\n";
-      // cast<Decl>(DC1)->dumpColor();
       llvm::SmallVector<clang::DeclContext*, 4> contexts;
       assert((isa<NamespaceDecl>(DC1) || isa<TranslationUnitDecl>(DC1)) &&
              "DC1 can only be extended if it is a "
              "namespace or translation unit decl.");
       while (DC2) {
-        // llvm::errs()<<"DC2 name: "<<DC2->getDeclKindName()<<"\n";
+        // If somewhere along the way we reach DC1, then we can break the loop.
+        if (DC2->Equals(DC1))
+          break;
         if (isa<TranslationUnitDecl>(DC2))
           break;
         if (isa<LinkageSpecDecl>(DC2)) {
@@ -226,8 +241,9 @@ namespace clad {
       DeclContext* DC = DC1;
       for (int i = contexts.size() - 1; i >= 0; --i) {
         NamespaceDecl* ND = cast<NamespaceDecl>(contexts[i]);
-        DC = LookupNSD(semaRef, ND->getIdentifier()->getName(),
-                       /*shouldExist=*/false, DC1);
+        if (ND->getIdentifier())
+          DC = LookupNSD(semaRef, ND->getIdentifier()->getName(),
+                         /*shouldExist=*/false, DC1);
         if (!DC)
           return nullptr;
         DC1 = DC;
@@ -251,17 +267,6 @@ namespace clad {
       assert(!R.empty() && "Cannot find the specified namespace!");
       NamespaceDecl* ND = cast<NamespaceDecl>(R.getFoundDecl());
       return cast<NamespaceDecl>(ND->getPrimaryContext());
-    }
-
-    clang::DeclContext* GetOutermostDC(Sema& semaRef, clang::DeclContext* DC) {
-      ASTContext& C = semaRef.getASTContext();
-      assert(DC && "Invalid DC");
-      while (DC) {
-        if (DC->getParent() == C.getTranslationUnitDecl())
-          break;
-        DC = DC->getParent();
-      }
-      return DC;
     }
 
     StringLiteral* CreateStringLiteral(ASTContext& C, llvm::StringRef str) {
@@ -346,12 +351,14 @@ namespace clad {
     BuildParmVarDecl(clang::Sema& semaRef, clang::DeclContext* DC,
                      clang::IdentifierInfo* II, clang::QualType T,
                      clang::StorageClass SC, clang::Expr* defArg,
-                     clang::TypeSourceInfo* TSI) {
+                     clang::TypeSourceInfo* TSI, clang::SourceLocation Loc) {
       ASTContext& C = semaRef.getASTContext();
       if (!TSI)
         TSI = C.getTrivialTypeSourceInfo(T, noLoc);
+      if (Loc.isInvalid())
+        Loc = utils::GetValidSLoc(semaRef);
       ParmVarDecl* PVD =
-          ParmVarDecl::Create(C, DC, noLoc, noLoc, II, T, TSI, SC, defArg);
+          ParmVarDecl::Create(C, DC, Loc, Loc, II, T, TSI, SC, defArg);
       return PVD;
     }
 
@@ -365,6 +372,10 @@ namespace clad {
       else if (T->isArrayType())
         valueType =
             T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
+      else if (T->isEnumeralType()) {
+        if (const auto* ET = dyn_cast<EnumType>(T))
+          valueType = ET->getDecl()->getIntegerType();
+      }
       valueType.removeLocalConst();
       return valueType;
     }
@@ -651,6 +662,22 @@ namespace clad {
              isa<GNUNullExpr>(E);
     }
 
+    bool IsZeroOrNullValue(const clang::Expr* E) {
+      if (!E)
+        return true;
+      if (const auto* ICE = dyn_cast<ImplicitCastExpr>(E))
+        return IsZeroOrNullValue(ICE->getSubExpr());
+      if (isa<CXXNullPtrLiteralExpr>(E))
+        return true;
+      if (const auto* FL = dyn_cast<FloatingLiteral>(E))
+        return FL->getValue().isZero();
+      if (const auto* IL = dyn_cast<IntegerLiteral>(E))
+        return IL->getValue() == 0;
+      if (const auto* SL = dyn_cast<StringLiteral>(E))
+        return SL->getLength() == 0;
+      return false;
+    }
+
     bool IsMemoryFunction(const clang::FunctionDecl* FD) {
 
 #if CLANG_VERSION_MAJOR > 12
@@ -681,6 +708,11 @@ namespace clad {
 #else
       return FD->getNameAsString() == "free";
 #endif
+    }
+
+    bool isNonConstReferenceType(clang::QualType QT) {
+      return QT->isReferenceType() &&
+             !QT.getNonReferenceType().isConstQualified();
     }
   } // namespace utils
 } // namespace clad

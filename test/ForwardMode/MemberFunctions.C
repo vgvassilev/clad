@@ -1,9 +1,9 @@
-// RUN: %cladclang %s -I%S/../../include -oMemberFunctions.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions-cpp14.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladclang -std=c++17 %s -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | FileCheck %s
-// RUN: ./MemberFunctions-cpp17.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oMemberFunctions.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions.out | %filecheck_exec %s
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oMemberFunctions-cpp14.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions-cpp14.out | %filecheck_exec %s
+// RUN: %cladclang -std=c++17 %s -I%S/../../include -oMemberFunctions-cpp17.out 2>&1 | %filecheck %s
+// RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -32,8 +32,7 @@ public:
 	  return;
   }
 
-  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this) {
-  // CHECK-NEXT:}
+  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this);
 
   double mem_fn_with_void_function_call(double i, double j) {
     mem_fn_with_void_return();
@@ -720,7 +719,7 @@ public:
   // CHECK-NEXT:       double _d_j = 0;
   // CHECK-NEXT:       SimpleFunctions _d_this_obj;
   // CHECK-NEXT:       SimpleFunctions *_d_this = &_d_this_obj;
-  // CHECK-NEXT:       double *_d_p;
+  // CHECK-NEXT:       double *_d_p = nullptr;
   // CHECK-NEXT:       double *p;
   // CHECK-NEXT:       _d_p = _d_this->arr[1];
   // CHECK-NEXT:       p = this->arr[1];
@@ -821,6 +820,9 @@ double multiplySimpleFunctionByValue(SimpleFunctions v, double value) {
   // CHECK-NEXT:       clad::ValueAndPushforward<SimpleFunctions &, SimpleFunctions &> _t0 = clad::custom_derivatives::class_functions::operator_star_equal_pushforward(&v, value, &_d_v, _d_value);
   // CHECK-NEXT:       return _d_v.x;
   // CHECK-NEXT:   }
+
+  // CHECK: void mem_fn_with_void_return_pushforward(SimpleFunctions *_d_this) {
+  // CHECK-NEXT:}
 
 
 #define TEST(name,i,j) \

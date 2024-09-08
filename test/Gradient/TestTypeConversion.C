@@ -1,7 +1,7 @@
-// RUN: %cladnumdiffclang %s  -I%S/../../include -oTestTypeConversion.out 2>&1 | FileCheck %s
-// RUN: ./TestTypeConversion.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oTestTypeConversion.out 2>&1 | %filecheck %s
+// RUN: ./TestTypeConversion.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s  -I%S/../../include -oTestTypeConversion.out
-// RUN: ./TestTypeConversion.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./TestTypeConversion.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -19,25 +19,30 @@ float fn_type_conversion(float z, int a) {
 
 void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a);
 // CHECK: void fn_type_conversion_grad(float z, int a, float *_d_z, int *_d_a) {
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
 // CHECK-NEXT:     int _d_i = 0;
 // CHECK-NEXT:     int i = 0;
 // CHECK-NEXT:     clad::tape<float> _t1 = {};
-// CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (i = 1; i < a; i++) {
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 1; ; i++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < a))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         clad::push(_t1, z);
 // CHECK-NEXT:         z = z * a;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     *_d_z += 1;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         i--;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             z = clad::pop(_t1);
 // CHECK-NEXT:             float _r_d0 = *_d_z;
-// CHECK-NEXT:             *_d_z -= _r_d0;
+// CHECK-NEXT:             *_d_z = 0.F;
 // CHECK-NEXT:             *_d_z += _r_d0 * a;
 // CHECK-NEXT:             *_d_a += z * _r_d0;
 // CHECK-NEXT:         }

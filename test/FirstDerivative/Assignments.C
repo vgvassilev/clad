@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oAssignments.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oAssignments.out 2>&1 | %filecheck %s
 // RUN: ./Assignments.out
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

@@ -15,8 +15,8 @@
 // FPErrorEstimationModel class.
 class PrintModel : public clad::FPErrorEstimationModel {
 public:
-  PrintModel(clad::DerivativeBuilder& builder)
-      : FPErrorEstimationModel(builder) {}
+  PrintModel(clad::DerivativeBuilder& builder, const clad::DiffRequest& request)
+      : FPErrorEstimationModel(builder, request) {}
   // Return an expression of the following kind:
   //  dfdx * delta_x
   clang::Expr* AssignError(clad::StmtDiff refExpr, const std::string& name) override;

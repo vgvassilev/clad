@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
+// RUN: %cladclang  -ferror-limit=100 %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -131,8 +131,6 @@ int main () {
 
   clad::differentiate(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
 
-  clad::differentiate(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
-
   clad::differentiate(f_2, 3); // expected-error {{Invalid argument index '3' of '3' argument(s)}}
 
   clad::differentiate(f_2, 9); // expected-error {{Invalid argument index '9' of '3' argument(s)}}
@@ -141,6 +139,10 @@ int main () {
 
   clad::differentiate(f_2, f_2); // expected-error {{Failed to parse the parameters, must be a string or numeric literal}}
 
+  clad::gradient(f_2, -1); // expected-error {{Invalid argument index '-1' of '3' argument(s)}}
+
+  clad::gradient(f_2, "9"); // expected-error {{Invalid argument index '9' of '3' argument(s)}}
+  
   clad::differentiate(f_3, 0); // expected-error {{Invalid argument index '0' of '0' argument(s)}}
 
   float one = 1.0;

@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oNamespaces.out 2>&1 | FileCheck %s
+// RUN: %cladclang %s -I%S/../../include -oNamespaces.out 2>&1 | %filecheck %s
 // RUN: ./Namespaces.out
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

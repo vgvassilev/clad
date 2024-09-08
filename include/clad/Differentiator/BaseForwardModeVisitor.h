@@ -3,6 +3,7 @@
 
 #include "Compatibility.h"
 #include "VisitorBase.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -17,14 +18,14 @@ namespace clad {
 class BaseForwardModeVisitor
     : public clang::ConstStmtVisitor<BaseForwardModeVisitor, StmtDiff>,
       public VisitorBase {
+  unsigned m_IndependentVarIndex = ~0;
+
 protected:
   const clang::ValueDecl* m_IndependentVar = nullptr;
-  unsigned m_IndependentVarIndex = ~0;
-  unsigned m_DerivativeOrder = ~0;
-  unsigned m_ArgIndex = ~0;
 
 public:
-  BaseForwardModeVisitor(DerivativeBuilder& builder);
+  BaseForwardModeVisitor(DerivativeBuilder& builder,
+                         const DiffRequest& request);
   virtual ~BaseForwardModeVisitor();
 
   ///\brief Produces the first derivative of a given function.
@@ -41,8 +42,7 @@ public:
                                           const DiffRequest& request);
 
   /// Returns the return type for the pushforward function of the function
-  /// `m_Function`.
-  /// \note `m_Function` field should be set before using this function.
+  /// `m_DiffReq->Function`.
   clang::QualType ComputePushforwardFnReturnType();
 
   virtual void ExecuteInsidePushforwardFunctionBlock();
@@ -55,6 +55,7 @@ public:
   StmtDiff VisitCallExpr(const clang::CallExpr* CE);
   StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
   StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
+  StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
   StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
   StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
   StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
@@ -73,7 +74,10 @@ public:
   StmtDiff VisitStmt(const clang::Stmt* S);
   StmtDiff VisitUnaryOperator(const clang::UnaryOperator* UnOp);
   // Decl is not Stmt, so it cannot be visited directly.
-  virtual VarDeclDiff DifferentiateVarDecl(const clang::VarDecl* VD);
+  virtual DeclDiff<clang::VarDecl>
+  DifferentiateVarDecl(const clang::VarDecl* VD);
+  virtual DeclDiff<clang::VarDecl>
+  DifferentiateVarDecl(const clang::VarDecl* VD, bool ignoreInit);
   /// Shorthand for warning on differentiation of unsupported operators
   void unsupportedOpWarn(clang::SourceLocation loc,
                          llvm::ArrayRef<llvm::StringRef> args = {}) {
@@ -82,6 +86,7 @@ public:
                          set to 0",
          args);
   }
+  StmtDiff VisitCXXForRangeStmt(const clang::CXXForRangeStmt* FRS);
   StmtDiff VisitWhileStmt(const clang::WhileStmt* WS);
   StmtDiff VisitDoStmt(const clang::DoStmt* DS);
   StmtDiff VisitContinueStmt(const clang::ContinueStmt* ContStmt);
@@ -97,6 +102,8 @@ public:
   StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
   StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
   StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
+  StmtDiff
+  VisitCXXScalarValueInitExpr(const clang::CXXScalarValueInitExpr* SVIE);
   StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* CSE);
   StmtDiff VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
   StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
@@ -108,6 +115,11 @@ public:
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
   StmtDiff VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
   StmtDiff VisitCStyleCastExpr(const clang::CStyleCastExpr* CSCE);
+  StmtDiff VisitNullStmt(const clang::NullStmt* NS) { return StmtDiff{}; };
+  StmtDiff
+  VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+  static DeclDiff<clang::StaticAssertDecl>
+  DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 
   virtual clang::QualType
   GetPushForwardDerivativeType(clang::QualType ParamType);
@@ -131,6 +143,16 @@ protected:
   /// \return active switch case label after processing `stmt`
   clang::SwitchCase* DeriveSwitchStmtBodyHelper(const clang::Stmt* stmt,
                                                 clang::SwitchCase* activeSC);
+
+  /// Tries to build custom derivative constructor pushforward call for the
+  /// given CXXConstructExpr.
+  ///
+  /// \return A call expression if a suitable custom derivative is found;
+  /// Otherwise returns nullptr.
+  clang::Expr* BuildCustomDerivativeConstructorPFCall(
+      const clang::CXXConstructExpr* CE,
+      llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
 };
 } // end namespace clad
 

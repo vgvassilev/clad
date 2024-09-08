@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oSimpleFunctor.out 2>&1 | FileCheck %s
-// RUN: ./SimpleFunctor.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oSimpleFunctor.out 2>&1 | %filecheck %s
+// RUN: ./SimpleFunctor.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

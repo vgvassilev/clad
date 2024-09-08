@@ -10,12 +10,14 @@
 #include "BaseForwardModeVisitor.h"
 
 namespace clad {
+
 /// A visitor for processing the function code in forward mode.
 /// Used to compute derivatives by clad::differentiate.
 class PushForwardModeVisitor : public BaseForwardModeVisitor {
 
 public:
-  PushForwardModeVisitor(DerivativeBuilder& builder);
+  PushForwardModeVisitor(DerivativeBuilder& builder,
+                         const DiffRequest& request);
   ~PushForwardModeVisitor() override;
 
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;

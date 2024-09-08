@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | FileCheck %s
-// RUN: ./Functors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | %filecheck %s
+// RUN: ./Functors.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -430,7 +430,7 @@ int main() {
   // CHECK-NEXT:     double _d_i = 1;
   // CHECK-NEXT:     double _d_jj = 0;
   // CHECK-NEXT:     double _t0 = x * i;
-  // CHECK-NEXT:     return (0 * i + x * _d_i) * jj + _t0 * _d_jj;
+  // CHECK-NEXT:     return (0. * i + x * _d_i) * jj + _t0 * _d_jj;
   // CHECK-NEXT: }
 
   auto lambdaNNS = outer::inner::lambdaNNS;

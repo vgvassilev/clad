@@ -5,16 +5,53 @@ endif()
 set(CLAD_PLUGIN_SRC
   ClangPlugin.cpp
   ClangBackendPlugin.cpp
-  DerivedFnInfo.cpp
   RequiredSymbols.cpp
 )
 
 llvm_add_library(cladPlugin STATIC ${CLAD_PLUGIN_SRC})
 
-if (NOT CLAD_BUILD_STATIC_ONLY)
-  add_llvm_loadable_module(clad ${CLAD_PLUGIN_SRC} PLUGIN_TOOL clang)
+set(link_libs cladDifferentiator)
 
-  target_link_libraries(clad PRIVATE cladDifferentiator)
+if (NOT CLAD_BUILD_STATIC_ONLY)
+  # Get rid of libLLVM-X.so which is appended to the list of static libraries.
+  if (LLVM_LINK_LLVM_DYLIB)
+    set(new_libs ${link_libs})
+    set(libs ${new_libs})
+    while(NOT "${new_libs}" STREQUAL "")
+      foreach(lib ${new_libs})
+        if(TARGET ${lib})
+          get_target_property(transitive_libs ${lib} INTERFACE_LINK_LIBRARIES)
+          if (NOT transitive_libs)
+            continue()
+          endif()
+          foreach(transitive_lib ${transitive_libs})
+            get_target_property(lib_type ${transitive_lib} TYPE)
+            if("${lib_type}" STREQUAL "STATIC_LIBRARY")
+              list(APPEND static_transitive_libs ${transitive_lib})
+            else()
+              # Filter our libLLVM.so and friends.
+              continue()
+            endif()
+            if(NOT ${transitive_lib} IN_LIST libs)
+              list(APPEND newer_libs ${transitive_lib})
+              list(APPEND libs ${transitive_lib})
+            endif()
+          endforeach(transitive_lib)
+          # Update the target properties with the list of only static libraries.
+          set_target_properties(${lib} PROPERTIES INTERFACE_LINK_LIBRARIES "${static_transitive_libs}")
+          set(static_transitive_libs "")
+        endif()
+      endforeach(lib)
+      set(new_libs ${newer_libs})
+      set(newer_libs "")
+    endwhile()
+  endif(LLVM_LINK_LLVM_DYLIB)
+
+  add_llvm_loadable_module(
+    clad ${CLAD_PLUGIN_SRC} DISABLE_LLVM_LINK_LLVM_DYLIB PLUGIN_TOOL clang
+    )
+
+  target_link_libraries(clad PRIVATE ${link_libs})
 
   # Add Enzyme as a backend.
   if (CLAD_ENABLE_ENZYME_BACKEND)

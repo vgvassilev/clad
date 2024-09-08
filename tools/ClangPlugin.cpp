@@ -84,9 +84,11 @@ namespace clad {
           break;
         }
 
-      // Register clad as a backend pass.
-      CodeGenOptions& CGOpts = CI.getCodeGenOpts();
-      CGOpts.PassPlugins.push_back(CladSoPath.str());
+      if (!CladSoPath.empty()) {
+        // Register clad as a backend pass.
+        CodeGenOptions& CGOpts = CI.getCodeGenOpts();
+        CGOpts.PassPlugins.push_back(CladSoPath.str());
+      }
 #endif // CLANG_VERSION_MAJOR > 8
     }
 
@@ -122,11 +124,17 @@ namespace clad {
       Sema& S = m_CI.getSema();
 
       if (!m_DerivativeBuilder)
-        m_DerivativeBuilder.reset(new DerivativeBuilder(S, *this));
+        m_DerivativeBuilder.reset(
+            new DerivativeBuilder(S, *this, m_DFC, m_DiffRequestGraph));
 
       RequestOptions opts{};
       SetRequestOptions(opts);
-      DiffCollector collector(DGR, CladEnabledRange, m_DiffSchedule, S, opts);
+      DiffCollector collector(DGR, CladEnabledRange, m_DiffRequestGraph, S,
+                              opts);
+      // We could not delay the processing of derivatives, inform act as if each
+      // call is final. That would still have vgvassilev/clad#248 unresolved.
+      if (!m_Multiplexer)
+        FinalizeTranslationUnit();
     }
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
@@ -171,7 +179,8 @@ namespace clad {
              it != ie; ++it) {
           auto estimationPlugin = it->instantiate();
           m_DerivativeBuilder->AddErrorEstimationModel(
-              estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder));
+              estimationPlugin->InstantiateCustomModel(*m_DerivativeBuilder,
+                                                       request));
         }
       }
 
@@ -189,11 +198,9 @@ namespace clad {
         // derive the collected functions
 
 #if CLANG_VERSION_MAJOR > 11
-        bool WantTiming =
-            getenv("LIBCLAD_TIMING") || m_CI.getCodeGenOpts().TimePasses;
+        bool WantTiming = m_CI.getCodeGenOpts().TimePasses;
 #else
-        bool WantTiming =
-            getenv("LIBCLAD_TIMING") || m_CI.getFrontendOpts().ShowTimers;
+        bool WantTiming = m_CI.getFrontendOpts().ShowTimers;
 #endif
 
         auto DFI = m_DFC.Find(request);
@@ -223,6 +230,8 @@ namespace clad {
           // if enabled, print source code of the derived functions
           if (m_DO.DumpDerivedFn) {
             DerivativeDecl->print(llvm::outs(), Policy);
+            if (request.DeclarationOnly)
+              llvm::outs() << ";\n";
           }
 
           // if enabled, print ASTs of the derived functions
@@ -236,6 +245,8 @@ namespace clad {
             llvm::raw_fd_ostream f("Derivatives.cpp", err,
                                    CLAD_COMPAT_llvm_sys_fs_Append);
             DerivativeDecl->print(f, Policy);
+            if (request.DeclarationOnly)
+              f << ";\n";
             f.flush();
           }
 
@@ -275,6 +286,9 @@ namespace clad {
           request.updateCall(DerivativeDecl, OverloadedDerivativeDecl,
                              m_CI.getSema());
 
+        if (request.DeclarationOnly)
+          request.DerivedFDPrototypes.push_back(DerivativeDecl);
+
         // Last requested order was computed, return the result.
         if (lastDerivativeOrder)
           return DerivativeDecl;
@@ -288,7 +302,9 @@ namespace clad {
     }
 
     void CladPlugin::SendToMultiplexer() {
-      for (auto DelayedCall : m_DelayedCalls) {
+      for (unsigned i = m_MultiplexerProcessedDelayedCallsIdx;
+           i < m_DelayedCalls.size(); ++i) {
+        auto DelayedCall = m_DelayedCalls[i];
         DeclGroupRef& D = DelayedCall.m_DGR;
         switch (DelayedCall.m_Kind) {
         case CallKind::HandleCXXStaticMemberVarInstantiation:
@@ -346,7 +362,8 @@ namespace clad {
           break;
         };
       }
-      m_HasMultiplexerProcessedDelayedCalls = true;
+
+      m_MultiplexerProcessedDelayedCallsIdx = m_DelayedCalls.size();
     }
 
     bool CladPlugin::CheckBuiltins() {
@@ -385,22 +402,39 @@ namespace clad {
       SetTBRAnalysisOptions(m_DO, opts);
     }
 
-    void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+    void CladPlugin::FinalizeTranslationUnit() {
       Sema& S = m_CI.getSema();
       // Restore the TUScope that became a 0 in Sema::ActOnEndOfTranslationUnit.
-      S.TUScope = m_StoredTUScope;
+      if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
+        S.TUScope = m_StoredTUScope;
       constexpr bool Enabled = true;
       Sema::GlobalEagerInstantiationScope GlobalInstantiations(S, Enabled);
       Sema::LocalEagerInstantiationScope LocalInstantiations(S);
 
-      for (DiffRequest& request : m_DiffSchedule)
-        ProcessDiffRequest(request);
+      if (!m_DiffRequestGraph.isProcessingNode()) {
+        // This check is to avoid recursive processing of the graph, as
+        // HandleTopLevelDecl can be called recursively in non-standard
+        // setup for code generation.
+        DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
+        while (request.Function) {
+          m_DiffRequestGraph.setCurrentProcessingNode(request);
+          ProcessDiffRequest(request);
+          m_DiffRequestGraph.markCurrentNodeProcessed();
+          request = m_DiffRequestGraph.getNextToProcessNode();
+        }
+      }
+
       // Put the TUScope in a consistent state after clad is done.
-      S.TUScope = nullptr;
+      if (!m_CI.getPreprocessor().isIncrementalProcessingEnabled())
+        S.TUScope = nullptr;
+
       // Force emission of the produced pending template instantiations.
       LocalInstantiations.perform();
       GlobalInstantiations.perform();
+    }
 
+    void CladPlugin::HandleTranslationUnit(ASTContext& C) {
+      FinalizeTranslationUnit();
       SendToMultiplexer();
       m_Multiplexer->HandleTranslationUnit(C);
     }
@@ -463,6 +497,10 @@ namespace clad {
         llvm::errs() << "\n";
       }
 
+      // Print the graph of the diff requests.
+      llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
+      m_DiffRequestGraph.print();
+
       m_Multiplexer->PrintStats();
     }
 
@@ -494,41 +532,6 @@ namespace clad {
       return false;
     else
       return true;
-  }
-
-  void DerivedFnCollector::Add(const DerivedFnInfo& DFI) {
-    assert(!AlreadyExists(DFI) &&
-           "We are generating same derivative more than once, or calling "
-           "`DerivedFnCollector::Add` more than once for the same derivative "
-           ". Ideally, we shouldn't do either.");
-    m_DerivedFnInfoCollection[DFI.OriginalFn()].push_back(DFI);
-  }
-
-  bool DerivedFnCollector::AlreadyExists(const DerivedFnInfo& DFI) const {
-    auto subCollectionIt = m_DerivedFnInfoCollection.find(DFI.OriginalFn());
-    if (subCollectionIt == m_DerivedFnInfoCollection.end())
-      return false;
-    auto& subCollection = subCollectionIt->second;
-    auto it = std::find_if(subCollection.begin(), subCollection.end(),
-                           [&DFI](const DerivedFnInfo& info) {
-                             return DerivedFnInfo::
-                                 RepresentsSameDerivative(DFI, info);
-                           });
-    return it != subCollection.end();
-  }
-
-  DerivedFnInfo DerivedFnCollector::Find(const DiffRequest& request) const {
-    auto subCollectionIt = m_DerivedFnInfoCollection.find(request.Function);
-    if (subCollectionIt == m_DerivedFnInfoCollection.end())
-      return DerivedFnInfo();
-    auto& subCollection = subCollectionIt->second;
-    auto it = std::find_if(subCollection.begin(), subCollection.end(),
-                           [&request](DerivedFnInfo DFI) {
-                             return DFI.SatisfiesRequest(request);
-                           });
-    if (it == subCollection.end())
-      return DerivedFnInfo();
-    return *it;
   }
 } // end namespace clad
 

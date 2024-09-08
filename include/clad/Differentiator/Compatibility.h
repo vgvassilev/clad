@@ -389,7 +389,6 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
    #define CLAD_COMPAT_CLANG11_UnaryOperator_ExtraParams ,Node->getFPOptionsOverride()
 #endif
 
-
 // Clang 12 rename DeclaratorContext::LambdaExprContext to DeclaratorContext::LambdaExpr.
 // Clang 15 add one extra param to clang::Declarator() - const ParsedAttributesView & DeclarationAttrs
 

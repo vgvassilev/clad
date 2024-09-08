@@ -7,8 +7,8 @@
 #ifndef CLAD_CLANG_PLUGIN
 #define CLAD_CLANG_PLUGIN
 
-#include "DerivedFnInfo.h"
 #include "clad/Differentiator/DerivativeBuilder.h"
+#include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DiffPlanner.h"
 #include "clad/Differentiator/Version.h"
@@ -16,18 +16,19 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Version.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Sema/SemaConsumer.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Timer.h"
 
 namespace clang {
   class ASTContext;
   class CallExpr;
-  class CompilerInstance;
   class DeclGroupRef;
   class Expr;
   class FunctionDecl;
@@ -37,41 +38,16 @@ namespace clang {
 
 namespace clad {
 
-  bool checkClangVersion();
-  /// This class is designed to store collection of `DerivedFnInfo` objects.
-  /// It's purpose is to avoid repeated generation of same derivatives by
-  /// making it possible to reuse previously computed derivatives.
-  class DerivedFnCollector {
-    using DerivedFns = llvm::SmallVector<DerivedFnInfo, 16>;
-    /// Mapping to efficiently find out information about all the derivatives of
-    /// a function.
-    llvm::DenseMap<const clang::FunctionDecl*, DerivedFns> m_DerivedFnInfoCollection;
+bool checkClangVersion();
+class CladTimerGroup {
+  llvm::TimerGroup m_Tg;
+  std::vector<std::unique_ptr<llvm::Timer>> m_Timers;
 
-  public:
-    /// Adds a derived function to the collection.
-    void Add(const DerivedFnInfo& DFI);
-
-    /// Finds a `DerivedFnInfo` object in the collection that satisfies the
-    /// given differentiation request.
-    DerivedFnInfo Find(const DiffRequest& request) const;
-
-    bool IsDerivative(const clang::FunctionDecl* FD) const;
-
-  private:
-    /// Returns true if the collection already contains a `DerivedFnInfo`
-    /// object that represents the same derivative object as the provided
-    /// argument `DFI`.
-    bool AlreadyExists(const DerivedFnInfo& DFI) const;
-  };
-  class CladTimerGroup {
-    llvm::TimerGroup m_Tg;
-    std::vector<std::unique_ptr<llvm::Timer>> m_Timers;
-
-  public:
-    CladTimerGroup();
-    void StartNewTimer(llvm::StringRef TimerName, llvm::StringRef TimerDesc);
-    void StopTimer();
-  };
+public:
+  CladTimerGroup();
+  void StartNewTimer(llvm::StringRef TimerName, llvm::StringRef TimerDesc);
+  void StopTimer();
+};
 
   namespace plugin {
     struct DifferentiationOptions {
@@ -127,7 +103,7 @@ namespace clad {
     bool m_HasRuntime = false;
     CladTimerGroup m_CTG;
     DerivedFnCollector m_DFC;
-    DiffSchedule m_DiffSchedule;
+    DynamicGraph<DiffRequest> m_DiffRequestGraph;
     enum class CallKind {
       HandleCXXStaticMemberVarInstantiation,
       HandleTopLevelDecl,
@@ -178,7 +154,7 @@ namespace clad {
     std::unique_ptr<clang::MultiplexConsumer> m_Multiplexer;
 
     /// Have we processed all delayed calls.
-    bool m_HasMultiplexerProcessedDelayedCalls = false;
+    unsigned m_MultiplexerProcessedDelayedCallsIdx = 0;
 
     /// The Sema::TUScope to restore in CladPlugin::HandleTranslationUnit.
     clang::Scope* m_StoredTUScope = nullptr;
@@ -192,6 +168,16 @@ namespace clad {
       AppendDelayed({CallKind::HandleCXXStaticMemberVarInstantiation, D});
     }
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
+      if (D.isSingleDecl())
+        if (auto* FD = llvm::dyn_cast<clang::FunctionDecl>(D.getSingleDecl()))
+          // If we build the derivative in a non-standard (with no Multiplexer)
+          // setup, we exit early to give control to the non-standard setup for
+          // code generation.
+          // FIXME: This should go away if Cling starts using the clang driver.
+          if (!m_Multiplexer &&
+              (m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD)))
+            return true;
+
       HandleTopLevelDeclForClad(D);
       AppendDelayed({CallKind::HandleTopLevelDecl, D});
       return true; // happyness, continue parsing
@@ -268,9 +254,14 @@ namespace clad {
 
   private:
     void AppendDelayed(DelayedCallInfo DCI) {
-      assert(!m_HasMultiplexerProcessedDelayedCalls);
+      // Incremental processing handles the translation unit in chunks and it is
+      // expected to have multiple calls to this functionality.
+      assert((!m_MultiplexerProcessedDelayedCallsIdx ||
+              m_CI.getPreprocessor().isIncrementalProcessingEnabled()) &&
+             "Must start from index 0!");
       m_DelayedCalls.push_back(DCI);
     }
+    void FinalizeTranslationUnit();
     void SendToMultiplexer();
     bool CheckBuiltins();
     void SetRequestOptions(RequestOptions& opts) const;
@@ -279,6 +270,10 @@ namespace clad {
       DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
       assert(!llvm::is_contained(m_DelayedCalls, DCI) && "Already exists!");
       AppendDelayed(DCI);
+      // We could not delay the process due to some strange way of
+      // initialization, inform the consumers now.
+      if (!m_Multiplexer)
+        m_CI.getASTConsumer().HandleTopLevelDecl(DCI.m_DGR);
     }
     void HandleTopLevelDeclForClad(clang::DeclGroupRef DGR);
     };

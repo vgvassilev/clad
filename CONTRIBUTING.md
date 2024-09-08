@@ -54,9 +54,13 @@ review quickly and successfully share several common traits:
   information is usually published as part of the pull request description and
   as part of the commit message. Writing good commit messages are critical. More
   [here](https://github.blog/2022-06-30-write-better-commits-build-better-projects/)
-  and [here](https://cbea.ms/git-commit/).
+  and [here](https://cbea.ms/git-commit/). If your pull request fixes an existing
+  issue from the bug tracker make sure that the commit log and the pull request
+  description mentions `Fixes: #<ISSUE_NUMBER>`. That will link both and will
+  close the issue automatically upon merging.
 - Tested -- has a set of tests making sure that the issue will not resurface
-  without a notice. Usually
+  without a notice. Usually the codecov bots annotate the code paths that are
+  not tested in the pull request after being run.
 - Documented -- has good amount of code comment. The test cases are also a good
   source of documentation. [Here](https://stackoverflow.blog/2021/12/23/best-practices-for-writing-code-comments/)
   is a guideline about how write good code comments. [Here](https://stackoverflow.com/questions/184618/what-is-the-best-comment-in-source-code-you-have-ever-encountered)
@@ -65,4 +69,9 @@ review quickly and successfully share several common traits:
 ### Developer Documentation
 
 We have documented several useful hints that usually help when addressing issues
-as they come during developement time in our [developer documentation](https://clad.readthedocs.io/en/latest/user/DevelopersDocumentation.html).
+as they come during developement time in our [developer documentation](https://clad.readthedocs.io/en/latest/user/DevelopersDocumentation.html). 
+
+In case you are interested in seeing the big picture and are just getting 
+started with Clang, there is a document that might interest you: [Introduction to Clang for Clad contributors](https://clad.readthedocs.io/en/latest/user/IntroductionToClangForCladContributors.html). 
+It covers most of the basic concepts in Clang that Clad uses and describes the operation
+of the latter with examples for newcomers specifically.

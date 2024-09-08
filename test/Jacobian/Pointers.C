@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
-// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointers.out
-// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./Pointers.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -14,8 +14,8 @@ void nonMemFn(double i, double j, double* out) {
 // CHECK: void nonMemFn_jac(double i, double j, double *out, double *jacobianMatrix) {
 // CHECK-NEXT:     out[0] = i;
 // CHECK-NEXT:     out[1] = j;
-// CHECK-NEXT:     jacobianMatrix[{{3U|3UL}}] += 1;
-// CHECK-NEXT:     jacobianMatrix[{{0U|0UL}}] += 1;
+// CHECK-NEXT:     jacobianMatrix[{{3U|3UL|3ULL}}] += 1;
+// CHECK-NEXT:     jacobianMatrix[{{0U|0UL|0ULL}}] += 1;
 // CHECK-NEXT: }
 
 

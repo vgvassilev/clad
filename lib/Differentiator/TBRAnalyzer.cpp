@@ -188,7 +188,9 @@ TBRAnalyzer::VarData* TBRAnalyzer::getExprVarData(const clang::Expr* E,
   return EData;
 }
 
-TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
+TBRAnalyzer::VarData::VarData(QualType QT, const ASTContext& C,
+                              bool forceNonRefType) {
+  QT = QT.getDesugaredType(C);
   if (forceNonRefType && QT->isReferenceType())
     QT = QT->getPointeeType();
 
@@ -205,7 +207,7 @@ TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
       elemType = QT->getArrayElementTypeNoTypeQual();
     ProfileID nonConstIdxID;
     auto& idxData = (*m_Val.m_ArrData)[nonConstIdxID];
-    idxData = VarData(QualType::getFromOpaquePtr(elemType));
+    idxData = VarData(QualType::getFromOpaquePtr(elemType), C);
   } else if (QT->isBuiltinType()) {
     m_Type = VarData::FUND_TYPE;
     m_Val.m_FundData = false;
@@ -216,7 +218,7 @@ TBRAnalyzer::VarData::VarData(QualType QT, bool forceNonRefType) {
     newArrMap = std::unique_ptr<ArrMap>(new ArrMap());
     for (const auto* field : recordDecl->fields()) {
       const auto varType = field->getType();
-      (*newArrMap)[getProfileID(field)] = VarData(varType);
+      (*newArrMap)[getProfileID(field)] = VarData(varType, C);
     }
   }
 }
@@ -287,25 +289,15 @@ void TBRAnalyzer::addVar(const clang::VarDecl* VD, bool forceNonRefType) {
   if (const auto* const pointerType = dyn_cast<clang::PointerType>(varType)) {
     const auto* elemType = pointerType->getPointeeType().getTypePtrOrNull();
     if (elemType && elemType->isRecordType()) {
-      curBranch[VD] = VarData(QualType::getFromOpaquePtr(elemType));
+      curBranch[VD] = VarData(QualType::getFromOpaquePtr(elemType), m_Context);
       return;
     }
   }
-  curBranch[VD] = VarData(varType, forceNonRefType);
+  curBranch[VD] = VarData(varType, m_Context, forceNonRefType);
 }
 
 void TBRAnalyzer::markLocation(const clang::Expr* E) {
-  VarData* data = getExprVarData(E);
-  if (!data || findReq(*data)) {
-    // FIXME: If any of the data's child nodes are required to store then data
-    // itself is stored. We might add an option to store separate fields.
-    // FIXME: Sometimes one location might correspond to multiple stores.  For
-    // example, in ``(x*=y)=u`` x's location will first be marked as required to
-    // be stored (when passing *= operator) but then marked as not required to
-    // be stored (when passing = operator). Current method of marking locations
-    // does not allow to differentiate between these two.
-    m_TBRLocs.insert(E->getBeginLoc());
-  }
+  m_TBRLocs.insert(E->getBeginLoc());
 }
 
 void TBRAnalyzer::setIsRequired(const clang::Expr* E, bool isReq) {
@@ -341,7 +333,7 @@ void TBRAnalyzer::Analyze(const FunctionDecl* FD) {
   if (MD && !MD->isStatic()) {
     const Type* recordType = MD->getParent()->getTypeForDecl();
     getCurBlockVarsData()[nullptr] =
-        VarData(QualType::getFromOpaquePtr(recordType));
+        VarData(QualType::getFromOpaquePtr(recordType), m_Context);
   }
   auto paramsRef = FD->parameters();
   for (std::size_t i = 0; i < FD->getNumParams(); ++i)
@@ -492,7 +484,7 @@ TBRAnalyzer::collectDataFromPredecessors(VarsData* varsData,
   std::unordered_map<const clang::VarDecl*, VarData*> result;
   if (varsData != limit) {
     // Copy data from every predecessor.
-    for (auto* pred = varsData->m_Prev; pred != limit; pred = pred->m_Prev) {
+    for (auto* pred = varsData; pred != limit; pred = pred->m_Prev) {
       // If a variable from 'pred' is not present in 'result', place it there.
       for (auto& pair : *pred)
         if (result.find(pair.first) == result.end())
@@ -703,15 +695,19 @@ bool TBRAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
     }
     llvm::SmallVector<Expr*, 4> ExprsToStore;
     utils::GetInnermostReturnExpr(L, ExprsToStore);
+    bool hasToBeSetReq = false;
     for (const auto* innerExpr : ExprsToStore) {
-      // Mark corresponding SourceLocation as required/not required to be
-      // stored for all expressions that could be used changed.
-      markLocation(innerExpr);
+      // If at least one of ExprsToStore has to be stored,
+      // mark L as useful to store.
+      if (VarData* data = getExprVarData(innerExpr))
+        hasToBeSetReq = hasToBeSetReq || findReq(*data);
       // Set them to not required to store because the values were changed.
       // (if some value was not changed, this could only happen if it was
       // already not required to store).
       setIsRequired(innerExpr, /*isReq=*/false);
     }
+    if (hasToBeSetReq)
+      markLocation(L);
   } else if (opCode == BO_Comma) {
     setMode(0);
     TraverseStmt(L);
@@ -737,9 +733,13 @@ bool TBRAnalyzer::VisitUnaryOperator(clang::UnaryOperator* UnOp) {
     llvm::SmallVector<Expr*, 4> ExprsToStore;
     utils::GetInnermostReturnExpr(E, ExprsToStore);
     for (const auto* innerExpr : ExprsToStore) {
-      // Mark corresponding SourceLocation as required/not required to be
-      // stored for all expressions that could be changed.
-      markLocation(innerExpr);
+      // If at least one of ExprsToStore has to be stored,
+      // mark L as useful to store.
+      if (VarData* data = getExprVarData(innerExpr))
+        if (findReq(*data)) {
+          markLocation(E);
+          break;
+        }
     }
   }
   // FIXME: Ideally, `__real` and `__imag` operators should be treated as member

@@ -365,7 +365,7 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
 
 Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
   CXXMemberCallExpr* result = clad_compat::CXXMemberCallExpr_Create(
-      Ctx, Clone(Node->getCallee()), 0, CloneType(Node->getType()),
+      Ctx, Clone(Node->getCallee()), {}, CloneType(Node->getType()),
       Node->getValueKind(),
       Node->getRParenLoc()
       /*FP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node));

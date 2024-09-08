@@ -1,5 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "TBRAnalyzer.h"
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
@@ -175,9 +177,6 @@ namespace clad {
   void DiffRequest::updateCall(FunctionDecl* FD, FunctionDecl* OverloadedFD,
                                Sema& SemaRef) {
     CallExpr* call = this->CallContext;
-    // Index of "code" parameter:
-    auto codeArgIdx = static_cast<int>(call->getNumArgs()) - 1;
-    auto derivedFnArgIdx = codeArgIdx - 1;
 
     assert(call && "Must be set");
     assert(FD && "Trying to update with null FunctionDecl");
@@ -189,6 +188,24 @@ namespace clad {
     ASTContext& C = SemaRef.getASTContext();
 
     FunctionDecl* replacementFD = OverloadedFD ? OverloadedFD : FD;
+
+    // Index of "CUDAkernel" parameter:
+    int numArgs = static_cast<int>(call->getNumArgs());
+    if (numArgs > 4) {
+      auto kernelArgIdx = numArgs - 1;
+      auto* cudaKernelFlag =
+          SemaRef
+              .ActOnCXXBoolLiteral(noLoc,
+                                   replacementFD->hasAttr<CUDAGlobalAttr>()
+                                       ? tok::kw_true
+                                       : tok::kw_false)
+              .get();
+      call->setArg(kernelArgIdx, cudaKernelFlag);
+      numArgs--;
+    }
+    auto codeArgIdx = numArgs - 1;
+    auto derivedFnArgIdx = numArgs - 2;
+
     // Create ref to generated FD.
     DeclRefExpr* DRE =
         DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc, replacementFD,
@@ -232,10 +249,10 @@ namespace clad {
   }
 
   DiffCollector::DiffCollector(DeclGroupRef DGR, DiffInterval& Interval,
-                               DiffSchedule& plans, clang::Sema& S,
-                               RequestOptions& opts)
-      : m_Interval(Interval), m_DiffPlans(plans), m_TopMostFD(nullptr),
-        m_Sema(S), m_Options(opts) {
+                               clad::DynamicGraph<DiffRequest>& requestGraph,
+                               clang::Sema& S, RequestOptions& opts)
+      : m_Interval(Interval), m_DiffRequestGraph(requestGraph), m_Sema(S),
+        m_Options(opts) {
 
     if (Interval.empty())
       return;
@@ -275,13 +292,32 @@ namespace clad {
   void DiffRequest::UpdateDiffParamsInfo(Sema& semaRef) {
     // Diff info for pullbacks is generated automatically,
     // its parameters are not provided by the user.
-    if (Mode == DiffMode::experimental_pullback)
+    if (Mode == DiffMode::experimental_pullback) {
+      // Might need to update DVI args, as they may be pointing to the
+      // declaration parameters, not the definition parameters.
+      if (!Function->getPreviousDecl())
+        // If the function was never declared before, we can safely assume
+        // that the parameters are correctly referring to the definition ones.
+        return;
+      const FunctionDecl* FD = Function->getPreviousDecl();
+      for (size_t i = 0, e = DVI.size(), paramIdx = 0;
+           i < e && paramIdx < FD->getNumParams(); ++i) {
+        const auto* param = DVI[i].param;
+        while (paramIdx < FD->getNumParams() &&
+               FD->getParamDecl(paramIdx) != param)
+          ++paramIdx;
+        if (paramIdx != FD->getNumParams())
+          // Update the parameter to point to the definition parameter.
+          DVI[i].param = Function->getParamDecl(paramIdx);
+      }
       return;
+    }
     DVI.clear();
     auto& C = semaRef.getASTContext();
     const Expr* diffArgs = Args;
     const FunctionDecl* FD = Function;
-    FD = FD->getDefinition();
+    if (!DeclarationOnly)
+      FD = FD->getDefinition();
     if (!diffArgs || !FD) {
       return;
     }
@@ -352,6 +388,21 @@ namespace clad {
         DiffInputVarInfo dVarInfo;
 
         dVarInfo.source = diffSpec.str();
+        // Check if diffSpec represents an index of an independent variable.
+        if ('0' <= diffSpec[0] && diffSpec[0] <= '9') {
+          unsigned idx = std::stoi(dVarInfo.source);
+          // Fail if the specified index is invalid.
+          if (idx >= FD->getNumParams()) {
+            utils::EmitDiag(
+                semaRef, DiagnosticsEngine::Error, diffArgs->getEndLoc(),
+                "Invalid argument index '%0' of '%1' argument(s)",
+                {std::to_string(idx), std::to_string(FD->getNumParams())});
+            return;
+          }
+          dVarInfo.param = FD->getParamDecl(idx);
+          DVI.push_back(dVarInfo);
+          continue;
+        }
         llvm::StringRef pName = computeParamName(diffSpec);
         auto it = std::find_if(std::begin(candidates), std::end(candidates),
                                [&pName](
@@ -539,6 +590,30 @@ namespace clad {
     return;
   }
 
+  bool DiffRequest::shouldBeRecorded(Expr* E) const {
+    if (!EnableTBRAnalysis)
+      return true;
+
+    if (!isa<DeclRefExpr>(E) && !isa<ArraySubscriptExpr>(E) &&
+        !isa<MemberExpr>(E))
+      return true;
+
+    // FIXME: currently, we allow all pointer operations to be stored.
+    // This is not correct, but we need to implement a more advanced analysis
+    // to determine which pointer operations are useful to store.
+    if (E->getType()->isPointerType())
+      return true;
+
+    if (!m_TbrRunInfo.HasAnalysisRun) {
+      TBRAnalyzer analyzer(Function->getASTContext(),
+                           m_TbrRunInfo.ToBeRecorded);
+      analyzer.Analyze(Function);
+      m_TbrRunInfo.HasAnalysisRun = true;
+    }
+    auto found = m_TbrRunInfo.ToBeRecorded.find(E->getBeginLoc());
+    return found != m_TbrRunInfo.ToBeRecorded.end();
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
     // FIXME: Generated code does not usually have valid source locations.
@@ -596,6 +671,14 @@ namespace clad {
         } else {
           request.EnableTBRAnalysis = m_Options.EnableTBRAnalysis;
         }
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
+          if (!A->getAnnotation().equals("H")) {
+            utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
+                            "Diagonal only option is only valid for Hessian "
+                            "mode.");
+            return true;
+          }
+        }
       }
 
       if (A->getAnnotation().equals("D")) {
@@ -631,7 +714,10 @@ namespace clad {
           }
         }
       } else if (A->getAnnotation().equals("H")) {
-        request.Mode = DiffMode::hessian;
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only))
+          request.Mode = DiffMode::hessian_diagonal;
+        else
+          request.Mode = DiffMode::hessian;
       } else if (A->getAnnotation().equals("J")) {
         request.Mode = DiffMode::jacobian;
       } else if (A->getAnnotation().equals("G")) {
@@ -665,7 +751,7 @@ namespace clad {
       llvm::SaveAndRestore<const FunctionDecl*> saveTopMost = m_TopMostFD;
       m_TopMostFD = FD;
       TraverseDecl(derivedFD);
-      m_DiffPlans.push_back(std::move(request));
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
     }
     /*else if (m_TopMostFD) {
       // If another function is called inside differentiated function,

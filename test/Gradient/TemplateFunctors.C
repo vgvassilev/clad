@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | FileCheck %s
-// RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oTemplateFunctors.out 2>&1 | %filecheck %s
+// RUN: ./TemplateFunctors.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oTemplateFunctors.out
-// RUN: ./TemplateFunctors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./TemplateFunctors.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -15,8 +15,6 @@ template <typename T> struct Experiment {
 };
 
 // CHECK: void operator_call_grad(double i, double j, Experiment<double> *_d_this, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).x += 1 * i * i;
 // CHECK-NEXT:         *_d_i += this->x * 1 * i;
@@ -37,8 +35,6 @@ template <> struct Experiment<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, Experiment<long double>  *_d_this, long double  *_d_i, long double  *_d_j) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
 // CHECK-NEXT:         *_d_i += this->x * 1 * j * i;
@@ -59,10 +55,7 @@ template <typename T> struct ExperimentConstVolatile {
 };
 
 // CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile<double> *_d_this, double *_d_i, double *_d_j) const volatile {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _t0 = this->x * i;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     double _t0 = this->x * i;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).x += 1 * i * i;
 // CHECK-NEXT:         *_d_i += this->x * 1 * i;
@@ -83,12 +76,8 @@ template <> struct ExperimentConstVolatile<long double> {
 };
 
 // CHECK: void operator_call_grad(long double i, long double j, volatile ExperimentConstVolatile<long double> *_d_this, long double  *_d_i, long double  *_d_j) const volatile {
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     _t0 = this->x * i;
-// CHECK-NEXT:     _t1 = this->y * j;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     double _t0 = this->x * i;
+// CHECK-NEXT:     double _t1 = this->y * j;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).x += 1 * j * i * i;
 // CHECK-NEXT:         *_d_i += this->x * 1 * j * i;

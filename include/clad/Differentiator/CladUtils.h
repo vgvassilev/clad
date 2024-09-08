@@ -27,6 +27,10 @@ namespace clad {
     /// function `FD`.
     std::string ComputeEffectiveFnName(const clang::FunctionDecl* FD);
 
+    // Unwraps S to a single statement if it's a compound statement only
+    // containing 1 statement.
+    clang::Stmt* unwrapIfSingleStmt(clang::Stmt* S);
+
     /// Creates and returns a compound statement having statements as follows:
     /// {`S`, all the statement of `initial` in sequence}
     clang::CompoundStmt* PrependAndCreateCompoundStmt(clang::ASTContext& C,
@@ -95,7 +99,8 @@ namespace clad {
     /// \returns  type with namespace specifier added.
     clang::QualType AddNamespaceSpecifier(clang::Sema& semaRef, clang::ASTContext& C, clang::QualType QT);
 
-    /// Finds declaration context associated with the DC1::DC2.
+    /// Finds declaration context associated with the DC1::DC2, but doesn't
+    /// replicate the common part of the declaration contexts.
     /// For example, consider DC1 corresponds to the following declaration
     /// context:
     ///
@@ -105,8 +110,10 @@ namespace clad {
     ///
     /// and DC2 corresponds to the following declaration context:
     /// ```
-    /// namespace A {
-    ///   namespace B {}
+    /// namespace custom_derivatives {
+    ///   namespace A {
+    ///     namespace B {}
+    ///   }
     /// }
     /// ```
     /// then the function returns declartion context that correponds to
@@ -132,26 +139,6 @@ namespace clad {
     clang::NamespaceDecl* LookupNSD(clang::Sema& S, llvm::StringRef namespc,
                                     bool shouldExist,
                                     clang::DeclContext* DC = nullptr);
-
-    /// Returns the outermost declaration context, other than the translation
-    /// unit declaration, associated with DC. For example, consider a struct `S`
-    /// as follows:
-    ///
-    /// ```
-    /// namespace A {
-    ///   namespace B {
-    //    struct S {};
-    ///   }
-    /// }
-    /// ```
-    ///
-    /// In this case, outermost declaration context associated with `S` is of
-    /// namespace `A`.
-    ///
-    /// \param semaRef
-    /// \param[in] DC
-    clang::DeclContext* GetOutermostDC(clang::Sema& semaRef,
-                                       clang::DeclContext* DC);
 
     /// Creates a `StringLiteral` node to represent string literal
     /// "`str`".
@@ -216,7 +203,8 @@ namespace clad {
                      clang::IdentifierInfo* II, clang::QualType T,
                      clang::StorageClass SC = clang::StorageClass::SC_None,
                      clang::Expr* defArg = nullptr,
-                     clang::TypeSourceInfo* TSI = nullptr);
+                     clang::TypeSourceInfo* TSI = nullptr,
+                     clang::SourceLocation Loc = clang::SourceLocation());
 
     /// If `T` represents an array or a pointer type then returns the
     /// corresponding array element or the pointee type. If `T` is a reference
@@ -329,9 +317,13 @@ namespace clad {
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);
 
     bool IsLiteral(const clang::Expr* E);
+    bool IsZeroOrNullValue(const clang::Expr* E);
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD);
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD);
+
+    /// Returns true if QT is a non-const reference type.
+    bool isNonConstReferenceType(clang::QualType QT);
     } // namespace utils
     } // namespace clad
 

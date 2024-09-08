@@ -16,31 +16,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: "Setup latest Alpine Linux"
         uses: jirutka/setup-alpine@v1
         with:
           arch:  ${{ matrix.target }}
           branch: edge
           packages: >
-            llvm-dev
-            clang-dev
-            clang-static
+            llvm17-dev
+            clang17-dev
+            clang17-static
+            clang17-extra-tools
             llvm17-static
             llvm17-gtest
             cmake
-            llvm
-            clang
             make
             git
       - name: "Setup"
         run: |
-          clang --version
           make --version
         shell: alpine.sh {0}
 
       - name: "Compile library"
         run: |
+          export CC=/usr/bin/clang-17
+          export CXX=/usr/bin/clang++-17
           mkdir build && cd build
           cmake -DLLVM_EXTERNAL_LIT="$(which lit)" ../../clad
           make -j 8 check-clad

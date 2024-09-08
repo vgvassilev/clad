@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oArrays.out 2>&1 | FileCheck %s
-// RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oArrays.out 2>&1 | %filecheck %s
+// RUN: ./Arrays.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oArrays.out
-// RUN: ./Arrays.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./Arrays.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -92,12 +92,10 @@ double const_dot_product(double x, double y, double z) {
 //CHECK-NEXT:   }
 
 //CHECK:   void const_dot_product_grad(double x, double y, double z, double *_d_x, double *_d_y, double *_d_z) {
-//CHECK-NEXT:       clad::array<double> _d_vars({{3U|3UL}});
-//CHECK-NEXT:       clad::array<double> _d_consts({{3U|3UL}});
+//CHECK-NEXT:       double _d_vars[3] = {0};
 //CHECK-NEXT:       double vars[3] = {x, y, z};
+//CHECK-NEXT:       double _d_consts[3] = {0};
 //CHECK-NEXT:       double consts[3] = {1, 2, 3};
-//CHECK-NEXT:       goto _label0;
-//CHECK-NEXT:     _label0:
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_vars[0] += 1 * consts[0];
 //CHECK-NEXT:           _d_consts[0] += vars[0] * 1;
@@ -177,8 +175,6 @@ double const_matmul_sum(double a, double b, double c, double d) {
 //:       _t15 = A[1][1];
 //:       _t14 = B[1][1];
 //:       double C[2][2] = {{[{][{]}}_t1 * _t0 + _t3 * _t2, _t5 * _t4 + _t7 * _t6}, {_t9 * _t8 + _t11 * _t10, _t13 * _t12 + _t15 * _t14}};
-//:       goto _label0;
-//:     _label0:
 //:       {
 //:           _d_C[0][0] += 1;
 //:           _d_C[0][1] += 1;

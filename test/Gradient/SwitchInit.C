@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -std=c++17 -oSwitchInit.out 2>&1 -lstdc++ -lm | FileCheck %s
-// RUN: ./SwitchInit.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -std=c++17 -oSwitchInit.out 2>&1 -lstdc++ -lm | %filecheck %s
+// RUN: ./SwitchInit.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -17,15 +17,15 @@ double fn1(double i, double j) {
 }
 
 // CHECK: void fn1_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_res = 0;
 // CHECK-NEXT:     int _d_count = 0;
 // CHECK-NEXT:     int count = 0;
 // CHECK-NEXT:     int _cond0;
 // CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     clad::tape<unsigned {{int|long}}> _t1 = {};
+// CHECK-NEXT:     clad::tape<unsigned {{int|long|long long}}> _t1 = {};
 // CHECK-NEXT:     double _t2;
 // CHECK-NEXT:     double _t3;
 // CHECK-NEXT:     double _t4;
+// CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         count = 1;
@@ -37,7 +37,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 _t0 = res;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
-// CHECK-NEXT:                 clad::push(_t1, {{1U|1UL}});
+// CHECK-NEXT:                 clad::push(_t1, {{1U|1UL|1ULL}});
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:             }
 // CHECK-NEXT:             {
@@ -57,15 +57,13 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 res += i * i * j * j;
 // CHECK-NEXT:                 _t4 = res;
 // CHECK-NEXT:             }
-// CHECK-NEXT:             clad::push(_t1, {{2U|2UL}});
+// CHECK-NEXT:             clad::push(_t1, {{2U|2UL|2ULL}});
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         switch (clad::pop(_t1)) {
-// CHECK-NEXT:           case {{2U|2UL}}:
+// CHECK-NEXT:           case {{2U|2UL|2ULL}}:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -101,7 +99,7 @@ double fn1(double i, double j) {
 // CHECK-NEXT:                 if (1 == _cond0)
 // CHECK-NEXT:                     break;
 // CHECK-NEXT:             }
-// CHECK-NEXT:           case {{1U|1UL}}:
+// CHECK-NEXT:           case {{1U|1UL|1ULL}}:
 // CHECK-NEXT:             ;
 // CHECK-NEXT:             {
 // CHECK-NEXT:                 {
@@ -127,7 +125,6 @@ double fn1(double i, double j) {
 
 int main() {
   double result[2] = {};
-  clad::array_ref<double> result_ref(result, 2);
 
   TEST_2(fn1, 3, 5); // CHECK-EXEC: {156.00, 100.00}
 }

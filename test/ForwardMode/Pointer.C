@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oPointer.out 2>&1 | FileCheck %s
-// RUN: ./Pointer.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oPointer.out 2>&1 | %filecheck %s
+// RUN: ./Pointer.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -174,6 +174,46 @@ double fn7(double i) {
 // CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
+void* cling_runtime_internal_throwIfInvalidPointer(void *Sema, void *Expr, const void *Arg) {
+  return const_cast<void*>(Arg);
+}
+
+double fn8(double* params) {
+  double arr[] = {3.0};
+  return params[0]*params[0] + *(double*)(cling_runtime_internal_throwIfInvalidPointer((void*)0UL, (void*)0UL, arr));
+}
+
+// CHECK: clad::ValueAndPushforward<void *, void *> cling_runtime_internal_throwIfInvalidPointer_pushforward(void *Sema, void *Expr, const void *Arg, void *_d_Sema, void *_d_Expr, const void *_d_Arg);
+
+// CHECK: double fn8_darg0_0(double *params) {
+// CHECK-NEXT:     double _d_arr[1] = {0.};
+// CHECK-NEXT:     double arr[1] = {3.};
+// CHECK-NEXT:     clad::ValueAndPushforward<void *, void *> _t0 = cling_runtime_internal_throwIfInvalidPointer_pushforward((void *)0UL, (void *)0UL, arr, (void *)0UL, (void *)0UL, _d_arr);
+// CHECK-NEXT:     return 1. * params[0] + params[0] * 1. + *(double *)_t0.pushforward;
+// CHECK-NEXT: }
+
+double fn9(double* params, const double *constants) {
+  double c0 = *constants;
+  return params[0] * c0;
+}
+
+// CHECK: double fn9_darg0_0(double *params, const double *constants) {
+// CHECK-NEXT:     double _d_c0 = 0.;
+// CHECK-NEXT:     double c0 = *constants;
+// CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
+// CHECK-NEXT: }
+
+double fn10(double *params, const double *constants) {
+  double c0 = *(constants + 0);
+  return params[0] * c0;
+}
+
+// CHECK: double fn10_darg0_0(double *params, const double *constants) {
+// CHECK-NEXT:     double _d_c0 = 0.;
+// CHECK-NEXT:     double c0 = *(constants + 0);
+// CHECK-NEXT:     return 1. * c0 + params[0] * _d_c0;
+// CHECK-NEXT: }
+
 int main() {
   INIT_DIFFERENTIATE(fn1, "i");
   INIT_DIFFERENTIATE(fn2, "i");
@@ -190,4 +230,22 @@ int main() {
   TEST_DIFFERENTIATE(fn5, 3, 5);  // CHECK-EXEC: {57.00}
   TEST_DIFFERENTIATE(fn6, 3);     // CHECK-EXEC: {1.00}
   TEST_DIFFERENTIATE(fn7, 3);     // CHECK-EXEC: {4.00}
+
+  double params[] = {3.0};
+  auto fn8_dx = clad::differentiate(fn8, "params[0]");
+  double d_param = fn8_dx.execute(params);
+  printf("{%.2f}\n", d_param); // CHECK-EXEC: {6.00}
+
+  double constants[] = {5.0};
+  auto fn9_dx = clad::differentiate(fn9, "params[0]");
+  d_param = fn9_dx.execute(params, constants);
+  printf("{%.2f}\n", d_param); // CHECK-EXEC: {5.00}
+
+  auto fn10_dx = clad::differentiate(fn10, "params[0]");
+  d_param = fn10_dx.execute(params, constants);
+  printf("{%.2f}\n", d_param); // CHECK-EXEC: {5.00}
 }
+
+// CHECK: clad::ValueAndPushforward<void *, void *> cling_runtime_internal_throwIfInvalidPointer_pushforward(void *Sema, void *Expr, const void *Arg, void *_d_Sema, void *_d_Expr, const void *_d_Arg) {
+// CHECK-NEXT:     return {const_cast<void *>(Arg), const_cast<void *>(_d_Arg)};
+// CHECK-NEXT: }

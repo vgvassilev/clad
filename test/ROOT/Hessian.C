@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oHessian.out 2>&1 | FileCheck %s
-// RUN: ./Hessian.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oHessian.out 2>&1 | %filecheck %s
+// RUN: ./Hessian.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oHessian.out
-// RUN: ./Hessian.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./Hessian.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -24,10 +24,9 @@ int main() {
   Double_t x[] = { 3 };
   Double_t p[] = { -std::log(2), -1, 3 };
   Double_t matrix[9] = { 0 };
-  clad::array_ref<Double_t> matrix_ref(matrix, 9);
 
   auto hessian = clad::hessian(TFormula_example, "p[0:2]");
-  hessian.execute(x, p, matrix_ref);
+  hessian.execute(x, p, matrix);
 
   printf("Result is = {%.2f, %.2f, %.2f, %.2f,"
          " %.2f, %.2f, %.2f, %.2f, %.2f}\n",

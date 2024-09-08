@@ -15,25 +15,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1
+        uses: KyleMayes/install-llvm-action@v2.0.3
         with:
-          version: "12.0.0"
+          version: "17.0.6"
+
+      - name: install lit
+        run: pip install lit
+
+      - name: run git config command
+        run: |
+          git config --global --add safe.directory /github/workspace
 
       - name: Run clang-tidy
-        uses: ZedThree/clang-tidy-review@v0.13.2
+        uses: ZedThree/clang-tidy-review@v0.18.0
         id: review
         with:
           build_dir: build
-          apt_packages: libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev
+          apt_packages: cmake,libxml2,libxml2-dev,libtinfo-dev,zlib1g-dev,libzstd-dev
           exclude: "test/*,unittests/*,benchmark/*,demos/*"
           split_workflow: true
+          config_file: .clang-tidy
           cmake_command: >
-            pip install cmake lit &&
-            cmake --version &&
-            git config --global --add safe.directory /github/workspace &&
+            CC=$GITHUB_WORKSPACE/llvm/bin/clang CXX=$GITHUB_WORKSPACE/llvm/bin/clang++
             cmake . -B build -DLLVM_DIR="$GITHUB_WORKSPACE/llvm"
             -DClang_DIR="$GITHUB_WORKSPACE/llvm"
             -DCMAKE_BUILD_TYPE="Release"
@@ -41,4 +47,4 @@ jobs:
             -DCMAKE_EXPORT_COMPILE_COMMANDS=On
 
       - name: Upload artifacts
-        uses: ZedThree/clang-tidy-review/upload@v0.13.1
+        uses: ZedThree/clang-tidy-review/upload@v0.18.0

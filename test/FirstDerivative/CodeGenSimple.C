@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oCodeGenSimple.out 2>&1 | FileCheck %s
-// RUN: ./CodeGenSimple.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oCodeGenSimple.out 2>&1 | %filecheck %s
+// RUN: ./CodeGenSimple.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

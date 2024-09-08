@@ -14,8 +14,9 @@
 using namespace clang;
 
 namespace clad {
-PushForwardModeVisitor::PushForwardModeVisitor(DerivativeBuilder& builder)
-    : BaseForwardModeVisitor(builder) {}
+PushForwardModeVisitor::PushForwardModeVisitor(DerivativeBuilder& builder,
+                                               const DiffRequest& request)
+    : BaseForwardModeVisitor(builder, request) {}
 
 PushForwardModeVisitor::~PushForwardModeVisitor() = default;
 
@@ -25,8 +26,25 @@ StmtDiff PushForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
     return nullptr;
 
   StmtDiff retValDiff = Visit(RS->getRetValue());
-  llvm::SmallVector<Expr*, 2> returnValues = {retValDiff.getExpr(),
-                                              retValDiff.getExpr_dx()};
+  Expr* retVal = retValDiff.getExpr();
+  Expr* retVal_dx = retValDiff.getExpr_dx();
+  if (!m_Context.hasSameUnqualifiedType(retVal->getType(),
+                                        m_DiffReq->getReturnType())) {
+    // Check if implficit cast would work.
+    // Add a cast to the return type.
+    TypeSourceInfo* TSI =
+        m_Context.getTrivialTypeSourceInfo(m_DiffReq->getReturnType());
+    retVal = m_Sema
+                 .BuildCStyleCastExpr(RS->getBeginLoc(), TSI, RS->getEndLoc(),
+                                      BuildParens(retVal))
+                 .get();
+    retVal_dx =
+        m_Sema
+            .BuildCStyleCastExpr(RS->getBeginLoc(), TSI, RS->getEndLoc(),
+                                 BuildParens(retVal_dx))
+            .get();
+  }
+  llvm::SmallVector<Expr*, 2> returnValues = {retVal, retVal_dx};
   // This can instantiate as part of the move or copy initialization and
   // needs a fake source location.
   SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);

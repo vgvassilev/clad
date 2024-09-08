@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
-// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: ./Pointers.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointers.out
-// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./Pointers.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -10,6 +10,16 @@ double nonMemFn(double i, double j) {
   return i*j;
 }
 
+// CHECK: double nonMemFn_darg0(double i, double j);
+// CHECK: void nonMemFn_darg0_grad(double i, double j, double *_d_i, double *_d_j);
+// CHECK: double nonMemFn_darg1(double i, double j);
+// CHECK: void nonMemFn_darg1_grad(double i, double j, double *_d_i, double *_d_j);
+
+// CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
+// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, hessianMatrix + {{0U|0UL|0ULL}}, hessianMatrix + {{1U|1UL|1ULL}});
+// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, hessianMatrix + {{2U|2UL|2ULL}}, hessianMatrix + {{3U|3UL|3ULL}});
+// CHECK-NEXT: }
+
 // CHECK: double nonMemFn_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
 // CHECK-NEXT:     double _d_j = 0;
@@ -17,12 +27,10 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT: }
 
 // CHECK: void nonMemFn_darg0_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d__d_i = 0;
-// CHECK-NEXT:     double _d__d_j = 0;
+// CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = 1;
+// CHECK-NEXT:     double _d__d_j = 0.;
 // CHECK-NEXT:     double _d_j0 = 0;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__d_i += 1 * j;
 // CHECK-NEXT:         *_d_j += _d_i0 * 1;
@@ -38,23 +46,16 @@ double nonMemFn(double i, double j) {
 // CHECK-NEXT: }
 
 // CHECK: void nonMemFn_darg1_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d__d_i = 0;
-// CHECK-NEXT:     double _d__d_j = 0;
+// CHECK-NEXT:     double _d__d_i = 0.;
 // CHECK-NEXT:     double _d_i0 = 0;
+// CHECK-NEXT:     double _d__d_j = 0.;
 // CHECK-NEXT:     double _d_j0 = 1;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d__d_i += 1 * j;
 // CHECK-NEXT:         *_d_j += _d_i0 * 1;
 // CHECK-NEXT:         *_d_i += 1 * _d_j0;
 // CHECK-NEXT:         _d__d_j += i * 1;
 // CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: void nonMemFn_hessian(double i, double j, double *hessianMatrix) {
-// CHECK-NEXT:     nonMemFn_darg0_grad(i, j, hessianMatrix + {{0U|0UL}}, hessianMatrix + {{1U|1UL}});
-// CHECK-NEXT:     nonMemFn_darg1_grad(i, j, hessianMatrix + {{2U|2UL}}, hessianMatrix + {{3U|3UL}});
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\

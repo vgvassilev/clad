@@ -8,7 +8,8 @@ namespace clad {
 class VectorPushForwardModeVisitor : public VectorForwardModeVisitor {
 
 public:
-  VectorPushForwardModeVisitor(DerivativeBuilder& builder);
+  VectorPushForwardModeVisitor(DerivativeBuilder& builder,
+                               const DiffRequest& request);
   ~VectorPushForwardModeVisitor() override;
 
   void ExecuteInsidePushforwardFunctionBlock() override;

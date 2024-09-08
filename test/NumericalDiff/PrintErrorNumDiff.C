@@ -1,7 +1,7 @@
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors %s -I%S/../../include -oPrintErrorNumDiff.out 2>&1 | FileCheck -check-prefix=CHECK %s
-// RUN: ./PrintErrorNumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPrintErrorNumDiff.out
-// RUN: ./PrintErrorNumDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors %s -I%S/../../include -oPrintErrorNumDiff.out -Xclang -verify 2>&1 | FileCheck -check-prefix=CHECK %s
+// RUN: ./PrintErrorNumDiff.out | %filecheck_exec %s
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPrintErrorNumDiff.out -Xclang -verify
+// RUN: ./PrintErrorNumDiff.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -12,15 +12,13 @@
 extern "C" int printf(const char* fmt, ...);
 
 double test_1(double x){
-   return tanh(x);
+  return tanh(x); // expected-warning {{function 'tanh' was not differentiated because}}
+  // expected-note@15 {{falling back to numerical differentiation for 'tanh}}
 }
 
-//CHECK: warning: Falling back to numerical differentiation for 'tanh' since no suitable overload was found and clad could not derive it. To disable this feature, compile your programs with -DCLAD_NO_NUM_DIFF.
 //CHECK: void test_1_grad(double x, double *_d_x) {
-//CHECK-NEXT:     goto _label0;
-//CHECK-NEXT:   _label0:
 //CHECK-NEXT:     {
-//CHECK-NEXT:         double _r0 = 0;
+//CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         _r0 += 1 * numerical_diff::forward_central_difference(tanh, x, 0, 1, x);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }

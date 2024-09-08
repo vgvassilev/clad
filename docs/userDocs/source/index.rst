@@ -92,6 +92,7 @@ The User Guide
    user/UsingVectorMode.rst
    user/FAQ
    user/DevelopersDocumentation
+   user/IntroductionToClangForCladContributors
    user/FloatingPointErrorEstimation
    
 Citing Clad

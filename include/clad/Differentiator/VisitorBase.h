@@ -13,13 +13,11 @@ namespace clad {
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
-#include "clad/Differentiator/DiffMode.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
-
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -80,31 +78,30 @@ namespace clad {
     void setForwSweepStmt_dx(clang::Stmt* S) { m_DerivativeForForwSweep = S; }
   };
 
-  class VarDeclDiff {
+  template <typename T> class DeclDiff {
   private:
-    std::array<clang::VarDecl*, 2> data;
+    std::array<T*, 2> m_data;
 
   public:
-    VarDeclDiff(clang::VarDecl* orig = nullptr,
-                clang::VarDecl* diff = nullptr) {
-      data[1] = orig;
-      data[0] = diff;
+    DeclDiff(T* orig = nullptr, T* diff = nullptr) {
+      m_data[1] = orig;
+      m_data[0] = diff;
     }
 
-    clang::VarDecl* getDecl() { return data[1]; }
-    clang::VarDecl* getDecl_dx() { return data[0]; }
+    T* getDecl() { return m_data[1]; }
+    T* getDecl_dx() { return m_data[0]; }
     // Decl_dx goes first!
-    std::array<clang::VarDecl*, 2>& getBothDecls() { return data; }
+    std::array<T*, 2>& getBothDecls() { return m_data; }
   };
 
   /// A base class for all common functionality for visitors
   class VisitorBase {
   protected:
-    VisitorBase(DerivativeBuilder& builder)
+    VisitorBase(DerivativeBuilder& builder, const DiffRequest& request)
         : m_Builder(builder), m_Sema(builder.m_Sema),
           m_CladPlugin(builder.m_CladPlugin), m_Context(builder.m_Context),
           m_DerivativeFnScope(nullptr), m_DerivativeInFlight(false),
-          m_Derivative(nullptr), m_Function(nullptr) {}
+          m_Derivative(nullptr), m_DiffReq(request) {}
 
     using Stmts = llvm::SmallVector<clang::Stmt*, 16>;
 
@@ -118,9 +115,8 @@ namespace clad {
     bool m_DerivativeInFlight;
     /// The Derivative function that is being generated.
     clang::FunctionDecl* m_Derivative;
-    /// The function that is currently differentiated.
-    const clang::FunctionDecl* m_Function;
-    DiffMode m_Mode;
+    /// The differentiation request that is being currently processed.
+    const DiffRequest& m_DiffReq;
     /// Map used to keep track of variable declarations and match them
     /// with their derivatives.
     std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_Variables;
@@ -398,14 +394,12 @@ namespace clad {
     /// to avoid recomputation.
     static bool UsefulToStore(clang::Expr* E);
     /// A flag for silencing warnings/errors output by diag function.
-    bool silenceDiags = false;
     /// Shorthand to issues a warning or error.
     template <std::size_t N>
     void diag(clang::DiagnosticsEngine::Level level, // Warning or Error
               clang::SourceLocation loc, const char (&format)[N],
               llvm::ArrayRef<llvm::StringRef> args = {}) {
-      if (!silenceDiags)
-        m_Builder.diag(level, loc, format, args);
+      m_Builder.diag(level, loc, format, args);
     }
 
     /// Creates unique identifier of the form "_nameBase<number>" that is
@@ -459,16 +453,34 @@ namespace clad {
     clang::TemplateDecl* GetCladTapeDecl();
     /// Perform a lookup into clad namespace for an entity with given name.
     clang::LookupResult LookupCladTapeMethod(llvm::StringRef name);
-    /// Perform lookup into clad namespace for push/pop/back. Returns
+    /// Perform lookup into clad namespace for push/pop/back/size. Returns
     /// LookupResult, which is will be resolved later (which is handy since they
     /// are templates).
+    clang::LookupResult& GetCladTapeSize();
     clang::LookupResult& GetCladTapePush();
     clang::LookupResult& GetCladTapePop();
     clang::LookupResult& GetCladTapeBack();
     /// Instantiate clad::tape<T> type.
     clang::QualType GetCladTapeOfType(clang::QualType T);
 
+    /// Helper to build a function call expression.
+    ///
+    /// \param[in] funcName The name of the function to build the expression
+    /// for.
+    /// \param[in] nmspace The name of the namespace for the function,
+    /// currently does not support nested namespaces.
+    /// \param[in] callArgs A vector of \c clang::Expr of all the parameters
+    /// to the function call.
+    ///
+    /// \return The function call expression that can be used to emit into
+    /// code.
+    clang::Expr* GetFunctionCall(const std::string& funcName,
+                                 const std::string& nmspace,
+                                 llvm::SmallVectorImpl<clang::Expr*>& callArgs);
+
     clang::DeclRefExpr* GetCladTapePushDRE();
+
+    clang::Stmt* GetCladZeroInit(llvm::MutableArrayRef<clang::Expr*> args);
 
     /// Assigns the Init expression to VD after performing the necessary
     /// implicit conversion. This is required as clang doesn't add implicit
@@ -500,7 +512,7 @@ namespace clad {
     clang::Expr*
     BuildCallExprToMemFn(clang::Expr* Base, llvm::StringRef MemberFunctionName,
                          llvm::MutableArrayRef<clang::Expr*> ArgExprs,
-                         clang::ValueDecl* memberDecl = nullptr);
+                         clang::SourceLocation Loc = noLoc);
 
     /// Build a call to member function through this pointer.
     ///
@@ -509,10 +521,9 @@ namespace clad {
     /// \param[in] useRefQualifiedThisObj If true, then the `this` object is
     /// perfectly forwarded while calling member functions.
     /// \returns Built member function call expression
-    clang::Expr*
-    BuildCallExprToMemFn(clang::CXXMethodDecl* FD,
-                         llvm::MutableArrayRef<clang::Expr*> argExprs,
-                         bool useRefQualifiedThisObj = false);
+    clang::Expr* BuildCallExprToMemFn(
+        clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
+        bool useRefQualifiedThisObj = false, clang::SourceLocation Loc = noLoc);
 
     /// Build a call to a free function or member function through
     /// this pointer depending on whether the `FD` argument corresponds to a
@@ -564,11 +575,6 @@ namespace clad {
     /// Creates the expression Base.size() for the given Base expr. The Base
     /// expr must be of clad::array_ref<T> type
     clang::Expr* BuildArrayRefSizeExpr(clang::Expr* Base);
-    /// Creates the expression Base.ptr_ref() for the given Base expr. The Base
-    /// expr must be of clad::array_ref<T> type
-    clang::Expr* BuildArrayRefPtrRefExpr(clang::Expr* Base);
-    /// Checks if the type is of clad::ValueAndPushforward<T,U> type
-    bool isCladValueAndPushforwardType(clang::QualType QT);
     /// Creates the expression Base.slice(Args) for the given Base expr and Args
     /// array. The Base expr must be of clad::array_ref<T> type
     clang::Expr*
@@ -577,7 +583,8 @@ namespace clad {
     clang::ParmVarDecl* CloneParmVarDecl(const clang::ParmVarDecl* PVD,
                                          clang::IdentifierInfo* II,
                                          bool pushOnScopeChains = false,
-                                         bool cloneDefaultArg = true);
+                                         bool cloneDefaultArg = true,
+                                         clang::SourceLocation Loc = noLoc);
     /// A function to get the single argument "forward_central_difference"
     /// call expression for the given arguments.
     ///
@@ -591,19 +598,29 @@ namespace clad {
     clang::Expr* GetSingleArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
         unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args);
+
     /// Emits diagnostic messages on differentiation (or lack thereof) for
     /// call expressions.
     ///
-    /// \param[in] \c funcName The name of the underlying function of the
-    /// call expression.
+    /// \param[in] \c FD - The function declaration.
     /// \param[in] \c srcLoc Any associated source location information.
-    /// \param[in] \c isDerived A flag to determine if differentiation of the
-    /// call expression was successful.
-    void CallExprDiffDiagnostics(llvm::StringRef funcName,
-                                 clang::SourceLocation srcLoc,
-                                 bool isDerived);
+    void CallExprDiffDiagnostics(const clang::FunctionDecl* FD,
+                                 clang::SourceLocation srcLoc);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
+
+    /// Returns clad::Identify template declaration.
+    clang::TemplateDecl* GetCladConstructorPushforwardTag();
+
+    /// Returns type clad::Identify<T>
+    clang::QualType GetCladConstructorPushforwardTagOfType(clang::QualType T);
+
+    /// Returns clad::ConstructorReverseForwTag template declaration.
+    clang::TemplateDecl* GetCladConstructorReverseForwTag();
+
+    /// Returns type clad::ConstructorReverseForwTag<T>
+    clang::QualType GetCladConstructorReverseForwTagOfType(clang::QualType T);
+
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);
@@ -648,6 +665,10 @@ namespace clad {
     void ComputeEffectiveDOperands(StmtDiff& LDiff, StmtDiff& RDiff,
                                    clang::Expr*& derivedL,
                                    clang::Expr*& derivedR);
+
+  private:
+    clang::TemplateDecl* m_CladConstructorPushforwardTag = nullptr;
+    clang::TemplateDecl* m_CladConstructorReverseForwTag = nullptr;
   };
 } // end namespace clad
 

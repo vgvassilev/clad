@@ -1,8 +1,8 @@
-// RUN: %cladclang %s -I%S/../../include -oTestAgainstDiff.out 2>&1 | FileCheck %s
-// RUN: ./TestAgainstDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oTestAgainstDiff.out 2>&1 | %filecheck %s
+// RUN: ./TestAgainstDiff.out | %filecheck_exec %s
 
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oTestAgainstDiff.out
-// RUN: ./TestAgainstDiff.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./TestAgainstDiff.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"

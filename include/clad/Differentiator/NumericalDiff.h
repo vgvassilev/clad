@@ -326,6 +326,76 @@ namespace numerical_diff {
     }
   }
 
+  /// A helper function to calculate the numerical derivative of a target
+  /// function.
+  ///
+  /// \param[in] \c f The target function to numerically differentiate.
+  /// \param[out] \c _grad The gradient array reference to which the gradients
+  /// will be written.
+  /// \param[in] \c printErrors A flag to decide if we want to print numerical
+  /// diff errors estimates.
+  /// \param[in] \c idxSeq The index sequence associated with
+  /// the input parameter pack.
+  /// \param[in] \c args The arguments to the function to differentiate.
+  template <typename F, std::size_t... Ints,
+            typename RetType = typename clad::function_traits<F>::return_type,
+            typename... Args>
+  void central_difference_helper(F f, RetType* _grad, bool printErrors,
+                                 clad::IndexSequence<Ints...> idxSeq,
+                                 Args&&... args) {
+
+    std::size_t argLen = sizeof...(Args);
+    // loop over all the args, selecting each arg to get the derivative with
+    // respect to.
+    for (std::size_t i = 0; i < argLen; i++) {
+      precision h = 0;
+      // calculate f[x+h, x-h]
+      // f(..., x+h,...)
+      precision xaf = f(updateIndexParamValue(std::forward<Args>(args), Ints, i,
+                                              /*multiplier=*/1, h)...);
+      precision xbf = f(updateIndexParamValue(std::forward<Args>(args), Ints, i,
+                                              /*multiplier=*/-1, h)...);
+      precision xf1 = (xaf - xbf) / (h + h);
+
+      // calculate f[x+2h, x-2h]
+      precision xaf2 =
+          f(updateIndexParamValue(std::forward<Args>(args), Ints, i,
+                                  /*multiplier=*/2, h)...);
+      precision xbf2 =
+          f(updateIndexParamValue(std::forward<Args>(args), Ints, i,
+                                  /*multiplier=*/-2, h)...);
+      precision xf2 = (xaf2 - xbf2) / (2 * h + 2 * h);
+
+      if (printErrors) {
+        // calculate f(x+3h) and f(x-3h)
+        precision xaf3 =
+            f(updateIndexParamValue(std::forward<Args>(args), Ints, i,
+                                    /*multiplier=*/3, h)...);
+        precision xbf3 =
+            f(updateIndexParamValue(std::forward<Args>(args), Ints, i,
+                                    /*multiplier=*/-3, h)...);
+        // Error in derivative due to the five-point stencil formula
+        // E(f'(x)) = f`````(x) * h^4 / 30 + O(h^5) (Taylor Approx) and
+        // f`````(x) = (f[x+3h, x-3h] - 4f[x+2h, x-2h] + 5f[x+h, x-h])/(2 *
+        // h^5) Formula courtesy of 'Abramowitz, Milton; Stegun, Irene A.
+        // (1970), Handbook of Mathematical Functions with Formulas, Graphs,
+        // and Mathematical Tables, Dover. Ninth printing. Table 25.2.`.
+        precision error =
+            ((xaf3 - xbf3) - 4 * (xaf2 - xbf2) + 5 * (xaf - xbf)) / (60 * h);
+        // This is the error in evaluation of all the function values.
+        precision evalError = std::numeric_limits<precision>::epsilon() *
+                              (std::fabs(xaf2) + std::fabs(xbf2) +
+                               8 * (std::fabs(xaf) + std::fabs(xbf))) /
+                              (12 * h);
+        // Finally print the error to standard ouput.
+        printError(std::fabs(error), evalError, i);
+      }
+
+      // five-point stencil formula = (4f[x+h, x-h] - f[x+2h, x-2h])/3
+      _grad[i] = 4.0 * xf1 / 3.0 - xf2 / 3.0;
+    }
+  }
+
   /// A function to calculate the derivative of a function using the central
   /// difference formula. Note: we do not propogate errors resulting in the
   /// following function, it is likely the errors are large enough to be of
@@ -338,11 +408,10 @@ namespace numerical_diff {
   /// \param[in] \c printErrors A flag to decide if we want to print numerical
   /// diff errors estimates.
   /// \param[in] \c args The arguments to the function to differentiate.
-  template <typename F, std::size_t... Ints,
-            typename RetType = typename clad::function_traits<F>::return_type,
+  template <typename F, std::size_t... Ints, typename GradType,
             typename... Args>
-  void central_difference(F f, clad::tape_impl<clad::array_ref<RetType>>& _grad,
-                          bool printErrors, Args&&... args) {
+  void central_difference(F f, GradType& _grad, bool printErrors,
+                          Args&&... args) {
     return central_difference_helper(f, _grad, printErrors,
                                      clad::MakeIndexSequence<sizeof...(Args)>{},
                                      std::forward<Args>(args)...);

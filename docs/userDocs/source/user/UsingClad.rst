@@ -183,16 +183,14 @@ An example that demonstrates the usage of ``clad::hessian``::
     // Must have enough space, 2 independent variables requires 4 elements (2^2=4)
     double matrix[4];
 
-    clad::array_ref<double> matrix_ref(matrix, 4);
-
     // Prints the generated Hessian function
     hessian_one.dump();
     hessian_two.dump();
 
     // Substitutes these values into the Hessian function and pipes the result
     // into the matrix variable.
-    hessian_one.execute(10, 2, matrix_ref);
-    hessian_two.execute(5, 1, matrix_ref);
+    hessian_one.execute(10, 2, matrix);
+    hessian_two.execute(5, 1, matrix);
   }
 
 Few important things to note about ``clad::hessian``:
@@ -217,7 +215,6 @@ Few important things to note about ``clad::hessian``:
   
   auto d_fn = clad::hessian(fn);
   double hessian_matrix[4] = {};
-  clad::array_ref<double> hessian_matrix_ref(hessian_matrix, 4);
   d_fn.execute(3, 5, hessian_matrix);
 
 - hessian matrix array should be passed as the last argument to the call 
@@ -240,9 +237,8 @@ that needs to be differentiated even when we want to differentiate w.r.t entire 
 
    // We have 3 independent variables thus we require space of 9.
    double mat_fn[9] = {0};
-   clad::array_ref<double> mat_fn_ref(mat_fn, 9);
    double num[2] = {1, 2};
-   fn_hessian.execute(3, num, mat_fn_ref);
+   fn_hessian.execute(3, num, mat_fn);
  }
 
 Jacobian Computation
@@ -325,8 +321,8 @@ be differentiated. The interface of the diff function remains the same as before
     }
 
 Reverse mode: The interface doesn't require any specific index to be mentioned. The interface of the diff function
-requires you to pass `clad::array_ref<T>` for the independent variables after you pass the inputs to the original
-function. The `T` here is the return type of the original function. The example below will explain it better::
+requires you to pass `T*` for the independent variables after you pass the inputs to the original
+function. The `T` here is type of the original variable. The example below will explain it better::
 
     #include "clad/Differentiator/Differentiator.h"
 
@@ -340,21 +336,17 @@ function. The `T` here is the return type of the original function. The example 
         // Create memory for the output of differentiation
         double dx = 0, darr[2] = { 0 };
 
-        // Create an clad::array_ref out of darr, no need to create an
-        // array_ref for dx we can just pass the pointer to dx
-        clad::array_ref<double> darr_ref(darr, 2);
-
         // The inputs to the original function g (i.e x and arr) are passed
         // followed by the variables to store the output (i.e dx and darr)
-        g_grad.execute(x, arr, &dx, darr_ref);
+        g_grad.execute(x, arr, &dx, darr);
 
         printf("dg/dx = %g \ndg/darr = { %g, %g } \n", dx, darr[0], darr[1]);
     }
 
 Hessian Mode: The interface requires the indexes of the array being differentiated to be mentioned explicitly even if
 you are trying to differentiate w.r.t the whole array. The interface of the diff function requires you to pass an
-`clad::array_ref<T>` after passing the inputs to the original function. The `T` is the return type of the original
-function and the size of the `clad::array_ref` should be at least the square of the number of independent variables
+an array `T*` after passing the inputs to the original function. The `T` is the return type of the original
+function and the size of the array should be at least the square of the number of independent variables
 (each index of an array is counted as one independent variable). Example::
 
     #include "clad/Differentiator/Differentiator.h"
@@ -376,12 +368,9 @@ function and the size of the `clad::array_ref` should be at least the square of 
         // the total number of independent variables are 4
         double mat[16];
 
-        // Create a clad::array_ref for the matrix
-        clad::array_ref<double> mat_ref(mat, 16);
-
         // The inputs to the original function h (i.e x and arr) are passed
         // followed by the output matrix
-        h_hess.execute(x, arr, mat_ref);
+        h_hess.execute(x, arr, mat);
 
         printf("hessian matrix: \n"
                "{ %g, %g, %g, %g\n"
@@ -418,7 +407,7 @@ An example that demonstrates the differentiation of functors::
     double m_x, m_y;
   
     public:
-    Equation(double x, double y) : m_x(x), m_y(y) {}
+    Equation(double x = 0, double y = 0) : m_x(x), m_y(y) {}
     double operator()(double i, double j) {
       return m_x*i*j + m_y*i*j;
     }
@@ -659,8 +648,7 @@ Moreover, a custom gradient can be specified::
   namespace clad {
     namespace custom_derivatives {
       void my_pow_pullback(double x, double exponent, double d_y,
-                           clad::array_ref<double> d_x,
-                           clad::array_ref<double> exponent) {
+                           double *d_x, double *exponent) {
         double t = my_pow(x, exponent-1);
         *d_x += t * d_y;
         *d_exponent += t * x * ::std::log(x) * d_y;

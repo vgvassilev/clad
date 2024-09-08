@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oArrayInputsForwardMode.out 2>&1 | FileCheck %s
-// RUN: ./ArrayInputsForwardMode.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oArrayInputsForwardMode.out 2>&1 | %filecheck %s
+// RUN: ./ArrayInputsForwardMode.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 

@@ -1,5 +1,5 @@
-// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | FileCheck %s
-// RUN: ./Pointers.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: ./Pointers.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 // FIXME: This test does not work with enable-tbr flag, because the
@@ -12,8 +12,6 @@ double nonMemFn(double i) {
   return i*i;
 }
 // CHECK: void nonMemFn_grad(double i, double *_d_i) {
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_i += 1 * i;
 // CHECK-NEXT:         *_d_i += i * 1;
@@ -27,20 +25,16 @@ double minimalPointer(double x) {
 }
 
 // CHECK: void minimalPointer_grad(double x, double *_d_x) {
-// CHECK-NEXT:     double *_d_p = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     _d_p = &*_d_x;
+// CHECK-NEXT:     double *_d_p = &*_d_x;
 // CHECK-NEXT:     double *const p = &x;
-// CHECK-NEXT:     _t0 = *p;
-// CHECK-NEXT:     *p = *p * (*p);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     double _t0 = *p;
+// CHECK-NEXT:     *p = *p * *p;
 // CHECK-NEXT:     *_d_p += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t0;
 // CHECK-NEXT:         double _r_d0 = *_d_p;
-// CHECK-NEXT:         *_d_p -= _r_d0;
-// CHECK-NEXT:         *_d_p += _r_d0 * (*p);
+// CHECK-NEXT:         *_d_p = 0.;
+// CHECK-NEXT:         *_d_p += _r_d0 * *p;
 // CHECK-NEXT:         *_d_p += *p * _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
@@ -62,53 +56,38 @@ double arrayPointer(const double* arr) {
 }
 
 // CHECK: void arrayPointer_grad(const double *arr, double *_d_arr) {
-// CHECK-NEXT:     double *_d_p = 0;
-// CHECK-NEXT:     const double *_t0;
-// CHECK-NEXT:     double *_t1;
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     double _t2;
-// CHECK-NEXT:     const double *_t3;
-// CHECK-NEXT:     double *_t4;
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     double _t6;
-// CHECK-NEXT:     const double *_t7;
-// CHECK-NEXT:     double *_t8;
-// CHECK-NEXT:     const double *_t9;
-// CHECK-NEXT:     double *_t10;
-// CHECK-NEXT:     double _t11;
-// CHECK-NEXT:     _d_p = _d_arr;
+// CHECK-NEXT:     double *_d_p = _d_arr;
 // CHECK-NEXT:     const double *p = arr;
-// CHECK-NEXT:     _t0 = p;
-// CHECK-NEXT:     _t1 = _d_p;
+// CHECK-NEXT:     const double *_t0 = p;
+// CHECK-NEXT:     double *_t1 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p + 1;
 // CHECK-NEXT:     p = p + 1;
+// CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = *p;
 // CHECK-NEXT:     _d_p++;
 // CHECK-NEXT:     p++;
-// CHECK-NEXT:     _t2 = sum;
+// CHECK-NEXT:     double _t2 = sum;
 // CHECK-NEXT:     sum += *p * 2;
-// CHECK-NEXT:     _t3 = p;
-// CHECK-NEXT:     _t4 = _d_p;
+// CHECK-NEXT:     const double *_t3 = p;
+// CHECK-NEXT:     double *_t4 = _d_p;
 // CHECK-NEXT:     _d_p += 1;
 // CHECK-NEXT:     p += 1;
-// CHECK-NEXT:     _t5 = sum;
+// CHECK-NEXT:     double _t5 = sum;
 // CHECK-NEXT:     sum += *p * 4;
 // CHECK-NEXT:     ++_d_p;
 // CHECK-NEXT:     ++p;
-// CHECK-NEXT:     _t6 = sum;
+// CHECK-NEXT:     double _t6 = sum;
 // CHECK-NEXT:     sum += *p * 3;
-// CHECK-NEXT:     _t7 = p;
-// CHECK-NEXT:     _t8 = _d_p;
+// CHECK-NEXT:     const double *_t7 = p;
+// CHECK-NEXT:     double *_t8 = _d_p;
 // CHECK-NEXT:     _d_p -= 2;
 // CHECK-NEXT:     p -= 2;
-// CHECK-NEXT:     _t9 = p;
-// CHECK-NEXT:     _t10 = _d_p;
+// CHECK-NEXT:     const double *_t9 = p;
+// CHECK-NEXT:     double *_t10 = _d_p;
 // CHECK-NEXT:     _d_p = _d_p - 2;
 // CHECK-NEXT:     p = p - 2;
-// CHECK-NEXT:     _t11 = sum;
-// CHECK-NEXT:     sum += 5 * (*p);
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
+// CHECK-NEXT:     double _t11 = sum;
+// CHECK-NEXT:     sum += 5 * *p;
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t11;
@@ -168,36 +147,41 @@ double pointerParam(const double* arr, size_t n) {
 }
 
 // CHECK: void pointerParam_grad_0(const double *arr, size_t n, double *_d_arr) {
-// CHECK-NEXT:     size_t _d_n = 0;
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     unsigned {{int|long}} _t0;
-// CHECK-NEXT:     size_t _d_i = 0;
-// CHECK-NEXT:     size_t i = 0;
+// CHECK-NEXT:     size_t _d_n = 0UL;
+// CHECK-NEXT:     size_t _d_i = 0UL;
+// CHECK-NEXT:     size_t i = 0UL;
 // CHECK-NEXT:     clad::tape<size_t *> _t1 = {};
 // CHECK-NEXT:     clad::tape<size_t *> _t3 = {};
-// CHECK-NEXT:     size_t *_d_j = 0;
-// CHECK-NEXT:     size_t *j = 0;
+// CHECK-NEXT:     size_t *_d_j = nullptr;
+// CHECK-NEXT:     size_t *j = nullptr;
 // CHECK-NEXT:     clad::tape<double> _t4 = {};
 // CHECK-NEXT:     clad::tape<const double *> _t5 = {};
 // CHECK-NEXT:     clad::tape<double *> _t6 = {};
+// CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = 0;
-// CHECK-NEXT:     _t0 = 0;
-// CHECK-NEXT:     for (i = 0; i < n; ++i) {
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < n))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
 // CHECK-NEXT:         _d_j = &_d_i;
 // CHECK-NEXT:         clad::push(_t1, _d_j);
 // CHECK-NEXT:         clad::push(_t3, j) , j = &i;
 // CHECK-NEXT:         clad::push(_t4, sum);
-// CHECK-NEXT:         sum += arr[0] * (*j);
+// CHECK-NEXT:         sum += arr[0] * *j;
 // CHECK-NEXT:         clad::push(_t5, arr);
 // CHECK-NEXT:         clad::push(_t6, _d_arr);
 // CHECK-NEXT:         _d_arr = _d_arr + 1;
 // CHECK-NEXT:         arr = arr + 1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
-// CHECK-NEXT:     for (; _t0; _t0--) {
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
 // CHECK-NEXT:         --i;
 // CHECK-NEXT:         size_t *_t2 = clad::pop(_t1);
 // CHECK-NEXT:         {
@@ -207,7 +191,7 @@ double pointerParam(const double* arr, size_t n) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             sum = clad::pop(_t4);
 // CHECK-NEXT:             double _r_d0 = _d_sum;
-// CHECK-NEXT:             _d_arr[0] += _r_d0 * (*j);
+// CHECK-NEXT:             _d_arr[0] += _r_d0 * *j;
 // CHECK-NEXT:             *_t2 += arr[0] * _r_d0;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         j = clad::pop(_t3);
@@ -230,48 +214,38 @@ double pointerMultipleParams(const double* a, const double* b) {
 }
 
 // CHECK: void pointerMultipleParams_grad(const double *a, const double *b, double *_d_a, double *_d_b) {
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     const double *_t0;
-// CHECK-NEXT:     double *_t1;
-// CHECK-NEXT:     const double *_t2;
-// CHECK-NEXT:     double *_t3;
-// CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     double _t6;
-// CHECK-NEXT:     double _t7;
+// CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = b[2];
-// CHECK-NEXT:     _t0 = b;
-// CHECK-NEXT:     _t1 = _d_b;
+// CHECK-NEXT:     const double *_t0 = b;
+// CHECK-NEXT:     double *_t1 = _d_b;
 // CHECK-NEXT:     _d_b = _d_a;
 // CHECK-NEXT:     b = a;
-// CHECK-NEXT:     _t2 = a;
-// CHECK-NEXT:     _t3 = _d_a;
+// CHECK-NEXT:     const double *_t2 = a;
+// CHECK-NEXT:     double *_t3 = _d_a;
 // CHECK-NEXT:     _d_a = 1 + _d_a;
 // CHECK-NEXT:     a = 1 + a;
 // CHECK-NEXT:     ++_d_b;
 // CHECK-NEXT:     ++b;
-// CHECK-NEXT:     _t4 = sum;
+// CHECK-NEXT:     double _t4 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     _d_b++;
 // CHECK-NEXT:     b++;
 // CHECK-NEXT:     _d_a++;
 // CHECK-NEXT:     a++;
-// CHECK-NEXT:     _t5 = sum;
+// CHECK-NEXT:     double _t5 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     _d_b--;
 // CHECK-NEXT:     b--;
 // CHECK-NEXT:     _d_a--;
 // CHECK-NEXT:     a--;
-// CHECK-NEXT:     _t6 = sum;
+// CHECK-NEXT:     double _t6 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
 // CHECK-NEXT:     --_d_b;
 // CHECK-NEXT:     --b;
 // CHECK-NEXT:     --_d_a;
 // CHECK-NEXT:     --a;
-// CHECK-NEXT:     _t7 = sum;
+// CHECK-NEXT:     double _t7 = sum;
 // CHECK-NEXT:     sum += a[0] + b[0];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         sum = _t7;
@@ -350,25 +324,18 @@ double newAndDeletePointer(double i, double j) {
 }
 
 // CHECK: void newAndDeletePointer_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double *_d_p = 0;
-// CHECK-NEXT:     double *_d_q = 0;
-// CHECK-NEXT:     double *_d_r = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _d_sum = 0;
-// CHECK-NEXT:     _d_p = new double(*_d_i);
+// CHECK-NEXT:     double *_d_p = new double(*_d_i);
 // CHECK-NEXT:     double *p = new double(i);
-// CHECK-NEXT:     _d_q = new double(*_d_j);
+// CHECK-NEXT:     double *_d_q = new double(*_d_j);
 // CHECK-NEXT:     double *q = new double(j);
-// CHECK-NEXT:     _d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
+// CHECK-NEXT:     double *_d_r = new double [2](/*implicit*/(double{{[ ]?}}[2])0);
 // CHECK-NEXT:     double *r = new double [2];
-// CHECK-NEXT:     _t0 = r[0];
+// CHECK-NEXT:     double _t0 = r[0];
 // CHECK-NEXT:     r[0] = i + j;
-// CHECK-NEXT:     _t1 = r[1];
+// CHECK-NEXT:     double _t1 = r[1];
 // CHECK-NEXT:     r[1] = i * j;
+// CHECK-NEXT:     double _d_sum = 0.;
 // CHECK-NEXT:     double sum = *p + *q + r[0] + r[1];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_sum += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *_d_p += _d_sum;
@@ -379,14 +346,14 @@ double newAndDeletePointer(double i, double j) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         r[1] = _t1;
 // CHECK-NEXT:         double _r_d1 = _d_r[1];
-// CHECK-NEXT:         _d_r[1] -= _r_d1;
+// CHECK-NEXT:         _d_r[1] = 0.;
 // CHECK-NEXT:         *_d_i += _r_d1 * j;
 // CHECK-NEXT:         *_d_j += i * _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         r[0] = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_r[0];
-// CHECK-NEXT:         _d_r[0] -= _r_d0;
+// CHECK-NEXT:         _d_r[0] = 0.;
 // CHECK-NEXT:         *_d_i += _r_d0;
 // CHECK-NEXT:         *_d_j += _r_d0;
 // CHECK-NEXT:     }
@@ -413,13 +380,10 @@ double structPointer (double x) {
 }
 
 // CHECK: void structPointer_grad(double x, double *_d_x) {
-// CHECK-NEXT:     T *_d_t = 0;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     _d_t = new T();
+// CHECK-NEXT:     T *_d_t = new T();
 // CHECK-NEXT:     T *t = new T({x, /*implicit*/(int)0});
+// CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = t->x;
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     _d_t->x += _d_res;
 // CHECK-NEXT:     *_d_x += *_d_t.x;
@@ -443,37 +407,27 @@ double cStyleMemoryAlloc(double x, size_t n) {
 }
 
 // CHECK: void cStyleMemoryAlloc_grad_0(double x, size_t n, double *_d_x) {
-// CHECK-NEXT:     size_t _d_n = 0;
-// CHECK-NEXT:     T *_d_t = 0;
-// CHECK-NEXT:     double _t0;
-// CHECK-NEXT:     double *_d_p = 0;
-// CHECK-NEXT:     double _t1;
-// CHECK-NEXT:     double _d_res = 0;
-// CHECK-NEXT:     double *_t2;
-// CHECK-NEXT:     double *_t3;
-// CHECK-NEXT:     double _t4;
-// CHECK-NEXT:     double _t5;
-// CHECK-NEXT:     _d_t = (T *)malloc(n * sizeof(T));
+// CHECK-NEXT:     size_t _d_n = 0UL;
+// CHECK-NEXT:     T *_d_t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     T *t = (T *)malloc(n * sizeof(T));
 // CHECK-NEXT:     memset(_d_t, 0, n * sizeof(T));
 // CHECK-NEXT:     memset(t, 0, n * sizeof(T));
-// CHECK-NEXT:     _t0 = t->x;
+// CHECK-NEXT:     double _t0 = t->x;
 // CHECK-NEXT:     t->x = x;
-// CHECK-NEXT:     _d_p = (double *)calloc(1, sizeof(double));
+// CHECK-NEXT:     double *_d_p = (double *)calloc(1, sizeof(double));
 // CHECK-NEXT:     double *p = (double *)calloc(1, sizeof(double));
-// CHECK-NEXT:     _t1 = *p;
+// CHECK-NEXT:     double _t1 = *p;
 // CHECK-NEXT:     *p = x;
+// CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = t->x + *p;
-// CHECK-NEXT:     _t2 = p;
-// CHECK-NEXT:     _t3 = _d_p;
+// CHECK-NEXT:     double *_t2 = p;
+// CHECK-NEXT:     double *_t3 = _d_p;
 // CHECK-NEXT:     _d_p = (double *)realloc(_d_p, 2 * sizeof(double));
 // CHECK-NEXT:     p = (double *)realloc(p, 2 * sizeof(double));
-// CHECK-NEXT:     _t4 = p[1];
+// CHECK-NEXT:     double _t4 = p[1];
 // CHECK-NEXT:     p[1] = 2 * x;
-// CHECK-NEXT:     _t5 = res;
+// CHECK-NEXT:     double _t5 = res;
 // CHECK-NEXT:     res += p[1];
-// CHECK-NEXT:     goto _label0;
-// CHECK-NEXT:   _label0:
 // CHECK-NEXT:     _d_res += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         res = _t5;
@@ -483,7 +437,7 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         p[1] = _t4;
 // CHECK-NEXT:         double _r_d2 = _d_p[1];
-// CHECK-NEXT:         _d_p[1] -= _r_d2;
+// CHECK-NEXT:         _d_p[1] = 0.;
 // CHECK-NEXT:         *_d_x += 2 * _r_d2;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
@@ -497,19 +451,50 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         *p = _t1;
 // CHECK-NEXT:         double _r_d1 = *_d_p;
-// CHECK-NEXT:         *_d_p -= _r_d1;
+// CHECK-NEXT:         *_d_p = 0.;
 // CHECK-NEXT:         *_d_x += _r_d1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         t->x = _t0;
 // CHECK-NEXT:         double _r_d0 = _d_t->x;
-// CHECK-NEXT:         _d_t->x -= _r_d0;
+// CHECK-NEXT:         _d_t->x = 0.;
 // CHECK-NEXT:         *_d_x += _r_d0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     free(p);
 // CHECK-NEXT:     free(_d_p);
 // CHECK-NEXT:     free(t);
 // CHECK-NEXT:     free(_d_t);
+// CHECK-NEXT: }
+
+double* ptrValFn (double* x, int n) {
+  x += n;
+  return x;
+}
+
+// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n);
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n);
+
+double nestedPtrFn (double x, double y) {
+  double arr[] = {x, y}; 
+  double* z = ptrValFn(arr, 1);
+  return *z;
+}
+
+// CHECK: void nestedPtrFn_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     double _d_arr[2] = {0};
+// CHECK-NEXT:     double arr[2] = {x, y};
+// CHECK-NEXT:     clad::ValueAndAdjoint<double *, double *> _t0 = ptrValFn_forw(arr, 1, _d_arr, 0);
+// CHECK-NEXT:     double *_d_z = _t0.adjoint;
+// CHECK-NEXT:     double *z = _t0.value;
+// CHECK-NEXT:     *_d_z += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _r0 = 0;
+// CHECK-NEXT:         ptrValFn_pullback(arr, 1, _d_arr, &_r0);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_arr[0];
+// CHECK-NEXT:         *_d_y += _d_arr[1];
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\
@@ -619,4 +604,28 @@ int main() {
   d_x = 0;
   d_cStyleMemoryAlloc.execute(5, 7, &d_x);
   printf("%.2f\n", d_x); // CHECK-EXEC: 4.00
+
+  auto d_nestedPtrFn = clad::gradient(nestedPtrFn);
+  d_i = 0; d_j = 0;
+  d_nestedPtrFn.execute(5, 7, &d_i, &d_j);
+  printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 0.00 1.00
 }
+
+// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x = _t0;
+// CHECK-NEXT:         _d_x = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT: }

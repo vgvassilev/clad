@@ -1,7 +1,7 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | FileCheck %s
-// RUN: ./Functors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | %filecheck %s
+// RUN: ./Functors.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oFunctors.out
-// RUN: ./Functors.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./Functors.out | %filecheck_exec %s
 // CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
@@ -15,8 +15,6 @@ struct Experiment {
   Experiment& operator=(const Experiment& E) = default;
 
   // CHECK: void operator_call_grad(double i, double j, Experiment *_d_this, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -33,8 +31,6 @@ struct ExperimentConst {
 
   ExperimentConst& operator=(const ExperimentConst& E) = default;
   // CHECK: void operator_call_grad(double i, double j, ExperimentConst *_d_this, double *_d_i, double *_d_j) const {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -57,10 +53,7 @@ struct ExperimentVolatile {
   };
 
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentVolatile *_d_this, double *_d_i, double *_d_j) volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     _t0 = this->x * i;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -83,10 +76,7 @@ struct ExperimentConstVolatile {
   };
 
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile *_d_this, double *_d_i, double *_d_j) const volatile {
-  // CHECK-NEXT:     double _t0;
-  // CHECK-NEXT:     _t0 = this->x * i;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -106,8 +96,6 @@ struct ExperimentNNS {
   ExperimentNNS& operator=(const ExperimentNNS& E) = default;
 
   // CHECK: void operator_call_grad(double i, double j, outer::inner::ExperimentNNS *_d_this, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
@@ -170,8 +158,6 @@ int main() {
   auto lambda = [](double i, double j) { return i * i * j; };
 
   // CHECK: inline void operator_call_grad(double i, double j, double *_d_i, double *_d_j) const {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_i += 1 * j * i;
   // CHECK-NEXT:         *_d_i += i * 1 * j;
@@ -182,8 +168,6 @@ int main() {
   auto lambdaWithCapture = [&](double ii, double j) { return x * ii * j; };
 
   // CHECK: inline void operator_call_grad(double ii, double j, double *_d_ii, double *_d_j) const {
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
   // CHECK-NEXT:         *_d_ii += x * 1 * j;
   // CHECK-NEXT:         *_d_j += x * ii * 1;
@@ -240,17 +224,18 @@ int main() {
 
   // CHECK: void CallFunctor_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _d_E({});
-  // CHECK-NEXT:     Experiment _t0;
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     _t0 = E;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:     Experiment _t0 = E;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0;
-  // CHECK-NEXT:         double _r1 = 0;
-  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_r0, &_r1);
-  // CHECK-NEXT:         *_d_i += _r0;
-  // CHECK-NEXT:         *_d_j += _r1;
+  // CHECK-NEXT:         double _r2 = 0.;
+  // CHECK-NEXT:         double _r3 = 0.;
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &_d_E, &_r2, &_r3);
+  // CHECK-NEXT:         *_d_i += _r2;
+  // CHECK-NEXT:         *_d_j += _r3;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         double _r0 = 0.;
+  // CHECK-NEXT:         double _r1 = 0.;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -261,13 +246,10 @@ int main() {
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
   // CHECK: void FunctorAsArg_grad(Experiment fn, double i, double j, Experiment *_d_fn, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     Experiment _t0;
-  // CHECK-NEXT:     _t0 = fn;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
+  // CHECK-NEXT:     Experiment _t0 = fn;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0;
-  // CHECK-NEXT:         double _r1 = 0;
+  // CHECK-NEXT:         double _r0 = 0.;
+  // CHECK-NEXT:         double _r1 = 0.;
   // CHECK-NEXT:         _t0.operator_call_pullback(i, j, 1, &(*_d_fn), &_r0, &_r1);
   // CHECK-NEXT:         *_d_i += _r0;
   // CHECK-NEXT:         *_d_j += _r1;
@@ -281,32 +263,22 @@ int main() {
   FunctorAsArg_grad.execute(E_temp, 7, 9, &dE_temp, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
-  // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
-  // CHECK-NEXT:     Experiment _t0;
-  // CHECK-NEXT:     _t0 = fn;
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0;
-  // CHECK-NEXT:         double _r1 = 0;
-  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
-  // CHECK-NEXT:         *_d_i += _r0;
-  // CHECK-NEXT:         *_d_j += _r1;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT: }
+  // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j);
 
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _d_E({});
   // CHECK-NEXT:     Experiment E(3, 5);
-  // CHECK-NEXT:     goto _label0;
-  // CHECK-NEXT:     _label0:
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         Experiment _r0 = {};
-  // CHECK-NEXT:         double _r1 = 0;
-  // CHECK-NEXT:         double _r2 = 0;
-  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r0, &_r1, &_r2);
-  // CHECK-NEXT:         *_d_i += _r1;
-  // CHECK-NEXT:         *_d_j += _r2;
+  // CHECK-NEXT:         Experiment _r2 = {};
+  // CHECK-NEXT:         double _r3 = 0.;
+  // CHECK-NEXT:         double _r4 = 0.;
+  // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r2, &_r3, &_r4);
+  // CHECK-NEXT:         *_d_i += _r3;
+  // CHECK-NEXT:         *_d_j += _r4;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:      double _r0 = 0.;
+  // CHECK-NEXT:      double _r1 = 0.;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -316,3 +288,14 @@ int main() {
   FunctorAsArgWrapper_grad.execute(7, 9, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 }
+
+// CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
+// CHECK-NEXT:     Experiment _t0 = fn;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
+// CHECK-NEXT:         *_d_i += _r0;
+// CHECK-NEXT:         *_d_j += _r1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }

@@ -1,5 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oBasicArithmeticMulDiv.out 2>&1 | FileCheck  %s
-// RUN: ./BasicArithmeticMulDiv.out | FileCheck -check-prefix=CHECK-EXEC %s
+// RUN: ./BasicArithmeticMulDiv.out | %filecheck_exec %s
 
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -115,9 +115,9 @@ double m_11(double x) {
 // CHECK-NEXT:   double _d_x = 1;
 // CHECK-NEXT:   const size_t _d_maxN = 0;
 // CHECK-NEXT:   const size_t maxN = 53;
-// CHECK-NEXT:   bool _t0 = maxN < {{64U|64UL}};
-// CHECK-NEXT:   const size_t _d_m = _t0 ? _d_maxN : {{0U|0UL}};
-// CHECK-NEXT:   const size_t m = _t0 ? maxN : {{64U|64UL}};
+// CHECK-NEXT:   bool _t0 = maxN < {{64U|64UL|64ULL}};
+// CHECK-NEXT:   const size_t _d_m = _t0 ? _d_maxN : {{0U|0UL|0ULL}};
+// CHECK-NEXT:   const size_t m = _t0 ? maxN : {{64U|64UL|64ULL}};
 // CHECK-NEXT:   return _d_x * m + x * _d_m;
 // CHECK-NEXT: }
 
