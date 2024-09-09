@@ -739,7 +739,7 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
         echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
     - name: Setup CUDA 8 on Linux
-      if: ${{ matrix.cuda == true }}
+      if: ${{ matrix.cuda == true && !matrix.os == 'self-hosted'}}
       run: |
         wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/local_installers/cuda_8.0.61_375.26_linux-run
         wget --no-verbose https://developer.nvidia.com/compute/cuda/8.0/Prod2/patches/2/cuda_8.0.61.2_linux-run
