@@ -49,9 +49,8 @@ void VariedAnalyzer::VisitCFGBlock(const CFGBlock& block) {
       continue;
     auto& succData = m_BlockData[succ->getBlockID()];
 
-    if (!succData) {
+    if (!succData)
       succData = createNewVarsData(*m_BlockData[block.getBlockID()]);
-    }
 
     bool shouldPushSucc = true;
     if (succ->getBlockID() > block.getBlockID()) {
@@ -67,7 +66,8 @@ void VariedAnalyzer::VisitCFGBlock(const CFGBlock& block) {
 
     merge(succData.get(), m_BlockData[block.getBlockID()].get());
   }
-  // FIXME: Information about the varied variables is stored in the last block, so we should be able to get it form there
+  // FIXME: Information about the varied variables is stored in the last block,
+  // so we should be able to get it form there
   for (const VarDecl* i : *m_BlockData[block.getBlockID()])
     m_VariedDecls.insert(i);
 }
@@ -115,21 +115,21 @@ bool VariedAnalyzer::VisitConditionalOperator(ConditionalOperator* CO) {
 }
 
 bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
-  FunctionDecl* FD = CE->getDirectCallee(); 
+  FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   std::set<const clang::VarDecl*> variedParam;
-  if(noHiddenParam){
-    MutableArrayRef<ParmVarDecl *> FDparam = FD->parameters();
-    for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i){
+  if (noHiddenParam) {
+    MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
+    for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
       TraverseStmt(par);
-      if(m_Varied){
+      if (m_Varied) {
         m_VariedDecls.insert(FDparam[i]);
         m_Varied = false;
       }
     }
   }
-  return true; 
+  return true;
 }
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {

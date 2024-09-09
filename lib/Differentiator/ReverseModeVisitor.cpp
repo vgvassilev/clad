@@ -1737,7 +1737,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg) || !m_DiffReq.shouldHaveAdjoint(PVD)) {
+      if (utils::IsReferenceOrPointerArg(arg) ||
+          !m_DiffReq.shouldHaveAdjoint(PVD)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1950,7 +1951,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-        pullbackRequest.EnableActivityAnalysis = m_DiffReq.EnableActivityAnalysis;
+        pullbackRequest.EnableActivityAnalysis =
+            m_DiffReq.EnableActivityAnalysis;
         bool isaMethod = isa<CXXMethodDecl>(FD);
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
           if (MD && isLambdaCallOperator(MD)) {
@@ -2107,7 +2109,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         const Expr* arg = CE->getArg(i);
         StmtDiff argDiff = Visit(arg);
         // Has to be removed once nondifferentiable arguments are handeled
-        if(argDiff.getStmt_dx())
+        if (argDiff.getStmt_dx())
           CallArgs.push_back(argDiff.getExpr_dx());
         else
           CallArgs.push_back(getZeroInit(arg->getType()));
@@ -3039,8 +3041,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   // TODO: 'shouldEmit' parameter should be removed after converting
   // Error estimation framework to callback style. Some more research
   // need to be done to
-  StmtDiff
-  ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS) {
+  StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
+                                                       Expr* dfdS) {
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);

@@ -7,8 +7,8 @@
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
-#include <set>
 #include <iterator>
+#include <set>
 namespace clang {
 class CallExpr;
 class CompilerInstance;
