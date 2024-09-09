@@ -240,14 +240,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(BuildDeclStmt(gradientVD));
     }
 
-    // If the function is a global kernel, we need to transform it
-    // into a device function when calling it inside the overload function
-    // which is the final global kernel returned.
-    if (m_Derivative->hasAttr<clang::CUDAGlobalAttr>()) {
-      m_Derivative->dropAttr<clang::CUDAGlobalAttr>();
-      m_Derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
-    }
-
     Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
                                              /*UseRefQualifiedThisObj=*/true);
     addToCurrentBlock(callExpr);
@@ -346,7 +338,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (request.Mode != DiffMode::jacobian && numExtraParam == 0)
+    if (request.Mode != DiffMode::jacobian && numExtraParam == 0 &&
+        !FD->hasAttr<CUDAGlobalAttr>())
       shouldCreateOverload = true;
     if (!request.DeclarationOnly && !request.DerivedFDPrototypes.empty())
       // If the overload is already created, we don't need to create it again.
@@ -2884,10 +2877,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           VDDerivedInit = getZeroInit(VDDerivedType);
         }
       }
-      if (initializeDerivedVar)
-        VDDerived = BuildGlobalVarDecl(
-            VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit, false,
-            nullptr, VD->getInitStyle());
+      if (initializeDerivedVar) {
+        if (VD->hasAttr<clang::CUDASharedAttr>()) {
+          VDDerived = BuildGlobalVarDecl(
+              VDDerivedType, "_d_" + VD->getNameAsString(), nullptr, false,
+              nullptr, VD->getInitStyle(), VD->getStorageClass());
+          VDDerived->addAttr(
+              VD->getAttr<clang::CUDASharedAttr>()->clone(m_Context));
+        } else {
+          VDDerived = BuildGlobalVarDecl(
+              VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit,
+              false, nullptr, VD->getInitStyle());
+        }
+      }
     }
 
     // If `VD` is a reference to a local variable, then it is already
@@ -2970,11 +2972,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       VDClone = BuildGlobalVarDecl(
           VDCloneType, VD->getNameAsString(),
           BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
-          VD->isDirectInit());
+          VD->isDirectInit(), nullptr,
+          clang::VarDecl::InitializationStyle::CInit, VD->getStorageClass());
     else
-      VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                   initDiff.getExpr(), VD->isDirectInit(),
-                                   nullptr, VD->getInitStyle());
+      VDClone =
+          BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+                             initDiff.getExpr(), VD->isDirectInit(), nullptr,
+                             VD->getInitStyle(), VD->getStorageClass());
+    if (VD->hasAttr<clang::CUDASharedAttr>())
+      VDClone->addAttr(VD->getAttr<clang::CUDASharedAttr>()->clone(m_Context));
     if (isPointerType && derivedVDE) {
       if (promoteToFnScope) {
         Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
@@ -3083,6 +3089,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Decl*, 4> declsDiff;
     // Need to put array decls inlined.
     llvm::SmallVector<Decl*, 4> localDeclsDiff;
+    llvm::SmallVector<Stmt*, 16> sharedMemInits;
     // reverse_mode_forward_pass does not have a reverse pass so declarations
     // don't have to be moved to the function global scope.
     bool promoteToFnScope =
@@ -3172,6 +3179,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             localDeclsDiff.push_back(VDDiff.getDecl_dx());
           else
             declsDiff.push_back(VDDiff.getDecl_dx());
+          if (VD->hasAttr<clang::CUDASharedAttr>()) {
+            VarDecl* VDDerived = VDDiff.getDecl_dx();
+            Expr* declRef = BuildDeclRef(VDDerived);
+            Stmt* assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
+                                         getZeroInit(VDDerived->getType()));
+            sharedMemInits.push_back(assignToZero);
+          }
         }
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
@@ -3210,6 +3224,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Stmts& block =
           promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
+      for (Stmt* sharedMemInitsStmt : sharedMemInits)
+        addToBlock(sharedMemInitsStmt, block);
     }
 
     if (m_ExternalSource) {

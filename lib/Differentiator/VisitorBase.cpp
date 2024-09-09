@@ -113,12 +113,13 @@ namespace clad {
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Scope* Scope, Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     VarDecl::InitializationStyle IS,
+                                     StorageClass SC) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto* VD = VarDecl::Create(
-        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
-        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
+    auto* VD =
+        VarDecl::Create(m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
+                        m_DiffReq->getLocation(), Identifier, Type, TSI, SC);
 
     if (Init) {
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
@@ -149,9 +150,10 @@ namespace clad {
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
                                            bool DirectInit, TypeSourceInfo* TSI,
-                                           VarDecl::InitializationStyle IS) {
+                                           VarDecl::InitializationStyle IS,
+                                           StorageClass SC) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI, IS);
+                        m_DerivativeFnScope, Init, DirectInit, TSI, IS, SC);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,

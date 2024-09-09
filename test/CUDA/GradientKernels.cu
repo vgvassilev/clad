@@ -66,8 +66,10 @@ __global__ void add_kernel_2(int *out, int *in) {
 //CHECK-NEXT: }
 
 __global__ void add_kernel_3(int *out, int *in) {
+  __shared__ int shared;
+  shared = 1;
   int index = threadIdx.x + blockIdx.x * blockDim.x;
-  out[index] += in[index];
+  out[index] += in[index] + shared;
 }
 
 // CHECK:    void add_kernel_3_grad(int *out, int *in, int *_d_out, int *_d_in) {
@@ -168,7 +170,7 @@ int main(void) {
 
   cudaMemset(d_in, 0, 10 * sizeof(int));
   auto add_3 = clad::gradient(add_kernel_3, "in, out");
-  add_3.execute_kernel(dim3(10), dim3(1), dummy_out, dummy_in, d_out, d_in);
+  add_3.execute_kernel(dim3(10), dim3(1), sizeof(int), cudaStream, dummy_out, dummy_in, d_out, d_in);
   cudaDeviceSynchronize();
 
   cudaMemcpy(res, d_in, 10 * sizeof(int), cudaMemcpyDeviceToHost);

@@ -295,7 +295,8 @@ namespace clad {
                  clang::Scope* scope, clang::Expr* Init = nullptr,
                  bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+                     clang::VarDecl::InitializationStyle::CInit,
+                 clang::StorageClass SC = clang::SC_None);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -336,7 +337,8 @@ namespace clad {
                        clang::Expr* Init = nullptr, bool DirectInit = false,
                        clang::TypeSourceInfo* TSI = nullptr,
                        clang::VarDecl::InitializationStyle IS =
-                           clang::VarDecl::InitializationStyle::CInit);
+                           clang::VarDecl::InitializationStyle::CInit,
+                       clang::StorageClass SC = clang::SC_None);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
