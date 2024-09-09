@@ -160,6 +160,39 @@ double f3(double x){
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double f4_1(double v, double u){
+  double k = 2*u;
+  double n = 2*v;
+  return n*k;
+}
+double f4(double x){
+  double c = f4_1(x, 1);
+  return c;
+}
+// CHECK-NEXT: void f4_1_pullback(double v, double u, double _d_y, double *_d_v);
+
+// CHECK: void f4_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_c = 0.;
+// CHECK-NEXT:     double c = f4_1(x, 1);
+// CHECK-NEXT:     _d_c += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f4_1_pullback(x, 1, _d_c, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f5(double x){
+  double g = x ? 1 : 2;
+  return g;
+}
+// CHECK: void f5_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _cond0 = x;
+// CHECK-NEXT:     double _d_g = 0.;
+// CHECK-NEXT:     double g = _cond0 ? 1 : 2;
+// CHECK-NEXT:     _d_g += 1;
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_aa>(F);\
@@ -172,4 +205,14 @@ int main(){
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
     TEST(f3, 3);// CHECK-EXEC: {0.00}
+    TEST(f4, 3);// CHECK-EXEC: {4.00}
+    TEST(f5, 3);// CHECK-EXEC: {0.00}
 }
+
+// CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v) {
+// CHECK-NEXT:     double k = 2 * u;
+// CHECK-NEXT:     double _d_n = 0.;
+// CHECK-NEXT:     double n = 2 * v;
+// CHECK-NEXT:     _d_n += _d_y * k;
+// CHECK-NEXT:     *_d_v += 2 * _d_n;
+// CHECK-NEXT: }
