@@ -616,7 +616,7 @@ namespace clad {
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
-  bool DiffRequest::shouldHaveAdjoint(VarDecl* VD) const {
+  bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
     if (!EnableActivityAnalysis)
       return true;
 
@@ -624,7 +624,7 @@ namespace clad {
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {
-      if (Args) {
+      if (!DVI.empty()) {
         for (const auto& dParam : DVI)
           m_ActivityRunInfo.ToBeRecorded.insert(cast<VarDecl>(dParam.param));
       } else {

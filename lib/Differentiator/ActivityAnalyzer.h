@@ -1,3 +1,6 @@
+#ifndef CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
+#define CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CFG.h"
 
@@ -5,9 +8,8 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include <algorithm>
-#include <iostream>
+#include <utility>
 #include <iterator>
-#include <map>
 #include <set>
 #include <unordered_map>
 
@@ -18,59 +20,20 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
 
   bool m_Varied = false;
   bool m_Marking = false;
-  bool m_shouldPushSucc = true;
 
   std::set<const clang::VarDecl*>& m_VariedDecls;
-
-  struct VarsData {
-    std::set<const clang::VarDecl*> m_Data;
-    VarsData* m_Prev = nullptr;
-
-    VarsData() = default;
-    VarsData(const VarsData& other) = default;
-    ~VarsData() = default;
-    VarsData(VarsData&& other) noexcept
-        : m_Data(std::move(other.m_Data)), m_Prev(other.m_Prev) {}
-    VarsData& operator=(const VarsData& other) = delete;
-    VarsData& operator=(VarsData&& other) noexcept {
-      if (&m_Data == &other.m_Data) {
-        m_Data = std::move(other.m_Data);
-        m_Prev = other.m_Prev;
-      }
-      return *this;
-    }
-
-    bool operator==(VarsData other) noexcept {
-      std::vector<const clang::VarDecl*> diff;
-      if (m_Data == other.m_Data)
-        return true;
-      return false;
-    }
-
-    using iterator = std::set<const clang::VarDecl*>::iterator;
-    int size() { return m_Data.size(); }
-    iterator begin() { return m_Data.begin(); }
-    iterator end() { return m_Data.end(); }
-    iterator find(const clang::VarDecl* VD) { return m_Data.find(VD); }
-    void insert(const clang::VarDecl* VD) { m_Data.insert(VD); }
-    void clear() { m_Data.clear(); }
-    std::set<const clang::VarDecl*> updateLoopMem() { return m_Data; }
-  };
+  using VarsData = std::set<const clang::VarDecl*>;
+  static std::unique_ptr<VarsData> createNewVarsData(VarsData toAssign) {
+    return std::unique_ptr<VarsData>(new VarsData(std::move(toAssign)));
+  }
 
   VarsData m_LoopMem;
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
-  // VarData* getExprVarData(const clang::Expr* E, bool addNonConstIdx = false);
 
-  std::set<const clang::VarDecl*> static collectDataFromPredecessors(
-      VarsData* varsData, VarsData* limit = nullptr);
-
-  static VarsData* findLowestCommonAncestor(VarsData* varsData1,
-                                            VarsData* varsData2);
-
-  void merge(VarsData* targetData, VarsData* mergeData);
+  static void merge(VarsData* targetData, VarsData* mergeData);
   ASTContext& m_Context;
   std::unique_ptr<clang::CFG> m_CFG;
-  std::vector<VarsData*> m_BlockData;
+  std::vector<std::unique_ptr<VarsData>> m_BlockData;
   std::vector<short> m_BlockPassCounter;
   unsigned m_CurBlockID{};
   std::set<unsigned> m_CFGQueue;
@@ -97,9 +60,7 @@ public:
 
   /// Visitors
   void Analyze(const clang::FunctionDecl* FD);
-
   void VisitCFGBlock(const clang::CFGBlock& block);
-
   bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
   bool VisitCallExpr(clang::CallExpr* CE);
   bool VisitConditionalOperator(clang::ConditionalOperator* CO);
@@ -108,3 +69,4 @@ public:
   bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
 };
 } // namespace clad
+#endif // CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H

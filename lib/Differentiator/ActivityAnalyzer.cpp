@@ -13,10 +13,10 @@ void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
   m_BlockPassCounter.resize(m_CFG->size(), 0);
 
   // Set current block ID to the ID of entry the block.
-  auto* entry = &m_CFG->getEntry();
+  CFGBlock* entry = &m_CFG->getEntry();
   m_CurBlockID = entry->getBlockID();
-  m_BlockData[m_CurBlockID] = new VarsData();
-  for (const auto& i : m_VariedDecls)
+  m_BlockData[m_CurBlockID] = createNewVarsData({});
+  for (const VarDecl* i : m_VariedDecls)
     m_BlockData[m_CurBlockID]->insert(i);
   // Add the entry block to the queue.
   m_CFGQueue.insert(m_CurBlockID);
@@ -44,51 +44,48 @@ void VariedAnalyzer::VisitCFGBlock(const CFGBlock& block) {
     }
   }
 
-  for (const auto succ : block.succs()) {
+  for (const clang::CFGBlock::AdjacentBlock succ : block.succs()) {
     if (!succ)
       continue;
     auto& succData = m_BlockData[succ->getBlockID()];
 
     if (!succData) {
-      succData = new VarsData(*m_BlockData[block.getBlockID()]);
-      succData->m_Prev = m_BlockData[block.getBlockID()];
+      succData = createNewVarsData(*m_BlockData[block.getBlockID()]);
     }
 
+    bool shouldPushSucc = true;
     if (succ->getBlockID() > block.getBlockID()) {
       if (m_LoopMem == *m_BlockData[block.getBlockID()])
-        m_shouldPushSucc = false;
+        shouldPushSucc = false;
 
-      // has to be changed
-      for (const auto& i : *m_BlockData[block.getBlockID()])
+      for (const VarDecl* i : *m_BlockData[block.getBlockID()])
         m_LoopMem.insert(i);
     }
 
-    if (m_shouldPushSucc)
+    if (shouldPushSucc)
       m_CFGQueue.insert(succ->getBlockID());
-    m_shouldPushSucc = true;
 
-    merge(succData, m_BlockData[block.getBlockID()]);
+    merge(succData.get(), m_BlockData[block.getBlockID()].get());
   }
-
-  // has to be changed
-  for (const auto& i : *m_BlockData[block.getBlockID()])
+  // FIXME: Information about the varied variables is stored in the last block, so we should be able to get it form there
+  for (const VarDecl* i : *m_BlockData[block.getBlockID()])
     m_VariedDecls.insert(i);
 }
 
 bool VariedAnalyzer::isVaried(const VarDecl* VD) {
-  auto& curBranch = getCurBlockVarsData();
+  VarsData& curBranch = getCurBlockVarsData();
   return curBranch.find(VD) != curBranch.end();
 }
 
 void VariedAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
-  for (const auto& i : *mergeData)
+  for (const VarDecl* i : *mergeData)
     targetData->insert(i);
-  for (const auto& i : *targetData)
+  for (const VarDecl* i : *targetData)
     mergeData->insert(i);
 }
 
 void VariedAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  auto& curBranch = getCurBlockVarsData();
+  VarsData& curBranch = getCurBlockVarsData();
   curBranch.insert(VD);
 }
 
@@ -109,21 +106,41 @@ bool VariedAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   return true;
 }
 
+// add branching merging
 bool VariedAnalyzer::VisitConditionalOperator(ConditionalOperator* CO) {
+  TraverseStmt(CO->getCond());
+  TraverseStmt(CO->getTrueExpr());
+  TraverseStmt(CO->getFalseExpr());
   return true;
 }
 
-bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) { return true; }
+bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
+  FunctionDecl* FD = CE->getDirectCallee(); 
+  bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
+  std::set<const clang::VarDecl*> variedParam;
+  if(noHiddenParam){
+    MutableArrayRef<ParmVarDecl *> FDparam = FD->parameters();
+    for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i){
+      clang::Expr* par = CE->getArg(i);
+      TraverseStmt(par);
+      if(m_Varied){
+        m_VariedDecls.insert(FDparam[i]);
+        m_Varied = false;
+      }
+    }
+  }
+  return true; 
+}
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
-  for (auto* D : DS->decls()) {
+  for (Decl* D : DS->decls()) {
     if (auto* VD = dyn_cast<VarDecl>(D)) {
       if (Expr* init = VD->getInit()) {
         m_Varied = false;
         TraverseStmt(init);
         m_Marking = true;
-        auto& curBranch = getCurBlockVarsData();
-        if (curBranch.find(VD) == curBranch.end() && m_Varied)
+        VarsData& curBranch = getCurBlockVarsData();
+        if (m_Varied && curBranch.find(VD) == curBranch.end())
           copyVarToCurBlock(VD);
         m_Marking = false;
       }
@@ -143,8 +160,8 @@ bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
     m_Varied = true;
 
   if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    auto& curBranch = getCurBlockVarsData();
-    if (curBranch.find(VD) == curBranch.end() && m_Varied && m_Marking)
+    VarsData& curBranch = getCurBlockVarsData();
+    if (m_Varied && m_Marking && curBranch.find(VD) == curBranch.end())
       copyVarToCurBlock(VD);
   }
   return true;
