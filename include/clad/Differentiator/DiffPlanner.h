@@ -117,7 +117,8 @@ public:
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            CallContext == other.CallContext && Args == other.Args &&
-           Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis && EnableActivityAnalysis == other.EnableActivityAnalysis &&
+           Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
+           EnableActivityAnalysis == other.EnableActivityAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly;
   }

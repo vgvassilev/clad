@@ -51,26 +51,27 @@ public:
 
   namespace plugin {
     struct DifferentiationOptions {
-    DifferentiationOptions()
-        : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
-          DumpDerivedAST(false), GenerateSourceFile(false),
-          ValidateClangVersion(true), EnableTBRAnalysis(false),
-          DisableTBRAnalysis(false), EnableActivityAnalysis(false), DisableActivityAnalysis(false), CustomEstimationModel(false),
-          PrintNumDiffErrorInfo(false) {}
+      DifferentiationOptions()
+          : DumpSourceFn(false), DumpSourceFnAST(false), DumpDerivedFn(false),
+            DumpDerivedAST(false), GenerateSourceFile(false),
+            ValidateClangVersion(true), EnableTBRAnalysis(false),
+            DisableTBRAnalysis(false), EnableActivityAnalysis(false),
+            DisableActivityAnalysis(false), CustomEstimationModel(false),
+            PrintNumDiffErrorInfo(false) {}
 
-    bool DumpSourceFn : 1;
-    bool DumpSourceFnAST : 1;
-    bool DumpDerivedFn : 1;
-    bool DumpDerivedAST : 1;
-    bool GenerateSourceFile : 1;
-    bool ValidateClangVersion : 1;
-    bool EnableTBRAnalysis : 1;
-    bool DisableTBRAnalysis : 1;
-    bool EnableActivityAnalysis : 1;
-    bool DisableActivityAnalysis : 1;
-    bool CustomEstimationModel : 1;
-    bool PrintNumDiffErrorInfo : 1;
-    std::string CustomModelName;
+      bool DumpSourceFn : 1;
+      bool DumpSourceFnAST : 1;
+      bool DumpDerivedFn : 1;
+      bool DumpDerivedAST : 1;
+      bool GenerateSourceFile : 1;
+      bool ValidateClangVersion : 1;
+      bool EnableTBRAnalysis : 1;
+      bool DisableTBRAnalysis : 1;
+      bool EnableActivityAnalysis : 1;
+      bool DisableActivityAnalysis : 1;
+      bool CustomEstimationModel : 1;
+      bool PrintNumDiffErrorInfo : 1;
+      std::string CustomModelName;
     };
 
     class CladExternalSource : public clang::ExternalSemaSource {
@@ -316,11 +317,11 @@ public:
             m_DO.EnableTBRAnalysis = true;
           } else if (args[i] == "-disable-tbr") {
             m_DO.DisableTBRAnalysis = true;
-          }else if(args[i] == "-enable-aa"){
+          } else if (args[i] == "-enable-aa") {
             m_DO.EnableActivityAnalysis = true;
-          }else if(args[i] == "-disable-aa"){
+          } else if (args[i] == "-disable-aa") {
             m_DO.DisableActivityAnalysis = true;
-          }else if (args[i] == "-fcustom-estimation-model") {
+          } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
             if (++i == e) {
               llvm::errs() << "No shared object was specified.";
