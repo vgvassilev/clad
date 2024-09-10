@@ -362,8 +362,17 @@ namespace clad {
     /// \param[in] D The declaration to build a DeclRefExpr for.
     /// \param[in] SS The scope specifier for the declaration.
     /// \returns the DeclRefExpr for the given declaration.
-    clang::DeclRefExpr* BuildDeclRef(clang::DeclaratorDecl* D,
-                                     const clang::CXXScopeSpec* SS = nullptr);
+    clang::DeclRefExpr*
+    BuildDeclRef(clang::DeclaratorDecl* D,
+                 const clang::CXXScopeSpec* SS = nullptr,
+                 clang::ExprValueKind VK = clang::VK_LValue);
+    /// Builds a DeclRefExpr to a given Decl, adding proper nested name
+    /// qualifiers.
+    /// \param[in] D The declaration to build a DeclRefExpr for.
+    /// \param[in] NNS The nested name specifier to use.
+    clang::DeclRefExpr*
+    BuildDeclRef(clang::DeclaratorDecl* D, clang::NestedNameSpecifier* NNS,
+                 clang::ExprValueKind VK = clang::VK_LValue);
 
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.

@@ -1544,8 +1544,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // with Sema::BuildDeclRefExpr. This is required in some cases, e.g.
       // Sema::BuildDeclRefExpr is responsible for adding captured fields
       // to the underlying struct of a lambda.
-      if (VD->getDeclContext() != m_Sema.CurContext)
-        clonedDRE = cast<DeclRefExpr>(BuildDeclRef(VD));
+      if (VD->getDeclContext() != m_Sema.CurContext) {
+        auto* ccDRE = dyn_cast<DeclRefExpr>(clonedDRE);
+        NestedNameSpecifier* NNS = DRE->getQualifier();
+        auto* referencedDecl = cast<VarDecl>(ccDRE->getDecl());
+        clonedDRE = BuildDeclRef(referencedDecl, NNS, DRE->getValueKind());
+      }
       // This case happens when ref-type variables have to become function
       // global. Ref-type declarations cannot be moved to the function global
       // scope because they can't be separated from their inits.
@@ -1852,9 +1856,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     Expr* OverloadedDerivedFn = nullptr;
-    // If the function has a single arg and does not returns a reference or take
+    // If the function has a single arg and does not return a reference or take
     // arg by reference, we look for a derivative w.r.t. to this arg using the
-    // forward mode(it is unlikely that we need gradient of a one-dimensional'
+    // forward mode(it is unlikely that we need gradient of a one-dimensional
     // function).
     bool asGrad = true;
 
@@ -2149,8 +2153,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         StmtDiff argDiff = Visit(arg);
         CallArgs.push_back(argDiff.getExpr_dx());
       }
-      if (baseDiff.getExpr()) {
-        Expr* baseE = baseDiff.getExpr();
+      if (Expr* baseE = baseDiff.getExpr()) {
         call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
                                     CallArgs, Loc);
       } else {
@@ -2167,6 +2170,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
       return StmtDiff(resValue, resAdjoint, resAdjoint);
     } // Recreate the original call expression.
+
+    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      auto* FD = const_cast<CXXMethodDecl*>(
+          dyn_cast<CXXMethodDecl>(OCE->getCalleeDecl()));
+
+      NestedNameSpecifierLoc NNS(FD->getQualifier(),
+                                 /*Data=*/nullptr);
+      auto DAP = DeclAccessPair::make(FD, FD->getAccess());
+      auto* memberExpr = MemberExpr::Create(
+          m_Context, Clone(OCE->getArg(0)), /*isArrow=*/false, Loc, NNS, noLoc,
+          FD, DAP, FD->getNameInfo(),
+          /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+          ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+              NOUR_None));
+      call = m_Sema
+                 .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc,
+                                            CallArgs, Loc)
+                 .get();
+      return StmtDiff(call);
+    }
+
     call = m_Sema
                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                               CallArgs, Loc)
