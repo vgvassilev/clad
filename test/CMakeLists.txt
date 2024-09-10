@@ -36,9 +36,9 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
-option(CLANG_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
-if(CLANG_TEST_USE_VG)
-  set(CLANG_TEST_EXTRA_ARGS ${CLANG_TEST_EXTRA_ARGS} "--vg")
+option(CLAD_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
+if(CLAD_TEST_USE_VG)
+  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg")
 endif ()
 
 list(APPEND CLAD_TEST_DEPS clad cladCustomModelPlugin cladPrintModelPlugin)
@@ -68,7 +68,7 @@ add_lit_testsuite(check-clad "Running the Clad regression tests"
   LIT ${LIT_COMMAND}
   PARAMS ${CLAD_TEST_PARAMS}
   DEPENDS ${CLAD_TEST_DEPS}
-  ARGS ${CLAD_TEST_EXTRA_ARGS} --verbose --succinct
+  ARGS ${CLAD_TEST_EXTRA_ARGS} --show-skipped --show-unsupported
   )
 set_target_properties(check-clad PROPERTIES FOLDER "Clad tests")
 
