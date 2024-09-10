@@ -624,14 +624,8 @@ namespace clad {
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {
-      if (!DVI.empty()) {
-        for (const auto& dParam : DVI)
-          m_ActivityRunInfo.ToBeRecorded.insert(cast<VarDecl>(dParam.param));
-      } else {
-        std::copy(Function->param_begin(), Function->param_end(),
-                  std::inserter(m_ActivityRunInfo.ToBeRecorded,
-                                m_ActivityRunInfo.ToBeRecorded.end()));
-      }
+      for (const auto& dParam : DVI)
+        m_ActivityRunInfo.ToBeRecorded.insert(cast<VarDecl>(dParam.param));
 
       VariedAnalyzer analyzer(Function->getASTContext(),
                               m_ActivityRunInfo.ToBeRecorded);

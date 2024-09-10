@@ -10,8 +10,6 @@ void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
   m_CFG = clang::CFG::buildCFG(FD, FD->getBody(), &m_Context, Options);
 
   m_BlockData.resize(m_CFG->size());
-  m_BlockPassCounter.resize(m_CFG->size(), 0);
-
   // Set current block ID to the ID of entry the block.
   CFGBlock* entry = &m_CFG->getEntry();
   m_CurBlockID = entry->getBlockID();
@@ -27,7 +25,7 @@ void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
     m_CurBlockID = *IDIter;
     m_CFGQueue.erase(IDIter);
     CFGBlock& nextBlock = *getCFGBlockByID(m_CurBlockID);
-    VisitCFGBlock(nextBlock);
+    AnalyzeCFGBlock(nextBlock);
   }
 }
 
@@ -35,11 +33,14 @@ CFGBlock* VariedAnalyzer::getCFGBlockByID(unsigned ID) {
   return *(m_CFG->begin() + ID);
 }
 
-void VariedAnalyzer::VisitCFGBlock(const CFGBlock& block) {
+void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
   // Visit all the statements inside the block.
   for (const clang::CFGElement& Element : block) {
     if (Element.getKind() == clang::CFGElement::Statement) {
       const clang::Stmt* S = Element.castAs<clang::CFGStmt>().getStmt();
+      // The const_cast is inevitable, since there is no
+      // ConstRecusiveASTVisitor.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       TraverseStmt(const_cast<clang::Stmt*>(S));
     }
   }
@@ -64,7 +65,7 @@ void VariedAnalyzer::VisitCFGBlock(const CFGBlock& block) {
     if (shouldPushSucc)
       m_CFGQueue.insert(succ->getBlockID());
 
-    merge(succData.get(), m_BlockData[block.getBlockID()].get());
+    mergeVarsData(succData.get(), m_BlockData[block.getBlockID()].get());
   }
   // FIXME: Information about the varied variables is stored in the last block,
   // so we should be able to get it form there
@@ -72,16 +73,9 @@ void VariedAnalyzer::VisitCFGBlock(const CFGBlock& block) {
     m_VariedDecls.insert(i);
 }
 
-bool VariedAnalyzer::isVaried(const VarDecl* VD) {
-  VarsData& curBranch = getCurBlockVarsData();
+bool VariedAnalyzer::isVaried(const VarDecl* VD) const {
+  const VarsData& curBranch = getCurBlockVarsData();
   return curBranch.find(VD) != curBranch.end();
-}
-
-void VariedAnalyzer::merge(VarsData* targetData, VarsData* mergeData) {
-  for (const VarDecl* i : *mergeData)
-    targetData->insert(i);
-  for (const VarDecl* i : *targetData)
-    mergeData->insert(i);
 }
 
 void VariedAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
@@ -134,16 +128,15 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
   for (Decl* D : DS->decls()) {
-    if (auto* VD = dyn_cast<VarDecl>(D)) {
-      if (Expr* init = VD->getInit()) {
-        m_Varied = false;
-        TraverseStmt(init);
-        m_Marking = true;
-        VarsData& curBranch = getCurBlockVarsData();
-        if (m_Varied && curBranch.find(VD) == curBranch.end())
-          copyVarToCurBlock(VD);
-        m_Marking = false;
-      }
+    if (!isa<VarDecl>(D))
+      continue;
+    if (Expr* init = cast<VarDecl>(D)->getInit()) {
+      m_Varied = false;
+      TraverseStmt(init);
+      m_Marking = true;
+      if (m_Varied)
+        copyVarToCurBlock(cast<VarDecl>(D));
+      m_Marking = false;
     }
   }
   return true;
@@ -160,8 +153,7 @@ bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
     m_Varied = true;
 
   if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    VarsData& curBranch = getCurBlockVarsData();
-    if (m_Varied && m_Marking && curBranch.find(VD) == curBranch.end())
+    if (m_Varied && m_Marking)
       copyVarToCurBlock(VD);
   }
   return true;

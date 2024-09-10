@@ -9,44 +9,56 @@
 
 #include <algorithm>
 #include <iterator>
+#include <memory>
 #include <set>
-#include <unordered_map>
 #include <utility>
-
-using namespace clang;
-
+/// Class that implemets Varied part of the Activity analysis.
+/// By performing static data-flow analysis, so called Varied variables
+/// are determined, meaning variables that depend on input parameters
+/// in a differentiable way. That result enables us to remove redundant
+/// statements in the reverse mode, improving generated codes efficiency.
 namespace clad {
+using VarsData = std::set<const clang::VarDecl*>;
+static inline void mergeVarsData(VarsData* targetData, VarsData* mergeData) {
+  for (const clang::VarDecl* i : *mergeData)
+    targetData->insert(i);
+  for (const clang::VarDecl* i : *targetData)
+    mergeData->insert(i);
+}
 class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
 
   bool m_Varied = false;
   bool m_Marking = false;
 
   std::set<const clang::VarDecl*>& m_VariedDecls;
-  using VarsData = std::set<const clang::VarDecl*>;
+  // using VarsData = std::set<const clang::VarDecl*>;
+  /// A helper method to allocate VarsData
+  /// \param toAssign - Parameter to initialize new VarsData with.
+  /// \return Unique pointer to a new object of type Varsdata.
   static std::unique_ptr<VarsData> createNewVarsData(VarsData toAssign) {
     return std::unique_ptr<VarsData>(new VarsData(std::move(toAssign)));
   }
-
   VarsData m_LoopMem;
+
   clang::CFGBlock* getCFGBlockByID(unsigned ID);
 
-  static void merge(VarsData* targetData, VarsData* mergeData);
-  ASTContext& m_Context;
+  clang::ASTContext& m_Context;
   std::unique_ptr<clang::CFG> m_CFG;
   std::vector<std::unique_ptr<VarsData>> m_BlockData;
-  std::vector<short> m_BlockPassCounter;
   unsigned m_CurBlockID{};
   std::set<unsigned> m_CFGQueue;
-
-  void addToVaried(const clang::VarDecl* VD);
-  bool isVaried(const clang::VarDecl* VD);
-
+  bool isVaried(const clang::VarDecl* VD) const;
   void copyVarToCurBlock(const clang::VarDecl* VD);
   VarsData& getCurBlockVarsData() { return *m_BlockData[m_CurBlockID]; }
+  [[nodiscard]] const VarsData& getCurBlockVarsData() const {
+    return const_cast<VariedAnalyzer*>(this)->getCurBlockVarsData();
+  }
+  void AnalyzeCFGBlock(const clang::CFGBlock& block);
 
 public:
   /// Constructor
-  VariedAnalyzer(ASTContext& Context, std::set<const clang::VarDecl*>& Decls)
+  VariedAnalyzer(clang::ASTContext& Context,
+                 std::set<const clang::VarDecl*>& Decls)
       : m_VariedDecls(Decls), m_Context(Context) {}
 
   /// Destructor
@@ -58,9 +70,9 @@ public:
   VariedAnalyzer(const VariedAnalyzer&&) = delete;
   VariedAnalyzer& operator=(const VariedAnalyzer&&) = delete;
 
-  /// Visitors
+  /// Runs Varied analysis.
+  /// \param FD Function to run the analysis on.
   void Analyze(const clang::FunctionDecl* FD);
-  void VisitCFGBlock(const clang::CFGBlock& block);
   bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
   bool VisitCallExpr(clang::CallExpr* CE);
   bool VisitConditionalOperator(clang::ConditionalOperator* CO);

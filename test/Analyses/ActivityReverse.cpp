@@ -193,6 +193,26 @@ double f5(double x){
 // CHECK-NEXT:     _d_g += 1;
 // CHECK-NEXT: }
 
+double f6(double x){
+    double a = 0;
+  if(0){
+    a=x;
+  }
+  return a;
+}
+
+// CHECK: void f6_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _t0;
+// CHECK-NEXT:     double a = 0;
+// CHECK-NEXT:     if (0) {
+// CHECK-NEXT:         _t0 = a;
+// CHECK-NEXT:         a = x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     if (0) {
+// CHECK-NEXT:         a = _t0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_aa>(F);\
@@ -207,6 +227,7 @@ int main(){
     TEST(f3, 3);// CHECK-EXEC: {0.00}
     TEST(f4, 3);// CHECK-EXEC: {4.00}
     TEST(f5, 3);// CHECK-EXEC: {0.00}
+    TEST(f6, 3);// CHECK-EXEC: {0.00}
 }
 
 // CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v) {
