@@ -208,23 +208,17 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
-        : m_Functor(functor), m_CUDAkernel(CUDAkernel) {
-      assert(f && "Must pass a non-0 argument.");
-      if (size_t length = GetLength(code)) {
-        m_Function = f;
-        char* temp = (char*)malloc(length + 1);
-        m_Code = temp;
-        while ((*temp++ = *code++));
-      } else {
-        // clad did not place the derivative in this object. This can happen
-        // upon error of if clad was disabled. Diagnose.
-        printf("clad failed to place the generated derivative in the object\n");
-        printf("Make sure calls to clad are within a #pragma clad ON region\n");
+        : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+#ifndef __CLAD_SO_LOADED
+      static_assert(false, "clad doesn't appear to be loaded; make sure that "
+                           "you pass clad.so to clang.");
+#endif
 
-        // Invalidate the placeholders.
-        m_Function = nullptr;
-        m_Code = nullptr;
-      }
+      size_t length = GetLength(code);
+      char* temp = (char*)malloc(length + 1);
+      m_Code = temp;
+      while ((*temp++ = *code++))
+        ;
     }
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
