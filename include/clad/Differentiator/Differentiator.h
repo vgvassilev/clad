@@ -589,7 +589,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
 
   // Gradient Structure for Reverse Mode Enzyme
   template <unsigned N> struct EnzymeGradient { double d_arr[N]; };
-  }    // namespace clad
+  } // namespace clad
 #endif // CLAD_DIFFERENTIATOR
 
 // Enable clad after the header was included.
