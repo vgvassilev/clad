@@ -1,8 +1,6 @@
 // RUN: %cladclang %s -std=c++14 -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
 

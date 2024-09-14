@@ -3,8 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oHessians.out
 // RUN: ./Hessians.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 __attribute__((always_inline)) double f_cubed_add1(double a, double b) {

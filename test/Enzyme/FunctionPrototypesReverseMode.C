@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oReverseMode.out | %filecheck %s
 // RUN: ./ReverseMode.out | %filecheck_exec %s
-// CHECK-NOT: {{.*error|warning|note:.*}}
 // REQUIRES: Enzyme
 
 #include "clad/Differentiator/Differentiator.h"

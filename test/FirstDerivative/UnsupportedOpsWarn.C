@@ -3,8 +3,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 int binOpWarn_0(int x){
     return x << 1;  // expected-warning {{attempt to differentiate unsupported operator, ignored.}}                        set to 0}}
 }

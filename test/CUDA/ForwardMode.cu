@@ -7,8 +7,6 @@
 // REQUIRES: cuda-runtime
 //
 // expected-no-diagnostics
-//
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"

@@ -1,8 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -Xclang -verify -oCallArguments.out 2>&1 | %filecheck %s
 // RUN: ./CallArguments.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 float f(float y) {

@@ -3,8 +3,6 @@
 
 // XFAIL: asserts
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
 

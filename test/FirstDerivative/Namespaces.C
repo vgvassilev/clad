@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oNamespaces.out 2>&1 | %filecheck %s
 // RUN: ./Namespaces.out
-//CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

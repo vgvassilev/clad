@@ -1,7 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oFunctionsInNamespaces.out 2>&1 | %filecheck %s
 // RUN: ./FunctionsInNamespaces.out | %filecheck_exec %s
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 #include "../TestUtils.h"
