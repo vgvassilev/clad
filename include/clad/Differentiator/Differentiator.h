@@ -145,9 +145,9 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     if (CUDAkernel) {
       void* argPtrs[] = {(void*)&args...};
       cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
-    } else {
-      return f(static_cast<Args>(args)...);
+      return return_type_t<F>();
     }
+    return f(static_cast<Args>(args)...);
 #else
     return f(static_cast<Args>(args)...);
 #endif
