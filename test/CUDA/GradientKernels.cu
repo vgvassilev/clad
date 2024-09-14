@@ -1,16 +1,17 @@
-// RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only \
-// RUN: %cudasmlevel --cuda-path=%cudapath  -Xclang -verify 2>&1 | %filecheck %s
-
-// RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
-// RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
-// RUN: -L%cudapath/lib64/stubs \
-// RUN: -ldl -lrt -pthread -lm -lstdc++ -lcuda -lnvrtc
-
+// RUN: %cladclang_cuda -I%S/../../include -fsyntax-only \
+// RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath  -Xclang -verify \
+// RUN:     %s 2>&1 | %filecheck %s
+//
+// RUN: %cladclang_cuda -I%S/../../include --cuda-path=%cudapath \
+// RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oGradientKernels.out %s
+//
+// RUN: ./GradientKernels.out | %filecheck_exec %s
+//
 // REQUIRES: cuda-runtime
-
+//
 // expected-no-diagnostics
-
-// XFAIL: clang-15
+//
+// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 

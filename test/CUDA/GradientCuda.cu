@@ -1,18 +1,20 @@
 // The Test checks whether a clad gradient can be successfully be generated on
 // the device having all the dependencies also as device functions.
 
-// RUN: %cladclang_cuda -I%S/../../include  %s -fsyntax-only \
-// RUN: %cudasmlevel --cuda-path=%cudapath  -Xclang -verify 2>&1 | %filecheck %s
-
-// RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
-// RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
-// RUN: -ldl -lrt -pthread -lm -lstdc++
-
+// RUN: %cladclang_cuda -I%S/../../include -fsyntax-only \
+// RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath -Xclang -verify \
+// RUN:     %s 2>&1 | %filecheck %s
+//
+// RUN: %cladclang_cuda -I%S/../../include --cuda-gpu-arch=%cudaarch \
+// RUN:      --cuda-path=%cudapath %cudaldflags -oGradientCuda.out %s
+//
+// RUN: ./GradientCuda.out | %filecheck_exec %s
+//
 // REQUIRES: cuda-runtime
-
+//
 // expected-no-diagnostics
-
-// XFAIL: clang-15
+//
+// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <array>
@@ -28,7 +30,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 }
 
 
-// CHECK:    void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) __attribute__((device)) __attribute__((host)) {
+// CHECK: __attribute__((device)) __attribute__((host)) void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) {
 //CHECK-NEXT:     double _d_sigma = 0.;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     int _d_i = 0;
@@ -116,7 +118,7 @@ int main(void) {
   cudaDeviceSynchronize();
 
   cudaMemcpy(result.data(), d_result, N * sizeof(double), cudaMemcpyDeviceToHost);
-  printf("%f,%f,%f\n", result[0], result[1], result[2]);
+  printf("%f,%f,%f\n", result[0], result[1], result[2]); // CHECK-EXEC: 0.007714,0.007714,0.007714
 
   std::array<double, N> result_cpu{0};
   auto gauss_g = clad::gradient(gauss, "p");
