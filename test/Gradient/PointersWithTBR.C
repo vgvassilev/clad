@@ -1,7 +1,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointersWithTBR.out
 // RUN: ./PointersWithTBR.out | %filecheck_exec %s
 // XFAIL: *
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 // FIXME: This is currently marked XFAIL because of lack of pointer support in
 // TBR analysis. Once TBR supports pointers, this test should be enabled

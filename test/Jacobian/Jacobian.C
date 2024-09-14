@@ -3,8 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oJacobian.out
 // RUN: ./Jacobian.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>
 

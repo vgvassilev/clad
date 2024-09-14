@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oEnzyme.out 2>&1 | %filecheck %s
 // RUN: ./Enzyme.out
-// CHECK-NOT: {{.*error|warning|note:.*}}
 // REQUIRES: Enzyme
 // XFAIL:*
 // Forward mode is not implemented yet

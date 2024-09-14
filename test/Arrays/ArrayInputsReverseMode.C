@@ -3,8 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -Wno-unused-value -oArrayInputsReverseMode.out
 // RUN: ./ArrayInputsReverseMode.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 double addArr(const double *arr, int n) {

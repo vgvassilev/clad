@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include 2>&1 -fsyntax-only | %filecheck %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 // f(x) = | +x*x, x >= 0

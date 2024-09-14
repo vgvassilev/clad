@@ -2,8 +2,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 double addArr(double *arr) {
   return arr[0] + arr[1] + arr[2] + arr[3];
 }

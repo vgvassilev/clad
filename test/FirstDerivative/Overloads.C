@@ -1,7 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oOverloads.out 2>&1 | %filecheck %s
 // RUN: ./Overloads.out | %filecheck_exec %s
 // XFAIL: asserts
-//CHECK-NOT: {{.*error|warning|note:.*}}
 // XFAIL: target={{i586.*}}
 
 #include "clad/Differentiator/Differentiator.h"

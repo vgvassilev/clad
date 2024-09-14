@@ -3,8 +3,6 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oGradientMultiArg.out -Xclang -verify
 // RUN: ./GradientMultiArg.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 #include <cmath>
@@ -12,7 +10,7 @@
 
 double test_1(double x, double y){
   return std::hypot(x, y); // expected-warning {{function 'hypot' was not differentiated}}
-  // expected-note@14 {{falling back to numerical differentiation}}
+  // expected-note@12 {{falling back to numerical differentiation}}
 }
 // CHECK: void test_1_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     {

@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oTapeMemory.out 2>&1
 // RUN: ./TapeMemory.out
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 

@@ -3,7 +3,6 @@
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
 // RUN: ./STLCustomDerivativesWithTBR.out | %filecheck_exec %s
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include "clad/Differentiator/STLBuiltins.h"
@@ -660,4 +659,3 @@ int main() {
 // CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t0, 1, 0., &_d_a, &_r0);
 // CHECK-NEXT:         }
 // CHECK-NEXT:     }
-

@@ -1,7 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oVirtualMethodsCall.out 2>&1 | %filecheck %s
 // RUN: ./VirtualMethodsCall.out | %filecheck_exec %s
 // XFAIL: asserts
-//CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 

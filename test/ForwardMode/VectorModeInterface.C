@@ -2,8 +2,6 @@
 
 // XFAIL: asserts
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 double f1(double x, double y) {

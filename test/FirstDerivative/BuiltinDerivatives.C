@@ -3,8 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -Xclang -verify -oBuiltinDerivatives.out
 // RUN: ./BuiltinDerivatives.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
 extern "C" int printf(const char* fmt, ...);

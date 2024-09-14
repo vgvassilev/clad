@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oNonDifferentiable.out 2>&1 | %filecheck %s
 // RUN: ./NonDifferentiable.out | %filecheck_exec %s
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #define non_differentiable __attribute__((annotate("another_attribute"), annotate("non_differentiable")))
 
