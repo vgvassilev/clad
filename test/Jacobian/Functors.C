@@ -17,19 +17,28 @@ struct Experiment {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
+  // CHECK-NEXT:     double _t0 = output[0];
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     double _t1 = output[1];
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * j * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t1;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * i * i * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * i * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t0;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
+
 };
 
 struct ExperimentConst {
@@ -44,19 +53,28 @@ struct ExperimentConst {
   }
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
+  // CHECK-NEXT:     double _t0 = output[0];
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     double _t1 = output[1];
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * j * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t1;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * i * i * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * i * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t0;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
+
 };
 
 struct ExperimentVolatile {
@@ -72,20 +90,29 @@ struct ExperimentVolatile {
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) volatile {
   // CHECK-NEXT:     double _t0 = this->x * i;
+  // CHECK-NEXT:     double _t1 = output[0];
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     double _t1 = this->y * i;
+  // CHECK-NEXT:     double _t2 = this->y * i;
+  // CHECK-NEXT:     double _t3 = output[1];
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += _t1 * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += _t1 * j * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += _t2 * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += _t2 * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t3;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += _t0 * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += _t0 * i * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += _t0 * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += _t0 * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
+
 };
 
 struct ExperimentConstVolatile {
@@ -101,20 +128,29 @@ struct ExperimentConstVolatile {
 
   // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const volatile {
   // CHECK-NEXT:     double _t0 = this->x * i;
+  // CHECK-NEXT:     double _t1 = output[0];
   // CHECK-NEXT:     output[0] = this->x * i * i * j;
-  // CHECK-NEXT:     double _t1 = this->y * i;
+  // CHECK-NEXT:     double _t2 = this->y * i;
+  // CHECK-NEXT:     double _t3 = output[1];
   // CHECK-NEXT:     output[1] = this->y * i * j * j;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += _t1 * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += _t1 * j * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += _t2 * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += _t2 * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t3;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += _t0 * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += _t0 * i * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += _t0 * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += _t0 * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t1;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
+
 };
 
 namespace outer {
@@ -130,20 +166,29 @@ namespace outer {
         x = val;
       }
       
-      // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
-      // CHECK-NEXT:     output[0] = this->x * i * i * j;
-      // CHECK-NEXT:     output[1] = this->y * i * j * j;
-      // CHECK-NEXT:     {
-      // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
-      // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * 1 * j;
-      // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * j * 1;
-      // CHECK-NEXT:     }
-      // CHECK-NEXT:     {
-      // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
-      // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * i * 1 * j;
-      // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * i * i * 1;
-      // CHECK-NEXT:     }
-      // CHECK-NEXT: }
+  // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
+  // CHECK-NEXT:     double _t0 = output[0];
+  // CHECK-NEXT:     output[0] = this->x * i * i * j;
+  // CHECK-NEXT:     double _t1 = output[1];
+  // CHECK-NEXT:     output[1] = this->y * i * j * j;
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += this->y * 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += this->y * i * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * i * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t0;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
     };
 
     auto lambdaNNS = [](double i, double j, double *output) {
@@ -151,20 +196,29 @@ namespace outer {
       output[1] = i*j*j;
     };
 
-    // CHECK: inline void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
-    // CHECK-NEXT:     output[0] = i * i * j;
-    // CHECK-NEXT:     output[1] = i * j * j;
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 1 * j * j;
-    // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += i * 1 * j;
-    // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += i * j * 1;
-    // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * j * i;
-    // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += i * 1 * j;
-    // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += i * i * 1;
-    // CHECK-NEXT:     }
-    // CHECK-NEXT: }
+  // CHECK: inline void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
+  // CHECK-NEXT:     double _t0 = output[0];
+  // CHECK-NEXT:     output[0] = i * i * j;
+  // CHECK-NEXT:     double _t1 = output[1];
+  // CHECK-NEXT:     output[1] = i * j * j;
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += i * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += i * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t0;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
   }
 }
 
@@ -201,17 +255,25 @@ int main() {
   };
 
   // CHECK: inline void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) const {
+  // CHECK-NEXT:     double _t0 = output[0];
   // CHECK-NEXT:     output[0] = i * i * j;
+  // CHECK-NEXT:     double _t1 = output[1];
   // CHECK-NEXT:     output[1] = i * j * j;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 1 * j * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += i * j * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 1 * j * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += i * j * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[1] = _t1;
   // CHECK-NEXT:     }
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * j * i;
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += i * 1 * j;
-  // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += i * i * 1;
+  // CHECK-NEXT:         {
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += 1 * j * i;
+  // CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += i * 1 * j;
+  // CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += i * i * 1;
+  // CHECK-NEXT:         }
+  // CHECK-NEXT:         output[0] = _t0;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
@@ -220,20 +282,28 @@ int main() {
     output[1] = y*i*jj*jj;
   };
 
-  // CHECK: inline void operator_call_jac(double i, double jj, double *output, double *jacobianMatrix) const {
-  // CHECK-NEXT:     output[0] = x * i * i * jj;
-  // CHECK-NEXT:     output[1] = y * i * jj * jj;
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += y * 1 * jj * jj;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += y * i * 1 * jj;
-  // CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += y * i * jj * 1;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += x * 1 * jj * i;
-  // CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += x * i * 1 * jj;
-  // CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += x * i * i * 1;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT: }
+// CHECK: inline void operator_call_jac(double i, double jj, double *output, double *jacobianMatrix) const {
+// CHECK-NEXT:     double _t0 = output[0];
+// CHECK-NEXT:     output[0] = x * i * i * jj;
+// CHECK-NEXT:     double _t1 = output[1];
+// CHECK-NEXT:     output[1] = y * i * jj * jj;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += y * 1 * jj * jj;
+// CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += y * i * 1 * jj;
+// CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += y * i * jj * 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         output[1] = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += x * 1 * jj * i;
+// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += x * i * 1 * jj;
+// CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += x * i * i * 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         output[0] = _t0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
   auto lambdaNNS = outer::inner::lambdaNNS;
 
@@ -277,3 +347,4 @@ int main() {
   TEST(E_NNS_Again);        // CHECK-EXEC: {756.00, 294.00, 405.00, 630.00}, {756.00, 294.00, 405.00, 630.00}
   TEST(lambdaWithCapture);  // CHECK-EXEC: {756.00, 294.00, 405.00, 630.00}, {756.00, 294.00, 405.00, 630.00}
 }
+
