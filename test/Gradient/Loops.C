@@ -3142,6 +3142,123 @@ double fn39(double x) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double fn40(double u, double v) {
+    double res = 11 * u;
+    for (int i = 0; i < 3; i++) {
+        res += u * i;
+        continue;
+    }
+    return res;
+}
+
+// CHECK: void fn40_grad(double u, double v, double *_d_u, double *_d_v) {
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:    clad::tape<unsigned long> _t2 = {};
+//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double res = 11 * u;
+//CHECK-NEXT:    unsigned long _t0 = 0UL;
+//CHECK-NEXT:    for (i = 0; ; i++) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!(i < 3))
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        clad::push(_t1, res);
+//CHECK-NEXT:        res += u * i;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            clad::push(_t2, 1UL);
+//CHECK-NEXT:            continue;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        clad::push(_t2, 2UL);
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_res += 1;
+//CHECK-NEXT:    for (;; _t0--) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!_t0)
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        i--;
+//CHECK-NEXT:        switch (clad::pop(_t2)) {
+//CHECK-NEXT:          case 2UL:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:          case 1UL:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:            {
+//CHECK-NEXT:                res = clad::pop(_t1);
+//CHECK-NEXT:                double _r_d0 = _d_res;
+//CHECK-NEXT:                *_d_u += _r_d0 * i;
+//CHECK-NEXT:                _d_i += u * _r_d0;
+//CHECK-NEXT:            }
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    *_d_u += 11 * _d_res;
+//CHECK-NEXT:}
+
+double fn41(double u, double v) {
+    double res = 0;
+    for (int i = 1; i < 3; i++) {
+        res += i * u;
+        if (i == 1)
+            break;
+    }
+    return res;
+}
+
+//CHECK: void fn41_grad(double u, double v, double *_d_u, double *_d_v) {
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:    clad::tape<bool> _cond0 = {};
+//CHECK-NEXT:    clad::tape<unsigned long> _t2 = {};
+//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    unsigned long _t0 = 0UL;
+//CHECK-NEXT:    for (i = 1; ; i++) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!(i < 3))
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        clad::push(_t1, res);
+//CHECK-NEXT:        res += i * u;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            clad::push(_cond0, i == 1);
+//CHECK-NEXT:            if (clad::back(_cond0)) {
+//CHECK-NEXT:                clad::push(_t2, 1UL);
+//CHECK-NEXT:                break;
+//CHECK-NEXT:           }
+//CHECK-NEXT:        }
+//CHECK-NEXT:        clad::push(_t2, 2UL);
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_res += 1;
+//CHECK-NEXT:    for (;; _t0--) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!_t0)
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        if (clad::size(_t2) != 0 && clad::back(_t2) != 1)
+//CHECK-NEXT:            i--;
+//CHECK-NEXT:        switch (clad::pop(_t2)) {
+//CHECK-NEXT:          case 2UL:
+//CHECK-NEXT:            ;
+//CHECK-NEXT:            {
+//CHECK-NEXT:                if (clad::back(_cond0))
+//CHECK-NEXT:                  case 1UL:
+//CHECK-NEXT:                    ;
+//CHECK-NEXT:                clad::pop(_cond0);
+//CHECK-NEXT:            }
+//CHECK-NEXT:            {
+//CHECK-NEXT:                res = clad::pop(_t1);
+//CHECK-NEXT:                double _r_d0 = _d_res;
+//CHECK-NEXT:                _d_i += _r_d0 * u;
+//CHECK-NEXT:                *_d_u += i * _r_d0;
+//CHECK-NEXT:            }
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient(F);\
@@ -3232,6 +3349,8 @@ int main() {
   TEST_2(fn37, 1, 1); // CHECK-EXEC: {1.00, 1.00}
   TEST_2(fn38, 6, 3); // CHECK-EXEC: {1.00, 1.00}
   TEST(fn39, 9); // CHECK-EXEC: {6.00}
+  TEST_2(fn40, 2, 3); // CHECK-EXEC: {14.00, 0.00}
+  TEST_2(fn41, 2, 3); // CHECK-EXEC: {1.00, 0.00}
 }
 
 //CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
