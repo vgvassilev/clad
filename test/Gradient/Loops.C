@@ -3159,7 +3159,7 @@ double fn40(double u, double v) {
 //CHECK-NEXT:    clad::tape<unsigned long> _t2 = {};
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 11 * u;
-//CHECK-NEXT:    unsigned long _t0 = 0UL;
+//CHECK-NEXT:    unsigned long _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (i = 0; ; i++) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            if (!(i < 3))
@@ -3169,10 +3169,10 @@ double fn40(double u, double v) {
 //CHECK-NEXT:        clad::push(_t1, res);
 //CHECK-NEXT:        res += u * i;
 //CHECK-NEXT:        {
-//CHECK-NEXT:            clad::push(_t2, 1UL);
+//CHECK-NEXT:            clad::push(_t2, {{1U|1UL}});
 //CHECK-NEXT:            continue;
 //CHECK-NEXT:        }
-//CHECK-NEXT:        clad::push(_t2, 2UL);
+//CHECK-NEXT:        clad::push(_t2, {{2U|2UL}});
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_res += 1;
 //CHECK-NEXT:    for (;; _t0--) {
@@ -3182,9 +3182,9 @@ double fn40(double u, double v) {
 //CHECK-NEXT:        }
 //CHECK-NEXT:        i--;
 //CHECK-NEXT:        switch (clad::pop(_t2)) {
-//CHECK-NEXT:          case 2UL:
+//CHECK-NEXT:          case {{2U|2UL}}:
 //CHECK-NEXT:            ;
-//CHECK-NEXT:          case 1UL:
+//CHECK-NEXT:          case {{1U|1UL}}:
 //CHECK-NEXT:            ;
 //CHECK-NEXT:            {
 //CHECK-NEXT:                res = clad::pop(_t1);
@@ -3215,7 +3215,7 @@ double fn41(double u, double v) {
 //CHECK-NEXT:    clad::tape<unsigned long> _t2 = {};
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 0;
-//CHECK-NEXT:    unsigned long _t0 = 0UL;
+//CHECK-NEXT:    unsigned long _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (i = 1; ; i++) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            if (!(i < 3))
@@ -3227,11 +3227,11 @@ double fn41(double u, double v) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            clad::push(_cond0, i == 1);
 //CHECK-NEXT:            if (clad::back(_cond0)) {
-//CHECK-NEXT:                clad::push(_t2, 1UL);
+//CHECK-NEXT:                clad::push(_t2, {{1U|1UL}});
 //CHECK-NEXT:                break;
 //CHECK-NEXT:           }
 //CHECK-NEXT:        }
-//CHECK-NEXT:        clad::push(_t2, 2UL);
+//CHECK-NEXT:        clad::push(_t2, {{2U|2UL}});
 //CHECK-NEXT:    }
 //CHECK-NEXT:    _d_res += 1;
 //CHECK-NEXT:    for (;; _t0--) {
@@ -3242,11 +3242,11 @@ double fn41(double u, double v) {
 //CHECK-NEXT:        if (clad::size(_t2) != 0 && clad::back(_t2) != 1)
 //CHECK-NEXT:            i--;
 //CHECK-NEXT:        switch (clad::pop(_t2)) {
-//CHECK-NEXT:          case 2UL:
+//CHECK-NEXT:          case {{2U|2UL}}:
 //CHECK-NEXT:            ;
 //CHECK-NEXT:            {
 //CHECK-NEXT:                if (clad::back(_cond0))
-//CHECK-NEXT:                  case 1UL:
+//CHECK-NEXT:                  case {{1U|1UL}}:
 //CHECK-NEXT:                    ;
 //CHECK-NEXT:                clad::pop(_cond0);
 //CHECK-NEXT:            }
