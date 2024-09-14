@@ -3155,10 +3155,10 @@ double fn40(double u, double v) {
 //CHECK-NEXT:    int _d_i = 0;
 //CHECK-NEXT:    int i = 0;
 //CHECK-NEXT:    clad::tape<double> _t1 = {};
-//CHECK-NEXT:    clad::tape<unsigned long> _t2 = {};
+//CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t2 = {};
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 11 * u;
-//CHECK-NEXT:    unsigned long _t0 = {{0U|0UL}};
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (i = 0; ; i++) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            if (!(i < 3))
@@ -3211,10 +3211,10 @@ double fn41(double u, double v) {
 //CHECK-NEXT:    int i = 0;
 //CHECK-NEXT:    clad::tape<double> _t1 = {};
 //CHECK-NEXT:    clad::tape<bool> _cond0 = {};
-//CHECK-NEXT:    clad::tape<unsigned long> _t2 = {};
+//CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t2 = {};
 //CHECK-NEXT:    double _d_res = 0.;
 //CHECK-NEXT:    double res = 0;
-//CHECK-NEXT:    unsigned long _t0 = {{0U|0UL}};
+//CHECK-NEXT:    unsigned {{int|long}} _t0 = {{0U|0UL}};
 //CHECK-NEXT:    for (i = 1; ; i++) {
 //CHECK-NEXT:        {
 //CHECK-NEXT:            if (!(i < 3))
