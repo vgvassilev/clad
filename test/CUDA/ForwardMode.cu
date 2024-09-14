@@ -1,12 +1,14 @@
-// RUN: %cladclang_cuda -I%S/../../include %s -xc++ %cudasmlevel \
-// RUN: --cuda-path=%cudapath -L/usr/local/cuda/lib64 -lcudart_static \
-// RUN: -ldl -lrt -pthread -lm -lstdc++ -oForwardMode.out 2>&1 | %filecheck %s
-
-// RUN: ./ForwardMode.out
-
+// RUN: %cladclang_cuda -I%S/../../include --cuda-path=%cudapath \
+// RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oForwardMode.out \
+// RUN:     -Xclang -verify %s 2>&1 | %filecheck %s
+//
+// RUN: ./ForwardMode.out | %filecheck_exec %s
+//
 // REQUIRES: cuda-runtime
-
+//
 // expected-no-diagnostics
+//
+// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include "../TestUtils.h"
@@ -17,7 +19,7 @@ __global__ void add(double *a, double *b, double *c, int n) {
     c[idx] = a[idx] + b[idx];
 }
 
-// CHECK: void add_pushforward(double *a, double *b, double *c, int n, double *_d_a, double *_d_b, double *_d_c, int _d_n) __attribute__((global)) {
+// CHECK:  __attribute__((global)) void add_pushforward(double *a, double *b, double *c, int n, double *_d_a, double *_d_b, double *_d_c, int _d_n) {
 // CHECK-NEXT:     int _d_idx = 0;
 // CHECK-NEXT:     int idx = threadIdx.x;
 // CHECK-NEXT:     if (idx < n) {
