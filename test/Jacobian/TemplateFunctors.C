@@ -16,15 +16,23 @@ template <typename T> struct Experiment {
 };
 
 // CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
+// CHECK-NEXT:     double _t0 = output[0];
 // CHECK-NEXT:     output[0] = this->x * this->y * i * j;
+// CHECK-NEXT:     double _t1 = output[1];
 // CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * 1;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j;
+// CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         output[1] = _t1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * 1;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j;
+// CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         output[0] = _t0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -39,17 +47,25 @@ template <> struct Experiment<long double> {
 };
 
 // CHECK: void operator_call_jac(long double i, long double j, long double *output, long double *jacobianMatrix) {
+// CHECK-NEXT:     long double _t0 = output[0];
 // CHECK-NEXT:     output[0] = this->x * this->y * i * i * j;
+// CHECK-NEXT:     long double _t1 = output[1];
 // CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * i * j;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j * i;
-// CHECK-NEXT:         jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * i * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * i * 1;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j * i;
+// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * i * 1 * j;
+// CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * i * 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         output[1] = _t1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j * i;
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * i * 1 * j;
-// CHECK-NEXT:         jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * i * 1;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j * i;
+// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * i * 1 * j;
+// CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * i * 1;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         output[0] = _t0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -99,3 +115,4 @@ int main() {
   TEST_DOUBLE(E, 7, 9);           // CHECK-EXEC: {225.00, 175.00, 450.00, 350.00} {225.00, 175.00, 450.00, 350.00}
   TEST_LONG_DOUBLE(E_ld, 7, 9);   // CHECK-EXEC: {3150.00, 1225.00, 6300.00, 2450.00} {3150.00, 1225.00, 6300.00, 2450.00}
 }
+

@@ -11,12 +11,19 @@ void nonMemFn(double i, double j, double* out) {
 }
 
 // CHECK: void nonMemFn_jac(double i, double j, double *out, double *jacobianMatrix) {
+// CHECK-NEXT:     double _t0 = out[0];
 // CHECK-NEXT:     out[0] = i;
+// CHECK-NEXT:     double _t1 = out[1];
 // CHECK-NEXT:     out[1] = j;
-// CHECK-NEXT:     jacobianMatrix[{{3U|3UL|3ULL}}] += 1;
-// CHECK-NEXT:     jacobianMatrix[{{0U|0UL|0ULL}}] += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += 1;
+// CHECK-NEXT:         out[1] = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += 1;
+// CHECK-NEXT:         out[0] = _t0;
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
-
 
 #define NON_MEM_FN_TEST(var)\
 res[0]=res[1]=res[2]=res[3]=0;\
@@ -45,3 +52,4 @@ int main() {
 
   NON_MEM_FN_TEST(d_nonMemFnPtrToPtrPar); // CHECK-EXEC: {1.00 0.00 0.00 1.00}
 }
+

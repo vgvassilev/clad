@@ -2518,8 +2518,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // For x, ResultRef is _d_x, for x[i] its _d_x[i], for reference exprs
       // like (x = y) it propagates recursively, so _d_x is also returned.
       ResultRef = Ldiff.getExpr_dx();
-      if (!ResultRef)
-        return Clone(BinOp);
       // If assigned expr is dependent, first update its derivative;
       if (dfdx() && !Lblock.empty()) {
         addToCurrentBlock(*Lblock.begin(), direction::reverse);
@@ -2534,6 +2532,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
       }
 
+      if (!ResultRef)
+        return Clone(BinOp);
       // We need to store values of derivative pointer variables in forward pass
       // and restore them in reverse pass.
       if (isPointerOp) {
