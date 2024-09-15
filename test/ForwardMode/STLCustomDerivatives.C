@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -std=c++14 -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivatives.out | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
@@ -7,6 +7,7 @@
 #include <array>
 #include <vector>
 #include <map>
+#include <tuple>
 
 #include "../TestUtils.h"
 #include "../PrintOverloads.h"
@@ -181,6 +182,33 @@ double fnArr2(double x) {
 //CHECK-NEXT:         return (_t0.pushforward * _t3 + _t2 * _t1.pushforward) * _t6 + _t5 * _t4.pushforward;
 //CHECK-NEXT:     }
 
+auto pack(double x) {
+    return std::make_tuple(x, 2*x, 3*x);
+}
+
+double fnTuple1(double x, double y) { 
+    double u, v = 288*x, w;
+
+    std::tie(u, v, w) = pack(x+y);
+
+    return v;
+} // = 2x + 2y
+
+//CHECK:      double fnTuple1_darg0(double x, double y) {
+//CHECK-NEXT:          double _d_x = 1;
+//CHECK-NEXT:          double _d_y = 0;
+//CHECK-NEXT:          double _d_u, _d_v = 0 * x + 288 * _d_x, _d_w;
+//CHECK-NEXT:          double u, v = 288 * x, w;
+//CHECK-NEXT:          clad::ValueAndPushforward<tuple<double &, double &, double &>, tuple<double &, double &, double &> > _t0 = clad::custom_derivatives::std::tie_pushforward(u, v, w, _d_u, _d_v, _d_w);
+//CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t1 = pack_pushforward(x + y, _d_x + _d_y);
+//CHECK-NEXT:          clad::ValueAndPushforward<{{.*}}> _t2 = clad::custom_derivatives::class_functions::operator_equal_pushforward(&_t0.value, static_cast<std::tuple<double, double, double> &&>(_t1.value), &_t0.pushforward, static_cast<std::tuple<double, double, double> &&>(_t1.pushforward));
+//CHECK-NEXT:          return _d_v;
+//CHECK-NEXT:      }
+//CHECK:      clad::ValueAndPushforward<{{.*}}> pack_pushforward({{.*}}) {
+//CHECK-NEXT:          clad::ValueAndPushforward<tuple<double, double, double>, tuple<double, double, double> > _t0 = clad::custom_derivatives::std::make_tuple_pushforward(x, 2 * x, 3 * x, _d_x, 0 * x + 2 * _d_x, 0 * x + 3 * _d_x);
+//CHECK-NEXT:          return {_t0.value, _t0.pushforward};
+//CHECK-NEXT:      }
+
 int main() {
     INIT_DIFFERENTIATE(fnVec1, "u");
     INIT_DIFFERENTIATE(fnVec2, "u");
@@ -188,6 +216,7 @@ int main() {
     INIT_DIFFERENTIATE(fnVec4, "u");
     INIT_DIFFERENTIATE(fnArr1, "x");
     INIT_DIFFERENTIATE(fnArr2, "x");
+    INIT_DIFFERENTIATE(fnTuple1, "x");
 
     TEST_DIFFERENTIATE(fnVec1, 3, 5); // CHECK-EXEC: {10.00}
     TEST_DIFFERENTIATE(fnVec2, 3, 5); // CHECK-EXEC: {5.00}
@@ -195,4 +224,5 @@ int main() {
     TEST_DIFFERENTIATE(fnVec4, 3, 5); // CHECK-EXEC: {30.00}
     TEST_DIFFERENTIATE(fnArr1, 3); // CHECK-EXEC: {3.00}
     TEST_DIFFERENTIATE(fnArr2, 3); // CHECK-EXEC: {108.00}
+    TEST_DIFFERENTIATE(fnTuple1, 3, 4); // CHECK-EXEC: {2.00}
 }
