@@ -1,8 +1,11 @@
 #ifndef CLAD_STL_BUILTINS_H
 #define CLAD_STL_BUILTINS_H
 
+#include <array>
 #include <clad/Differentiator/BuiltinDerivatives.h>
+#include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
+#include <tuple>
 #include <vector>
 
 namespace clad {
@@ -338,7 +341,85 @@ void constructor_pullback(::std::array<T, N>* a, const ::std::array<T, N>& arr,
     (*d_arr)[i] += (*d_a)[i];
 }
 
+template <typename... Args1, typename... Args2>
+clad::ValueAndPushforward<::std::tuple<Args1...>, ::std::tuple<Args1...>>
+operator_equal_pushforward(::std::tuple<Args1...>* tu,
+                           ::std::tuple<Args2...>&& in,
+                           ::std::tuple<Args1...>* d_tu,
+                           ::std::tuple<Args2...>&& d_in) noexcept {
+  ::std::tuple<Args1...> t1 = (*tu = in);
+  ::std::tuple<Args1...> t2 = (*d_tu = d_in);
+  return {t1, t2};
+}
+
 } // namespace class_functions
+
+namespace std {
+
+// Helper functions for selecting subtuples
+template <::std::size_t shift_amount, ::std::size_t... Is>
+constexpr auto shift_sequence(IndexSequence<Is...>) {
+  return IndexSequence<shift_amount + Is...>{};
+}
+
+template <typename Tuple, ::std::size_t... Indices>
+auto select_tuple_elements(const Tuple& tpl, IndexSequence<Indices...>) {
+  return ::std::make_tuple(::std::get<Indices>(tpl)...);
+}
+
+template <typename Tuple> auto first_half_tuple(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  return select_tuple_elements(tpl, first_half);
+}
+
+template <typename Tuple> auto second_half_tuple(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  constexpr auto second_half = shift_sequence<half>(first_half);
+  return select_tuple_elements(tpl, second_half);
+}
+
+template <typename Tuple, ::std::size_t... Indices>
+auto select_tuple_elements_tie(const Tuple& tpl, IndexSequence<Indices...>) {
+  return ::std::tie(::std::get<Indices>(tpl)...);
+}
+
+template <typename Tuple> auto first_half_tuple_tie(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  return select_tuple_elements_tie(tpl, first_half);
+}
+
+template <typename Tuple> auto second_half_tuple_tie(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  constexpr auto second_half = shift_sequence<half>(first_half);
+  return select_tuple_elements_tie(tpl, second_half);
+}
+
+template <typename... Args> auto tie_pushforward(Args&&... args) noexcept {
+  ::std::tuple<Args&...> t = ::std::tie(args...);
+  return clad::make_value_and_pushforward(first_half_tuple_tie(t),
+                                          second_half_tuple_tie(t));
+}
+
+template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
+  ::std::tuple<Args...> t = ::std::make_tuple(args...);
+  return clad::make_value_and_pushforward(first_half_tuple(t),
+                                          second_half_tuple(t));
+}
+
+} // namespace std
+
 } // namespace custom_derivatives
 } // namespace clad
 

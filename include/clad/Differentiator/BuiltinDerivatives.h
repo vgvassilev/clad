@@ -30,6 +30,11 @@ template <typename T, typename U> struct ValueAndPushforward {
   }
 };
 
+template <typename T, typename U>
+ValueAndPushforward<T, U> make_value_and_pushforward(T value, U pushforward) {
+  return {value, pushforward};
+}
+
 template <typename T, typename U> struct ValueAndAdjoint {
   T value;
   U adjoint;

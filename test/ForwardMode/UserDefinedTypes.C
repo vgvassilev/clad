@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out | %filecheck %s
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oUserDefinedTypes.out | %filecheck %s
 // RUN: ./UserDefinedTypes.out | %filecheck_exec %s
 
 // XFAIL: asserts
