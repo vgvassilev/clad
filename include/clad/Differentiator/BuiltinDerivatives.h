@@ -184,6 +184,25 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T /*d_x*/) {
 }
 
 template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> atan2_pushforward(T y, T x, T d_y,
+                                                             T d_x) {
+  return {::std::atan2(y, x),
+          -(y / ((x * x) + (y * y))) * d_x + x / ((x * x) + (y * y)) * d_y};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void atan2_pullback(T y, T x, U d_z, T* d_y, T* d_x) {
+  *d_y += x / ((x * x) + (y * y)) * d_z;
+
+  *d_x += -(y / ((x * x) + (y * y))) * d_z;
+}
+
+template <typename T>
+CUDA_HOST_DEVICE ValueAndPushforward<T, T> acos_pushforward(T x, T d_x) {
+  return {::std::acos(x), ((-1) / (::std::sqrt(1 - x * x))) * d_x};
+}
+
+template <typename T>
 CUDA_HOST_DEVICE ValueAndPushforward<T, T> ceil_pushforward(T x, T /*d_x*/) {
   return {::std::ceil(x), (T)0};
 }
@@ -321,6 +340,9 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
 using std::abs_pushforward;
+using std::acos_pushforward;
+using std::atan2_pullback;
+using std::atan2_pushforward;
 using std::ceil_pushforward;
 using std::cos_pushforward;
 using std::exp_pushforward;

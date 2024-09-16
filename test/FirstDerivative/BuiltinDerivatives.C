@@ -248,6 +248,44 @@ double f14(double x) {
   return __builtin_pow(x, 3);
 }
 
+double f15(double y, double x) {
+  return std::atan2(y, x);
+}
+
+//CHECK:  {{float|double}} f15_darg0({{float|double}} y, {{float|double}} x) {
+//CHECK-NEXT:      {{float|double}} _d_y = 1;
+//CHECK-NEXT:      {{float|double}} _d_x = 0;
+//CHECK-NEXT:      {{.*}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = {{.*}}atan2_pushforward(y, x, _d_y, _d_x);
+//CHECK-NEXT:      return _t0.pushforward;
+//CHECK-NEXT: }
+
+//CHECK: {{float|double}} f15_darg1({{float|double}} y, {{float|double}} x) {
+//CHECK-NEXT:     {{float|double}} _d_y = 0;
+//CHECK-NEXT:     {{float|double}} _d_x = 1;
+//CHECK-NEXT:     {{.*}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = {{.*}}atan2_pushforward(y, x, _d_y, _d_x);
+//CHECK-NEXT:     return _t0.pushforward;
+//CHECK-NEXT: }
+
+void f15_grad(double y, double x, double *_d_y, double *_d_x);
+//CHECK: void f15_grad(double y, double x, double *_d_y, double *_d_x) {
+//CHECK:     {
+//CHECK-NEXT:         double _r0 = 0{{.*}};
+//CHECK-NEXT:         double _r1 = 0{{.*}};
+//CHECK-NEXT:         {{.*}}atan2_pullback(y, x, 1, &_r0, &_r1);
+//CHECK-NEXT:         *_d_y += _r0;
+//CHECK-NEXT:         *_d_x += _r1;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+float f16(float x) {
+  return std::acos(x);
+}
+// CHECK: {{float|double}} f16_darg0({{float|double}} x) {
+//CHECK-NEXT:    {{float|double}} _d_x = 1;
+//CHECK-NEXT:    {{.*}}ValueAndPushforward<{{float|double}}, {{float|double}}> _t0 = {{.*}}acos_pushforward(x, _d_x);
+//CHECK-NEXT:    return _t0.pushforward;
+//CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -326,5 +364,19 @@ int main () { //expected-no-diagnostics
   auto f14_ddarg0 = clad::differentiate<2>(f14, 0);
   printf("Result is = %f\n", f14_ddarg0.execute(1)); //CHECK-EXEC: Result is = 6.000000
 
+  auto f15_darg0 = clad::differentiate(f15, 0);
+  printf("Result is = %f\n", f15_darg0.execute(4, 3)); //CHECK-EXEC: Result is = 0.120000
+
+  auto f15_darg1 = clad::differentiate(f15, 1);
+  printf("Result is = %f\n", f15_darg1.execute(4, 3)); //CHECK-EXEC: Result is = -0.160000
+
+  d_result[0] = d_result[1] = 0;
+  clad::gradient(f15);
+  f15_grad(4, 3, &d_result[0], &d_result[1]);
+  printf("Result is = {%f, %f}\n", d_result[0], d_result[1]); //CHECK-EXEC: Result is = {0.120000, -0.160000}
+
+  auto f16_darg0 = clad::differentiate(f16, 0);
+  printf("Result is = %f\n", f16_darg0.execute(0.9)); //CHECK-EXEC: Result is = -2.294157
+  
   return 0;
 }
