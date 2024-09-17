@@ -116,6 +116,201 @@ double fnVec4(double u, double v) {
 // CHECK-NEXT:     return _t1.pushforward * _t4 + _t3 * _t2.pushforward;
 // CHECK-NEXT: }
 
+double fnVec5(double x, double y) {
+    std::vector<double> v;
+    
+    v.reserve(10);
+
+    double res = x*v.capacity();
+
+    v.push_back(x);
+    v.shrink_to_fit();
+    res += x*v.capacity();
+
+    return res; // 11x
+}
+
+// CHECK:      double fnVec5_darg0(double x, double y) {
+// CHECK-NEXT:          double _d_x = 1;
+// CHECK-NEXT:          double _d_y = 0;
+// CHECK-NEXT:          std::vector<double> _d_v;
+// CHECK-NEXT:          std::vector<double> v;
+// CHECK-NEXT:          {{.*}}reserve_pushforward(&v, 10, &_d_v, 0);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t0 = {{.*}}capacity_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}} &_t1 = _t0.value;
+// CHECK-NEXT:          double _d_res = _d_x * _t1 + x * _t0.pushforward;
+// CHECK-NEXT:          double res = x * _t1;
+// CHECK-NEXT:          {{.*}}push_back_pushforward(&v, x, &_d_v, _d_x);
+// CHECK-NEXT:          {{.*}}shrink_to_fit_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t2 = {{.*}}capacity_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}} &_t3 = _t2.value;
+// CHECK-NEXT:          _d_res += _d_x * _t3 + x * _t2.pushforward;
+// CHECK-NEXT:          res += x * _t3;
+// CHECK-NEXT:          return _d_res;
+// CHECK-NEXT:      }
+
+double fnVec6(double x, double y) { 
+    std::vector<double> v(3, y);
+    
+    v.pop_back();
+    double res = v.size()*x; // res = 2x
+
+    v.erase(v.begin());
+    res += v.size()*x; // res = 3x
+
+    std::vector<double> w;
+    w = v;
+    w.clear();
+    res += w.size()*x + v.size()*x; // res = 4x
+
+    w.insert(w.end(), 5);
+    res += w.size()*x; // res = 5x
+
+    w.insert(w.end(), {y, x, y});
+    w.insert(w.end(), v.begin(), v.end());
+    if (w[0] == 5 && w[1] == y && w[2] == x && w[3] == y && v.back() == w.back()) { // should always be true
+        res += w[2]; // res = 6x
+    }
+
+    w.assign(2, y);
+    res += (w[0] == y && w[1] == y)*x; // res = 7x
+
+    v[0] = x;
+    w.assign(v.begin(), v.end());
+    res += w[0]; // res = 8x;
+
+    w.assign({3*x, 2*x, 4*x});
+    res += w[1]; // res = 10x;
+
+    return res; // 10x
+}
+
+// CHECK:      double fnVec6_darg0(double x, double y) {
+// CHECK-NEXT:          double _d_x = 1;
+// CHECK-NEXT:          double _d_y = 0;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = {{.*}}constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), 3, y{{.*}}, 0, _d_y{{.*}});
+// CHECK-NEXT:          std::vector<double> _d_v(_t0.pushforward);
+// CHECK-NEXT:          std::vector<double> v(_t0.value);
+// CHECK-NEXT:          {{.*}}pop_back_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t1 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}} &_t2 = _t1.value;
+// CHECK-NEXT:          double _d_res = _t1.pushforward * x + _t2 * _d_x;
+// CHECK-NEXT:          double res = _t2 * x;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t3 = {{.*}}begin_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t4 = {{.*}}erase_pushforward(&v, {{.*}}_t3.value{{.*}}, &_d_v, {{.*}}_t3.pushforward{{.*}});
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t5 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}} &_t6 = _t5.value;
+// CHECK-NEXT:          _d_res += _t5.pushforward * x + _t6 * _d_x;
+// CHECK-NEXT:          res += _t6 * x;
+// CHECK-NEXT:          std::vector<double> _d_w;
+// CHECK-NEXT:          std::vector<double> w;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::vector<double> &, ::std::vector<double> &> _t7 = {{.*}}operator_equal_pushforward(&w, v, &_d_w, _d_v);
+// CHECK-NEXT:          {{.*}}clear_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t8 = {{.*}}size_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}} &_t9 = _t8.value;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t10 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}} &_t11 = _t10.value;
+// CHECK-NEXT:          _d_res += _t8.pushforward * x + _t9 * _d_x + _t10.pushforward * x + _t11 * _d_x;
+// CHECK-NEXT:          res += _t9 * x + _t11 * x;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t12 = {{.*}}end_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t13 = {{.*}}insert_pushforward(&w, {{.*}}_t12.value{{.*}}, 5, &_d_w, {{.*}}_t12.pushforward{{.*}}, 0);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t14 = {{.*}}size_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}} &_t15 = _t14.value;
+// CHECK-NEXT:          _d_res += _t14.pushforward * x + _t15 * _d_x;
+// CHECK-NEXT:          res += _t15 * x;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t16 = {{.*}}end_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t17 = {{.*}}insert_pushforward(&w, {{.*}}_t16.value{{.*}}, {y, x, y}, &_d_w, {{.*}}_t16.pushforward{{.*}}, {_d_y, _d_x, _d_y});
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t18 = {{.*}}end_pushforward(&w, &_d_w);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t19 = {{.*}}begin_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t20 = {{.*}}end_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t21 = {{.*}}insert_pushforward(&w, {{.*}}_t18.value{{.*}}, {{.*}}_t19.value{{.*}}, {{.*}}_t20.value{{.*}}, &_d_w, {{.*}}_t18.pushforward{{.*}}, {{.*}}_t19.pushforward{{.*}}, {{.*}}_t20.pushforward{{.*}});
+// CHECK-NEXT:          if (w[0] == 5 && w[1] == y && w[2] == x && w[3] == y && v.back() == w.back()) {
+// CHECK-NEXT:              {{.*}}ValueAndPushforward<{{.*}}> _t22 = {{.*}}operator_subscript_pushforward(&w, 2, &_d_w, 0);
+// CHECK-NEXT:              _d_res += _t22.pushforward;
+// CHECK-NEXT:              res += _t22.value;
+// CHECK-NEXT:          }
+// CHECK-NEXT:          {{.*}}assign_pushforward(&w, 2, y, &_d_w, 0, _d_y);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t23 = {{.*}}operator_subscript_pushforward(&w, 0, &_d_w, 0);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t24 = {{.*}}operator_subscript_pushforward(&w, 1, &_d_w, 0);
+// CHECK-NEXT:          bool _t25 = ((_t23.value == y) && (_t24.value == y));
+// CHECK-NEXT:          _d_res += false * x + _t25 * _d_x;
+// CHECK-NEXT:          res += _t25 * x;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t26 = {{.*}}operator_subscript_pushforward(&v, 0, &_d_v, 0);
+// CHECK-NEXT:          _t26.pushforward = _d_x;
+// CHECK-NEXT:          _t26.value = x;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t27 = {{.*}}begin_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t28 = {{.*}}end_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}assign_pushforward(&w, {{.*}}_t27.value{{.*}}, {{.*}}_t28.value{{.*}}, &_d_w, {{.*}}_t27.pushforward{{.*}}, {{.*}}_t28.pushforward{{.*}});
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t29 = {{.*}}operator_subscript_pushforward(&w, 0, &_d_w, 0);
+// CHECK-NEXT:          _d_res += _t29.pushforward;
+// CHECK-NEXT:          res += _t29.value;
+// CHECK-NEXT:          {{.*}}assign_pushforward(&w, {3 * x, 2 * x, 4 * x}, &_d_w, {0 * x + 3 * _d_x, 0 * x + 2 * _d_x, 0 * x + 4 * _d_x});
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t30 = {{.*}}operator_subscript_pushforward(&w, 1, &_d_w, 0);
+// CHECK-NEXT:          _d_res += _t30.pushforward;
+// CHECK-NEXT:          res += _t30.value;
+// CHECK-NEXT:          return _d_res;
+// CHECK-NEXT:      }
+
+double fnVec7(double x, double y) {
+    std::vector<double> v;
+    for (size_t i = 0; i < 3; ++i) {
+        float fx = x;
+        v.push_back(fx);
+    }
+    double res = 0;
+    for (size_t i = 0; i < v.size(); ++i) {
+        v[i] = i * v.at(i);
+        res += v.at(i);
+    }
+
+    const std::vector<double> v2 = v;
+
+    // result is the same as res, that is: 3x
+    return res + v.front() + v.back() - v[v.size()-1] + v2.at(0) + v2.front() + v2.back() - v2[v2.size()-1];
+}
+
+// CHECK:      double fnVec7_darg0(double x, double y) {
+// CHECK-NEXT:          double _d_x = 1;
+// CHECK-NEXT:          double _d_y = 0;
+// CHECK-NEXT:          std::vector<double> _d_v;
+// CHECK-NEXT:          std::vector<double> v;
+// CHECK-NEXT:          {
+// CHECK-NEXT:              size_t _d_i = 0;
+// CHECK-NEXT:              for (size_t i = 0; i < 3; ++i) {
+// CHECK-NEXT:                  float _d_fx = _d_x;
+// CHECK-NEXT:                  float fx = x;
+// CHECK-NEXT:                  {{.*}}push_back_pushforward(&v, static_cast<float &&>(fx), &_d_v, static_cast<float &&>(_d_fx));
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:          double _d_res = 0;
+// CHECK-NEXT:          double res = 0;
+// CHECK-NEXT:          {
+// CHECK-NEXT:              size_t _d_i = 0;
+// CHECK-NEXT:              for (size_t i = 0; i < v.size(); ++i) {
+// CHECK-NEXT:                  {{.*}}ValueAndPushforward<{{.*}}> _t0 = {{.*}}operator_subscript_pushforward(&v, i, &_d_v, _d_i);
+// CHECK-NEXT:                  {{.*}}ValueAndPushforward<{{.*}}> _t1 = {{.*}}at_pushforward(&v, i, &_d_v, _d_i);
+// CHECK-NEXT:                  double &_t2 = _t1.value;
+// CHECK-NEXT:                  _t0.pushforward = _d_i * _t2 + i * _t1.pushforward;
+// CHECK-NEXT:                  _t0.value = i * _t2;
+// CHECK-NEXT:                  {{.*}}ValueAndPushforward<{{.*}}> _t3 = {{.*}}at_pushforward(&v, i, &_d_v, _d_i);
+// CHECK-NEXT:                  _d_res += _t3.pushforward;
+// CHECK-NEXT:                  res += _t3.value;
+// CHECK-NEXT:              }
+// CHECK-NEXT:          }
+// CHECK-NEXT:          const std::vector<double> _d_v2 = _d_v;
+// CHECK-NEXT:          const std::vector<double> v2 = v;
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t4 = {{.*}}front_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t5 = {{.*}}back_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t6 = {{.*}}size_pushforward(&v, &_d_v);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<{{.*}}> _t7 = {{.*}}operator_subscript_pushforward(&v, _t6.value - 1, &_d_v, _t6.pushforward - 0);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t8 = {{.*}}at_pushforward(&v2, 0, &_d_v2, 0);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t9 = {{.*}}front_pushforward(&v2, &_d_v2);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t10 = {{.*}}back_pushforward(&v2, &_d_v2);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward< ::std::size_t, ::std::size_t> _t11 = {{.*}}size_pushforward(&v2, &_d_v2);
+// CHECK-NEXT:          {{.*}}ValueAndPushforward<const double &, const double &> _t12 = {{.*}}operator_subscript_pushforward(&v2, _t11.value - 1, &_d_v2, _t11.pushforward - 0);
+// CHECK-NEXT:          return _d_res + _t4.pushforward + _t5.pushforward - _t7.pushforward + _t8.pushforward + _t9.pushforward + _t10.pushforward - _t12.pushforward;
+// CHECK-NEXT:      }
+
 double fnArr1(double x) {
   std::array<double, 3> a;
   a.fill(x);
@@ -214,6 +409,9 @@ int main() {
     INIT_DIFFERENTIATE(fnVec2, "u");
     INIT_DIFFERENTIATE(fnVec3, "u");
     INIT_DIFFERENTIATE(fnVec4, "u");
+    INIT_DIFFERENTIATE(fnVec5, "x");
+    INIT_DIFFERENTIATE(fnVec6, "x");
+    INIT_DIFFERENTIATE(fnVec7, "x");
     INIT_DIFFERENTIATE(fnArr1, "x");
     INIT_DIFFERENTIATE(fnArr2, "x");
     INIT_DIFFERENTIATE(fnTuple1, "x");
@@ -222,6 +420,9 @@ int main() {
     TEST_DIFFERENTIATE(fnVec2, 3, 5); // CHECK-EXEC: {5.00}
     TEST_DIFFERENTIATE(fnVec3, 3, 5); // CHECK-EXEC: {2.00}
     TEST_DIFFERENTIATE(fnVec4, 3, 5); // CHECK-EXEC: {30.00}
+    TEST_DIFFERENTIATE(fnVec5, 3, 4); // CHECK-EXEC: {11.00}
+    TEST_DIFFERENTIATE(fnVec6, 3, 4); // CHECK-EXEC: {10.00}
+    TEST_DIFFERENTIATE(fnVec7, 3, 4); // CHECK-EXEC: {3.00}
     TEST_DIFFERENTIATE(fnArr1, 3); // CHECK-EXEC: {3.00}
     TEST_DIFFERENTIATE(fnArr2, 3); // CHECK-EXEC: {108.00}
     TEST_DIFFERENTIATE(fnTuple1, 3, 4); // CHECK-EXEC: {2.00}
