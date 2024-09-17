@@ -95,7 +95,7 @@ add_lit_testsuite(check-clad "Running the Clad regression tests"
   LIT ${LIT_COMMAND}
   PARAMS ${CLAD_TEST_PARAMS}
   DEPENDS ${CLAD_TEST_DEPS}
-  ARGS ${CLAD_TEST_EXTRA_ARGS} --show-skipped --show-unsupported
+  ARGS ${CLAD_TEST_EXTRA_ARGS} --verbose --show-skipped --show-unsupported
   )
 set_target_properties(check-clad PROPERTIES FOLDER "Clad tests")
 
