@@ -83,6 +83,160 @@ __global__ void add_kernel_3(int *out, int *in) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+__global__ void add_kernel_4(int *out, int *in) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (index < 5) {
+    int sum = 0;
+    // Each thread sums elements in steps of warpSize
+    for (int i = index; i < 5; i += warpSize) {
+        sum += in[i];
+    }
+    out[index] = sum;
+  }
+}
+
+// CHECK: void add_kernel_4_grad(int *out, int *in, int *_d_out, int *_d_in) {
+//CHECK-NEXT:    bool _cond0;
+//CHECK-NEXT:    int _d_sum = 0;
+//CHECK-NEXT:    int sum = 0;
+//CHECK-NEXT:    unsigned long _t2;
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<int> _t3 = {};
+//CHECK-NEXT:    clad::tape<int> _t4 = {};
+//CHECK-NEXT:    int _t5;
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _cond0 = index0 < 5;
+//CHECK-NEXT:        if (_cond0) {
+//CHECK-NEXT:            sum = 0;
+//CHECK-NEXT:            _t2 = 0UL;
+//CHECK-NEXT:            for (i = index0; ; clad::push(_t3, i) , (i += warpSize)) {
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    if (!(i < 5))
+//CHECK-NEXT:                        break;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                _t2++;
+//CHECK-NEXT:                clad::push(_t4, sum);
+//CHECK-NEXT:                sum += in[i];
+//CHECK-NEXT:            }
+//CHECK-NEXT:            _t5 = out[index0];
+//CHECK-NEXT:            out[index0] = sum;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    if (_cond0) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            out[index0] = _t5;
+//CHECK-NEXT:            int _r_d2 = _d_out[index0];
+//CHECK-NEXT:            _d_out[index0] = 0;
+//CHECK-NEXT:            _d_sum += _r_d2;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        {
+//CHECK-NEXT:            for (;; _t2--) {
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    if (!_t2)
+//CHECK-NEXT:                        break;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    i = clad::pop(_t3);
+//CHECK-NEXT:                    int _r_d0 = _d_i;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    sum = clad::pop(_t4);
+//CHECK-NEXT:                    int _r_d1 = _d_sum;
+//CHECK-NEXT:                    _d_in[i] += _r_d1;
+//CHECK-NEXT:                }
+//CHECK-NEXT:            }
+//CHECK-NEXT:            _d_index += _d_i;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+__global__ void add_kernel_5(int *out, int *in) {
+    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    if (index < 5) {
+        int sum = 0;
+        // Calculate the total number of threads in the grid
+        int totalThreads = blockDim.x * gridDim.x;
+        // Each thread sums elements in steps of the total number of threads in the grid
+        for (int i = index; i < 5; i += totalThreads) {
+            sum += in[i];
+        }
+        out[index] = sum;
+    }
+}
+
+// CHECK: void add_kernel_5_grad(int *out, int *in, int *_d_out, int *_d_in) {
+//CHECK-NEXT:    bool _cond0;
+//CHECK-NEXT:   int _d_sum = 0;
+//CHECK-NEXT:    int sum = 0;
+//CHECK-NEXT:    unsigned int _t2;
+//CHECK-NEXT:    unsigned int _t3;
+//CHECK-NEXT:    int _d_totalThreads = 0;
+//CHECK-NEXT:    int totalThreads = 0;
+//CHECK-NEXT:    unsigned long _t4;
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<int> _t5 = {};
+//CHECK-NEXT:    clad::tape<int> _t6 = {};
+//CHECK-NEXT:    int _t7;
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _cond0 = index0 < 5;
+//CHECK-NEXT:        if (_cond0) {
+//CHECK-NEXT:            sum = 0;
+//CHECK-NEXT:            _t3 = blockDim.x;
+//CHECK-NEXT:            _t2 = gridDim.x;
+//CHECK-NEXT:            totalThreads = _t3 * _t2;
+//CHECK-NEXT:            _t4 = 0UL;
+//CHECK-NEXT:            for (i = index0; ; clad::push(_t5, i) , (i += totalThreads)) {
+//CHECK-NEXT:                {
+//CHECK-NEXT:                   if (!(i < 5))
+//CHECK-NEXT:                       break;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                _t4++;
+//CHECK-NEXT:                clad::push(_t6, sum);
+//CHECK-NEXT:                sum += in[i];
+//CHECK-NEXT:            }
+//CHECK-NEXT:            _t7 = out[index0];
+//CHECK-NEXT:            out[index0] = sum;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    if (_cond0) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            out[index0] = _t7;
+//CHECK-NEXT:            int _r_d2 = _d_out[index0];
+//CHECK-NEXT:            _d_out[index0] = 0;
+//CHECK-NEXT:            _d_sum += _r_d2;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        {
+//CHECK-NEXT:            for (;; _t4--) {
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    if (!_t4)
+//CHECK-NEXT:                        break;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    i = clad::pop(_t5);
+//CHECK-NEXT:                    int _r_d0 = _d_i;
+//CHECK-NEXT:                    _d_totalThreads += _r_d0;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    sum = clad::pop(_t6);
+//CHECK-NEXT:                    int _r_d1 = _d_sum;
+//CHECK-NEXT:                    _d_in[i] += _r_d1;
+//CHECK-NEXT:                }
+//CHECK-NEXT:            }
+//CHECK-NEXT:            _d_index += _d_i;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -180,6 +334,8 @@ int main(void) {
   TEST_2(add_kernel, dim3(1), dim3(5, 1, 1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_2, dim3(1), dim3(5, 1, 1), 0, true, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_3, dim3(5, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
+  TEST_2(add_kernel_4, dim3(1), dim3(5, 1, 1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
+  TEST_2(add_kernel_5, dim3(2, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
 
   cudaFree(dummy_in);
   cudaFree(dummy_out);
