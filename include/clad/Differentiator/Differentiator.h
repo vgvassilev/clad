@@ -134,7 +134,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
       for (size_t i = sizeof...(args); i < totalArgs; ++i)
         argPtrs[i] = &null_param;
 
-      cudaLaunchKernel((void*)f, grid, block, argPtrs.data(), shared_mem, stream);
+      cudaLaunchKernel((void*)f, grid, block, argPtrs.data(), shared_mem,
+                       stream);
       return return_type_t<F>();
     } else {
       return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
