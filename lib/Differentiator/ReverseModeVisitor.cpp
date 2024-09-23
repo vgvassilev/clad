@@ -104,6 +104,45 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
+  bool ReverseModeVisitor::shouldUseCudaAtomicOps() {
+    return m_DiffReq->hasAttr<clang::CUDAGlobalAttr>() ||
+           (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() &&
+            !m_DiffReq->hasAttr<clang::CUDAHostAttr>());
+  }
+
+  clang::Expr* ReverseModeVisitor::BuildCallToCudaAtomicAdd(clang::Expr* LHS,
+                                                            clang::Expr* RHS) {
+    DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
+    LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
+                              Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(lookupResult,
+                               m_Context.getTranslationUnitDecl());
+
+    CXXScopeSpec SS;
+    Expr* UnresolvedLookup =
+        m_Sema.BuildDeclarationNameExpr(SS, lookupResult, /*ADL=*/true).get();
+
+    Expr* finalLHS = LHS;
+    if (isa<ArraySubscriptExpr>(LHS))
+      finalLHS = BuildOp(UnaryOperatorKind::UO_AddrOf, LHS);
+    llvm::SmallVector<Expr*, 2> atomicArgs = {finalLHS, RHS};
+
+    assert(!m_Builder.noOverloadExists(UnresolvedLookup, atomicArgs) &&
+           "atomicAdd function not found");
+
+    Expr* atomicAddCall =
+        m_Sema
+            .ActOnCallExpr(
+                getCurrentScope(),
+                /*Fn=*/UnresolvedLookup,
+                /*LParenLoc=*/noLoc,
+                /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(atomicArgs),
+                /*RParenLoc=*/m_DiffReq->getLocation())
+            .get();
+
+    return atomicAddCall;
+  }
+
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
                                          const DiffRequest& request)
       : VisitorBase(builder, request), m_Result(nullptr) {}
@@ -1485,9 +1524,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         BuildArraySubscript(target, forwSweepDerivativeIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
-      // Add it to the body statements.
-      addToCurrentBlock(add_assign, direction::reverse);
+      if (shouldUseCudaAtomicOps()) {
+        Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
+        // Add it to the body statements.
+        addToCurrentBlock(atomicCall, direction::reverse);
+      } else {
+        auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
+        // Add it to the body statements.
+        addToCurrentBlock(add_assign, direction::reverse);
+      }
     }
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
@@ -2279,9 +2324,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
         if (dfdx()) {
-          auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
-          // Add it to the body statements.
-          addToCurrentBlock(add_assign, direction::reverse);
+          if (shouldUseCudaAtomicOps()) {
+            Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
+            // Add it to the body statements.
+            addToCurrentBlock(atomicCall, direction::reverse);
+          } else {
+            auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
+            // Add it to the body statements.
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
         }
       }
       return {cloneE, derivedE, derivedE};
