@@ -237,6 +237,12 @@ __global__ void add_kernel_5(int *out, int *in) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+__global__ void add_kernel_6(int *a, int *b) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  a[2 * index] = b[0];
+  a[2 * index + 1] = b[0];
+}
+
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -326,16 +332,17 @@ int main(void) {
 
 
   int *dummy_in, *dummy_out, *d_out, *d_in;
-  cudaMalloc(&dummy_in, 5 * sizeof(int));
-  cudaMalloc(&dummy_out, 5 * sizeof(int));
-  cudaMalloc(&d_out, 5 * sizeof(int));
-  cudaMalloc(&d_in, 5 * sizeof(int));
+  cudaMalloc(&dummy_in, 10 * sizeof(int));
+  cudaMalloc(&dummy_out, 10 * sizeof(int));
+  cudaMalloc(&d_out, 10 * sizeof(int));
+  cudaMalloc(&d_in, 10 * sizeof(int));
 
   TEST_2(add_kernel, dim3(1), dim3(5, 1, 1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_2, dim3(1), dim3(5, 1, 1), 0, true, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_3, dim3(5, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_4, dim3(1), dim3(5, 1, 1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2(add_kernel_5, dim3(2, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
+  TEST_2(add_kernel_6, dim3(1), dim3(5, 1, 1), 0, false, "a, b", dummy_out, dummy_in, d_out, d_in, 10); // CHECK-EXEC: 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
   cudaFree(dummy_in);
   cudaFree(dummy_out);

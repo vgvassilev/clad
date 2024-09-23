@@ -1485,9 +1485,38 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         BuildArraySubscript(target, forwSweepDerivativeIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
-      // Add it to the body statements.
-      addToCurrentBlock(add_assign, direction::reverse);
+      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+        DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
+        LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
+                                  Sema::LookupOrdinaryName);
+        m_Sema.LookupQualifiedName(lookupResult,
+                                   m_Context.getTranslationUnitDecl());
+
+        FunctionDecl* atomicAddFunc = nullptr;
+        for (LookupResult::iterator it = lookupResult.begin();
+             it != lookupResult.end(); it++) {
+          NamedDecl* decl = *it;
+          // FIXME: check for underlying types of the pointers
+          if (dyn_cast<FunctionDecl>(decl)->getReturnType() ==
+              result->getType()) {
+            printf("decl: %s, type: %s\n", decl->getNameAsString().c_str(),
+                   result->getType().getAsString().c_str());
+            atomicAddFunc = dyn_cast<FunctionDecl>(decl);
+            break;
+          }
+        }
+        assert(atomicAddFunc && "atomicAdd function not found");
+        Expr* addrOfRes = BuildOp(UnaryOperatorKind::UO_AddrOf, result);
+        llvm::SmallVector<Expr*, 2> atomicArgs = {addrOfRes, dfdx()};
+        Expr* atomicCall = BuildCallExprToFunction(atomicAddFunc, atomicArgs);
+
+        // Add it to the body statements.
+        addToCurrentBlock(atomicCall, direction::reverse);
+      } else {
+        auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
+        // Add it to the body statements.
+        addToCurrentBlock(add_assign, direction::reverse);
+      }
     }
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
@@ -2279,9 +2308,35 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
         if (dfdx()) {
-          auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
-          // Add it to the body statements.
-          addToCurrentBlock(add_assign, direction::reverse);
+          if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+            DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
+            LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
+                                      Sema::LookupOrdinaryName);
+            m_Sema.LookupQualifiedName(lookupResult, m_Context.getTranslationUnitDecl());
+
+            FunctionDecl* atomicAddFunc = nullptr;
+            for (LookupResult::iterator it = lookupResult.begin();
+                it != lookupResult.end(); it++) {
+              NamedDecl* decl = *it;
+              // FIXME: check for underlying types of the pointers
+              if (dyn_cast<FunctionDecl>(decl)->getReturnType() == derivedE->getType()) {
+                printf("decl: %s, type: %s\n", decl->getNameAsString().c_str(), derivedE->getType().getAsString().c_str());
+                atomicAddFunc = dyn_cast<FunctionDecl>(decl);
+                break;
+              }
+            }
+            assert(atomicAddFunc && "atomicAdd function not found");
+            llvm::SmallVector<Expr*, 2> atomicArgs  = {diff_dx, dfdx()};
+            Expr* atomicCall =
+                BuildCallExprToFunction(atomicAddFunc, atomicArgs);
+
+            // Add it to the body statements.
+            addToCurrentBlock(atomicCall, direction::reverse);
+          } else {
+            auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
+            // Add it to the body statements.
+            addToCurrentBlock(add_assign, direction::reverse);
+          }
         }
       }
       return {cloneE, derivedE, derivedE};
