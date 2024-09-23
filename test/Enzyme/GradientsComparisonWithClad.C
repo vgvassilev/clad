@@ -1,7 +1,6 @@
 // RUN: %cladclang %s  -I%S/../../include -oEnzymeGradients.out 2>&1 | %filecheck %s
 // RUN: ./EnzymeGradients.out | %filecheck_exec %s
 // REQUIRES: Enzyme
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

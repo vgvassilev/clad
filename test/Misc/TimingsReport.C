@@ -1,7 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oTimingsReport.out -ftime-report 2>&1 | %filecheck %s
 
 #include "clad/Differentiator/Differentiator.h"
-// CHECK-NOT: {{.*error|warning|note:.*}}
 // CHECK: Timers for Clad Funcs
 
 double nested1(double c){

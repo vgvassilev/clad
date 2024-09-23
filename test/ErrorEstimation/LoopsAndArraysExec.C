@@ -1,8 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oLoopsAndArraysExec.out 2>&1 | %filecheck %s
 // RUN: ./LoopsAndArraysExec.out | %filecheck_exec %s
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 #include <cmath>

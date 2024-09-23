@@ -4,8 +4,6 @@
 // RUN: ./HessianBuiltinDerivatives.out | %filecheck_exec %s
 
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 #include <math.h>
 

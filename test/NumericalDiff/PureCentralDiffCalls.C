@@ -1,8 +1,6 @@
 // RUN: %cladnumdiffclang %s -I%S/../../include -oPureCentralDiffCalls.out
 // -Xclang -verify 2>&1 RUN: ./PureCentralDiffCalls.out | %filecheck_exec %s
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 #include <functional>

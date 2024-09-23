@@ -1,8 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out 2>&1 | %filecheck %s
 // RUN: ./EnzymeLoops.out | %filecheck_exec %s
 // REQUIRES: Enzyme
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

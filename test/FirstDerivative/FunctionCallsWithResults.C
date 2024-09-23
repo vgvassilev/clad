@@ -1,8 +1,11 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctionCallsWithResults.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oFunctionCallsWithResults.out \
+// RUN:     -Xclang -verify  2>&1 | %filecheck %s
 // RUN: ./FunctionCallsWithResults.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 #include <random>
+// expected-warning@* 0-1 {{function 'nextafter' was not differentiated}}
+// expected-note@* 0-1 {{considering 'nextafter' as 0}}
 
 int printf(const char* fmt, ...);
 

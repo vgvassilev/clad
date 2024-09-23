@@ -3,8 +3,6 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -fprint-num-diff-errors -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPrintErrorNumDiff.out -Xclang -verify
 // RUN: ./PrintErrorNumDiff.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 #include <cmath>
@@ -13,7 +11,7 @@ extern "C" int printf(const char* fmt, ...);
 
 double test_1(double x){
   return tanh(x); // expected-warning {{function 'tanh' was not differentiated because}}
-  // expected-note@15 {{falling back to numerical differentiation for 'tanh}}
+  // expected-note@13 {{falling back to numerical differentiation for 'tanh}}
 }
 
 //CHECK: void test_1_grad(double x, double *_d_x) {

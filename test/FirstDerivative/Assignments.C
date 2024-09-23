@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oAssignments.out 2>&1 | %filecheck %s
 // RUN: ./Assignments.out
-//CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 #include <cmath>

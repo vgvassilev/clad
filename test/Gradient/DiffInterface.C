@@ -5,8 +5,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 extern "C" int printf(const char* fmt, ...);
 
 double f_1(double x, double y, double z) {

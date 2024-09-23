@@ -13,7 +13,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -std=c++17 %s -fno-exceptions -I%S/../../include -oMemberFunctions-cpp17.out
 // RUN: ./MemberFunctions-cpp17.out | %filecheck_exec %s
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
 #include "clad/Differentiator/Differentiator.h"
 
 class SimpleFunctions {

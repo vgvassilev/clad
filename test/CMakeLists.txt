@@ -24,6 +24,33 @@ if(CLAD_BUILT_STANDALONE)
   set(LLVM_LIBS_DIR ${LLVM_INSTALL_PREFIX}/lib/)
 endif()
 
+find_package(CUDAToolkit QUIET)
+if(CUDAToolkit_FOUND)
+  get_filename_component(CUDA_ROOT "${CUDAToolkit_BIN_DIR}" DIRECTORY ABSOLUTE)
+  get_filename_component(CUDA_LIBDIR "${CUDA_cudart_static_LIBRARY}" DIRECTORY)
+
+  set(LIBOMPTARGET_DEP_CUDA_ARCH "sm_50")
+
+  if(TARGET nvptx-arch)
+    get_property(LIBOMPTARGET_NVPTX_ARCH TARGET nvptx-arch PROPERTY LOCATION)
+  endif()
+  if (NOT EXISTS ${LIBOMPTARGET_NVPTX_ARCH})
+    find_program(LIBOMPTARGET_NVPTX_ARCH NAMES nvptx-arch)
+  endif()
+
+  if(LIBOMPTARGET_NVPTX_ARCH)
+    execute_process(COMMAND ${LIBOMPTARGET_NVPTX_ARCH}
+                    OUTPUT_VARIABLE LIBOMPTARGET_NVPTX_ARCH_OUTPUT
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    string(REPLACE "\n" ";" nvptx_arch_list "${LIBOMPTARGET_NVPTX_ARCH_OUTPUT}")
+    if(nvptx_arch_list)
+      set(LIBOMPTARGET_FOUND_NVIDIA_GPU TRUE)
+      set(LIBOMPTARGET_NVPTX_DETECTED_ARCH_LIST "${nvptx_arch_list}")
+      list(GET nvptx_arch_list 0 LIBOMPTARGET_DEP_CUDA_ARCH)
+    endif()
+  endif()
+endif(CUDAToolkit_FOUND)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
@@ -36,9 +63,9 @@ configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
-option(CLANG_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
-if(CLANG_TEST_USE_VG)
-  set(CLANG_TEST_EXTRA_ARGS ${CLANG_TEST_EXTRA_ARGS} "--vg")
+option(CLAD_TEST_USE_VG "Run Clang tests under Valgrind" OFF)
+if(CLAD_TEST_USE_VG)
+  set(CLAD_TEST_EXTRA_ARGS ${CLAD_TEST_EXTRA_ARGS} "--vg")
 endif ()
 
 list(APPEND CLAD_TEST_DEPS clad cladCustomModelPlugin cladPrintModelPlugin)
@@ -68,7 +95,7 @@ add_lit_testsuite(check-clad "Running the Clad regression tests"
   LIT ${LIT_COMMAND}
   PARAMS ${CLAD_TEST_PARAMS}
   DEPENDS ${CLAD_TEST_DEPS}
-  ARGS ${CLAD_TEST_EXTRA_ARGS} --verbose --succinct
+  ARGS ${CLAD_TEST_EXTRA_ARGS} --verbose --show-skipped --show-unsupported
   )
 set_target_properties(check-clad PROPERTIES FOLDER "Clad tests")
 

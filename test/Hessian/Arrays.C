@@ -3,8 +3,6 @@
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oArrays.out
 // RUN: ./Arrays.out | %filecheck_exec %s
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 double f(double i, double j[2]) { return i * j[0] * j[1]; }

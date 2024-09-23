@@ -1,13 +1,18 @@
 #ifndef CLAD_STL_BUILTINS_H
 #define CLAD_STL_BUILTINS_H
 
+#include <array>
 #include <clad/Differentiator/BuiltinDerivatives.h>
+#include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
+#include <tuple>
 #include <vector>
 
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
+
+// vector forward mode
 
 template <typename T>
 void clear_pushforward(::std::vector<T>* v, ::std::vector<T>* d_v) {
@@ -128,6 +133,181 @@ operator_subscript_pushforward(const ::std::vector<T>* v, unsigned idx,
   return {(*v)[idx], (*d_v)[idx]};
 }
 
+template <typename T>
+ValueAndPushforward<T&, T&> at_pushforward(::std::vector<T>* v, unsigned idx,
+                                           ::std::vector<T>* d_v,
+                                           unsigned d_idx) {
+  return {(*v)[idx], (*d_v)[idx]};
+}
+
+template <typename T>
+ValueAndPushforward<const T&, const T&>
+at_pushforward(const ::std::vector<T>* v, unsigned idx,
+               const ::std::vector<T>* d_v, unsigned d_idx) {
+  return {(*v)[idx], (*d_v)[idx]};
+}
+
+template <typename T>
+clad::ValueAndPushforward<::std::vector<T>&, ::std::vector<T>&>
+operator_equal_pushforward(::std::vector<T>* a, const ::std::vector<T>& param,
+                           ::std::vector<T>* d_a,
+                           const ::std::vector<T>& d_param) noexcept {
+  (*a) = param;
+  (*d_a) = d_param;
+  return {*a, *d_a};
+}
+
+template <typename T>
+inline clad::ValueAndPushforward<const T&, const T&>
+front_pushforward(const ::std::vector<T>* a,
+                  const ::std::vector<T>* d_a) noexcept {
+  return {a->front(), d_a->front()};
+}
+
+template <typename T>
+inline clad::ValueAndPushforward<T&, T&>
+front_pushforward(::std::vector<T>* a, ::std::vector<T>* d_a) noexcept {
+  return {a->front(), d_a->front()};
+}
+
+template <typename T>
+inline clad::ValueAndPushforward<const T&, const T&>
+back_pushforward(const ::std::vector<T>* a,
+                 const ::std::vector<T>* d_a) noexcept {
+  return {a->back(), d_a->back()};
+}
+
+template <typename T>
+inline clad::ValueAndPushforward<T&, T&>
+back_pushforward(::std::vector<T>* a, ::std::vector<T>* d_a) noexcept {
+  return {a->back(), d_a->back()};
+}
+
+template <typename T>
+ValueAndPushforward<typename ::std::vector<T>::iterator,
+                    typename ::std::vector<T>::iterator>
+begin_pushforward(::std::vector<T>* v, ::std::vector<T>* d_v) {
+  return {v->begin(), d_v->begin()};
+}
+
+template <typename T>
+ValueAndPushforward<typename ::std::vector<T>::iterator,
+                    typename ::std::vector<T>::iterator>
+end_pushforward(::std::vector<T>* v, ::std::vector<T>* d_v) {
+  return {v->end(), d_v->end()};
+}
+
+template <typename T>
+ValueAndPushforward<typename ::std::vector<T>::iterator,
+                    typename ::std::vector<T>::iterator>
+erase_pushforward(::std::vector<T>* v,
+                  typename ::std::vector<T>::const_iterator pos,
+                  ::std::vector<T>* d_v,
+                  typename ::std::vector<T>::const_iterator d_pos) {
+  return {v->erase(pos), d_v->erase(d_pos)};
+}
+
+template <typename T, typename U>
+ValueAndPushforward<typename ::std::vector<T>::iterator,
+                    typename ::std::vector<T>::iterator>
+insert_pushforward(::std::vector<T>* v,
+                   typename ::std::vector<T>::const_iterator pos, U u,
+                   ::std::vector<T>* d_v,
+                   typename ::std::vector<T>::const_iterator d_pos, U d_u) {
+  return {v->insert(pos, u), d_v->insert(d_pos, d_u)};
+}
+
+template <typename T, typename U>
+ValueAndPushforward<typename ::std::vector<T>::iterator,
+                    typename ::std::vector<T>::iterator>
+insert_pushforward(::std::vector<T>* v,
+                   typename ::std::vector<T>::const_iterator pos,
+                   ::std::initializer_list<U> list, ::std::vector<T>* d_v,
+                   typename ::std::vector<T>::const_iterator d_pos,
+                   ::std::initializer_list<U> d_list) {
+  return {v->insert(pos, list), d_v->insert(d_pos, d_list)};
+}
+
+template <typename T, typename U>
+ValueAndPushforward<typename ::std::vector<T>::iterator,
+                    typename ::std::vector<T>::iterator>
+insert_pushforward(::std::vector<T>* v,
+                   typename ::std::vector<T>::const_iterator pos, U first,
+                   U last, ::std::vector<T>* d_v,
+                   typename ::std::vector<T>::const_iterator d_pos, U d_first,
+                   U d_last) {
+  return {v->insert(pos, first, last), d_v->insert(d_pos, d_first, d_last)};
+}
+
+template <typename T, typename U>
+void assign_pushforward(::std::vector<T>* v,
+                        typename ::std::vector<T>::size_type n, const U& val,
+                        ::std::vector<T>* d_v,
+                        typename ::std::vector<T>::size_type /*d_n*/,
+                        const U& d_val) {
+  v->assign(n, val);
+  d_v->assign(n, d_val);
+}
+
+template <typename T, typename U>
+void assign_pushforward(::std::vector<T>* v, U first, U last,
+                        ::std::vector<T>* d_v, U d_first, U d_last) {
+  v->assign(first, last);
+  d_v->assign(d_first, d_last);
+}
+
+template <typename T, typename U>
+void assign_pushforward(::std::vector<T>* v, ::std::initializer_list<U> list,
+                        ::std::vector<T>* d_v,
+                        ::std::initializer_list<U> d_list) {
+  v->assign(list);
+  d_v->assign(d_list);
+}
+
+template <typename T>
+void reserve_pushforward(::std::vector<T>* v,
+                         typename ::std::vector<T>::size_type n,
+                         ::std::vector<T>* d_v,
+                         typename ::std::vector<T>::size_type /*d_n*/) {
+  v->reserve(n);
+  d_v->reserve(n);
+}
+
+template <typename T>
+void shrink_to_fit_pushforward(::std::vector<T>* v, ::std::vector<T>* d_v) {
+  v->shrink_to_fit();
+  d_v->shrink_to_fit();
+}
+
+template <typename T, typename U>
+void push_back_pushforward(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
+                           U d_val) {
+  v->push_back(val);
+  d_v->push_back(d_val);
+}
+
+template <typename T>
+void pop_back_pushforward(::std::vector<T>* v, ::std::vector<T>* d_v) noexcept {
+  v->pop_back();
+  d_v->pop_back();
+}
+
+template <typename T>
+clad::ValueAndPushforward<::std::size_t, ::std::size_t>
+size_pushforward(const ::std::vector<T>* v,
+                 const ::std::vector<T>* d_v) noexcept {
+  return {v->size(), 0};
+}
+
+template <typename T>
+clad::ValueAndPushforward<::std::size_t, ::std::size_t>
+capacity_pushforward(const ::std::vector<T>* v,
+                     const ::std::vector<T>* d_v) noexcept {
+  return {v->capacity(), 0};
+}
+
+// array forward mode
+
 template <typename T, ::std::size_t N>
 constexpr clad::ValueAndPushforward<T&, T&>
 operator_subscript_pushforward(::std::array<T, N>* a, ::std::size_t i,
@@ -195,12 +375,22 @@ back_pushforward(::std::array<T, N>* a, ::std::array<T, N>* d_a) noexcept {
   return {a->back(), d_a->back()};
 }
 
-template <typename T, ::std::size_t N>
-void fill_pushforward(::std::array<T, N>* a, const T& u,
-                      ::std::array<T, N>* d_a, const T& d_u) {
+template <typename T, typename U, ::std::size_t N>
+void fill_pushforward(::std::array<T, N>* a, const U& u,
+                      ::std::array<T, N>* d_a, const U& d_u) {
   a->fill(u);
   d_a->fill(d_u);
 }
+
+template <typename T, ::std::size_t N>
+clad::ValueAndPushforward<::std::size_t, ::std::size_t>
+size_pushforward(const ::std::array<T, N>* a,
+                 const ::std::array<T, N>* d_a) noexcept {
+  return {a->size(), 0};
+}
+
+// vector reverse mode
+// more can be found in tests: test/Gradient/STLCustomDerivatives.C
 
 template <typename T, typename U>
 void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
@@ -231,6 +421,22 @@ void operator_subscript_pullback(::std::vector<T>* vec,
   (*d_vec)[idx] += d_y;
 }
 
+template <typename T>
+clad::ValueAndAdjoint<T&, T&>
+at_reverse_forw(::std::vector<T>* vec, typename ::std::vector<T>::size_type idx,
+                ::std::vector<T>* d_vec,
+                typename ::std::vector<T>::size_type d_idx) {
+  return {(*vec)[idx], (*d_vec)[idx]};
+}
+
+template <typename T, typename P>
+void at_pullback(::std::vector<T>* vec,
+                 typename ::std::vector<T>::size_type idx, P d_y,
+                 ::std::vector<T>* d_vec,
+                 typename ::std::vector<T>::size_type* d_idx) {
+  (*d_vec)[idx] += d_y;
+}
+
 template <typename T, typename S, typename U>
 ::clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
 constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::vector<T>>,
@@ -252,6 +458,45 @@ void constructor_pullback(::std::vector<T>* v, S count, U val,
     *d_val += (*d_v)[i];
   d_v->clear();
 }
+
+template <typename T, typename U, typename dU>
+void assign_pullback(::std::vector<T>* v,
+                     typename ::std::vector<T>::size_type n, U /*val*/,
+                     ::std::vector<T>* d_v,
+                     typename ::std::vector<T>::size_type* /*d_n*/, dU* d_val) {
+  for (typename ::std::vector<T>::size_type i = 0; i < n; ++i) {
+    (*d_val) += (*d_v)[i];
+    (*d_v)[i] = 0;
+  }
+}
+
+template <typename T>
+void reserve_pullback(::std::vector<T>* v,
+                      typename ::std::vector<T>::size_type n,
+                      ::std::vector<T>* d_v,
+                      typename ::std::vector<T>::size_type* /*d_n*/) noexcept {}
+
+template <typename T>
+void shrink_to_fit_pullback(::std::vector<T>* /*v*/,
+                            ::std::vector<T>* /*d_v*/) noexcept {}
+
+template <typename T>
+void size_pullback(::std::vector<T>* /*v*/,
+                   ::std::vector<T>* /*d_v*/) noexcept {}
+
+template <typename T>
+void capacity_pullback(::std::vector<T>* /*v*/,
+                       ::std::vector<T>* /*d_v*/) noexcept {}
+
+template <typename T, typename U>
+void size_pullback(::std::vector<T>* /*v*/, U /*d_y*/,
+                   ::std::vector<T>* /*d_v*/) noexcept {}
+
+template <typename T, typename U>
+void capacity_pullback(::std::vector<T>* /*v*/, U /*d_y*/,
+                       ::std::vector<T>* /*d_v*/) noexcept {}
+
+// array reverse mode
 
 template <typename T, ::std::size_t N>
 clad::ValueAndAdjoint<T&, T&> operator_subscript_reverse_forw(
@@ -322,6 +567,9 @@ void front_pullback(::std::array<T, N>* arr,
 }
 template <typename T, ::std::size_t N>
 void size_pullback(::std::array<T, N>* a, ::std::array<T, N>* d_a) noexcept {}
+template <typename T, ::std::size_t N, typename U>
+void size_pullback(::std::array<T, N>* /*a*/, U /*d_y*/,
+                   ::std::array<T, N>* /*d_a*/) noexcept {}
 template <typename T, ::std::size_t N>
 ::clad::ValueAndAdjoint<::std::array<T, N>, ::std::array<T, N>>
 constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::array<T, N>>,
@@ -338,7 +586,89 @@ void constructor_pullback(::std::array<T, N>* a, const ::std::array<T, N>& arr,
     (*d_arr)[i] += (*d_a)[i];
 }
 
+// tuple forward mode
+
+template <typename... Args1, typename... Args2>
+clad::ValueAndPushforward<::std::tuple<Args1...>, ::std::tuple<Args1...>>
+operator_equal_pushforward(::std::tuple<Args1...>* tu,
+                           ::std::tuple<Args2...>&& in,
+                           ::std::tuple<Args1...>* d_tu,
+                           ::std::tuple<Args2...>&& d_in) noexcept {
+  ::std::tuple<Args1...> t1 = (*tu = in);
+  ::std::tuple<Args1...> t2 = (*d_tu = d_in);
+  return {t1, t2};
+}
+
 } // namespace class_functions
+
+namespace std {
+
+// tie and maketuple forward mode
+
+// Helper functions for selecting subtuples
+template <::std::size_t shift_amount, ::std::size_t... Is>
+constexpr auto shift_sequence(IndexSequence<Is...>) {
+  return IndexSequence<shift_amount + Is...>{};
+}
+
+template <typename Tuple, ::std::size_t... Indices>
+auto select_tuple_elements(const Tuple& tpl, IndexSequence<Indices...>) {
+  return ::std::make_tuple(::std::get<Indices>(tpl)...);
+}
+
+template <typename Tuple> auto first_half_tuple(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  return select_tuple_elements(tpl, first_half);
+}
+
+template <typename Tuple> auto second_half_tuple(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  constexpr auto second_half = shift_sequence<half>(first_half);
+  return select_tuple_elements(tpl, second_half);
+}
+
+template <typename Tuple, ::std::size_t... Indices>
+auto select_tuple_elements_tie(const Tuple& tpl, IndexSequence<Indices...>) {
+  return ::std::tie(::std::get<Indices>(tpl)...);
+}
+
+template <typename Tuple> auto first_half_tuple_tie(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  return select_tuple_elements_tie(tpl, first_half);
+}
+
+template <typename Tuple> auto second_half_tuple_tie(const Tuple& tpl) {
+  // static_assert(::std::tuple_size<Tuple>::value % 2 == 0);
+  constexpr ::std::size_t half = ::std::tuple_size<Tuple>::value / 2;
+
+  constexpr MakeIndexSequence<half> first_half;
+  constexpr auto second_half = shift_sequence<half>(first_half);
+  return select_tuple_elements_tie(tpl, second_half);
+}
+
+template <typename... Args> auto tie_pushforward(Args&&... args) noexcept {
+  ::std::tuple<Args&...> t = ::std::tie(args...);
+  return clad::make_value_and_pushforward(first_half_tuple_tie(t),
+                                          second_half_tuple_tie(t));
+}
+
+template <typename... Args> auto make_tuple_pushforward(Args... args) noexcept {
+  ::std::tuple<Args...> t = ::std::make_tuple(args...);
+  return clad::make_value_and_pushforward(first_half_tuple(t),
+                                          second_half_tuple(t));
+}
+
+} // namespace std
+
 } // namespace custom_derivatives
 } // namespace clad
 

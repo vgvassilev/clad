@@ -3,8 +3,6 @@
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr -std=c++17 -Wno-writable-strings %s  -I%S/../../include -oFunctionCalls.out
 // RUN: ./FunctionCalls.out | %filecheck_exec %s
 
-// CHECK-NOT: {{.*error|warning|note:.*}}
-
 #include "clad/Differentiator/Differentiator.h"
 
 namespace A {

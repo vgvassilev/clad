@@ -130,8 +130,18 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
                             CUDA_ARGS CUDA_REST_ARGS Args&&... args) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
-      void* argPtrs[] = {(void*)&args..., (void*)static_cast<Rest>(nullptr)...};
-      cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
+      constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
+      std::vector<void*> argPtrs;
+      argPtrs.reserve(totalArgs);
+      (argPtrs.push_back(static_cast<void*>(&args)), ...);
+
+      void* null_param = nullptr;
+      for (size_t i = sizeof...(args); i < totalArgs; ++i)
+        argPtrs[i] = &null_param;
+
+      cudaLaunchKernel((void*)f, grid, block, argPtrs.data(), shared_mem,
+                       stream);
+      return return_type_t<F>();
     } else {
       return f(static_cast<Args>(args)..., static_cast<Rest>(nullptr)...);
     }
@@ -150,9 +160,9 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     if (CUDAkernel) {
       void* argPtrs[] = {(void*)&args...};
       cudaLaunchKernel((void*)f, grid, block, argPtrs, shared_mem, stream);
-    } else {
-      return f(static_cast<Args>(args)...);
+      return return_type_t<F>();
     }
+    return f(static_cast<Args>(args)...);
 #else
     return f(static_cast<Args>(args)...);
 #endif

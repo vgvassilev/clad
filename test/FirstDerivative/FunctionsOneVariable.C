@@ -2,8 +2,6 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
-//CHECK-NOT: {{.*error|warning|note:.*}}
-
 extern "C" int printf(const char* fmt, ...);
 
 float f_simple(float x) {

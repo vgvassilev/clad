@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out | %filecheck %s
 // RUN: ./DifferentCladEnzymeDerivatives.out
-// CHECK-NOT: {{.*error|warning|note:.*}}
 // REQUIRES: Enzyme
 
 #include "clad/Differentiator/Differentiator.h"

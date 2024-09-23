@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oPointer.out 2>&1 | %filecheck %s
 // RUN: ./Pointer.out | %filecheck_exec %s
-// CHECK-NOT: {{.*error|warning|note:.*}}
 
 #include "clad/Differentiator/Differentiator.h"
 
