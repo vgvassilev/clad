@@ -104,10 +104,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
-  bool ReverseModeVisitor::shouldUseCudaAtomicOps() {
-    return m_DiffReq->hasAttr<clang::CUDAGlobalAttr>() ||
-           (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() &&
-            !m_DiffReq->hasAttr<clang::CUDAHostAttr>());
+  bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
+    // Same as checking whether this is a function executed by the GPU
+    if (!m_GlobalArgs.empty())
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
+        if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
+          // we need to check whether this param is in the global memory of the
+          // GPU
+          return m_GlobalArgs.find(PVD) != m_GlobalArgs.end();
+
+    return false;
   }
 
   clang::Expr* ReverseModeVisitor::BuildCallToCudaAtomicAdd(clang::Expr* LHS,
@@ -123,8 +129,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_Sema.BuildDeclarationNameExpr(SS, lookupResult, /*ADL=*/true).get();
 
     Expr* finalLHS = LHS;
-    if (isa<ArraySubscriptExpr>(LHS))
+    if (auto* UO = dyn_cast<UnaryOperator>(LHS)) {
+      if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+        finalLHS = UO->getSubExpr()->IgnoreImplicit();
+    } else if (!LHS->getType()->isPointerType() &&
+               !LHS->getType()->isReferenceType())
       finalLHS = BuildOp(UnaryOperatorKind::UO_AddrOf, LHS);
+
     llvm::SmallVector<Expr*, 2> atomicArgs = {finalLHS, RHS};
 
     assert(!m_Builder.noOverloadExists(UnresolvedLookup, atomicArgs) &&
@@ -440,6 +451,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
+    // if the function is a global kernel, all its parameters reside in the
+    // global memory of the GPU
+    if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+      for (auto param : params)
+        m_GlobalArgs.emplace(param);
+
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         clad_compat::makeArrayRef(params.data(), params.size());
     gradientFD->setParams(paramsRef);
@@ -546,6 +563,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     auto derivativeName =
         utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
+    for (auto index : m_DiffReq.GlobalArgsIndexes)
+      derivativeName += "_" + std::to_string(index);
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);
@@ -587,6 +606,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
     m_Derivative->setParams(params);
+    // Match the global arguments of the call to the device function to the
+    // pullback function's parameters.
+    if (!m_DiffReq.GlobalArgsIndexes.empty())
+      for (auto index : m_DiffReq.GlobalArgsIndexes)
+        m_GlobalArgs.emplace(m_Derivative->getParamDecl(index));
+    // If the function is a global kernel, all its parameters reside in the
+    // global memory of the GPU
+    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+      for (auto param : params)
+        m_GlobalArgs.emplace(param);
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
@@ -1519,7 +1548,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         BuildArraySubscript(target, forwSweepDerivativeIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      if (shouldUseCudaAtomicOps()) {
+      if (shouldUseCudaAtomicOps(target)) {
         Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
         // Add it to the body statements.
         addToCurrentBlock(atomicCall, direction::reverse);
@@ -1583,9 +1612,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // FIXME: not sure if this is generic.
           // Don't update derivatives of record types.
           if (!VD->getType()->isRecordType()) {
-            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(add_assign, direction::reverse);
+            Expr* base = it->second;
+            if (auto* UO = dyn_cast<UnaryOperator>(it->second))
+              base = UO->getSubExpr()->IgnoreImpCasts();
+            if (shouldUseCudaAtomicOps(base)) {
+              Expr* atomicCall = BuildCallToCudaAtomicAdd(it->second, dfdx());
+              // Add it to the body statements.
+              addToCurrentBlock(atomicCall, direction::reverse);
+            } else {
+              auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+              addToCurrentBlock(add_assign, direction::reverse);
+            }
           }
         }
         return StmtDiff(clonedDRE, it->second, it->second);
@@ -1728,20 +1765,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
-        DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
+        if (auto* DRE = dyn_cast<DeclRefExpr>(ArgDiff.getExpr())) {
+          // If the arg is used for differentiation of the function, then we
+          // cannot free it in the end as it's the result to be returned to the
+          // user.
+          if (m_ParamVarsWithDiff.find(DRE->getDecl()) ==
+              m_ParamVarsWithDiff.end())
+            DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
+        }
       }
       Expr* call =
           m_Sema
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                              llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
               .get();
-      Expr* call_dx =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
-              .get();
       m_DeallocExprs.push_back(call);
-      m_DeallocExprs.push_back(call_dx);
+
+      if (!DerivedCallArgs.empty()) {
+        Expr* call_dx =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                               llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
+                               Loc)
+                .get();
+        m_DeallocExprs.push_back(call_dx);
+      }
       return StmtDiff();
     }
 
@@ -1887,6 +1935,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    std::vector<size_t> globalCallArgs;
     if (!OverloadedDerivedFn) {
       size_t idx = 0;
 
@@ -1952,12 +2001,23 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                 pullback);
 
       // Try to find it in builtin derivatives
+      std::string customPullback =
+          clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
+      // Add the indexes of the global args to the custom pullback name
+      if (!m_GlobalArgs.empty())
+        for (size_t i = 0; i < pullbackCallArgs.size(); i++)
+          if (auto* DRE = dyn_cast<DeclRefExpr>(pullbackCallArgs[i]))
+            if (auto* param = dyn_cast<ParmVarDecl>(DRE->getDecl()))
+              if (m_GlobalArgs.find(param) != m_GlobalArgs.end()) {
+                customPullback += "_" + std::to_string(i);
+                globalCallArgs.emplace_back(i);
+              }
+
       if (baseDiff.getExpr())
         pullbackCallArgs.insert(
             pullbackCallArgs.begin(),
             BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr()));
-      std::string customPullback =
-          clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
+
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(),
@@ -1990,6 +2050,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // derive the called function.
         DiffRequest pullbackRequest{};
         pullbackRequest.Function = FD;
+
+        // Mark the indexes of the global args. Necessary if the argument of the
+        // call has a different name than the function's signature parameter.
+        pullbackRequest.GlobalArgsIndexes = globalCallArgs;
+
         pullbackRequest.BaseFunctionName =
             clad::utils::ComputeEffectiveFnName(FD);
         pullbackRequest.Mode = DiffMode::experimental_pullback;
@@ -2237,12 +2302,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
       Expr* gradElem = BuildArraySubscript(gradRef, {idx});
       Expr* gradExpr = BuildOp(BO_Mul, dfdx, gradElem);
-      PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
+      if (shouldUseCudaAtomicOps(outputArgs[i]))
+        PostCallStmts.push_back(
+            BuildCallToCudaAtomicAdd(outputArgs[i], gradExpr));
+      else
+        PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        Name, NumDiffArgs, getCurrentScope(),
+        /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }
@@ -2344,7 +2414,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
         if (dfdx()) {
-          if (shouldUseCudaAtomicOps()) {
+          if (shouldUseCudaAtomicOps(diff_dx)) {
             Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
             // Add it to the body statements.
             addToCurrentBlock(atomicCall, direction::reverse);
@@ -4556,6 +4626,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               m_Variables[*it] =
                   utils::BuildParenExpr(m_Sema, m_Variables[*it]);
           }
+          m_ParamVarsWithDiff.emplace(*it);
         }
       }
     }

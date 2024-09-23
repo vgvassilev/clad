@@ -783,7 +783,8 @@ namespace clad {
     // Return the found overload.
     std::string Name = "forward_central_difference";
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
+        Name, NumDiffArgs, getCurrentScope(),
+        /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false);
   }

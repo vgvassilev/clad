@@ -124,7 +124,7 @@ public:
   /// This is called just before finalising `VisitReturnStmt`.
   virtual void ActBeforeFinalizingVisitReturnStmt(StmtDiff& retExprDiff) {}
 
-  /// This ic called just before finalising `VisitCallExpr`.
+  /// This is called just before finalising `VisitCallExpr`.
   ///
   /// \param CE call expression that is being visited.
   /// \param CallArgs
