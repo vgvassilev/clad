@@ -79,6 +79,7 @@ public:
   bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
   bool VisitDeclStmt(clang::DeclStmt* DS);
   bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
+  bool VisitInitListExpr(clang::InitListExpr* ILE);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H

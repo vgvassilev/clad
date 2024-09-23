@@ -117,7 +117,7 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
       TraverseStmt(par);
-      if (m_Varied) {
+      if (m_Varied || 1) {
         m_VariedDecls.insert(FDparam[i]);
         m_Varied = false;
       }
@@ -143,10 +143,19 @@ bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
 }
 
 bool VariedAnalyzer::VisitUnaryOperator(UnaryOperator* UnOp) {
+  const auto opCode = UnOp->getOpcode();
   Expr* E = UnOp->getSubExpr();
+  if (opCode == UO_AddrOf || opCode == UO_Deref) {
+    m_Varied = true;
+    m_Marking = true;
+  }
   TraverseStmt(E);
+  m_Varied = false;
+  m_Marking = false;
   return true;
 }
+
+bool VariedAnalyzer::VisitInitListExpr(InitListExpr* ILE) { return true; }
 
 bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   if (isVaried(dyn_cast<VarDecl>(DRE->getDecl())))

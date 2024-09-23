@@ -620,7 +620,7 @@ namespace clad {
     if (!EnableActivityAnalysis)
       return true;
 
-    if (VD->getType()->isPointerType())
+    if (VD->getType()->isPointerType() || isa<ArrayType>(VD->getType()))
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {
