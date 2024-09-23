@@ -45,34 +45,31 @@ void VariedAnalyzer::AnalyzeCFGBlock(const CFGBlock& block) {
     }
   }
 
-  for (const auto succ : block.succs()) {
+  for (const clang::CFGBlock::AdjacentBlock succ : block.succs()) {
     if (!succ)
       continue;
     auto& succData = m_BlockData[succ->getBlockID()];
 
-    if (!succData) {
-      succData = new VarsData(*m_BlockData[block.getBlockID()]);
-      succData->m_Prev = m_BlockData[block.getBlockID()];
-    }
+    if (!succData)
+      succData = createNewVarsData(*m_BlockData[block.getBlockID()]);
 
+    bool shouldPushSucc = true;
     if (succ->getBlockID() > block.getBlockID()) {
       if (m_LoopMem == *m_BlockData[block.getBlockID()])
-        m_shouldPushSucc = false;
+        shouldPushSucc = false;
 
-      // has to be changed
-      for (const auto& i : *m_BlockData[block.getBlockID()])
+      for (const VarDecl* i : *m_BlockData[block.getBlockID()])
         m_LoopMem.insert(i);
     }
 
-    if (m_shouldPushSucc)
+    if (shouldPushSucc)
       m_CFGQueue.insert(succ->getBlockID());
-    m_shouldPushSucc = true;
 
     mergeVarsData(succData.get(), m_BlockData[block.getBlockID()].get());
   }
-
-  // has to be changed
-  for (const auto& i : *m_BlockData[block.getBlockID()])
+  // FIXME: Information about the varied variables is stored in the last block,
+  // so we should be able to get it form there
+  for (const VarDecl* i : *m_BlockData[block.getBlockID()])
     m_VariedDecls.insert(i);
 }
 
@@ -82,7 +79,7 @@ bool VariedAnalyzer::isVaried(const VarDecl* VD) const {
 }
 
 void VariedAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
-  auto& curBranch = getCurBlockVarsData();
+  VarsData& curBranch = getCurBlockVarsData();
   curBranch.insert(VD);
 }
 
@@ -103,7 +100,29 @@ bool VariedAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   return true;
 }
 
-bool VariedAnalyzer::VisitConditionalOperator(clang::ConditionalOperator* CO) {
+// add branching merging
+bool VariedAnalyzer::VisitConditionalOperator(ConditionalOperator* CO) {
+  TraverseStmt(CO->getCond());
+  TraverseStmt(CO->getTrueExpr());
+  TraverseStmt(CO->getFalseExpr());
+  return true;
+}
+
+bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
+  FunctionDecl* FD = CE->getDirectCallee();
+  bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
+  std::set<const clang::VarDecl*> variedParam;
+  if (noHiddenParam) {
+    MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
+    for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
+      clang::Expr* par = CE->getArg(i);
+      TraverseStmt(par);
+      if (m_Varied || 1) {
+        m_VariedDecls.insert(FDparam[i]);
+        m_Varied = false;
+      }
+    }
+  }
   return true;
 }
 
@@ -124,10 +143,19 @@ bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
 }
 
 bool VariedAnalyzer::VisitUnaryOperator(UnaryOperator* UnOp) {
+  const auto opCode = UnOp->getOpcode();
   Expr* E = UnOp->getSubExpr();
+  if (opCode == UO_AddrOf || opCode == UO_Deref) {
+    m_Varied = true;
+    m_Marking = true;
+  }
   TraverseStmt(E);
+  m_Varied = false;
+  m_Marking = false;
   return true;
 }
+
+bool VariedAnalyzer::VisitInitListExpr(InitListExpr* ILE) { return true; }
 
 bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   if (isVaried(dyn_cast<VarDecl>(DRE->getDecl())))

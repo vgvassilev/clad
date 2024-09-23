@@ -616,11 +616,11 @@ namespace clad {
     return found != m_TbrRunInfo.ToBeRecorded.end();
   }
 
-  bool DiffRequest::shouldHaveAdjoint(VarDecl* VD) const {
+  bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
     if (!EnableActivityAnalysis)
       return true;
 
-    if (VD->getType()->isPointerType())
+    if (VD->getType()->isPointerType() || isa<ArrayType>(VD->getType()))
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {

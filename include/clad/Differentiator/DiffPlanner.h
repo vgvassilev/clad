@@ -7,6 +7,8 @@
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
+#include <iterator>
+#include <set>
 namespace clang {
 class CallExpr;
 class CompilerInstance;
@@ -136,7 +138,7 @@ public:
   }
 
   bool shouldBeRecorded(clang::Expr* E) const;
-  bool shouldHaveAdjoint(clang::VarDecl* VD) const;
+  bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;

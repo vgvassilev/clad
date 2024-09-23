@@ -1,3 +1,6 @@
+#ifndef CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
+#define CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CFG.h"
 
@@ -6,10 +9,8 @@
 
 #include <algorithm>
 #include <iterator>
-#include <map>
 #include <memory>
 #include <set>
-#include <unordered_map>
 #include <utility>
 /// Class that implemets Varied part of the Activity analysis.
 /// By performing static data-flow analysis, so called Varied variables
@@ -28,7 +29,6 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
 
   bool m_Varied = false;
   bool m_Marking = false;
-  bool m_shouldPushSucc = true;
 
   std::set<const clang::VarDecl*>& m_VariedDecls;
   // using VarsData = std::set<const clang::VarDecl*>;
@@ -79,6 +79,7 @@ public:
   bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
   bool VisitDeclStmt(clang::DeclStmt* DS);
   bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
+  bool VisitInitListExpr(clang::InitListExpr* ILE);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H
