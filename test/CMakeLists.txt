@@ -29,7 +29,7 @@ if(CUDAToolkit_FOUND)
   get_filename_component(CUDA_ROOT "${CUDAToolkit_BIN_DIR}" DIRECTORY ABSOLUTE)
   get_filename_component(CUDA_LIBDIR "${CUDA_cudart_static_LIBRARY}" DIRECTORY)
 
-  set(LIBOMPTARGET_DEP_CUDA_ARCH "sm_50")
+  set(LIBOMPTARGET_DEP_CUDA_ARCH "sm_60")
 
   if(TARGET nvptx-arch)
     get_property(LIBOMPTARGET_NVPTX_ARCH TARGET nvptx-arch PROPERTY LOCATION)

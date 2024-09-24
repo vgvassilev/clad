@@ -1493,14 +1493,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                    m_Context.getTranslationUnitDecl());
 
         FunctionDecl* atomicAddFunc = nullptr;
-        for (LookupResult::iterator it = lookupResult.begin();
-             it != lookupResult.end(); it++) {
-          NamedDecl* decl = *it;
+        for (auto decl : lookupResult) {
           // FIXME: check for underlying types of the pointers
           if (dyn_cast<FunctionDecl>(decl)->getReturnType() ==
               result->getType()) {
-            printf("decl: %s, type: %s\n", decl->getNameAsString().c_str(),
-                   result->getType().getAsString().c_str());
             atomicAddFunc = dyn_cast<FunctionDecl>(decl);
             break;
           }
@@ -2312,21 +2308,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
             LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
                                       Sema::LookupOrdinaryName);
-            m_Sema.LookupQualifiedName(lookupResult, m_Context.getTranslationUnitDecl());
+            m_Sema.LookupQualifiedName(lookupResult,
+                                       m_Context.getTranslationUnitDecl());
 
             FunctionDecl* atomicAddFunc = nullptr;
-            for (LookupResult::iterator it = lookupResult.begin();
-                it != lookupResult.end(); it++) {
-              NamedDecl* decl = *it;
+            for (auto decl : lookupResult) {
               // FIXME: check for underlying types of the pointers
-              if (dyn_cast<FunctionDecl>(decl)->getReturnType() == derivedE->getType()) {
-                printf("decl: %s, type: %s\n", decl->getNameAsString().c_str(), derivedE->getType().getAsString().c_str());
+              if (dyn_cast<FunctionDecl>(decl)->getReturnType() ==
+                  derivedE->getType()) {
                 atomicAddFunc = dyn_cast<FunctionDecl>(decl);
                 break;
               }
             }
             assert(atomicAddFunc && "atomicAdd function not found");
-            llvm::SmallVector<Expr*, 2> atomicArgs  = {diff_dx, dfdx()};
+            llvm::SmallVector<Expr*, 2> atomicArgs = {diff_dx, dfdx()};
             Expr* atomicCall =
                 BuildCallExprToFunction(atomicAddFunc, atomicArgs);
 
