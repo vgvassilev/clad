@@ -239,13 +239,33 @@ __global__ void add_kernel_5(int *out, int *in, int N) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-__global__ void add_kernel_6(double *a, double *b) {
+__global__ void add_kernel_6(int *a, int *b) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  a[index] = *b;
+}
+
+// CHECK: void add_kernel_6_grad(int *a, int *b, int *_d_a, int *_d_b) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    int _t2 = a[index0];
+//CHECK-NEXT:    a[index0] = *b;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        a[index0] = _t2;
+//CHECK-NEXT:        int _r_d0 = _d_a[index0];
+//CHECK-NEXT:        _d_a[index0] = 0;
+//CHECK-NEXT:        atomicAdd(_d_b, _r_d0);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+__global__ void add_kernel_7(double *a, double *b) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
   a[2 * index] = b[0];
   a[2 * index + 1] = b[0];
 }
 
-// CHECK: void add_kernel_6_grad(double *a, double *b, double *_d_a, double *_d_b) {
+// CHECK: void add_kernel_7_grad(double *a, double *b, double *_d_a, double *_d_b) {
 //CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
 //CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
@@ -437,6 +457,7 @@ int main(void) {
   TEST_2(add_kernel_3, dim3(5, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2_N(add_kernel_4, dim3(1), dim3(5, 1, 1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
   TEST_2_N(add_kernel_5, dim3(2, 1, 1), dim3(1), 0, false, "in, out", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 5, 5, 5, 5, 5
+  TEST_2(add_kernel_6, dim3(1), dim3(5, 1, 1), 0, false, "a, b", dummy_out, dummy_in, d_out, d_in, 5); // CHECK-EXEC: 25, 0, 0, 0, 0
 
   cudaFree(dummy_in);
   cudaFree(dummy_out);
@@ -449,7 +470,7 @@ int main(void) {
   cudaMalloc(&d_out_double, 10 * sizeof(double));
   cudaMalloc(&d_in_double, 10 * sizeof(double));
 
-  TEST_2_D(add_kernel_6, dim3(1), dim3(5, 1, 1), 0, false, "a, b", dummy_out_double, dummy_in_double, d_out_double, d_in_double, 10); // CHECK-EXEC: 50.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00
+  TEST_2_D(add_kernel_7, dim3(1), dim3(5, 1, 1), 0, false, "a, b", dummy_out_double, dummy_in_double, d_out_double, d_in_double, 10); // CHECK-EXEC: 50.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00
 
   cudaFree(dummy_in_double);
   cudaFree(dummy_out_double);
