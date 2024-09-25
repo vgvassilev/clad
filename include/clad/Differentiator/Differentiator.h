@@ -78,6 +78,11 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     return of.back();
   }
 
+  /// Return the size of the tape.
+  template <typename T> CUDA_HOST_DEVICE std::size_t size(tape<T>& of) {
+    return of.size();
+  }
+
   /// The purpose of this function is to initialize adjoints
   /// (or all of its differentiable fields) with 0.
   // FIXME: Add support for objects.
@@ -88,7 +93,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   /// N.
   template <typename T> CUDA_HOST_DEVICE void zero_init(T* x, std::size_t N) {
     for (std::size_t i = 0; i < N; ++i)
-    zero_init(x[i]);
+      zero_init(x[i]);
   }
 
   /// Initialize a const sized array.

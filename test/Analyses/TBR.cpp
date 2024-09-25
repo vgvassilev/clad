@@ -82,10 +82,10 @@ double f2(double val) {
 //CHECK-NEXT:             if (!_t0)
 //CHECK-NEXT:                 break;
 //CHECK-NEXT:         }
+//CHECK-NEXT:         --i;
 //CHECK-NEXT:         switch (clad::pop(_t1)) {
 //CHECK-NEXT:           case {{2U|2UL}}:
 //CHECK-NEXT:             ;
-//CHECK-NEXT:             --i;
 //CHECK-NEXT:             {
 //CHECK-NEXT:                 double _r_d0 = _d_res;
 //CHECK-NEXT:                 _d_i += _r_d0 * val;
@@ -167,6 +167,6 @@ double f3 (double x){
 int main() {
   double result[3] = {};
   TEST(f1, 3); // CHECK-EXEC: {27.00}
-  TEST(f2, 3); // CHECK-EXEC: {9.00}
+  TEST(f2, 3); // CHECK-EXEC: {7.00}
   TEST(f3, 3); // CHECK-EXEC: {2.00}
 }
