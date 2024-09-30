@@ -1512,7 +1512,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         BuildArraySubscript(target, forwSweepDerivativeIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>() ||
+          (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() && !m_DiffReq->hasAttr<clang::CUDAHostAttr>())) {
         Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
         // Add it to the body statements.
         addToCurrentBlock(atomicCall, direction::reverse);
@@ -2312,7 +2313,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
         if (dfdx()) {
-          if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+          if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>() ||
+              (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() &&
+               !m_DiffReq->hasAttr<clang::CUDAHostAttr>())) {
             Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
             // Add it to the body statements.
             addToCurrentBlock(atomicCall, direction::reverse);
