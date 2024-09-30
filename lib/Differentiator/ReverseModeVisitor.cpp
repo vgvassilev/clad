@@ -112,23 +112,29 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Sema.LookupQualifiedName(lookupResult,
                                m_Context.getTranslationUnitDecl());
 
-    FunctionDecl* atomicAddFunc = nullptr;
-    const Type* derivedType = LHS->getType()->getPointeeOrArrayElementType();
-    for (auto decl : lookupResult) {
-      // FIXME: check for underlying types of the pointers
-      if (dyn_cast<Type>(dyn_cast<FunctionDecl>(decl)->getReturnType()) ==
-          derivedType) {
-        atomicAddFunc = dyn_cast<FunctionDecl>(decl);
-        break;
-      }
-    }
-    assert(atomicAddFunc && "atomicAdd function not found");
+    CXXScopeSpec SS;
+    Expr* UnresolvedLookup =
+        m_Sema.BuildDeclarationNameExpr(SS, lookupResult, /*ADL=*/true).get();
 
     Expr* finalLHS = LHS;
     if (isa<ArraySubscriptExpr>(LHS))
       finalLHS = BuildOp(UnaryOperatorKind::UO_AddrOf, LHS);
     llvm::SmallVector<Expr*, 2> atomicArgs = {finalLHS, dfdx()};
-    return BuildCallExprToFunction(atomicAddFunc, atomicArgs);
+
+    assert(!m_Builder.noOverloadExists(UnresolvedLookup, atomicArgs) &&
+           "atomicAdd function not found");
+
+    Expr* atomicAddCall =
+        m_Sema
+            .ActOnCallExpr(
+                getCurrentScope(),
+                /*Fn=*/UnresolvedLookup,
+                /*LParenLoc=*/noLoc,
+                /*ArgExprs=*/llvm::MutableArrayRef<Expr*>(atomicArgs),
+                /*RParenLoc=*/m_DiffReq->getLocation())
+            .get();
+
+    return atomicAddCall;
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
