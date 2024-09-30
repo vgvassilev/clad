@@ -1519,7 +1519,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>() ||
-          (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() && !m_DiffReq->hasAttr<clang::CUDAHostAttr>())) {
+          (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() &&
+           !m_DiffReq->hasAttr<clang::CUDAHostAttr>())) {
         Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
         // Add it to the body statements.
         addToCurrentBlock(atomicCall, direction::reverse);
