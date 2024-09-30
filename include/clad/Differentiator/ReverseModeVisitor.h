@@ -433,6 +433,16 @@ namespace clad {
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
     };
+
+    /// Add call to cuda::atomicAdd for the given LHS and RHS expressions.
+    ///
+    /// \param[in] LHS The left-hand side expression.
+    ///
+    /// \param[in] RHS The right-hand side expression.
+    ///
+    /// \returns The atomicAdd call expression.
+    clang::Expr* BuildCallToCudaAtomicAdd(clang::Expr* LHS, clang::Expr* RHS);
+
     static DeclDiff<clang::StaticAssertDecl>
     DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 

@@ -104,6 +104,33 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return CladTapeResult{*this, PushExpr, PopExpr, TapeRef};
   }
 
+  clang::Expr* ReverseModeVisitor::BuildCallToCudaAtomicAdd(clang::Expr* LHS,
+                                                            clang::Expr* RHS) {
+    DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
+    LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
+                              Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(lookupResult,
+                               m_Context.getTranslationUnitDecl());
+
+    FunctionDecl* atomicAddFunc = nullptr;
+    const Type* derivedType = LHS->getType()->getPointeeOrArrayElementType();
+    for (auto decl : lookupResult) {
+      // FIXME: check for underlying types of the pointers
+      if (dyn_cast<Type>(dyn_cast<FunctionDecl>(decl)->getReturnType()) ==
+          derivedType) {
+        atomicAddFunc = dyn_cast<FunctionDecl>(decl);
+        break;
+      }
+    }
+    assert(atomicAddFunc && "atomicAdd function not found");
+
+    Expr* finalLHS = LHS;
+    if (isa<ArraySubscriptExpr>(LHS))
+      finalLHS = BuildOp(UnaryOperatorKind::UO_AddrOf, LHS);
+    llvm::SmallVector<Expr*, 2> atomicArgs = {finalLHS, dfdx()};
+    return BuildCallExprToFunction(atomicAddFunc, atomicArgs);
+  }
+
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
                                          const DiffRequest& request)
       : VisitorBase(builder, request), m_Result(nullptr) {}
@@ -1486,26 +1513,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // Create the (target += dfdx) statement.
     if (dfdx()) {
       if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
-        DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
-        LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
-                                  Sema::LookupOrdinaryName);
-        m_Sema.LookupQualifiedName(lookupResult,
-                                   m_Context.getTranslationUnitDecl());
-
-        FunctionDecl* atomicAddFunc = nullptr;
-        for (auto decl : lookupResult) {
-          // FIXME: check for underlying types of the pointers
-          if (dyn_cast<FunctionDecl>(decl)->getReturnType() ==
-              result->getType()) {
-            atomicAddFunc = dyn_cast<FunctionDecl>(decl);
-            break;
-          }
-        }
-        assert(atomicAddFunc && "atomicAdd function not found");
-        Expr* addrOfRes = BuildOp(UnaryOperatorKind::UO_AddrOf, result);
-        llvm::SmallVector<Expr*, 2> atomicArgs = {addrOfRes, dfdx()};
-        Expr* atomicCall = BuildCallExprToFunction(atomicAddFunc, atomicArgs);
-
+        Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
         // Add it to the body statements.
         addToCurrentBlock(atomicCall, direction::reverse);
       } else {
@@ -2305,26 +2313,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Create the (target += dfdx) statement.
         if (dfdx()) {
           if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
-            DeclarationName atomicAddId = &m_Context.Idents.get("atomicAdd");
-            LookupResult lookupResult(m_Sema, atomicAddId, SourceLocation(),
-                                      Sema::LookupOrdinaryName);
-            m_Sema.LookupQualifiedName(lookupResult,
-                                       m_Context.getTranslationUnitDecl());
-
-            FunctionDecl* atomicAddFunc = nullptr;
-            for (auto decl : lookupResult) {
-              // FIXME: check for underlying types of the pointers
-              if (dyn_cast<FunctionDecl>(decl)->getReturnType() ==
-                  derivedE->getType()) {
-                atomicAddFunc = dyn_cast<FunctionDecl>(decl);
-                break;
-              }
-            }
-            assert(atomicAddFunc && "atomicAdd function not found");
-            llvm::SmallVector<Expr*, 2> atomicArgs = {diff_dx, dfdx()};
-            Expr* atomicCall =
-                BuildCallExprToFunction(atomicAddFunc, atomicArgs);
-
+            Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
             // Add it to the body statements.
             addToCurrentBlock(atomicCall, direction::reverse);
           } else {
