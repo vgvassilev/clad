@@ -124,13 +124,23 @@ public:
   /// This is called just before finalising `VisitReturnStmt`.
   virtual void ActBeforeFinalizingVisitReturnStmt(StmtDiff& retExprDiff) {}
 
-  /// This ic called just before finalising `VisitCallExpr`.
+  /// This is called just before finalising `VisitCallExpr`.
   ///
   /// \param CE call expression that is being visited.
   /// \param CallArgs
   /// \param ArgResultDecls
   virtual void ActBeforeFinalizingVisitCallExpr(
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) {}
+
+  /// This is called just before finalising `VisitCUDAKernelCallExpr`.
+  ///
+  /// \param KCE kernel call expression that is being visited.
+  /// \param CallArgs
+  /// \param ArgResultDecls
+  virtual void ActBeforeFinalizingVisitCUDAKernelCallExpr(
+      const clang::CUDAKernelCallExpr*& KCE, clang::Expr*& OverloadedDerivedFn,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) {}
 

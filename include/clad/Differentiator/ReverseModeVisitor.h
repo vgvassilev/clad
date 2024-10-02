@@ -347,7 +347,7 @@ namespace clad {
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
         llvm::SmallVectorImpl<clang::Stmt*>& PostCallStmts,
         llvm::SmallVectorImpl<clang::Expr*>& args,
-        llvm::SmallVectorImpl<clang::Expr*>& outputArgs);
+        llvm::SmallVectorImpl<clang::Expr*>& outputArgs, clang::Expr* config = nullptr);
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
@@ -380,6 +380,7 @@ namespace clad {
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
+    StmtDiff VisitCUDAKernelCallExpr(const clang::CUDAKernelCallExpr* KCE);
     virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
     StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);

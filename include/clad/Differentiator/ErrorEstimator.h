@@ -192,6 +192,10 @@ public:
       const clang::CallExpr*& CE, clang::Expr*& fnDecl,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) override;
+  void ActBeforeFinalizingVisitCUDAKernelCallExpr(
+      const clang::CUDAKernelCallExpr*& KCE, clang::Expr*& OverloadedDerivedFn,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) override;
   void ActBeforeFinalizingAssignOp(clang::Expr*&, clang::Expr*&, clang::Expr*&,
                                    clang::BinaryOperator::Opcode&) override;
   void ActBeforeFinalizingDifferentiateSingleStmt(const direction& d) override;
