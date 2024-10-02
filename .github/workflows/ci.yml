@@ -496,6 +496,7 @@ jobs:
     - name: Save PR Info
       if: ${{ matrix.coverage == true }}
       run: |
+        ls -la
         mkdir -p ./pr
         echo ${{ github.event.number }} > ./pr/NR
         echo ${{ github.repository }} > ./pr/REPO
