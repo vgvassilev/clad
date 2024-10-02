@@ -496,7 +496,6 @@ jobs:
     - name: Save PR Info
       if: ${{ matrix.coverage == true }}
       run: |
-        ls -la
         mkdir -p ./pr
         echo ${{ github.event.number }} > ./pr/NR
         echo ${{ github.repository }} > ./pr/REPO
@@ -505,6 +504,7 @@ jobs:
       with:
         name: pr
         path: pr/
+        overwrite: true
     - uses: nelonoel/branch-name@v1.0.1
     - name: Setup default Build Type on *nux (coverity)
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
