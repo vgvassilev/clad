@@ -302,12 +302,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return gradientOverloadFD;
   }
 
-  DerivativeAndOverload
-  ReverseModeVisitor::Derive(const FunctionDecl* FD,
-                             const DiffRequest& request) {
+  DerivativeAndOverload ReverseModeVisitor::Derive() {
+    const FunctionDecl* FD = m_DiffReq.Function;
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    assert(m_DiffReq == request);
 
     // FIXME: reverse mode plugins may have request mode other than
     // `DiffMode::reverse`, but they still need the `DiffMode::reverse` mode
@@ -323,31 +321,28 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
-    DiffInputVarsInfo DVI;
-    if (request.Args) {
-      DVI = request.DVI;
-      for (const auto& dParam : DVI)
+    if (m_DiffReq.Args)
+      for (const auto& dParam : m_DiffReq.DVI)
         args.push_back(dParam.param);
-    }
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
     if (args.empty())
       return {};
 
     if (m_ExternalSource)
-      m_ExternalSource->ActAfterParsingDiffArgs(request, args);
+      m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
     // Save the type of the output parameter(s) that is add by clad to the
     // derived function
-    if (request.Mode == DiffMode::jacobian) {
+    if (m_DiffReq.Mode == DiffMode::jacobian) {
       unsigned lastArgN = m_DiffReq->getNumParams() - 1;
       outputArrayStr = m_DiffReq->getParamDecl(lastArgN)->getNameAsString();
     }
 
-    auto derivativeBaseName = request.BaseFunctionName;
+    auto derivativeBaseName = m_DiffReq.BaseFunctionName;
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
-    if (request.Mode == DiffMode::jacobian) {
+    if (m_DiffReq.Mode == DiffMode::jacobian) {
       // If Jacobian is asked, the last parameter is the result parameter
       // and should be ignored
       if (args.size() != FD->getNumParams()-1){
@@ -385,9 +380,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (request.Mode != DiffMode::jacobian && numExtraParam == 0)
+    if (m_DiffReq.Mode != DiffMode::jacobian && numExtraParam == 0)
       shouldCreateOverload = true;
-    if (!request.DeclarationOnly && !request.DerivedFDPrototypes.empty())
+    if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
       // If the overload is already created, we don't need to create it again.
       shouldCreateOverload = false;
 
@@ -450,8 +445,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     gradientFD->setParams(paramsRef);
     gradientFD->setBody(nullptr);
 
-    if (!request.DeclarationOnly) {
-      if (request.Mode == DiffMode::jacobian) {
+    if (!m_DiffReq.DeclarationOnly) {
+      if (m_DiffReq.Mode == DiffMode::jacobian) {
         // Reference to the output parameter.
         m_Result = BuildDeclRef(params.back());
         numParams = args.size();
@@ -490,7 +485,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_DerivativeFnScope = getCurrentScope();
       beginBlock();
       if (m_ExternalSource)
-        m_ExternalSource->ActOnStartOfDerivedFnBody(request);
+        m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
       Stmt* gradientBody = nullptr;
 
@@ -505,9 +500,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // Size >= current derivative order means that there exists a declaration
       // or prototype for the currently derived function.
-      if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+      if (m_DiffReq.DerivedFDPrototypes.size() >=
+          m_DiffReq.CurrentDerivativeOrder)
         m_Derivative->setPreviousDeclaration(
-            request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
+            m_DiffReq
+                .DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
     }
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();
@@ -522,22 +519,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return DerivativeAndOverload{result.first, gradientOverloadFD};
   }
 
-  DerivativeAndOverload
-  ReverseModeVisitor::DerivePullback(const clang::FunctionDecl* FD,
-                                     const DiffRequest& request) {
+  DerivativeAndOverload ReverseModeVisitor::DerivePullback() {
+    const clang::FunctionDecl* FD = m_DiffReq.Function;
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    // FIXME: We should not use const_cast to get the decl request here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    const_cast<DiffRequest&>(m_DiffReq) = request;
     assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
     assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
-    if (!request.DVI.empty())
-      for (const auto& dParam : request.DVI)
+    if (!m_DiffReq.DVI.empty())
+      for (const auto& dParam : m_DiffReq.DVI)
         args.push_back(dParam.param);
     else
       std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
@@ -549,7 +542,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 #endif
 
     if (m_ExternalSource)
-      m_ExternalSource->ActAfterParsingDiffArgs(request, args);
+      m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
 
     auto derivativeName =
         utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
@@ -596,7 +589,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Derivative->setParams(params);
     m_Derivative->setBody(nullptr);
 
-    if (!request.DeclarationOnly) {
+    if (!m_DiffReq.DeclarationOnly) {
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
 
@@ -605,7 +598,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       beginBlock();
       if (m_ExternalSource)
-        m_ExternalSource->ActOnStartOfDerivedFnBody(request);
+        m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
       StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
       Stmt* forward = bodyDiff.getStmt();
@@ -634,9 +627,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // Size >= current derivative order means that there exists a declaration
       // or prototype for the currently derived function.
-      if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+      if (m_DiffReq.DerivedFDPrototypes.size() >=
+          m_DiffReq.CurrentDerivativeOrder)
         m_Derivative->setPreviousDeclaration(
-            request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
+            m_DiffReq
+                .DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
     }
     m_Sema.PopFunctionScopeInfo();
     m_Sema.PopDeclContext();

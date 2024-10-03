@@ -355,8 +355,6 @@ namespace clad {
 
     ///\brief Produces the gradient of a given function.
     ///
-    ///\param[in] FD - the function that will be differentiated.
-    ///
     ///\returns The gradient of the function, potentially created enclosing
     /// context and if generated, its overload.
     ///
@@ -373,10 +371,8 @@ namespace clad {
     /// Improved naming scheme is required. Hence, we append the indices to of
     /// the requested parameters to 'f_grad', i.e. in the previous example "x,
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
-    DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
-                                 const DiffRequest& request);
-    DerivativeAndOverload DerivePullback(const clang::FunctionDecl* FD,
-                                         const DiffRequest& request);
+    DerivativeAndOverload Derive();
+    DerivativeAndOverload DerivePullback();
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
