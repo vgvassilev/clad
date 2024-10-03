@@ -399,44 +399,44 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     DerivativeAndOverload result{};
     if (request.Mode == DiffMode::forward) {
       BaseForwardModeVisitor V(*this, request);
-      result = V.Derive(FD, request);
+      result = V.Derive();
     } else if (request.Mode == DiffMode::experimental_pushforward) {
       PushForwardModeVisitor V(*this, request);
-      result = V.DerivePushforward(FD, request);
+      result = V.DerivePushforward();
     } else if (request.Mode == DiffMode::vector_forward_mode) {
       VectorForwardModeVisitor V(*this, request);
       result = V.DeriveVectorMode(FD, request);
     } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
-      result = V.DerivePushforward(FD, request);
+      result = V.DerivePushforward();
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this, request);
-      result = V.Derive(FD, request);
+      result = V.Derive();
     } else if (request.Mode == DiffMode::experimental_pullback) {
       ReverseModeVisitor V(*this, request);
       if (!m_ErrorEstHandler.empty()) {
         InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
         V.AddExternalSource(*m_ErrorEstHandler.back());
       }
-      result = V.DerivePullback(FD, request);
+      result = V.DerivePullback();
       if (!m_ErrorEstHandler.empty())
         CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
       ReverseModeForwPassVisitor V(*this, request);
-      result = V.Derive(FD, request);
+      result = V.Derive();
     } else if (request.Mode == DiffMode::hessian ||
                request.Mode == DiffMode::hessian_diagonal) {
       HessianModeVisitor H(*this, request);
-      result = H.Derive(FD, request);
+      result = H.Derive();
     } else if (request.Mode == DiffMode::jacobian) {
       ReverseModeVisitor R(*this, request);
-      result = R.Derive(FD, request);
+      result = R.Derive();
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this, request);
       InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
       R.AddExternalSource(*m_ErrorEstHandler.back());
       // Finally begin estimation.
-      result = R.Derive(FD, request);
+      result = R.Derive();
       // Once we are done, we want to clear the model for any further
       // calls to estimate_error.
       CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);

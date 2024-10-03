@@ -93,160 +93,152 @@ static FunctionDecl* DeriveUsingForwardModeTwice(
   return secondDerivative;
 }
 
-  DerivativeAndOverload
-  HessianModeVisitor::Derive(const clang::FunctionDecl* FD,
-                             const DiffRequest& request) {
-    DiffParams args{};
-    IndexIntervalTable indexIntervalTable{};
-    DiffInputVarsInfo DVI;
-    if (request.Args) {
-      DVI = request.DVI;
-      for (auto dParam : DVI) {
-        args.push_back(dParam.param);
-        indexIntervalTable.push_back(dParam.paramIndexInterval);
-      }
+DerivativeAndOverload HessianModeVisitor::Derive() {
+  const FunctionDecl* FD = m_DiffReq.Function;
+  DiffParams args{};
+  IndexIntervalTable indexIntervalTable{};
+  if (m_DiffReq.Args)
+    for (auto dParam : m_DiffReq.DVI) {
+      args.push_back(dParam.param);
+      indexIntervalTable.push_back(dParam.paramIndexInterval);
     }
-    else
-      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
+  else
+    std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
 
-    std::vector<FunctionDecl*> secondDerivativeFuncs;
-    llvm::SmallVector<size_t, 16> IndependentArgsSize{};
-    size_t TotalIndependentArgsSize = 0;
+  std::vector<FunctionDecl*> secondDerivativeFuncs;
+  llvm::SmallVector<size_t, 16> IndependentArgsSize{};
+  size_t TotalIndependentArgsSize = 0;
 
-    // request.Function is original function passed in from clad::hessian
-    assert(m_DiffReq == request);
-
-    std::string hessianFuncName = request.BaseFunctionName + "_hessian";
-    if (request.Mode == DiffMode::hessian_diagonal)
-      hessianFuncName += "_diagonal";
-    // To be consistent with older tests, nothing is appended to 'f_hessian' if
-    // we differentiate w.r.t. all the parameters at once.
-    if (args.size() != FD->getNumParams() ||
-        !std::equal(m_DiffReq->param_begin(), m_DiffReq->param_end(),
-                    args.begin())) {
-      for (auto arg : args) {
-        auto it =
-            std::find(m_DiffReq->param_begin(), m_DiffReq->param_end(), arg);
-        auto idx = std::distance(m_DiffReq->param_begin(), it);
-        hessianFuncName += ('_' + std::to_string(idx));
-      }
+  std::string hessianFuncName = m_DiffReq.BaseFunctionName + "_hessian";
+  if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
+    hessianFuncName += "_diagonal";
+  // To be consistent with older tests, nothing is appended to 'f_hessian' if
+  // we differentiate w.r.t. all the parameters at once.
+  if (args.size() != FD->getNumParams() ||
+      !std::equal(m_DiffReq->param_begin(), m_DiffReq->param_end(),
+                  args.begin())) {
+    for (auto arg : args) {
+      auto it =
+          std::find(m_DiffReq->param_begin(), m_DiffReq->param_end(), arg);
+      auto idx = std::distance(m_DiffReq->param_begin(), it);
+      hessianFuncName += ('_' + std::to_string(idx));
     }
+  }
 
-    llvm::SmallVector<QualType, 16> paramTypes(m_DiffReq->getNumParams() + 1);
-    std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
-                   std::begin(paramTypes),
-                   [](const ParmVarDecl* PVD) { return PVD->getType(); });
-    paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
+  llvm::SmallVector<QualType, 16> paramTypes(m_DiffReq->getNumParams() + 1);
+  std::transform(m_DiffReq->param_begin(), m_DiffReq->param_end(),
+                 std::begin(paramTypes),
+                 [](const ParmVarDecl* PVD) { return PVD->getType(); });
+  paramTypes.back() = m_Context.getPointerType(m_DiffReq->getReturnType());
 
-    const auto* originalFnProtoType =
-        cast<FunctionProtoType>(m_DiffReq->getType());
-    QualType hessianFunctionType = m_Context.getFunctionType(
-        m_Context.VoidTy,
-        llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
-        // Cast to function pointer.
-        originalFnProtoType->getExtProtoInfo());
+  const auto* originalFnProtoType =
+      cast<FunctionProtoType>(m_DiffReq->getType());
+  QualType hessianFunctionType = m_Context.getFunctionType(
+      m_Context.VoidTy,
+      llvm::ArrayRef<QualType>(paramTypes.data(), paramTypes.size()),
+      // Cast to function pointer.
+      originalFnProtoType->getExtProtoInfo());
 
-    // Check if the function is already declared as a custom derivative.
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-            hessianFuncName, DC, hessianFunctionType))
-      return DerivativeAndOverload{customDerivative, nullptr};
+  // Check if the function is already declared as a custom derivative.
+  // FIXME: We should not use const_cast to get the decl context here.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+  auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+  if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
+          hessianFuncName, DC, hessianFunctionType))
+    return DerivativeAndOverload{customDerivative, nullptr};
 
-    // Ascertains the independent arguments and differentiates the function
-    // in forward and reverse mode by calling ProcessDiffRequest twice each
-    // iteration, storing each generated second derivative function
-    // (corresponds to columns of Hessian matrix) in a vector for private method
-    // merge.
-    for (auto PVD : FD->parameters()) {
-      auto it = std::find(std::begin(args), std::end(args), PVD);
-      if (it != args.end()) {
-        // Using the properties of a vector to find the index of the requested
-        // arg
-        auto argIndex = it - args.begin();
-        if (isArrayOrPointerType(PVD->getType())) {
-          if (indexIntervalTable.size() == 0 ||
-              indexIntervalTable[argIndex].size() == 0) {
-            std::string suggestedArgsStr{};
-            if (auto SL = dyn_cast<StringLiteral>(
-                    request.Args->IgnoreParenImpCasts())) {
-              llvm::StringRef str = SL->getString().trim();
-              llvm::StringRef name{};
-              do {
-                std::tie(name, str) = str.split(',');
-                if (name.trim().str() == PVD->getNameAsString()) {
-                  suggestedArgsStr += (suggestedArgsStr.empty() ? "" : ", ") +
-                                      PVD->getNameAsString() +
-                                      "[0:<last index of " +
-                                      PVD->getNameAsString() + ">]";
-                } else {
-                  suggestedArgsStr += (suggestedArgsStr.empty() ? "" : ", ") +
-                                      name.trim().str();
-                }
-              } while (!str.empty());
-            } else {
-              suggestedArgsStr =
-                  PVD->getNameAsString() + "[0:<last index of b>]";
-            }
-            std::string helperMsg("clad::hessian(" + FD->getNameAsString() +
-                                  ", \"" + suggestedArgsStr + "\")");
-            diag(DiagnosticsEngine::Error,
-                 request.Args ? request.Args->getEndLoc() : noLoc,
-                 "Hessian mode differentiation w.r.t. array or pointer "
-                 "parameters needs explicit declaration of the indices of the "
-                 "array using the args parameter; did you mean '%0'",
-                 {helperMsg});
-            return {};
+  // Ascertains the independent arguments and differentiates the function
+  // in forward and reverse mode by calling ProcessDiffRequest twice each
+  // iteration, storing each generated second derivative function
+  // (corresponds to columns of Hessian matrix) in a vector for private method
+  // merge.
+  for (auto PVD : FD->parameters()) {
+    auto it = std::find(std::begin(args), std::end(args), PVD);
+    if (it != args.end()) {
+      // Using the properties of a vector to find the index of the requested
+      // arg
+      auto argIndex = it - args.begin();
+      if (isArrayOrPointerType(PVD->getType())) {
+        if (indexIntervalTable.size() == 0 ||
+            indexIntervalTable[argIndex].size() == 0) {
+          std::string suggestedArgsStr{};
+          if (auto SL = dyn_cast<StringLiteral>(
+                  m_DiffReq.Args->IgnoreParenImpCasts())) {
+            llvm::StringRef str = SL->getString().trim();
+            llvm::StringRef name{};
+            do {
+              std::tie(name, str) = str.split(',');
+              if (name.trim().str() == PVD->getNameAsString()) {
+                suggestedArgsStr += (suggestedArgsStr.empty() ? "" : ", ") +
+                                    PVD->getNameAsString() +
+                                    "[0:<last index of " +
+                                    PVD->getNameAsString() + ">]";
+              } else {
+                suggestedArgsStr +=
+                    (suggestedArgsStr.empty() ? "" : ", ") + name.trim().str();
+              }
+            } while (!str.empty());
+          } else {
+            suggestedArgsStr = PVD->getNameAsString() + "[0:<last index of b>]";
           }
+          std::string helperMsg("clad::hessian(" + FD->getNameAsString() +
+                                ", \"" + suggestedArgsStr + "\")");
+          diag(DiagnosticsEngine::Error,
+               m_DiffReq.Args ? m_DiffReq.Args->getEndLoc() : noLoc,
+               "Hessian mode differentiation w.r.t. array or pointer "
+               "parameters needs explicit declaration of the indices of the "
+               "array using the args parameter; did you mean '%0'",
+               {helperMsg});
+          return {};
+        }
 
-          IndependentArgsSize.push_back(indexIntervalTable[argIndex].size());
-          TotalIndependentArgsSize += indexIntervalTable[argIndex].size();
+        IndependentArgsSize.push_back(indexIntervalTable[argIndex].size());
+        TotalIndependentArgsSize += indexIntervalTable[argIndex].size();
 
-          // Derive the function w.r.t. to each requested index of the current
-          // array in forward mode and then in reverse mode w.r.t to all
-          // requested args
-          for (auto i = indexIntervalTable[argIndex].Start;
-               i < indexIntervalTable[argIndex].Finish; i++) {
-            auto independentArgString =
-                PVD->getNameAsString() + "[" + std::to_string(i) + "]";
-            auto ForwardModeIASL =
-                CreateStringLiteral(m_Context, independentArgString);
-            FunctionDecl* DFD = nullptr;
-            if (request.Mode == DiffMode::hessian_diagonal)
-              DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
-                                                request, ForwardModeIASL,
-                                                m_Builder.m_DFC);
-            else
-              DFD = DeriveUsingForwardAndReverseMode(
-                  m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
-                  request.Args, m_Builder.m_DFC);
-            secondDerivativeFuncs.push_back(DFD);
-          }
-        } else {
-          IndependentArgsSize.push_back(1);
-          TotalIndependentArgsSize++;
-          // Derive the function w.r.t. to the current arg in forward mode and
-          // then in reverse mode w.r.t to all requested args
+        // Derive the function w.r.t. to each requested index of the current
+        // array in forward mode and then in reverse mode w.r.t to all
+        // requested args
+        for (auto i = indexIntervalTable[argIndex].Start;
+             i < indexIntervalTable[argIndex].Finish; i++) {
+          auto independentArgString =
+              PVD->getNameAsString() + "[" + std::to_string(i) + "]";
           auto ForwardModeIASL =
-              CreateStringLiteral(m_Context, PVD->getNameAsString());
+              CreateStringLiteral(m_Context, independentArgString);
           FunctionDecl* DFD = nullptr;
-          if (request.Mode == DiffMode::hessian_diagonal)
+          if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
             DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
-                                              request, ForwardModeIASL,
+                                              m_DiffReq, ForwardModeIASL,
                                               m_Builder.m_DFC);
           else
             DFD = DeriveUsingForwardAndReverseMode(
-                m_Sema, m_CladPlugin, m_Builder, request, ForwardModeIASL,
-                request.Args, m_Builder.m_DFC);
+                m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
+                m_DiffReq.Args, m_Builder.m_DFC);
           secondDerivativeFuncs.push_back(DFD);
         }
+      } else {
+        IndependentArgsSize.push_back(1);
+        TotalIndependentArgsSize++;
+        // Derive the function w.r.t. to the current arg in forward mode and
+        // then in reverse mode w.r.t to all requested args
+        auto ForwardModeIASL =
+            CreateStringLiteral(m_Context, PVD->getNameAsString());
+        FunctionDecl* DFD = nullptr;
+        if (m_DiffReq.Mode == DiffMode::hessian_diagonal)
+          DFD = DeriveUsingForwardModeTwice(m_Sema, m_CladPlugin, m_Builder,
+                                            m_DiffReq, ForwardModeIASL,
+                                            m_Builder.m_DFC);
+        else
+          DFD = DeriveUsingForwardAndReverseMode(
+              m_Sema, m_CladPlugin, m_Builder, m_DiffReq, ForwardModeIASL,
+              m_DiffReq.Args, m_Builder.m_DFC);
+        secondDerivativeFuncs.push_back(DFD);
       }
     }
-    return Merge(secondDerivativeFuncs, IndependentArgsSize,
-                 TotalIndependentArgsSize, hessianFuncName, DC,
-                 hessianFunctionType, paramTypes);
   }
+  return Merge(secondDerivativeFuncs, IndependentArgsSize,
+               TotalIndependentArgsSize, hessianFuncName, DC,
+               hessianFunctionType, paramTypes);
+}
 
   // Combines all generated second derivative functions into a
   // single hessian function by creating CallExprs to each individual

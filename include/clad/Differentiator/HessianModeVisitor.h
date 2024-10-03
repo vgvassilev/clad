@@ -41,8 +41,6 @@ namespace clad {
     ///\brief Produces the hessian second derivative columns of a given
     /// function.
     ///
-    ///\param[in] FD - the function that will be differentiated.
-    ///
     ///\returns A function containing second derivatives (columns) of a hessian
     /// matrix and potentially created enclosing context.
     ///
@@ -50,8 +48,7 @@ namespace clad {
     /// ReverseModeVisitor to generate second derivatives that correspond to
     /// columns of the Hessian. uses Merge to return a FunctionDecl
     /// containing CallExprs to the generated second derivatives.
-    DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
-                                     const DiffRequest& request);
+    DerivativeAndOverload Derive();
   };
 } // end namespace clad
 

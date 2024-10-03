@@ -30,16 +30,12 @@ public:
 
   ///\brief Produces the first derivative of a given function.
   ///
-  ///\param[in] FD - the function that will be differentiated.
-  ///
   ///\returns The differentiated and potentially created enclosing
   /// context.
   ///
-  DerivativeAndOverload Derive(const clang::FunctionDecl* FD,
-                               const DiffRequest& request);
+  DerivativeAndOverload Derive();
 
-  DerivativeAndOverload DerivePushforward(const clang::FunctionDecl* FD,
-                                          const DiffRequest& request);
+  DerivativeAndOverload DerivePushforward();
 
   /// Returns the return type for the pushforward function of the function
   /// `m_DiffReq->Function`.
