@@ -975,4 +975,4 @@ jobs:
           echo "This action only runs on branch coverity_scan"
         fi
       # env:
-ц      #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      #  TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
