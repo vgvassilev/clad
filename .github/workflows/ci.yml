@@ -120,14 +120,14 @@ jobs:
             clang-runtime: '16'
             debug_build: true
 
-          - name: ubu20-gcc7-runtime18-analyzers
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '18'
-            coverage: true
-            cuda: true
-            #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
-            #clang-format: true
+          #- name: ubu20-gcc7-runtime18-analyzers
+          #  os: ubuntu-20.04
+          #  compiler: gcc-7
+          #  clang-runtime: '18'
+          #  coverage: true
+          #  cuda: true
+          #  #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+          #  #clang-format: true
 
           - name: selfh-ubu22-gcc11-runtime18-analyzers
             os: self-hosted #ubuntu-22.04
