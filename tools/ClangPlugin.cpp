@@ -401,11 +401,11 @@ namespace clad {
     static void SetActivityAnalysisOptions(const DifferentiationOptions& DO,
                                            RequestOptions& opts) {
       // If user has explicitly specified the mode for AA, use it.
-      if (DO.EnableActivityAnalysis || DO.DisableActivityAnalysis)
-        opts.EnableActivityAnalysis =
-            DO.EnableActivityAnalysis && !DO.DisableActivityAnalysis;
+      if (DO.EnableVariedAnalysis || DO.DisableActivityAnalysis)
+        opts.EnableVariedAnalysis =
+            DO.EnableVariedAnalysis && !DO.DisableActivityAnalysis;
       else
-        opts.EnableActivityAnalysis = false; // Default mode.
+        opts.EnableVariedAnalysis = false; // Default mode.
     }
 
     void CladPlugin::SetRequestOptions(RequestOptions& opts) const {

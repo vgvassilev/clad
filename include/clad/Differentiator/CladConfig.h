@@ -29,7 +29,7 @@ enum opts : unsigned {
   // 00 - default, 01 - enable, 10 - disable, 11 - not used / invalid
   enable_tbr = 1 << (ORDER_BITS + 2),
   disable_tbr = 1 << (ORDER_BITS + 3),
-  enable_aa = 1 << (ORDER_BITS + 5),
+  enable_va = 1 << (ORDER_BITS + 5),
   disable_aa = 1 << (ORDER_BITS + 6),
 
   // Specifying whether we only want the diagonal of the hessian.

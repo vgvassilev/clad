@@ -19,21 +19,14 @@
 /// statements in the reverse mode, improving generated codes efficiency.
 namespace clad {
 using VarsData = std::set<const clang::VarDecl*>;
-static inline void mergeVarsData(VarsData* targetData, VarsData* mergeData) {
-  for (const clang::VarDecl* i : *mergeData)
-    targetData->insert(i);
-  for (const clang::VarDecl* i : *targetData)
-    mergeData->insert(i);
-}
 class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
 
   bool m_Varied = false;
   bool m_Marking = false;
 
   std::set<const clang::VarDecl*>& m_VariedDecls;
-  // using VarsData = std::set<const clang::VarDecl*>;
   /// A helper method to allocate VarsData
-  /// \param toAssign - Parameter to initialize new VarsData with.
+  /// \param[in] toAssign - Parameter to initialize new VarsData with.
   /// \return Unique pointer to a new object of type Varsdata.
   static std::unique_ptr<VarsData> createNewVarsData(VarsData toAssign) {
     return std::unique_ptr<VarsData>(new VarsData(std::move(toAssign)));
@@ -47,7 +40,12 @@ class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
   std::vector<std::unique_ptr<VarsData>> m_BlockData;
   unsigned m_CurBlockID{};
   std::set<unsigned> m_CFGQueue;
+  /// Checks if a variable is on the current branch.
+  /// \param[in] VD - Variable declaration.
+  /// @return Whether a variable is on the current branch.
   bool isVaried(const clang::VarDecl* VD) const;
+  /// Adds varied variable to current branch.
+  /// \param[in] VD - Variable declaration.
   void copyVarToCurBlock(const clang::VarDecl* VD);
   VarsData& getCurBlockVarsData() { return *m_BlockData[m_CurBlockID]; }
   [[nodiscard]] const VarsData& getCurBlockVarsData() const {
@@ -71,7 +69,7 @@ public:
   VariedAnalyzer& operator=(const VariedAnalyzer&&) = delete;
 
   /// Runs Varied analysis.
-  /// \param FD Function to run the analysis on.
+  /// \param[in] FD Function to run the analysis on.
   void Analyze(const clang::FunctionDecl* FD);
   bool VisitBinaryOperator(clang::BinaryOperator* BinOp);
   bool VisitCallExpr(clang::CallExpr* CE);

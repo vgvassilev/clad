@@ -29,6 +29,13 @@ void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
   }
 }
 
+void mergeVarsData(VarsData* targetData, VarsData* mergeData) {
+  for (const clang::VarDecl* i : *mergeData)
+    targetData->insert(i);
+  for (const clang::VarDecl* i : *targetData)
+    mergeData->insert(i);
+}
+
 CFGBlock* VariedAnalyzer::getCFGBlockByID(unsigned ID) {
   return *(m_CFG->begin() + ID);
 }
@@ -86,16 +93,18 @@ void VariedAnalyzer::copyVarToCurBlock(const clang::VarDecl* VD) {
 bool VariedAnalyzer::VisitBinaryOperator(BinaryOperator* BinOp) {
   Expr* L = BinOp->getLHS();
   Expr* R = BinOp->getRHS();
-
+  const auto opCode = BinOp->getOpcode();
   if (BinOp->isAssignmentOp()) {
     m_Varied = false;
     TraverseStmt(R);
     m_Marking = m_Varied;
     TraverseStmt(L);
     m_Marking = false;
-  } else {
-    TraverseStmt(L);
-    TraverseStmt(R);
+  } else if (opCode == BO_Add || opCode == BO_Sub || opCode == BO_Mul ||
+             opCode == BO_Div) {
+    for (auto* subexpr : BinOp->children())
+      if (!isa<BinaryOperator>(subexpr))
+        TraverseStmt(subexpr);
   }
   return true;
 }
@@ -111,18 +120,15 @@ bool VariedAnalyzer::VisitConditionalOperator(ConditionalOperator* CO) {
 bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
-  std::set<const clang::VarDecl*> variedParam;
   if (noHiddenParam) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
       TraverseStmt(par);
-      if (m_Varied || 1) {
-        m_VariedDecls.insert(FDparam[i]);
-        m_Varied = false;
-      }
+      m_VariedDecls.insert(FDparam[i]);
     }
   }
+  m_Varied = true;
   return true;
 }
 
@@ -150,8 +156,6 @@ bool VariedAnalyzer::VisitUnaryOperator(UnaryOperator* UnOp) {
     m_Marking = true;
   }
   TraverseStmt(E);
-  m_Varied = false;
-  m_Marking = false;
   return true;
 }
 
@@ -161,10 +165,15 @@ bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   if (isVaried(dyn_cast<VarDecl>(DRE->getDecl())))
     m_Varied = true;
 
-  if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-    if (m_Varied && m_Marking)
-      copyVarToCurBlock(VD);
-  }
+  auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
+  if (!VD)
+    return true;
+
+  if (isVaried(VD))
+    m_Varied = true;
+
+  if (m_Varied && m_Marking)
+    copyVarToCurBlock(VD);
   return true;
 }
 } // namespace clad

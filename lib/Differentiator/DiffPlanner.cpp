@@ -617,7 +617,7 @@ namespace clad {
   }
 
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
-    if (!EnableActivityAnalysis)
+    if (!EnableVariedAnalysis)
       return true;
 
     if (VD->getType()->isPointerType() || isa<ArrayType>(VD->getType()))
@@ -667,7 +667,7 @@ namespace clad {
       unsigned bitmasked_opts_value = 0;
       bool enable_tbr_in_req = false;
       bool disable_tbr_in_req = false;
-      bool enable_aa_in_req = false;
+      bool enable_va_in_req = false;
       bool disable_aa_in_req = false;
       if (!A->getAnnotation().equals("E") &&
           FD->getTemplateSpecializationArgs()) {
@@ -685,8 +685,8 @@ namespace clad {
         disable_tbr_in_req =
             clad::HasOption(bitmasked_opts_value, clad::opts::disable_tbr);
         // Set option for Activity analysis.
-        enable_aa_in_req =
-            clad::HasOption(bitmasked_opts_value, clad::opts::enable_aa);
+        enable_va_in_req =
+            clad::HasOption(bitmasked_opts_value, clad::opts::enable_va);
         disable_aa_in_req =
             clad::HasOption(bitmasked_opts_value, clad::opts::disable_aa);
         if (enable_tbr_in_req && disable_tbr_in_req) {
@@ -694,7 +694,7 @@ namespace clad {
                           "Both enable and disable TBR options are specified.");
           return true;
         }
-        if (enable_aa_in_req && disable_aa_in_req) {
+        if (enable_va_in_req && disable_aa_in_req) {
           utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
                           "Both enable and disable AA options are specified.");
           return true;
@@ -705,12 +705,11 @@ namespace clad {
         } else {
           request.EnableTBRAnalysis = m_Options.EnableTBRAnalysis;
         }
-        if (enable_aa_in_req || disable_aa_in_req) {
+        if (enable_va_in_req || disable_aa_in_req) {
           // override the default value of TBR analysis.
-          request.EnableActivityAnalysis =
-              enable_aa_in_req && !disable_aa_in_req;
+          request.EnableVariedAnalysis = enable_va_in_req && !disable_aa_in_req;
         } else {
-          request.EnableActivityAnalysis = m_Options.EnableActivityAnalysis;
+          request.EnableVariedAnalysis = m_Options.EnableVariedAnalysis;
         }
         if (clad::HasOption(bitmasked_opts_value, clad::opts::diagonal_only)) {
           if (!A->getAnnotation().equals("H")) {

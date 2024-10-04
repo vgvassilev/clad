@@ -62,7 +62,7 @@ public:
   bool VerboseDiags = false;
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
-  bool EnableActivityAnalysis = false;
+  bool EnableVariedAnalysis = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -120,7 +120,7 @@ public:
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            CallContext == other.CallContext && Args == other.Args &&
            Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
-           EnableActivityAnalysis == other.EnableActivityAnalysis &&
+           EnableVariedAnalysis == other.EnableVariedAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly;
   }
@@ -147,7 +147,7 @@ public:
     /// This is a flag to indicate the default behaviour to enable/disable
     /// TBR analysis during reverse-mode differentiation.
     bool EnableTBRAnalysis = false;
-    bool EnableActivityAnalysis = false;
+    bool EnableVariedAnalysis = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

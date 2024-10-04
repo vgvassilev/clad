@@ -1951,8 +1951,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-        pullbackRequest.EnableActivityAnalysis =
-            m_DiffReq.EnableActivityAnalysis;
+        pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
         bool isaMethod = isa<CXXMethodDecl>(FD);
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
           if (MD && isLambdaCallOperator(MD)) {

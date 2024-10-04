@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oActivity.out 2>&1 | %filecheck %s
 // RUN: ./Activity.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-aa %s -I%S/../../include -oActivity.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
@@ -244,7 +244,7 @@ double f7(double x){
 
 #define TEST(F, x) { \
   result[0] = 0; \
-  auto F##grad = clad::gradient<clad::opts::enable_aa>(F);\
+  auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
   F##grad.execute(x, result);\
   printf("{%.2f}\n", result[0]); \
 }
