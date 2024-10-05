@@ -455,14 +455,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       Stmt* gradientBody = nullptr;
 
-#ifdef CLAD_ENABLE_ENZYME_BACKEND
       if (!m_DiffReq.use_enzyme)
         DifferentiateWithClad();
       else
         DifferentiateWithEnzyme();
-#else
-      DifferentiateWithClad();
-#endif
 
       gradientBody = endBlock();
       m_Derivative->setBody(gradientBody);
@@ -668,7 +664,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActOnEndOfDerivedFnBody();
   }
 
-#ifdef CLAD_ENABLE_ENZYME_BACKEND
   void ReverseModeVisitor::DifferentiateWithEnzyme() {
     unsigned numParams = m_DiffReq->getNumParams();
     auto origParams = m_DiffReq->parameters();
@@ -777,7 +772,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       addToCurrentBlock(enzymeCall);
     }
   }
-#endif
 
   StmtDiff ReverseModeVisitor::VisitCXXStdInitializerListExpr(
       const clang::CXXStdInitializerListExpr* ILE) {
