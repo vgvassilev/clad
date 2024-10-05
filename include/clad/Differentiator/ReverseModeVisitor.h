@@ -95,8 +95,10 @@ namespace clad {
     // Function to Differentiate with Clad as Backend
     void DifferentiateWithClad();
 
+#ifdef CLAD_ENABLE_ENZYME_BACKEND
     // Function to Differentiate with Enzyme as Backend
     void DifferentiateWithEnzyme();
+#endif
 
     /// Tries to find and build call to user-provided `_forw` function.
     clang::Expr* BuildCallToCustomForwPassFn(
