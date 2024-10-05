@@ -455,11 +455,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       Stmt* gradientBody = nullptr;
 
+#ifdef CLAD_ENABLE_ENZYME_BACKEND
       if (!m_DiffReq.use_enzyme)
         DifferentiateWithClad();
-#ifdef CLAD_ENABLE_ENZYME_BACKEND
       else
         DifferentiateWithEnzyme();
+#else
+      DifferentiateWithClad();
 #endif
 
       gradientBody = endBlock();
