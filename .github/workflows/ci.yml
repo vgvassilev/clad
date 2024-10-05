@@ -129,18 +129,9 @@ jobs:
           #  #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
           #  #clang-format: true
 
-          - name: ubu22-gcc11-runtime18-analyzers
-            os: ubuntu-22.04
-            compiler: gcc-11
-            clang-runtime: '18'
-            coverage: true
-            cuda: true
-            #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
-            #clang-format: true
-
-          - name: selfh-ubu22-gcc11-runtime18-analyzers
+          - name: selfh-ubu22-gcc12-runtime18-analyzers
             os: self-hosted #ubuntu-22.04
-            compiler: gcc-11
+            compiler: gcc-12
             clang-runtime: '18'
             coverage: true
             cuda: true
