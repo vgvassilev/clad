@@ -120,13 +120,22 @@ jobs:
             clang-runtime: '16'
             debug_build: true
 
-          - name: ubu20-gcc7-runtime11-analyzers
-            os: ubuntu-20.04
-            compiler: gcc-7
-            clang-runtime: '11'
+          #- name: ubu20-gcc7-runtime11-analyzers
+          #  os: ubuntu-20.04
+          #  compiler: gcc-7
+          #  clang-runtime: '11'
+          #  coverage: true
+          #  cuda: true
+          #  #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+          #  #clang-format: true
+
+          - name: selfh-ubu22-gcc12-runtime18-analyzers
+            os: self-hosted #ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '18'
             coverage: true
             cuda: true
-            extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
+            #extra_cmake_options: '-DCLAD_ENABLE_ENZYME_BACKEND=On'
             #clang-format: true
 
           - name: ubu20-gcc7-runtime11-benchmarks
@@ -495,6 +504,7 @@ jobs:
       with:
         name: pr
         path: pr/
+        overwrite: true
     - uses: nelonoel/branch-name@v1.0.1
     - name: Setup default Build Type on *nux (coverity)
       if: ${{ (matrix.debug_build != true) && (runner.os != 'windows') }}
@@ -756,6 +766,11 @@ jobs:
       if: ${{ (matrix.coverage == true) }}
       run: |
         sudo apt install -y lcov
+        # Workaround ubuntu lcov-1.15-1 package bug
+        if sudo apt list lcov --installed | grep "1.15-1" ; then
+          wget https://launchpad.net/ubuntu/+source/lcov/1.15-2/+build/23784466/+files/lcov_1.15-2_all.deb
+          sudo apt install -y ./lcov_1.15-2_all.deb
+        fi
         echo "CLAD_CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config *nix
@@ -791,7 +806,7 @@ jobs:
     - name: Build Clad on *nix
       if: ${{ runner.os != 'windows' }}
       run: |
-        mkdir obj && cd obj
+        rm -rf obj && mkdir obj && cd obj
         cmake -DClang_DIR=${{ env.PATH_TO_LLVM_BUILD }}  \
           -DLLVM_DIR=${{ env.PATH_TO_LLVM_BUILD }}       \
           -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
@@ -825,7 +840,7 @@ jobs:
         # FIXME: Ideally the check should be in the if: block of the action
         if [ "$BRANCH_NAME" == "coverity_scan" ]; then
           if [[ "${{ matrix.compiler }}" == "gcc-8" ]]; then
-            mkdir obj && cd obj
+            rm -rf obj && mkdir obj && cd obj
             cmake -DClang_DIR="$PATH_TO_LLVM_BUILD" \
               -DLLVM_DIR="$PATH_TO_LLVM_BUILD" \
               -DCMAKE_BUILD_TYPE=$([[ -z "$BUILD_TYPE" ]] && echo RelWithDebInfo || echo $BUILD_TYPE) \
@@ -928,7 +943,7 @@ jobs:
         # Create lcov report
         # capture coverage info
         vers="${CC#*-}"
-        lcov --directory . --capture --output-file coverage.info --gcov-tool /usr/bin/gcov-${vers}
+        lcov --directory . --capture --output-file coverage.info --gcov-tool /usr/bin/gcov-${vers} --ignore-errors gcov
         # filter out system and extra files.
         # To also not include test code in coverage add them with full path to the patterns: '*/tests/*'
         lcov --remove coverage.info '/usr/*' "${HOME}"'/.cache/*' \
