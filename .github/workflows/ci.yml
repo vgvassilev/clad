@@ -766,6 +766,11 @@ jobs:
       if: ${{ (matrix.coverage == true) }}
       run: |
         sudo apt install -y lcov
+        # Workaround ubuntu lcov-1.15-1 package bug
+        if sudo apt list lcov --installed | grep "1.15-1" ; then
+          wget https://launchpad.net/ubuntu/+source/lcov/1.15-2/+build/23784466/+files/lcov_1.15-2_all.deb
+          sudo apt install -y ./lcov_1.15-2_all.deb
+        fi
         echo "CLAD_CODE_COVERAGE=1" >> $GITHUB_ENV
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
     - name: Display config *nix
