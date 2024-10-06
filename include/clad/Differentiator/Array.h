@@ -108,6 +108,21 @@ public:
 
   /// Returns the size of the underlying array
   CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
+  /// Extends the size of array to `size` and default-initializer the new
+  /// elements if the current array size is less than `size`.
+  CUDA_HOST_DEVICE void extend(std::size_t size) {
+    if (size > m_size) {
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      T* extendedArr = new T[size];
+      for (std::size_t i = 0; i < m_size; ++i)
+        extendedArr[i] = m_arr[i];
+      for (std::size_t i = m_size; i < size; ++i)
+        extendedArr[i] = T();
+      delete m_arr;
+      m_arr = extendedArr;
+      m_size = size;
+    }
+  }
   /// Iterator functions
   CUDA_HOST_DEVICE T* begin() { return m_arr; }
   CUDA_HOST_DEVICE const T* begin() const { return m_arr; }
@@ -445,6 +460,20 @@ operator/(const array<T>& arr1, const array<U>& arr2) {
   return array_expression<const array<T>&, BinaryDiv, const array<U>&>(arr1,
                                                                        arr2);
 }
+
+namespace custom_derivatives {
+namespace class_functions {
+template <typename T>
+void extend_reverse_forw(array<T>* arr, std::size_t size, array<T>* d_arr,
+                         std::size_t d_size) {
+  arr->extend(size);
+  d_arr->extend(size);
+}
+template <typename T>
+void extend_pullback(array<T>* arr, std::size_t size, array<T>* d_arr,
+                     std::size_t* d_size) {}
+} // namespace class_functions
+} // namespace custom_derivatives
 
 } // namespace clad
 
