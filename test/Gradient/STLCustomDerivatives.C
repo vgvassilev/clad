@@ -177,6 +177,13 @@ double fn20(double x, double y) {
     return res; // 11x+y
 }
 
+double fn21(double x, double y) {
+  std::vector<double> a;
+  a.push_back(0);
+  a[0] = x*x;
+  return a[0];
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn10);
@@ -190,6 +197,7 @@ int main() {
     INIT_GRADIENT(fn18);
     INIT_GRADIENT(fn19);
     INIT_GRADIENT(fn20);
+    INIT_GRADIENT(fn21);
 
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
     TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {2.00, 1.00}
@@ -202,6 +210,7 @@ int main() {
     TEST_GRADIENT(fn18, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {2.00, 0.00}
     TEST_GRADIENT(fn19, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {3.00, 2.00}
     TEST_GRADIENT(fn20, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {11.00, 1.00}
+    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {6.00, 0.00}
 }
 
 // CHECK: void fn10_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -839,5 +848,35 @@ int main() {
 // CHECK-NEXT:          {
 // CHECK-NEXT:              {{.*}}size_type _r0 = {{0U|0UL|0}};
 // CHECK-NEXT:              {{.*}}reserve_pullback(&_t0, 10, &_d_v, &_r0);
+// CHECK-NEXT:          }
+// CHECK-NEXT:      }
+
+// CHECK:      void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:          std::vector<double> _d_a({});
+// CHECK-NEXT:          std::vector<double> a;
+// CHECK-NEXT:          std::vector<double> _t0 = a;
+// CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, 0{{.*}}, &_d_a, _r0);
+// CHECK-NEXT:          std::vector<double> _t1 = a;
+// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t2 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, _r1);
+// CHECK-NEXT:          double _t3 = _t2.value;
+// CHECK-NEXT:          _t2.value = x * x;
+// CHECK-NEXT:          std::vector<double> _t4 = a;
+// CHECK-NEXT:          {{.*}}ValueAndAdjoint<double &, double &> _t5 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, _r2);
+// CHECK-NEXT:          {
+// CHECK-NEXT:              {{.*}}size_type _r2 = 0{{.*}};
+// CHECK-NEXT:              {{.*}}operator_subscript_pullback(&_t4, 0, 1, &_d_a, &_r2);
+// CHECK-NEXT:          }
+// CHECK-NEXT:          {
+// CHECK-NEXT:              _t2.value = _t3;
+// CHECK-NEXT:              double _r_d0 = _t2.adjoint;
+// CHECK-NEXT:              _t2.adjoint = 0{{.*}};
+// CHECK-NEXT:              *_d_x += _r_d0 * x;
+// CHECK-NEXT:              *_d_x += x * _r_d0;
+// CHECK-NEXT:              {{.*}}size_type _r1 = 0{{.*}};
+// CHECK-NEXT:              {{.*}}operator_subscript_pullback(&_t1, 0, 0{{.*}}, &_d_a, &_r1);
+// CHECK-NEXT:          }
+// CHECK-NEXT:          {
+// CHECK-NEXT:              {{.*}}value_type _r0 = 0.;
+// CHECK-NEXT:              {{.*}}push_back_pullback(&_t0, 0{{.*}}, &_d_a, &_r0);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }

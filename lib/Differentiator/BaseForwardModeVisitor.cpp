@@ -59,19 +59,14 @@ bool IsRealNonReferenceType(QualType T) {
   return T.getNonReferenceType()->isRealType();
 }
 
-DerivativeAndOverload
-BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
-                               const DiffRequest& request) {
-  assert(m_DiffReq == request && "Can't pass two different requests!");
-  m_Functor = request.Functor;
+DerivativeAndOverload BaseForwardModeVisitor::Derive() {
+  const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::forward);
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
   m_DerivativeInFlight = true;
 
-  DiffInputVarsInfo DVI = request.DVI;
-
-  DVI = request.DVI;
+  DiffInputVarsInfo DVI = m_DiffReq.DVI;
 
   // FIXME: Shouldn't we give error here that no arg is specified?
   if (DVI.empty())
@@ -84,7 +79,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   if (DVI.size() > 1 || (isArrayOrPointerType(diffVarInfo.param->getType()) &&
                          (diffVarInfo.paramIndexInterval.size() != 1))) {
     diag(DiagnosticsEngine::Error,
-         request.Args ? request.Args->getEndLoc() : noLoc,
+         m_DiffReq.Args ? m_DiffReq.Args->getEndLoc() : noLoc,
          "Forward mode differentiation w.r.t. several parameters at once is "
          "not "
          "supported, call 'clad::differentiate' for each parameter "
@@ -129,7 +124,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
       isField = true;
     }
     if (!IsRealNonReferenceType(T)) {
-      diag(DiagnosticsEngine::Error, request.Args->getEndLoc(),
+      diag(DiagnosticsEngine::Error, m_DiffReq.Args->getEndLoc(),
            "Attempted differentiation w.r.t. %0 '%1' which is not "
            "of real type.",
            {(isField ? "member" : "parameter"), diffVarInfo.source});
@@ -142,11 +137,11 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   // class defining the call operator.
   // Thus, we need to find index of the member variable instead.
   unsigned argIndex = ~0;
-  if (m_DiffReq->param_empty() && m_Functor)
-    argIndex =
-        std::distance(m_Functor->field_begin(),
-                      std::find(m_Functor->field_begin(),
-                                m_Functor->field_end(), m_IndependentVar));
+  const CXXRecordDecl* functor = m_DiffReq.Functor;
+  if (m_DiffReq->param_empty() && functor)
+    argIndex = std::distance(functor->field_begin(),
+                             std::find(functor->field_begin(),
+                                       functor->field_end(), m_IndependentVar));
   else
     argIndex = std::distance(
         FD->param_begin(),
@@ -157,12 +152,12 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
     argInfo += "_" + field;
 
   std::string s;
-  if (request.CurrentDerivativeOrder > 1)
-    s = std::to_string(request.CurrentDerivativeOrder);
+  if (m_DiffReq.CurrentDerivativeOrder > 1)
+    s = std::to_string(m_DiffReq.CurrentDerivativeOrder);
 
   // Check if the function is already declared as a custom derivative.
-  std::string gradientName =
-      request.BaseFunctionName + "_d" + s + "arg" + argInfo + derivativeSuffix;
+  std::string gradientName = m_DiffReq.BaseFunctionName + "_d" + s + "arg" +
+                             argInfo + derivativeSuffix;
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
@@ -221,7 +216,7 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
   derivedFD->setParams(paramsRef);
   derivedFD->setBody(nullptr);
 
-  if (!request.DeclarationOnly) {
+  if (!m_DiffReq.DeclarationOnly) {
     // Function body scope
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
@@ -300,8 +295,8 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 
     // Create derived variable for each member variable if we are
     // differentiating a call operator.
-    if (m_Functor) {
-      for (FieldDecl* fieldDecl : m_Functor->fields()) {
+    if (m_DiffReq.Functor) {
+      for (FieldDecl* fieldDecl : m_DiffReq.Functor->fields()) {
         Expr* dInitializer = nullptr;
         QualType fieldType = fieldDecl->getType();
 
@@ -365,9 +360,10 @@ BaseForwardModeVisitor::Derive(const FunctionDecl* FD,
 
     // Size >= current derivative order means that there exists a declaration
     // or prototype for the currently derived function.
-    if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+    if (m_DiffReq.DerivedFDPrototypes.size() >=
+        m_DiffReq.CurrentDerivativeOrder)
       m_Derivative->setPreviousDeclaration(
-          request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
+          m_DiffReq.DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
   }
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
@@ -401,13 +397,8 @@ void BaseForwardModeVisitor::ExecuteInsidePushforwardFunctionBlock() {
     addToCurrentBlock(S);
 }
 
-DerivativeAndOverload
-BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
-                                          const DiffRequest& request) {
-  // FIXME: We must not reset the diff request here.
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  const_cast<DiffRequest&>(m_DiffReq) = request;
-  m_Functor = request.Functor;
+DerivativeAndOverload BaseForwardModeVisitor::DerivePushforward() {
+  const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == GetPushForwardMode());
   assert(!m_DerivativeInFlight &&
          "Doesn't support recursive diff. Use DiffPlan.");
@@ -517,7 +508,7 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
   m_Derivative->setParams(params);
   m_Derivative->setBody(nullptr);
 
-  if (!request.DeclarationOnly) {
+  if (!m_DiffReq.DeclarationOnly) {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
     beginBlock();
@@ -532,9 +523,10 @@ BaseForwardModeVisitor::DerivePushforward(const FunctionDecl* FD,
 
     // Size >= current derivative order means that there exists a declaration
     // or prototype for the currently derived function.
-    if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+    if (m_DiffReq.DerivedFDPrototypes.size() >=
+        m_DiffReq.CurrentDerivativeOrder)
       m_Derivative->setPreviousDeclaration(
-          request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
+          m_DiffReq.DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
   }
 
   m_Sema.PopFunctionScopeInfo();
@@ -890,7 +882,7 @@ StmtDiff BaseForwardModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
   auto clonedME = dyn_cast<MemberExpr>(Clone(ME));
   // Currently, we only differentiate member variables if we are
   // differentiating a call operator.
-  if (m_Functor) {
+  if (m_DiffReq.Functor) {
     if (isa<CXXThisExpr>(ME->getBase()->IgnoreParenImpCasts())) {
       // Try to find the derivative of the member variable wrt independent
       // variable
@@ -962,7 +954,7 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
   ValueDecl* VD = nullptr;
   // Derived variables for member variables are also created when we are
   // differentiating a call operator.
-  if (m_Functor) {
+  if (m_DiffReq.Functor) {
     if (auto ME = dyn_cast<MemberExpr>(clonedBase->IgnoreParenImpCasts())) {
       ValueDecl* decl = ME->getMemberDecl();
       auto it = m_Variables.find(decl);

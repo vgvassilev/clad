@@ -392,11 +392,25 @@ size_pushforward(const ::std::array<T, N>* a,
 // vector reverse mode
 // more can be found in tests: test/Gradient/STLCustomDerivatives.C
 
-template <typename T, typename U>
+template <typename T, typename U, typename pU>
 void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
-                            U d_val) {
+                            pU /*d_val*/) {
   v->push_back(val);
   d_v->push_back(0);
+}
+
+template <typename T, typename U>
+void push_back_reverse_forw(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
+                            U /*d_val*/) {
+  v->push_back(val);
+  d_v->push_back(0);
+}
+
+template <typename T, typename U, typename pU>
+void push_back_pullback(::std::vector<T>* v, U val, ::std::vector<T>* d_v,
+                        pU* d_val) {
+  *d_val += d_v->back();
+  d_v->pop_back();
 }
 
 template <typename T, typename U>

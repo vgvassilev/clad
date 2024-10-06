@@ -288,25 +288,6 @@ __global__ void add_kernel_7(double *a, double *b) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-__global__ void compute(double *in, double *out, double val)
-{
-  int index = threadIdx.x;
-  out[index] = in[index] + val;
-}
-
-double fn(double *in, double *out, double val) {
-  compute<<<1, 10>>>(in, out, val);
-  cudaDeviceSynchronize();
-  return 1;
-  // double out_host[10];
-  // cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
-  // double res = 0;
-  // for (int i=0; i < 10; ++i) {
-    // res += out_host[i];
-  // }
-  // return res;
-}
-
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -496,19 +477,6 @@ int main(void) {
   cudaFree(d_out_double);
   cudaFree(d_in_double);
 
-  double *fives = (double*)malloc(10 * sizeof(double));                             
-  for(int i = 0; i < 10; i++) {                                            
-    fives[i] = 5;                                                         
-  }                                                                       
-  double *ones = (double*)malloc(10 * sizeof(double));                              
-  for(int i = 0; i < 10; i++) {                                            
-    ones[i] = 1;                                                          
-  }
-  // double *d_in, *d_din, *d_out, *d_dout, *d_result;
-  // cudaMemcpy(d_in, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);          
-  // cudaMemcpy(d_din, ones, 10 * sizeof(double), cudaMemcpyHostToDevice);  
-
-  auto fn_grad = clad::gradient(fn, "out, val");
 
   return 0;
 }

@@ -132,8 +132,6 @@ namespace clad {
     std::vector<Stmts> m_Blocks;
     /// Stores output variables for vector-valued functions
     VectorOutputs m_VectorOutput;
-    /// The functor type that is currently being differentiated, if any.
-    const clang::CXXRecordDecl* m_Functor = nullptr;
     /// Stores derivative expression of the implicit `this` pointer.
     ///
     /// In the forward mode, `this` pointer derivative expression is of pointer

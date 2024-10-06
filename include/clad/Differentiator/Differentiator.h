@@ -208,23 +208,17 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     CUDA_HOST_DEVICE CladFunction(CladFunctionType f, const char* code,
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
-        : m_Functor(functor), m_CUDAkernel(CUDAkernel) {
-      assert(f && "Must pass a non-0 argument.");
-      if (size_t length = GetLength(code)) {
-        m_Function = f;
-        char* temp = (char*)malloc(length + 1);
-        m_Code = temp;
-        while ((*temp++ = *code++));
-      } else {
-        // clad did not place the derivative in this object. This can happen
-        // upon error of if clad was disabled. Diagnose.
-        printf("clad failed to place the generated derivative in the object\n");
-        printf("Make sure calls to clad are within a #pragma clad ON region\n");
+        : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
+#ifndef __CLAD_SO_LOADED
+      static_assert(false, "clad doesn't appear to be loaded; make sure that "
+                           "you pass clad.so to clang.");
+#endif
 
-        // Invalidate the placeholders.
-        m_Function = nullptr;
-        m_Code = nullptr;
-      }
+      size_t length = GetLength(code);
+      char* temp = (char*)malloc(length + 1);
+      m_Code = temp;
+      while ((*temp++ = *code++))
+        ;
     }
     /// Constructor overload for initializing `m_Functor` when functor
     /// is passed by reference.
@@ -381,9 +375,6 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
       template <class ReturnType, class C, class... Args>
       return_type_t<CladFunctionType> execute_helper(ReturnType C::*f,
                                                      Args&&... args) {
-        assert(m_Functor &&
-               "No default object set, explicitly pass an object to "
-               "CladFunction::execute");
         // `static_cast` is required here for perfect forwarding.
         return execute_with_default_args<EnablePadding>(
             DropArgs_t<sizeof...(Args), decltype(f)>{}, f, *m_Functor,
@@ -421,9 +412,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
-      assert(fn && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
-                                                                    code);
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(derivedFn,
+                                                                  code);
   }
 
   /// Specialization for differentiating functors.
@@ -464,9 +454,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   differentiate(F fn, ArgSpec args = "",
                 DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                 const char* code = "") {
-      assert(fn && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
-          derivedFn, code);
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
+        derivedFn, code);
   }
 
   /// Generates function which computes gradient of the given function wrt the
@@ -485,7 +474,6 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   gradient(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "", bool CUDAkernel = false) {
-    assert(f && "Must pass in a non-0 argument");
     return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>, true>(
         derivedFn /* will be replaced by gradient*/, code, nullptr, CUDAkernel);
   }
@@ -522,9 +510,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   hessian(F f, ArgSpec args = "",
           DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
           const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-          derivedFn /* will be replaced by hessian*/, code);
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn /* will be replaced by hessian*/, code);
   }
 
   /// Specialization for differentiating functors.
@@ -559,9 +546,8 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-      assert(f && "Must pass in a non-0 argument");
-      return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
-          derivedFn /* will be replaced by Jacobian*/, code);
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+        derivedFn /* will be replaced by Jacobian*/, code);
   }
 
   /// Specialization for differentiating functors.
@@ -586,7 +572,6 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   estimate_error(F f, ArgSpec args = "",
                  DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
                  const char* code = "") {
-    assert(f && "Must pass in a non-0 argument");
     return CladFunction<
         DerivedFnType>(derivedFn /* will be replaced by estimation code*/,
                        code);

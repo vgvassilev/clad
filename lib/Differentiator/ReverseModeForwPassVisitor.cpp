@@ -16,10 +16,8 @@ ReverseModeForwPassVisitor::ReverseModeForwPassVisitor(
     DerivativeBuilder& builder, const DiffRequest& request)
     : ReverseModeVisitor(builder, request) {}
 
-DerivativeAndOverload
-ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
-                                   const DiffRequest& request) {
-  assert(m_DiffReq == request);
+DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
+  const FunctionDecl* FD = m_DiffReq.Function;
 
   assert(m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass);
 
@@ -64,7 +62,7 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
   m_Derivative->setParams(params);
   m_Derivative->setBody(nullptr);
 
-  if (!request.DeclarationOnly) {
+  if (!m_DiffReq.DeclarationOnly) {
     beginScope(Scope::FnScope | Scope::DeclScope);
     m_DerivativeFnScope = getCurrentScope();
 
@@ -87,9 +85,10 @@ ReverseModeForwPassVisitor::Derive(const FunctionDecl* FD,
 
     // Size >= current derivative order means that there exists a declaration
     // or prototype for the currently derived function.
-    if (request.DerivedFDPrototypes.size() >= request.CurrentDerivativeOrder)
+    if (m_DiffReq.DerivedFDPrototypes.size() >=
+        m_DiffReq.CurrentDerivativeOrder)
       m_Derivative->setPreviousDeclaration(
-          request.DerivedFDPrototypes[request.CurrentDerivativeOrder - 1]);
+          m_DiffReq.DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
   }
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
