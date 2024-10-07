@@ -147,8 +147,8 @@ namespace clad {
       Result = clad::synthesizeLiteral(
           dyn_cast<EnumType>(QT)->getDecl()->getIntegerType(), C, APVal);
       Expr* cast = ImplicitCastExpr::Create(
-          C, QT, clang::CastKind::CK_IntegralCast, Result, nullptr, VK_PRValue,
-          FPOptionsOverride());
+          C, QT, clang::CastKind::CK_IntegralCast, Result, nullptr,
+          clang::ExprValueKind::VK_PRValue, FPOptionsOverride());
       Result = cast;
     } else if (QT->isPointerType()) {
       Result = clad::synthesizeLiteral(QT, C);
