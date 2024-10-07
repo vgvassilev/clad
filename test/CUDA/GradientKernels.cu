@@ -292,7 +292,7 @@ __device__ double device_fn(double in, double val) {
   return in + val;
 }
 
-// CHECK: void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) __attribute__((device));
+// CHECK: __attribute__((device)) void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val);
 
 __global__ void device_pullback(double *in, double *out, double val) {
   int index = threadIdx.x;
@@ -320,25 +320,40 @@ __global__ void kernel_call(double *a, double *b) {
   a[index] = *b;
 }
 
-// CHECK: void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b) __attribute__((global));
+// CHECK: __attribute__((global)) void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b);
 
 void fn(double *out, double *in) {
   kernel_call<<<1, 10>>>(out, in);
 }
+
+void fn_memory(double *out, double *in) {
+  cudaMalloc(&out, 10 * sizeof(double));
+  kernel_call<<<1, 10>>>(out, in);
+  cudaFree(out);
+}
+
+// CHECK: void fn_memory_grad(double *out, double *in, double *_d_out, double *_d_in) {
+//CHECK-NEXT:    cudaMalloc(&_d_out, 10 * sizeof(double));
+//CHECK-NEXT:    cudaMalloc(&out, 10 * sizeof(double));
+//CHECK-NEXT:    kernel_call<<<1, 10>>>(out, in);
+//CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
+//CHECK-NEXT:    cudaFree(out);
+//CHECK-NEXT:    cudaFree(_d_out);
+//CHECK-NEXT:}
 
 // CHECK: void fn_grad(double *out, double *in, double *_d_out, double *_d_in) {
 //CHECK-NEXT:     kernel_call<<<1, 10>>>(out, in);
 //CHECK-NEXT:     kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
 //CHECK-NEXT: }
 
-// CHECK: void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) __attribute__((device)) {
+// CHECK: __attribute__((device)) void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        atomicAdd(_d_in, _d_y);
 //CHECK-NEXT:        atomicAdd(_d_val, _d_y);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b) __attribute__((global)) {
+// CHECK: __attribute__((global)) void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b) {
 //CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
 //CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
@@ -591,6 +606,8 @@ int main(void) {
   cudaFree(dx);
   cudaFree(dy);
   cudaFree(d_val);
+
+  auto test_memory = clad::gradient(fn_memory);
 
   return 0;
 }
