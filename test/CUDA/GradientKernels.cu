@@ -315,10 +315,41 @@ __global__ void device_pullback(double *in, double *out, double val) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+__global__ void kernel_call(double *a, double *b) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  a[index] = *b;
+}
+
+// CHECK: void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b) __attribute__((global));
+
+void fn(double *out, double *in) {
+  kernel_call<<<1, 10>>>(out, in);
+}
+
+// CHECK: void fn_grad(double *out, double *in, double *_d_out, double *_d_in) {
+//CHECK-NEXT:     kernel_call<<<1, 10>>>(out, in);
+//CHECK-NEXT:     kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
+//CHECK-NEXT: }
+
 // CHECK: void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) __attribute__((device)) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        atomicAdd(_d_in, _d_y);
 //CHECK-NEXT:        atomicAdd(_d_val, _d_y);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b) __attribute__((global)) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    double _t2 = a[index0];
+//CHECK-NEXT:    a[index0] = *b;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        a[index0] = _t2;
+//CHECK-NEXT:        double _r_d0 = _d_a[index0];
+//CHECK-NEXT:        _d_a[index0] = 0.;
+//CHECK-NEXT:        atomicAdd(_d_b, _r_d0);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -538,6 +569,18 @@ int main(void) {
   cudaDeviceSynchronize();
   double *res = (double*)malloc(sizeof(double));
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  cudaMemcpy(x, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(y, zeros, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(dx, zeros, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(dy, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_val, zeros, sizeof(double), cudaMemcpyHostToDevice);
+
+  auto test_kernel_call = clad::gradient(fn);
+  test_kernel_call.execute(y, x, dy, dx);
+  cudaDeviceSynchronize();
+  cudaMemcpy(res, dx, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
   free(fives);
