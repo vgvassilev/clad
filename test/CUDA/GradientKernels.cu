@@ -326,19 +326,68 @@ void fn(double *out, double *in) {
   kernel_call<<<1, 10>>>(out, in);
 }
 
-void fn_memory(double *out, double *in) {
+double fn_memory(double *out, double *in) {
+  cudaMalloc(&in, 10 * sizeof(double));
   cudaMalloc(&out, 10 * sizeof(double));
   kernel_call<<<1, 10>>>(out, in);
+  double *out_host = (double*)malloc(10 * sizeof(double));
+  cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   cudaFree(out);
+  cudaFree(in);
+  double res = 0;
+  for (int i=0; i < 100; ++i) {
+    res += out_host[i];
+  }
+  return res;
 }
 
 // CHECK: void fn_memory_grad(double *out, double *in, double *_d_out, double *_d_in) {
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<double> _t1 = {};
+//CHECK-NEXT:    cudaMalloc(&_d_in, 10 * sizeof(double));
+//CHECK-NEXT:    cudaMalloc(&in, 10 * sizeof(double));
 //CHECK-NEXT:    cudaMalloc(&_d_out, 10 * sizeof(double));
-//CHECK-NEXT:    cudaMalloc(&out, 10 * sizeof(double));
+//CHECK-NEXT:   cudaMalloc(&out, 10 * sizeof(double));
 //CHECK-NEXT:    kernel_call<<<1, 10>>>(out, in);
+//CHECK-NEXT:    double *_d_out_host = (double *)malloc(10 * sizeof(double));
+//CHECK-NEXT:    double *out_host = (double *)malloc(10 * sizeof(double));
+//CHECK-NEXT:    cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
+//CHECK-NEXT:    double _d_res = 0.;
+//CHECK-NEXT:    double res = 0;
+//CHECK-NEXT:    unsigned long _t0 = 0UL;
+//CHECK-NEXT:    for (i = 0; ; ++i) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!(i < 100))
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        clad::push(_t1, res);
+//CHECK-NEXT:        res += out_host[i];
+//CHECK-NEXT:    }
+//CHECK-NEXT:    _d_res += 1;
+//CHECK-NEXT:    for (;; _t0--) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            if (!_t0)
+//CHECK-NEXT:                break;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        --i;
+//CHECK-NEXT:        {
+//CHECK-NEXT:            res = clad::pop(_t1);
+//CHECK-NEXT:            double _r_d0 = _d_res;
+//CHECK-NEXT:            _d_out_host[i] += _r_d0;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    {
+//CHECK-NEXT:        unsigned long _r0 = 0UL;
+//CHECK-NEXT:        cudaMemcpyKind _r1 = 0U;
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost, _d_out_host, _d_out, &_r0, &_r1);
+//CHECK-NEXT:    }
 //CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
 //CHECK-NEXT:    cudaFree(out);
 //CHECK-NEXT:    cudaFree(_d_out);
+//CHECK-NEXT:    cudaFree(in);
+//CHECK-NEXT:    cudaFree(_d_in);
 //CHECK-NEXT:}
 
 // CHECK: void fn_grad(double *out, double *in, double *_d_out, double *_d_in) {
