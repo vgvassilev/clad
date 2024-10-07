@@ -1579,8 +1579,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // FIXME: not sure if this is generic.
           // Don't update derivatives of record types.
           if (!VD->getType()->isRecordType()) {
-            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-            // Add it to the body statements.
+            auto indepedentVar = m_ParamVariables.find(VD);
+            Expr* add_assign = nullptr;
+            if (indepedentVar != std::end(m_ParamVariables) &&
+                shouldUseCudaAtomicOps()) {
+              // if the derived param is not an array subscript and thus stored
+              // as *_d_param in the map, we need to get the actual pointer for
+              // the atomic add
+              if (auto* UO = dyn_cast<UnaryOperator>(it->second))
+                add_assign = BuildCallToCudaAtomicAdd(UO->getSubExpr(), dfdx());
+              else
+                add_assign = BuildCallToCudaAtomicAdd(it->second, dfdx());
+            } else {
+              add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+            }
             addToCurrentBlock(add_assign, direction::reverse);
           }
         }
@@ -2209,8 +2221,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     auto NArgs = FD->getNumParams();
-    // If the function has no args then we assume that it is not related to independent variables and does not
-    // contribute to gradient.
+    // If the function has no args then we assume that it is not related to
+    // independent variables and does not contribute to gradient.
     if (NArgs == 0U)
       return StmtDiff(Clone(KCE));
 
@@ -2230,7 +2242,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     if (allArgsAreConstantLiterals)
       return StmtDiff(Clone(KCE), Clone(KCE));
-    
 
     SourceLocation Loc = KCE->getExprLoc();
 
@@ -2256,11 +2267,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
       }
-      Expr* call =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(KCE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc, config)
-              .get();
+      Expr* call = m_Sema
+                       .ActOnCallExpr(
+                           getCurrentScope(), Clone(KCE->getCallee()), Loc,
+                           llvm::MutableArrayRef<Expr*>(CallArgs), Loc, config)
+                       .get();
       return call;
     }
 
@@ -2269,12 +2280,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
-    for (std::size_t i = 0,
-                     e = KCE->getNumArgs();
-         i != e; ++i) {
+    for (std::size_t i = 0, e = KCE->getNumArgs(); i != e; ++i) {
       const Expr* arg = KCE->getArg(i);
-      const auto* PVD =
-          FD->getParamDecl(i);
+      const auto* PVD = FD->getParamDecl(i);
       StmtDiff argDiff{};
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
@@ -2365,8 +2373,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           DerivedCallArgs.front()->getType(), m_Context, 1));
       OverloadedDerivedFn = m_Builder.BuildCallToCustomDerivativeKernel(
           customPushforward, pushforwardCallArgs, getCurrentScope(),
-          const_cast<DeclContext*>(FD->getDeclContext()),
-          config);
+          const_cast<DeclContext*>(FD->getDeclContext()), config);
       if (OverloadedDerivedFn)
         asGrad = false;
     }
@@ -2395,9 +2402,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* pullback = dfdx();
 
       assert(pullback == nullptr &&
-              "Call to function returning void type should not have any "
-              "corresponding dfdx().");
-      
+             "Call to function returning void type should not have any "
+             "corresponding dfdx().");
+
       for (Expr* arg : DerivedCallOutputArgs)
         if (arg)
           DerivedCallArgs.push_back(arg);
@@ -2410,10 +2417,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Try to find it in builtin derivatives
       std::string customPullback =
           clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
-      OverloadedDerivedFn =
-          m_Builder.BuildCallToCustomDerivativeKernel(
-              customPullback, pullbackCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()), config);
+      OverloadedDerivedFn = m_Builder.BuildCallToCustomDerivativeKernel(
+          customPullback, pullbackCallArgs, getCurrentScope(),
+          const_cast<DeclContext*>(FD->getDeclContext()), config);
     }
 
     // Derivative was not found, check if it is a recursive call
@@ -2442,8 +2448,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // m_ErrorEstHandler and m_EstModel, which is cleared after each
         // error_estimate request. This requires the pullback to be derived
         // at the same time to access the singleton objects.
-        pullbackFD =
-            plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
+        pullbackFD = plugin::ProcessDiffRequest(m_CladPlugin, pullbackRequest);
       else
         pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
@@ -2469,15 +2474,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         CallExprDiffDiagnostics(FD, KCE->getBeginLoc());
         if (!OverloadedDerivedFn) {
           Stmts& block = getCurrentBlock(direction::reverse);
-          block.insert(block.begin(), PreCallStmts.begin(),
-                        PreCallStmts.end());
+          block.insert(block.begin(), PreCallStmts.begin(), PreCallStmts.end());
           return StmtDiff(Clone(KCE));
         }
       } else if (pullbackFD) {
         OverloadedDerivedFn =
             m_Sema
-                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
-                                Loc, pullbackCallArgs, Loc, config)
+                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD), Loc,
+                               pullbackCallArgs, Loc, config)
                 .get();
       }
     }
@@ -2546,19 +2550,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // incorrect derivative or crash at runtime. Ideally, we should have
       // a separate routine to use derivative in the forward pass.
 
-      for (std::size_t i = 0,
-                       e = KCE->getNumArgs();
-           i != e; ++i) {
+      for (std::size_t i = 0, e = KCE->getNumArgs(); i != e; ++i) {
         const Expr* arg = KCE->getArg(i);
         StmtDiff argDiff = Visit(arg);
         CallArgs.push_back(argDiff.getExpr_dx());
       }
-      
+
       call = m_Sema
-                  .ActOnCallExpr(getCurrentScope(),
-                                BuildDeclRef(calleeFnForwPassFD), Loc,
-                                CallArgs, Loc, config)
-                  .get();
+                 .ActOnCallExpr(getCurrentScope(),
+                                BuildDeclRef(calleeFnForwPassFD), Loc, CallArgs,
+                                Loc, config)
+                 .get();
       auto* callRes = StoreAndRef(call);
       auto* resValue =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
@@ -2578,7 +2580,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       llvm::SmallVectorImpl<Stmt*>& PreCallStmts,
       llvm::SmallVectorImpl<Stmt*>& PostCallStmts,
       llvm::SmallVectorImpl<Expr*>& args,
-      llvm::SmallVectorImpl<Expr*>& outputArgs, Expr* config/*=nullptr*/) {
+      llvm::SmallVectorImpl<Expr*>& outputArgs, Expr* config /*=nullptr*/) {
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
     NumDiffArgs.push_back(targetFuncCall);
@@ -2609,7 +2611,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
       Expr* gradElem = BuildArraySubscript(gradRef, {idx});
       Expr* gradExpr = BuildOp(BO_Mul, dfdx, gradElem);
-      PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
+      if (shouldUseCudaAtomicOps())
+        PostCallStmts.push_back(
+            BuildCallToCudaAtomicAdd(outputArgs[i], gradExpr));
+      else
+        PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
@@ -4935,6 +4941,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               m_Variables[*it] =
                   utils::BuildParenExpr(m_Sema, m_Variables[*it]);
           }
+          m_ParamVariables[*it] = m_Variables[*it];
         }
       }
     }

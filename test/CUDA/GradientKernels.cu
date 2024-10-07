@@ -288,6 +288,40 @@ __global__ void add_kernel_7(double *a, double *b) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+__device__ double device_fn(double in, double val) {
+  return in + val;
+}
+
+// CHECK: void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) __attribute__((device));
+
+__global__ void device_pullback(double *in, double *out, double val) {
+  int index = threadIdx.x;
+  out[index] = device_fn(in[index], val);
+}
+
+// CHECK: void device_pullback_grad_1_2(double *in, double *out, double val, double *_d_out, double *_d_val) {
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_fn(in[index0], val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:        out[index0] = _t0;
+//CHECK-NEXT:        double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        double _r1 = 0.;
+//CHECK-NEXT:        device_fn_pullback(in[index0], val, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:        atomicAdd(_d_val, _r1);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) __attribute__((device)) {
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(_d_in, _d_y);
+//CHECK-NEXT:        atomicAdd(_d_val, _d_y);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -477,6 +511,43 @@ int main(void) {
   cudaFree(d_out_double);
   cudaFree(d_in_double);
 
+  double *fives = (double*)malloc(10 * sizeof(double));                             
+  for(int i = 0; i < 10; i++) {                                            
+    fives[i] = 5;                                                         
+  }                                                                       
+  double *zeros = (double*)malloc(10 * sizeof(double));                              
+  for(int i = 0; i < 10; i++) {                                            
+    zeros[i] = 0;                                                          
+  }
+
+  double *x, *y, *dx, *dy, *d_val;
+  cudaMalloc(&x, 10 * sizeof(double));
+  cudaMalloc(&y, 10 * sizeof(double));
+  cudaMalloc(&dx, 10 * sizeof(double));
+  cudaMalloc(&dy, 10 * sizeof(double));
+  cudaMalloc(&d_val, sizeof(double));
+
+  cudaMemcpy(x, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(y, zeros, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(dx, zeros, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(dy, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_val, zeros, sizeof(double), cudaMemcpyHostToDevice);
+
+  auto test_device = clad::gradient(device_pullback, "out, val");
+  test_device.execute_kernel(dim3(1), dim3(10, 1, 1), x, y, 5, dy, d_val);
+  cudaDeviceSynchronize();
+  double *res = (double*)malloc(sizeof(double));
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  free(fives);
+  free(zeros);
+  free(res);
+  cudaFree(x);
+  cudaFree(y);
+  cudaFree(dx);
+  cudaFree(dy);
+  cudaFree(d_val);
 
   return 0;
 }

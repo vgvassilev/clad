@@ -38,6 +38,11 @@ namespace clad {
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
     llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
+    /// Map used to keep track of parameter variables w.r.t which the
+    /// the derivative (gradient) is being computed. This is separate from the
+    /// m_Variables map because all other intermediate variables will
+    /// not be stored here.
+    std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_ParamVariables;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
@@ -347,7 +352,8 @@ namespace clad {
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
         llvm::SmallVectorImpl<clang::Stmt*>& PostCallStmts,
         llvm::SmallVectorImpl<clang::Expr*>& args,
-        llvm::SmallVectorImpl<clang::Expr*>& outputArgs, clang::Expr* config = nullptr);
+        llvm::SmallVectorImpl<clang::Expr*>& outputArgs,
+        clang::Expr* config = nullptr);
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);

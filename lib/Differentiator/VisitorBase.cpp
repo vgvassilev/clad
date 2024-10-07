@@ -736,7 +736,8 @@ namespace clad {
 
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
-      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args, Expr* config /*=nullptr*/) {
+      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,
+      Expr* config /*=nullptr*/) {
     QualType argType = targetArg->getType();
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     bool isSupported = argType->isArithmeticType();
