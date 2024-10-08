@@ -60,11 +60,10 @@ TEST(ViewAccess, Test2) {
   double dx_f_2_FD = finite_difference_tangent(f_2_tmp, 3., epsilon);
   EXPECT_NEAR(f_2_x.execute(3, 4), dx_f_2_FD, tolerance * dx_f_2_FD);
 
-  //   TODO: uncomment this once it has been implemented
-  //   auto f_grad_exe = clad::gradient(f);
-  //   double dx, dy;
-  //   f_grad_exe.execute(3., 4., &dx, &dy);
-  //   EXPECT_NEAR(f_x.execute(3, 4),dx,tolerance*dx);
+  auto f_grad_exe = clad::gradient(f);
+  double dx, dy;
+  f_grad_exe.execute(3., 4., &dx, &dy);
+  EXPECT_NEAR(f_x.execute(3, 4), dx, tolerance * dx);
 
   //   double dx_2, dy_2;
   //   auto f_2_grad_exe = clad::gradient(f_2);
