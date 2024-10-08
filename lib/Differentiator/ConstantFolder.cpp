@@ -7,6 +7,7 @@
 //----------------------------------------------------------------------------//
 
 #include "ConstantFolder.h"
+#include "clad/Differentiator/Compatibility.h"
 
 #include "clang/AST/ASTContext.h"
 
@@ -141,7 +142,17 @@ namespace clad {
     // SourceLocation noLoc;
     Expr* Result = 0;
     QT = QT.getCanonicalType();
-    if (QT->isPointerType()) {
+    if (QT->isEnumeralType()) {
+      llvm::APInt APVal(C.getIntWidth(QT), val,
+                        QT->isSignedIntegerOrEnumerationType());
+      Result = clad::synthesizeLiteral(
+          dyn_cast<EnumType>(QT)->getDecl()->getIntegerType(), C, APVal);
+      Expr* cast = ImplicitCastExpr::Create(
+          C, QT, clang::CastKind::CK_IntegralCast, Result, nullptr,
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value
+              CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO);
+      Result = cast;
+    } else if (QT->isPointerType()) {
       Result = clad::synthesizeLiteral(QT, C);
     } else if (QT->isBooleanType()) {
       Result = clad::synthesizeLiteral(QT, C, (bool)val);
