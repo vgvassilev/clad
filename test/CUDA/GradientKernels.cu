@@ -619,6 +619,10 @@ int main(void) {
   cudaMemcpy(dy, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);
   cudaMemcpy(d_val, zeros, sizeof(double), cudaMemcpyHostToDevice);
 
+  device_pullback<<<1, 10>>>(y, x, 5);
+  cudaDeviceSynchronize();
+  printf("%s\n", cudaGetErrorString(cudaGetLastError())); // CHECK-EXEC: no error
+
   auto test_device = clad::gradient(device_pullback, "out, val");
   test_device.execute_kernel(dim3(1), dim3(10, 1, 1), x, y, 5, dy, d_val);
   cudaDeviceSynchronize();
