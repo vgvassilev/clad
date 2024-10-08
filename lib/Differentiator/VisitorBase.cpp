@@ -236,11 +236,38 @@ namespace clad {
   }
 
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
-                                         const CXXScopeSpec* SS /*=nullptr*/) {
+                                         const CXXScopeSpec* SS /*=nullptr*/,
+                                         ExprValueKind VK /*=VK_LValue*/) {
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
-        m_Sema.BuildDeclRefExpr(D, T, VK_LValue, D->getBeginLoc(), SS)));
+        m_Sema.BuildDeclRefExpr(D, T, VK, D->getBeginLoc(), SS)));
+  }
+
+  DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
+                                         NestedNameSpecifier* NNS,
+                                         ExprValueKind VK /*=VK_LValue*/) {
+    std::vector<NestedNameSpecifier*> NNChain;
+    CXXScopeSpec CSS;
+    while (NNS) {
+      NNChain.push_back(NNS);
+      NNS = NNS->getPrefix();
+    }
+
+    std::reverse(NNChain.begin(), NNChain.end());
+
+    for (size_t i = 0; i < NNChain.size(); ++i) {
+      NNS = NNChain[i];
+      // FIXME: this needs to be extended to support more NNS kinds. An
+      // inspiration can be take from getFullyQualifiedNestedNameSpecifier in
+      // llvm-project/clang/lib/AST/QualTypeNames.cpp
+      if (NNS->getKind() == NestedNameSpecifier::Namespace) {
+        NamespaceDecl* NS = NNS->getAsNamespace();
+        CSS.Extend(m_Context, NS, noLoc, noLoc);
+      }
+    }
+
+    return BuildDeclRef(D, &CSS, VK);
   }
 
   IdentifierInfo*

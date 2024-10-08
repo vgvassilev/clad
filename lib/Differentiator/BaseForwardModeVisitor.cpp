@@ -1036,8 +1036,9 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
     // Sema::BuildDeclRefExpr is responsible for adding captured fields
     // to the underlying struct of a lambda.
     if (clonedDRE->getDecl()->getDeclContext() != m_Sema.CurContext) {
-      auto referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
-      clonedDRE = cast<DeclRefExpr>(BuildDeclRef(referencedDecl));
+      NestedNameSpecifier* NNS = DRE->getQualifier();
+      auto* referencedDecl = cast<VarDecl>(clonedDRE->getDecl());
+      clonedDRE = BuildDeclRef(referencedDecl, NNS);
     }
   } else
     clonedDRE = cast<DeclRefExpr>(Clone(DRE));
@@ -1052,7 +1053,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
       if (auto dVarDRE = dyn_cast<DeclRefExpr>(dExpr)) {
         auto dVar = cast<VarDecl>(dVarDRE->getDecl());
         if (dVar->getDeclContext() != m_Sema.CurContext)
-          dExpr = BuildDeclRef(dVar);
+          dExpr = BuildDeclRef(dVar, DRE->getQualifier());
       }
       return StmtDiff(clonedDRE, dExpr);
     }
