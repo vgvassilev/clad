@@ -105,9 +105,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   bool ReverseModeVisitor::shouldUseCudaAtomicOps() {
-    return m_DiffReq->hasAttr<clang::CUDAGlobalAttr>() ||
-           (m_DiffReq->hasAttr<clang::CUDADeviceAttr>() &&
-            !m_DiffReq->hasAttr<clang::CUDAHostAttr>());
+    return m_DiffReq->hasAttr<clang::CUDAGlobalAttr>();
   }
 
   clang::Expr* ReverseModeVisitor::BuildCallToCudaAtomicAdd(clang::Expr* LHS,

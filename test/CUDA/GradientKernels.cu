@@ -391,8 +391,8 @@ double fn_memory(double *out, double *in) {
 
 // CHECK: __attribute__((device)) void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(_d_in, _d_y);
-//CHECK-NEXT:        atomicAdd(_d_val, _d_y);
+//CHECK-NEXT:                *_d_in += _d_y;
+//CHECK-NEXT:                *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
