@@ -7,6 +7,7 @@
 //----------------------------------------------------------------------------//
 
 #include "ConstantFolder.h"
+#include "clad/Differentiator/Compatibility.h"
 
 #include "clang/AST/ASTContext.h"
 
@@ -148,7 +149,7 @@ namespace clad {
           dyn_cast<EnumType>(QT)->getDecl()->getIntegerType(), C, APVal);
       Expr* cast = ImplicitCastExpr::Create(
           C, QT, clang::CastKind::CK_IntegralCast, Result, nullptr,
-          clang::ExprValueKind::VK_PRValue, FPOptionsOverride());
+          clad_compat::VK_R, FPOptionsOverride());
       Result = cast;
     } else if (QT->isPointerType()) {
       Result = clad::synthesizeLiteral(QT, C);
