@@ -147,9 +147,10 @@ namespace clad {
                         QT->isSignedIntegerOrEnumerationType());
       Result = clad::synthesizeLiteral(
           dyn_cast<EnumType>(QT)->getDecl()->getIntegerType(), C, APVal);
-      Expr* cast = ImplicitCastExpr::Create(
+      Expr* cast = ImplicitCastExpr_Create(
           C, QT, clang::CastKind::CK_IntegralCast, Result, nullptr,
-          clad_compat::VK_R, FPOptionsOverride());
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value
+              CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO);
       Result = cast;
     } else if (QT->isPointerType()) {
       Result = clad::synthesizeLiteral(QT, C);

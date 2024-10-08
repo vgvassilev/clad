@@ -730,11 +730,5 @@ template <typename X, typename Y> bool isa_and_nonnull(const Y* Val) {
 }
 #endif
 
-#if CLANG_VERSION_MAJOR < 13
-const auto VK_R = ExprValueKind::VK_RValue;
-#else
-const auto VK_R = ExprValueKind::VK_PRValue;
-#endif
-
 } // namespace clad_compat
 #endif //CLAD_COMPATIBILITY
