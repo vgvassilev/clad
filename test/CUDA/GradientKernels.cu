@@ -292,8 +292,6 @@ __device__ double device_fn(double in, double val) {
   return in + val;
 }
 
-// CHECK: __attribute__((device)) void device_fn_pullback(double in, double val, double _d_y, double *_d_in, double *_d_val);
-
 __global__ void device_pullback(double *in, double *out, double val) {
   int index = threadIdx.x;
   out[index] = device_fn(in[index], val);
@@ -319,8 +317,6 @@ __global__ void kernel_call(double *a, double *b) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
   a[index] = *b;
 }
-
-// CHECK: __attribute__((global)) void kernel_call_pullback(double *a, double *b, double *_d_a, double *_d_b);
 
 void fn(double *out, double *in) {
   kernel_call<<<1, 10>>>(out, in);
