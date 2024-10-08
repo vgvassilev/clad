@@ -621,6 +621,8 @@ int main(void) {
 
   auto test_device = clad::gradient(device_pullback, "out, val");
   test_device.execute_kernel(dim3(1), dim3(10, 1, 1), x, y, 5, dy, d_val);
+  cudaDeviceSynchronize();
+  printf("%s\n", cudaGetErrorString(cudaGetLastError())); // CHECK-EXEC: no error
   double *res = (double*)malloc(sizeof(double));
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
@@ -633,6 +635,8 @@ int main(void) {
 
   auto test_kernel_call = clad::gradient(fn);
   test_kernel_call.execute(y, x, dy, dx);
+  cudaDeviceSynchronize();
+  printf("%s\n", cudaGetErrorString(cudaGetLastError())); // CHECK-EXEC: no error
   cudaMemcpy(res, dx, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
