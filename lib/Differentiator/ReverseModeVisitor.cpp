@@ -2313,7 +2313,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // arrays are not stored.
       bool passByRef = PVD->getType()->isReferenceType() &&
                        !isa<MaterializeTemporaryExpr>(arg);
-      Expr* argDiffStore;
+      Expr* argDiffStore = nullptr;
       if (passByRef && !argDiff.getExpr()->isEvaluatable(m_Context))
         argDiffStore =
             GlobalStoreAndRef(argDiff.getExpr(), "_t", /*force=*/true);
@@ -2370,7 +2370,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::string customPushforward = FD->getNameAsString() + "_pushforward";
       auto pushforwardCallArgs = DerivedCallArgs;
       pushforwardCallArgs.push_back(ConstantFolder::synthesizeLiteral(
-          DerivedCallArgs.front()->getType(), m_Context, 1));
+          DerivedCallArgs.front()->getType(), m_Context, /*val=*/1));
       OverloadedDerivedFn = m_Builder.BuildCallToCustomDerivativeKernel(
           customPushforward, pushforwardCallArgs, getCurrentScope(),
           const_cast<DeclContext*>(FD->getDeclContext()), config);
@@ -2619,17 +2619,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
-    if (config)
-      return m_Builder.BuildCallToCustomDerivativeKernel(
-          Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
-          config,
-          /*forCustomDerv=*/false,
-          /*namespaceShouldExist=*/false);
-    else
-      return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-          Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
-          /*forCustomDerv=*/false,
-          /*namespaceShouldExist=*/false);
+    return config ? m_Builder.BuildCallToCustomDerivativeKernel(
+                        Name, NumDiffArgs, getCurrentScope(),
+                        /*OriginalFnDC=*/nullptr, config,
+                        /*forCustomDerv=*/false,
+                        /*namespaceShouldExist=*/false)
+                  : m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                        Name, NumDiffArgs, getCurrentScope(),
+                        /*OriginalFnDC=*/nullptr,
+                        /*forCustomDerv=*/false,
+                        /*namespaceShouldExist=*/false);
   }
 
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
