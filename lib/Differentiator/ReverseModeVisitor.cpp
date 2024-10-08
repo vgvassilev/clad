@@ -1577,20 +1577,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // FIXME: not sure if this is generic.
           // Don't update derivatives of record types.
           if (!VD->getType()->isRecordType()) {
-            auto indepedentVar = m_ParamVariables.find(VD);
-            Expr* add_assign = nullptr;
-            if (indepedentVar != std::end(m_ParamVariables) &&
-                shouldUseCudaAtomicOps()) {
-              // if the derived param is not an array subscript and thus stored
-              // as *_d_param in the map, we need to get the actual pointer for
-              // the atomic add
-              if (auto* UO = dyn_cast<UnaryOperator>(it->second))
-                add_assign = BuildCallToCudaAtomicAdd(UO->getSubExpr(), dfdx());
-              else
-                add_assign = BuildCallToCudaAtomicAdd(it->second, dfdx());
-            } else {
-              add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-            }
+            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
             addToCurrentBlock(add_assign, direction::reverse);
           }
         }
