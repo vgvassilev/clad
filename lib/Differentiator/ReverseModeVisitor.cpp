@@ -1736,20 +1736,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
-        DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
+        if (m_ParamVariables.find(
+                dyn_cast<clang::DeclRefExpr>(ArgDiff.getExpr())->getDecl()) ==
+            m_ParamVariables.end())
+          DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
       }
       Expr* call =
           m_Sema
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                              llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
               .get();
-      Expr* call_dx =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
-              .get();
       m_DeallocExprs.push_back(call);
-      m_DeallocExprs.push_back(call_dx);
+
+      if (!DerivedCallArgs.empty()) {
+        Expr* call_dx =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                               llvm::MutableArrayRef<Expr*>(DerivedCallArgs),
+                               Loc)
+                .get();
+        m_DeallocExprs.push_back(call_dx);
+      }
       return StmtDiff();
     }
 

@@ -381,9 +381,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
 //CHECK-NEXT:    cudaFree(out);
-//CHECK-NEXT:    cudaFree(_d_out);
 //CHECK-NEXT:    cudaFree(in);
-//CHECK-NEXT:    cudaFree(_d_in);
 //CHECK-NEXT:}
 
 // CHECK: void fn_grad(double *out, double *in, double *_d_out, double *_d_in) {
@@ -470,7 +468,6 @@ double fn_memory(double *out, double *in) {
     else {                                                                    \
       test.execute_kernel(grid, block, y, x, dy, dx);                         \
     }                                                                         \
-    cudaDeviceSynchronize();                                                  \
     int *res = (int*)malloc(N * sizeof(int));                                 \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);             \
     for (int i = 0; i < (N - 1); i++) {                                       \
@@ -505,7 +502,6 @@ double fn_memory(double *out, double *in) {
     else {                                                                        \
       test.execute_kernel(grid, block, y, x, N, dy, dx);                          \
     }                                                                             \
-    cudaDeviceSynchronize();                                                      \
     int *res = (int*)malloc(N * sizeof(int));                                     \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);                 \
     for (int i = 0; i < (N - 1); i++) {                                           \
@@ -540,7 +536,6 @@ double fn_memory(double *out, double *in) {
     else {                                                                      \
       test.execute_kernel(grid, block, y, x, dy, dx);                           \
     }                                                                           \
-    cudaDeviceSynchronize();                                                    \
     double *res = (double*)malloc(N * sizeof(double));                          \
     cudaMemcpy(res, dx, N * sizeof(double), cudaMemcpyDeviceToHost);            \
     for (int i = 0; i < (N - 1); i++) {                                         \
@@ -626,7 +621,6 @@ int main(void) {
 
   auto test_device = clad::gradient(device_pullback, "out, val");
   test_device.execute_kernel(dim3(1), dim3(10, 1, 1), x, y, 5, dy, d_val);
-  cudaDeviceSynchronize();
   double *res = (double*)malloc(sizeof(double));
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
@@ -639,7 +633,6 @@ int main(void) {
 
   auto test_kernel_call = clad::gradient(fn);
   test_kernel_call.execute(y, x, dy, dx);
-  cudaDeviceSynchronize();
   cudaMemcpy(res, dx, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
