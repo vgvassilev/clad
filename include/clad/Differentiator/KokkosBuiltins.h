@@ -30,6 +30,37 @@ constructor_pushforward(
           Kokkos::View<DataType, ViewParams...>(
               "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
 }
+template <class DataType, class... ViewParams>
+clad::ValueAndAdjoint<::Kokkos::View<DataType, ViewParams...>,
+                      ::Kokkos::View<DataType, ViewParams...>>
+constructor_reverse_forw(
+    clad::ConstructorReverseForwTag<::Kokkos::View<DataType, ViewParams...>>,
+    const ::std::string& name, const size_t& idx0, const size_t& idx1,
+    const size_t& idx2, const size_t& idx3, const size_t& idx4,
+    const size_t& idx5, const size_t& idx6, const size_t& idx7,
+    const ::std::string& /*d_name*/, const size_t& /*d_idx0*/,
+    const size_t& /*d_idx1*/, const size_t& /*d_idx2*/,
+    const size_t& /*d_idx3*/, const size_t& /*d_idx4*/,
+    const size_t& /*d_idx5*/, const size_t& /*d_idx6*/,
+    const size_t& /*d_idx7*/) {
+  return {::Kokkos::View<DataType, ViewParams...>(name, idx0, idx1, idx2, idx3,
+                                                  idx4, idx5, idx6, idx7),
+          ::Kokkos::View<DataType, ViewParams...>(
+              "_diff_" + name, idx0, idx1, idx2, idx3, idx4, idx5, idx6, idx7)};
+}
+template <class DataType, class... ViewParams>
+void constructor_pullback(::Kokkos::View<DataType, ViewParams...>* v,
+                          const ::std::string& name, const size_t& idx0,
+                          const size_t& idx1, const size_t& idx2,
+                          const size_t& idx3, const size_t& idx4,
+                          const size_t& idx5, const size_t& idx6,
+                          const size_t& idx7,
+                          ::Kokkos::View<DataType, ViewParams...>* d_v,
+                          const ::std::string* /*d_name*/,
+                          const size_t& /*d_idx0*/, const size_t* /*d_idx1*/,
+                          const size_t* /*d_idx2*/, const size_t* /*d_idx3*/,
+                          const size_t* /*d_idx4*/, const size_t* /*d_idx5*/,
+                          const size_t* /*d_idx6*/, const size_t* /*d_idx7*/) {}
 
 /// View indexing
 template <typename View, typename Idx>
@@ -106,6 +137,191 @@ operator_call_pushforward(const View* v, Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
                           Idx6 /*d_i6*/, Idx7 /*d_i7*/) {
   return {(*v)(i0, i1, i2, i3, i4, i5, i6, i7),
           (*d_v)(i0, i1, i2, i3, i4, i5, i6, i7)};
+}
+template <class DataType, class... ViewParams, typename Idx>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx i0,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx /*d_i0*/) {
+  return {(*v)(i0), (*d_v)(i0)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx,
+          typename dIdx>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx i0, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx* /*d_i0*/) {
+  (*d_v)(i0) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/) {
+  return {(*v)(i0, i1), (*d_v)(i0, i1)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/) {
+  (*d_v)(i0, i1) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1,
+          typename Idx2>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1, Idx2 i2,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/) {
+  return {(*v)(i0, i1, i2), (*d_v)(i0, i1, i2)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1, typename Idx2,
+          typename dIdx2>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Idx2 i2, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/, dIdx2* /*d_i2*/) {
+  (*d_v)(i0, i1, i2) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1,
+          typename Idx2, typename Idx3>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                           Idx3 /*d_i3*/) {
+  return {(*v)(i0, i1, i2, i3), (*d_v)(i0, i1, i2, i3)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1, typename Idx2,
+          typename dIdx2, typename Idx3, typename dIdx3>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/, dIdx2* /*d_i2*/,
+                            dIdx3* /*d_i3*/) {
+  (*d_v)(i0, i1, i2, i3) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1,
+          typename Idx2, typename Idx3, typename Idx4>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                           Idx3 /*d_i3*/, Idx4 /*d_i4*/) {
+  return {(*v)(i0, i1, i2, i3, i4), (*d_v)(i0, i1, i2, i3, i4)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1, typename Idx2,
+          typename dIdx2, typename Idx3, typename dIdx3, typename Idx4,
+          typename dIdx4>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4,
+                            Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/, dIdx2* /*d_i2*/,
+                            dIdx3* /*d_i3*/, dIdx4* /*d_i4*/) {
+  (*d_v)(i0, i1, i2, i3, i4) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1,
+          typename Idx2, typename Idx3, typename Idx4, typename Idx5>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4, Idx5 i5,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                           Idx3 /*d_i3*/, Idx4 /*d_i4*/, Idx5 /*d_i5*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5), (*d_v)(i0, i1, i2, i3, i4, i5)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1, typename Idx2,
+          typename dIdx2, typename Idx3, typename dIdx3, typename Idx4,
+          typename dIdx4, typename Idx5, typename dIdx5>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4,
+                            Idx5 i5, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/, dIdx2* /*d_i2*/,
+                            dIdx3* /*d_i3*/, dIdx4* /*d_i4*/, dIdx5* /*d_i5*/) {
+  (*d_v)(i0, i1, i2, i3, i4, i5) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1,
+          typename Idx2, typename Idx3, typename Idx4, typename Idx5,
+          typename Idx6>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4, Idx5 i5,
+                           Idx6 i6,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                           Idx3 /*d_i3*/, Idx4 /*d_i4*/, Idx5 /*d_i5*/,
+                           Idx6 /*d_i6*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5, i6), (*d_v)(i0, i1, i2, i3, i4, i5, i6)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1, typename Idx2,
+          typename dIdx2, typename Idx3, typename dIdx3, typename Idx4,
+          typename dIdx4, typename Idx5, typename dIdx5, typename Idx6,
+          typename dIdx6>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4,
+                            Idx5 i5, Idx6 i6, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/, dIdx2* /*d_i2*/,
+                            dIdx3* /*d_i3*/, dIdx4* /*d_i3*/, dIdx5* /*d_i3*/,
+                            dIdx6* /*d_i3*/) {
+  (*d_v)(i0, i1, i2, i3, i4, i5, i6) += d_y;
+}
+template <class DataType, class... ViewParams, typename Idx0, typename Idx1,
+          typename Idx2, typename Idx3, typename Idx4, typename Idx5,
+          typename Idx6, typename Idx7>
+clad::ValueAndAdjoint<
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&,
+    typename ::Kokkos::View<DataType, ViewParams...>::reference_type&>
+operator_call_reverse_forw(const ::Kokkos::View<DataType, ViewParams...>* v,
+                           Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4, Idx5 i5,
+                           Idx6 i6, Idx7 i7,
+                           const ::Kokkos::View<DataType, ViewParams...>* d_v,
+                           Idx0 /*d_i0*/, Idx1 /*d_i1*/, Idx2 /*d_i2*/,
+                           Idx3 /*d_i3*/, Idx4 /*d_i4*/, Idx5 /*d_i5*/,
+                           Idx6 /*d_i6*/, Idx7 /*d_i7*/) {
+  return {(*v)(i0, i1, i2, i3, i4, i5, i6, i7),
+          (*d_v)(i0, i1, i2, i3, i4, i5, i6, i7)};
+}
+template <class DataType, class... ViewParams, typename Diff, typename Idx0,
+          typename dIdx0, typename Idx1, typename dIdx1, typename Idx2,
+          typename dIdx2, typename Idx3, typename dIdx3, typename Idx4,
+          typename dIdx4, typename Idx5, typename dIdx5, typename Idx6,
+          typename dIdx6, typename Idx7, typename dIdx7>
+void operator_call_pullback(const ::Kokkos::View<DataType, ViewParams...>* v,
+                            Idx0 i0, Idx1 i1, Idx2 i2, Idx3 i3, Idx4 i4,
+                            Idx5 i5, Idx6 i6, Idx7 i7, Diff d_y,
+                            ::Kokkos::View<DataType, ViewParams...>* d_v,
+                            dIdx0* /*d_i0*/, dIdx1* /*d_i1*/, dIdx2* /*d_i2*/,
+                            dIdx3* /*d_i3*/, dIdx4* /*d_i3*/, dIdx5* /*d_i3*/,
+                            dIdx6* /*d_i3*/, dIdx7* /*d_i3*/) {
+  (*d_v)(i0, i1, i2, i3, i4, i5, i6, i7) += d_y;
 }
 } // namespace class_functions
 
