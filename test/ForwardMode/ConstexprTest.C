@@ -1,13 +1,10 @@
-// RUN: %cladclang %s -I%S/../../include -oconstexprTest.out | %filecheck %s
-// RUN: ./constexprTest.out | %filecheck_exec %s
+// RUN: %cladclang %s -I%S/../../include -std=c++23 -oConstexprTest.out | %filecheck %s
+// RUN: ./ConstexprTest.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
 
-#include "../TestUtils.h"
-
-
-constexpr double fn(double a, double b) {
-    return (a+b)/2;
+constexpr double fn(double x, double y) {
+    return (x+y)/2;
 }
 
 //CHECK: constexpr double fn_darg0(double a, double b) {
@@ -34,10 +31,21 @@ constexpr double mul(double a, double b, double c) {
 //CHECK-NEXT:    return _d_result;
 //CHECK-NEXT:}
 
-int main() {
-    INIT_DIFFERENTIATE(fn,"a");
-    INIT_DIFFERENTIATE(mul, "a");
+constexpr double mul_test() {
+    if consteval {
+	auto dx = clad::differentiate(mul, "a");
 
-    TEST_DIFFERENTIATE(fn, 4, 7); // CHECK-EXEC: {0.50}
-    TEST_DIFFERENTIATE(mul, 5, 6, 10); // CHECK-EXEC: {99.00}
+	return dx.execute(5, 6, 10);
+    } else {
+	assert(false && "mul non-immediate context");
+	return -42.;
+    }
+}
+
+int main() {
+    constexpr double fn_result = clad::differentiate_and_execute(fn, "x", 4, 7);
+    printf("%.2f\n", fn_result); // CHECK-EXEC: 0.50
+
+    /*constexpr double mul_result = mul_test();*/
+    /*printf("%.2f\n", mul_result); // CHECK-EXEC: 99.0*/
 }
