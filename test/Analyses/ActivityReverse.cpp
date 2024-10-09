@@ -11,7 +11,6 @@ double f1(double x){
   double b = 1;
   b = b*b;
   return a;
-  
 }
 
 //CHECK: void f1_grad(double x, double *_d_x) {

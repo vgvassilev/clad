@@ -12,19 +12,19 @@
 #include <memory>
 #include <set>
 #include <utility>
+
+namespace clad {
+
 /// Class that implemets Varied part of the Activity analysis.
 /// By performing static data-flow analysis, so called Varied variables
 /// are determined, meaning variables that depend on input parameters
 /// in a differentiable way. That result enables us to remove redundant
 /// statements in the reverse mode, improving generated codes efficiency.
-namespace clad {
-using VarsData = std::set<const clang::VarDecl*>;
 class VariedAnalyzer : public clang::RecursiveASTVisitor<VariedAnalyzer> {
-
   bool m_Varied = false;
   bool m_Marking = false;
-
-  std::set<const clang::VarDecl*>& m_VariedDecls;
+  using VarsData = std::set<const clang::VarDecl*>;
+  VarsData& m_VariedDecls;
   /// A helper method to allocate VarsData
   /// \param[in] toAssign - Parameter to initialize new VarsData with.
   /// \return Unique pointer to a new object of type Varsdata.
@@ -77,7 +77,6 @@ public:
   bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
   bool VisitDeclStmt(clang::DeclStmt* DS);
   bool VisitUnaryOperator(clang::UnaryOperator* UnOp);
-  bool VisitInitListExpr(clang::InitListExpr* ILE);
 };
 } // namespace clad
 #endif // CLAD_DIFFERENTIATOR_ACTIVITYANALYZER_H

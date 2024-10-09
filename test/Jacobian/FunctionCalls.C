@@ -40,8 +40,6 @@ void fn1(double i, double j, double* output) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-
-
 #define INIT(F) auto d_##F = clad::jacobian(F);
 
 #define DERIVED_FN(F) d_##F

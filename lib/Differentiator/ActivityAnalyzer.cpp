@@ -29,11 +29,11 @@ void VariedAnalyzer::Analyze(const FunctionDecl* FD) {
   }
 }
 
-void mergeVarsData(VarsData* targetData, VarsData* mergeData) {
+void mergeVarsData(std::set<const clang::VarDecl*>* targetData,
+                   std::set<const clang::VarDecl*>* mergeData) {
   for (const clang::VarDecl* i : *mergeData)
     targetData->insert(i);
-  for (const clang::VarDecl* i : *targetData)
-    mergeData->insert(i);
+  *mergeData = *targetData;
 }
 
 CFGBlock* VariedAnalyzer::getCFGBlockByID(unsigned ID) {
@@ -156,15 +156,11 @@ bool VariedAnalyzer::VisitUnaryOperator(UnaryOperator* UnOp) {
     m_Marking = true;
   }
   TraverseStmt(E);
+  m_Marking = false;
   return true;
 }
 
-bool VariedAnalyzer::VisitInitListExpr(InitListExpr* ILE) { return true; }
-
 bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
-  if (isVaried(dyn_cast<VarDecl>(DRE->getDecl())))
-    m_Varied = true;
-
   auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
   if (!VD)
     return true;
