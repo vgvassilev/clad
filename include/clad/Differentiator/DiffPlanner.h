@@ -38,9 +38,16 @@ private:
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
+  mutable struct UsefulRunInfo {
+    std::set<const clang::VarDecl*> UsefulDecls;
+    std::set<const clang::FunctionDecl*> UsefulFuncs;
+    bool HasAnalysisRun = false;
+  } m_UsefulRunInfo;
+
 public:
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
+  bool ReqAdj = true;
   /// Name of the base function to be differentiated. Can be different from
   /// function->getNameAsString() when higher-order derivatives are computed.
   std::string BaseFunctionName = {};
@@ -65,6 +72,7 @@ public:
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
   bool EnableVariedAnalysis = false;
+  bool EnableUsefulAnalysis = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -123,6 +131,7 @@ public:
            CallContext == other.CallContext && Args == other.Args &&
            Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
+           EnableUsefulAnalysis == other.EnableUsefulAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly;
   }
@@ -141,6 +150,7 @@ public:
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+  bool shouldHaveAdjointForw(const clang::VarDecl* VD) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -150,6 +160,7 @@ public:
     /// TBR analysis during reverse-mode differentiation.
     bool EnableTBRAnalysis = false;
     bool EnableVariedAnalysis = false;
+    bool EnableUsefulAnalysis = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

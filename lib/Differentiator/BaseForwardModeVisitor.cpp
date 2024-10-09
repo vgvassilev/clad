@@ -1063,7 +1063,14 @@ StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
   // If DRE is of type pointer, then the derivative is a null pointer.
   if (clonedDRE->getType()->isPointerType())
     return StmtDiff(clonedDRE, nullptr);
+
+  if (auto* i = cast<VarDecl>(DRE->getDecl())) {
+    if (!m_DiffReq.shouldHaveAdjointForw(i))
+      return StmtDiff(clonedDRE, nullptr);
+  }
+
   QualType literalTy = utils::GetValueType(clonedDRE->getType());
+
   return StmtDiff(clonedDRE, ConstantFolder::synthesizeLiteral(
                                  literalTy, m_Context, /*val=*/0));
 }
@@ -1208,6 +1215,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   }
 
   llvm::SmallVector<Expr*, 16> pushforwardFnArgs;
+  //
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), CallArgs.begin(),
                            CallArgs.end());
   pushforwardFnArgs.insert(pushforwardFnArgs.end(), diffArgs.begin(),
@@ -1284,6 +1292,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     pushforwardFnRequest.BaseFunctionName = utils::ComputeEffectiveFnName(FD);
     // Silence diag outputs in nested derivation process.
     pushforwardFnRequest.VerboseDiags = false;
+    pushforwardFnRequest.EnableUsefulAnalysis = m_DiffReq.EnableUsefulAnalysis;
 
     // Check if request already derived in DerivedFunctions.
     FunctionDecl* pushforwardFD =
@@ -1446,7 +1455,8 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
-    if (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
+    if (Ldiff.getExpr_dx() &&
+        Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
       diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
            "derivative of an assignment attempts to assign to unassignable "
            "expr, assignment ignored");
@@ -1575,11 +1585,16 @@ BaseForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
   VarDecl* VDDerived =
       BuildVarDecl(VD->getType(), "_d_" + VD->getNameAsString(), initDx,
                    VD->isDirectInit(), /*TSI=*/nullptr, VD->getInitStyle());
-  m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
+
+  if (!m_DiffReq.shouldHaveAdjointForw(VD))
+    VDDerived = nullptr;
+  else
+    m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
+  // llvm::errs() << "\nVisitDeclStmt";
   llvm::SmallVector<Decl*, 4> decls;
   llvm::SmallVector<Decl*, 4> declsDiff;
   // If the type is marked as non_differentiable, skip generating its derivative
@@ -1642,7 +1657,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
       if (VDDiff.getDecl()->getDeclName() != VD->getDeclName())
         m_DeclReplacements[VD] = VDDiff.getDecl();
       decls.push_back(VDDiff.getDecl());
-      declsDiff.push_back(VDDiff.getDecl_dx());
+      if (m_DiffReq.shouldHaveAdjointForw(VD))
+        declsDiff.push_back(VDDiff.getDecl_dx());
     } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
       DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
       if (SADDiff.getDecl())
@@ -1661,6 +1677,8 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
     DSClone = BuildDeclStmt(decls);
   if (!declsDiff.empty())
     DSDiff = BuildDeclStmt(declsDiff);
+  // llvm::errs() << "\n=====";
+  // DSDiff->dump();
   return StmtDiff(DSClone, DSDiff);
 }
 
