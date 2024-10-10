@@ -441,14 +441,14 @@ double do_nothing(double* u, double* v, double* w) {
   return u[0];
 }
 
-// CHECK: void do_nothing_pullback(double *u, double *v, double *w, double _d_y, double *_d_u, double *_d_v, double *_d_w);
+// CHECK: void do_nothing_pullback(double *u, double *v, double *w, double _d_y, double *_d_u, double *_d_v);
 
 double fn12(double x, double y) {
   return do_nothing(&x, nullptr, 0);
 }
 
 // CHECK: void fn12_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     do_nothing_pullback(&x, nullptr, 0, 1, &*_d_x, nullptr, 0);
+// CHECK-NEXT:     do_nothing_pullback(&x, nullptr, 0, 1, &*_d_x, nullptr);
 // CHECK-NEXT: }
 
 double multiply(double* a, double* b) {
@@ -998,7 +998,7 @@ double sq_defined_later(double x) {
 // CHECK-NEXT:         *_d_b += _d_y;
 // CHECK-NEXT: }
 
-// CHECK: void do_nothing_pullback(double *u, double *v, double *w, double _d_y, double *_d_u, double *_d_v, double *_d_w) {
+// CHECK: void do_nothing_pullback(double *u, double *v, double *w, double _d_y, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     _d_u[0] += _d_y;
 // CHECK-NEXT: }
 

@@ -7,6 +7,8 @@
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
+#include <iterator>
+#include <set>
 namespace clang {
 class CallExpr;
 class CompilerInstance;
@@ -30,6 +32,11 @@ private:
     std::set<clang::SourceLocation> ToBeRecorded;
     bool HasAnalysisRun = false;
   } m_TbrRunInfo;
+
+  mutable struct ActivityRunInfo {
+    std::set<const clang::VarDecl*> ToBeRecorded;
+    bool HasAnalysisRun = false;
+  } m_ActivityRunInfo;
 
 public:
   /// Function to be differentiated.
@@ -55,6 +62,7 @@ public:
   bool VerboseDiags = false;
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
+  bool EnableVariedAnalysis = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
@@ -112,6 +120,7 @@ public:
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
            CallContext == other.CallContext && Args == other.Args &&
            Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
+           EnableVariedAnalysis == other.EnableVariedAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly;
   }
@@ -129,6 +138,7 @@ public:
   }
 
   bool shouldBeRecorded(clang::Expr* E) const;
+  bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
@@ -137,6 +147,7 @@ public:
     /// This is a flag to indicate the default behaviour to enable/disable
     /// TBR analysis during reverse-mode differentiation.
     bool EnableTBRAnalysis = false;
+    bool EnableVariedAnalysis = false;
   };
 
   class DiffCollector: public clang::RecursiveASTVisitor<DiffCollector> {

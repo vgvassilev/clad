@@ -21,6 +21,7 @@ set_property(SOURCE Version.cpp APPEND PROPERTY
 # (Ab)use llvm facilities for adding libraries.
 llvm_add_library(cladDifferentiator
   STATIC
+  ActivityAnalyzer.cpp
   BaseForwardModeVisitor.cpp
   CladUtils.cpp
   ConstantFolder.cpp
