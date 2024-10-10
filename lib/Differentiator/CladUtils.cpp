@@ -679,7 +679,8 @@ namespace clad {
     }
 
     bool IsMemoryFunction(const clang::FunctionDecl* FD) {
-
+      if (FD->getNameAsString() == "cudaMalloc")
+        return true;
 #if CLANG_VERSION_MAJOR > 12
       if (FD->getBuiltinID() == Builtin::BImalloc)
         return true;
@@ -703,6 +704,8 @@ namespace clad {
     }
 
     bool IsMemoryDeallocationFunction(const clang::FunctionDecl* FD) {
+      if (FD->getNameAsString() == "cudaFree")
+        return true;
 #if CLANG_VERSION_MAJOR > 12
       return FD->getBuiltinID() == Builtin::ID::BIfree;
 #else

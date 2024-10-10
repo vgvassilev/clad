@@ -119,6 +119,10 @@ namespace clad {
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
         clang::Scope* S, clang::DeclContext* originalFnDC,
         bool forCustomDerv = true, bool namespaceShouldExist = true);
+    clang::Expr* BuildCallToCustomDerivativeKernel(
+        const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
+        clang::Scope* S, clang::DeclContext* originalFnDC, clang::Expr* config,
+        bool forCustomDerv = true, bool namespaceShouldExist = true);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.

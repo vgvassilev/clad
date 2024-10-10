@@ -763,7 +763,8 @@ namespace clad {
 
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
-      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args) {
+      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,
+      Expr* config /*=nullptr*/) {
     QualType argType = targetArg->getType();
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     bool isSupported = argType->isArithmeticType();
@@ -782,10 +783,16 @@ namespace clad {
     NumDiffArgs.insert(NumDiffArgs.end(), args.begin(), args.begin() + numArgs);
     // Return the found overload.
     std::string Name = "forward_central_difference";
-    return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        Name, NumDiffArgs, getCurrentScope(), /*OriginalFnDC=*/nullptr,
-        /*forCustomDerv=*/false,
-        /*namespaceShouldExist=*/false);
+    return config ? m_Builder.BuildCallToCustomDerivativeKernel(
+                        Name, NumDiffArgs, getCurrentScope(),
+                        /*OriginalFnDC=*/nullptr, config,
+                        /*forCustomDerv=*/false,
+                        /*namespaceShouldExist=*/false)
+                  : m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                        Name, NumDiffArgs, getCurrentScope(),
+                        /*OriginalFnDC=*/nullptr,
+                        /*forCustomDerv=*/false,
+                        /*namespaceShouldExist=*/false);
   }
 
   void VisitorBase::CallExprDiffDiagnostics(const clang::FunctionDecl* FD,

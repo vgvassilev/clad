@@ -282,6 +282,46 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     return OverloadedFn;
   }
 
+  Expr* DerivativeBuilder::BuildCallToCustomDerivativeKernel(
+      const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
+      clang::Scope* S, clang::DeclContext* originalFnDC, Expr* config,
+      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
+    CXXScopeSpec SS;
+    LookupResult R = LookupCustomDerivativeOrNumericalDiff(
+        Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
+
+    Expr* OverloadedFn = nullptr;
+    if (!R.empty()) {
+      // FIXME: We should find a way to specify nested name specifier
+      // after finding the custom derivative.
+      Expr* UnresolvedLookup =
+          m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
+
+      auto MARargs = llvm::MutableArrayRef<Expr*>(CallArgs);
+
+      SourceLocation Loc;
+
+      if (noOverloadExists(UnresolvedLookup, MARargs))
+        return nullptr;
+
+      OverloadedFn =
+          m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc, config)
+              .get();
+
+      // Add the custom derivative to the set of derivatives.
+      // This is required in case the definition of the custom derivative
+      // is not found in the current translation unit and is linked in
+      // from another translation unit.
+      // Adding it to the set of derivatives ensures that the custom
+      // derivative is not differentiated again using numerical
+      // differentiation due to unavailable definition.
+      if (auto* CE = dyn_cast<CallExpr>(OverloadedFn))
+        if (FunctionDecl* FD = CE->getDirectCallee())
+          m_DFC.AddToCustomDerivativeSet(FD);
+    }
+    return OverloadedFn;
+  }
+
   clang::FunctionDecl*
   DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
     // FIXME: Find a way to do this without accessing plugin namespace functions
