@@ -46,6 +46,8 @@ public:
   clang::CallExpr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
+  /// Indexes of global args of function as a subset of Args.
+  std::unordered_set<size_t> GlobalArgsIndexes;
   /// Requested differentiation mode, forward or reverse.
   DiffMode Mode = DiffMode::unknown;
   /// If function appears in the call to clad::gradient/differentiate,

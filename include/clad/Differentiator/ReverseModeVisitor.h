@@ -38,11 +38,11 @@ namespace clad {
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
     llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
-    /// Map used to keep track of parameter variables w.r.t which the
+    /// Set used to keep track of parameter variables w.r.t which the
     /// the derivative (gradient) is being computed. This is separate from the
     /// m_Variables map because all other intermediate variables will
     /// not be stored here.
-    std::unordered_map<const clang::ValueDecl*, clang::Expr*> m_ParamVariables;
+    std::unordered_set<const clang::ValueDecl*> m_ParamVarsWithDiff;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
@@ -56,6 +56,8 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
+    /// Global args of the function.
+    std::unordered_set<const clang::ParmVarDecl*> m_GlobalArgs;
     //// A reference to the output parameter of the gradient function.
     clang::Expr* m_Result;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
@@ -439,7 +441,7 @@ namespace clad {
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU
-    bool shouldUseCudaAtomicOps();
+    bool shouldUseCudaAtomicOps(const clang::Expr* E);
 
     /// Add call to cuda::atomicAdd for the given LHS and RHS expressions.
     ///
