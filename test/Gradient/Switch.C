@@ -727,7 +727,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                _t0 = res;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, 1UL);
+// CHECK-NEXT:                clad::push(_t1, {{1U|1UL}});
 // CHECK-NEXT:               break;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
@@ -736,7 +736,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                _t2 = res;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, 2UL);
+// CHECK-NEXT:                clad::push(_t1, {{2U|2UL}});
 // CHECK-NEXT:                break;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
@@ -745,7 +745,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                _t3 = res;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, 3UL);
+// CHECK-NEXT:                clad::push(_t1, {{3U|3UL}});
 // CHECK-NEXT:                break;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
@@ -754,10 +754,10 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                _t4 = res;
 // CHECK-NEXT:            }
 // CHECK-NEXT:            {
-// CHECK-NEXT:                clad::push(_t1, 4UL);
+// CHECK-NEXT:                clad::push(_t1, {{4U|4UL}});
 // CHECK-NEXT:                break;
 // CHECK-NEXT:            }
-// CHECK-NEXT:            clad::push(_t1, 5UL);
+// CHECK-NEXT:            clad::push(_t1, {{5U|5UL}});
 // CHECK-NEXT:        }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    _d_res += 1;
