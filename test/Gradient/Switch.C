@@ -763,9 +763,9 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:    _d_res += 1;
 // CHECK-NEXT:    {
 // CHECK-NEXT:        switch (clad::pop(_t1)) {
-// CHECK-NEXT:          case 5UL:
+// CHECK-NEXT:          case {{5U|5UL}}:
 // CHECK-NEXT:            ;
-// CHECK-NEXT:          case 4UL:
+// CHECK-NEXT:          case {{4U|4UL}}:
 // CHECK-NEXT:            ;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                {
@@ -779,7 +779,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                if (Div == _cond0)
 // CHECK-NEXT:                    break;
 // CHECK-NEXT:            }
-// CHECK-NEXT:          case 3UL:
+// CHECK-NEXT:          case {{3U|3UL}}:
 // CHECK-NEXT:            ;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                {
@@ -792,7 +792,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                if (Mul == _cond0)
 // CHECK-NEXT:                    break;
 // CHECK-NEXT:            }
-// CHECK-NEXT:          case 2UL:
+// CHECK-NEXT:          case {{2U|2UL}}:
 // CHECK-NEXT:            ;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                {
@@ -805,7 +805,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:                if (Sub == _cond0)
 // CHECK-NEXT:                    break;
 // CHECK-NEXT:            }
-// CHECK-NEXT:          case 1UL:
+// CHECK-NEXT:          case {{1U|1UL}}:
 // CHECK-NEXT:            ;
 // CHECK-NEXT:            {
 // CHECK-NEXT:                {
