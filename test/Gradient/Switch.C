@@ -712,7 +712,7 @@ double fn24(double x, double y, Op op) {
 // CHECK-NEXT:    Op _d_op = static_cast<Op>(0U);
 // CHECK-NEXT:    Op _cond0;
 // CHECK-NEXT:    double _t0;
-// CHECK-NEXT:    clad::tape<unsigned long> _t1 = {};
+// CHECK-NEXT:    clad::tape<unsigned {{int|long}}> _t1 = {};
 // CHECK-NEXT:    double _t2;
 // CHECK-NEXT:    double _t3;
 // CHECK-NEXT:    double _t4;
