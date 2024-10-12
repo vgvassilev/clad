@@ -150,7 +150,7 @@ namespace clad {
       SourceLocation noLoc;
       Expr* cast = CXXStaticCastExpr::Create(
           C, QT, CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-          clang::CastKind::CK_IntegralCast, Result, nullptr,
+          clang::CastKind::CK_IntegralCast, Result, /*CXXCastPath=*/nullptr,
           C.getTrivialTypeSourceInfo(QT, noLoc)
               CLAD_COMPAT_CLANG12_CastExpr_DefaultFPO,
           noLoc, noLoc, SourceRange());
