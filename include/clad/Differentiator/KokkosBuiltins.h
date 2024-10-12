@@ -334,6 +334,122 @@ inline void deep_copy_pushforward(const View1& dst, const View2& src, T param,
   deep_copy(dst, src);
   deep_copy(d_dst, d_src);
 }
+template <typename View, int Rank> struct iterate_over_all_view_elements {
+  template <typename F> static void run(const View& v, F func) {}
+};
+template <typename View> struct iterate_over_all_view_elements<View, 1> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for("iterate_over_all_view_elements", v.extent(0), func);
+  }
+};
+template <typename View> struct iterate_over_all_view_elements<View, 2> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for("iterate_over_all_view_elements",
+                           ::Kokkos::MDRangePolicy<::Kokkos::Rank<2>>(
+                               {0, 0}, {v.extent(0), v.extent(1)}),
+                           func);
+  }
+};
+template <typename View> struct iterate_over_all_view_elements<View, 3> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for(
+        "iterate_over_all_view_elements",
+        ::Kokkos::MDRangePolicy<::Kokkos::Rank<3>>(
+            {0, 0, 0}, {v.extent(0), v.extent(1), v.extent(2)}),
+        func);
+  }
+};
+template <typename View> struct iterate_over_all_view_elements<View, 4> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for(
+        "iterate_over_all_view_elements",
+        ::Kokkos::MDRangePolicy<::Kokkos::Rank<4>>(
+            {0, 0, 0, 0}, {v.extent(0), v.extent(1), v.extent(2), v.extent(3)}),
+        func);
+  }
+};
+template <typename View> struct iterate_over_all_view_elements<View, 5> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for(
+        "iterate_over_all_view_elements",
+        ::Kokkos::MDRangePolicy<::Kokkos::Rank<5>>(
+            {0, 0, 0, 0, 0},
+            {v.extent(0), v.extent(1), v.extent(2), v.extent(3), v.extent(4)}),
+        func);
+  }
+};
+template <typename View> struct iterate_over_all_view_elements<View, 6> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for(
+        "iterate_over_all_view_elements",
+        ::Kokkos::MDRangePolicy<::Kokkos::Rank<6>>(
+            {0, 0, 0, 0, 0, 0}, {v.extent(0), v.extent(1), v.extent(2),
+                                 v.extent(3), v.extent(4), v.extent(5)}),
+        func);
+  }
+};
+template <typename View> struct iterate_over_all_view_elements<View, 7> {
+  template <typename F> static void run(const View& v, F func) {
+    ::Kokkos::parallel_for(
+        "iterate_over_all_view_elements",
+        ::Kokkos::MDRangePolicy<::Kokkos::Rank<7>>(
+            {0, 0, 0, 0, 0, 0, 0},
+            {v.extent(0), v.extent(1), v.extent(2), v.extent(3), v.extent(4),
+             v.extent(5), v.extent(6)}),
+        func);
+  }
+};
+template <typename... ViewArgs>
+void deep_copy_pullback(
+    const ::Kokkos::View<ViewArgs...>& dst,
+    typename ::Kokkos::ViewTraits<ViewArgs...>::const_value_type& /*value*/,
+    ::std::enable_if_t<::std::is_same<
+        typename ::Kokkos::ViewTraits<ViewArgs...>::specialize, void>::value>*,
+    ::Kokkos::View<ViewArgs...>* d_dst,
+    typename ::Kokkos::ViewTraits<ViewArgs...>::value_type* d_value,
+    ::std::enable_if_t<
+        ::std::is_same<typename ::Kokkos::ViewTraits<ViewArgs...>::specialize,
+                       void>::value>*) {
+  typename ::Kokkos::ViewTraits<ViewArgs...>::value_type res = 0;
+
+  iterate_over_all_view_elements<
+      ::Kokkos::View<ViewArgs...>,
+      ::Kokkos::ViewTraits<ViewArgs...>::rank>::run(dst,
+                                                    [&res,
+                                                     &d_dst](auto&&... args) {
+                                                      res += (*d_dst)(args...);
+                                                      (*d_dst)(args...) = 0;
+                                                    });
+
+  (*d_value) += res;
+}
+template <typename... ViewArgs1, typename... ViewArgs2>
+inline void deep_copy_pullback(
+    const ::Kokkos::View<ViewArgs1...>& dst,
+    const ::Kokkos::View<ViewArgs2...>& /*src*/,
+    ::std::enable_if_t<
+        (::std::is_void<
+             typename ::Kokkos::ViewTraits<ViewArgs1...>::specialize>::value &&
+         ::std::is_void<
+             typename ::Kokkos::ViewTraits<ViewArgs2...>::specialize>::value &&
+         ((unsigned int)(::Kokkos::ViewTraits<ViewArgs1...>::rank) != 0 ||
+          (unsigned int)(::Kokkos::ViewTraits<ViewArgs2...>::rank) != 0))>*,
+    ::Kokkos::View<ViewArgs1...>* d_dst, ::Kokkos::View<ViewArgs2...>* d_src,
+    ::std::enable_if_t<
+        (::std::is_void<
+             typename ::Kokkos::ViewTraits<ViewArgs1...>::specialize>::value &&
+         ::std::is_void<
+             typename ::Kokkos::ViewTraits<ViewArgs2...>::specialize>::value &&
+         ((unsigned int)(::Kokkos::ViewTraits<ViewArgs1...>::rank) != 0 ||
+          (unsigned int)(::Kokkos::ViewTraits<ViewArgs2...>::rank) != 0))>*) {
+  iterate_over_all_view_elements<::Kokkos::View<ViewArgs1...>,
+                                 ::Kokkos::ViewTraits<ViewArgs1...>::rank>::
+      run(dst, [&d_src, &d_dst](auto&&... args) {
+        (*d_src)(args...) += (*d_dst)(args...);
+        (*d_dst)(args...) = 0;
+      });
+}
+
 template <typename View, typename Idx0, typename Idx1, typename Idx2,
           typename Idx3, typename Idx4, typename Idx5, typename Idx6,
           typename Idx7>
