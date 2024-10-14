@@ -211,7 +211,9 @@ double f_basics_resize_3(double x, double y) {
                                                                       2);
   Kokkos::deep_copy(a, 3 * x + y);
 
-  Kokkos::resize(Kokkos::WithoutInitializing, a, 5, 5);
+  Kokkos::resize(Kokkos::WithoutInitializing, a, 5,
+                 5); // FIXME: this signature for the resize function is not yet
+                     // supported in the reverse mode
 
   a(4, 4, 0) = x * y;
 
@@ -248,6 +250,41 @@ TEST(ViewBasics, TestResize4) {
   for (double x = 3; x <= 5; x += 1)
     for (double y = 3; y <= 5; y += 1)
       EXPECT_NEAR(df.execute(x, y), df_true(x, y), eps);
+}
+
+double f_basics_resize_5_both_modes(double x, double y) {
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> a("a", 3,
+                                                                      2);
+  Kokkos::View<double** [3], Kokkos::LayoutLeft, Kokkos::HostSpace> b("b", 5,
+                                                                      5);
+
+  b(4, 4, 0) = x * y * 2;
+  b(2, 1, 0) = 0;
+
+  Kokkos::deep_copy(a, 3 * x + y);
+  a(2, 1, 0) = x * y;
+
+  Kokkos::resize(a, 5, 5);
+  Kokkos::deep_copy(a, b);
+
+  return a(4, 4, 0);
+}
+
+TEST(ViewBasics, TestResize5) {
+  const double eps = 1e-8;
+
+  auto df = clad::differentiate(f_basics_resize_5_both_modes, 0);
+  auto gradf = clad::gradient(f_basics_resize_5_both_modes);
+  auto df_true_x = [](double x, double y) { return y * 2; };
+  for (double x = 3; x <= 5; x += 1)
+    for (double y = 3; y <= 5; y += 1) {
+      double dfdx = df.execute(x, y);
+      EXPECT_NEAR(dfdx, df_true_x(x, y), eps);
+      double dx = 0, dy = 0;
+      gradf.execute(x, y, &dx, &dy);
+      EXPECT_NEAR(dfdx, dx, eps);
+      EXPECT_NEAR(2 * x, dy, eps);
+    }
 }
 
 template <typename View> struct FooModifier {
