@@ -106,12 +106,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
     // Same as checking whether this is a function executed by the GPU
-    if (!m_GlobalArgs.empty())
+    if (!m_CUDAGlobalArgs.empty())
       if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
         if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
           // we need to check whether this param is in the global memory of the
           // GPU
-          return m_GlobalArgs.find(PVD) != m_GlobalArgs.end();
+          return m_CUDAGlobalArgs.find(PVD) != m_CUDAGlobalArgs.end();
 
     return false;
   }
@@ -455,7 +455,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // global memory of the GPU
     if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
       for (auto param : params)
-        m_GlobalArgs.emplace(param);
+        m_CUDAGlobalArgs.emplace(param);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
         clad_compat::makeArrayRef(params.data(), params.size());
@@ -563,7 +563,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     auto derivativeName =
         utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
-    for (auto index : m_DiffReq.GlobalArgsIndexes)
+    for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
       derivativeName += "_" + std::to_string(index);
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
@@ -608,14 +608,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Derivative->setParams(params);
     // Match the global arguments of the call to the device function to the
     // pullback function's parameters.
-    if (!m_DiffReq.GlobalArgsIndexes.empty())
-      for (auto index : m_DiffReq.GlobalArgsIndexes)
-        m_GlobalArgs.emplace(m_Derivative->getParamDecl(index));
+    if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
+      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
+        m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
     // If the function is a global kernel, all its parameters reside in the
     // global memory of the GPU
     else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
       for (auto param : params)
-        m_GlobalArgs.emplace(param);
+        m_CUDAGlobalArgs.emplace(param);
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
@@ -2004,11 +2004,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       std::string customPullback =
           clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
       // Add the indexes of the global args to the custom pullback name
-      if (!m_GlobalArgs.empty())
+      if (!m_CUDAGlobalArgs.empty())
         for (size_t i = 0; i < pullbackCallArgs.size(); i++)
           if (auto* DRE = dyn_cast<DeclRefExpr>(pullbackCallArgs[i]))
             if (auto* param = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-              if (m_GlobalArgs.find(param) != m_GlobalArgs.end()) {
+              if (m_CUDAGlobalArgs.find(param) != m_CUDAGlobalArgs.end()) {
                 customPullback += "_" + std::to_string(i);
                 globalCallArgs.emplace_back(i);
               }
@@ -2053,7 +2053,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
         // Mark the indexes of the global args. Necessary if the argument of the
         // call has a different name than the function's signature parameter.
-        pullbackRequest.GlobalArgsIndexes = globalCallArgs;
+        pullbackRequest.CUDAGlobalArgsIndexes = globalCallArgs;
 
         pullbackRequest.BaseFunctionName =
             clad::utils::ComputeEffectiveFnName(FD);
