@@ -82,16 +82,16 @@ TEST(ViewAccess, Test2) {
   EXPECT_NEAR(f_3_y.execute(3, 4), dy_f_3_FD, tolerance * dy_f_3_FD);
 
   auto f_grad_exe = clad::gradient(f);
-  double dx, dy;
+  double dx = 0, dy = 0;
   f_grad_exe.execute(3., 4., &dx, &dy);
   EXPECT_NEAR(f_x.execute(3, 4), dx, tolerance * dx);
 
-  double dx_2, dy_2;
+  double dx_2 = 0, dy_2 = 0;
   auto f_2_grad_exe = clad::gradient(f_2);
   f_2_grad_exe.execute(3., 4., &dx_2, &dy_2);
   EXPECT_NEAR(f_2_x.execute(3, 4), dx_2, tolerance * dx_2);
 
-  double dx_3, dy_3;
+  double dx_3 = 0, dy_3 = 0;
   auto f_3_grad_exe = clad::gradient(f_3);
   f_3_grad_exe.execute(3., 4., &dx_3, &dy_3);
   EXPECT_NEAR(f_3_y.execute(3, 4), dy_3, tolerance * dy_3);

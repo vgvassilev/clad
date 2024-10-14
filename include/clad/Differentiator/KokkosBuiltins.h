@@ -340,6 +340,7 @@ template <typename View, int Rank> struct iterate_over_all_view_elements {
 template <typename View> struct iterate_over_all_view_elements<View, 1> {
   template <typename F> static void run(const View& v, F func) {
     ::Kokkos::parallel_for("iterate_over_all_view_elements", v.extent(0), func);
+    ::Kokkos::fence();
   }
 };
 template <typename View> struct iterate_over_all_view_elements<View, 2> {
@@ -348,6 +349,7 @@ template <typename View> struct iterate_over_all_view_elements<View, 2> {
                            ::Kokkos::MDRangePolicy<::Kokkos::Rank<2>>(
                                {0, 0}, {v.extent(0), v.extent(1)}),
                            func);
+    ::Kokkos::fence();
   }
 };
 template <typename View> struct iterate_over_all_view_elements<View, 3> {
@@ -357,6 +359,7 @@ template <typename View> struct iterate_over_all_view_elements<View, 3> {
         ::Kokkos::MDRangePolicy<::Kokkos::Rank<3>>(
             {0, 0, 0}, {v.extent(0), v.extent(1), v.extent(2)}),
         func);
+    ::Kokkos::fence();
   }
 };
 template <typename View> struct iterate_over_all_view_elements<View, 4> {
@@ -366,6 +369,7 @@ template <typename View> struct iterate_over_all_view_elements<View, 4> {
         ::Kokkos::MDRangePolicy<::Kokkos::Rank<4>>(
             {0, 0, 0, 0}, {v.extent(0), v.extent(1), v.extent(2), v.extent(3)}),
         func);
+    ::Kokkos::fence();
   }
 };
 template <typename View> struct iterate_over_all_view_elements<View, 5> {
@@ -376,6 +380,7 @@ template <typename View> struct iterate_over_all_view_elements<View, 5> {
             {0, 0, 0, 0, 0},
             {v.extent(0), v.extent(1), v.extent(2), v.extent(3), v.extent(4)}),
         func);
+    ::Kokkos::fence();
   }
 };
 template <typename View> struct iterate_over_all_view_elements<View, 6> {
@@ -386,6 +391,7 @@ template <typename View> struct iterate_over_all_view_elements<View, 6> {
             {0, 0, 0, 0, 0, 0}, {v.extent(0), v.extent(1), v.extent(2),
                                  v.extent(3), v.extent(4), v.extent(5)}),
         func);
+    ::Kokkos::fence();
   }
 };
 template <typename View> struct iterate_over_all_view_elements<View, 7> {
@@ -397,6 +403,7 @@ template <typename View> struct iterate_over_all_view_elements<View, 7> {
             {v.extent(0), v.extent(1), v.extent(2), v.extent(3), v.extent(4),
              v.extent(5), v.extent(6)}),
         func);
+    ::Kokkos::fence();
   }
 };
 template <typename... ViewArgs>
@@ -450,32 +457,57 @@ inline void deep_copy_pullback(
       });
 }
 
-template <typename View, typename Idx0, typename Idx1, typename Idx2,
-          typename Idx3, typename Idx4, typename Idx5, typename Idx6,
-          typename Idx7>
-inline void
-resize_pushforward(View& v, const Idx0 n0, const Idx1 n1, const Idx2 n2,
-                   const Idx3 n3, const Idx4 n4, const Idx5 n5, const Idx6 n6,
-                   const Idx7 n7, View& d_v, const Idx0 /*d_n*/,
-                   const Idx1 /*d_n*/, const Idx2 /*d_n*/, const Idx3 /*d_n*/,
-                   const Idx4 /*d_n*/, const Idx5 /*d_n*/, const Idx6 /*d_n*/,
-                   const Idx7 /*d_n*/) {
+template <typename View>
+void resize_pushforward(
+    View& v, const ::std::size_t n0, const ::std::size_t n1,
+    const ::std::size_t n2, const ::std::size_t n3, const ::std::size_t n4,
+    const ::std::size_t n5, const ::std::size_t n6, const ::std::size_t n7,
+    View& d_v, const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/) {
   ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
-template <class I, class dI, class View, typename Idx0, typename Idx1,
-          typename Idx2, typename Idx3, typename Idx4, typename Idx5,
-          typename Idx6, typename Idx7>
-inline void
-resize_pushforward(const I& arg, View& v, const Idx0 n0, const Idx1 n1,
-                   const Idx2 n2, const Idx3 n3, const Idx4 n4, const Idx5 n5,
-                   const Idx6 n6, const Idx7 n7, const dI& /*d_arg*/, View& d_v,
-                   const Idx0 /*d_n*/, const Idx1 /*d_n*/, const Idx2 /*d_n*/,
-                   const Idx3 /*d_n*/, const Idx4 /*d_n*/, const Idx5 /*d_n*/,
-                   const Idx6 /*d_n*/, const Idx7 /*d_n*/) {
+template <class I, class dI, class View>
+void resize_pushforward(
+    const I& arg, View& v, const ::std::size_t n0, const ::std::size_t n1,
+    const ::std::size_t n2, const ::std::size_t n3, const ::std::size_t n4,
+    const ::std::size_t n5, const ::std::size_t n6, const ::std::size_t n7,
+    const dI& /*d_arg*/, View& d_v, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/) {
   ::Kokkos::resize(arg, v, n0, n1, n2, n3, n4, n5, n6, n7);
   ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
 }
+template <class View>
+void resize_reverse_forw(
+    View& v, const ::std::size_t n0, const ::std::size_t n1,
+    const ::std::size_t n2, const ::std::size_t n3, const ::std::size_t n4,
+    const ::std::size_t n5, const ::std::size_t n6, const ::std::size_t n7,
+    View& d_v, const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/) {
+  ::Kokkos::resize(v, n0, n1, n2, n3, n4, n5, n6, n7);
+  ::Kokkos::resize(d_v, n0, n1, n2, n3, n4, n5, n6, n7);
+}
+template <class I, class dI, class View>
+void resize_reverse_forw(
+    const I& arg, View& v, const ::std::size_t n0, const ::std::size_t n1,
+    const ::std::size_t n2, const ::std::size_t n3, const ::std::size_t n4,
+    const ::std::size_t n5, const ::std::size_t n6, const ::std::size_t n7,
+    const dI& /*d_arg*/, View& d_v, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/, const ::std::size_t /*d_n*/,
+    const ::std::size_t /*d_n*/) {
+  ::Kokkos::resize(arg, v, n0, n1, n2, n3, n4, n5, n6, n7);
+  ::Kokkos::resize(arg, d_v, n0, n1, n2, n3, n4, n5, n6, n7);
+}
+template <class... Args> void resize_pullback(Args... /*args*/) {}
 
 /// Fence
 template <typename S> void fence_pushforward(const S& s, const S& /*d_s*/) {
