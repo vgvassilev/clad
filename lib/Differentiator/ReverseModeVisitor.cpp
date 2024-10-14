@@ -1552,7 +1552,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
-    return StmtDiff(Clone(IL));
+    auto* Constant0 =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    return StmtDiff(Clone(IL), Constant0);
   }
 
   StmtDiff ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {

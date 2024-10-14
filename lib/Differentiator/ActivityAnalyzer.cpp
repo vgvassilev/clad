@@ -134,8 +134,6 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
   for (Decl* D : DS->decls()) {
-    if (!isa<VarDecl>(D))
-      continue;
     if (Expr* init = cast<VarDecl>(D)->getInit()) {
       m_Varied = false;
       TraverseStmt(init);

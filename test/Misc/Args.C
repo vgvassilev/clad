@@ -30,3 +30,7 @@
 // RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-tbr \
 // RUN:  -Xclang -plugin-arg-clad -Xclang -disable-tbr %s 2>&1 | FileCheck --check-prefix=CHECK_TBR %s
 // CHECK_TBR: -enable-tbr and -disable-tbr cannot be used together
+
+// RUN: clang -fsyntax-only -fplugin=%cladlib -Xclang -plugin-arg-clad -Xclang -enable-va \
+// RUN:  -Xclang -plugin-arg-clad -Xclang -disable-va %s 2>&1 | FileCheck --check-prefix=CHECK_VA %s
+// CHECK_VA: -enable-va and -disable-va cannot be used together

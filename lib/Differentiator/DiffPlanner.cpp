@@ -668,7 +668,7 @@ namespace clad {
       bool enable_tbr_in_req = false;
       bool disable_tbr_in_req = false;
       bool enable_va_in_req = false;
-      bool disable_aa_in_req = false;
+      bool disable_va_in_req = false;
       if (!A->getAnnotation().equals("E") &&
           FD->getTemplateSpecializationArgs()) {
         const auto template_arg = FD->getTemplateSpecializationArgs()->get(0);
@@ -687,16 +687,16 @@ namespace clad {
         // Set option for Activity analysis.
         enable_va_in_req =
             clad::HasOption(bitmasked_opts_value, clad::opts::enable_va);
-        disable_aa_in_req =
-            clad::HasOption(bitmasked_opts_value, clad::opts::disable_aa);
+        disable_va_in_req =
+            clad::HasOption(bitmasked_opts_value, clad::opts::disable_va);
         if (enable_tbr_in_req && disable_tbr_in_req) {
           utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
                           "Both enable and disable TBR options are specified.");
           return true;
         }
-        if (enable_va_in_req && disable_aa_in_req) {
+        if (enable_va_in_req && disable_va_in_req) {
           utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
-                          "Both enable and disable AA options are specified.");
+                          "Both enable and disable VA options are specified.");
           return true;
         }
         if (enable_tbr_in_req || disable_tbr_in_req) {
@@ -705,9 +705,9 @@ namespace clad {
         } else {
           request.EnableTBRAnalysis = m_Options.EnableTBRAnalysis;
         }
-        if (enable_va_in_req || disable_aa_in_req) {
+        if (enable_va_in_req || disable_va_in_req) {
           // override the default value of TBR analysis.
-          request.EnableVariedAnalysis = enable_va_in_req && !disable_aa_in_req;
+          request.EnableVariedAnalysis = enable_va_in_req && !disable_va_in_req;
         } else {
           request.EnableVariedAnalysis = m_Options.EnableVariedAnalysis;
         }

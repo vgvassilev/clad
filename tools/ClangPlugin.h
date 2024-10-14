@@ -319,7 +319,7 @@ public:
             m_DO.DisableTBRAnalysis = true;
           } else if (args[i] == "-enable-va") {
             m_DO.EnableVariedAnalysis = true;
-          } else if (args[i] == "-disable-aa") {
+          } else if (args[i] == "-disable-va") {
             m_DO.DisableActivityAnalysis = true;
           } else if (args[i] == "-fcustom-estimation-model") {
             m_DO.CustomEstimationModel = true;
@@ -375,7 +375,7 @@ public:
           return false;
         }
         if (m_DO.EnableVariedAnalysis && m_DO.DisableActivityAnalysis) {
-          llvm::errs() << "clad: Error: -enable-va and -disable-aa cannot "
+          llvm::errs() << "clad: Error: -enable-va and -disable-va cannot "
                           "be used together.\n";
           return false;
         }
