@@ -109,8 +109,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!m_CUDAGlobalArgs.empty())
       if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
         if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-          // we need to check whether this param is in the global memory of the
-          // GPU
+          // Check whether this param is in the global memory of the GPU
           return m_CUDAGlobalArgs.find(PVD) != m_CUDAGlobalArgs.end();
 
     return false;
@@ -454,7 +453,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // if the function is a global kernel, all its parameters reside in the
     // global memory of the GPU
     if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-      for (auto param : params)
+      for (auto* param : params)
         m_CUDAGlobalArgs.emplace(param);
 
     llvm::ArrayRef<ParmVarDecl*> paramsRef =
@@ -611,11 +610,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
       for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
         m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
-    // If the function is a global kernel, all its parameters reside in the
-    // global memory of the GPU
-    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-      for (auto param : params)
-        m_CUDAGlobalArgs.emplace(param);
+
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
@@ -2302,11 +2297,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
       Expr* gradElem = BuildArraySubscript(gradRef, {idx});
       Expr* gradExpr = BuildOp(BO_Mul, dfdx, gradElem);
-      if (shouldUseCudaAtomicOps(outputArgs[i]))
-        PostCallStmts.push_back(
-            BuildCallToCudaAtomicAdd(outputArgs[i], gradExpr));
-      else
-        PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
+      // Inputs were not pointers, so the output args are not in global GPU
+      // memory. Hence, no need to use atomic ops.
+      PostCallStmts.push_back(BuildOp(BO_AddAssign, outputArgs[i], gradExpr));
       NumDiffArgs.push_back(args[i]);
     }
     std::string Name = "central_difference";
