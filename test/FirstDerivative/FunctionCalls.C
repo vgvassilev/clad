@@ -207,6 +207,7 @@ int main () {
   clad::differentiate(test_8, "x");
   clad::differentiate<clad::opts::enable_tbr>(test_8); // expected-error {{TBR analysis is not meant for forward mode AD.}}
   clad::differentiate<clad::opts::enable_tbr, clad::opts::disable_tbr>(test_8); // expected-error {{Both enable and disable TBR options are specified.}}
+  clad::gradient<clad::opts::enable_va, clad::opts::disable_va>(test_8); // expected-error {{Both enable and disable VA options are specified.}}
   clad::differentiate<clad::opts::diagonal_only>(test_8); // expected-error {{Diagonal only option is only valid for Hessian mode.}}
   clad::differentiate(test_9);
   clad::differentiate(test_10);

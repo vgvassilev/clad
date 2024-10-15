@@ -1826,7 +1826,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg)) {
+      if (utils::IsReferenceOrPointerArg(arg) ||
+          !m_DiffReq.shouldHaveAdjoint(PVD)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1966,7 +1967,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (auto* argDerivative : CallArgDx) {
         Expr* gradArgExpr = nullptr;
         QualType paramTy = FD->getParamDecl(idx)->getType();
-        if (utils::isArrayOrPointerType(paramTy) ||
+        if (!argDerivative || utils::isArrayOrPointerType(paramTy) ||
             isCladArrayType(argDerivative->getType()))
           gradArgExpr = argDerivative;
         else
@@ -2057,6 +2058,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // Silence diag outputs in nested derivation process.
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+        pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
         bool isaMethod = isa<CXXMethodDecl>(FD);
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
           if (MD && isLambdaCallOperator(MD)) {
@@ -2212,7 +2214,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
            i != e; ++i) {
         const Expr* arg = CE->getArg(i);
         StmtDiff argDiff = Visit(arg);
-        CallArgs.push_back(argDiff.getExpr_dx());
+        // Has to be removed once nondifferentiable arguments are handeled
+        if (argDiff.getStmt_dx())
+          CallArgs.push_back(argDiff.getExpr_dx());
+        else
+          CallArgs.push_back(getZeroInit(arg->getType()));
       }
       if (Expr* baseE = baseDiff.getExpr()) {
         call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
@@ -3025,6 +3031,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             nullptr, VD->getInitStyle());
     }
 
+    if (!m_DiffReq.shouldHaveAdjoint((VD)))
+      VDDerived = nullptr;
+
     // If `VD` is a reference to a local variable, then it is already
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
@@ -3032,7 +3041,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!isRefType && (!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
 
-      if (!clad::utils::hasNonDifferentiableAttribute(VD)) {
+      if (VDDerived && !clad::utils::hasNonDifferentiableAttribute(VD)) {
         derivedE = BuildDeclRef(VDDerived);
         if (isInitializedByNewExpr)
           derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
@@ -3059,7 +3068,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       //   *_d_i += _d_localVar;
       //   _d_localVar = 0;
       // }
-      if (isInsideLoop) {
+      if (VDDerived && isInsideLoop) {
         Stmt* assignToZero = nullptr;
         Expr* declRef = BuildDeclRef(VDDerived);
         if (!isa<ArrayType>(VDDerivedType))
@@ -3074,9 +3083,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
-    if (VDDerived)
+    if (VDDerived && m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD)))
       derivedVDE = BuildDeclRef(VDDerived);
-
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
     if (isRefType && promoteToFnScope) {
@@ -3130,8 +3138,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         VDDerived->setInitStyle(VarDecl::InitializationStyle::CInit);
       }
     }
+
     if (derivedVDE)
       m_Variables.emplace(VDClone, derivedVDE);
+
     // Check if decl's name is the same as before. The name may be changed
     // if decl name collides with something in the derivative body.
     // This can happen in rare cases, e.g. when the original function
@@ -3167,8 +3177,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   // TODO: 'shouldEmit' parameter should be removed after converting
   // Error estimation framework to callback style. Some more research
   // need to be done to
-  StmtDiff
-  ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S, Expr* dfdS) {
+  StmtDiff ReverseModeVisitor::DifferentiateSingleStmt(const Stmt* S,
+                                                       Expr* dfdS) {
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDifferentiateSingleStmt();
     beginBlock(direction::reverse);
@@ -3195,6 +3205,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     CompoundStmt* RCS = endBlock(direction::reverse);
     std::reverse(RCS->body_begin(), RCS->body_end());
     Stmt* ReverseResult = utils::unwrapIfSingleStmt(RCS);
+
     return StmtDiff(SDiff.getStmt(), ReverseResult);
   }
 
