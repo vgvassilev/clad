@@ -288,6 +288,186 @@ __global__ void add_kernel_7(double *a, double *b) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
+__device__ double device_fn(double in, double val) {
+  return in + val;
+}
+
+__global__ void kernel_with_device_call(double *out, double *in, double val) {
+  int index = threadIdx.x;
+  out[index] = device_fn(in[index], val);
+}
+
+// CHECK: void kernel_with_device_call_grad_0_2(double *out, double *in, double val, double *_d_out, double *_d_val) {
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_fn(in[index0], val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:        out[index0] = _t0;
+//CHECK-NEXT:        double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        double _r1 = 0.;
+//CHECK-NEXT:        device_fn_pullback_1(in[index0], val, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:        atomicAdd(_d_val, _r1);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+__device__ double device_fn_2(double *in, double val) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  return in[index] + val;
+}
+
+__global__ void kernel_with_device_call_2(double *out, double *in, double val) {
+  int index = threadIdx.x;
+  out[index] = device_fn_2(in, val);
+} 
+
+__global__ void dup_kernel_with_device_call_2(double *out, double *in, double val) {
+  int index = threadIdx.x;
+  out[index] = device_fn_2(in, val);
+} 
+
+// CHECK: void kernel_with_device_call_2_grad_0_2(double *out, double *in, double val, double *_d_out, double *_d_val) {
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_fn_2(in, val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:        out[index0] = _t0;
+//CHECK-NEXT:        double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_fn_2_pullback_0_1(in, val, _r_d0, &_r0);
+//CHECK-NEXT:        atomicAdd(_d_val, _r0);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: void kernel_with_device_call_2_grad_0_1(double *out, double *in, double val, double *_d_out, double *_d_in) {
+//CHECK-NEXT:    double _d_val = 0.;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_fn_2(in, val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:        out[index0] = _t0;
+//CHECK-NEXT:        double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_fn_2_pullback_0_1_3(in, val, _r_d0, _d_in, &_r0);
+//CHECK-NEXT:        _d_val += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+__device__ double device_fn_3(double *in, double *val) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  return in[index] + *val;
+}
+
+__global__ void kernel_with_device_call_3(double *out, double *in, double *val) {
+  int index = threadIdx.x;
+  out[index] = device_fn_3(in, val);
+} 
+
+// CHECK: void kernel_with_device_call_3_grad(double *out, double *in, double *val, double *_d_out, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_fn_3(in, val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:        out[index0] = _t0;
+//CHECK-NEXT:        double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        device_fn_3_pullback_0_1_3_4(in, val, _r_d0, _d_in, _d_val);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+__device__ double device_fn_4(double *in, double val) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  return in[index] + val;
+}
+
+__device__ double device_with_device_call(double *in, double val) {
+  return device_fn_4(in, val);
+}
+
+__global__ void kernel_with_nested_device_call(double *out, double *in, double val) {
+  int index = threadIdx.x;
+  out[index] = device_with_device_call(in, val);
+}
+
+// CHECK: void kernel_with_nested_device_call_grad_0_1(double *out, double *in, double val, double *_d_out, double *_d_in) {
+//CHECK-NEXT:    double _d_val = 0.;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x;
+//CHECK-NEXT:    double _t0 = out[index0];
+//CHECK-NEXT:    out[index0] = device_with_device_call(in, val);
+//CHECK-NEXT:    {
+//CHECK-NEXT:       out[index0] = _t0;
+//CHECK-NEXT:       double _r_d0 = _d_out[index0];
+//CHECK-NEXT:        _d_out[index0] = 0.;
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_with_device_call_pullback_0_1_3(in, val, _r_d0, _d_in, &_r0);
+//CHECK-NEXT:        _d_val += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_pullback_1(double in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    {
+//CHECK-NEXT:                *_d_in += _d_y;
+//CHECK-NEXT:                *_d_val += _d_y;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_2_pullback_0_1(double *in, double val, double _d_y, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    *_d_val += _d_y;
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_2_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        *_d_val += _d_y;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_3_pullback_0_1_3_4(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        atomicAdd(_d_val, _d_y);
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_with_device_call_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    {
+//CHECK-NEXT:        double _r0 = 0.;
+//CHECK-NEXT:        device_fn_4_pullback_0_1_3(in, val, _d_y, _d_in, &_r0);
+//CHECK-NEXT:        *_d_val += _r0;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        *_d_val += _d_y;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 #define TEST(F, grid, block, shared_mem, use_stream, x, dx, N)              \
   {                                                                         \
     int *fives = (int*)malloc(N * sizeof(int));                             \
@@ -345,9 +525,9 @@ __global__ void add_kernel_7(double *a, double *b) {
     else {                                                                    \
       test.execute_kernel(grid, block, y, x, dy, dx);                         \
     }                                                                         \
-    cudaDeviceSynchronize();                                                  \
     int *res = (int*)malloc(N * sizeof(int));                                 \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);             \
+    cudaDeviceSynchronize();                                                  \
     for (int i = 0; i < (N - 1); i++) {                                       \
       printf("%d, ", res[i]);                                                 \
     }                                                                         \
@@ -380,9 +560,9 @@ __global__ void add_kernel_7(double *a, double *b) {
     else {                                                                        \
       test.execute_kernel(grid, block, y, x, N, dy, dx);                          \
     }                                                                             \
-    cudaDeviceSynchronize();                                                      \
     int *res = (int*)malloc(N * sizeof(int));                                     \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);                 \
+    cudaDeviceSynchronize();                                                      \
     for (int i = 0; i < (N - 1); i++) {                                           \
       printf("%d, ", res[i]);                                                     \
     }                                                                             \
@@ -415,9 +595,9 @@ __global__ void add_kernel_7(double *a, double *b) {
     else {                                                                      \
       test.execute_kernel(grid, block, y, x, dy, dx);                           \
     }                                                                           \
-    cudaDeviceSynchronize();                                                    \
     double *res = (double*)malloc(N * sizeof(double));                          \
     cudaMemcpy(res, dx, N * sizeof(double), cudaMemcpyDeviceToHost);            \
+    cudaDeviceSynchronize();                                                    \
     for (int i = 0; i < (N - 1); i++) {                                         \
       printf("%0.2f, ", res[i]);                                                \
     }                                                                           \
@@ -427,6 +607,25 @@ __global__ void add_kernel_7(double *a, double *b) {
     free(res);                                                                  \
   }
 
+#define INIT(x, y, val, dx, dy, d_val)                                          \
+{                                                                               \
+  double *fives = (double*)malloc(10 * sizeof(double));                         \
+  for(int i = 0; i < 10; i++) {                                                 \
+    fives[i] = 5;                                                               \
+  }                                                                             \
+  double *zeros = (double*)malloc(10 * sizeof(double));                         \
+  for(int i = 0; i < 10; i++) {                                                 \
+    zeros[i] = 0;                                                               \
+  }                                                                             \
+  cudaMemcpy(x, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);            \
+  cudaMemcpy(y, zeros, 10 * sizeof(double), cudaMemcpyHostToDevice);            \
+  cudaMemcpy(val, fives, sizeof(double), cudaMemcpyHostToDevice);               \
+  cudaMemcpy(dx, zeros, 10 * sizeof(double), cudaMemcpyHostToDevice);           \
+  cudaMemcpy(dy, fives, 10 * sizeof(double), cudaMemcpyHostToDevice);           \
+  cudaMemcpy(d_val, zeros, sizeof(double), cudaMemcpyHostToDevice);             \
+  free(fives);                                                                  \
+  free(zeros);                                                                  \
+}
 
 int main(void) {
   int *a, *d_a;
@@ -472,11 +671,71 @@ int main(void) {
 
   TEST_2_D(add_kernel_7, dim3(1), dim3(5, 1, 1), 0, false, "a, b", dummy_out_double, dummy_in_double, d_out_double, d_in_double, 10); // CHECK-EXEC: 50.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00
 
+  double *val;
+  cudaMalloc(&val, sizeof(double));
+  double *d_val;
+  cudaMalloc(&d_val, sizeof(double));
+  
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto test_device = clad::gradient(kernel_with_device_call, "out, val");
+  test_device.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
+  double *res = (double*)malloc(10 * sizeof(double));
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto test_device_2 = clad::gradient(kernel_with_device_call_2, "out, val");
+  test_device_2.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto check_dup = clad::gradient(dup_kernel_with_device_call_2, "out, val"); // check that the pullback function is not regenerated
+  check_dup.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+  printf("%s\n", cudaGetErrorString(cudaGetLastError())); // CHECK-EXEC: no error
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto test_device_3 = clad::gradient(kernel_with_device_call_2, "out, in");
+  test_device_3.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_in_double);
+  cudaDeviceSynchronize();
+  cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
+
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto test_device_4 = clad::gradient(kernel_with_device_call_3);
+  test_device_4.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, val, d_out_double, d_in_double, d_val);
+  cudaDeviceSynchronize();
+  cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+  printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
+
+  INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
+
+  auto nested_device = clad::gradient(kernel_with_nested_device_call, "out, in");
+  nested_device.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_in_double);
+  cudaDeviceSynchronize();
+  cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
+  printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
+
+  free(res);
   cudaFree(dummy_in_double);
   cudaFree(dummy_out_double);
   cudaFree(d_out_double);
   cudaFree(d_in_double);
-
+  cudaFree(val);
+  cudaFree(d_val);
 
   return 0;
 }

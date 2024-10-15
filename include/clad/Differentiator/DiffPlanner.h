@@ -46,6 +46,8 @@ public:
   clang::CallExpr* CallContext = nullptr;
   /// Args provided to the call to clad::gradient/differentiate.
   const clang::Expr* Args = nullptr;
+  /// Indexes of global GPU args of function as a subset of Args.
+  std::vector<size_t> CUDAGlobalArgsIndexes;
   /// Requested differentiation mode, forward or reverse.
   DiffMode Mode = DiffMode::unknown;
   /// If function appears in the call to clad::gradient/differentiate,
