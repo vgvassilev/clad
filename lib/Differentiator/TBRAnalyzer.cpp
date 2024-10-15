@@ -758,11 +758,16 @@ bool TBRAnalyzer::VisitCallExpr(clang::CallExpr* CE) {
   setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
   for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
     clang::Expr* arg = CE->getArg(i);
-    bool passByRef = false;
+    QualType paramTy;
     if (noHiddenParam)
-      passByRef = FD->getParamDecl(i)->getType()->isReferenceType();
+      paramTy = FD->getParamDecl(i)->getType();
     else if (i != 0)
-      passByRef = FD->getParamDecl(i - 1)->getType()->isReferenceType();
+      paramTy = FD->getParamDecl(i - 1)->getType();
+
+    bool passByRef = false;
+    if (!paramTy.isNull())
+      passByRef = paramTy->isLValueReferenceType() &&
+                  !paramTy.getNonReferenceType().isConstQualified();
     setMode(Mode::kMarkingMode | Mode::kNonLinearMode);
     TraverseStmt(arg);
     resetMode();
