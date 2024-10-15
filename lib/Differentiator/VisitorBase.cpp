@@ -763,7 +763,8 @@ namespace clad {
 
   Expr* VisitorBase::GetSingleArgCentralDiffCall(
       Expr* targetFuncCall, Expr* targetArg, unsigned targetPos,
-      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args) {
+      unsigned numArgs, llvm::SmallVectorImpl<Expr*>& args,
+      Expr* CUDAExecConfig /*=nullptr*/) {
     QualType argType = targetArg->getType();
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     bool isSupported = argType->isArithmeticType();
@@ -786,7 +787,7 @@ namespace clad {
         Name, NumDiffArgs, getCurrentScope(),
         /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
-        /*namespaceShouldExist=*/false);
+        /*namespaceShouldExist=*/false, CUDAExecConfig);
   }
 
   void VisitorBase::CallExprDiffDiagnostics(const clang::FunctionDecl* FD,

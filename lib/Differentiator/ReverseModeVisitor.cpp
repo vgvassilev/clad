@@ -450,8 +450,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
-    // if the function is a global kernel, all its parameters reside in the
-    // global memory of the GPU
+    // if the function is a global kernel, all the adjoint parameters reside in
+    // the global memory of the GPU. To facilitate the process, all the params
+    // of the kernel are added to the set.
     if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
       for (auto* param : params)
         m_CUDAGlobalArgs.emplace(param);
@@ -610,7 +611,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
       for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
         m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
-
+    // If the function is a global kernel, all its parameters reside in the
+    // global memory of the GPU
+    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+      for (auto param : params)
+        m_CUDAGlobalArgs.emplace(param);
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
@@ -1646,6 +1651,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(Clone(CE));
     }
 
+    Expr* CUDAExecConfig = nullptr;
+    if (auto KCE = dyn_cast<CUDAKernelCallExpr>(CE))
+      CUDAExecConfig = Clone(KCE->getConfig());
+
     // If the function is non_differentiable, return zero derivative.
     if (clad::utils::hasNonDifferentiableAttribute(CE)) {
       // Calling the function without computing derivatives
@@ -1654,10 +1663,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         ClonedArgs.push_back(Clone(CE->getArg(i)));
 
       SourceLocation validLoc = clad::utils::GetValidSLoc(m_Sema);
-      Expr* Call = m_Sema
-                       .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                      validLoc, ClonedArgs, validLoc)
-                       .get();
+      Expr* Call =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                             validLoc, ClonedArgs, validLoc, CUDAExecConfig)
+              .get();
       // Creating a zero derivative
       auto* zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
                                                      /*val=*/0);
@@ -1804,7 +1814,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Expr* call =
           m_Sema
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
+                             llvm::MutableArrayRef<Expr*>(CallArgs), Loc,
+                             CUDAExecConfig)
               .get();
       return call;
     }
@@ -1916,7 +1927,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPushforward, pushforwardCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()));
+              const_cast<DeclContext*>(FD->getDeclContext()), true, true,
+              CUDAExecConfig);
       if (OverloadedDerivedFn)
         asGrad = false;
     }
@@ -2018,7 +2030,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()));
+              const_cast<DeclContext*>(FD->getDeclContext()), true, true,
+              CUDAExecConfig);
       if (baseDiff.getExpr())
         pullbackCallArgs.erase(pullbackCallArgs.begin());
     }
@@ -2034,10 +2047,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                     CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
                 .get();
 
-        OverloadedDerivedFn = m_Sema
-                                  .ActOnCallExpr(getCurrentScope(), selfRef,
-                                                 Loc, pullbackCallArgs, Loc)
-                                  .get();
+        OverloadedDerivedFn =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), selfRef, Loc,
+                               pullbackCallArgs, Loc, CUDAExecConfig)
+                .get();
       } else {
         if (m_ExternalSource)
           m_ExternalSource->ActBeforeDifferentiatingCallExpr(
@@ -2089,14 +2103,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             OverloadedDerivedFn = GetSingleArgCentralDiffCall(
                 Clone(CE->getCallee()), DerivedCallArgs[0],
                 /*targetPos=*/0,
-                /*numArgs=*/1, DerivedCallArgs);
+                /*numArgs=*/1, DerivedCallArgs, CUDAExecConfig);
             asGrad = !OverloadedDerivedFn;
           } else {
             auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
             OverloadedDerivedFn = GetMultiArgCentralDiffCall(
                 Clone(CE->getCallee()), CEType.getCanonicalType(),
                 CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
-                DerivedCallArgs, CallArgDx);
+                DerivedCallArgs, CallArgDx, CUDAExecConfig);
           }
           CallExprDiffDiagnostics(FD, CE->getBeginLoc());
           if (!OverloadedDerivedFn) {
@@ -2114,7 +2128,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             OverloadedDerivedFn =
                 m_Sema
                     .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
-                                   Loc, pullbackCallArgs, Loc)
+                                   Loc, pullbackCallArgs, Loc, CUDAExecConfig)
                     .get();
           }
         }
@@ -2227,7 +2241,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         call = m_Sema
                    .ActOnCallExpr(getCurrentScope(),
                                   BuildDeclRef(calleeFnForwPassFD), Loc,
-                                  CallArgs, Loc)
+                                  CallArgs, Loc, CUDAExecConfig)
                    .get();
       }
       auto* callRes = StoreAndRef(call);
@@ -2261,7 +2275,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     call = m_Sema
                .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                              CallArgs, Loc)
+                              CallArgs, Loc, CUDAExecConfig)
                .get();
     return StmtDiff(call);
 
@@ -2273,7 +2287,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       llvm::SmallVectorImpl<Stmt*>& PreCallStmts,
       llvm::SmallVectorImpl<Stmt*>& PostCallStmts,
       llvm::SmallVectorImpl<Expr*>& args,
-      llvm::SmallVectorImpl<Expr*>& outputArgs) {
+      llvm::SmallVectorImpl<Expr*>& outputArgs,
+      Expr* CUDAExecConfig /*=nullptr*/) {
     int printErrorInf = m_Builder.shouldPrintNumDiffErrs();
     llvm::SmallVector<Expr*, 16U> NumDiffArgs = {};
     NumDiffArgs.push_back(targetFuncCall);
@@ -2314,7 +2329,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Name, NumDiffArgs, getCurrentScope(),
         /*OriginalFnDC=*/nullptr,
         /*forCustomDerv=*/false,
-        /*namespaceShouldExist=*/false);
+        /*namespaceShouldExist=*/false, CUDAExecConfig);
   }
 
   StmtDiff ReverseModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
