@@ -246,7 +246,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
       clang::Scope* S, clang::DeclContext* originalFnDC,
-      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/) {
+      bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
+      Expr* config /*=nullptr*/) {
     CXXScopeSpec SS;
     LookupResult R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
@@ -266,7 +267,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
         return nullptr;
 
       OverloadedFn =
-          m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc).get();
+          m_Sema.ActOnCallExpr(S, UnresolvedLookup, Loc, MARargs, Loc, config)
+              .get();
 
       // Add the custom derivative to the set of derivatives.
       // This is required in case the definition of the custom derivative
