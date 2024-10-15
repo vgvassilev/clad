@@ -1850,8 +1850,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // may be changed since we have no way to determine otherwise.
       // FIXME: We cannot use GlobalStoreAndRef to store a whole array so now
       // arrays are not stored.
-      bool passByRef = PVD->getType()->isReferenceType() &&
-                       !isa<MaterializeTemporaryExpr>(arg);
+      QualType paramTy = PVD->getType();
+      bool passByRef = paramTy->isLValueReferenceType() &&
+                       !paramTy.getNonReferenceType().isConstQualified();
       Expr* argDiffStore;
       if (passByRef && !argDiff.getExpr()->isEvaluatable(m_Context))
         argDiffStore =

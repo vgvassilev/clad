@@ -340,11 +340,9 @@ double fn9(double x, double y) {
 }
 
 // CHECK:void fn9_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    double _t0 = y;
 // CHECK-NEXT:    {
-// CHECK-NEXT:        y = _t0;
 // CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        custom_max_pullback(x * y, _t0, 1, &_r0, &*_d_y);
+// CHECK-NEXT:        custom_max_pullback(x * y, y, 1, &_r0, &*_d_y);
 // CHECK-NEXT:        *_d_x += _r0 * y;
 // CHECK-NEXT:        *_d_y += x * _r0;
 // CHECK-NEXT:    }
@@ -362,42 +360,36 @@ double fn10(double x, double y) {
 // CHECK-NEXT:    double _d_out = 0.;
 // CHECK-NEXT:    double out = x;
 // CHECK-NEXT:    double _t0 = out;
-// CHECK-NEXT:    double _t1 = out;
 // CHECK-NEXT:    out = std::max(out, 0.);
-// CHECK-NEXT:    double _t2 = out;
-// CHECK-NEXT:    double _t3 = out;
+// CHECK-NEXT:    double _t1 = out;
 // CHECK-NEXT:    out = std::min(out, 10.);
-// CHECK-NEXT:    double _t4 = out;
-// CHECK-NEXT:    double _t5 = out;
+// CHECK-NEXT:    double _t2 = out;
 // CHECK-NEXT:    out = std::clamp(out, 3., 7.);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        _d_out += 1 * y;
 // CHECK-NEXT:        *_d_y += out * 1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
-// CHECK-NEXT:        out = _t4;
+// CHECK-NEXT:        out = _t2;
 // CHECK-NEXT:        double _r_d2 = _d_out;
 // CHECK-NEXT:        _d_out = 0.;
-// CHECK-NEXT:        out = _t5;
 // CHECK-NEXT:        double _r2 = 0.;
 // CHECK-NEXT:        double _r3 = 0.;
-// CHECK-NEXT:        clad::custom_derivatives::std::clamp_pullback(_t5, 3., 7., _r_d2, &_d_out, &_r2, &_r3);
+// CHECK-NEXT:        clad::custom_derivatives::std::clamp_pullback(out, 3., 7., _r_d2, &_d_out, &_r2, &_r3);
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
-// CHECK-NEXT:        out = _t2;
+// CHECK-NEXT:        out = _t1;
 // CHECK-NEXT:        double _r_d1 = _d_out;
 // CHECK-NEXT:        _d_out = 0.;
-// CHECK-NEXT:        out = _t3;
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        clad::custom_derivatives::std::min_pullback(_t3, 10., _r_d1, &_d_out, &_r1);
+// CHECK-NEXT:        clad::custom_derivatives::std::min_pullback(out, 10., _r_d1, &_d_out, &_r1);
 // CHECK-NEXT:    }
 // CHECK-NEXT:    {
 // CHECK-NEXT:        out = _t0;
 // CHECK-NEXT:        double _r_d0 = _d_out;
 // CHECK-NEXT:        _d_out = 0.;
-// CHECK-NEXT:        out = _t1;
 // CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        clad::custom_derivatives::std::max_pullback(_t1, 0., _r_d0, &_d_out, &_r0);
+// CHECK-NEXT:        clad::custom_derivatives::std::max_pullback(out, 0., _r_d0, &_d_out, &_r0);
 // CHECK-NEXT:    }
 // CHECK-NEXT:    *_d_x += _d_out;
 // CHECK-NEXT: }
@@ -428,13 +420,7 @@ double fn11(double x, double y) {
 }
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:    double _t0 = x;
-// CHECK-NEXT:    double _t1 = y;
-// CHECK-NEXT:    {
-// CHECK-NEXT:        x = _t0;
-// CHECK-NEXT:        y = _t1;
-// CHECK-NEXT:        clad::custom_derivatives::n1::sum_pullback(_t0, _t1, 1, &*_d_x, &*_d_y);
-// CHECK-NEXT:    }
+// CHECK-NEXT:    clad::custom_derivatives::n1::sum_pullback(x, y, 1, &*_d_x, &*_d_y);
 // CHECK-NEXT: }
 
 double do_nothing(double* u, double* v, double* w) {
