@@ -2406,7 +2406,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       else {
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
-        if (dfdx()) {
+        if (dfdx() && derivedE) {
           if (shouldUseCudaAtomicOps(diff_dx)) {
             Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
             // Add it to the body statements.
