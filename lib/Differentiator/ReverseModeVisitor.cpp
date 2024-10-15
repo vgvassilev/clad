@@ -1814,14 +1814,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // statements there later.
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
-    bool isCXXOperatorCall = isa<CXXOperatorCallExpr>(CE);
+    const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    // Method operators have a base like methods do but it's included in the
+    // call arguments so we have to shift the indexing of call arguments.
+    bool isMethodOperatorCall = MD && isa<CXXOperatorCallExpr>(CE);
 
-    for (std::size_t i = static_cast<std::size_t>(isCXXOperatorCall),
+    for (std::size_t i = static_cast<std::size_t>(isMethodOperatorCall),
                      e = CE->getNumArgs();
          i != e; ++i) {
       const Expr* arg = CE->getArg(i);
-      const auto* PVD =
-          FD->getParamDecl(i - static_cast<unsigned long>(isCXXOperatorCall));
+      const auto* PVD = FD->getParamDecl(
+          i - static_cast<unsigned long>(isMethodOperatorCall));
       StmtDiff argDiff{};
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
@@ -1931,7 +1934,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* baseExpr = nullptr;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
-    const auto* MD = dyn_cast<CXXMethodDecl>(FD);
     std::vector<size_t> globalCallArgs;
     if (!OverloadedDerivedFn) {
       size_t idx = 0;
@@ -1994,7 +1996,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       if (pullback)
         pullbackCallArgs.insert(pullbackCallArgs.begin() + CE->getNumArgs() -
-                                    static_cast<int>(isCXXOperatorCall),
+                                    static_cast<int>(isMethodOperatorCall),
                                 pullback);
 
       // Try to find it in builtin derivatives
@@ -2209,7 +2211,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             BuildOp(UnaryOperatorKind::UO_AddrOf, derivedBase, Loc));
       }
 
-      for (std::size_t i = static_cast<std::size_t>(isCXXOperatorCall),
+      for (std::size_t i = static_cast<std::size_t>(isMethodOperatorCall),
                        e = CE->getNumArgs();
            i != e; ++i) {
         const Expr* arg = CE->getArg(i);
@@ -2238,7 +2240,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(resValue, resAdjoint, resAdjoint);
     } // Recreate the original call expression.
 
-    if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
+    if (isMethodOperatorCall) {
+      const auto* OCE = cast<CXXOperatorCallExpr>(CE);
       auto* FD = const_cast<CXXMethodDecl*>(
           dyn_cast<CXXMethodDecl>(OCE->getCalleeDecl()));
 
@@ -2264,8 +2267,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                               CallArgs, Loc)
                .get();
     return StmtDiff(call);
-
-    return {};
   }
 
   Expr* ReverseModeVisitor::GetMultiArgCentralDiffCall(

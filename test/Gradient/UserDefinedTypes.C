@@ -357,6 +357,32 @@ double fn10(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double operator+(const double& x, const Tangent& t) {
+  return x + t.data[0];
+}
+
+// CHECK: void operator_plus_pullback(const double &x, const Tangent &t, double _d_y, double *_d_x, Tangent *_d_t);
+
+double fn11(double x, double y) {
+  Tangent t;
+  t.data[0] = -y;
+  return x + t;
+}
+
+// CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     Tangent _d_t({});
+// CHECK-NEXT:     Tangent t;
+// CHECK-NEXT:     double _t0 = t.data[0];
+// CHECK-NEXT:     t.data[0] = -y;
+// CHECK-NEXT:     operator_plus_pullback(x, t, 1, &*_d_x, &_d_t);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         t.data[0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_t.data[0];
+// CHECK-NEXT:         _d_t.data[0] = 0.;
+// CHECK-NEXT:         *_d_y += -_r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -383,6 +409,7 @@ int main() {
     INIT_GRADIENT(fn8);
     INIT_GRADIENT(fn9);
     INIT_GRADIENT(fn10);
+    INIT_GRADIENT(fn11);
     
     TEST_GRADIENT(fn1, /*numOfDerivativeArgs=*/2, p, i, &d_p, &d_i);    // CHECK-EXEC: {1.00, 2.00, 3.00}
     TEST_GRADIENT(fn2, /*numOfDerivativeArgs=*/2, t, i, &d_t, &d_i);    // CHECK-EXEC: {4.00, 2.00, 2.00, 2.00, 2.00, 1.00}
@@ -397,6 +424,7 @@ int main() {
     TEST_GRADIENT(fn8, /*numOfDerivativeArgs=*/2, t, c1, &d_t, &d_c1);  // CHECK-EXEC: {0.00, 0.00, 0.00, 0.00, 0.00, 5.00, 0.00}
     TEST_GRADIENT(fn9, /*numOfDerivativeArgs=*/2, t, c1, &d_t, &d_c1);  // CHECK-EXEC: {1.00, 1.00, 1.00, 1.00, 1.00, 5.00, 10.00}
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 5, 10, &d_i, &d_j);  // CHECK-EXEC: {1.00, 0.00}
+    TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, -14, &d_i, &d_j);  // CHECK-EXEC: {1.00, -1.00}
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
@@ -510,5 +538,12 @@ int main() {
 // CHECK-NEXT:         double _r_d0 = (*_d_this).data[i];
 // CHECK-NEXT:         (*_d_this).data[i] = 0.;
 // CHECK-NEXT:         *_d_d += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void operator_plus_pullback(const double &x, const Tangent &t, double _d_y, double *_d_x, Tangent *_d_t) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_y;
+// CHECK-NEXT:         (*_d_t).data[0] += _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
