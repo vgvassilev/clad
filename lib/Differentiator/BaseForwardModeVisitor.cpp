@@ -229,15 +229,31 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       // non-reference type for creating the derivatives.
       QualType dParamType = param->getType().getNonReferenceType();
       // We do not create derived variable for array/pointer parameters.
-      if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType) ||
-          utils::isArrayOrPointerType(dParamType))
+      if (!BaseForwardModeVisitor::IsDifferentiableType(dParamType))
         continue;
       Expr* dParam = nullptr;
+      bool isArrayTy = utils::isArrayOrPointerType(dParamType);
       if (dParamType->isRealType()) {
         // If param is independent variable, its derivative is 1, otherwise 0.
         int dValue = (param == m_IndependentVar);
         dParam = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
                                                    dValue);
+      } else if (isArrayTy) {
+        if (param == m_IndependentVar)
+          continue;
+
+        if (const auto* DT = dyn_cast<DecayedType>(dParamType)) {
+          if (const auto* CAT =
+                  dyn_cast<ConstantArrayType>(DT->getOriginalType())) {
+            Expr* zero = ConstantFolder::synthesizeLiteral(
+                m_Context.IntTy, m_Context, /*val=*/0);
+            dParam = m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
+            dParamType = QualType::getFromOpaquePtr(CAT);
+          }
+        } else {
+          dParamType = GetCladArrayOfType(utils::GetValueType(dParamType));
+          dParam = getZeroInit(dParamType);
+        }
       }
       // For each function arg, create a variable _d_arg to store derivatives
       // of potential reassignments, e.g.:
@@ -249,6 +265,10 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
           BuildVarDecl(dParamType, "_d_" + param->getNameAsString(), dParam);
       addToCurrentBlock(BuildDeclStmt(dParamDecl));
       dParam = BuildDeclRef(dParamDecl);
+      if (!isa<ConstantArrayType>(dParamType) && isArrayTy) {
+        llvm::SmallVector<Expr*, 0> noParams{};
+        dParam = BuildCallExprToMemFn(dParam, "ptr", noParams);
+      }
       if (dParamType->isRecordType() && param == m_IndependentVar) {
         llvm::SmallVector<llvm::StringRef, 4> ref(diffVarInfo.fields.begin(),
                                                   diffVarInfo.fields.end());
@@ -984,7 +1004,6 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     VD = DRE->getDecl();
   }
   if (VD == m_IndependentVar) {
-    llvm::APSInt index;
     Expr* diffExpr = nullptr;
     Expr::EvalResult res;
     Expr::SideEffectsKind AllowSideEffects =
@@ -1009,12 +1028,10 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
     return StmtDiff(cloned, zero);
 
   Expr* target = it->second;
-  // FIXME: fix when adding array inputs
-  if (!isArrayOrPointerType(target->getType()))
-    return StmtDiff(cloned, zero);
-  // llvm::APSInt IVal;
-  // if (!I->EvaluateAsInt(IVal, m_Context))
-  //  return;
+  // The size of array parameters is unknown
+  // so we need to always extend the adjoint size before accessing the element.
+  if (utils::isArrayOrPointerType(clonedBase->getType()))
+    EmitCladArrayExtend({clonedBase, target}, clonedIndices.back());
   // Create the _result[idx] expression.
   auto result_at_is = BuildArraySubscript(target, clonedIndices);
   return StmtDiff(cloned, result_at_is);
@@ -1366,8 +1383,10 @@ StmtDiff BaseForwardModeVisitor::VisitUnaryOperator(const UnaryOperator* UnOp) {
            opKind == UnaryOperatorKind::UO_Imag) {
     return StmtDiff(op, BuildOp(opKind, diff.getExpr_dx()));
   } else if (opKind == UnaryOperatorKind::UO_Deref) {
-    if (Expr* dx = diff.getExpr_dx())
+    if (Expr* dx = diff.getExpr_dx()) {
+      EmitCladArrayExtend(diff, getZeroInit(m_Context.IntTy));
       return StmtDiff(op, BuildOp(opKind, dx));
+    }
     QualType literalTy =
         utils::GetValueType(UnOp->getSubExpr()->getType()->getPointeeType());
     return StmtDiff(
