@@ -82,6 +82,18 @@ ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
     __attribute__((host)) {
   return {cudaDeviceSynchronize(), 0};
 }
+
+void cudaMemcpy_pullback(void* destPtr, void* srcPtr, size_t count,
+                         cudaMemcpyKind kind, void* d_destPtr, void* d_srcPtr,
+                         size_t* d_count, cudaMemcpyKind* d_kind)
+    __attribute__((host)) {
+  if (kind == cudaMemcpyDeviceToHost)
+    *d_kind = cudaMemcpyHostToDevice;
+  else if (kind == cudaMemcpyHostToDevice)
+    *d_kind = cudaMemcpyDeviceToHost;
+  cudaMemcpy(d_srcPtr, d_destPtr, count, *d_kind);
+}
+
 #endif
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>

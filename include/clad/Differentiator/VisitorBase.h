@@ -603,7 +603,8 @@ namespace clad {
     /// \returns The derivative function call.
     clang::Expr* GetSingleArgCentralDiffCall(
         clang::Expr* targetFuncCall, clang::Expr* targetArg, unsigned targetPos,
-        unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args);
+        unsigned numArgs, llvm::SmallVectorImpl<clang::Expr*>& args,
+        clang::Expr* CUDAExecConfig = nullptr);
 
     /// Emits diagnostic messages on differentiation (or lack thereof) for
     /// call expressions.
