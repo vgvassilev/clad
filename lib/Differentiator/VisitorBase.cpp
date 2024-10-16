@@ -120,7 +120,16 @@ namespace clad {
         m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
         m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 
+    bool isLambda = false;
     if (Init) {
+      if (const RecordType* RT = Init->getType()->getAs<RecordType>()) {
+        if (const CXXRecordDecl* RD = dyn_cast<CXXRecordDecl>(RT->getDecl()))
+          isLambda = RD->isLambda();
+      }
+      if (isLambda) {
+        clang::Sema::CodeSynthesisContext csc;
+        m_Sema.pushCodeSynthesisContext(csc);
+      }
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
       VD->setInitStyle(IS);
     } else {
@@ -129,6 +138,8 @@ namespace clad {
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
     m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
+    if (isLambda)
+      m_Sema.popCodeSynthesisContext();
     return VD;
   }
 
