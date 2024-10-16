@@ -438,6 +438,24 @@ void ErrorEstimationHandler::ActBeforeFinalizingVisitCallExpr(
   }
 }
 
+void ErrorEstimationHandler::ActBeforeFinalizingVisitCUDAKernelCallExpr(
+    const clang::CUDAKernelCallExpr*& KCE, clang::Expr*& OverloadedDerivedFn,
+    llvm::SmallVectorImpl<Expr*>& derivedCallArgs,
+    llvm::SmallVectorImpl<Expr*>& ArgResult, bool asGrad) {
+  if (OverloadedDerivedFn && asGrad) {
+    // Derivative was found.
+    FunctionDecl* fnDecl =
+        dyn_cast<CUDAKernelCallExpr>(OverloadedDerivedFn)->getDirectCallee();
+
+    // If in error estimation, build the statement for the error
+    // in the input prameters (if of reference type) to call and save to
+    // emit them later.
+
+    EmitNestedFunctionParamError(fnDecl, derivedCallArgs, ArgResult,
+                                 KCE->getNumArgs());
+  }
+}
+
 void ErrorEstimationHandler::ActBeforeFinalizingAssignOp(
     clang::Expr*& LCloned, clang::Expr*& oldValue, clang::Expr*& R,
     clang::BinaryOperator::Opcode& opCode) {

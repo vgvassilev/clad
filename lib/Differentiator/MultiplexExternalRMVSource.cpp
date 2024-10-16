@@ -162,6 +162,16 @@ void MultiplexExternalRMVSource::ActBeforeFinalizingVisitCallExpr(
   }
 }
 
+void MultiplexExternalRMVSource::ActBeforeFinalizingVisitCUDAKernelCallExpr(
+    const clang::CUDAKernelCallExpr*& KCE, clang::Expr*& OverloadedDerivedFn,
+    llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
+    llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) {
+  for (auto source : m_Sources) {
+    source->ActBeforeFinalizingVisitCUDAKernelCallExpr(
+        KCE, OverloadedDerivedFn, derivedCallArgs, ArgResult, asGrad);
+  }
+}
+
 void MultiplexExternalRMVSource::ActBeforeFinalizingPostIncDecOp(
     StmtDiff& diff) {
   for (auto source : m_Sources) {

@@ -51,6 +51,10 @@ public:
       const clang::CallExpr*& CE, clang::Expr*& OverloadedDerivedFn,
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) override;
+  void ActBeforeFinalizingVisitCUDAKernelCallExpr(
+      const clang::CUDAKernelCallExpr*& KCE, clang::Expr*& OverloadedDerivedFn,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) override;
   void ActBeforeFinalizingPostIncDecOp(StmtDiff& diff) override;
   void ActAfterCloningLHSOfAssignOp(clang::Expr*&, clang::Expr*&,
                                     clang::BinaryOperatorKind& opCode) override;

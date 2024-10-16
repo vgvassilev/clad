@@ -134,6 +134,16 @@ public:
       llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
       llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) {}
 
+  /// This is called just before finalising `VisitCUDAKernelCallExpr`.
+  ///
+  /// \param KCE kernel call expression that is being visited.
+  /// \param CallArgs
+  /// \param ArgResultDecls
+  virtual void ActBeforeFinalizingVisitCUDAKernelCallExpr(
+      const clang::CUDAKernelCallExpr*& KCE, clang::Expr*& OverloadedDerivedFn,
+      llvm::SmallVectorImpl<clang::Expr*>& derivedCallArgs,
+      llvm::SmallVectorImpl<clang::Expr*>& ArgResult, bool asGrad) {}
+
   /// This is called just before finalising processing of post and pre
   /// increment and decrement operations.
   virtual void ActBeforeFinalizingPostIncDecOp(StmtDiff& diff){};
