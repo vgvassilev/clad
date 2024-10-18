@@ -1673,7 +1673,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     Expr* CUDAExecConfig = nullptr;
-    if (const auto KCE = dyn_cast<CUDAKernelCallExpr>(CE))
+    if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
       CUDAExecConfig = Clone(KCE->getConfig());
 
     // If the function is non_differentiable, return zero derivative.
