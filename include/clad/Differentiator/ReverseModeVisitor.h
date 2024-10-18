@@ -354,7 +354,8 @@ namespace clad {
         clang::Expr* dfdx, llvm::SmallVectorImpl<clang::Stmt*>& PreCallStmts,
         llvm::SmallVectorImpl<clang::Stmt*>& PostCallStmts,
         llvm::SmallVectorImpl<clang::Expr*>& args,
-        llvm::SmallVectorImpl<clang::Expr*>& outputArgs);
+        llvm::SmallVectorImpl<clang::Expr*>& outputArgs,
+        clang::Expr* CUDAExecConfig = nullptr);
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
