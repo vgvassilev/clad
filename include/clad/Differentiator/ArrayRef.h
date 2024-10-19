@@ -25,18 +25,19 @@ public:
   array_ref() = default;
   /// Constructor to store the pointer to and size of an array supplied by the
   /// user
-  CUDA_HOST_DEVICE array_ref(T* arr, std::size_t size)
+  constexpr CUDA_HOST_DEVICE array_ref(T* arr, std::size_t size)
       : m_arr(arr), m_size(size) {}
   /// Constructor for arrays having size equal to 1 or non pointer types to
   /// store their addresses
-  CUDA_HOST_DEVICE array_ref(T* a) : m_arr(a), m_size(1) {}
+  constexpr CUDA_HOST_DEVICE array_ref(T* a) : m_arr(a), m_size(1) {}
   /// Constructor for clad::array types
-  CUDA_HOST_DEVICE array_ref(array<T>& a) : m_arr(a.ptr()), m_size(a.size()) {}
+  constexpr CUDA_HOST_DEVICE array_ref(array<T>& a)
+      : m_arr(a.ptr()), m_size(a.size()) {}
 
   /// Operator for conversion from array_ref<T> to T*.
-  CUDA_HOST_DEVICE operator T*() { return m_arr; }
+  constexpr CUDA_HOST_DEVICE operator T*() { return m_arr; }
   /// Operator for conversion from array_ref<T> to const T*.
-  CUDA_HOST_DEVICE operator const T*() const { return m_arr; }
+  constexpr CUDA_HOST_DEVICE operator const T*() const { return m_arr; }
 
   template <typename U>
   CUDA_HOST_DEVICE array_ref<T>& operator=(const array<U>& a) {
@@ -46,25 +47,26 @@ public:
     return *this;
   }
   template <typename U>
-  CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
+  constexpr CUDA_HOST_DEVICE array_ref<T>& operator=(const array_ref<T>& a) {
     m_arr = a.ptr();
     m_size = a.size();
     return *this;
   }
   /// Returns the size of the underlying array
-  CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
-  CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
-  CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
+  constexpr CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
+  constexpr CUDA_HOST_DEVICE PUREFUNC T* ptr() const { return m_arr; }
+  constexpr CUDA_HOST_DEVICE PUREFUNC T*& ptr_ref() { return m_arr; }
   /// Returns an array_ref to a part of the underlying array starting at
   /// offset and having the specified size
-  CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset, std::size_t size) {
+  constexpr CUDA_HOST_DEVICE array_ref<T> slice(std::size_t offset,
+                                                std::size_t size) {
     assert((offset >= 0) && (offset + size <= m_size) &&
            "Window is outside array. Please provide an offset and size "
            "inside the array size.");
     return array_ref<T>(&m_arr[offset], size);
   }
   /// Returns the reference to the underlying array
-  CUDA_HOST_DEVICE PUREFUNC T& operator*() { return *m_arr; }
+  constexpr CUDA_HOST_DEVICE PUREFUNC T& operator*() { return *m_arr; }
 
   // Arithmetic overloads
   /// Divides the arrays element wise
@@ -171,7 +173,7 @@ public:
 
 /// Multiplies the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE
+constexpr CUDA_HOST_DEVICE
     array_expression<const array_ref<T>&, BinaryMul, const array_ref<U>&>
     operator*(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
@@ -183,7 +185,7 @@ CUDA_HOST_DEVICE
 
 /// Adds the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE
+constexpr CUDA_HOST_DEVICE
     array_expression<const array_ref<T>&, BinaryAdd, const array_ref<U>&>
     operator+(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
@@ -195,7 +197,7 @@ CUDA_HOST_DEVICE
 
 /// Subtracts the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE
+constexpr CUDA_HOST_DEVICE
     array_expression<const array_ref<T>&, BinarySub, const array_ref<U>&>
     operator-(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(
@@ -208,7 +210,7 @@ CUDA_HOST_DEVICE
 
 /// Divides the arrays element wise
 template <typename T, typename U>
-CUDA_HOST_DEVICE
+constexpr CUDA_HOST_DEVICE
     array_expression<const array_ref<T>&, BinaryDiv, const array_ref<U>&>
     operator/(const array_ref<T>& Ar, const array_ref<U>& Br) {
   assert(Ar.size() == Br.size() &&
@@ -221,7 +223,7 @@ CUDA_HOST_DEVICE
 /// Multiplies array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryMul, U>
+constexpr CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryMul, U>
 operator*(const array_ref<T>& Ar, U a) {
   return array_expression<const array_ref<T>&, BinaryMul, U>(Ar, a);
 }
@@ -229,7 +231,7 @@ operator*(const array_ref<T>& Ar, U a) {
 /// Multiplies array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryMul, U>
+constexpr CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryMul, U>
 operator*(U a, const array_ref<T>& Ar) {
   return array_expression<const array_ref<T>&, BinaryMul, U>(Ar, a);
 }
@@ -237,7 +239,7 @@ operator*(U a, const array_ref<T>& Ar) {
 /// Divides array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryDiv, U>
+constexpr CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryDiv, U>
 operator/(const array_ref<T>& Ar, U a) {
   return array_expression<const array_ref<T>&, BinaryDiv, U>(Ar, a);
 }
@@ -245,7 +247,7 @@ operator/(const array_ref<T>& Ar, U a) {
 /// Adds array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryAdd, U>
+constexpr CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryAdd, U>
 operator+(const array_ref<T>& Ar, U a) {
   return array_expression<const array_ref<T>&, BinaryAdd, U>(Ar, a);
 }
@@ -253,7 +255,7 @@ operator+(const array_ref<T>& Ar, U a) {
 /// Adds array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryAdd, U>
+constexpr CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinaryAdd, U>
 operator+(U a, const array_ref<T>& Ar) {
   return array_expression<const array_ref<T>&, BinaryAdd, U>(Ar, a);
 }
@@ -261,7 +263,7 @@ operator+(U a, const array_ref<T>& Ar) {
 /// Subtracts array_ref by a scalar
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinarySub, U>
+constexpr CUDA_HOST_DEVICE array_expression<const array_ref<T>&, BinarySub, U>
 operator-(const array_ref<T>& Ar, U a) {
   return array_expression<const array_ref<T>&, BinarySub, U>(Ar, a);
 }
@@ -269,7 +271,7 @@ operator-(const array_ref<T>& Ar, U a) {
 /// Subtracts array_ref by a scalar (reverse order)
 template <typename T, typename U,
           typename std::enable_if<std::is_arithmetic<U>::value, int>::type = 0>
-CUDA_HOST_DEVICE array_expression<U, BinarySub, const array_ref<T>&>
+constexpr CUDA_HOST_DEVICE array_expression<U, BinarySub, const array_ref<T>&>
 operator-(U a, const array_ref<T>& Ar) {
   return array_expression<U, BinarySub, const array_ref<T>&>(a, Ar);
 }
@@ -303,16 +305,18 @@ operator-(U a, const array_ref<T>& Ar) {
     template <typename T, class = typename std::enable_if<
                               std::is_pointer<T>::value ||
                               std::is_same<T, std::nullptr_t>::value>::type>
-    CUDA_HOST_DEVICE array_ref(T arr, std::size_t size = 1)
+    constexpr CUDA_HOST_DEVICE array_ref(T arr, std::size_t size = 1)
         : m_arr((void*)arr), m_size(size) {}
     template <typename T>
-    CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
+    constexpr CUDA_HOST_DEVICE array_ref(const array_ref<T>& other)
         : m_arr(other.ptr()), m_size(other.size()) {}
-    template <typename T> CUDA_HOST_DEVICE operator array_ref<T>() {
+    template <typename T> constexpr CUDA_HOST_DEVICE operator array_ref<T>() {
       return array_ref<T>((T*)(m_arr), m_size);
     }
-    CUDA_HOST_DEVICE void* ptr() const { return m_arr; }
-    CUDA_HOST_DEVICE std::size_t size() const { return m_size; }
+    [[nodiscard]] constexpr CUDA_HOST_DEVICE void* ptr() const { return m_arr; }
+    [[nodiscard]] constexpr CUDA_HOST_DEVICE std::size_t size() const {
+      return m_size;
+    }
   };
   // NOLINTEND(*-pointer-arithmetic)
 } // namespace clad
