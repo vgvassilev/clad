@@ -748,6 +748,8 @@ namespace clad {
         request.RequestedDerivativeOrder = derivative_order;
         if (clad::HasOption(bitmasked_opts_value, clad::opts::use_enzyme))
           request.use_enzyme = true;
+        if (clad::HasOption(bitmasked_opts_value, clad::opts::immediate_mode))
+          request.ImmediateMode = true;
         if (enable_tbr_in_req) {
           utils::EmitDiag(m_Sema, DiagnosticsEngine::Error, endLoc,
                           "TBR analysis is not meant for forward mode AD.");
