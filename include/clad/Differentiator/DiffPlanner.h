@@ -65,6 +65,9 @@ public:
   /// A flag to enable TBR analysis during reverse-mode differentiation.
   bool EnableTBRAnalysis = false;
   bool EnableVariedAnalysis = false;
+  /// A flag specifying whether this differentiation is to be used
+  /// in immediate contexts.
+  bool ImmediateMode = false;
   /// Puts the derived function and its code in the diff call
   void updateCall(clang::FunctionDecl* FD, clang::FunctionDecl* OverloadedFD,
                   clang::Sema& SemaRef);
