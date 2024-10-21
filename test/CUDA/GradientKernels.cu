@@ -427,9 +427,12 @@ void fn(double *out, double *in) {
 //CHECK-NEXT: }
 
 double fn_memory(double *out, double *in) {
-  kernel_call<<<1, 10>>>(out, in);
+  double *in_dev = nullptr;
+  cudaMalloc(&in_dev, 10 * sizeof(double));
+  cudaMemcpy(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice);
+  kernel_call<<<1, 10>>>(out, in_dev);
   cudaDeviceSynchronize();
-  double *out_host = (double*)malloc(10 * sizeof(double));
+  double *out_host = (double *)malloc(10 * sizeof(double));
   cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   double res = 0;
   for (int i=0; i < 10; ++i) {
@@ -437,7 +440,7 @@ double fn_memory(double *out, double *in) {
   }
   free(out_host);
   cudaFree(out);
-  cudaFree(in);
+  cudaFree(in_dev);
   return res;
 }
 
@@ -445,7 +448,12 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    int _d_i = 0;
 //CHECK-NEXT:    int i = 0;
 //CHECK-NEXT:    clad::tape<double> _t1 = {};
-//CHECK-NEXT:    kernel_call<<<1, 10>>>(out, in);
+//CHECK-NEXT:    double *_d_in_dev = nullptr;
+//CHECK-NEXT:    double *in_dev = nullptr;
+//CHECK-NEXT:    cudaMalloc(&_d_in_dev, 10 * sizeof(double));
+//CHECK-NEXT:    cudaMalloc(&in_dev, 10 * sizeof(double));
+//CHECK-NEXT:    cudaMemcpy(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice);
+//CHECK-NEXT:    kernel_call<<<1, 10>>>(out, in_dev);
 //CHECK-NEXT:    cudaDeviceSynchronize();
 //CHECK-NEXT:    double *_d_out_host = (double *)malloc(10 * sizeof(double));
 //CHECK-NEXT:    double *out_host = (double *)malloc(10 * sizeof(double));
@@ -481,10 +489,16 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost, _d_out_host, _d_out, &_r0, &_r1);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
+//CHECK-NEXT:    {
+//CHECK-NEXT:        unsigned long _r0 = 0UL;
+//CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
+//CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice, _d_in_dev, _d_in, &_r0, &_r1);
+//CHECK-NEXT:    }
 //CHECK-NEXT:    free(out_host);
 //CHECK-NEXT:    free(_d_out_host);
 //CHECK-NEXT:    cudaFree(out);
-//CHECK-NEXT:    cudaFree(in);
+//CHECK-NEXT:    cudaFree(in_dev);
+//CHECK-NEXT:    cudaFree(_d_in_dev);
 //CHECK-NEXT:}
 
 // CHECK: __attribute__((device)) void device_fn_pullback_1(double in, double val, double _d_y, double *_d_in, double *_d_val) {
@@ -564,7 +578,6 @@ double fn_memory(double *out, double *in) {
     else {                                                                  \
       test.execute_kernel(grid, block, x, dx);                              \
     }                                                                       \
-    cudaDeviceSynchronize();                                                \
     int *res = (int*)malloc(N * sizeof(int));                               \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);           \
     for (int i = 0; i < (N - 1); i++) {                                     \
@@ -602,7 +615,6 @@ double fn_memory(double *out, double *in) {
     }                                                                         \
     int *res = (int*)malloc(N * sizeof(int));                                 \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);             \
-    cudaDeviceSynchronize();                                                  \
     for (int i = 0; i < (N - 1); i++) {                                       \
       printf("%d, ", res[i]);                                                 \
     }                                                                         \
@@ -637,7 +649,6 @@ double fn_memory(double *out, double *in) {
     }                                                                             \
     int *res = (int*)malloc(N * sizeof(int));                                     \
     cudaMemcpy(res, dx, N * sizeof(int), cudaMemcpyDeviceToHost);                 \
-    cudaDeviceSynchronize();                                                      \
     for (int i = 0; i < (N - 1); i++) {                                           \
       printf("%d, ", res[i]);                                                     \
     }                                                                             \
@@ -672,7 +683,6 @@ double fn_memory(double *out, double *in) {
     }                                                                           \
     double *res = (double*)malloc(N * sizeof(double));                          \
     cudaMemcpy(res, dx, N * sizeof(double), cudaMemcpyDeviceToHost);            \
-    cudaDeviceSynchronize();                                                    \
     for (int i = 0; i < (N - 1); i++) {                                         \
       printf("%0.2f, ", res[i]);                                                \
     }                                                                           \
@@ -748,8 +758,9 @@ int main(void) {
   auto test_device = clad::gradient(kernel_with_device_call, "out, val");
   test_device.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
   double *res = (double*)malloc(10 * sizeof(double));
-  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
+  cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost); // no need for synchronization before or after, 
+                                                                  // as the cudaMemcpy call is queued after the kernel call 
+                                                                  // on the default stream and the cudaMemcpy call is blocking
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
   INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
@@ -757,7 +768,6 @@ int main(void) {
   auto test_device_2 = clad::gradient(kernel_with_device_call_2, "out, val");
   test_device_2.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
   INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
@@ -765,7 +775,6 @@ int main(void) {
   auto check_dup = clad::gradient(dup_kernel_with_device_call_2, "out, val"); // check that the pullback function is not regenerated
   check_dup.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_val);
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
   printf("%s\n", cudaGetErrorString(cudaGetLastError())); // CHECK-EXEC: no error
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
@@ -773,7 +782,6 @@ int main(void) {
 
   auto test_device_3 = clad::gradient(kernel_with_device_call_2, "out, in");
   test_device_3.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_in_double);
-  cudaDeviceSynchronize();
   cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
 
@@ -781,9 +789,7 @@ int main(void) {
 
   auto test_device_4 = clad::gradient(kernel_with_device_call_3);
   test_device_4.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, val, d_out_double, d_in_double, d_val);
-  cudaDeviceSynchronize();
   cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
   printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
   cudaMemcpy(res, d_val, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
@@ -792,7 +798,6 @@ int main(void) {
 
   auto test_kernel_call = clad::gradient(fn);
   test_kernel_call.execute(dummy_out_double, dummy_in_double, d_out_double, d_in_double);
-  cudaDeviceSynchronize();
   cudaMemcpy(res, d_in_double, sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f\n", *res); // CHECK-EXEC: 50.00
 
@@ -800,17 +805,14 @@ int main(void) {
 
   auto nested_device = clad::gradient(kernel_with_nested_device_call, "out, in");
   nested_device.execute_kernel(dim3(1), dim3(10, 1, 1), dummy_out_double, dummy_in_double, 5, d_out_double, d_in_double);
-  cudaDeviceSynchronize();
   cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 5.00, 5.00, 5.00
 
   INIT(dummy_in_double, dummy_out_double, val, d_in_double, d_out_double, d_val);
 
   auto test_memory = clad::gradient(fn_memory);
-  test_memory.execute(dummy_out_double, dummy_in_double, d_out_double, d_in_double);
-  cudaDeviceSynchronize();
-  cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
-  printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 60.00, 0.00, 0.00
+  test_memory.execute(dummy_out_double, fives, d_out_double, zeros);
+  printf("%0.2f, %0.2f, %0.2f\n", zeros[0], zeros[1], zeros[2]); // CHECK-EXEC: 60.00, 0.00, 0.00
 
   free(res);
   free(fives);
@@ -819,6 +821,7 @@ int main(void) {
   cudaFree(d_in_double);
   cudaFree(val);
   cudaFree(d_val);
+  cudaFree(dummy_in_double);
 
   return 0;
 }

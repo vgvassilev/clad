@@ -632,8 +632,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
       for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
         m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
-    // If the function is a global kernel, all its parameters reside in the
-    // global memory of the GPU
+    // if the function is a global kernel, all the adjoint parameters reside in
+    // the global memory of the GPU. To facilitate the process, all the params
+    // of the kernel are added to the set.
     else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
       for (auto* param : params)
         m_CUDAGlobalArgs.emplace(param);
