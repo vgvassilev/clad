@@ -83,15 +83,48 @@ ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
   return {cudaDeviceSynchronize(), 0};
 }
 
-void cudaMemcpy_pullback(void* destPtr, void* srcPtr, size_t count,
-                         cudaMemcpyKind kind, void* d_destPtr, void* d_srcPtr,
-                         size_t* d_count, cudaMemcpyKind* d_kind)
+template <typename T>
+__global__ void atomicAdd_kernel(T* destPtr, T* srcPtr, size_t N) {
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N;
+       i += blockDim.x * gridDim.x)
+    atomicAdd(&destPtr[i], srcPtr[i]);
+}
+
+template <typename T>
+void cudaMemcpy_pullback(T* destPtr, T* srcPtr, size_t count,
+                          cudaMemcpyKind kind, T* d_destPtr, T* d_srcPtr,
+                          size_t* d_count, cudaMemcpyKind* d_kind)
     __attribute__((host)) {
-  if (kind == cudaMemcpyDeviceToHost)
+  T* aux_destPtr;
+  if (kind == cudaMemcpyDeviceToHost) {
     *d_kind = cudaMemcpyHostToDevice;
-  else if (kind == cudaMemcpyHostToDevice)
+    cudaMalloc(&aux_destPtr, count);
+  } else if (kind == cudaMemcpyHostToDevice) {
     *d_kind = cudaMemcpyDeviceToHost;
-  cudaMemcpy(d_srcPtr, d_destPtr, count, *d_kind);
+    aux_destPtr = (T*)malloc(count);
+  }
+  cudaMemcpy(aux_destPtr, d_destPtr, count, *d_kind);
+  size_t N = count / sizeof(T);
+  if (kind == cudaMemcpyDeviceToHost) {
+    // d_kind is host to device, so d_srcPtr is a device pointer
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    size_t maxThreads = deviceProp.maxThreadsPerBlock;
+    size_t maxBlocks = deviceProp.maxGridSize[0];
+   
+    size_t numThreads = std::min(maxThreads, N);
+    size_t numBlocks = std::min(maxBlocks, (N + numThreads - 1) / numThreads);
+    custom_derivatives::atomicAdd_kernel<<<numBlocks, numThreads>>>(
+        d_srcPtr, aux_destPtr, N);
+    cudaDeviceSynchronize();
+    cudaFree(aux_destPtr);
+  } else if (kind == cudaMemcpyHostToDevice) {
+    // d_kind is device to host, so d_srcPtr is a host pointer
+    for (size_t i = 0; i < N; ++i) {
+      d_srcPtr[i] += aux_destPtr[i];
+    }
+    free(aux_destPtr);
+  }
 }
 
 #endif

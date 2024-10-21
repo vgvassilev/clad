@@ -810,7 +810,7 @@ int main(void) {
   test_memory.execute(dummy_out_double, dummy_in_double, d_out_double, d_in_double);
   cudaDeviceSynchronize();
   cudaMemcpy(res, d_in_double, 10 * sizeof(double), cudaMemcpyDeviceToHost);
-  printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 10.00, 0.00, 0.00
+  printf("%0.2f, %0.2f, %0.2f\n", res[0], res[1], res[2]); // CHECK-EXEC: 60.00, 0.00, 0.00
 
   free(res);
   free(fives);
