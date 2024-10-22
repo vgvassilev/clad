@@ -484,8 +484,8 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:        }
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
-//CHECK-NEXT:        unsigned long _r0 = 0UL;
-//CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
+//CHECK-NEXT:        unsigned long _r2 = 0UL;
+//CHECK-NEXT:        cudaMemcpyKind _r3 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost, _d_out_host, _d_out, &_r0, &_r1);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    kernel_call_pullback<<<1, 10>>>(out, in, _d_out, _d_in);
