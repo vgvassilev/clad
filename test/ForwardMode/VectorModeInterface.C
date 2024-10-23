@@ -1,7 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | %filecheck %s
 
-// XFAIL: asserts
-
 #include "clad/Differentiator/Differentiator.h"
 
 double f1(double x, double y) {
