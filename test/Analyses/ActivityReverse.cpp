@@ -241,6 +241,29 @@ double f7(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f8_1(double v, double u){
+  return v;
+}
+double f8(double x){
+  double c = f8_1(1, 1);
+  double f = f8_1(x, 1);
+  return f;
+}
+// CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u);
+
+// CHECK-NEXT: void f8_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double c = f8_1(1, 1);
+// CHECK-NEXT:     double _d_f = 0.;
+// CHECK-NEXT:     double f = f8_1(x, 1);
+// CHECK-NEXT:     _d_f += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         double _r1 = 0.;
+// CHECK-NEXT:         f8_1_pullback(x, 1, _d_f, &_r0, &_r1);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
@@ -257,6 +280,7 @@ int main(){
     TEST(f5, 3);// CHECK-EXEC: {0.00}
     TEST(f6, 3);// CHECK-EXEC: {0.00}
     TEST(f7, 3);// CHECK-EXEC: {1.00}
+    TEST(f8, 3);// CHECK-EXEC: {1.00}
 }
 
 // CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
@@ -270,4 +294,8 @@ int main(){
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_v += 2 * _d_n;
 // CHECK-NEXT:     *_d_u += 2 * _d_k;
+// CHECK-NEXT: }
+
+// CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
+// CHECK-NEXT:     *_d_v += _d_y;
 // CHECK-NEXT: }

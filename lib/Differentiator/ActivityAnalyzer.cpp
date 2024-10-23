@@ -122,13 +122,16 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
+    m_Varied = true;
+    m_Marking = true;
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
       TraverseStmt(par);
       m_VariedDecls.insert(FDparam[i]);
     }
+    m_Varied = false;
+    m_Marking = false;
   }
-  m_Varied = true;
   return true;
 }
 
