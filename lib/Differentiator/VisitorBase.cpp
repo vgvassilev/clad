@@ -531,11 +531,14 @@ namespace clad {
   Expr* VisitorBase::GetFunctionCall(const std::string& funcName,
                                      const std::string& nmspace,
                                      llvm::SmallVectorImpl<Expr*>& callArgs) {
-    NamespaceDecl* NSD =
-        utils::LookupNSD(m_Sema, nmspace, /*shouldExist=*/true);
-    DeclContext* DC = NSD;
+    NamespaceDecl* NSD = nullptr;
     CXXScopeSpec SS;
-    SS.Extend(m_Context, NSD, noLoc, noLoc);
+
+    if (!nmspace.empty()) {
+      NSD = utils::LookupNSD(m_Sema, nmspace, /*shouldExist=*/true);
+      SS.Extend(m_Context, NSD, noLoc, noLoc);
+    }
+    DeclContext* DC = NSD;
 
     IdentifierInfo* II = &m_Context.Idents.get(funcName);
     DeclarationName name(II);
@@ -544,6 +547,8 @@ namespace clad {
 
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
+    else
+      m_Sema.LookupQualifiedName(R, m_Context.getTranslationUnitDecl());
     Expr* UnresolvedLookup = nullptr;
     if (!R.empty())
       UnresolvedLookup =

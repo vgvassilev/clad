@@ -153,6 +153,37 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return atomicAddCall;
   }
 
+  Expr* ReverseModeVisitor::CheckAndBuildCallToCalloc(Expr* RHS) {
+    Expr* size = nullptr;
+    if (auto* callExpr = dyn_cast<CallExpr>(RHS))
+      if (auto* implCast = dyn_cast<ImplicitCastExpr>(callExpr->getCallee()))
+        if (auto* declRef = dyn_cast<DeclRefExpr>(implCast->getSubExpr()))
+          if (auto* FD = dyn_cast<FunctionDecl>(declRef->getDecl())) {
+            if (FD->getNameAsString() == "malloc")
+              size = callExpr->getArg(0);
+            else if (FD->getNameAsString() == "realloc")
+              size = callExpr->getArg(1);
+          }
+
+    if (size) {
+      llvm::SmallVector<Expr*, 2> args;
+      if (auto* BinOp = dyn_cast<BinaryOperator>(size)) {
+        if (BinOp->getOpcode() == BO_Mul) {
+          Expr* lhs = BinOp->getLHS();
+          Expr* rhs = BinOp->getRHS();
+          if (auto* sizeofCall = dyn_cast<UnaryExprOrTypeTraitExpr>(rhs))
+            args = {lhs, sizeofCall};
+          else if (auto* sizeofCall = dyn_cast<UnaryExprOrTypeTraitExpr>(lhs))
+            args = {rhs, sizeofCall};
+          if (!args.empty())
+            return GetFunctionCall("calloc", "", args);
+        }
+      }
+    }
+
+    return {};
+  }
+
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
                                          const DiffRequest& request)
       : VisitorBase(builder, request), m_Result(nullptr) {}
@@ -1697,25 +1728,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         !isa<CXXOperatorCallExpr>(CE))
       return StmtDiff(Clone(CE));
 
-    // If all arguments are constant literals, then this does not contribute to
-    // the gradient.
-    // FIXME: revert this when this is integrated in the activity analysis pass.
-    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
-      bool allArgsAreConstantLiterals = true;
-      for (const Expr* arg : CE->arguments()) {
-        // if it's of type MaterializeTemporaryExpr, then check its
-        // subexpression.
-        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
-          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
-        if (!arg->isEvaluatable(m_Context)) {
-          allArgsAreConstantLiterals = false;
-          break;
-        }
-      }
-      if (allArgsAreConstantLiterals)
-        return StmtDiff(Clone(CE), Clone(CE));
-    }
-
     SourceLocation Loc = CE->getExprLoc();
 
     // Stores the call arguments for the function to be derived
@@ -1745,11 +1757,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                              llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
               .get();
-      Expr* call_dx =
-          m_Sema
-              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
-                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
-              .get();
+      Expr* call_dx = nullptr;
+      if (FD->getNameAsString() == "malloc")
+        call_dx = CheckAndBuildCallToCalloc(Clone(CE));
+      if (!call_dx)
+        call_dx = m_Sema
+                      .ActOnCallExpr(
+                          getCurrentScope(), Clone(CE->getCallee()), Loc,
+                          llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
+                      .get();
       return StmtDiff(call, call_dx);
     }
     // For calls to C-style memory deallocation functions, we do not need to
@@ -1786,6 +1802,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_DeallocExprs.push_back(call_dx);
       }
       return StmtDiff();
+    }
+
+    // If all arguments are constant literals, then this does not contribute to
+    // the gradient.
+    // FIXME: revert this when this is integrated in the activity analysis pass.
+    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
+      bool allArgsAreConstantLiterals = true;
+      for (const Expr* arg : CE->arguments()) {
+        // if it's of type MaterializeTemporaryExpr, then check its
+        // subexpression.
+        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
+          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
+        if (!arg->isEvaluatable(m_Context)) {
+          allArgsAreConstantLiterals = false;
+          break;
+        }
+      }
+      if (allArgsAreConstantLiterals)
+        return StmtDiff(Clone(CE), Clone(CE));
     }
 
     // If the result does not depend on the result of the call, just clone
@@ -2842,6 +2877,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
         addToCurrentBlock(BuildOp(opCode, derivedL, derivedR),
                           direction::forward);
+        if (opCode == BO_Assign && derivedR)
+          if (Expr* callocCall =
+                  CheckAndBuildCallToCalloc(derivedR->IgnoreParenCasts())) {
+            Expr* cast =
+                m_Sema
+                    .BuildCStyleCastExpr(
+                        SourceLocation(),
+                        m_Context.getTrivialTypeSourceInfo(derivedL->getType()),
+                        SourceLocation(), callocCall)
+                    .get();
+            addToCurrentBlock(BuildOp(BO_Assign, derivedL, cast),
+                              direction::forward);
+          }
       }
     }
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
