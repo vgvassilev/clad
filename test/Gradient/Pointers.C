@@ -391,7 +391,7 @@ double structPointer (double x) {
 // CHECK-NEXT: }
 
 double cStyleMemoryAlloc(double x, size_t n) {
-  T* t = (T*)malloc(n * sizeof(T));
+  T* t = (T*)malloc(sizeof(T) * n);
   memset(t, 0, n * sizeof(T));
   t->x = x;
   double* p = (double*)calloc(1, sizeof(double));
@@ -408,7 +408,7 @@ double cStyleMemoryAlloc(double x, size_t n) {
 // CHECK: void cStyleMemoryAlloc_grad_0(double x, size_t n, double *_d_x) {
 // CHECK-NEXT:     size_t _d_n = 0UL;
 // CHECK-NEXT:     T *_d_t = (T *)calloc(n, sizeof(T));
-// CHECK-NEXT:     T *t = (T *)malloc(n * sizeof(T));
+// CHECK-NEXT:     T *t = (T *)malloc(sizeof(T) * n);
 // CHECK-NEXT:     memset(_d_t, 0, n * sizeof(T));
 // CHECK-NEXT:     memset(t, 0, n * sizeof(T));
 // CHECK-NEXT:     double _t0 = t->x;
