@@ -99,7 +99,7 @@ float f7(float x) {
 
 // CHECK: float f7_darg0(float x) {
 // CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::pow(float(), double())), decltype(::std::pow(float(), double()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, 2., _d_x, 0.);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<double, double> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, 2., _d_x, 0.);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -120,7 +120,7 @@ double f8(float x) {
 
 // CHECK: double f8_darg0(float x) {
 // CHECK-NEXT:     float _d_x = 1;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::pow(float(), int())), decltype(::std::pow(float(), int()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, 2, _d_x, 0);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<double, double> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, 2, _d_x, 0);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -142,7 +142,7 @@ float f9(float x, float y) {
 // CHECK: float f9_darg0(float x, float y) {
 // CHECK-NEXT:     float _d_x = 1;
 // CHECK-NEXT:     float _d_y = 0;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::pow(float(), float())), decltype(::std::pow(float(), float()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 
@@ -165,7 +165,7 @@ double f10(float x, int y) {
 // CHECK: double f10_darg0(float x, int y) {
 // CHECK-NEXT:     float _d_x = 1;
 // CHECK-NEXT:     int _d_y = 0;
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::pow(float(), int())), decltype(::std::pow(float(), int()))> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<double, double> _t0 = clad::custom_derivatives{{(::std)?}}::pow_pushforward(x, y, _d_x, _d_y);
 // CHECK-NEXT:     return _t0.pushforward;
 // CHECK-NEXT: }
 

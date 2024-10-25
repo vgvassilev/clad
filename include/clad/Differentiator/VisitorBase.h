@@ -628,6 +628,12 @@ namespace clad {
     /// Returns type clad::ConstructorReverseForwTag<T>
     clang::QualType GetCladConstructorReverseForwTagOfType(clang::QualType T);
 
+    /// Builds an overload for the derivative function that has derived params
+    /// for all the arguments of the requested function and it calls the
+    /// original derivative function internally. Used in gradient and jacobian
+    /// modes.
+    clang::FunctionDecl* CreateDerivativeOverload();
+
   public:
     /// Rebuild a sequence of nested namespaces ending with DC.
     clang::NamespaceDecl* RebuildEnclosingNamespaces(clang::DeclContext* DC);

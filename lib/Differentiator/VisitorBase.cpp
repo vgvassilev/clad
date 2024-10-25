@@ -902,4 +902,149 @@ namespace clad {
   VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
     return InstantiateTemplate(GetCladConstructorReverseForwTag(), {T});
   }
+
+  FunctionDecl* VisitorBase::CreateDerivativeOverload() {
+    auto diffParams = m_Derivative->parameters();
+    auto diffNameInfo = m_Derivative->getNameInfo();
+    // Calculate the total number of parameters that would be required for
+    // automatic differentiation in the derived function if all args are
+    // requested.
+    // FIXME: Here we are assuming all function parameters are of differentiable
+    // type. Ideally, we should not make any such assumption.
+    std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
+    std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
+
+    // Account for the this pointer.
+    if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
+        !utils::IsStaticMethod(m_DiffReq.Function) &&
+        (!m_DiffReq.Functor || m_DiffReq.Mode != DiffMode::jacobian))
+      ++numOfDerivativeParams;
+    // All output parameters will be of type `void*`. These
+    // parameters will be casted to correct type before the call to the actual
+    // derived function.
+    // We require each output parameter to be of same type in the overloaded
+    // derived function due to limitations of generating the exact derived
+    // function type at the compile-time (without clad plugin help).
+    QualType outputParamType = m_Context.getPointerType(m_Context.VoidTy);
+
+    llvm::SmallVector<QualType, 16> paramTypes;
+
+    // Add types for representing original function parameters.
+    for (auto* PVD : m_DiffReq->parameters())
+      paramTypes.push_back(PVD->getType());
+    // Add types for representing parameter derivatives.
+    // FIXME: We are assuming all function parameters are differentiable. We
+    // should not make any such assumptions.
+    for (std::size_t i = 0; i < numOfDerivativeParams; ++i)
+      paramTypes.push_back(outputParamType);
+
+    auto diffFuncOverloadEPI =
+        dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo();
+    QualType diffFunctionOverloadType =
+        m_Context.getFunctionType(m_Context.VoidTy, paramTypes,
+                                  // Cast to function pointer.
+                                  diffFuncOverloadEPI);
+
+    // FIXME: We should not use const_cast to get the decl context here.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
+    m_Sema.CurContext = DC;
+    DeclWithContext diffOverloadFDWC =
+        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
+                                diffNameInfo, diffFunctionOverloadType);
+    FunctionDecl* diffOverloadFD = diffOverloadFDWC.first;
+
+    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+               Scope::DeclScope);
+    m_Sema.PushFunctionScope();
+    m_Sema.PushDeclContext(getCurrentScope(), diffOverloadFD);
+
+    llvm::SmallVector<ParmVarDecl*, 4> overloadParams;
+    llvm::SmallVector<Expr*, 4> callArgs;
+
+    overloadParams.reserve(totalDerivedParamsSize);
+    callArgs.reserve(diffParams.size());
+
+    for (auto* PVD : m_DiffReq->parameters()) {
+      auto* VD = utils::BuildParmVarDecl(
+          m_Sema, diffOverloadFD, PVD->getIdentifier(), PVD->getType(),
+          PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
+      overloadParams.push_back(VD);
+      callArgs.push_back(BuildDeclRef(VD));
+    }
+
+    for (std::size_t i = 0; i < numOfDerivativeParams; ++i) {
+      IdentifierInfo* II = nullptr;
+      StorageClass SC = StorageClass::SC_None;
+      std::size_t effectiveDiffIndex = m_DiffReq->getNumParams() + i;
+      // `effectiveDiffIndex < diffParams.size()` implies that this
+      // parameter represents an actual derivative of one of the function
+      // original parameters.
+      if (effectiveDiffIndex < diffParams.size()) {
+        auto* GVD = diffParams[effectiveDiffIndex];
+        II = CreateUniqueIdentifier("_temp_" + GVD->getNameAsString());
+        SC = GVD->getStorageClass();
+      } else {
+        II = CreateUniqueIdentifier("_d_" + std::to_string(i));
+      }
+      auto* PVD = utils::BuildParmVarDecl(m_Sema, diffOverloadFD, II,
+                                          outputParamType, SC);
+      overloadParams.push_back(PVD);
+    }
+
+    for (auto* PVD : overloadParams)
+      if (PVD->getIdentifier())
+        m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
+                                 /*AddToContext=*/false);
+
+    diffOverloadFD->setParams(overloadParams);
+    diffOverloadFD->setBody(/*B=*/nullptr);
+
+    beginScope(Scope::FnScope | Scope::DeclScope);
+    m_DerivativeFnScope = getCurrentScope();
+    beginBlock();
+
+    // Build derivatives to be used in the call to the actual derived function.
+    // These are initialised by effectively casting the derivative parameters of
+    // overloaded derived function to the correct type.
+    for (std::size_t i = m_DiffReq->getNumParams(); i < diffParams.size();
+         ++i) {
+      auto* overloadParam = overloadParams[i];
+      auto* diffParam = diffParams[i];
+      TypeSourceInfo* typeInfo =
+          m_Context.getTrivialTypeSourceInfo(diffParam->getType());
+      SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+      auto* init = m_Sema
+                       .BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc,
+                                            BuildDeclRef(overloadParam))
+                       .get();
+
+      auto* diffVD =
+          BuildGlobalVarDecl(diffParam->getType(), diffParam->getName(), init);
+      callArgs.push_back(BuildDeclRef(diffVD));
+      addToCurrentBlock(BuildDeclStmt(diffVD));
+    }
+
+    // If the function is a global kernel, we need to transform it
+    // into a device function when calling it inside the overload function
+    // which is the final global kernel returned.
+    if (m_Derivative->hasAttr<clang::CUDAGlobalAttr>()) {
+      m_Derivative->dropAttr<clang::CUDAGlobalAttr>();
+      m_Derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
+    }
+
+    Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
+                                             /*useRefQualifiedThisObj=*/true);
+    addToCurrentBlock(callExpr);
+    Stmt* diffOverloadBody = endBlock();
+
+    diffOverloadFD->setBody(diffOverloadBody);
+
+    endScope(); // Function body scope
+    m_Sema.PopFunctionScopeInfo();
+    m_Sema.PopDeclContext();
+    endScope(); // Function decl scope
+
+    return diffOverloadFD;
+  }
 } // end namespace clad

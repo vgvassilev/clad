@@ -579,19 +579,12 @@ namespace clad {
       
       // If the function has no parameters, then we cannot differentiate it."
       // and if the DiffMode is Jacobian, we must have atleast 2 parameters.
-      if (params.empty() || (params.size()==1 && this->Mode == DiffMode::jacobian)) {
+      if (params.empty()) {
         utils::EmitDiag(semaRef, DiagnosticsEngine::Error,
                         CallContext->getEndLoc(),
                         "Attempted to differentiate a function without "
                         "parameters");
         return;
-      }
-
-      // If it is a Vector valued function, the last parameter is to store the
-      // output vector and hence is not a differentiable parameter, so we must
-      // pop it out
-      if (this->Mode == DiffMode::jacobian){
-        params.pop_back();
       }
 
       // insert an empty index for each parameter.

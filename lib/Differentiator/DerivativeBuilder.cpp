@@ -6,6 +6,7 @@
 
 #include "clad/Differentiator/DerivativeBuilder.h"
 
+#include "JacobianModeVisitor.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Sema/Lookup.h"
@@ -432,8 +433,8 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       HessianModeVisitor H(*this, request);
       result = H.Derive();
     } else if (request.Mode == DiffMode::jacobian) {
-      ReverseModeVisitor R(*this, request);
-      result = R.Derive();
+      JacobianModeVisitor J(*this, request);
+      result = J.DeriveJacobian();
     } else if (request.Mode == DiffMode::error_estimation) {
       ReverseModeVisitor R(*this, request);
       InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);

@@ -2,6 +2,7 @@
 #define FUNCTION_TRAITS
 
 #include "clad/Differentiator/ArrayRef.h"
+#include "clad/Differentiator/Matrix.h"
 
 #include <type_traits>
 
@@ -548,15 +549,25 @@ namespace clad {
     using type = NoFunction*;
   };
 
-  template <class... Args> struct SelectLast;
+  // OutputVecParamType is used to deduce the type of derivative arguments
+  // for vector forward mode.
+  template <class T, class R> struct OutputVecParamType {
+    using type = array_ref<typename std::remove_pointer<R>::type>;
+  };
 
-  template <class... Args>
-  using SelectLast_t = typename SelectLast<Args...>::type;
+  template <class T, class R>
+  using OutputVecParamType_t = typename OutputVecParamType<T, R>::type;
 
-  template <class T> struct SelectLast<T> { using type = T; };
+  /// Specialization for vector forward mode type.
+  template <class F, class = void> struct ExtractDerivedFnTraitsVecForwMode {};
 
-  template <class T, class... Args> struct SelectLast<T, Args...> {
-    using type = typename SelectLast<Args...>::type;
+  template <class F>
+  using ExtractDerivedFnTraitsVecForwMode_t =
+      typename ExtractDerivedFnTraitsVecForwMode<F>::type;
+
+  template <class ReturnType, class... Args>
+  struct ExtractDerivedFnTraitsVecForwMode<ReturnType (*)(Args...)> {
+    using type = void (*)(Args..., OutputVecParamType_t<Args, void>...);
   };
 
   template <class T, class = void> struct JacobianDerivedFnTraits {};
@@ -569,7 +580,7 @@ namespace clad {
   // JacobianDerivedFnTraits specializations for pure function pointer types
   template <class ReturnType, class... Args>
   struct JacobianDerivedFnTraits<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., SelectLast_t<Args...>);
+    using type = void (*)(Args..., OutputParamType_t<Args, void>...);
   };
 
   /// These macro expansions are used to cover all possible cases of
@@ -581,11 +592,12 @@ namespace clad {
   /// qualifier and reference respectively. The AddNOEX adds cases for noexcept
   /// qualifier only if it is supported and finally AddSPECS declares the
   /// function with all the cases
-#define JacobianDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)              \
-  template <typename R, typename C, typename... Args>                          \
-  struct JacobianDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {          \
-    using type = void (C::*)(Args..., SelectLast_t<Args...>) cv vol ref noex;  \
-  };
+#define JacobianDerivedFnTraits_AddSPECS(var, cv, vol, ref, noex)            \
+    template <typename R, typename C, typename... Args>                        \
+    struct JacobianDerivedFnTraits<R (C::*)(Args...) cv vol ref noex> {        \
+      using type = void (C::*)(                                                \
+          Args..., OutputParamType_t<Args, void>...) cv vol ref noex;          \
+    };
 
 #if __cpp_noexcept_function_type > 0
 #define JacobianDerivedFnTraits_AddNOEX(var, con, vol, ref)                    \
@@ -738,27 +750,6 @@ namespace clad {
   template <class F>
   using ExtractDerivedFnTraitsForwMode_t =
       typename ExtractDerivedFnTraitsForwMode<F>::type;
-
-  // OutputVecParamType is used to deduce the type of derivative arguments
-  // for vector forward mode.
-  template <class T, class R> struct OutputVecParamType {
-    using type = array_ref<typename std::remove_pointer<R>::type>;
-  };
-
-  template <class T, class R>
-  using OutputVecParamType_t = typename OutputVecParamType<T, R>::type;
-
-  /// Specialization for vector forward mode type.
-  template <class F, class = void> struct ExtractDerivedFnTraitsVecForwMode {};
-
-  template <class F>
-  using ExtractDerivedFnTraitsVecForwMode_t =
-      typename ExtractDerivedFnTraitsVecForwMode<F>::type;
-
-  template <class ReturnType, class... Args>
-  struct ExtractDerivedFnTraitsVecForwMode<ReturnType (*)(Args...)> {
-    using type = void (*)(Args..., OutputVecParamType_t<Args, void>...);
-  };
 
   /// Specialization for free function pointer type
   template <class F>

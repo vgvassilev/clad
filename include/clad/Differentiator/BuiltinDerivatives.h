@@ -199,31 +199,31 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
 // FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
 
 namespace std {
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> abs_pushforward(T x, T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> abs_pushforward(T x, dT d_x) {
   if (x >= 0)
     return {x, d_x};
   else
     return {-x, -d_x};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> exp_pushforward(T x, T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp_pushforward(T x, dT d_x) {
   return {::std::exp(x), ::std::exp(x) * d_x};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> sin_pushforward(T x, T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sin_pushforward(T x, dT d_x) {
   return {::std::sin(x), ::std::cos(x) * d_x};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> cos_pushforward(T x, T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cos_pushforward(T x, dT d_x) {
   return {::std::cos(x), (-1) * ::std::sin(x) * d_x};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> sqrt_pushforward(T x, T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sqrt_pushforward(T x, dT d_x) {
   return {::std::sqrt(x), (((T)1) / (((T)2) * ::std::sqrt(x))) * d_x};
 }
 
@@ -232,9 +232,9 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, T> floor_pushforward(T x, T /*d_x*/) {
   return {::std::floor(x), (T)0};
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> atan2_pushforward(T y, T x, T d_y,
-                                                             T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan2_pushforward(T y, T x, dT d_y,
+                                                              dT d_x) {
   return {::std::atan2(y, x),
           -(y / ((x * x) + (y * y))) * d_x + x / ((x * x) + (y * y)) * d_y};
 }
@@ -246,8 +246,8 @@ CUDA_HOST_DEVICE void atan2_pullback(T y, T x, U d_z, T* d_y, T* d_x) {
   *d_x += -(y / ((x * x) + (y * y))) * d_z;
 }
 
-template <typename T>
-CUDA_HOST_DEVICE ValueAndPushforward<T, T> acos_pushforward(T x, T d_x) {
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> acos_pushforward(T x, dT d_x) {
   return {::std::acos(x), ((-1) / (::std::sqrt(1 - x * x))) * d_x};
 }
 
@@ -263,17 +263,27 @@ ValueAndPushforward<float, float> sqrtf_pushforward(float x, float d_x) {
 
 #endif
 
-template <typename T1, typename T2>
-CUDA_HOST_DEVICE ValueAndPushforward<decltype(::std::pow(T1(), T2())),
-                                     decltype(::std::pow(T1(), T2()))>
-pow_pushforward(T1 x, T2 exponent, T1 d_x, T2 d_exponent) {
-  auto val = ::std::pow(x, exponent);
-  auto derivative = (exponent * ::std::pow(x, exponent - 1)) * d_x;
+template <typename T, typename dT> struct AdjOutType {
+  using type = T;
+};
+
+template <typename T, typename dT> struct AdjOutType<T, clad::array<dT>> {
+  using type = clad::array<T>;
+};
+
+template <typename T1, typename T2, typename dT1, typename dT2,
+          typename T_out = decltype(::std::pow(T1(), T2())),
+          typename dT_out = typename AdjOutType<T_out, dT1>::type>
+CUDA_HOST_DEVICE ValueAndPushforward<T_out, dT_out>
+pow_pushforward(T1 x, T2 exponent, dT1 d_x, dT2 d_exponent) {
+  T_out val = ::std::pow(x, exponent);
+  dT_out derivative = (exponent * ::std::pow(x, exponent - 1)) * d_x;
   // Only add directional derivative of base^exp w.r.t exp if the directional
-  // seed d_exponent is non-zero. This is required because if base is less than or
-  // equal to 0, then log(base) is undefined, and therefore if user only requested
-  // directional derivative of base^exp w.r.t base -- which is valid --, the result would
-  // be undefined because as per C++ valid number + NaN * 0 = NaN.
+  // seed d_exponent is non-zero. This is required because if base is less than
+  // or equal to 0, then log(base) is undefined, and therefore if user only
+  // requested directional derivative of base^exp w.r.t base -- which is valid
+  // --, the result would be undefined because as per C++ valid number + NaN * 0
+  // = NaN.
   if (d_exponent)
     derivative += (::std::pow(x, exponent) * ::std::log(x)) * d_exponent;
   return {val, derivative};

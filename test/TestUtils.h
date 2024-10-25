@@ -116,16 +116,25 @@ void run_gradient_impl(CF cf, index_pack<S...> s, Args&&... args) {
   display(std::get<S>(t)...);
 }
 
-template <class CF, std::size_t... S, class... Args>
-void run_jacobian_impl(CF cf, std::size_t size, index_pack<S...> s,
-                       Args&&... args) {
+template <class CF, class... Args>
+void run_jacobian_impl(CF cf, std::size_t size, Args&&... args) {
   std::tuple<Args...> t = {args...};
-  reset(std::get<S>(t)...);
   cf.execute(args...);
   typedef
       typename std::remove_reference<decltype(*std::get<sizeof...(args) - 1>(
           t))>::type arrElemType;
-  displayarr<arrElemType>(std::get<sizeof...(args) - 1>(t), size);
+  auto& res = *std::get<sizeof...(args) - 1>(t);
+  unsigned numOfParameters = sizeof...(args) - 2;
+  unsigned numOfOutputs = res.rows();
+  printf("{");
+  for (unsigned i = 0; i < numOfOutputs; ++i) {
+    for (unsigned j = 0; j < numOfParameters; ++j) {
+      printf("%.2f", res[i][j]);
+      if (i != numOfOutputs - 1 || j != numOfParameters - 1)
+        printf(", ");
+    }
+  }
+  printf("}\n");
 }
 
 template <class CF, std::size_t... S, class... Args>
@@ -150,11 +159,7 @@ void run_gradient(CF cf, Args&&... args) {
 template <std::size_t NumOfDerivativeArgs, std::size_t size, class CF,
           class... Args>
 void run_jacobian(CF cf, Args&&... args) {
-  using DerivativeArgRange =
-      typename GenerateRange<sizeof...(Args) - NumOfDerivativeArgs,
-                             sizeof...(Args) - 1>::type;
-  run_jacobian_impl(cf, size, DerivativeArgRange(),
-                    std::forward<Args>(args)...);
+  run_jacobian_impl(cf, size, std::forward<Args>(args)...);
 }
 
 template <std::size_t NumOfDerivativeArgs, class CF, class... Args>
