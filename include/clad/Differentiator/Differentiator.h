@@ -624,12 +624,13 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
             typename F, typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 !std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  constexpr CladFunction<
-      DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("J")))
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         /*EnablePadding=*/true> __attribute__((annotate("J")))
   jacobian(F f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                        /*EnablePadding=*/true>(
         derivedFn /* will be replaced by Jacobian*/, code);
   }
 
@@ -640,12 +641,13 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
             typename F, typename DerivedFnType = JacobianDerivedFnTraits_t<F>,
             typename = typename std::enable_if<
                 std::is_class<remove_reference_and_pointer_t<F>>::value>::type>
-  constexpr CladFunction<
-      DerivedFnType, ExtractFunctorTraits_t<F>> __attribute__((annotate("J")))
+  constexpr CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                         /*EnablePadding=*/true> __attribute__((annotate("J")))
   jacobian(F&& f, ArgSpec args = "",
            DerivedFnType derivedFn = static_cast<DerivedFnType>(nullptr),
            const char* code = "") {
-    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>>(
+    return CladFunction<DerivedFnType, ExtractFunctorTraits_t<F>,
+                        /*EnablePadding=*/true>(
         derivedFn /* will be replaced by Jacobian*/, code, f);
   }
 

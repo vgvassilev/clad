@@ -189,160 +189,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
   }
 
-  FunctionDecl* ReverseModeVisitor::CreateGradientOverload() {
-    auto gradientParams = m_Derivative->parameters();
-    auto gradientNameInfo = m_Derivative->getNameInfo();
-    // Calculate the total number of parameters that would be required for
-    // automatic differentiation in the derived function if all args are
-    // requested.
-    // FIXME: Here we are assuming all function parameters are of differentiable
-    // type. Ideally, we should not make any such assumption.
-    std::size_t totalDerivedParamsSize = m_DiffReq->getNumParams() * 2;
-    std::size_t numOfDerivativeParams = m_DiffReq->getNumParams();
-
-    // Account for the this pointer.
-    if (isa<CXXMethodDecl>(m_DiffReq.Function) &&
-        !utils::IsStaticMethod(m_DiffReq.Function))
-      ++numOfDerivativeParams;
-    // All output parameters will be of type `void*`. These
-    // parameters will be casted to correct type before the call to the actual
-    // derived function.
-    // We require each output parameter to be of same type in the overloaded
-    // derived function due to limitations of generating the exact derived
-    // function type at the compile-time (without clad plugin help).
-    QualType outputParamType = m_Context.getPointerType(m_Context.VoidTy);
-
-    llvm::SmallVector<QualType, 16> paramTypes;
-
-    // Add types for representing original function parameters.
-    for (auto* PVD : m_DiffReq->parameters())
-      paramTypes.push_back(PVD->getType());
-    // Add types for representing parameter derivatives.
-    // FIXME: We are assuming all function parameters are differentiable. We
-    // should not make any such assumptions.
-    for (std::size_t i = 0; i < numOfDerivativeParams; ++i)
-      paramTypes.push_back(outputParamType);
-
-    auto gradFuncOverloadEPI =
-        dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo();
-    QualType gradientFunctionOverloadType =
-        m_Context.getFunctionType(m_Context.VoidTy, paramTypes,
-                                  // Cast to function pointer.
-                                  gradFuncOverloadEPI);
-
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    m_Sema.CurContext = DC;
-    DeclWithContext gradientOverloadFDWC =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, DC, noLoc,
-                                gradientNameInfo, gradientFunctionOverloadType);
-    FunctionDecl* gradientOverloadFD = gradientOverloadFDWC.first;
-
-    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-               Scope::DeclScope);
-    m_Sema.PushFunctionScope();
-    m_Sema.PushDeclContext(getCurrentScope(), gradientOverloadFD);
-
-    llvm::SmallVector<ParmVarDecl*, 4> overloadParams;
-    llvm::SmallVector<Expr*, 4> callArgs;
-
-    overloadParams.reserve(totalDerivedParamsSize);
-    callArgs.reserve(gradientParams.size());
-
-    for (auto* PVD : m_DiffReq->parameters()) {
-      auto* VD = utils::BuildParmVarDecl(
-          m_Sema, gradientOverloadFD, PVD->getIdentifier(), PVD->getType(),
-          PVD->getStorageClass(), /*defArg=*/nullptr, PVD->getTypeSourceInfo());
-      overloadParams.push_back(VD);
-      callArgs.push_back(BuildDeclRef(VD));
-    }
-
-    for (std::size_t i = 0; i < numOfDerivativeParams; ++i) {
-      IdentifierInfo* II = nullptr;
-      StorageClass SC = StorageClass::SC_None;
-      std::size_t effectiveGradientIndex = m_DiffReq->getNumParams() + i;
-      // `effectiveGradientIndex < gradientParams.size()` implies that this
-      // parameter represents an actual derivative of one of the function
-      // original parameters.
-      if (effectiveGradientIndex < gradientParams.size()) {
-        auto* GVD = gradientParams[effectiveGradientIndex];
-        II = CreateUniqueIdentifier("_temp_" + GVD->getNameAsString());
-        SC = GVD->getStorageClass();
-      } else {
-        II = CreateUniqueIdentifier("_d_" + std::to_string(i));
-      }
-      auto* PVD = utils::BuildParmVarDecl(m_Sema, gradientOverloadFD, II,
-                                          outputParamType, SC);
-      overloadParams.push_back(PVD);
-    }
-
-    for (auto* PVD : overloadParams)
-      if (PVD->getIdentifier())
-        m_Sema.PushOnScopeChains(PVD, getCurrentScope(),
-                                 /*AddToContext=*/false);
-
-    gradientOverloadFD->setParams(overloadParams);
-    gradientOverloadFD->setBody(/*B=*/nullptr);
-
-    beginScope(Scope::FnScope | Scope::DeclScope);
-    m_DerivativeFnScope = getCurrentScope();
-    beginBlock();
-
-    // Build derivatives to be used in the call to the actual derived function.
-    // These are initialised by effectively casting the derivative parameters of
-    // overloaded derived function to the correct type.
-    for (std::size_t i = m_DiffReq->getNumParams(); i < gradientParams.size();
-         ++i) {
-      auto* overloadParam = overloadParams[i];
-      auto* gradientParam = gradientParams[i];
-      TypeSourceInfo* typeInfo =
-          m_Context.getTrivialTypeSourceInfo(gradientParam->getType());
-      SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-      auto* init = m_Sema
-                       .BuildCStyleCastExpr(fakeLoc, typeInfo, fakeLoc,
-                                            BuildDeclRef(overloadParam))
-                       .get();
-
-      auto* gradientVD = BuildGlobalVarDecl(gradientParam->getType(),
-                                            gradientParam->getName(), init);
-      callArgs.push_back(BuildDeclRef(gradientVD));
-      addToCurrentBlock(BuildDeclStmt(gradientVD));
-    }
-
-    // If the function is a global kernel, we need to transform it
-    // into a device function when calling it inside the overload function
-    // which is the final global kernel returned.
-    if (m_Derivative->hasAttr<clang::CUDAGlobalAttr>()) {
-      m_Derivative->dropAttr<clang::CUDAGlobalAttr>();
-      m_Derivative->addAttr(clang::CUDADeviceAttr::CreateImplicit(m_Context));
-    }
-
-    Expr* callExpr = BuildCallExprToFunction(m_Derivative, callArgs,
-                                             /*UseRefQualifiedThisObj=*/true);
-    addToCurrentBlock(callExpr);
-    Stmt* gradientOverloadBody = endBlock();
-
-    gradientOverloadFD->setBody(gradientOverloadBody);
-
-    endScope(); // Function body scope
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
-    endScope(); // Function decl scope
-
-    return gradientOverloadFD;
-  }
-
   DerivativeAndOverload ReverseModeVisitor::Derive() {
     const FunctionDecl* FD = m_DiffReq.Function;
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-
-    // FIXME: reverse mode plugins may have request mode other than
-    // `DiffMode::reverse`, but they still need the `DiffMode::reverse` mode
-    // specific behaviour, because they are "reverse" mode plugins.
-    // assert(m_DiffReq.Mode == DiffMode::reverse ||
-    //        m_DiffReq.Mode == DiffMode::jacobian && "Unexpected Mode.");
     if (m_DiffReq.Mode == DiffMode::error_estimation)
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
@@ -362,29 +212,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
-    // Save the type of the output parameter(s) that is add by clad to the
-    // derived function
-    if (m_DiffReq.Mode == DiffMode::jacobian) {
-      unsigned lastArgN = m_DiffReq->getNumParams() - 1;
-      outputArrayStr = m_DiffReq->getParamDecl(lastArgN)->getNameAsString();
-    }
 
     auto derivativeBaseName = m_DiffReq.BaseFunctionName;
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
-    if (m_DiffReq.Mode == DiffMode::jacobian) {
-      // If Jacobian is asked, the last parameter is the result parameter
-      // and should be ignored
-      if (args.size() != FD->getNumParams()-1){
-        for (const auto* arg : args) {
-          const auto* const it =
-              std::find(FD->param_begin(), FD->param_end() - 1, arg);
-          auto idx = std::distance(FD->param_begin(), it);
-          gradientName += ('_' + std::to_string(idx));
-        }
-      }
-    } else if (args.size() != FD->getNumParams()) {
+    if (args.size() != FD->getNumParams()) {
       for (const auto* arg : args) {
         const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
         auto idx = std::distance(FD->param_begin(), it);
@@ -411,7 +244,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (m_DiffReq.Mode != DiffMode::jacobian && numExtraParam == 0)
+    if (numExtraParam == 0)
       shouldCreateOverload = true;
     if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
       // If the overload is already created, we don't need to create it again.
@@ -440,7 +273,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_Derivative = customDerivative;
       FunctionDecl* gradientOverloadFD = nullptr;
       if (shouldCreateOverload)
-        gradientOverloadFD = CreateGradientOverload();
+        gradientOverloadFD = CreateDerivativeOverload();
       return DerivativeAndOverload{customDerivative, gradientOverloadFD};
     }
 
@@ -484,37 +317,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     gradientFD->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
-      if (m_DiffReq.Mode == DiffMode::jacobian) {
-        // Reference to the output parameter.
-        m_Result = BuildDeclRef(params.back());
-        numParams = args.size();
-
-        // Creates the ArraySubscriptExprs for the independent variables
-        size_t idx = 0;
-        for (const auto* arg : args) {
-          // FIXME: fix when adding array inputs, now we are just skipping all
-          // array/pointer inputs (not treating them as independent variables).
-          if (utils::isArrayOrPointerType(arg->getType())) {
-            if (arg->getName() == "p")
-              m_Variables[arg] = m_Result;
-            idx += 1;
-            continue;
-          }
-          auto size_type = m_Context.getSizeType();
-          unsigned size_type_bits = m_Context.getIntWidth(size_type);
-          // Create the idx literal.
-          auto* i = IntegerLiteral::Create(
-              m_Context, llvm::APInt(size_type_bits, idx), size_type, noLoc);
-          // Create the jacobianMatrix[idx] expression.
-          auto* result_at_i =
-              m_Sema.CreateBuiltinArraySubscriptExpr(m_Result, noLoc, i, noLoc)
-                  .get();
-          m_Variables[arg] = result_at_i;
-          idx += 1;
-          m_IndependentVars.push_back(arg);
-        }
-      }
-
       if (m_ExternalSource)
         m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
 
@@ -550,8 +352,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     FunctionDecl* gradientOverloadFD = nullptr;
     if (shouldCreateOverload) {
-      gradientOverloadFD =
-          CreateGradientOverload();
+      gradientOverloadFD = CreateDerivativeOverload();
     }
 
     return DerivativeAndOverload{result.first, gradientOverloadFD};
@@ -700,10 +501,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       ParmVarDecl* param = paramsRef[i];
       // derived variables are already created for independent variables.
       if (m_Variables.count(param))
-        continue;
-      // in vector mode last non diff parameter is output parameter.
-      if (m_DiffReq.Mode == DiffMode::jacobian &&
-          i == m_DiffReq->getNumParams() - 1)
         continue;
       auto VDDerivedType = getNonConstType(param->getType(), m_Context, m_Sema);
       // We cannot initialize derived variable for pointer types because
@@ -1610,48 +1407,31 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (DRE->getDecl()->getType()->isReferenceType() &&
           VD->getType()->isPointerType())
         clonedDRE = BuildOp(UO_Deref, clonedDRE);
-      if (m_DiffReq.Mode == DiffMode::jacobian) {
-        if (m_VectorOutput.size() <= outputArrayCursor)
-          return StmtDiff(clonedDRE);
-
-        auto it = m_VectorOutput[outputArrayCursor].find(VD);
-        if (it == std::end(m_VectorOutput[outputArrayCursor]))
-          return StmtDiff(clonedDRE); // Not an independent variable, ignored.
-
-        // Create the (jacobianMatrix[idx] += dfdx) statement.
-        if (dfdx()) {
-          auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-          // Add it to the body statements.
-          addToCurrentBlock(add_assign, direction::reverse);
-        }
-        return StmtDiff(clonedDRE, it->second, it->second);
-      } else {
-        // Check DeclRefExpr is a reference to an independent variable.
-        auto it = m_Variables.find(VD);
-        if (it == std::end(m_Variables)) {
-          // Is not an independent variable, ignored.
-          return StmtDiff(clonedDRE);
-        }
-        // Create the (_d_param[idx] += dfdx) statement.
-        if (dfdx()) {
-          // FIXME: not sure if this is generic.
-          // Don't update derivatives of record types.
-          if (!VD->getType()->isRecordType()) {
-            Expr* base = it->second;
-            if (auto* UO = dyn_cast<UnaryOperator>(it->second))
-              base = UO->getSubExpr()->IgnoreImpCasts();
-            if (shouldUseCudaAtomicOps(base)) {
-              Expr* atomicCall = BuildCallToCudaAtomicAdd(it->second, dfdx());
-              // Add it to the body statements.
-              addToCurrentBlock(atomicCall, direction::reverse);
-            } else {
-              auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-              addToCurrentBlock(add_assign, direction::reverse);
-            }
+      // Check DeclRefExpr is a reference to an independent variable.
+      auto it = m_Variables.find(VD);
+      if (it == std::end(m_Variables)) {
+        // Is not an independent variable, ignored.
+        return StmtDiff(clonedDRE);
+      }
+      // Create the (_d_param[idx] += dfdx) statement.
+      if (dfdx()) {
+        // FIXME: not sure if this is generic.
+        // Don't update derivatives of record types.
+        if (!VD->getType()->isRecordType()) {
+          Expr* base = it->second;
+          if (auto* UO = dyn_cast<UnaryOperator>(it->second))
+            base = UO->getSubExpr()->IgnoreImpCasts();
+          if (shouldUseCudaAtomicOps(base)) {
+            Expr* atomicCall = BuildCallToCudaAtomicAdd(it->second, dfdx());
+            // Add it to the body statements.
+            addToCurrentBlock(atomicCall, direction::reverse);
+          } else {
+            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+            addToCurrentBlock(add_assign, direction::reverse);
           }
         }
-        return StmtDiff(clonedDRE, it->second, it->second);
       }
+      return StmtDiff(clonedDRE, it->second, it->second);
     }
 
     return StmtDiff(clonedDRE);
@@ -2718,66 +2498,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         Expr* RExpr = RDRE ? Visit(R).getRevSweepAsExpr() : R;
 
         return BuildOp(opCode, LExpr, RExpr);
-      }
-
-      // FIXME: Put this code into a separate subroutine and break out early
-      // using return if the diff mode is not jacobian and we are not dealing
-      // with the `outputArray`.
-      if (auto* ASE = dyn_cast<ArraySubscriptExpr>(L)) {
-        if (auto* DRE =
-                dyn_cast<DeclRefExpr>(ASE->getBase()->IgnoreImplicit())) {
-          auto type = QualType(DRE->getType()->getPointeeOrArrayElementType(),
-                               /*Quals=*/0);
-          std::string DRE_str = DRE->getDecl()->getNameAsString();
-
-          llvm::APSInt intIdx;
-          Expr::EvalResult res;
-          Expr::SideEffectsKind AllowSideEffects =
-              Expr::SideEffectsKind::SE_NoSideEffects;
-          auto isIdxValid =
-              ASE->getIdx()->EvaluateAsInt(res, m_Context, AllowSideEffects);
-
-          if (DRE_str == outputArrayStr && isIdxValid) {
-            intIdx = res.Val.getInt();
-            if (m_DiffReq.Mode == DiffMode::jacobian) {
-              outputArrayCursor = intIdx.getExtValue();
-
-              std::unordered_map<const clang::ValueDecl*, clang::Expr*>
-                  temp_m_Variables;
-              for (unsigned i = 0; i < numParams; i++) {
-                auto size_type = m_Context.getSizeType();
-                unsigned size_type_bits = m_Context.getIntWidth(size_type);
-                llvm::APInt idxValue(size_type_bits,
-                                     i + (outputArrayCursor * numParams));
-                auto* idx = IntegerLiteral::Create(m_Context, idxValue,
-                                                   size_type, noLoc);
-                // Create the jacobianMatrix[idx] expression.
-                auto* result_at_i = m_Sema
-                                        .CreateBuiltinArraySubscriptExpr(
-                                            m_Result, noLoc, idx, noLoc)
-                                        .get();
-                temp_m_Variables[m_IndependentVars[i]] = result_at_i;
-              }
-              if (m_VectorOutput.size() <= outputArrayCursor)
-                m_VectorOutput.resize(outputArrayCursor + 1);
-              m_VectorOutput[outputArrayCursor] = std::move(temp_m_Variables);
-            }
-
-            auto* dfdf = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
-                                                           m_Context, 1);
-            ExprResult tmp = dfdf;
-            dfdf = m_Sema
-                       .ImpCastExprToType(tmp.get(), type,
-                                          m_Sema.PrepareScalarCast(tmp, type))
-                       .get();
-            auto ReturnResult = DifferentiateSingleExpr(R, dfdf);
-            StmtDiff ReturnDiff = ReturnResult.first;
-            Stmt* Reverse = ReturnDiff.getStmt_dx();
-            addToCurrentBlock(Reverse, direction::reverse);
-            for (Stmt* S : cast<CompoundStmt>(ReturnDiff.getStmt())->body())
-              addToCurrentBlock(S, direction::forward);
-          }
-        }
       }
 
       // Visit LHS, but delay emission of its derivative statements, save them
@@ -4730,11 +4450,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (it != std::end(diffParams))
           paramTypes.push_back(ComputeParamType(PVD->getType()));
       }
-    } else if (m_DiffReq.Mode == DiffMode::jacobian) {
-      std::size_t lastArgIdx = m_DiffReq->getNumParams() - 1;
-      QualType derivativeParamType =
-          m_DiffReq->getParamDecl(lastArgIdx)->getType();
-      paramTypes.push_back(derivativeParamType);
     }
     return paramTypes;
   }
@@ -4756,8 +4471,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
       const CXXRecordDecl* RD = MD->getParent();
-      if (m_DiffReq.Mode != DiffMode::jacobian && MD->isInstance() &&
-          !RD->isLambda()) {
+      if (MD->isInstance() && !RD->isLambda()) {
         auto* thisDerivativePVD = utils::BuildParmVarDecl(
             m_Sema, m_Derivative, CreateUniqueIdentifier("_d_this"),
             derivativeFnType->getParamType(dParamTypesIdx));
@@ -4839,18 +4553,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       ++dParamTypesIdx;
     }
 
-    if (m_DiffReq.Mode == DiffMode::jacobian) {
-      IdentifierInfo* II = CreateUniqueIdentifier("jacobianMatrix");
-      // FIXME: Why are we taking storageClass of `params.front()`?
-      auto* dPVD = utils::BuildParmVarDecl(
-          m_Sema, m_Derivative, II,
-          derivativeFnType->getParamType(dParamTypesIdx),
-          params.front()->getStorageClass());
-      paramDerivatives.push_back(dPVD);
-      if (dPVD->getIdentifier())
-        m_Sema.PushOnScopeChains(dPVD, getCurrentScope(),
-                                 /*AddToContext=*/false);
-    }
     params.insert(params.end(), paramDerivatives.begin(),
                   paramDerivatives.end());
     // FIXME: If we do not consider diffParams as an independent argument for

@@ -9,7 +9,7 @@ namespace clad {
 /// A visitor for processing the function code in vector forward mode.
 /// Used to compute derivatives by clad::vector_forward_differentiate.
 class VectorForwardModeVisitor : public BaseForwardModeVisitor {
-private:
+protected:
   llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
   /// Map used to keep track of parameter variables w.r.t which the
   /// the derivative is being computed. This is separate from the

@@ -10,31 +10,27 @@ void nonMemFn(double i, double j, double* out) {
   out[1] = j;
 }
 
-// CHECK: void nonMemFn_jac(double i, double j, double *out, double *jacobianMatrix) {
-// CHECK-NEXT:     double _t0 = out[0];
+// CHECK: void nonMemFn_jac(double i, double j, double *out, clad::matrix<double> *_d_vector_out) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_out->rows() + {{2U|2UL|2ULL}};
+// CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:     *_d_vector_out = clad::identity_matrix(_d_vector_out->rows(), indepVarCount, {{2U|2UL|2ULL}});
+// CHECK-NEXT:     *_d_vector_out[0] = _d_vector_i;
 // CHECK-NEXT:     out[0] = i;
-// CHECK-NEXT:     double _t1 = out[1];
+// CHECK-NEXT:     *_d_vector_out[1] = _d_vector_j;
 // CHECK-NEXT:     out[1] = j;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{3U|3UL|3ULL}}] += 1;
-// CHECK-NEXT:         out[1] = _t1;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         jacobianMatrix[{{0U|0UL|0ULL}}] += 1;
-// CHECK-NEXT:         out[0] = _t0;
-// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\
-res[0]=res[1]=res[2]=res[3]=0;\
-var.execute(5, 7, out, res);\
-printf("{%.2f %.2f %.2f %.2f}\n", res[0], res[1], res[2], res[3]);
+var.execute(5, 7, out, &res);\
+printf("{%.2f %.2f %.2f %.2f}\n", res[0][0], res[0][1],\
+                                  res[1][0], res[1][1]);
 
 int main() {
   auto nonMemFnPtr = &nonMemFn;
   auto nonMemFnPtrToPtr = &nonMemFnPtr;
 
-  double res[4];
+  clad::matrix<double> res(2, 2);
   double out[2];
   auto d_nonMemFn = clad::jacobian(nonMemFn);
   auto d_nonMemFnPar = clad::jacobian((nonMemFn));

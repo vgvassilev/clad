@@ -489,10 +489,6 @@ namespace clad {
            "attempt to differentiate unsupported operator, ignored.",
            args);
     }
-    /// Builds an overload for the gradient function that has derived params for
-    /// all the arguments of the requested function and it calls the original
-    /// gradient function internally
-    clang::FunctionDecl* CreateGradientOverload();
 
     /// Returns the type that should be used to represent the derivative of a
     /// variable of type `yType` with respect to a parameter variable of type

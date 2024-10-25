@@ -15,25 +15,24 @@ template <typename T> struct Experiment {
   void setX(T val) { x = val; }
 };
 
-// CHECK: void operator_call_jac(double i, double j, double *output, double *jacobianMatrix) {
-// CHECK-NEXT:     double _t0 = output[0];
-// CHECK-NEXT:     output[0] = this->x * this->y * i * j;
-// CHECK-NEXT:     double _t1 = output[1];
-// CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * j;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j;
-// CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * 1;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         output[1] = _t1;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j;
-// CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * 1;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         output[0] = _t0;
-// CHECK-NEXT:     }
+// CHECK: void operator_call_jac(double i, double j, double *output, clad::matrix<double> *_d_vector_output) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + {{2U|2UL|2ULL}};
+// CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
+// CHECK-NEXT:     double &_t0 = this->x;
+// CHECK-NEXT:     double &_t1 = this->y;
+// CHECK-NEXT:     double _t2 = _t0 * _t1;
+// CHECK-NEXT:     double _t3 = _t2 * i;
+// CHECK-NEXT:     *_d_vector_output[0] = ((0 * _t1 + _t0 * 0) * i + _t2 * _d_vector_i) * j + _t3 * _d_vector_j;
+// CHECK-NEXT:     output[0] = _t3 * j;
+// CHECK-NEXT:     double &_t4 = this->x;
+// CHECK-NEXT:     double _t5 = 2 * _t4;
+// CHECK-NEXT:     double &_t6 = this->y;
+// CHECK-NEXT:     double _t7 = _t5 * _t6;
+// CHECK-NEXT:     double _t8 = _t7 * i;
+// CHECK-NEXT:     *_d_vector_output[1] = ((((clad::zero_vector(indepVarCount)) * _t4 + 2 * 0) * _t6 + _t5 * 0) * i + _t7 * _d_vector_i) * j + _t8 * _d_vector_j;
+// CHECK-NEXT:     output[1] = _t8 * j;
 // CHECK-NEXT: }
 
 template <> struct Experiment<long double> {
@@ -46,27 +45,26 @@ template <> struct Experiment<long double> {
   void setX(long double val) { x = val; }
 };
 
-// CHECK: void operator_call_jac(long double i, long double j, long double *output, long double *jacobianMatrix) {
-// CHECK-NEXT:     long double _t0 = output[0];
-// CHECK-NEXT:     output[0] = this->x * this->y * i * i * j;
-// CHECK-NEXT:     long double _t1 = output[1];
-// CHECK-NEXT:     output[1] = 2 * this->x * this->y * i * i * j;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * 1 * j * i;
-// CHECK-NEXT:             jacobianMatrix[{{2U|2UL|2ULL}}] += 2 * this->x * this->y * i * 1 * j;
-// CHECK-NEXT:             jacobianMatrix[{{3U|3UL|3ULL}}] += 2 * this->x * this->y * i * i * 1;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         output[1] = _t1;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * 1 * j * i;
-// CHECK-NEXT:             jacobianMatrix[{{0U|0UL|0ULL}}] += this->x * this->y * i * 1 * j;
-// CHECK-NEXT:             jacobianMatrix[{{1U|1UL|1ULL}}] += this->x * this->y * i * i * 1;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         output[0] = _t0;
-// CHECK-NEXT:     }
+// CHECK: void operator_call_jac(long double i, long double j, long double *output, clad::matrix<long double> *_d_vector_output) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + {{2U|2UL|2ULL}};
+// CHECK-NEXT:     clad::array<long double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
+// CHECK-NEXT:     clad::array<long double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
+// CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
+// CHECK-NEXT:     long double &_t0 = this->x;
+// CHECK-NEXT:     long double &_t1 = this->y;
+// CHECK-NEXT:     long double _t2 = _t0 * _t1;
+// CHECK-NEXT:     long double _t3 = _t2 * i;
+// CHECK-NEXT:     long double _t4 = _t3 * i;
+// CHECK-NEXT:     *_d_vector_output[0] = (((0 * _t1 + _t0 * 0) * i + _t2 * _d_vector_i) * i + _t3 * _d_vector_i) * j + _t4 * _d_vector_j;
+// CHECK-NEXT:     output[0] = _t4 * j;
+// CHECK-NEXT:     long double &_t5 = this->x;
+// CHECK-NEXT:     long double _t6 = 2 * _t5;
+// CHECK-NEXT:     long double &_t7 = this->y;
+// CHECK-NEXT:     long double _t8 = _t6 * _t7;
+// CHECK-NEXT:     long double _t9 = _t8 * i;
+// CHECK-NEXT:     long double _t10 = _t9 * i;
+// CHECK-NEXT:     *_d_vector_output[1] = (((((clad::zero_vector(indepVarCount)) * _t5 + 2 * 0) * _t7 + _t6 * 0) * i + _t8 * _d_vector_i) * i + _t9 * _d_vector_i) * j + _t10 * _d_vector_j;
+// CHECK-NEXT:     output[1] = _t10 * j;
 // CHECK-NEXT: }
 
 #define INIT(E)                                                                \
@@ -74,32 +72,30 @@ template <> struct Experiment<long double> {
   auto d_##E##Ref = clad::jacobian(E);
 
 #define TEST_DOUBLE(E, ...)                                                    \
-  result[0] = result[1] = result[2] = result[3] = 0;                           \
   output[0] = output[1] = 0;                                                   \
-  d_##E.execute(__VA_ARGS__, output, result);                                  \
-  printf("{%.2f, %.2f, %.2f, %.2f} ", result[0], result[1], result[2],        \
-         result[3]);                                                           \
-  result[0] = result[1] = result[2] = result[3] = 0;                           \
+  d_##E.execute(__VA_ARGS__, output, &result);                                 \
+  printf("{%.2f, %.2f, %.2f, %.2f} ", result[0][0], result[0][1],              \
+                                      result[1][0], result[1][1]);             \
   output[0] = output[1] = 0;                                                   \
-  d_##E##Ref.execute(__VA_ARGS__, output, result);                             \
-  printf("{%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2],        \
-         result[3]);
+  d_##E##Ref.execute(__VA_ARGS__, output, &result);                            \
+  printf("{%.2f, %.2f, %.2f, %.2f} ", result[0][0], result[0][1],              \
+                                      result[1][0], result[1][1]);             
 
 #define TEST_LONG_DOUBLE(E, ...)                                               \
-  result_ld[0] = result_ld[1] = result_ld[2] = result_ld[3] = 0;               \
   output_ld[0] = output_ld[1] = 0;                                             \
-  d_##E.execute(__VA_ARGS__, output_ld, result_ld);                            \
-  printf("{%.2Lf, %.2Lf, %.2Lf, %.2Lf} ", result_ld[0], result_ld[1],         \
-         result_ld[2], result_ld[3]);                                          \
-  result_ld[0] = result_ld[1] = result_ld[2] = result_ld[3] = 0;               \
+  d_##E.execute(__VA_ARGS__, output_ld, &result_ld);                           \
+  printf("{%.2Lf, %.2Lf, %.2Lf, %.2Lf} ", result_ld[0][0], result_ld[0][1],    \
+                                      result_ld[1][0], result_ld[1][1]);       \
   output_ld[0] = output_ld[1] = 0;                                             \
-  d_##E##Ref.execute(__VA_ARGS__, output_ld, result_ld);                       \
-  printf("{%.2Lf, %.2Lf, %.2Lf, %.2Lf}\n", result_ld[0], result_ld[1],         \
-         result_ld[2], result_ld[3]);
+  d_##E##Ref.execute(__VA_ARGS__, output_ld, &result_ld);                      \
+  printf("{%.2Lf, %.2Lf, %.2Lf, %.2Lf} ", result_ld[0][0], result_ld[0][1],    \
+                                      result_ld[1][0], result_ld[1][1]);             
 
 int main() {
-  double result[4], output[2];
-  long double result_ld[4], output_ld[2];
+  double output[2];
+  clad::matrix<double> result(2, 2);
+  long double output_ld[2];
+  clad::matrix<long double> result_ld(2, 2);
   Experiment<double> E(3, 5);
   Experiment<long double> E_ld(3, 5);
 

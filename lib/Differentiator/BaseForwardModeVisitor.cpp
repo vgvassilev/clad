@@ -1228,7 +1228,16 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
       customPushforward, customDerivativeArgs, getCurrentScope(),
       const_cast<DeclContext*>(FD->getDeclContext()));
-
+  // Custom derivative templates can be written in a
+  // general way that works for both vectorized and non-vectorized
+  // modes. We have to also look for the pushforward with the regular name.
+  if (!callDiff && m_DiffReq.Mode != DiffMode::forward) {
+    customPushforward =
+        clad::utils::ComputeEffectiveFnName(FD) + "_pushforward";
+    callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+        customPushforward, customDerivativeArgs, getCurrentScope(),
+        const_cast<DeclContext*>(FD->getDeclContext()));
+  }
   if (!isLambda) {
     // Check if it is a recursive call.
     if (!callDiff && (FD == m_DiffReq.Function) &&
@@ -1446,7 +1455,9 @@ BaseForwardModeVisitor::VisitBinaryOperator(const BinaryOperator* BinOp) {
       derivedR = BuildParens(derivedR);
     opDiff = BuildOp(opCode, derivedL, derivedR);
   } else if (BinOp->isAssignmentOp()) {
-    if (Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) != Expr::MLV_Valid) {
+    if ((Ldiff.getExpr_dx()->isModifiableLvalue(m_Context) !=
+         Expr::MLV_Valid) &&
+        !isCladArrayType(Ldiff.getExpr_dx()->getType())) {
       diag(DiagnosticsEngine::Warning, BinOp->getEndLoc(),
            "derivative of an assignment attempts to assign to unassignable "
            "expr, assignment ignored");

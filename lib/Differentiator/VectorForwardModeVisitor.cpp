@@ -26,6 +26,8 @@ DiffMode VectorForwardModeVisitor::GetPushForwardMode() {
 
 QualType
 VectorForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
+  if (ParamType == m_Context.VoidTy)
+    return ParamType;
   QualType valueType = utils::GetValueType(ParamType);
   QualType resType;
   if (utils::isArrayOrPointerType(ParamType)) {
