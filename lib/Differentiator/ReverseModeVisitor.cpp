@@ -153,35 +153,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return atomicAddCall;
   }
 
-  Expr* ReverseModeVisitor::CheckAndBuildCallToCalloc(Expr* RHS) {
+  Expr* ReverseModeVisitor::CheckAndBuildCallToMemset(Expr* LHS, Expr* RHS) {
     Expr* size = nullptr;
     if (auto* callExpr = dyn_cast<CallExpr>(RHS))
-      if (auto* implCast = dyn_cast<ImplicitCastExpr>(callExpr->getCallee()))
-        if (auto* declRef = dyn_cast<DeclRefExpr>(implCast->getSubExpr()))
-          if (auto* FD = dyn_cast<FunctionDecl>(declRef->getDecl())) {
-            if (FD->getNameAsString() == "malloc")
-              size = callExpr->getArg(0);
-            else if (FD->getNameAsString() == "realloc")
-              size = callExpr->getArg(1);
-          }
+      if (auto* declRef =
+              dyn_cast<DeclRefExpr>(callExpr->getCallee()->IgnoreImpCasts()))
+        if (auto* FD = dyn_cast<FunctionDecl>(declRef->getDecl())) {
+          if (FD->getNameAsString() == "malloc")
+            size = callExpr->getArg(0);
+          else if (FD->getNameAsString() == "realloc")
+            size = callExpr->getArg(1);
+        }
 
     if (size) {
-      llvm::SmallVector<Expr*, 2> args;
-      if (auto* BinOp = dyn_cast<BinaryOperator>(size)) {
-        if (BinOp->getOpcode() == BO_Mul) {
-          Expr* lhs = BinOp->getLHS();
-          Expr* rhs = BinOp->getRHS();
-          if (auto* sizeofCall = dyn_cast<UnaryExprOrTypeTraitExpr>(rhs))
-            args = {lhs, sizeofCall};
-          else if (auto* sizeofCall = dyn_cast<UnaryExprOrTypeTraitExpr>(lhs))
-            args = {rhs, sizeofCall};
-          if (!args.empty())
-            return GetFunctionCall("calloc", "", args);
-        }
-      }
+      llvm::SmallVector<Expr*, 3> args = {LHS, getZeroInit(m_Context.IntTy),
+                                          size};
+      return GetFunctionCall("memset", "", args);
     }
 
-    return {};
+    return nullptr;
   }
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
@@ -1757,15 +1747,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                              llvm::MutableArrayRef<Expr*>(CallArgs), Loc)
               .get();
-      Expr* call_dx = nullptr;
-      if (FD->getNameAsString() == "malloc")
-        call_dx = CheckAndBuildCallToCalloc(Clone(CE));
-      if (!call_dx)
-        call_dx = m_Sema
-                      .ActOnCallExpr(
-                          getCurrentScope(), Clone(CE->getCallee()), Loc,
-                          llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
-                      .get();
+      Expr* call_dx =
+          m_Sema
+              .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
+                             llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
+              .get();
       return StmtDiff(call, call_dx);
     }
     // For calls to C-style memory deallocation functions, we do not need to
@@ -2877,19 +2863,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
         addToCurrentBlock(BuildOp(opCode, derivedL, derivedR),
                           direction::forward);
-        if (opCode == BO_Assign && derivedR)
-          if (Expr* callocCall =
-                  CheckAndBuildCallToCalloc(derivedR->IgnoreParenCasts())) {
-            Expr* cast =
-                m_Sema
-                    .BuildCStyleCastExpr(
-                        SourceLocation(),
-                        m_Context.getTrivialTypeSourceInfo(derivedL->getType()),
-                        SourceLocation(), callocCall)
-                    .get();
-            addToCurrentBlock(BuildOp(BO_Assign, derivedL, cast),
-                              direction::forward);
-          }
+        if (opCode == BO_Assign && derivedL && derivedR)
+          if (Expr* memsetCall = CheckAndBuildCallToMemset(
+                  derivedL, derivedR->IgnoreParenCasts()))
+            addToCurrentBlock(memsetCall, direction::forward);
       }
     }
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
@@ -3276,6 +3253,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
+    llvm::SmallVector<Stmt*, 4> memsetCalls;
     // Need to put array decls inlined.
     llvm::SmallVector<Decl*, 4> localDeclsDiff;
     // reverse_mode_forward_pass does not have a reverse pass so declarations
@@ -3365,8 +3343,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (VDDiff.getDecl_dx()) {
           if (isa<VariableArrayType>(VD->getType()))
             localDeclsDiff.push_back(VDDiff.getDecl_dx());
-          else
-            declsDiff.push_back(VDDiff.getDecl_dx());
+          else {
+            VarDecl* VDDerived = VDDiff.getDecl_dx();
+            declsDiff.push_back(VDDerived);
+            if (Stmt* memsetCall = CheckAndBuildCallToMemset(
+                    BuildDeclRef(VDDerived),
+                    VDDerived->getInit()->IgnoreCasts()))
+              memsetCalls.push_back(memsetCall);
+          }
         }
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
@@ -3405,6 +3389,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Stmts& block =
           promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
+      if (memsetCalls.empty())
+        printf("memsetCalls is empty\n");
+      for (Stmt* memset : memsetCalls)
+        addToBlock(memset, block);
     }
 
     if (m_ExternalSource) {
