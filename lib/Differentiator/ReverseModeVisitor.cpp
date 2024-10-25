@@ -3389,8 +3389,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Stmts& block =
           promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
-      if (memsetCalls.empty())
-        printf("memsetCalls is empty\n");
       for (Stmt* memset : memsetCalls)
         addToBlock(memset, block);
     }
