@@ -269,10 +269,9 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     constexpr CladFunctionType getFunctionPtr() const { return m_Function; }
 
     template <typename... Args, class FnType = CladFunctionType>
-    typename std::enable_if<
-        !std::is_same<FnType, NoFunction*>::value,
-        return_type_t<F>>::type constexpr execute(Args&&... args)
-        CUDA_HOST_DEVICE const {
+    typename std::enable_if<!std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
+    execute(Args&&... args) const {
       if (!m_Function)
         return static_cast<return_type_t<F>>(return_type_t<F>());
       if (m_CUDAkernel) {
@@ -313,10 +312,9 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
     /// Error handling is handled in the clad side using clang diagnostics 
     /// subsystem.
     template <typename... Args, class FnType = CladFunctionType>
-    typename std::enable_if<
-        std::is_same<FnType, NoFunction*>::value,
-        return_type_t<F>>::type constexpr execute(Args&&... args)
-        CUDA_HOST_DEVICE const {
+    typename std::enable_if<std::is_same<FnType, NoFunction*>::value,
+                            return_type_t<F>>::type constexpr CUDA_HOST_DEVICE
+    execute(Args&&... args) const {
       return static_cast<return_type_t<F>>(0);
     }
 
