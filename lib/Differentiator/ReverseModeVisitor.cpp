@@ -4183,18 +4183,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (isInsideLoop && !activeBreakContHandler->m_IsInvokedBySwitchStmt) {
       Expr* tapeBackExprForCurrentCase =
           activeBreakContHandler->CreateCFTapeBackExprForCurrentCase();
-      Expr* tapeSizeExprForCurrentCase =
-          activeBreakContHandler->CreateCFTapeSizeExprForCurrentCase();
-      Expr* currentBreakFlagExpr =
-          BuildOp(BinaryOperatorKind::BO_LAnd, tapeSizeExprForCurrentCase,
-                  tapeBackExprForCurrentCase);
       if (m_CurrentBreakFlagExpr) {
         m_CurrentBreakFlagExpr =
             BuildOp(BinaryOperatorKind::BO_LAnd, m_CurrentBreakFlagExpr,
-                    currentBreakFlagExpr);
-
+                    tapeBackExprForCurrentCase);
       } else {
-        m_CurrentBreakFlagExpr = currentBreakFlagExpr;
+        Expr* tapeSizeExprForCurrentCase =
+            activeBreakContHandler->CreateCFTapeSizeExprForCurrentCase();
+        m_CurrentBreakFlagExpr =
+            BuildOp(BinaryOperatorKind::BO_LAnd, tapeSizeExprForCurrentCase,
+                    tapeBackExprForCurrentCase);
       }
     }
     addToCurrentBlock(pushExprToCurrentCase);
@@ -4275,9 +4273,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   Expr* ReverseModeVisitor::BreakContStmtHandler::
       CreateCFTapeSizeExprForCurrentCase() {
-    return m_RMV.BuildOp(BinaryOperatorKind::BO_NE, m_ControlFlowTape->Size(),
-                         ConstantFolder::synthesizeLiteral(
-                             m_RMV.m_Context.IntTy, m_RMV.m_Context, 0));
+    return m_RMV.BuildOp(
+        BinaryOperatorKind::BO_NE, m_ControlFlowTape->Size(),
+        ConstantFolder::synthesizeLiteral(m_RMV.m_Context.IntTy,
+                                          m_RMV.m_Context, /*val=*/0));
   }
 
   void ReverseModeVisitor::BreakContStmtHandler::UpdateForwAndRevBlocks(

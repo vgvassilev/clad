@@ -2629,7 +2629,7 @@ double fn33(double i, double j) {
 //CHECK-NEXT:    _d_res += 1;
 //CHECK-NEXT:    for (;; _t0--) {
 //CHECK-NEXT:        {
-//CHECK-NEXT:            if (!_t0 || (clad::size(_t4) != 0 && clad::back(_t4) != 1 && clad::size(_t4) != 0 && clad::back(_t4) != 2)) {
+//CHECK-NEXT:            if (!_t0 || (clad::size(_t4) != 0 && clad::back(_t4) != 1 && clad::back(_t4) != 2)) {
 //CHECK-NEXT:                res = clad::pop(_t1);
 //CHECK-NEXT:                double _r_d0 = _d_res;
 //CHECK-NEXT:                _d_res = 0.;
@@ -2639,7 +2639,7 @@ double fn33(double i, double j) {
 //CHECK-NEXT:            if (!_t0)
 //CHECK-NEXT:                break;
 //CHECK-NEXT:        }
-//CHECK-NEXT:        if (clad::size(_t4) != 0 && clad::back(_t4) != 1 && clad::size(_t4) != 0 && clad::back(_t4) != 2)
+//CHECK-NEXT:        if (clad::size(_t4) != 0 && clad::back(_t4) != 1 && clad::back(_t4) != 2)
 //CHECK-NEXT:         --c;
 //CHECK-NEXT:        switch (clad::pop(_t4)) {
 //CHECK-NEXT:          case {{3U|3UL|3ULL}}:
