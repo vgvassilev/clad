@@ -519,6 +519,7 @@ namespace clad {
       clang::Expr *m_Pop = nullptr;
       clang::Expr *m_Push = nullptr;
       ReverseModeVisitor& m_RMV;
+      clang::VarDecl* numRevIterations = nullptr;
 
     public:
       LoopCounter(ReverseModeVisitor& RMV);
@@ -551,6 +552,14 @@ namespace clad {
                                            m_Ref,
                                            clang::Sema::ConditionKind::Boolean);
       }
+
+      /// Sets the number of reverse iterations to be executed.
+      clang::VarDecl* setNumRevIterations(clang::VarDecl* numRevIterations) {
+        return this->numRevIterations = numRevIterations;
+      }
+
+      /// Returns the number of reverse iterations to be executed.
+      clang::VarDecl* getNumRevIterations() const { return numRevIterations; }
     };
 
     /// Helper function to differentiate a loop body.

@@ -1386,8 +1386,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       BodyDiff.updateStmtDx(utils::unwrapIfSingleStmt(revPassCondStmts));
     }
 
+    Stmt* revInit = loopCounter.getNumRevIterations()
+                        ? BuildDeclStmt(loopCounter.getNumRevIterations())
+                        : nullptr;
     Stmt* Reverse = new (m_Context)
-        ForStmt(m_Context, nullptr, nullptr, nullptr, CounterDecrement,
+        ForStmt(m_Context, revInit, nullptr, nullptr, CounterDecrement,
                 BodyDiff.getStmt_dx(), noLoc, noLoc, noLoc);
 
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
@@ -4123,10 +4126,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
 
+    Expr* revCounter = loopCounter.getCounterConditionResult().get().second;
+    if (m_CurrentBreakFlagExpr) {
+      VarDecl* numRevIterations = BuildVarDecl(m_Context.getSizeType(),
+                                               "_numRevIterations", revCounter);
+      loopCounter.setNumRevIterations(numRevIterations);
+    }
+
     // Increment statement in the for-loop is executed for every case
     if (forLoopIncDiff) {
       Stmt* forLoopIncDiffExpr = forLoopIncDiff;
       if (m_CurrentBreakFlagExpr) {
+        m_CurrentBreakFlagExpr =
+            BuildOp(BinaryOperatorKind::BO_LOr,
+                    BuildOp(BinaryOperatorKind::BO_NE, revCounter,
+                            BuildDeclRef(loopCounter.getNumRevIterations())),
+                    BuildParens(m_CurrentBreakFlagExpr));
         forLoopIncDiffExpr = clad_compat::IfStmt_Create(
             m_Context, noLoc, false, nullptr, nullptr, m_CurrentBreakFlagExpr,
             noLoc, noLoc, forLoopIncDiff, noLoc, nullptr);
