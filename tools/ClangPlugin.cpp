@@ -91,10 +91,10 @@ namespace clad {
       }
 #endif // CLANG_VERSION_MAJOR > 8
 
-      // Add define for __CLAD_SO_LOADED, so that CladFunction::CladFunction()
+      // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.
       auto predefines = m_CI.getPreprocessor().getPredefines();
-      predefines.append("#define __CLAD_SO_LOADED 1\n");
+      predefines.append("#define __CLAD__ 1\n");
       m_CI.getPreprocessor().setPredefines(predefines);
     }
 
