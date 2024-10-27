@@ -450,6 +450,14 @@ namespace clad {
     /// \returns The atomicAdd call expression.
     clang::Expr* BuildCallToCudaAtomicAdd(clang::Expr* LHS, clang::Expr* RHS);
 
+    /// Check whether this is an assignment to a malloc or a realloc call for a
+    /// derivative variable and build a call to memset to follow the memory
+    /// allocation in order to properly intialize the memory to zero. \param[in]
+    /// LHS The left-hand side expression of the assignment. \param[in] RHS The
+    /// right-hand side expression of the assignment.
+    /// @returns The call to memset if the condition is met, otherwise nullptr.
+    clang::Expr* CheckAndBuildCallToMemset(clang::Expr* LHS, clang::Expr* RHS);
+
     static DeclDiff<clang::StaticAssertDecl>
     DifferentiateStaticAssertDecl(const clang::StaticAssertDecl* SAD);
 

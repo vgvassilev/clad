@@ -153,6 +153,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return atomicAddCall;
   }
 
+  Expr* ReverseModeVisitor::CheckAndBuildCallToMemset(Expr* LHS, Expr* RHS) {
+    Expr* size = nullptr;
+    if (auto* callExpr = dyn_cast<CallExpr>(RHS))
+      if (auto* declRef =
+              dyn_cast<DeclRefExpr>(callExpr->getCallee()->IgnoreImpCasts()))
+        if (auto* FD = dyn_cast<FunctionDecl>(declRef->getDecl())) {
+          if (FD->getNameAsString() == "malloc")
+            size = callExpr->getArg(0);
+          else if (FD->getNameAsString() == "realloc")
+            size = callExpr->getArg(1);
+        }
+
+    if (size) {
+      llvm::SmallVector<Expr*, 3> args = {LHS, getZeroInit(m_Context.IntTy),
+                                          size};
+      return GetFunctionCall("memset", "", args);
+    }
+
+    return nullptr;
+  }
+
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
                                          const DiffRequest& request)
       : VisitorBase(builder, request), m_Result(nullptr) {}
@@ -1697,25 +1718,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         !isa<CXXOperatorCallExpr>(CE))
       return StmtDiff(Clone(CE));
 
-    // If all arguments are constant literals, then this does not contribute to
-    // the gradient.
-    // FIXME: revert this when this is integrated in the activity analysis pass.
-    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
-      bool allArgsAreConstantLiterals = true;
-      for (const Expr* arg : CE->arguments()) {
-        // if it's of type MaterializeTemporaryExpr, then check its
-        // subexpression.
-        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
-          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
-        if (!arg->isEvaluatable(m_Context)) {
-          allArgsAreConstantLiterals = false;
-          break;
-        }
-      }
-      if (allArgsAreConstantLiterals)
-        return StmtDiff(Clone(CE), Clone(CE));
-    }
-
     SourceLocation Loc = CE->getExprLoc();
 
     // Stores the call arguments for the function to be derived
@@ -1786,6 +1788,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_DeallocExprs.push_back(call_dx);
       }
       return StmtDiff();
+    }
+
+    // If all arguments are constant literals, then this does not contribute to
+    // the gradient.
+    // FIXME: revert this when this is integrated in the activity analysis pass.
+    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
+      bool allArgsAreConstantLiterals = true;
+      for (const Expr* arg : CE->arguments()) {
+        // if it's of type MaterializeTemporaryExpr, then check its
+        // subexpression.
+        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
+          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
+        if (!arg->isEvaluatable(m_Context)) {
+          allArgsAreConstantLiterals = false;
+          break;
+        }
+      }
+      if (allArgsAreConstantLiterals)
+        return StmtDiff(Clone(CE), Clone(CE));
     }
 
     // If the result does not depend on the result of the call, just clone
@@ -2842,6 +2863,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         ComputeEffectiveDOperands(Ldiff, Rdiff, derivedL, derivedR);
         addToCurrentBlock(BuildOp(opCode, derivedL, derivedR),
                           direction::forward);
+        if (opCode == BO_Assign && derivedL && derivedR)
+          if (Expr* memsetCall = CheckAndBuildCallToMemset(
+                  derivedL, derivedR->IgnoreParenCasts()))
+            addToCurrentBlock(memsetCall, direction::forward);
       }
     }
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
@@ -3228,6 +3253,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SmallVector<Stmt*, 16> inits;
     llvm::SmallVector<Decl*, 4> decls;
     llvm::SmallVector<Decl*, 4> declsDiff;
+    llvm::SmallVector<Stmt*, 4> memsetCalls;
     // Need to put array decls inlined.
     llvm::SmallVector<Decl*, 4> localDeclsDiff;
     // reverse_mode_forward_pass does not have a reverse pass so declarations
@@ -3317,8 +3343,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         if (VDDiff.getDecl_dx()) {
           if (isa<VariableArrayType>(VD->getType()))
             localDeclsDiff.push_back(VDDiff.getDecl_dx());
-          else
-            declsDiff.push_back(VDDiff.getDecl_dx());
+          else {
+            VarDecl* VDDerived = VDDiff.getDecl_dx();
+            declsDiff.push_back(VDDerived);
+            if (Stmt* memsetCall = CheckAndBuildCallToMemset(
+                    BuildDeclRef(VDDerived),
+                    VDDerived->getInit()->IgnoreCasts()))
+              memsetCalls.push_back(memsetCall);
+          }
         }
       } else if (auto* SAD = dyn_cast<StaticAssertDecl>(D)) {
         DeclDiff<StaticAssertDecl> SADDiff = DifferentiateStaticAssertDecl(SAD);
@@ -3357,6 +3389,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       Stmts& block =
           promoteToFnScope ? m_Globals : getCurrentBlock(direction::forward);
       addToBlock(DSDiff, block);
+      for (Stmt* memset : memsetCalls)
+        addToBlock(memset, block);
     }
 
     if (m_ExternalSource) {
