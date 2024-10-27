@@ -456,6 +456,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    kernel_call<<<1, 10>>>(out, in_dev);
 //CHECK-NEXT:    cudaDeviceSynchronize();
 //CHECK-NEXT:    double *_d_out_host = (double *)malloc(10 * sizeof(double));
+//CHECK-NEXT:    memset(_d_out_host, 0, 10 * sizeof(double));
 //CHECK-NEXT:    double *out_host = (double *)malloc(10 * sizeof(double));
 //CHECK-NEXT:    cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
 //CHECK-NEXT:    double _d_res = 0.;
