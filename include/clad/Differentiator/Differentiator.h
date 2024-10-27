@@ -211,7 +211,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
                                   bool CUDAkernel = false)
       requires(!ImmediateMode)
         : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
-#ifndef __CLAD_SO_LOADED
+#ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
@@ -229,7 +229,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
         : m_Function(f), m_Code("<constexpr functions don't have support for "
                                 "printing the derivative yet>"),
           m_Functor(functor), m_CUDAkernel(CUDAkernel) {
-#ifndef __CLAD_SO_LOADED
+#ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
@@ -239,7 +239,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
                                   FunctorType* functor = nullptr,
                                   bool CUDAkernel = false)
         : m_Function(f), m_Functor(functor), m_CUDAkernel(CUDAkernel) {
-#ifndef __CLAD_SO_LOADED
+#ifndef __CLAD__
       static_assert(false, "clad doesn't appear to be loaded; make sure that "
                            "you pass clad.so to clang.");
 #endif
