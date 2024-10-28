@@ -318,8 +318,6 @@ namespace clad {
       /// (clad::back(Ref)). Since it is required only rarely, it is built on
       /// demand in the method.
       clang::Expr* Last();
-      /// A request to get the size of the tape (clad::size(Ref)).
-      clang::Expr* Size();
     };
 
     /// Make a clad::tape to store variables.
@@ -665,10 +663,6 @@ namespace clad {
       /// expression, where `TapeRef` and `m_CaseCounter` are replaced
       /// by their actual values respectively
       clang::Expr* CreateCFTapeBackExprForCurrentCase();
-
-      /// Builds and returns `clad::size(TapeRef) != 0` expression,
-      /// where `TapeRef` is replaced by its actual value
-      clang::Expr* CreateCFTapeSizeExprForCurrentCase();
 
       /// Does final modifications on forward and reverse blocks
       /// so that `break` and `continue` statements are handled

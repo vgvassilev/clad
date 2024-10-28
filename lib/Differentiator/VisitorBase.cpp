@@ -580,13 +580,6 @@ namespace clad {
     return clad_compat::llvm_Optional_GetValue(Result);
   }
 
-  LookupResult& VisitorBase::GetCladTapeSize() {
-    static clad_compat::llvm_Optional<LookupResult> Result{};
-    if (!Result)
-      Result = LookupCladTapeMethod("size");
-    return clad_compat::llvm_Optional_GetValue(Result);
-  }
-
   QualType VisitorBase::GetCladTapeOfType(QualType T) {
     return InstantiateTemplate(GetCladTapeDecl(), {T});
   }
