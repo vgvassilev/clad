@@ -1952,7 +1952,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPushforward, pushforwardCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()), true, true,
+              const_cast<DeclContext*>(FD->getDeclContext()),
+              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
       if (OverloadedDerivedFn)
         asGrad = false;
@@ -2054,7 +2055,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()), true, true,
+              const_cast<DeclContext*>(FD->getDeclContext()),
+              /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
       if (baseDiff.getExpr())
         pullbackCallArgs.erase(pullbackCallArgs.begin());
