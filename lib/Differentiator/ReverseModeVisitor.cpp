@@ -1897,6 +1897,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     std::size_t insertionPoint = getCurrentBlock(direction::reverse).size();
 
     const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+    bool isLambda = (MD ? isLambdaCallOperator(MD) : false);
     // Method operators have a base like methods do but it's included in the
     // call arguments so we have to shift the indexing of call arguments.
     bool isMethodOperatorCall = MD && isa<CXXOperatorCallExpr>(CE);
@@ -1904,6 +1905,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (std::size_t i = static_cast<std::size_t>(isMethodOperatorCall),
                      e = CE->getNumArgs();
          i != e; ++i) {
+        llvm::errs() << "i: " << i << '\n';
       const Expr* arg = CE->getArg(i);
       const auto* PVD = FD->getParamDecl(
           i - static_cast<unsigned long>(isMethodOperatorCall));
@@ -1923,7 +1925,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // same as the call expression as it is the type used to declare the
         // _gradX array
         QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
-        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy), false, nullptr, clang::VarDecl::InitializationStyle::CInit, true);
         PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
         DeclRefExpr* dArgRef = BuildDeclRef(dArgDecl);
         if (isa<CUDAKernelCallExpr>(CE)) {
@@ -2091,13 +2093,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       /// Add base derivative expression in the derived call output args list if
       /// `CE` is a call to an instance member function.
       if (MD) {
-        if (isLambdaCallOperator(MD)) {
-          QualType ptrType = m_Context.getPointerType(m_Context.getRecordType(
-              FD->getDeclContext()->getOuterLexicalRecordContext()));
-          baseDiff =
-              StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
-                       new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
-        } else if (MD->isInstance()) {
+        if (MD->isInstance()) {
           const Expr* baseOriginalE = nullptr;
           if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE))
             baseOriginalE = MCE->getImplicitObjectArgument();
@@ -2106,18 +2102,30 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
           baseDiff = Visit(baseOriginalE);
           baseExpr = baseDiff.getExpr();
-          Expr* baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
-          baseDiff.updateStmt(baseDiffStore);
+          if (!isLambda) {
+            Expr* baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
+            baseDiff.updateStmt(baseDiffStore);
+          }
+
+          llvm::errs() << "diff base: ";
+          baseExpr->dumpPretty(m_Context);
+          llvm::errs() << " ";
+          baseDiff.getExpr_dx()->dumpPretty(m_Context);
+          llvm::errs() << " ";
+          llvm::errs() << "\n";
+
           Expr* baseDerivative = baseDiff.getExpr_dx();
           if (!baseDerivative->getType()->isPointerType())
             baseDerivative =
                 BuildOp(UnaryOperatorKind::UO_AddrOf, baseDerivative);
-          DerivedCallOutputArgs.push_back(baseDerivative);
+          if (!isLambda)
+            DerivedCallOutputArgs.push_back(baseDerivative);
         }
       }
 
       for (auto* argDerivative : CallArgDx) {
         Expr* gradArgExpr = nullptr;
+        llvm::errs() << "i: " << idx << '\n';
         QualType paramTy = FD->getParamDecl(idx)->getType();
         if (!argDerivative || utils::isArrayOrPointerType(paramTy) ||
             isCladArrayType(argDerivative->getType()) ||
@@ -2180,9 +2188,24 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Derivative was not found, check if it is a recursive call
     if (!OverloadedDerivedFn) {
-      if (m_ExternalSource)
-        m_ExternalSource->ActBeforeDifferentiatingCallExpr(
-            pullbackCallArgs, PreCallStmts, dfdx());
+      if (FD == m_DiffReq.Function &&
+          m_DiffReq.Mode == DiffMode::experimental_pullback) {
+        // Recursive call.
+        Expr* selfRef =
+            m_Sema
+                .BuildDeclarationNameExpr(
+                    CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
+                .get();
+
+        OverloadedDerivedFn =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), selfRef, Loc,
+                               pullbackCallArgs, Loc, CUDAExecConfig)
+                .get();
+      } else if (!isLambda) {
+        if (m_ExternalSource)
+          m_ExternalSource->ActBeforeDifferentiatingCallExpr(
+              pullbackCallArgs, PreCallStmts, dfdx());
 
       // Overloaded derivative was not found, request the CladPlugin to
       // derive the called function.
@@ -2218,48 +2241,79 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       else
         pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
-      // Clad failed to derive it.
-      // FIXME: Add support for reference arguments to the numerical diff. If
-      // it already correctly support reference arguments then confirm the
-      // support and add tests for the same.
-      if (!pullbackFD && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-          !isa<CXXMethodDecl>(FD)) {
-        // Try numerically deriving it.
-        if (NArgs == 1) {
-          OverloadedDerivedFn = GetSingleArgCentralDiffCall(
-              Clone(CE->getCallee()), DerivedCallArgs[0],
-              /*targetPos=*/0,
-              /*numArgs=*/1, DerivedCallArgs, CUDAExecConfig);
-          asGrad = !OverloadedDerivedFn;
-        } else {
-          auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
-          OverloadedDerivedFn = GetMultiArgCentralDiffCall(
-              Clone(CE->getCallee()), CEType.getCanonicalType(),
-              CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
-              DerivedCallArgs, CallArgDx, CUDAExecConfig);
-        }
-        CallExprDiffDiagnostics(FD, CE->getBeginLoc());
-        if (!OverloadedDerivedFn) {
-          Stmts& block = getCurrentBlock(direction::reverse);
-          block.insert(block.begin(), PreCallStmts.begin(), PreCallStmts.end());
-          return StmtDiff(Clone(CE));
-        }
-      } else if (pullbackFD) {
-        if (baseDiff.getExpr()) {
-          Expr* baseE = baseDiff.getExpr();
-          OverloadedDerivedFn = BuildCallExprToMemFn(
-              baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
-        } else {
-          OverloadedDerivedFn =
-              m_Sema
-                  .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
-                                 Loc, pullbackCallArgs, Loc, CUDAExecConfig)
-                  .get();
+        // Clad failed to derive it.
+        // FIXME: Add support for reference arguments to the numerical diff. If
+        // it already correctly support reference arguments then confirm the
+        // support and add tests for the same.
+        if (!pullbackFD && !utils::HasAnyReferenceOrPointerArgument(FD) &&
+            !isa<CXXMethodDecl>(FD)) {
+          // Try numerically deriving it.
+          if (NArgs == 1) {
+            OverloadedDerivedFn = GetSingleArgCentralDiffCall(
+                Clone(CE->getCallee()), DerivedCallArgs[0],
+                /*targetPos=*/0,
+                /*numArgs=*/1, DerivedCallArgs, CUDAExecConfig);
+            asGrad = !OverloadedDerivedFn;
+          } else {
+            auto CEType = getNonConstType(CE->getType(), m_Context, m_Sema);
+            OverloadedDerivedFn = GetMultiArgCentralDiffCall(
+                Clone(CE->getCallee()), CEType.getCanonicalType(),
+                CE->getNumArgs(), dfdx(), PreCallStmts, PostCallStmts,
+                DerivedCallArgs, CallArgDx, CUDAExecConfig);
+          }
+          CallExprDiffDiagnostics(FD, CE->getBeginLoc());
+          if (!OverloadedDerivedFn) {
+            Stmts& block = getCurrentBlock(direction::reverse);
+            block.insert(block.begin(), PreCallStmts.begin(),
+                         PreCallStmts.end());
+            return StmtDiff(Clone(CE));
+          }
+        } else if (pullbackFD) {
+          if (baseDiff.getExpr()) {
+            Expr* baseE = baseDiff.getExpr();
+            OverloadedDerivedFn = BuildCallExprToMemFn(
+                baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
+          } else {
+            OverloadedDerivedFn =
+                m_Sema
+                    .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
+                                   Loc, pullbackCallArgs, Loc, CUDAExecConfig)
+                    .get();
+          }
         }
       }
     }
 
-    if (OverloadedDerivedFn) {
+    if (isLambda) {
+      Stmts& block = getCurrentBlock(direction::reverse);
+      Stmts::iterator it = std::begin(block) + insertionPoint;
+      // Insert PreCallStmts
+      it = block.insert(it, PreCallStmts.begin(), PreCallStmts.end());
+      it += PreCallStmts.size();
+      // Insert the call
+      Expr* baseEdx = baseDiff.getExpr_dx(); // The pullback lambda
+      const CXXRecordDecl* EdxRD = baseEdx->getType()->getAsCXXRecordDecl();
+      auto* CMD = const_cast<CXXMethodDecl*>(EdxRD->getLambdaCallOperator());
+      NestedNameSpecifierLoc NNS(CMD->getQualifier(),
+                                    /*Data=*/nullptr);
+      auto DAP = DeclAccessPair::make(CMD, CMD->getAccess());
+      auto* memberExpr = MemberExpr::Create(
+          m_Context, Clone(baseEdx), /*isArrow=*/false, Loc, NNS, noLoc,
+          CMD, DAP, CMD->getNameInfo(),
+          /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+          ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
+              NOUR_None));
+      OverloadedDerivedFn = m_Sema
+                  .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc,
+                                            pullbackCallArgs, Loc)
+                  .get();
+
+      // OverloadedDerivedFn = BuildCallExprToMemFn(
+      //     baseEdx, FD->getName(), pullbackCallArgs, Loc);
+      it = block.insert(it, OverloadedDerivedFn);
+      it++;
+    } else if (OverloadedDerivedFn) {
       // Derivative was found.
       FunctionDecl* fnDecl = dyn_cast<CallExpr>(OverloadedDerivedFn)
                                  ->getDirectCallee();

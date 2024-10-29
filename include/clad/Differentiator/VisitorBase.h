@@ -293,7 +293,7 @@ namespace clad {
                  clang::Scope* scope, clang::Expr* Init = nullptr,
                  bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+                     clang::VarDecl::InitializationStyle::CInit, bool pushCodeSynthCtxt = false);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -310,7 +310,7 @@ namespace clad {
                  clang::Expr* Init = nullptr, bool DirectInit = false,
                  clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+                     clang::VarDecl::InitializationStyle::CInit, bool pushCodeSynthCtxt = false);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -326,7 +326,7 @@ namespace clad {
                  clang::Expr* Init = nullptr, bool DirectInit = false,
                  clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+                     clang::VarDecl::InitializationStyle::CInit, bool pushCodeSynthCtxt = false);
     /// Builds variable declaration to be used inside the derivative
     /// body in the derivative function global scope.
     clang::VarDecl*
