@@ -90,6 +90,7 @@ The User Guide
    user/tutorials
    user/UsingEnzymeWithinClad
    user/UsingVectorMode.rst
+   user/UsingImmediateMode
    user/FAQ
    user/DevelopersDocumentation
    user/IntroductionToClangForCladContributors
