@@ -82,6 +82,55 @@ ValueAndPushforward<int, int> cudaDeviceSynchronize_pushforward()
     __attribute__((host)) {
   return {cudaDeviceSynchronize(), 0};
 }
+
+template <typename T>
+__global__ void atomicAdd_kernel(T* destPtr, T* srcPtr, size_t N) {
+  for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < N;
+       i += blockDim.x * gridDim.x)
+    atomicAdd(&destPtr[i], srcPtr[i]);
+}
+
+template <typename T>
+void cudaMemcpy_pullback(T* destPtr, T* srcPtr, size_t count,
+                         cudaMemcpyKind kind, T* d_destPtr, T* d_srcPtr,
+                         size_t* d_count, cudaMemcpyKind* d_kind)
+    __attribute__((host)) {
+  T* aux_destPtr = nullptr;
+  if (kind == cudaMemcpyDeviceToHost) {
+    *d_kind = cudaMemcpyHostToDevice;
+    cudaMalloc(&aux_destPtr, count);
+  } else if (kind == cudaMemcpyHostToDevice) {
+    *d_kind = cudaMemcpyDeviceToHost;
+    aux_destPtr = (T*)malloc(count);
+  }
+  cudaDeviceSynchronize(); // needed in case user uses another stream for
+                           // kernel execution besides the default one
+  cudaMemcpy(aux_destPtr, d_destPtr, count, *d_kind);
+  size_t N = count / sizeof(T);
+  if (kind == cudaMemcpyDeviceToHost) {
+    // d_kind is host to device, so d_srcPtr is a device pointer
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    size_t maxThreads = deviceProp.maxThreadsPerBlock;
+    size_t maxBlocks = deviceProp.maxGridSize[0];
+
+    size_t numThreads = std::min(maxThreads, N);
+    size_t numBlocks = std::min(maxBlocks, (N + numThreads - 1) / numThreads);
+    custom_derivatives::atomicAdd_kernel<<<numBlocks, numThreads>>>(
+        d_srcPtr, aux_destPtr, N);
+    cudaDeviceSynchronize(); // needed in case the user uses another stream for
+                             // kernel execution besides the default one, so we
+                             // need to make sure the data are updated before
+                             // continuing with the rest of the code
+    cudaFree(aux_destPtr);
+  } else if (kind == cudaMemcpyHostToDevice) {
+    // d_kind is device to host, so d_srcPtr is a host pointer
+    for (size_t i = 0; i < N; i++)
+      d_srcPtr[i] += aux_destPtr[i];
+    free(aux_destPtr);
+  }
+}
+
 #endif
 
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>

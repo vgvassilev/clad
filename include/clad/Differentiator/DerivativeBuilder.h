@@ -118,7 +118,8 @@ namespace clad {
     clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
         clang::Scope* S, clang::DeclContext* originalFnDC,
-        bool forCustomDerv = true, bool namespaceShouldExist = true);
+        bool forCustomDerv = true, bool namespaceShouldExist = true,
+        clang::Expr* CUDAExecConfig = nullptr);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);
     /// Shorthand to issues a warning or error.
