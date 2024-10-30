@@ -1372,8 +1372,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       BodyDiff.updateStmtDx(utils::unwrapIfSingleStmt(revPassCondStmts));
     }
 
+    Stmt* revInit = loopCounter.getNumRevIterations()
+                        ? BuildDeclStmt(loopCounter.getNumRevIterations())
+                        : nullptr;
     Stmt* Reverse = new (m_Context)
-        ForStmt(m_Context, nullptr, nullptr, nullptr, CounterDecrement,
+        ForStmt(m_Context, revInit, nullptr, nullptr, CounterDecrement,
                 BodyDiff.getStmt_dx(), noLoc, noLoc, noLoc);
 
     addToCurrentBlock(initResult.getStmt_dx(), direction::reverse);
@@ -3791,6 +3794,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
     isInsideLoop = true;
+    llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
+        m_CurrentBreakFlagExpr);
+    m_CurrentBreakFlagExpr = nullptr;
 
     Expr* condClone = (WS->getCond() ? Clone(WS->getCond()) : nullptr);
     const VarDecl* condVarDecl = WS->getConditionVariable();
@@ -3849,6 +3855,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     llvm::SaveAndRestore<bool> SaveIsInsideLoop(isInsideLoop);
     isInsideLoop = true;
+    llvm::SaveAndRestore<Expr*> SaveCurrentBreakFlagExpr(
+        m_CurrentBreakFlagExpr);
+    m_CurrentBreakFlagExpr = nullptr;
 
     Expr* clonedCond = (DS->getCond() ? Clone(DS->getCond()) : nullptr);
 
@@ -4105,21 +4114,37 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       bodyDiff.updateStmtDx(MakeCompoundStmt(revLoopBlock));
     m_LoopBlock.pop_back();
 
-    // Increment statement in the for-loop is only executed if the iteration
-    // did not end with a break/continue statement. Therefore, forLoopIncDiff
-    // should be inside the last switch case in the reverse pass.
-    if (forLoopIncDiff) {
-      if (bodyDiff.getStmt_dx()) {
-        bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
-            m_Context, bodyDiff.getStmt_dx(), forLoopIncDiff));
-      } else {
-        bodyDiff.updateStmtDx(forLoopIncDiff);
-      }
-    }
-
     activeBreakContHandler->EndCFSwitchStmtScope();
     activeBreakContHandler->UpdateForwAndRevBlocks(bodyDiff);
     PopBreakContStmtHandler();
+
+    Expr* revCounter = loopCounter.getCounterConditionResult().get().second;
+    if (m_CurrentBreakFlagExpr) {
+      VarDecl* numRevIterations = BuildVarDecl(m_Context.getSizeType(),
+                                               "_numRevIterations", revCounter);
+      loopCounter.setNumRevIterations(numRevIterations);
+    }
+
+    // Increment statement in the for-loop is executed for every case
+    if (forLoopIncDiff) {
+      Stmt* forLoopIncDiffExpr = forLoopIncDiff;
+      if (m_CurrentBreakFlagExpr) {
+        m_CurrentBreakFlagExpr =
+            BuildOp(BinaryOperatorKind::BO_LOr,
+                    BuildOp(BinaryOperatorKind::BO_NE, revCounter,
+                            BuildDeclRef(loopCounter.getNumRevIterations())),
+                    BuildParens(m_CurrentBreakFlagExpr));
+        forLoopIncDiffExpr = clad_compat::IfStmt_Create(
+            m_Context, noLoc, false, nullptr, nullptr, m_CurrentBreakFlagExpr,
+            noLoc, noLoc, forLoopIncDiff, noLoc, nullptr);
+      }
+      if (bodyDiff.getStmt_dx()) {
+        bodyDiff.updateStmtDx(utils::PrependAndCreateCompoundStmt(
+            m_Context, bodyDiff.getStmt_dx(), forLoopIncDiffExpr));
+      } else {
+        bodyDiff.updateStmtDx(forLoopIncDiffExpr);
+      }
+    }
 
     Expr* counterDecrement = loopCounter.getCounterDecrement();
 
@@ -4169,7 +4194,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_CurrentBreakFlagExpr =
             BuildOp(BinaryOperatorKind::BO_LAnd, m_CurrentBreakFlagExpr,
                     tapeBackExprForCurrentCase);
-
       } else {
         m_CurrentBreakFlagExpr = tapeBackExprForCurrentCase;
       }

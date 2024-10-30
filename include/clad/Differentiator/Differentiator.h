@@ -88,7 +88,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   /// N.
   template <typename T> CUDA_HOST_DEVICE void zero_init(T* x, std::size_t N) {
     for (std::size_t i = 0; i < N; ++i)
-    zero_init(x[i]);
+      zero_init(x[i]);
   }
 
   /// Initialize a const sized array.
