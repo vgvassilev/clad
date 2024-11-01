@@ -1485,7 +1485,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_Context, const_cast<DeclContext*>(Original->getDeclContext()),
         Original->getLambdaTypeInfo(), Original->getBeginLoc(),
         CLAD_COMPAT_CXXRecordDecl_CreateLambda_DependencyKind(Original),
-        Original->isGenericLambda(), Original->getLambdaCaptureDefault());
+        Original->isGenericLambda(), LCD_ByRef);
 
     // Copy the fields if any (FieldDecl)
     for (auto* Field : Original->fields()) {
@@ -1554,7 +1554,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             ClonedOpCall->setAccess(OriginalOpCall->getAccess());
             Cloned->addDecl(ClonedOpCall);
 
-            break; // we might get into an infinite loop otherwise
+            break; // we get into an infinite loop otherwise
           }
         }
       }
@@ -1567,46 +1567,80 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const clang::LambdaExpr* LE) {
+    // ============== CAP
+    
     auto children_iterator_range = LE->children();
-
     std::vector<Expr *> children_Exp;
     std::vector<Expr *> children_Exp_dx;
 
     for (auto children : children_iterator_range) {
-      auto children_expr = const_cast<clang::Expr*>(dyn_cast<clang::Expr>(children));
+      // auto children_expr = const_cast<clang::Expr*>(dyn_cast<clang::Expr>(children));
+      auto children_expr = dyn_cast<clang::Expr>(children);
       if (children_expr) {
-        children_Exp.push_back(children_expr);
+        children_Exp.push_back(dyn_cast<clang::Expr>(Clone(children_expr)));
 
-        children_Exp_dx.push_back(children_expr);
+        // children_Exp_dx.push_back(children_expr);
 
-        if(isa<CXXConstructExpr>(children_expr)) {
-          std::string constructedTypeName = QualType::getAsString(dyn_cast<CXXConstructExpr>(children_expr)->getType().split(), PrintingPolicy{ {} });
-          // if (!utils::IsKokkosTeamPolicy(constructedTypeName) && !utils::IsKokkosRange(constructedTypeName) && !utils::IsKokkosMember(constructedTypeName)) {
-            auto children_exprV = Visit(children_expr);
-            auto children_expr_copy = dyn_cast<CXXConstructExpr>(Clone(children_expr));
-            children_expr_copy->setArg(0, children_exprV.getExpr_dx());
-            children_Exp_dx.push_back(children_expr_copy);
-          // }
-        }
-        else if(isa<DeclRefExpr>(children_expr)) {
+        // if(isa<CXXConstructExpr>(children_expr)) {
+        //   std::string constructedTypeName = QualType::getAsString(dyn_cast<CXXConstructExpr>(children_expr)->getType().split(), PrintingPolicy{ {} });
+        //   // if (!utils::IsKokkosTeamPolicy(constructedTypeName) && !utils::IsKokkosRange(constructedTypeName) && !utils::IsKokkosMember(constructedTypeName)) {
+        //     auto children_exprV = Visit(children_expr);
+        //     auto children_expr_copy = dyn_cast<CXXConstructExpr>(Clone(children_expr));
+        //     children_expr_copy->setArg(0, children_exprV.getExpr_dx());
+        //     children_Exp_dx.push_back(children_expr_copy);
+        //   // }
+        // }
+        // else if(isa<DeclRefExpr>(children_expr)) {
 
-        }
-        else {
-          auto children_exprV = Visit(children_expr);
-          if (children_exprV.getExpr_dx()) {
-            children_Exp_dx.push_back(children_exprV.getExpr_dx());
-          }
-        }
+        // }
+        // else {
+        //   auto children_exprV = Visit(children_expr);
+        //   if (children_exprV.getExpr_dx()) {
+        //     children_Exp_dx.push_back(children_exprV.getExpr_dx());
+        //   }
+        // }
       }
     }
 
     llvm::ArrayRef<Expr*> childrenRef_Exp =
         clad_compat::makeArrayRef(children_Exp.data(), children_Exp.size());
 
-    llvm::ArrayRef<Expr*> childrenRef_Exp_dx =
-        clad_compat::makeArrayRef(children_Exp_dx.data(), children_Exp_dx.size());
+    llvm::ArrayRef<Expr*> childrenRef_Exp_dx; // =
+        // clad_compat::makeArrayRef(children_Exp_dx.data(), children_Exp_dx.size());
 
+    // ============== CAP
+
+    // FIXME: ideally, we need to create a reverse_forw lambda and not copy the original one for the forward pass.
     auto forwardLambdaClass = LE->getLambdaClass();
+
+    clang::LambdaIntroducer cloneIntro;
+    cloneIntro.Default = forwardLambdaClass->getLambdaCaptureDefault();
+    cloneIntro.Range.setBegin(LE->getBeginLoc());
+    cloneIntro.Range.setEnd(LE->getEndLoc());
+
+    clang::AttributeFactory cloneAttrFactory;
+    const clang::DeclSpec cloneDS(cloneAttrFactory);
+    clang::Declarator cloneD(
+        cloneDS, CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam
+                CLAD_COMPAT_CLANG12_Declarator_LambdaExpr);
+    clang::sema::LambdaScopeInfo* cloneLSI = m_Sema.PushLambdaScope();
+    beginScope(clang::Scope::BlockScope | clang::Scope::FnScope |
+               clang::Scope::DeclScope);
+    m_Sema.ActOnStartOfLambdaDefinition(
+        cloneIntro, cloneD,
+        clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
+            getCurrentScope(), cloneDS));
+
+    cloneLSI->CallOperator = forwardLambdaClass->getLambdaCallOperator();
+
+    m_Sema.buildLambdaScope(cloneLSI,
+                            cloneLSI->CallOperator,
+                            LE->getIntroducerRange(),
+                            LE->getCaptureDefault(),
+                            LE->getCaptureDefaultLoc(),
+                            LE->hasExplicitParameters(),
+                            LE->hasExplicitResultType(),
+                            true);
 
     auto forwardLE = LambdaExpr::Create(m_Context,
                               forwardLambdaClass,
@@ -1620,7 +1654,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                               false);
 
     clang::LambdaExpr* reverseLE = nullptr;
-    auto* ClonedCXXRec = diffLambdaCXXRecordDecl(forwardLambdaClass);
+    CXXRecordDecl* diffedCXXRec = diffLambdaCXXRecordDecl(forwardLambdaClass);
+
+    endScope();
 
     clang::LambdaIntroducer Intro;
     Intro.Default = forwardLambdaClass->getLambdaCaptureDefault();
@@ -1640,12 +1676,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         clad_compat::Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
             getCurrentScope(), DS));
 
-    for (auto* Method : ClonedCXXRec->methods()) {
-      if (CXXMethodDecl* cpb = dyn_cast<CXXMethodDecl>(Method)) {
-        if (cpb->getOverloadedOperator() == OO_Call)
-          LSI->CallOperator = cpb;
-      }
-    }
+    LSI->CallOperator = diffedCXXRec->getLambdaCallOperator();
+
+    // ============== CAP
 
       std::vector<LambdaCapture> children_LC_Exp_dx;
 
@@ -1671,27 +1704,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             children_LC_Exp_dx.push_back(LambdaCapture(SourceLocation(), true, LambdaCaptureKind::LCK_ByRef, VD));
         }
       }
-      assert(children_Exp_dx.size() == children_LC_Exp_dx.size() && "Wrong number of captures");
+      // assert(children_Exp_dx.size() == children_LC_Exp_dx.size() && "Wrong number of captures");
 
-      llvm::ArrayRef<LambdaCapture> childrenRef_LC_Exp_dx =
-          clad_compat::makeArrayRef(children_LC_Exp_dx.data(), children_LC_Exp_dx.size());
+      llvm::ArrayRef<LambdaCapture> childrenRef_LC_Exp_dx;// =
+          // clad_compat::makeArrayRef(children_LC_Exp_dx.data(), children_LC_Exp_dx.size());
 
-      // Initialize and attach LambdaDefinitionData to mark this as a lambda.
-      ClonedCXXRec->setCaptures(m_Context, childrenRef_LC_Exp_dx);
+      // diffedCXXRec->setCaptures(m_Context, childrenRef_LC_Exp_dx);
 
-      m_Sema.buildLambdaScope(LSI, 
-                              //bodyV.getStmt_dx(),
+      // ============== CAP
+
+      m_Sema.buildLambdaScope(LSI,
                               LSI->CallOperator,
                               LE->getIntroducerRange(),
-                              LE->getCaptureDefault(),
+                              LCD_ByRef,
                               LE->getCaptureDefaultLoc(),
                               LE->hasExplicitParameters(),
                               LE->hasExplicitResultType(),
-                              LE->isMutable());
+                              true);
 
       reverseLE = LambdaExpr::Create(
-          m_Context, ClonedCXXRec, LE->getIntroducerRange(),
-          LE->getCaptureDefault(), LE->getCaptureDefaultLoc(),
+          m_Context, diffedCXXRec, LE->getIntroducerRange(),
+          LCD_ByRef, LE->getCaptureDefaultLoc(),
           LE->hasExplicitParameters(), LE->hasExplicitResultType(),
           childrenRef_Exp_dx, LE->getEndLoc(), false);
 
@@ -1910,11 +1943,18 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       const auto* PVD = FD->getParamDecl(
           i - static_cast<unsigned long>(isMethodOperatorCall));
       StmtDiff argDiff{};
+
+      bool isArgLambda = clad::utils::isLambdaQType(arg->getType()); // is this argument a lambda?
+
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg) ||
+      if (utils::IsReferenceOrPointerArg(arg)||
           !m_DiffReq.shouldHaveAdjoint(PVD)) {
+        argDiff = Visit(arg);
+        CallArgDx.push_back(argDiff.getExpr_dx());
+      } else if (isArgLambda) {
+        // TODO: this block is now the same as the one above, but we might want to actually save the differentiated lambda into a declaration first here. This way we wouldn't create new lambdas for the derivative every time the user passes the same lambda as an argument.
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1925,7 +1965,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // same as the call expression as it is the type used to declare the
         // _gradX array
         QualType dArgTy = getNonConstType(arg->getType(), m_Context, m_Sema);
-        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy), false, nullptr, clang::VarDecl::InitializationStyle::CInit, true);
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy), false, nullptr, clang::VarDecl::InitializationStyle::CInit, isLambda);
         PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
         DeclRefExpr* dArgRef = BuildDeclRef(dArgDecl);
         if (isa<CUDAKernelCallExpr>(CE)) {

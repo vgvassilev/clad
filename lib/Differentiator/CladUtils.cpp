@@ -316,6 +316,13 @@ namespace clad {
       return false;
     }
 
+    bool isLambdaQType(QualType QT) {
+      if (const RecordType* RT = QT->getAs<RecordType>()) 
+        if (const CXXRecordDecl* RD = dyn_cast<CXXRecordDecl>(RT->getDecl()))
+          return RD->isLambda();
+      return false;
+    }
+
     bool IsReferenceOrPointerArg(const Expr* arg) {
       // The argument is passed by reference if it's passed as an L-value.
       // However, if arg is a MaterializeTemporaryExpr, then arg is a

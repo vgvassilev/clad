@@ -158,6 +158,8 @@ namespace clad {
     clang::StringLiteral* CreateStringLiteral(clang::ASTContext& C,
                                               llvm::StringRef str);
 
+    bool isLambdaQType(clang::QualType QT);
+
     /// Returns true if `QT` is Array or Pointer Type, otherwise returns false.
     bool isArrayOrPointerType(clang::QualType QT);
 
