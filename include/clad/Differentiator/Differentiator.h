@@ -126,7 +126,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
 #if defined(__CUDACC__) && !defined(__CUDA_ARCH__)
     if (CUDAkernel) {
       constexpr size_t totalArgs = sizeof...(args) + sizeof...(Rest);
-      std::array<void*, totalArgs> argPtrs = {static_cast<void*>(&args)...,
+      std::array<void*, totalArgs> argPtrs = {(void*)(&args)...,
                                               static_cast<Rest>(nullptr)...};
 
       void* null_param = nullptr;
