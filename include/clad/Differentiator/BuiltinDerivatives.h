@@ -396,6 +396,28 @@ inline void free_pushforward(void* ptr, void* d_ptr) {
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
 
+CUDA_HOST_DEVICE inline void expf_pullback(float a, float d_y, float* d_a) {
+  *d_a += expf(a) * d_y;
+}
+
+CUDA_HOST_DEVICE inline void fabsf_pullback(float a, float d_y, float* d_a) {
+  *d_a += (a >= 0) ? d_y : -d_y;
+}
+
+CUDA_HOST_DEVICE inline void logf_pullback(float a, float d_y, float* d_a) {
+  *d_a += (1.F / a) * d_y;
+}
+
+CUDA_HOST_DEVICE inline void fdividef_pullback(float a, float b, float d_y,
+                                               float* d_a, float* d_b) {
+  *d_a += (1.F / b) * d_y;
+  *d_b += (-a / (b * b)) * d_y;
+}
+
+CUDA_HOST_DEVICE inline void sqrtf_pullback(float a, float d_y, float* d_a) {
+  *d_a += (1.F / (2.F * sqrtf(a))) * d_y;
+}
+
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
 using std::abs_pushforward;
