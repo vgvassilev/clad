@@ -826,11 +826,15 @@ double constVal(double y, const double x) {
 }
 
 //CHECK: void constVal_grad_0(double y, const double x, double *_d_y) {
+//CHECK-NEXT:    double _d_x = 0.;
 //CHECK-NEXT:    double _d_z = 0.;
 //CHECK-NEXT:    const double z = y;
 //CHECK-NEXT:    double _t0 = y;
 //CHECK-NEXT:    y *= z;
-//CHECK-NEXT:    *_d_y += 1 * x;
+//CHECK-NEXT:    {
+//CHECK-NEXT:       *_d_y += 1 * x;
+//CHECK-NEXT:       _d_x += y * 1;
+//CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        y = _t0;
 //CHECK-NEXT:        double _r_d0 = *_d_y;

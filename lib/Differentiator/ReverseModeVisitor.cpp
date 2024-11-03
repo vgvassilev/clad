@@ -705,9 +705,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_DiffReq.Mode == DiffMode::jacobian &&
           i == m_DiffReq->getNumParams() - 1)
         continue;
-      auto VDDerivedType = param->getType();
-      if (VDDerivedType.isConstQualified())
-        continue;
+      auto VDDerivedType = getNonConstType(param->getType(), m_Context, m_Sema);
       // We cannot initialize derived variable for pointer types because
       // we do not know the correct size.
       if (utils::isArrayOrPointerType(VDDerivedType))
