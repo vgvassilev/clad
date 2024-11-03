@@ -91,7 +91,7 @@ __global__ void atomicAdd_kernel(T* destPtr, T* srcPtr, size_t N) {
 }
 
 template <typename T>
-void cudaMemcpy_pullback(T* destPtr, T* srcPtr, size_t count,
+void cudaMemcpy_pullback(T* destPtr, const T* srcPtr, const size_t count,
                          cudaMemcpyKind kind, T* d_destPtr, T* d_srcPtr,
                          size_t* d_count, cudaMemcpyKind* d_kind)
     __attribute__((host)) {

@@ -1821,7 +1821,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // If all arguments are constant literals, then this does not contribute to
     // the gradient.
     // FIXME: revert this when this is integrated in the activity analysis pass.
-    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
+    if (!isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE) &&
+        CE->getCallReturnType(m_Context).getAsString() != "cudaError_t") {
       bool allArgsAreConstantLiterals = true;
       for (const Expr* arg : CE->arguments()) {
         // if it's of type MaterializeTemporaryExpr, then check its
@@ -1845,7 +1846,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // derived function. In the case of member functions, `implicit`
     // this object is always passed by reference.
     if (!dfdx() && !utils::HasAnyReferenceOrPointerArgument(FD) &&
-        !isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE)) {
+        !isa<CXXMemberCallExpr>(CE) && !isa<CXXOperatorCallExpr>(CE) &&
+        CE->getCallReturnType(m_Context).getAsString() != "cudaError_t") {
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
