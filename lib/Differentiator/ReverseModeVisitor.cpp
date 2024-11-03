@@ -1769,11 +1769,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (FD->getNameAsString() == "cudaMalloc") {
         if (auto addrOp = dyn_cast<UnaryOperator>(DerivedCallArgs[0])) {
           if (addrOp->getOpcode() == UO_AddrOf) {
-            DerivedCallArgs[0] =
-                addrOp->getSubExpr(); // *x -> &x in cudaMalloc args
-          }
-        } else { // **x -> x in cudaMalloc args
-          DerivedCallArgs[0] = BuildOp(UO_Deref, DerivedCallArgs[0]);
+            DerivedCallArgs[0] = addrOp->getSubExpr(); // get the pointer
         }
         llvm::SmallVector<Expr*, 3> args = {DerivedCallArgs[0],
                                             getZeroInit(m_Context.IntTy),
