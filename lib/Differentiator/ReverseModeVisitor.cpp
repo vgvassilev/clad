@@ -1933,7 +1933,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               cudaMemcpyKindDecl = enumDecl;
               break;
             }
-          assert(cudaMemcpyKindDecl && "cudaMemcpyKind not found");
+          if (!cudaMemcpyKindDecl) {
+            diag(DiagnosticsEngine::Warning, CE->getEndLoc(),
+                 "Failed to create cudaMemcpy call; cudaMemcpyKind not found");
+          }
           QualType cudaMemcpyKindType =
               m_Context.getTypeDeclType(cudaMemcpyKindDecl);
           EnumConstantDecl* deviceToHostEnumDecl = nullptr;
@@ -1944,7 +1947,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               break;
             }
           }
-          assert(deviceToHostEnumDecl && "cudaMemcpyDeviceToHost not found");
+          if (!deviceToHostEnumDecl) {
+            diag(DiagnosticsEngine::Warning, CE->getEndLoc(),
+                 "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
+                 "found");
+          }
           auto* deviceToHostDeclRef = clad_compat::GetResult<Expr*>(
               m_Sema.BuildDeclRefExpr(deviceToHostEnumDecl, cudaMemcpyKindType,
                                       CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
