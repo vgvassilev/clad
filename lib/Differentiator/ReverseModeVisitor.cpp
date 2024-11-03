@@ -4566,6 +4566,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return subExprDiff;
   }
 
+  StmtDiff ReverseModeVisitor::VisitCXXConstCastExpr(
+      const clang::CXXConstCastExpr* CCE) {
+    StmtDiff subExprDiff = Visit(CCE->getSubExpr(), dfdx());
+    return {Clone(CCE), subExprDiff.getExpr_dx()};
+  }
+
   clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {
     if (T->isReferenceType()) {
       QualType TValueType = utils::GetValueType(T);
