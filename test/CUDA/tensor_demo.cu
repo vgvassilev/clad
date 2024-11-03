@@ -1,6 +1,7 @@
 // RUN: %cladclang_cuda -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -otensor_demo.out %s
 // RUN: ./tensor_demo.out | %filecheck_exec %s
+// REQUIRES: cuda-runtime
 
 
 #include "clad/Differentiator/Differentiator.h"

@@ -1911,8 +1911,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           m_Sema.LookupName(result, m_Sema.getCurScope());
           EnumDecl* cudaMemcpyKindDecl = nullptr;
           for (NamedDecl* decl : result)
-            if ((cudaMemcpyKindDecl = dyn_cast<EnumDecl>(decl)))
+            if (auto* enumDecl = dyn_cast<EnumDecl>(decl)) {
+              cudaMemcpyKindDecl = enumDecl;
               break;
+            }
           assert(cudaMemcpyKindDecl && "cudaMemcpyKind not found");
           QualType cudaMemcpyKindType =
               m_Context.getTypeDeclType(cudaMemcpyKindDecl);
@@ -1925,10 +1927,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             }
           }
           assert(deviceToHostEnumDecl && "cudaMemcpyDeviceToHost not found");
-          DeclRefExpr* deviceToHostDeclRef =
+          auto* deviceToHostDeclRef = clad_compat::GetResult<Expr*>(
               m_Sema.BuildDeclRefExpr(deviceToHostEnumDecl, cudaMemcpyKindType,
                                       CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-                                      SourceLocation(), nullptr);
+                                      SourceLocation(), nullptr));
 
           PreCallStmts.push_back(BuildDeclStmt(dArgDeclCUDA));
           Expr* refOp = BuildOp(UO_AddrOf, BuildDeclRef(dArgDeclCUDA));
