@@ -1766,6 +1766,22 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), Loc,
                              llvm::MutableArrayRef<Expr*>(DerivedCallArgs), Loc)
               .get();
+      if (FD->getNameAsString() == "cudaMalloc") {
+        if (auto addrOp = dyn_cast<UnaryOperator>(DerivedCallArgs[0])) {
+          if (addrOp->getOpcode() == UO_AddrOf) {
+            DerivedCallArgs[0] =
+                addrOp->getSubExpr(); // *x -> &x in cudaMalloc args
+          }
+        } else { // **x -> x in cudaMalloc args
+          DerivedCallArgs[0] = BuildOp(UO_Deref, DerivedCallArgs[0]);
+        }
+        llvm::SmallVector<Expr*, 3> args = {DerivedCallArgs[0],
+                                            getZeroInit(m_Context.IntTy),
+                                            DerivedCallArgs[1]};
+        addToCurrentBlock(call_dx, direction::forward);
+        addToCurrentBlock(GetFunctionCall("cudaMemset", "", args));
+        call_dx = nullptr;
+      }
       return StmtDiff(call, call_dx);
     }
     // For calls to C-style memory deallocation functions, we do not need to
