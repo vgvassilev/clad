@@ -633,6 +633,9 @@ namespace clad {
   }
 
   bool DiffRequest::shouldHaveAdjoint(const VarDecl* VD) const {
+    if (VD->getType().isConstQualified())
+      return false;
+
     if (!EnableVariedAnalysis)
       return true;
 
