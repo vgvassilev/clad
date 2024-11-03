@@ -706,6 +706,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           i == m_DiffReq->getNumParams() - 1)
         continue;
       auto VDDerivedType = param->getType();
+      if (VDDerivedType.isConstQualified())
+        continue;
       // We cannot initialize derived variable for pointer types because
       // we do not know the correct size.
       if (utils::isArrayOrPointerType(VDDerivedType))
@@ -4574,6 +4576,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       const clang::CXXStaticCastExpr* SCE) {
     StmtDiff subExprDiff = Visit(SCE->getSubExpr(), dfdx());
     return subExprDiff;
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXConstCastExpr(
+      const clang::CXXConstCastExpr* CCE) {
+    StmtDiff subExprDiff = Visit(CCE->getSubExpr(), dfdx());
+    return {Clone(CCE), subExprDiff.getExpr_dx()};
   }
 
   clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {

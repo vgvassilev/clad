@@ -425,6 +425,7 @@ namespace clad {
     StmtDiff
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
+    StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
