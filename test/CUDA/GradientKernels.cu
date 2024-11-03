@@ -451,6 +451,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:    double *_d_in_dev = nullptr;
 //CHECK-NEXT:    double *in_dev = nullptr;
 //CHECK-NEXT:    cudaMalloc(&_d_in_dev, 10 * sizeof(double));
+//CHECK-NEXT:    cudaMemset(_d_in_dev, 0, 10 * sizeof(double));
 //CHECK-NEXT:    cudaMalloc(&in_dev, 10 * sizeof(double));
 //CHECK-NEXT:    cudaMemcpy(in_dev, in, 10 * sizeof(double), cudaMemcpyHostToDevice);
 //CHECK-NEXT:    kernel_call<<<1, 10>>>(out, in_dev);
