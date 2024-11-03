@@ -706,6 +706,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           i == m_DiffReq->getNumParams() - 1)
         continue;
       auto VDDerivedType = param->getType();
+      if (VDDerivedType.isConstQualified())
+        continue;
       // We cannot initialize derived variable for pointer types because
       // we do not know the correct size.
       if (utils::isArrayOrPointerType(VDDerivedType))
