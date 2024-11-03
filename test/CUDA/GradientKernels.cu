@@ -608,18 +608,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
-//CHECK-NEXT:        *_d_val += _d_y;
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((global)) void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N) {
+// CHECK: __attribute__((global)) void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N)  {
 //CHECK-NEXT:    bool _cond0;
 //CHECK-NEXT:    int _d_sum = 0;
 //CHECK-NEXT:    int sum = 0;
@@ -676,6 +665,17 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:            }
 //CHECK-NEXT:            _d_index += _d_i;
 //CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
+// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        atomicAdd(&_d_in[index0], _d_y);
+//CHECK-NEXT:        *_d_val += _d_y;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -944,7 +944,7 @@ int main(void) {
   for(int i = 0; i < 10; i++) { fives_int[i] = 5; out_res[i] = 5; }
 
   launch_kernel_4_test.execute(zeros_int, fives_int, 10, out_res, in_res);
-  printf("%d, %d, %d\n", in_res[0], in_res[1], in_res[2]); // CHECK-EXEC: 5, 5 5
+  printf("%d, %d, %d\n", in_res[0], in_res[1], in_res[2]); // CHECK-EXEC: 5, 5, 5
 
   free(res);
   free(fives);
