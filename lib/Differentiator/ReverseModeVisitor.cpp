@@ -1934,7 +1934,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               break;
             }
           if (!cudaMemcpyKindDecl) {
-            diag(DiagnosticsEngine::Warning, CE->getEndLoc(),
+            diag(DiagnosticsEngine::Error, CE->getEndLoc(),
                  "Failed to create cudaMemcpy call; cudaMemcpyKind not found");
           }
           QualType cudaMemcpyKindType =
@@ -1948,7 +1948,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             }
           }
           if (!deviceToHostEnumDecl) {
-            diag(DiagnosticsEngine::Warning, CE->getEndLoc(),
+            diag(DiagnosticsEngine::Error, CE->getEndLoc(),
                  "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
                  "found");
           }
