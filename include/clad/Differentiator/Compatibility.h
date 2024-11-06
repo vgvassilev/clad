@@ -178,7 +178,7 @@ static inline IfStmt* IfStmt_Create(const ASTContext &Ctx,
 #endif
 }
 
-// Compatibility helper function for creation CallExpr.
+// Compatibility helper function for creation CallExpr and CUDAKernelCallExpr.
 // Clang 12 and above use one extra param.
 
 #if CLANG_VERSION_MAJOR < 12
@@ -188,12 +188,31 @@ static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRe
 {
    return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, MinNumArgs, UsesADL);
 }
+
+static inline CUDAKernelCallExpr*
+CUDAKernelCallExpr_Create(const ASTContext& Ctx, Expr* Fn, CallExpr* Config,
+                          ArrayRef<Expr*> Args, QualType Ty, ExprValueKind VK,
+                          SourceLocation RParenLoc, unsigned MinNumArgs = 0,
+                          CallExpr::ADLCallKind UsesADL = CallExpr::NotADL) {
+  return CUDAKernelCallExpr::Create(Ctx, Fn, Config, Args, Ty, VK, RParenLoc,
+                                    MinNumArgs);
+}
 #elif CLANG_VERSION_MAJOR >= 12
 static inline CallExpr* CallExpr_Create(const ASTContext &Ctx, Expr *Fn, ArrayRef< Expr *> Args,
    QualType Ty, ExprValueKind VK, SourceLocation RParenLoc, FPOptionsOverride FPFeatures,
    unsigned MinNumArgs = 0, CallExpr::ADLCallKind UsesADL = CallExpr::NotADL)
 {
    return CallExpr::Create(Ctx, Fn, Args, Ty, VK, RParenLoc, FPFeatures, MinNumArgs, UsesADL);
+}
+
+static inline CUDAKernelCallExpr*
+CUDAKernelCallExpr_Create(const ASTContext& Ctx, Expr* Fn, CallExpr* Config,
+                          ArrayRef<Expr*> Args, QualType Ty, ExprValueKind VK,
+                          SourceLocation RParenLoc,
+                          FPOptionsOverride FPFeatures, unsigned MinNumArgs = 0,
+                          CallExpr::ADLCallKind UsesADL = CallExpr::NotADL) {
+  return CUDAKernelCallExpr::Create(Ctx, Fn, Config, Args, Ty, VK, RParenLoc,
+                                    FPFeatures, MinNumArgs);
 }
 #endif
 

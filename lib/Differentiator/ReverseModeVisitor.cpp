@@ -1948,15 +1948,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             diag(DiagnosticsEngine::Error, CE->getEndLoc(),
                  "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
                  "found. Creating kernel pullback aborted.");
-            for (std::size_t a = 0; a < CE->getNumArgs(); ++a)
-              CallArgs.push_back(
-                  Clone(CE->getArg(a))); // create a non-const copy
-            Expr* call =
-                m_Sema
-                    .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                   Loc, CallArgs, Loc, CUDAExecConfig)
-                    .get();
-            return StmtDiff(call);
+            return Clone(CE);
           }
           CXXScopeSpec SS;
           Expr* deviceToHostExpr =
@@ -1965,20 +1957,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                             /*ADL=*/false)
                   .get();
           if (!deviceToHostExpr) {
-            diag(
-                DiagnosticsEngine::Error, CE->getEndLoc(),
-                "Failed to create cudaMemcpy call; Failed to create expression "
-                "for cudaMemcpyDeviceToHost. Creating kernel pullback "
-                "aborted.");
-            for (std::size_t a = 0; a < CE->getNumArgs(); ++a)
-              CallArgs.push_back(
-                  Clone(CE->getArg(a))); // create a non-const copy
-            Expr* call =
-                m_Sema
-                    .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                   Loc, CallArgs, Loc, CUDAExecConfig)
-                    .get();
-            return StmtDiff(call);
+            diag(DiagnosticsEngine::Error, CE->getEndLoc(),
+                 "Failed to create cudaMemcpy call; Failed to create "
+                 "expression "
+                 "for cudaMemcpyDeviceToHost. Creating kernel pullback "
+                 "aborted.");
+            return Clone(CE);
           }
 
           // Add calls to cudaMalloc, cudaMemset, cudaMemcpy, and cudaFree

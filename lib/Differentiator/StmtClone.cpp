@@ -327,6 +327,21 @@ Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
   return result;
 }
 
+Stmt* StmtClone::VisitCUDAKernelCallExpr(CUDAKernelCallExpr* Node) {
+  CUDAKernelCallExpr* result = clad_compat::CUDAKernelCallExpr_Create(
+      Ctx, Clone(Node->getCallee()), Clone(Node->getConfig()),
+      llvm::ArrayRef<Expr*>(), CloneType(Node->getType()), Node->getValueKind(),
+      Node->getRParenLoc() CLAD_COMPAT_CLANG8_CallExpr_ExtraParams);
+  result->setNumArgsUnsafe(Node->getNumArgs());
+  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
+    result->setArg(i, Clone(Node->getArg(i)));
+
+  // Copy Value and Type dependent
+  clad_compat::ExprSetDeps(result, Node);
+
+  return result;
+}
+
 Stmt* StmtClone::VisitUnresolvedLookupExpr(UnresolvedLookupExpr* Node) {
   TemplateArgumentListInfo TemplateArgs;
   if (Node->hasExplicitTemplateArgs())
