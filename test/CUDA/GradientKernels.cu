@@ -519,6 +519,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 }
 
 // CHECK: void launch_add_kernel_4_grad_0_1(int *out, int *in, const int N, int *_d_out, int *_d_in) {
+//CHECK-NEXT:    int _d_N = 0;
 //CHECK-NEXT:    int *_d_in_dev = nullptr;
 //CHECK-NEXT:    int *in_dev = nullptr;
 //CHECK-NEXT:    cudaMalloc(&_d_in_dev, N * sizeof(int));
@@ -537,6 +538,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:        unsigned long _r6 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r7 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out, out_dev, N * sizeof(int), cudaMemcpyDeviceToHost, _d_out, _d_out_dev, &_r6, &_r7);
+//CHECK-NEXT:        _d_N += _r6 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        int _r4 = 0;
@@ -546,11 +548,13 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:        add_kernel_4_pullback<<<1, 5>>>(out_dev, in_dev, N, _d_out_dev, _d_in_dev, _r5);
 //CHECK-NEXT:        cudaMemcpy(&_r4, _r5, 4, cudaMemcpyDeviceToHost);
 //CHECK-NEXT:        cudaFree(_r5);
+//CHECK-NEXT:        _d_N += _r4;
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r2 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r3 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(out_dev, out, N * sizeof(int), cudaMemcpyHostToDevice, _d_out_dev, _d_out, &_r2, &_r3);
+//CHECK-NEXT:        _d_N += _r2 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {
 //CHECK-NEXT:        unsigned long _r0 = 0UL;
