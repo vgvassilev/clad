@@ -1942,14 +1942,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
 
           // Create the cudaMemcpyDeviceToHost argument
-          IdentifierInfo* deviceToHostIdInfo =
-              &m_Context.Idents.get("cudaMemcpyDeviceToHost");
-          DeclarationName deviceToHostName(deviceToHostIdInfo);
-          LookupResult deviceToHostResult(m_Sema, deviceToHostName,
-                                          SourceLocation(),
-                                          Sema::LookupOrdinaryName);
-          m_Sema.LookupQualifiedName(deviceToHostResult,
-                                     m_Context.getTranslationUnitDecl());
+          LookupResult deviceToHostResult =
+              utils::LookupQualifiedName("cudaMemcpyDeviceToHost", m_Sema);
           if (deviceToHostResult.empty()) {
             diag(DiagnosticsEngine::Error, CE->getEndLoc(),
                  "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
