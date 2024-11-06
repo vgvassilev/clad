@@ -560,6 +560,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:        unsigned long _r0 = 0UL;
 //CHECK-NEXT:        cudaMemcpyKind _r1 = static_cast<cudaMemcpyKind>(0U);
 //CHECK-NEXT:        clad::custom_derivatives::cudaMemcpy_pullback(in_dev, in, N * sizeof(int), cudaMemcpyHostToDevice, _d_in_dev, _d_in, &_r0, &_r1);
+//CHECK-NEXT:        _d_N += _r0 * sizeof(int);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    cudaFree(in_dev);
 //CHECK-NEXT:    cudaFree(_d_in_dev);
