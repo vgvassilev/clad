@@ -541,10 +541,10 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        int _r4 = 0;
 //CHECK-NEXT:        int *_r5 = nullptr;
-//CHECK-NEXT:        cudaMalloc(&_r5, 32);
-//CHECK-NEXT:        cudaMemset(_r5, 0, 32);
+//CHECK-NEXT:        cudaMalloc(&_r5, 4);
+//CHECK-NEXT:        cudaMemset(_r5, 0, 4);
 //CHECK-NEXT:        add_kernel_4_pullback<<<1, 5>>>(out_dev, in_dev, N, _d_out_dev, _d_in_dev, _r5);
-//CHECK-NEXT:        cudaMemcpy(&_r4, _r5, 32, cudaMemcpyDeviceToHost);
+//CHECK-NEXT:        cudaMemcpy(&_r4, _r5, 4, cudaMemcpyDeviceToHost);
 //CHECK-NEXT:        cudaFree(_r5);
 //CHECK-NEXT:    }
 //CHECK-NEXT:    {

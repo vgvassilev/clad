@@ -1913,50 +1913,81 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         PreCallStmts.push_back(BuildDeclStmt(dArgDecl));
         DeclRefExpr* dArgRef = BuildDeclRef(dArgDecl);
         if (isa<CUDAKernelCallExpr>(CE)) {
-          // Create variables to be allocated on the device and passed to
-          // kernel. These need to be pointers because cudaMlloc expects a
-          // double pointer as an arg.
+          // Create variables to be allocated and initialized on the device, and
+          // then be passed to the kernel pullback.
+          //
+          // These need to be pointers because cudaMalloc expects a double
+          // pointer as an arg.
+          // The memory addresses they point to are initialized to zero through
+          // cudaMemset.
+          // After the pullback call, their values will be copied back to the
+          // corresponding _r variables on the host and the device variables
+          // will be freed.
+          //
+          // Example of the generated code:
+          //
+          // double _r0 = 0;
+          // double* _r1 = nullptr;
+          // cudaMalloc(&_r1, sizeof(double));
+          // cudaMemset(_r1, 0, 8);
+          // kernel_pullback<<<...>>>(..., _r1);
+          // cudaMemcpy(&_r0, _r1, 8, cudaMemcpyDeviceToHost);
+          // cudaFree(_r1);
+
+          // Create a literal for the size of the type
           Expr* sizeLiteral = ConstantFolder::synthesizeLiteral(
-              m_Context.IntTy, m_Context, m_Context.getTypeSize(dArgTy));
+              m_Context.IntTy, m_Context, m_Context.getTypeSize(dArgTy) / 8);
           dArgTy = m_Context.getPointerType(dArgTy);
           VarDecl* dArgDeclCUDA =
               BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
 
           // Create the cudaMemcpyDeviceToHost argument
-          IdentifierInfo* idInfo = &m_Context.Idents.get("cudaMemcpyKind");
-          LookupResult result(m_Sema, idInfo, SourceLocation(),
-                              Sema::LookupOrdinaryName);
-          m_Sema.LookupName(result, m_Sema.getCurScope());
-          EnumDecl* cudaMemcpyKindDecl = nullptr;
-          for (NamedDecl* decl : result)
-            if (auto* enumDecl = dyn_cast<EnumDecl>(decl)) {
-              cudaMemcpyKindDecl = enumDecl;
-              break;
-            }
-          if (!cudaMemcpyKindDecl) {
-            diag(DiagnosticsEngine::Error, CE->getEndLoc(),
-                 "Failed to create cudaMemcpy call; cudaMemcpyKind not found");
-          }
-          QualType cudaMemcpyKindType =
-              m_Context.getTypeDeclType(cudaMemcpyKindDecl);
-          EnumConstantDecl* deviceToHostEnumDecl = nullptr;
-          for (EnumConstantDecl* enumConst :
-               cudaMemcpyKindDecl->enumerators()) {
-            if (enumConst->getName() == "cudaMemcpyDeviceToHost") {
-              deviceToHostEnumDecl = enumConst;
-              break;
-            }
-          }
-          if (!deviceToHostEnumDecl) {
+          IdentifierInfo* deviceToHostIdInfo =
+              &m_Context.Idents.get("cudaMemcpyDeviceToHost");
+          DeclarationName deviceToHostName(deviceToHostIdInfo);
+          LookupResult deviceToHostResult(m_Sema, deviceToHostName,
+                                          SourceLocation(),
+                                          Sema::LookupOrdinaryName);
+          m_Sema.LookupQualifiedName(deviceToHostResult,
+                                     m_Context.getTranslationUnitDecl());
+          if (deviceToHostResult.empty()) {
             diag(DiagnosticsEngine::Error, CE->getEndLoc(),
                  "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
-                 "found");
+                 "found. Creating kernel pullback aborted.");
+            for (std::size_t a = 0; a < CE->getNumArgs(); ++a)
+              CallArgs.push_back(
+                  Clone(CE->getArg(a))); // create a non-const copy
+            Expr* call =
+                m_Sema
+                    .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                   Loc, CallArgs, Loc, CUDAExecConfig)
+                    .get();
+            return StmtDiff(call);
           }
-          auto* deviceToHostDeclRef = clad_compat::GetResult<Expr*>(
-              m_Sema.BuildDeclRefExpr(deviceToHostEnumDecl, cudaMemcpyKindType,
-                                      CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-                                      SourceLocation(), nullptr));
+          CXXScopeSpec SS;
+          Expr* deviceToHostExpr =
+              m_Sema
+                  .BuildDeclarationNameExpr(SS, deviceToHostResult,
+                                            /*ADL=*/false)
+                  .get();
+          if (!deviceToHostExpr) {
+            diag(
+                DiagnosticsEngine::Error, CE->getEndLoc(),
+                "Failed to create cudaMemcpy call; Failed to create expression "
+                "for cudaMemcpyDeviceToHost. Creating kernel pullback "
+                "aborted.");
+            for (std::size_t a = 0; a < CE->getNumArgs(); ++a)
+              CallArgs.push_back(
+                  Clone(CE->getArg(a))); // create a non-const copy
+            Expr* call =
+                m_Sema
+                    .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
+                                   Loc, CallArgs, Loc, CUDAExecConfig)
+                    .get();
+            return StmtDiff(call);
+          }
 
+          // Add calls to cudaMalloc, cudaMemset, cudaMemcpy, and cudaFree
           PreCallStmts.push_back(BuildDeclStmt(dArgDeclCUDA));
           Expr* refOp = BuildOp(UO_AddrOf, BuildDeclRef(dArgDeclCUDA));
           llvm::SmallVector<Expr*, 3> mallocArgs = {refOp, sizeLiteral};
@@ -1967,7 +1998,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           PreCallStmts.push_back(GetFunctionCall("cudaMemset", "", memsetArgs));
           llvm::SmallVector<Expr*, 4> cudaMemcpyArgs = {
               BuildOp(UO_AddrOf, dArgRef), BuildDeclRef(dArgDeclCUDA),
-              sizeLiteral, deviceToHostDeclRef};
+              sizeLiteral, deviceToHostExpr};
           PostCallStmts.push_back(
               GetFunctionCall("cudaMemcpy", "", cudaMemcpyArgs));
           llvm::SmallVector<Expr*, 3> freeArgs = {BuildDeclRef(dArgDeclCUDA)};
