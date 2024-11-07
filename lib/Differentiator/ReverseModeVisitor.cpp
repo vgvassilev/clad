@@ -1800,6 +1800,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // subexpression.
         if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
           arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
+        // FIXME: We should consider moving this code in the VariedAnalysis
+        // where we could decide to remove pullback requests from the
+        // diff graph.
         class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
           const DiffRequest& Request;
 
