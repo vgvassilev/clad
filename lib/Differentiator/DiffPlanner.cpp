@@ -636,11 +636,19 @@ namespace clad {
     if (!EnableVariedAnalysis)
       return true;
 
-    if (VD->getType()->isPointerType() || isa<ArrayType>(VD->getType()))
-      return true;
-
     if (!m_ActivityRunInfo.HasAnalysisRun) {
-      std::copy(Function->param_begin(), Function->param_end(),
+      ArrayRef<ParmVarDecl*> FDparam = Function->parameters();
+      std::vector<ParmVarDecl*> derivedParam;
+
+      for (auto* parameter : FDparam) {
+        QualType parType = parameter->getType();
+        while (parType->isPointerType())
+          parType = parType->getPointeeType();
+        if (!parType.isConstQualified())
+          derivedParam.push_back(parameter);
+      }
+
+      std::copy(derivedParam.begin(), derivedParam.end(),
                 std::inserter(m_ActivityRunInfo.ToBeRecorded,
                               m_ActivityRunInfo.ToBeRecorded.end()));
 

@@ -264,6 +264,46 @@ double f8(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double fn9(double x, double const *obs)
+{
+   double res = 0.0;
+   for (int loopIdx0 = 0; loopIdx0 < 2; loopIdx0++) {
+      res += std::lgamma(obs[2 + loopIdx0] + 1) + x;
+   }
+   return res;
+}
+
+// CHECK: void fn9_grad(double x, const double *obs, double *_d_x, double *_d_obs) {
+// CHECK-NEXT:     int loopIdx0 = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0.;
+// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     for (loopIdx0 = 0; ; loopIdx0++) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(loopIdx0 < 2))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, res);
+// CHECK-NEXT:         res += std::lgamma(obs[2 + loopIdx0] + 1) + x;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_res += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         loopIdx0--;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             res = clad::pop(_t1);
+// CHECK-NEXT:             double _r_d0 = _d_res;
+// CHECK-NEXT:             *_d_x += _r_d0;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
@@ -272,7 +312,10 @@ double f8(double x){
 }
 
 int main(){
+    double arr[] = {1,2,3,4,5};
+    double darr[] = {0,0,0,0,0};
     double result[3] = {};
+    double dx;
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
     TEST(f3, 3);// CHECK-EXEC: {0.00}
@@ -281,6 +324,9 @@ int main(){
     TEST(f6, 3);// CHECK-EXEC: {0.00}
     TEST(f7, 3);// CHECK-EXEC: {1.00}
     TEST(f8, 3);// CHECK-EXEC: {1.00}
+    auto grad = clad::gradient<clad::opts::enable_va>(fn9);
+    grad.execute(3, arr, &dx, darr);
+    printf("%.2f\n", dx);// CHECK-EXEC: 2.00
 }
 
 // CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {

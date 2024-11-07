@@ -122,15 +122,11 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
-    m_Varied = true;
-    m_Marking = true;
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
       TraverseStmt(par);
       m_VariedDecls.insert(FDparam[i]);
     }
-    m_Varied = false;
-    m_Marking = false;
   }
   return true;
 }
@@ -141,7 +137,8 @@ bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
       m_Varied = false;
       TraverseStmt(init);
       m_Marking = true;
-      if (m_Varied)
+      QualType VDTy = cast<VarDecl>(D)->getType();
+      if (m_Varied || utils::isArrayOrPointerType(VDTy))
         copyVarToCurBlock(cast<VarDecl>(D));
       m_Marking = false;
     }

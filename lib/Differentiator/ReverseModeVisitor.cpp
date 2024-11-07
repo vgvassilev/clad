@@ -1826,7 +1826,27 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // subexpression.
         if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
           arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
-        if (!arg->isEvaluatable(m_Context)) {
+        // FIXME: We should consider moving this code in the VariedAnalysis
+        // where we could decide to remove pullback requests from the
+        // diff graph.
+        class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
+          const DiffRequest& Request;
+
+        public:
+          VariedChecker(const DiffRequest& DR) : Request(DR) {}
+          bool isVariedE(const clang::Expr* E) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+            return !TraverseStmt(const_cast<clang::Expr*>(E));
+          }
+          bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
+            if (!isa<VarDecl>(DRE->getDecl()))
+              return true;
+            if (Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
+              return false;
+            return true;
+          }
+        } analyzer(m_DiffReq);
+        if (analyzer.isVariedE(arg)) {
           allArgsAreConstantLiterals = false;
           break;
         }
