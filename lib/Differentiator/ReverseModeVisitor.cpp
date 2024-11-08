@@ -1916,8 +1916,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           // Create variables to be allocated and initialized on the device, and
           // then be passed to the kernel pullback.
           //
-          // These need to be pointers because cudaMalloc expects a double
-          // pointer as an arg.
+          // These need to be pointers because cudaMalloc expects a
+          // pointer-to-pointer as an arg.
           // The memory addresses they point to are initialized to zero through
           // cudaMemset.
           // After the pullback call, their values will be copied back to the
