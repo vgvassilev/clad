@@ -1948,7 +1948,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             diag(DiagnosticsEngine::Error, CE->getEndLoc(),
                  "Failed to create cudaMemcpy call; cudaMemcpyDeviceToHost not "
                  "found. Creating kernel pullback aborted.");
-            return Clone(CE);
+            return StmtDiff(Clone(CE));
           }
           CXXScopeSpec SS;
           Expr* deviceToHostExpr =
@@ -1956,14 +1956,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                   .BuildDeclarationNameExpr(SS, deviceToHostResult,
                                             /*ADL=*/false)
                   .get();
-          if (!deviceToHostExpr) {
-            diag(DiagnosticsEngine::Error, CE->getEndLoc(),
-                 "Failed to create cudaMemcpy call; Failed to create "
-                 "expression "
-                 "for cudaMemcpyDeviceToHost. Creating kernel pullback "
-                 "aborted.");
-            return Clone(CE);
-          }
 
           // Add calls to cudaMalloc, cudaMemset, cudaMemcpy, and cudaFree
           PreCallStmts.push_back(BuildDeclStmt(dArgDeclCUDA));
