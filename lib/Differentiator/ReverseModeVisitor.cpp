@@ -2303,6 +2303,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActBeforeFinalizingVisitCallExpr(
           CE, OverloadedDerivedFn, DerivedCallArgs, CallArgDx, asGrad);
 
+    if (isa<CUDAKernelCallExpr>(CE))
+      return StmtDiff(Clone(CE));
+
     Expr* call = nullptr;
 
     QualType returnType = FD->getReturnType();
