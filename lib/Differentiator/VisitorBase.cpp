@@ -106,21 +106,30 @@ namespace clad {
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     VarDecl::InitializationStyle IS, bool pushCodeSynthCtxt) {
     return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
-                        TSI, IS);
+                        TSI, IS, pushCodeSynthCtxt);
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Scope* Scope, Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     VarDecl::InitializationStyle IS, bool pushCodeSynthCtxt) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
     auto* VD = VarDecl::Create(
         m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
         m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 
+    bool isLambda = false;
     if (Init) {
+      if (const RecordType* RT = Init->getType()->getAs<RecordType>()) {
+        if (const CXXRecordDecl* RD = dyn_cast<CXXRecordDecl>(RT->getDecl()))
+          isLambda = RD->isLambda();
+      }
+      if (isLambda || pushCodeSynthCtxt) {
+        clang::Sema::CodeSynthesisContext csc;
+        m_Sema.pushCodeSynthesisContext(csc);
+      }
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
       VD->setInitStyle(IS);
     } else {
@@ -129,6 +138,8 @@ namespace clad {
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
     m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
+    if (Init && (isLambda || pushCodeSynthCtxt))
+      m_Sema.popCodeSynthesisContext();
     return VD;
   }
 
@@ -141,9 +152,9 @@ namespace clad {
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     VarDecl::InitializationStyle IS, bool pushCodeSynthCtxt) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
-                        TSI, IS);
+                        TSI, IS, pushCodeSynthCtxt);
   }
 
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,

@@ -357,6 +357,11 @@ namespace clad {
         llvm::SmallVectorImpl<clang::Expr*>& outputArgs,
         clang::Expr* CUDAExecConfig = nullptr);
 
+    clang::CXXRecordDecl*
+    diffLambdaCXXRecordDecl(const clang::CXXRecordDecl* Original);
+    clang::CXXMethodDecl*
+    DifferentiateCallOperatorIfLambda(const clang::CXXRecordDecl* RD);
+
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
     virtual ~ReverseModeVisitor();
@@ -383,6 +388,7 @@ namespace clad {
     DerivativeAndOverload DerivePullback();
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
+    StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);
     StmtDiff VisitCallExpr(const clang::CallExpr* CE);
     virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);

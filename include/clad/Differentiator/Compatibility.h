@@ -403,6 +403,16 @@ getConstantArrayType(const ASTContext& Ctx, QualType EltTy,
    #define CLAD_COMPAT_CLANG15_Declarator_DeclarationAttrs_ExtraParam clang::ParsedAttributesView::none(),
 #endif
 
+#if CLANG_VERSION_MAJOR > 12
+#define CLAD_COMPAT_CXXRecordDecl_CreateLambda_DependencyKind(                 \
+    LAMBDACXXRECORDDECL)                                                       \
+  LAMBDACXXRECORDDECL->getLambdaDependencyKind()
+#else
+#define CLAD_COMPAT_CXXRecordDecl_CreateLambda_DependencyKind(                 \
+    LAMBDACXXRECORDDECL)                                                       \
+  LAMBDACXXRECORDDECL->isDependentLambda()
+#endif
+
 // Clang 12 add one extra param (FPO) that we get from Node in Create method of:
 // ImplicitCastExpr, CStyleCastExpr, CXXStaticCastExpr and CXXFunctionalCastExpr
 
