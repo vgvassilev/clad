@@ -313,13 +313,30 @@ Stmt* StmtClone::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Node) {
 }
 
 Stmt* StmtClone::VisitCallExpr(CallExpr* Node) {
+  llvm::SmallVector<Expr*, 4> clonedArgs;
+  for (Expr* arg : Node->arguments())
+    clonedArgs.push_back(Clone(arg));
+
   CallExpr* result = clad_compat::CallExpr_Create(
-      Ctx, Clone(Node->getCallee()), llvm::ArrayRef<Expr*>(),
+      Ctx, Clone(Node->getCallee()), clonedArgs, CloneType(Node->getType()),
+      Node->getValueKind(),
+      Node->getRParenLoc() CLAD_COMPAT_CLANG8_CallExpr_ExtraParams);
+
+  // Copy Value and Type dependent
+  clad_compat::ExprSetDeps(result, Node);
+
+  return result;
+}
+
+Stmt* StmtClone::VisitCUDAKernelCallExpr(CUDAKernelCallExpr* Node) {
+  llvm::SmallVector<Expr*, 4> clonedArgs;
+  for (Expr* arg : Node->arguments())
+    clonedArgs.push_back(Clone(arg));
+
+  CUDAKernelCallExpr* result = clad_compat::CUDAKernelCallExpr_Create(
+      Ctx, Clone(Node->getCallee()), Clone(Node->getConfig()), clonedArgs,
       CloneType(Node->getType()), Node->getValueKind(),
       Node->getRParenLoc() CLAD_COMPAT_CLANG8_CallExpr_ExtraParams);
-  result->setNumArgsUnsafe(Node->getNumArgs());
-  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
-    result->setArg(i, Clone(Node->getArg(i)));
 
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
@@ -352,11 +369,6 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
       Node->getFPFeatures()
           CLAD_COMPAT_CLANG11_CXXOperatorCallExpr_Create_ExtraParamsUse);
 
-  //###  result->setNumArgs(Ctx, Node->getNumArgs());
-  result->setNumArgsUnsafe(Node->getNumArgs());
-  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
-    result->setArg(i, Clone(Node->getArg(i)));
-
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
 
@@ -364,16 +376,15 @@ Stmt* StmtClone::VisitCXXOperatorCallExpr(CXXOperatorCallExpr* Node) {
 }
 
 Stmt* StmtClone::VisitCXXMemberCallExpr(CXXMemberCallExpr * Node) {
+  llvm::SmallVector<Expr*, 4> clonedArgs;
+  for (Expr* arg : Node->arguments())
+    clonedArgs.push_back(Clone(arg));
+
   CXXMemberCallExpr* result = clad_compat::CXXMemberCallExpr_Create(
-      Ctx, Clone(Node->getCallee()), {}, CloneType(Node->getType()),
+      Ctx, Clone(Node->getCallee()), clonedArgs, CloneType(Node->getType()),
       Node->getValueKind(),
       Node->getRParenLoc()
       /*FP*/ CLAD_COMPAT_CLANG12_CastExpr_GetFPO(Node));
-  // ###  result->setNumArgs(Ctx, Node->getNumArgs());
-  result->setNumArgsUnsafe(Node->getNumArgs());
-
-  for (unsigned i = 0, e = Node->getNumArgs(); i < e; ++i)
-    result->setArg(i, Clone(Node->getArg(i)));
 
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);

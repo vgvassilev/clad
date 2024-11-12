@@ -104,6 +104,7 @@ namespace utils {
     DECLARE_CLONE_FN(ExtVectorElementExpr)
     DECLARE_CLONE_FN(UnaryExprOrTypeTraitExpr)
     DECLARE_CLONE_FN(CallExpr)
+    DECLARE_CLONE_FN(CUDAKernelCallExpr)
     DECLARE_CLONE_FN(ShuffleVectorExpr)
     DECLARE_CLONE_FN(ExprWithCleanups)
     DECLARE_CLONE_FN(CXXOperatorCallExpr)

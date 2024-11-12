@@ -251,6 +251,18 @@ namespace clad {
       return DC->getPrimaryContext();
     }
 
+    LookupResult LookupQualifiedName(llvm::StringRef name, clang::Sema& S,
+                                     clang::DeclContext* DC) {
+      ASTContext& C = S.getASTContext();
+      DeclarationName declName = &C.Idents.get(name);
+      LookupResult Result(S, declName, SourceLocation(),
+                          Sema::LookupOrdinaryName);
+      if (!DC)
+        DC = C.getTranslationUnitDecl();
+      S.LookupQualifiedName(Result, DC);
+      return Result;
+    }
+
     NamespaceDecl* LookupNSD(Sema& S, llvm::StringRef namespc, bool shouldExist,
                              DeclContext* DC) {
       ASTContext& C = S.getASTContext();

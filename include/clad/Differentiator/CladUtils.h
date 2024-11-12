@@ -128,6 +128,16 @@ namespace clad {
                                         clang::DeclContext* DC1,
                                         clang::DeclContext* DC2);
 
+    /// Finds the qualified name `name` in the declaration context `DC`.
+    ///
+    /// \param[in] name
+    /// \param[in] S
+    /// \param[in] DC
+    /// \returns lookup result.
+    clang::LookupResult LookupQualifiedName(llvm::StringRef name,
+                                            clang::Sema& S,
+                                            clang::DeclContext* DC = nullptr);
+
     /// Finds namespace 'namespc` under the declaration context `DC` or the
     /// translation unit declaration if `DC` is null.
     ///
