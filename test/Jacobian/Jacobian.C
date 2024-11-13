@@ -163,6 +163,31 @@ void f_7(double a, double& b, double&c) {
 // CHECK-NEXT:     c = -5 * b;
 // CHECK-NEXT: }
 
+void f_8(double a, double b, double output[]) {
+  double a3 = a * a * a;
+  output[0] = a3;
+  output[1] = a3 + b * b * b;
+  output[2] = 2 * (a + b);
+}
+
+// CHECK: void f_8_jac(double a, double b, double output[], clad::matrix<double> *_d_vector_output) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_output->rows() + 2UL;
+// CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, 0UL);
+// CHECK-NEXT:     clad::array<double> _d_vector_b = clad::one_hot_vector(indepVarCount, 1UL);
+// CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, 2UL);
+// CHECK-NEXT:     double _t0 = a * a;
+// CHECK-NEXT:     clad::array<double> _d_vector_a3((_d_vector_a * a + a * _d_vector_a) * a + _t0 * _d_vector_a);
+// CHECK-NEXT:     double a3 = _t0 * a;
+// CHECK-NEXT:     *_d_vector_output[0] = _d_vector_a3;
+// CHECK-NEXT:     output[0] = a3;
+// CHECK-NEXT:     double _t1 = b * b;
+// CHECK-NEXT:     *_d_vector_output[1] = _d_vector_a3 + (_d_vector_b * b + b * _d_vector_b) * b + _t1 * _d_vector_b;
+// CHECK-NEXT:     output[1] = a3 + _t1 * b;
+// CHECK-NEXT:     double _t2 = (a + b);
+// CHECK-NEXT:     *_d_vector_output[2] = (clad::zero_vector(indepVarCount)) * _t2 + 2 * (_d_vector_a + _d_vector_b);
+// CHECK-NEXT:     output[2] = 2 * _t2;
+// CHECK-NEXT: }
+
 
 #define TEST(F, ...) { \
   outputarr[0] = 0; outputarr[1] = 1; outputarr[2] = 0;\
@@ -205,7 +230,8 @@ int main() {
   double a7=4, b=5, c=6;
   df7.execute(a7, b, c, &db, &dc);
   printf("Result is = {%.2f, %.2f}\n", db[0], dc[0]); // CHECK-EXEC: Result is = {3.00, -15.00}
-  
+
+  TEST(f_8, 4, -3, outputarr); // CHECK-EXEC: Result is = {48.00, 0.00, 0.00, 48.00, 27.00, 0.00, 2.00, 2.00, 0.00} 
 }
 
 // CHECK: clad::ValueAndPushforward<double, clad::array<double> > multiply_vector_pushforward(double x, double y, clad::array<double> _d_x, clad::array<double> _d_y) {
