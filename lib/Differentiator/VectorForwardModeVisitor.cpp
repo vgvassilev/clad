@@ -58,7 +58,7 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
   assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
 
   DiffParams args{};
-  for (auto dParam : m_DiffReq.DVI)
+  for (const auto& dParam : m_DiffReq.DVI)
     args.push_back(dParam.param);
 
   // Generate name for the derivative function.
