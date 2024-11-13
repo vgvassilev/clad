@@ -140,13 +140,16 @@ float f_literal_args_func(float x, float y, float *z) {
   printf("hello world ");
   return x * f_literal_helper(0.5, 'a', z, nullptr);
 }
+// CHECK: clad::ValueAndPushforward<float, float> f_literal_helper_pushforward(float x, char ch, float *p, float *q, float _d_x, char _d_ch, float *_d_p, float *_d_q);
 
 // CHECK: float f_literal_args_func_darg0(float x, float y, float *z) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
+// CHECK-NEXT: clad::array<float> _d_z = {};
 // CHECK-NEXT: printf("hello world ");
-// CHECK-NEXT: float _t0 = f_literal_helper(0.5, 'a', z, nullptr);
-// CHECK-NEXT: return _d_x * _t0 + x * 0.F;
+// CHECK-NEXT: clad::ValueAndPushforward<float, float> _t0 = f_literal_helper_pushforward(0.5, 'a', z, nullptr, 0., 0, _d_z.ptr(), nullptr);
+// CHECK-NEXT: float &_t1 = _t0.value; 
+// CHECK-NEXT: return _d_x * _t1 + x * _t0.pushforward;
 // CHECK-NEXT: }
 
 inline unsigned int getBin(double low, double high, double val, unsigned int numBins) {
@@ -162,8 +165,11 @@ float f_call_inline_fxn(float *params, float const *obs, float const *xlArr) {
 // CHECK: inline clad::ValueAndPushforward<unsigned int, unsigned int> getBin_pushforward(double low, double high, double val, unsigned int numBins, double _d_low, double _d_high, double _d_val, unsigned int _d_numBins);
 
 // CHECK: float f_call_inline_fxn_darg0_0(float *params, const float *obs, const float *xlArr) {
+// CHECK-NEXT:     clad::array<float> _d_obs = {};
+// CHECK-NEXT:     clad::array<float> _d_xlArr = {};
 // CHECK-NEXT:     clad::ValueAndPushforward<unsigned int, unsigned int> _t0 = getBin_pushforward(0., 1., params[0], 1, 0., 0., 1.F, 0);
-// CHECK-NEXT:     const float _d_t116 = 0.F;
+// CHECK-NEXT:     _d_xlArr.extend(_t0.value + 1);
+// CHECK-NEXT:     const float _d_t116 = *(_d_xlArr.ptr() + _t0.value);
 // CHECK-NEXT:     const float t116 = *(xlArr + _t0.value);
 // CHECK-NEXT:     return _d_t116 * params[0] + t116 * 1.F;
 // CHECK-NEXT: }
@@ -212,6 +218,12 @@ int main () { // expected-no-diagnostics
 
 // CHECK: clad::ValueAndPushforward<float, float> f_const_helper_pushforward(const float x, const float _d_x) {
 // CHECK-NEXT:     return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndPushforward<float, float> f_literal_helper_pushforward(float x, char ch, float *p, float *q, float _d_x, char _d_ch, float *_d_p, float *_d_q) {
+// CHECK-NEXT:     if (ch == 'a')
+// CHECK-NEXT:         return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT:     return {-x * x, -_d_x * x + -x * _d_x};
 // CHECK-NEXT: }
 
 // CHECK: inline clad::ValueAndPushforward<unsigned int, unsigned int> getBin_pushforward(double low, double high, double val, unsigned int numBins, double _d_low, double _d_high, double _d_val, unsigned int _d_numBins) {

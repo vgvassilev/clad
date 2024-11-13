@@ -615,6 +615,10 @@ namespace clad {
                                  clang::SourceLocation srcLoc);
 
     clang::QualType DetermineCladArrayValueType(clang::QualType T);
+    /// Extend the size of `arr` to safely access the element corresponding to
+    /// `idx`. Works only for clad::array when handling array parameters in
+    /// forward mode.
+    void EmitCladArrayExtend(StmtDiff arr, clang::Expr* idx);
 
     /// Returns clad::Identify template declaration.
     clang::TemplateDecl* GetCladConstructorPushforwardTag();

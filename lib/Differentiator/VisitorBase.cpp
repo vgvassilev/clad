@@ -853,11 +853,14 @@ namespace clad {
     derivedL = LDiff.getExpr_dx();
     derivedR = RDiff.getExpr_dx();
     if (utils::isArrayOrPointerType(LDiff.getExpr()->getType()) &&
-        !utils::isArrayOrPointerType(RDiff.getExpr()->getType()))
+        !utils::isArrayOrPointerType(RDiff.getExpr()->getType())) {
       derivedR = RDiff.getExpr();
-    else if (utils::isArrayOrPointerType(RDiff.getExpr()->getType()) &&
-             !utils::isArrayOrPointerType(LDiff.getExpr()->getType()))
+      EmitCladArrayExtend(LDiff, derivedR);
+    } else if (utils::isArrayOrPointerType(RDiff.getExpr()->getType()) &&
+               !utils::isArrayOrPointerType(LDiff.getExpr()->getType())) {
       derivedL = LDiff.getExpr();
+      EmitCladArrayExtend(RDiff, derivedL);
+    }
   }
 
   Stmt* VisitorBase::GetCladZeroInit(llvm::MutableArrayRef<Expr*> args) {
@@ -895,5 +898,42 @@ namespace clad {
   clang::QualType
   VisitorBase::GetCladConstructorReverseForwTagOfType(clang::QualType T) {
     return InstantiateTemplate(GetCladConstructorReverseForwTag(), {T});
+  }
+
+  void VisitorBase::EmitCladArrayExtend(StmtDiff arr, Expr* idx) {
+    // FIXME: For now, only forward mode supports not differentiating w.r.t.
+    // array parameters.
+    if (m_DiffReq.Mode != DiffMode::forward)
+      return;
+    if (isa<DeclRefExpr>(arr.getExpr()->IgnoreImplicit()))
+      if (auto* MCE =
+              dyn_cast<CXXMemberCallExpr>(arr.getExpr_dx()->IgnoreImplicit())) {
+        Expr* cladArr = MCE->getImplicitObjectArgument()->IgnoreImplicit();
+        if (isCladArrayType(cladArr->getType()) &&
+            MCE->getDirectCallee()->getNameAsString() == "ptr") {
+          Expr* size = nullptr;
+          Expr::EvalResult index;
+          // If it's possible to determine the index at compile time, generate
+          // the `extend` argument as a literal. This will help us avoid ugly
+          // code like
+          // ```
+          // _d_arr.extend(0 + 1);
+          // _d_arr[0] = ...;
+          // ```
+          if (idx->EvaluateAsInt(index, m_Context,
+                                 Expr::SideEffectsKind::SE_NoSideEffects)) {
+            size = ConstantFolder::synthesizeLiteral(
+                m_Context.IntTy, m_Context,
+                index.Val.getInt().getExtValue() + 1);
+          } else {
+            Expr* one = ConstantFolder::synthesizeLiteral(m_Context.IntTy,
+                                                          m_Context, /*val=*/1);
+            size = BuildOp(BO_Add, idx, one);
+          }
+          llvm::SmallVector<Expr*, 1> param{size};
+          Expr* extendCall = BuildCallExprToMemFn(cladArr, "extend", param);
+          addToCurrentBlock(extendCall);
+        }
+      }
   }
 } // end namespace clad
