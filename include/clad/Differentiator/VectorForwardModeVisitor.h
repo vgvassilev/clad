@@ -30,13 +30,10 @@ public:
   ///\brief Produces the first derivative of a given function with
   /// respect to multiple parameters.
   ///
-  ///\param[in] FD - the function that will be differentiated.
-  ///
   ///\returns The differentiated and potentially created enclosing
   /// context.
   ///
-  DerivativeAndOverload DeriveVectorMode(const clang::FunctionDecl* FD,
-                                         const DiffRequest& request);
+  DerivativeAndOverload DeriveVectorMode();
 
   /// Builds an overload for the vector mode function that has derived params
   /// for all the arguments of the requested function and it calls the original
