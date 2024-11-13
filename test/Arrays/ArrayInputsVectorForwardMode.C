@@ -1,8 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oArrayInputsVectorForwardMode.out 2>&1 | %filecheck %s
 // RUN: ./ArrayInputsVectorForwardMode.out | %filecheck_exec %s
 
-// XFAIL: asserts
-
 #include "clad/Differentiator/Differentiator.h"
 
 double multiply(const double *arr) {

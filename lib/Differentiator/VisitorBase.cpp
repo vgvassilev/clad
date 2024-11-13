@@ -392,6 +392,9 @@ namespace clad {
                              SourceLocation OpLoc) {
     if (!E)
       return nullptr;
+    // Debug clang requires the location to be valid
+    if (!OpLoc.isValid())
+      OpLoc = utils::GetValidSLoc(m_Sema);
     return m_Sema.BuildUnaryOp(nullptr, OpLoc, OpCode, E).get();
   }
 
@@ -399,6 +402,9 @@ namespace clad {
                              SourceLocation OpLoc) {
     if (!L || !R)
       return nullptr;
+    // Debug clang requires the location to be valid
+    if (!OpLoc.isValid())
+      OpLoc = utils::GetValidSLoc(m_Sema);
     return m_Sema.BuildBinOp(nullptr, OpLoc, OpCode, L, R).get();
   }
 

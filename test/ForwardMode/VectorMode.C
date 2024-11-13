@@ -1,8 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oVectorMode.out 2>&1 | %filecheck %s
 // RUN: ./VectorMode.out | %filecheck_exec %s
 
-// XFAIL: asserts
-
 #include "clad/Differentiator/Differentiator.h"
 
 double f1(double x, double y) {
