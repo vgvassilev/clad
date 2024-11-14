@@ -27,6 +27,33 @@ void fn1(double i, double j, double* output) {
 // CHECK-NEXT:     output[1] = _t1.value;
 // CHECK-NEXT: }
 
+double add(double a, double b) { return a + b ;}
+
+// CHECK: clad::ValueAndPushforward<double, clad::array<double> > add_vector_pushforward(double a, double b, clad::array<double> _d_a, clad::array<double> _d_b);
+
+void fn2(double a, double b, double* res){ 
+    res[0] = a*10 + b*b*9;
+    res[0] = add(res[0], 10);
+    res[1] = a*a*9 + b*b*10;
+}
+
+// CHECK: void fn2_jac(double a, double b, double *res, clad::matrix<double> *_d_vector_res) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_vector_res->rows() + 2UL;
+// CHECK-NEXT:     clad::array<double> _d_vector_a = clad::one_hot_vector(indepVarCount, 0UL);
+// CHECK-NEXT:     clad::array<double> _d_vector_b = clad::one_hot_vector(indepVarCount, 1UL);
+// CHECK-NEXT:     *_d_vector_res = clad::identity_matrix(_d_vector_res->rows(), indepVarCount, 2UL);
+// CHECK-NEXT:     double _t0 = b * b;
+// CHECK-NEXT:     *_d_vector_res[0] = _d_vector_a * 10 + a * (clad::zero_vector(indepVarCount)) + (_d_vector_b * b + b * _d_vector_b) * 9 + _t0 * (clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     res[0] = a * 10 + _t0 * 9;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, clad::array<double> > _t1 = add_vector_pushforward(res[0], 10, *_d_vector_res[0], clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     *_d_vector_res[0] = _t1.pushforward;
+// CHECK-NEXT:     res[0] = _t1.value;
+// CHECK-NEXT:     double _t2 = a * a;
+// CHECK-NEXT:     double _t3 = b * b;
+// CHECK-NEXT:     *_d_vector_res[1] = (_d_vector_a * a + a * _d_vector_a) * 9 + _t2 * (clad::zero_vector(indepVarCount)) + (_d_vector_b * b + b * _d_vector_b) * 10 + _t3 * (clad::zero_vector(indepVarCount));
+// CHECK-NEXT:     res[1] = _t2 * 9 + _t3 * 10;
+// CHECK-NEXT: }
+
 #define INIT(F) auto d_##F = clad::jacobian(F);
 
 #define DERIVED_FN(F) d_##F
@@ -50,7 +77,13 @@ void test(Fn derivedFn, Args... args) {
 
 int main() {
   INIT(fn1);
-  
   test<2>(DERIVED_FN(fn1), 3, 5); // CHECK-EXEC: {405.00, 266.96, 201.18, 75.00}
+
+  INIT(fn2);
+  test<2>(DERIVED_FN(fn2), 3, 5); // CHECK-EXEC: {10.00, 90.00, 54.00, 100.00}
 }
 
+// CHECK: clad::ValueAndPushforward<double, clad::array<double> > add_vector_pushforward(double a, double b, clad::array<double> _d_a, clad::array<double> _d_b) {
+// CHECK-NEXT:     unsigned long indepVarCount = _d_b.size();
+// CHECK-NEXT:     return {a + b, _d_a + _d_b};
+// CHECK-NEXT: }
