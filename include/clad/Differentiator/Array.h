@@ -51,6 +51,12 @@ public:
 
   CUDA_HOST_DEVICE array(const array<T>& arr) : array(arr.m_arr, arr.m_size) {}
 
+  template <typename U>
+  CUDA_HOST_DEVICE array(const array<U>& arr)
+      : m_arr(new T[arr.size()]), m_size(arr.size()) {
+    (*this) = arr;
+  }
+
   CUDA_HOST_DEVICE array(std::size_t size, const clad::array<T>& arr)
       : m_arr(new T[size]), m_size(size) {
     for (std::size_t i = 0; i < size; ++i)
