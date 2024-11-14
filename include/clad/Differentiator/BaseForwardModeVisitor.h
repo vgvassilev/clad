@@ -58,12 +58,12 @@ public:
   StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
   StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
   StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
-  StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
+  virtual StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
   StmtDiff VisitForStmt(const clang::ForStmt* FS);
   StmtDiff VisitIfStmt(const clang::IfStmt* If);
   StmtDiff VisitImplicitCastExpr(const clang::ImplicitCastExpr* ICE);
   StmtDiff VisitInitListExpr(const clang::InitListExpr* ILE);
-  StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
+  virtual StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
   StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
   StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
   virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);

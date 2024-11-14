@@ -506,15 +506,10 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   Expr* derivedRetValE = retValDiff.getExpr_dx();
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
-  SourceLocation loc{m_DiffReq->getLocation()};
-  llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, derivedRetValE};
   QualType cladArrayType = GetCladArrayOfType(utils::GetValueType(retType));
-  TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(cladArrayType, loc);
-  Expr* constructorCallExpr =
-      m_Sema.BuildCXXTypeConstructExpr(TSI, loc, args, loc, false).get();
   auto dVectorParamDecl =
-      BuildVarDecl(cladArrayType, "_d_vector_return", constructorCallExpr,
-                   false, nullptr, VarDecl::InitializationStyle::CallInit);
+      BuildVarDecl(cladArrayType, "_d_vector_return", derivedRetValE, false,
+                   nullptr, VarDecl::InitializationStyle::CallInit);
   // Create an array of statements to hold the return statement and the
   // assignments to the derivatives of the parameters.
   Stmts returnStmts;
@@ -591,34 +586,29 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   VarDecl* VDClone =
       BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
                    VD->isDirectInit(), nullptr, VD->getInitStyle());
-  // Create an expression to initialize the derivative vector of the
-  // size of the number of parameters to be differentiated and initialize
-  // the derivative vector to the derivative expression.
-  //
-  // For example:
-  // clad::array<double> _d_vector_y(2, ...);
-  //
-  // This will also help in initializing the derivative vector in the
-  // case when initExprDx is not an array.
-  // So, for example, if we have:
-  // clad::array<double> _d_vector_y(2, 1);
-  // this means that we have to initialize the derivative vector of
-  // size 2 with all elements equal to 1.
-  SourceLocation loc{m_DiffReq->getLocation()};
-  llvm::SmallVector<Expr*, 2> args = {m_IndVarCountExpr, initDiff.getExpr_dx()};
-  QualType cladArrayType =
-      GetCladArrayOfType(utils::GetValueType(VD->getType()));
-  TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(cladArrayType, loc);
-  Expr* constructorCallExpr =
-      m_Sema.BuildCXXTypeConstructExpr(TSI, loc, args, loc, false).get();
-
   VarDecl* VDDerived =
       BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
-                   "_d_vector_" + VD->getNameAsString(), constructorCallExpr,
+                   "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
                    false, nullptr, VarDecl::InitializationStyle::CallInit);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
+}
+
+StmtDiff VectorForwardModeVisitor::VisitFloatingLiteral(
+    const clang::FloatingLiteral* FL) {
+  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+  auto* zero_vec = BuildCallExprToCladFunction(
+      "zero_vector", {m_IndVarCountExpr}, {FL->getType()}, fakeLoc);
+  return StmtDiff(Clone(FL), zero_vec);
+}
+
+StmtDiff
+VectorForwardModeVisitor::VisitIntegerLiteral(const clang::IntegerLiteral* IL) {
+  SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+  auto* zero_vec = BuildCallExprToCladFunction(
+      "zero_vector", {m_IndVarCountExpr}, {IL->getType()}, fakeLoc);
+  return StmtDiff(Clone(IL), zero_vec);
 }
 
 } // namespace clad

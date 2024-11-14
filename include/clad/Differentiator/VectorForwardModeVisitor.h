@@ -69,6 +69,8 @@ public:
   /// For example: for size = 4, the returned expression is: {0, 0, 0, 0}
   clang::Expr* getZeroInitListExpr(size_t size, clang::QualType type);
 
+  StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL) override;
+  StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL) override;
   StmtDiff
   VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE) override;
   StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS) override;
