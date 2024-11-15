@@ -33,8 +33,12 @@
 
 /*
  * DISCLAIMER: The following file has been slightly modified to ensure
- * compatibility with Clad and serve the purpose of a Clad demo. The original
- * file is available in NVIDIA's cuda-samples repository on GitHub.
+ * compatibility with Clad and to serve as a Clad demo. Specifically, parts of
+ * the original `main` function have been moved to a separate function to use
+ * `clad::gradient` on. Furthermore, original print statements have been removed
+ * and new helper functions are now included in the file to verify the
+ * gradient's results. The original file is available in NVIDIA's cuda-samples
+ * repository on GitHub.
  *
  * Relevant documentation regarding the problem at hand can be found in NVIDIA's
  * cuda-samples repository. Using Clad, we compute some of the Greeks
