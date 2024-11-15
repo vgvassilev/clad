@@ -32,17 +32,17 @@
  */
 
 /*
- * DISCLAIMER: The following file has been modified slightly to make it
- * compatible with Clad. The original file can be found at NVIDIA's cuda-samples
- * repository at GitHub.
+ * DISCLAIMER: The following file has been slightly modified to ensure
+ * compatibility with Clad and serve the purpose of a Clad demo. The original
+ * file is available in NVIDIA's cuda-samples repository on GitHub.
  *
- * Relevant documentation regarding the problem at hand can be found at NVIDIA's
- * cuda-samples repository. With the use of Clad, we compute some of the Greeks
- * (sensitivities) for Black-Scholes and verify them using the
- * theoretical values as denoted in Wikipedia
+ * Relevant documentation regarding the problem at hand can be found in NVIDIA's
+ * cuda-samples repository. Using Clad, we compute some of the Greeks
+ * (sensitivities) for the Black-Scholes model and verify them against
+ * approximations of their theoretical values as denoted in Wikipedia
  * (https://en.wikipedia.org/wiki/Black%E2%80%93Scholes_model).
  *
- * To build and run the demo, run the following command: make run
+ * To build and run the demo, use the following command: make run
  */
 
 #include "clad/Differentiator/Differentiator.h"
@@ -148,93 +148,86 @@ double N_prime(double d) {
 
 enum Greek { Delta, dX, Theta };
 
-double computeL1norm_Call(float* S, float* X, float* T, float* d, Greek greek) {
-  double delta, ref, sum_delta, sum_ref;
-  sum_delta = 0;
-  sum_ref = 0;
-  switch (greek) {
-  case Delta:
-    for (int i = 0; i < OPT_N; i++) {
-      double d1_val = d1(S[i], X[i], T[i]);
-      ref = CND(d1_val);
-      delta = fabs(d[i] - ref);
-      sum_delta += delta;
-      sum_ref += fabs(ref);
-    }
-    break;
-  case dX:
-    for (int i = 0; i < OPT_N; i++) {
-      double T_val = T[i];
-      double d1_val = d1(S[i], X[i], T_val);
-      double d2_val = d1_val - VOLATILITY * sqrt(T_val);
-      double expRT = exp(-RISKFREE * T_val);
-      ref = -expRT * CND(d2_val);
-      delta = fabs(d[i] - ref);
-      sum_delta += delta;
-      sum_ref += fabs(ref);
-    }
-    break;
-  case Theta:
-    for (int i = 0; i < OPT_N; i++) {
-      double S_val = S[i], X_val = X[i], T_val = T[i];
-      double d1_val = d1(S_val, X_val, T_val);
-      double d2_val = d1_val - VOLATILITY * sqrt(T_val);
-      double expRT = exp(-RISKFREE * T_val);
-      ref =
-          (S_val * N_prime(d1_val) * VOLATILITY) / (2 * sqrt(T_val)) +
-          RISKFREE * X_val * expRT *
-              CND(d2_val); // theta is with respect to t, so -theta is the
-                           // approximation of the derivative with respect to T
-      delta = fabs(d[i] - ref);
-      sum_delta += delta;
-      sum_ref += fabs(ref);
-    }
-  }
+enum OptionType { Call, Put };
 
-  return sum_delta / sum_ref;
+template <OptionType opt> const char* getNameofOpt() {
+  if constexpr (opt == Call)
+    return "Call";
+  if constexpr (opt == Put)
+    return "Put";
 }
 
-double computeL1norm_Put(float* S, float* X, float* T, float* d, Greek greek) {
+template <Greek greek> const char* getNameOfGreek() {
+  if constexpr (greek == Delta)
+    return "Delta";
+  if constexpr (greek == dX)
+    return "dStrike";
+  if constexpr (greek == Theta)
+    return "Theta";
+}
+
+template <OptionType opt, Greek greek>
+void computeL1norm(float* S, float* X, float* T, float* d) {
   double delta, ref, sum_delta, sum_ref;
   sum_delta = 0;
   sum_ref = 0;
-  switch (greek) {
-  case Delta:
-    for (int i = 0; i < OPT_N; i++) {
-      double d1_val = d1(S[i], X[i], T[i]);
-      ref = CND(d1_val) - 1.0;
-      delta = fabs(d[i] - ref);
-      sum_delta += delta;
-      sum_ref += fabs(ref);
+  for (int i = 0; i < OPT_N; i++) {
+    if constexpr (opt == Call) {
+      if constexpr (greek == Delta) {
+        double d1_val = d1(S[i], X[i], T[i]);
+        ref = CND(d1_val);
+      } else if constexpr (greek == dX) {
+        double T_val = T[i];
+        double d1_val = d1(S[i], X[i], T_val);
+        double d2_val = d1_val - VOLATILITY * sqrt(T_val);
+        double expRT = exp(-RISKFREE * T_val);
+        ref = -expRT * CND(d2_val);
+      } else if constexpr (greek == Theta) {
+        double S_val = S[i], X_val = X[i], T_val = T[i];
+        double d1_val = d1(S_val, X_val, T_val);
+        double d2_val = d1_val - VOLATILITY * sqrt(T_val);
+        double expRT = exp(-RISKFREE * T_val);
+        ref = (S_val * N_prime(d1_val) * VOLATILITY) / (2 * sqrt(T_val)) +
+              RISKFREE * X_val * expRT *
+                  CND(d2_val); // theta is with respect to t, so -theta is the
+                               // approximation of the derivative with respect
+                               // to T
+      }
+    } else if constexpr (opt == Put) {
+      if constexpr (greek == Delta) {
+        double d1_val = d1(S[i], X[i], T[i]);
+        ref = CND(d1_val) - 1.0;
+      } else if constexpr (greek == dX) {
+        double T_val = T[i];
+        double d1_val = d1(S[i], X[i], T_val);
+        double d2_val = d1_val - VOLATILITY * sqrt(T_val);
+        double expRT = exp(-RISKFREE * T_val);
+        ref = expRT * CND(-d2_val);
+      } else if constexpr (greek == Theta) {
+        double S_val = S[i], X_val = X[i], T_val = T[i];
+        double d1_val = d1(S_val, X_val, T_val);
+        double d2_val = d1_val - VOLATILITY * sqrt(T_val);
+        double expRT = exp(-RISKFREE * T_val);
+        ref = (S_val * N_prime(d1_val) * VOLATILITY) / (2 * sqrt(T_val)) -
+              RISKFREE * X_val * expRT * CND(-d2_val);
+      }
     }
-    break;
-  case dX:
-    for (int i = 0; i < OPT_N; i++) {
-      double T_val = T[i];
-      double d1_val = d1(S[i], X[i], T_val);
-      double d2_val = d1_val - VOLATILITY * sqrt(T_val);
-      double expRT = exp(-RISKFREE * T_val);
-      ref = expRT * CND(-d2_val);
-      delta = fabs(d[i] - ref);
-      sum_delta += delta;
-      sum_ref += fabs(ref);
-    }
-    break;
-  case Theta:
-    for (int i = 0; i < OPT_N; i++) {
-      double S_val = S[i], X_val = X[i], T_val = T[i];
-      double d1_val = d1(S_val, X_val, T_val);
-      double d2_val = d1_val - VOLATILITY * sqrt(T_val);
-      double expRT = exp(-RISKFREE * T_val);
-      ref = (S_val * N_prime(d1_val) * VOLATILITY) / (2 * sqrt(T_val)) -
-            RISKFREE * X_val * expRT * CND(-d2_val);
-      delta = fabs(d[i] - ref);
-      sum_delta += delta;
-      sum_ref += fabs(ref);
-    }
+
+    delta = fabs(d[i] - ref);
+    sum_delta += delta;
+    sum_ref += fabs(ref);
   }
 
-  return sum_delta / sum_ref;
+  double L1norm = sum_delta / sum_ref;
+  printf("L1norm of %s for %s option = %E\n", getNameOfGreek<greek>(),
+         getNameofOpt<opt>(), L1norm);
+  if (L1norm > 1e-5) {
+    printf(
+        "Gradient test failed: Difference between %s's computed and "
+        "approximated theoretical values for %s option is larger than expected",
+        getNameOfGreek<greek>(), getNameofOpt<opt>());
+    exit(EXIT_FAILURE);
+  }
 }
 
 int main(int argc, char** argv) {
@@ -257,6 +250,8 @@ int main(int argc, char** argv) {
     h_OptionYears[i] = RandFloat(0.25f, 10.0f);
   }
 
+  /*******************************************************************************/
+
   // Compute gradients
   auto callGrad = clad::gradient(
       launch, "h_CallResultGPU, h_StockPrice, h_OptionStrike, h_OptionYears");
@@ -275,9 +270,9 @@ int main(int argc, char** argv) {
     d_PutResultGPU[i] = 1.0f;
   }
 
-  // Launch the kernel and the gradient
+  /*******************************************************************************/
 
-  // Compute the derivatives of the price of the call options
+  // Compute the values and derivatives of the price of the call options
   callGrad.execute(h_CallResultCPU, h_CallResultGPU, h_PutResultCPU,
                    h_PutResultGPU, h_StockPrice, h_OptionStrike, h_OptionYears,
                    d_CallResultGPU, d_StockPrice, d_OptionStrike,
@@ -304,40 +299,18 @@ int main(int argc, char** argv) {
   }
 
   // Verify delta
-  L1norm = computeL1norm_Call(h_StockPrice, h_OptionStrike, h_OptionYears,
-                              d_StockPrice, Delta);
-  printf("L1norm of delta for Call option = %E\n", L1norm);
-  if (L1norm > 1e-5) {
-    printf("Gradient test failed: the difference between the computed and the "
-           "approximated theoretical delta for Call option is larger than "
-           "expected\n");
-    return EXIT_FAILURE;
-  }
-
+  computeL1norm<Call, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                             d_StockPrice);
   // Verify derivatives with respect to the Strike price
-  L1norm = computeL1norm_Call(h_StockPrice, h_OptionStrike, h_OptionYears,
-                              d_OptionStrike, dX);
-  printf("L1norm of derivative of Call w.r.t. the strike price = %E\n", L1norm);
-  if (L1norm > 1e-5) {
-    printf(
-        "Gradient test failed: the difference between the computed and the "
-        "approximated theoretical derivative of Call w.r.t. the strike price "
-        "is larger than expected\n");
-    return EXIT_FAILURE;
-  }
-
+  computeL1norm<Call, dX>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                          d_OptionStrike);
   // Verify theta
-  L1norm = computeL1norm_Call(h_StockPrice, h_OptionStrike, h_OptionYears,
-                              d_OptionYears, Theta);
-  printf("L1norm of theta for Call option = %E\n", L1norm);
-  if (L1norm > 1e-5) {
-    printf("Gradient test failed: the difference between the computed and the "
-           "approximated theoretical theta for Call option is larger than "
-           "expected\n");
-    return EXIT_FAILURE;
-  }
+  computeL1norm<Call, Theta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                             d_OptionYears);
 
-  // Compute the derivatives of the price of the Put options
+  /*******************************************************************************/
+
+  // Re-initialize data for next gradient call
   for (int i = 0; i < OPT_N; i++) {
     h_CallResultCPU[i] = 0.0f;
     h_PutResultCPU[i] = -1.0f;
@@ -351,43 +324,22 @@ int main(int argc, char** argv) {
     d_OptionYears[i] = 0.f;
   }
 
+  // Compute the values and derivatives of the price of the Put options
   putGrad.execute(h_CallResultCPU, h_CallResultGPU, h_PutResultCPU,
                   h_PutResultGPU, h_StockPrice, h_OptionStrike, h_OptionYears,
                   d_PutResultGPU, d_StockPrice, d_OptionStrike, d_OptionYears);
 
   // Verify delta
-  L1norm = computeL1norm_Put(h_StockPrice, h_OptionStrike, h_OptionYears,
-                             d_StockPrice, Delta);
-  printf("L1norm of delta for Put option = %E\n", L1norm);
-  if (L1norm > 1e-5) {
-    printf("Gradient test failed: the difference between the computed and "
-           "the approximated theoretical delta for Put option is larger than "
-           "expected\n");
-    return EXIT_FAILURE;
-  }
-
+  computeL1norm<Put, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                            d_StockPrice);
   // Verify derivatives with respect to the Strike price
-  L1norm = computeL1norm_Put(h_StockPrice, h_OptionStrike, h_OptionYears,
-                             d_OptionStrike, dX);
-  printf("L1norm of derivative of Put w.r.t. the strike price = %E\n", L1norm);
-  if (L1norm > 1e-6) {
-    printf("Gradient test failed: the difference between the computed and the "
-           "approximated theoretcial derivative of "
-           "Put w.r.t. the strike price is larger than expected\n");
-    return EXIT_FAILURE;
-  }
-
+  computeL1norm<Put, dX>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                         d_OptionStrike);
   // Verify theta
-  L1norm = computeL1norm_Put(h_StockPrice, h_OptionStrike, h_OptionYears,
-                             d_OptionYears, Theta);
-  printf("L1norm of theta for Put option = %E\n", L1norm);
-  if (L1norm > 1e-5) {
-    printf("Gradient test failed: the difference between the computed and the "
-           "approximated theoretical theta for Put option is larger than "
-           "expected\n");
-    return EXIT_FAILURE;
-  }
+  computeL1norm<Put, Theta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                            d_OptionYears);
 
+  /*******************************************************************************/
   free(h_OptionYears);
   free(h_OptionStrike);
   free(h_StockPrice);

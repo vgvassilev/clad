@@ -25,6 +25,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * DISCLAIMER: The following file has been slightly modified to ensure
+ * compatibility with Clad. The original file is available in NVIDIA's
+ * cuda-samples repository on GitHub.
+ */
+
 ////////////////////////////////////////////////////////////////////////////////
 // Polynomial approximation of cumulative normal distribution function
 ////////////////////////////////////////////////////////////////////////////////

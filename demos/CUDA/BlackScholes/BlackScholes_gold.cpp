@@ -26,9 +26,9 @@
  */
 
 /*
- * DISCLAIMER: The following file has been modified slightly to make it
- * compatible with Clad. The original file can be found at NVIDIA's cuda-samples
- * repository at GitHub.
+ * DISCLAIMER: The following file has been slightly modified to ensure
+ * compatibility with Clad. The original file is available in NVIDIA's
+ * cuda-samples repository on GitHub.
  */
 
 #include <math.h>
