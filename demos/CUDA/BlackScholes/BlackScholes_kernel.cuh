@@ -66,7 +66,7 @@ __device__ inline void BlackScholesBodyGPU(float& CallResult, float& PutResult,
   float sqrtT, expRT;
   float d1, d2, CNDD1, CNDD2;
 
-  sqrtT = fdividef(1.0F, 1.0 / sqrtf(T));
+  sqrtT = sqrtf(T);
   d1 = fdividef(logf(S / X) + (R + 0.5f * V * V) * T, V * sqrtT);
   d2 = d1 - V * sqrtT;
 
@@ -106,9 +106,7 @@ __global__ void BlackScholesGPU(float2* __restrict d_CallResult,
     BlackScholesBodyGPU(callResult2, putResult2, d_StockPrice[opt].y,
                         d_OptionStrike[opt].y, d_OptionYears[opt].y, Riskfree,
                         Volatility);
-    d_CallResult[opt].x = callResult1;
-    d_CallResult[opt].y = callResult2;
-    d_PutResult[opt].x = putResult1;
-    d_PutResult[opt].y = putResult2;
+    d_CallResult[opt] = make_float2(callResult1, callResult2);
+    d_PutResult[opt] = make_float2(putResult1, putResult2);
   }
 }

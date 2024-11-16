@@ -418,6 +418,15 @@ CUDA_HOST_DEVICE inline void sqrtf_pullback(float a, float d_y, float* d_a) {
   *d_a += (1.F / (2.F * sqrtf(a))) * d_y;
 }
 
+
+#ifdef __CUDACC__
+CUDA_HOST_DEVICE inline void make_float2_pullback(float a, float b, float2 d_y,
+                                                  float* d_a, float* d_b) {
+  *d_a += d_y.x;
+  *d_b += d_y.y;
+}
+#endif
+
 // These are required because C variants of mathematical functions are
 // defined in global namespace.
 using std::abs_pushforward;
