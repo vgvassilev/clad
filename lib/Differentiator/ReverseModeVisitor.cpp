@@ -1216,7 +1216,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     const Expr* value = RS->getRetValue();
     QualType type = value->getType();
     auto* dfdf = m_Pullback;
-    if (dfdf && (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf))) {
+    if (dfdf && (isa<FloatingLiteral>(dfdf) || isa<IntegerLiteral>(dfdf)) &&
+        type->isScalarType()) {
       ExprResult tmp = dfdf;
       dfdf = m_Sema
                  .ImpCastExprToType(tmp.get(), type,
@@ -1277,6 +1278,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
+    if (!dfdx())
+      return StmtDiff(Clone(ILE));
     QualType ILEType = ILE->getType();
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
     if (isArrayOrPointerType(ILEType)) {
@@ -4499,6 +4502,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (newPVD->getIdentifier())
         m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
                                  /*AddToContext=*/false);
+      else {
+        IdentifierInfo* newName = CreateUniqueIdentifier("arg");
+        newPVD->setDeclName(newName);
+        m_DeclReplacements[PVD] = newPVD;
+      }
 
       auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
       if (it != std::end(diffParams)) {
@@ -4507,7 +4515,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             m_DiffReq.Mode == DiffMode::experimental_pullback) {
           QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
           IdentifierInfo* dII =
-              CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
+              CreateUniqueIdentifier("_d_" + newPVD->getNameAsString());
           auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, dII, dType,
                                                PVD->getStorageClass());
           paramDerivatives.push_back(dPVD);
