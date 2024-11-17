@@ -27,8 +27,10 @@
 
 /*
  * DISCLAIMER: The following file has been slightly modified to ensure
- * compatibility with Clad. The original file is available in NVIDIA's
- * cuda-samples repository on GitHub.
+ * compatibility with Clad. Specifically, the only change made was removing the
+ * static property of the `CND` function so it can be called in the main file to
+ * verify Clad's results. The original file is available for comparison in
+ * NVIDIA's cuda-samples repository on GitHub.
  */
 
 #include <math.h>
