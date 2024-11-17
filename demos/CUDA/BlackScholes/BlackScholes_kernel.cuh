@@ -82,12 +82,13 @@ __device__ inline void BlackScholesBodyGPU(float& CallResult, float& PutResult,
 ////////////////////////////////////////////////////////////////////////////////
 // Process an array of optN options on GPU
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void BlackScholesGPU(float2* __restrict d_CallResult,
-                                float2* __restrict d_PutResult,
-                                float2* __restrict d_StockPrice,
-                                float2* __restrict d_OptionStrike,
-                                float2* __restrict d_OptionYears,
-                                float Riskfree, float Volatility, int optN) {
+__launch_bounds__(128) __global__
+    void BlackScholesGPU(float2* __restrict d_CallResult,
+                         float2* __restrict d_PutResult,
+                         float2* __restrict d_StockPrice,
+                         float2* __restrict d_OptionStrike,
+                         float2* __restrict d_OptionYears, float Riskfree,
+                         float Volatility, int optN) {
   ////Thread index
   // const int      tid = blockDim.x * blockIdx.x + threadIdx.x;
   ////Total number of threads in execution grid
