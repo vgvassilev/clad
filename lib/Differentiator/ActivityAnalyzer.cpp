@@ -124,8 +124,22 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
+
+      QualType parType = FDparam[i]->getType();
+      while (parType->isPointerType())
+        parType = parType->getPointeeType();
+      if((parType->isReferenceType() || utils::isArrayOrPointerType(parType)) && !parType.isConstQualified()){
+        m_Marking = true;
+        m_Varied = true;
+      }
+
       TraverseStmt(par);
-      m_VariedDecls.insert(FDparam[i]);
+
+      m_Marking = false;
+      m_Varied = false;
+
+      if(!parType.isConstQualified())
+        m_VariedDecls.insert(FDparam[i]);
     }
   }
   return true;
@@ -133,12 +147,16 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
   for (Decl* D : DS->decls()) {
+    QualType VDTy = cast<VarDecl>(D)->getType();
+    if(utils::isArrayOrPointerType(VDTy)){
+      copyVarToCurBlock(cast<VarDecl>(D));
+      continue;
+    }
     if (Expr* init = cast<VarDecl>(D)->getInit()) {
       m_Varied = false;
       TraverseStmt(init);
       m_Marking = true;
-      QualType VDTy = cast<VarDecl>(D)->getType();
-      if (m_Varied || utils::isArrayOrPointerType(VDTy))
+      if (m_Varied )
         copyVarToCurBlock(cast<VarDecl>(D));
       m_Marking = false;
     }
