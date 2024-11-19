@@ -91,6 +91,7 @@ The User Guide
    user/UsingEnzymeWithinClad
    user/UsingVectorMode.rst
    user/UsingImmediateMode
+   user/UsingCladOnCUDACode
    user/FAQ
    user/DevelopersDocumentation
    user/IntroductionToClangForCladContributors
