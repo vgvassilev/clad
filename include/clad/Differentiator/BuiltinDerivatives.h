@@ -133,6 +133,9 @@ void cudaMemcpy_pullback(T* destPtr, const T* srcPtr, size_t count,
 
 #endif
 
+// NOLINTBEGIN(readability-identifier-naming)
+// NOLINTBEGIN(bugprone-reserved-identifier)
+
 CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
 __builtin_logf_pushforward(float x, float d_x) {
   return {__builtin_logf(x), (1.F / x) * d_x};
@@ -196,7 +199,57 @@ CUDA_HOST_DEVICE inline void __builtin_powf_pullback(float x, float exponent,
   *d_exponent += t.pushforward * d_y;
 }
 
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_exp_pushforward(double x, double d_x) {
+  return {__builtin_exp(x), __builtin_exp(x) * d_x};
+}
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_expf_pushforward(float x, float d_x) {
+  return {__builtin_expf(x), __builtin_expf(x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_sinf_pushforward(float x, float d_x) {
+  return {__builtin_sinf(x), __builtin_cosf(x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_sin_pushforward(double x, double d_x) {
+  return {__builtin_sin(x), __builtin_cos(x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_cosf_pushforward(float x, float d_x) {
+  return {__builtin_cosf(x), (-1) * __builtin_sinf(x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_cos_pushforward(double x, double d_x) {
+  return {__builtin_cos(x), (-1) * __builtin_sin(x) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<float, float>
+__builtin_sqrtf_pushforward(float x, float d_x) {
+  return {__builtin_sqrtf(x), (1.F / (2.F * __builtin_sqrtf(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline ValueAndPushforward<double, double>
+__builtin_sqrt_pushforward(double x, double d_x) {
+  return {__builtin_sqrt(x), (1. / (2. * __builtin_sqrt(x))) * d_x};
+}
+
+CUDA_HOST_DEVICE inline void __builtin_expf_pullback(float x, float* d_x) {
+  *d_x = __builtin_expf(x);
+}
+
+CUDA_HOST_DEVICE inline void __builtin_exp_pullback(double x, double* d_x) {
+  *d_x = __builtin_exp(x);
+}
+
 // FIXME: Add the rest of the __builtin_ routines for log, sqrt, abs, etc.
+
+// NOLINTEND(bugprone-reserved-identifier)
+// NOLINTEND(readability-identifier-naming)
 
 namespace std {
 template <typename T>
