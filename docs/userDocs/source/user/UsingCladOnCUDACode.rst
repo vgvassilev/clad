@@ -11,6 +11,7 @@ if not explicitly specified. Note that either none of these two arguments or bot
 Clad does not handle cases where only one of the two is provided, even if the order is correct.
 
 .. code-block:: cpp
+
     #include "clad/Differentiator/Differentiator.h"
 
     auto kernel_grad = clad::gradient(kernel, "in, out"); // compute the derivative of out w.r.t in
@@ -30,7 +31,8 @@ Clad supports the following CUDA features:
 To use CUDA math functions, the user must define the equivalent pullback function in Clad's CUDA custom derivatives:
 
 .. code-block:: cpp
-    // *In `clad/include/clad/Differentiator/BuiltinDerivativesCUDA.cuh`*
+
+    // In `clad/include/clad/Differentiator/BuiltinDerivativesCUDA.cuh`
 
     namespace clad {
 
