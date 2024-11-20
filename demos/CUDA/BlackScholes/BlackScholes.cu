@@ -35,12 +35,11 @@
  * DISCLAIMER: The following file has been slightly modified to ensure
  * compatibility with Clad and to serve as a Clad demo. Specifically, parts of
  * the original `main` function have been moved to a separate function to use
- * `clad::gradient` on. Furthermore, Clad cannot clone printf statements, so
- * some original print statements have been omitted. The same applies to the
- * checkCudaErrors function.
- * New helper functions are included in another file and invoked here to verify
- * the gradient's results. The original file is available in NVIDIA's
- * cuda-samples repository on GitHub.
+ * `clad::gradient` on. Furthermore, Clad cannot clone checkCudaErrors
+ * successfully, so these calls have been omitted. The same applies to the
+ * cudaDeviceSynchronize function. New helper functions are included in another
+ * file and invoked here to verify the gradient's results. The original file is
+ * available in NVIDIA's cuda-samples repository on GitHub.
  *
  * Relevant documentation regarding the problem at hand can be found in NVIDIA's
  * cuda-samples repository. Using Clad, we compute some of the Greeks
@@ -110,6 +109,7 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
           *d_StockPrice = nullptr, *d_OptionStrike = nullptr,
       *d_OptionYears = nullptr;
 
+  printf("...allocating GPU memory for options.\n");
   cudaMalloc((void**)&d_CallResult, OPT_SZ);
   cudaMalloc((void**)&d_PutResult, OPT_SZ);
   cudaMalloc((void**)&d_StockPrice, OPT_SZ);
@@ -117,9 +117,14 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
   cudaMalloc((void**)&d_OptionYears, OPT_SZ);
 
   // Copy options data to GPU memory for further processing
+  printf("...copying input data to GPU mem.\n");
   cudaMemcpy(d_StockPrice, h_StockPrice, OPT_SZ, cudaMemcpyHostToDevice);
   cudaMemcpy(d_OptionStrike, h_OptionStrike, OPT_SZ, cudaMemcpyHostToDevice);
   cudaMemcpy(d_OptionYears, h_OptionYears, OPT_SZ, cudaMemcpyHostToDevice);
+  printf("Data init done.\n\n");
+
+  printf("Executing Black-Scholes GPU kernel (%i iterations)...\n",
+         NUM_ITERATIONS);
 
   BlackScholesGPU<<<DIV_UP((OPT_N / 2), 128), 128 /*480, 128*/>>>(
       (float2*)d_CallResult, (float2*)d_PutResult, (float2*)d_StockPrice,
@@ -128,14 +133,19 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
 
   // Both call and put is calculated
 
+  printf("\nReading back GPU results...\n");
   // Read back GPU results to compare them to CPU results
   cudaMemcpy(h_CallResultGPU, d_CallResult, OPT_SZ, cudaMemcpyDeviceToHost);
   cudaMemcpy(h_PutResultGPU, d_PutResult, OPT_SZ, cudaMemcpyDeviceToHost);
 
   // Calculate options values on CPU
+  printf("Checking the results...\n");
+  printf("...running CPU calculations.\n\n");
+  // Calculate options values on CPU
   BlackScholesCPU(h_CallResultCPU, h_PutResultCPU, h_StockPrice, h_OptionStrike,
                   h_OptionYears, RISKFREE, VOLATILITY, OPT_N);
 
+  printf("...releasing GPU memory.\n");
   cudaFree(d_OptionYears);
   cudaFree(d_OptionStrike);
   cudaFree(d_StockPrice);
