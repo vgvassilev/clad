@@ -1,5 +1,5 @@
 Automatically compute reverse-mode derivatives of CUDA functions with Clad
-**********************************************************
+******************************************************************************
 
 Clad offers the ability to differentiate CUDA functions in reverse-mode. Specifically,
 Clad can differentiate functions that are marked with either the `__device__` or `__global__` specifier.
