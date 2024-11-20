@@ -504,6 +504,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:}
 
 void launch_add_kernel_4(int *out, int *in, const int N) {
+  printf("Launching add_kernel_4 for size: %d\n", N);
   int *in_dev = nullptr;
   cudaMalloc(&in_dev, N * sizeof(int));
   cudaMemcpy(in_dev, in, N * sizeof(int), cudaMemcpyHostToDevice);
@@ -520,6 +521,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 
 // CHECK: void launch_add_kernel_4_grad_0_1(int *out, int *in, const int N, int *_d_out, int *_d_in) {
 //CHECK-NEXT:    int _d_N = 0;
+//CHECK-NEXT:    printf("Launching add_kernel_4 for size: %d\n", N);
 //CHECK-NEXT:    int *_d_in_dev = nullptr;
 //CHECK-NEXT:    int *in_dev = nullptr;
 //CHECK-NEXT:    cudaMalloc(&_d_in_dev, N * sizeof(int));

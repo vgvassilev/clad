@@ -1456,6 +1456,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(Clone(CE));
     }
 
+    if (FD->getNameAsString() == "printf" || FD->getNameAsString() == "fprintf")
+      return StmtDiff(Clone(CE));
+
     Expr* CUDAExecConfig = nullptr;
     if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
       CUDAExecConfig = Clone(KCE->getConfig());
