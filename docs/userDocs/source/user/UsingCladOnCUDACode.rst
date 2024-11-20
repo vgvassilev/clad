@@ -58,11 +58,6 @@ The following CUDA features are not yet supported:
 * Other CUDA host functions apart from those listed in the previous section
 
 
-Implementation details
-================================================
-
-For a brief overview of the implementation, please refer to the team's related `blog post <https://compiler-research.org/blogs/gsoc24_christina_koutsou_project_final_blog/>`_.
-
 Demos
 ================================================
 
