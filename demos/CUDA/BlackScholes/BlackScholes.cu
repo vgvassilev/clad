@@ -35,8 +35,8 @@
  * DISCLAIMER: The following file has been slightly modified to ensure
  * compatibility with Clad and to serve as a Clad demo. Specifically, parts of
  * the original `main` function have been moved to a separate function to use
- * `clad::gradient` on. Furthermore, Clad cannot clone printf statements, so some
- * original print statements have been omitted. The same applies to the
+ * `clad::gradient` on. Furthermore, Clad cannot clone printf statements, so
+ * some original print statements have been omitted. The same applies to the
  * checkCudaErrors function.
  * New helper functions are included in another file and invoked here to verify
  * the gradient's results. The original file is available in NVIDIA's
