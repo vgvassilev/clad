@@ -235,18 +235,43 @@ void computeL1norm(float* S, float* X, float* T, float* d) {
 }
 
 int main(int argc, char** argv) {
-  float* h_CallResultCPU = (float*)malloc(OPT_SZ);
-  float* h_PutResultCPU = (float*)malloc(OPT_SZ);
-  float* h_CallResultGPU = (float*)malloc(OPT_SZ);
-  float* h_PutResultGPU = (float*)malloc(OPT_SZ);
-  float* h_StockPrice = (float*)malloc(OPT_SZ);
-  float* h_OptionStrike = (float*)malloc(OPT_SZ);
-  float* h_OptionYears = (float*)malloc(OPT_SZ);
+  // Start logs
+  printf("[%s] - Starting...\n", argv[0]);
 
+  //'h_' prefix - CPU (host) memory space
+  float
+      // Results calculated by CPU for reference
+      *h_CallResultCPU,
+      *h_PutResultCPU,
+      // CPU copy of GPU results
+      *h_CallResultGPU, *h_PutResultGPU,
+      // CPU instance of input data
+      *h_StockPrice, *h_OptionStrike, *h_OptionYears;
+
+  double delta, ref, sum_delta, sum_ref, max_delta, L1norm, gpuTime;
+
+  StopWatchInterface* hTimer = NULL;
+  int i;
+
+  findCudaDevice(argc, (const char**)argv);
+
+  sdkCreateTimer(&hTimer);
+
+  printf("Initializing data...\n");
+  printf("...allocating CPU memory for options.\n");
+  h_CallResultCPU = (float*)malloc(OPT_SZ);
+  h_PutResultCPU = (float*)malloc(OPT_SZ);
+  h_CallResultGPU = (float*)malloc(OPT_SZ);
+  h_PutResultGPU = (float*)malloc(OPT_SZ);
+  h_StockPrice = (float*)malloc(OPT_SZ);
+  h_OptionStrike = (float*)malloc(OPT_SZ);
+  h_OptionYears = (float*)malloc(OPT_SZ);
+
+  printf("...generating input data in CPU mem.\n");
   srand(5347);
 
   // Generate options set
-  for (int i = 0; i < OPT_N; i++) {
+  for (i = 0; i < OPT_N; i++) {
     h_CallResultCPU[i] = 0.0f;
     h_PutResultCPU[i] = -1.0f;
     h_StockPrice[i] = RandFloat(5.0f, 30.0f);
@@ -276,31 +301,56 @@ int main(int argc, char** argv) {
 
   /*******************************************************************************/
 
+  checkCudaErrors(cudaDeviceSynchronize());
+  sdkResetTimer(&hTimer);
+  sdkStartTimer(&hTimer);
   // Compute the values and derivatives of the price of the call options
   callGrad.execute(h_CallResultCPU, h_CallResultGPU, h_PutResultCPU,
                    h_PutResultGPU, h_StockPrice, h_OptionStrike, h_OptionYears,
                    d_CallResultGPU, d_StockPrice, d_OptionStrike,
                    d_OptionYears);
 
+  checkCudaErrors(cudaDeviceSynchronize());
+  sdkStopTimer(&hTimer);
+  gpuTime = sdkGetTimerValue(&hTimer) / NUM_ITERATIONS;
+
+  // Both call and put is calculated
+  printf("Options count             : %i     \n", 2 * OPT_N);
+  printf("BlackScholesGPU() time    : %f msec\n", gpuTime);
+  printf("Effective memory bandwidth: %f GB/s\n",
+         ((double)(5 * OPT_N * sizeof(float)) * 1E-9) / (gpuTime * 1E-3));
+  printf("Gigaoptions per second    : %f     \n\n",
+         ((double)(2 * OPT_N) * 1E-9) / (gpuTime * 1E-3));
+
+  printf("BlackScholes, Throughput = %.4f GOptions/s, Time = %.5f s, Size = %u "
+         "options, NumDevsUsed = %u, Workgroup = %u\n",
+         (((double)(2.0 * OPT_N) * 1.0E-9) / (gpuTime * 1.0E-3)),
+         gpuTime * 1e-3, (2 * OPT_N), 1, 128);
+
+  printf("Checking the results...\n");
   // Calculate max absolute difference and L1 distance
   // between CPU and GPU results
-  double delta, ref, sum_delta, sum_ref, L1norm;
+  printf("Comparing the results...\n");
+  // Calculate max absolute difference and L1 distance
+  // between CPU and GPU results
   sum_delta = 0;
   sum_ref = 0;
+  max_delta = 0;
 
-  for (int i = 0; i < OPT_N; i++) {
+  for (i = 0; i < OPT_N; i++) {
     ref = h_CallResultCPU[i];
     delta = fabs(h_CallResultCPU[i] - h_CallResultGPU[i]);
+
+    if (delta > max_delta)
+      max_delta = delta;
+
     sum_delta += delta;
     sum_ref += fabs(ref);
   }
 
   L1norm = sum_delta / sum_ref;
-  printf("L1norm = %E\n", L1norm);
-  if (L1norm > 1e-6) {
-    printf("Original test failed\n");
-    return EXIT_FAILURE;
-  }
+  printf("L1 norm: %E\n", L1norm);
+  printf("Max absolute error: %E\n\n", max_delta);
 
   // Verify delta
   computeL1norm<Call, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
@@ -344,6 +394,8 @@ int main(int argc, char** argv) {
                             d_OptionYears);
 
   /*******************************************************************************/
+  printf("Shutting down...\n");
+  printf("...releasing CPU memory.\n");
   free(h_OptionYears);
   free(h_OptionStrike);
   free(h_StockPrice);
@@ -356,6 +408,19 @@ int main(int argc, char** argv) {
   free(d_StockPrice);
   free(d_PutResultGPU);
   free(d_CallResultGPU);
+  sdkDeleteTimer(&hTimer);
 
-  return EXIT_SUCCESS;
+  printf("Shutdown done.\n");
+
+  printf("\n[BlackScholes] - Test Summary\n");
+
+  if (L1norm > 1e-6) {
+    printf("Test failed!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  printf("\nNOTE: The CUDA Samples are not meant for performance measurements. "
+         "Results may vary when GPU Boost is enabled.\n\n");
+  printf("Test passed\n");
+  exit(EXIT_SUCCESS);
 }
