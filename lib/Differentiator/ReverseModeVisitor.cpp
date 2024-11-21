@@ -1954,20 +1954,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // call has a different name than the function's signature parameter.
       pullbackRequest.CUDAGlobalArgsIndexes = globalCallArgs;
 
-      pullbackRequest.BaseFunctionName =
-          clad::utils::ComputeEffectiveFnName(FD);
-      pullbackRequest.Mode = DiffMode::experimental_pullback;
-      // Silence diag outputs in nested derivation process.
-      pullbackRequest.VerboseDiags = false;
-      pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
-      pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-      bool isaMethod = isa<CXXMethodDecl>(FD);
-      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
-        if (MD && isLambdaCallOperator(MD)) {
-          if (const auto* paramDecl = FD->getParamDecl(i))
-            pullbackRequest.DVI.push_back(paramDecl);
-        } else if (DerivedCallOutputArgs[i + isaMethod])
-          pullbackRequest.DVI.push_back(FD->getParamDecl(i));
+        pullbackRequest.BaseFunctionName =
+            clad::utils::ComputeEffectiveFnName(FD);
+        pullbackRequest.Mode = DiffMode::experimental_pullback;
+        // Silence diag outputs in nested derivation process.
+        pullbackRequest.VerboseDiags = false;
+        pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+        pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+        pullbackRequest.setToBeRecorded(m_DiffReq.getToBeRecorded());
+        bool isaMethod = isa<CXXMethodDecl>(FD);
+        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
+          if (MD && isLambdaCallOperator(MD)) {
+            if (const auto* paramDecl = FD->getParamDecl(i))
+              pullbackRequest.DVI.push_back(paramDecl);
+          } else if (DerivedCallOutputArgs[i + isaMethod])
+            pullbackRequest.DVI.push_back(FD->getParamDecl(i));
 
       FunctionDecl* pullbackFD = nullptr;
       if (m_ExternalSource)

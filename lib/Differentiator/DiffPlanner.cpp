@@ -630,20 +630,9 @@ namespace clad {
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {
-      ArrayRef<ParmVarDecl*> FDparam = Function->parameters();
-      std::vector<ParmVarDecl*> derivedParam;
-
-      for (auto* parameter : FDparam) {
-        QualType parType = parameter->getType();
-        while (parType->isPointerType())
-          parType = parType->getPointeeType();
-        if (!parType.isConstQualified())
-          derivedParam.push_back(parameter);
-      }
-
-      std::copy(derivedParam.begin(), derivedParam.end(),
-                std::inserter(m_ActivityRunInfo.ToBeRecorded,
-                              m_ActivityRunInfo.ToBeRecorded.end()));
+      if (Args)
+        for (const auto& dParam : DVI)
+          m_ActivityRunInfo.ToBeRecorded.insert(cast<VarDecl>(dParam.param));
 
       VariedAnalyzer analyzer(Function->getASTContext(),
                               m_ActivityRunInfo.ToBeRecorded);

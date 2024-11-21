@@ -6,6 +6,26 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+inline double interpolate1d(double low, double high, double val, unsigned int numBins, double const* vals)
+{
+   double binWidth = (high - low) / numBins;
+   int idx = val >= high ? numBins - 1 : std::abs((val - low) / binWidth);
+
+   // interpolation
+   double central = low + (idx + 0.5) * binWidth;
+   if (val > low + 0.5 * binWidth && val < high - 0.5 * binWidth) {
+      double slope;
+      if (val < central) {
+          slope = vals[idx] - vals[idx - 1];
+      } else {
+          slope = vals[idx + 1] - vals[idx];
+      }
+      return vals[idx] + slope * (val - central) / binWidth;
+   }
+
+   return vals[idx];
+}
+
 double f1(double x){
   double a = x*x;
   double b = 1;
@@ -273,7 +293,7 @@ double f9(double x, double const *obs)
    return res;
 }
 
-// CHECK: void f9_grad(double x, const double *obs, double *_d_x, double *_d_obs) {
+// CHECK: void f9_grad_0(double x, const double *obs, double *_d_x) {
 // CHECK-NEXT:     int loopIdx0 = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
@@ -364,7 +384,7 @@ int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
     double result[3] = {};
-    double dx;
+    double dx = 0;
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
     TEST(f3, 3);// CHECK-EXEC: {0.00}
@@ -373,8 +393,8 @@ int main(){
     TEST(f6, 3);// CHECK-EXEC: {0.00}
     TEST(f7, 3);// CHECK-EXEC: {1.00}
     TEST(f8, 3);// CHECK-EXEC: {1.00}
-    auto grad = clad::gradient<clad::opts::enable_va>(f9);
-    grad.execute(3, arr, &dx, darr);
+    auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
+    grad9.execute(3, arr, &dx, darr);
     printf("%.2f\n", dx);// CHECK-EXEC: 2.00
     TEST(f10, 3);// CHECK-EXEC: {1.00}
     TEST(f11, 3);// CHECK-EXEC: {1.00}
