@@ -1981,6 +1981,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
         pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+        pullbackRequest.setToBeRecorded(m_DiffReq.getToBeRecorded());
         bool isaMethod = isa<CXXMethodDecl>(FD);
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
           if (MD && isLambdaCallOperator(MD)) {
