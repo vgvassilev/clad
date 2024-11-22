@@ -436,6 +436,7 @@ double fn_memory(double *out, double *in) {
   cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   double res = 0;
   for (int i=0; i < 10; ++i) {
+    printf("Writing result of out[%d]\n", i);
     res += out_host[i];
   }
   free(out_host);
@@ -469,6 +470,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:                break;
 //CHECK-NEXT:        }
 //CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        printf("Writing result of out[%d]\n", i);
 //CHECK-NEXT:        clad::push(_t1, res);
 //CHECK-NEXT:        res += out_host[i];
 //CHECK-NEXT:    }
