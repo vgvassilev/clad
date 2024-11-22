@@ -150,7 +150,7 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
   cudaFree(d_CallResult);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   // Start logs
   printf("[%s] - Starting...\n", argv[0]);
 
@@ -273,6 +273,45 @@ int main(int argc, char** argv) {
   printf("L1 norm: %E\n", L1norm);
   printf("Max absolute error: %E\n\n", max_delta);
 
+  // Verify delta
+  computeL1norm<Call, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                             d_StockPrice);
+  // Verify derivatives with respect to the Strike price
+  computeL1norm<Call, dX>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                          d_OptionStrike);
+  // Verify theta
+  computeL1norm<Call, Theta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                             d_OptionYears);
+  /*******************************************************************************/
+  // Re-initialize data for next gradient call
+  for (int i = 0; i < OPT_N; i++)
+  {
+      h_CallResultCPU[i] = 0.0f;
+      h_PutResultCPU[i] = -1.0f;
+      d_CallResultGPU[i] = 1.0f;
+      d_PutResultGPU[i] = 1.0f;
+  }
+  for (int i = 0; i < OPT_N; i++)
+  {
+      d_StockPrice[i] = 0.f;
+      d_OptionStrike[i] = 0.f;
+      d_OptionYears[i] = 0.f;
+  }
+  // Compute the values and derivatives of the price of the Put options
+  putGrad.execute(h_CallResultCPU, h_CallResultGPU, h_PutResultCPU,
+                  h_PutResultGPU, h_StockPrice, h_OptionStrike, h_OptionYears,
+                  d_PutResultGPU, d_StockPrice, d_OptionStrike, d_OptionYears);
+  // Verify delta
+  computeL1norm<Put, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                            d_StockPrice);
+  // Verify derivatives with respect to the Strike price
+  computeL1norm<Put, dX>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                         d_OptionStrike);
+  // Verify theta
+  computeL1norm<Put, Theta>(h_StockPrice, h_OptionStrike, h_OptionYears,
+                            d_OptionYears);
+  /*******************************************************************************/
+
   printf("Shutting down...\n");
   printf("...releasing CPU memory.\n");
   free(h_OptionYears);
@@ -282,6 +321,11 @@ int main(int argc, char** argv) {
   free(h_CallResultGPU);
   free(h_PutResultCPU);
   free(h_CallResultCPU);
+  free(d_OptionYears);
+  free(d_OptionStrike);
+  free(d_StockPrice);
+  free(d_PutResultGPU);
+  free(d_CallResultGPU);
   sdkDeleteTimer(&hTimer);
   printf("Shutdown done.\n");
 
