@@ -436,6 +436,7 @@ double fn_memory(double *out, double *in) {
   cudaMemcpy(out_host, out, 10 * sizeof(double), cudaMemcpyDeviceToHost);
   double res = 0;
   for (int i=0; i < 10; ++i) {
+    printf("Writing result of out[%d]\n", i);
     res += out_host[i];
   }
   free(out_host);
@@ -469,6 +470,7 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:                break;
 //CHECK-NEXT:        }
 //CHECK-NEXT:        _t0++;
+//CHECK-NEXT:        printf("Writing result of out[%d]\n", i);
 //CHECK-NEXT:        clad::push(_t1, res);
 //CHECK-NEXT:        res += out_host[i];
 //CHECK-NEXT:    }
@@ -504,7 +506,6 @@ double fn_memory(double *out, double *in) {
 //CHECK-NEXT:}
 
 void launch_add_kernel_4(int *out, int *in, const int N) {
-  printf("Launching add_kernel_4 for size: %d\n", N);
   int *in_dev = nullptr;
   cudaMalloc(&in_dev, N * sizeof(int));
   cudaMemcpy(in_dev, in, N * sizeof(int), cudaMemcpyHostToDevice);
@@ -521,7 +522,6 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 
 // CHECK: void launch_add_kernel_4_grad_0_1(int *out, int *in, const int N, int *_d_out, int *_d_in) {
 //CHECK-NEXT:    int _d_N = 0;
-//CHECK-NEXT:    printf("Launching add_kernel_4 for size: %d\n", N);
 //CHECK-NEXT:    int *_d_in_dev = nullptr;
 //CHECK-NEXT:    int *in_dev = nullptr;
 //CHECK-NEXT:    cudaMalloc(&_d_in_dev, N * sizeof(int));

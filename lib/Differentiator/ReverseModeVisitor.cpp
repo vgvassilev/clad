@@ -1456,6 +1456,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return StmtDiff(Clone(CE));
     }
 
+    // FIXME: Revisit this when variadic functions are supported.
     if (FD->getNameAsString() == "printf" || FD->getNameAsString() == "fprintf")
       return StmtDiff(Clone(CE));
 
