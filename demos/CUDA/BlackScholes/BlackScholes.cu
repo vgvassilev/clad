@@ -126,10 +126,12 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
   printf("Executing Black-Scholes GPU kernel (%i iterations)...\n",
          NUM_ITERATIONS);
 
-  BlackScholesGPU<<<DIV_UP((OPT_N / 2), 128), 128 /*480, 128*/>>>(
-      (float2*)d_CallResult, (float2*)d_PutResult, (float2*)d_StockPrice,
-      (float2*)d_OptionStrike, (float2*)d_OptionYears, RISKFREE, VOLATILITY,
-      OPT_N);
+  for (int i = 0; i < NUM_ITERATIONS; i++) {
+    BlackScholesGPU<<<DIV_UP((OPT_N / 2), 128), 128 /*480, 128*/>>>(
+        (float2*)d_CallResult, (float2*)d_PutResult, (float2*)d_StockPrice,
+        (float2*)d_OptionStrike, (float2*)d_OptionYears, RISKFREE, VOLATILITY,
+        OPT_N);
+  }
 
   // Both call and put is calculated
 
