@@ -79,8 +79,12 @@ const float VOLATILITY = 0.30f;
  * `clad::gradient` on. Furthermore, Clad cannot clone checkCudaErrors
  * successfully, so these calls have been omitted. The same applies to the
  * cudaDeviceSynchronize function. New helper functions are included in another
- * file and invoked here to verify the gradient's results. The original file is
- * available in NVIDIA's cuda-samples repository on GitHub.
+ * file and invoked here to verify the gradient's results. Since Clad cannot
+ * handle timers at the moment, the time measurement is included in
+ * `main` and doesn't time exclusively the original kernel execution, but the
+ * whole `launch` function and its gradient are timed in this version.
+ *
+ * The original file is available in NVIDIA's cuda-samples repository on GitHub.
  *
  * Relevant documentation regarding the problem at hand can be found in NVIDIA's
  * cuda-samples repository. Using Clad, we compute some of the Greeks
