@@ -3314,8 +3314,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     auto* field = ME->getMemberDecl();
     assert(!isa<CXXMethodDecl>(field) &&
            "CXXMethodDecl nodes not supported yet!");
-    MemberExpr* clonedME = utils::BuildMemberExpr(
-        m_Sema, getCurrentScope(), baseDiff.getExpr(), field->getName());
+    Expr* clonedME = baseDiff.getExpr();
+    llvm::StringRef fieldName = field->getName();
+    if (baseDiff.getExpr() && !fieldName.empty())
+      clonedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                        baseDiff.getExpr(), fieldName);
     if (clad::utils::hasNonDifferentiableAttribute(ME)) {
       auto* zero = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
                                                      /*val=*/0);
@@ -3323,8 +3326,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     if (!baseDiff.getExpr_dx())
       return {clonedME, nullptr};
-    MemberExpr* derivedME = utils::BuildMemberExpr(
-        m_Sema, getCurrentScope(), baseDiff.getExpr_dx(), field->getName());
+    Expr* derivedME = baseDiff.getExpr_dx();
+    if (!fieldName.empty())
+      derivedME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                         baseDiff.getExpr_dx(), fieldName);
     if (dfdx()) {
       Expr* addAssign =
           BuildOp(BinaryOperatorKind::BO_AddAssign, derivedME, dfdx());
