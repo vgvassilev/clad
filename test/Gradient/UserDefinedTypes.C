@@ -431,7 +431,7 @@ void fn13(double *x, double *y, int size)
 // CHECK-NEXT: clad::tape<double> _t3 = {};
 // CHECK-NEXT: Findex _d_p({});
 // CHECK-NEXT: Findex p;
-// CHECK-NEXT: unsigned long _t0 = 0UL;
+// CHECK-NEXT: unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT: _t1 = p.j;
 // CHECK-NEXT: for (p.j = 0; ; clad::push(_t2, p.j) , (p.j += 1)) {
 // CHECK-NEXT:     {
