@@ -535,6 +535,8 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
     auto it = m_DeclReplacements.find(VD);
     if (it != std::end(m_DeclReplacements)) {
       DRE->setDecl(it->second);
+      DRE->getDecl()->setReferenced();
+      DRE->getDecl()->setIsUsed();
       QualType NonRefQT = it->second->getType().getNonReferenceType();
       if (NonRefQT != DRE->getType())
         DRE->setType(NonRefQT);
@@ -552,7 +554,7 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   // FIXME: Handle the case when there are overloads found. Update
   // it with the best match.
   //
-  // FIXME: This is the right way to go in principe, however there is no
+  // FIXME: This is the right way to go in principle, however there is no
   // properly built decl context.
   // m_Sema.MarkDeclRefReferenced(clonedDRE);
   if (!R.isSingleResult())

@@ -168,13 +168,18 @@ ReverseModeForwPassVisitor::BuildParams(DiffParams& diffParams) {
     if (newPVD->getIdentifier())
       m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
                                /*AddToContext=*/false);
+    else {
+      IdentifierInfo* newName = CreateUniqueIdentifier("arg");
+      newPVD->setDeclName(newName);
+      m_DeclReplacements[PVD] = newPVD;
+    }
 
     auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
     if (it != std::end(diffParams)) {
       *it = newPVD;
       QualType dType = derivativeFnType->getParamType(dParamTypesIdx);
       IdentifierInfo* dII =
-          CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
+          CreateUniqueIdentifier("_d_" + newPVD->getNameAsString());
       auto* dPVD = utils::BuildParmVarDecl(m_Sema, m_Derivative, dII, dType,
                                            PVD->getStorageClass());
       paramDerivatives.push_back(dPVD);
