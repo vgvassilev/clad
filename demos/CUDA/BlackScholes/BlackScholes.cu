@@ -31,6 +31,47 @@
  * See supplied whitepaper for more explanations.
  */
 
+#include <helper_functions.h>  // helper functions for string parsing
+#include <helper_cuda.h>  // helper functions CUDA error checking and initialization
+
+////////////////////////////////////////////////////////////////////////////////
+// Process an array of optN options on CPU
+////////////////////////////////////////////////////////////////////////////////
+extern "C" void BlackScholesCPU(float *h_CallResult, float *h_PutResult,
+                                float *h_StockPrice, float *h_OptionStrike,
+                                float *h_OptionYears, float Riskfree,
+                                float Volatility, int optN);
+
+////////////////////////////////////////////////////////////////////////////////
+// Process an array of OptN options on GPU
+////////////////////////////////////////////////////////////////////////////////
+#include "BlackScholes_kernel.cuh"
+
+////////////////////////////////////////////////////////////////////////////////
+// Helper function, returning uniformly distributed
+// random float in [low, high] range
+////////////////////////////////////////////////////////////////////////////////
+float RandFloat(float low, float high) {
+  float t = (float)rand() / (float)RAND_MAX;
+  return (1.0f - t) * low + t * high;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Data configuration
+////////////////////////////////////////////////////////////////////////////////
+const int OPT_N = 4000000;
+const int NUM_ITERATIONS = 512;
+
+const int OPT_SZ = OPT_N * sizeof(float);
+const float RISKFREE = 0.02f;
+const float VOLATILITY = 0.30f;
+
+#define DIV_UP(a, b) (((a) + (b)-1) / (b))
+
+////////////////////////////////////////////////////////////////////////////////
+// Main program
+////////////////////////////////////////////////////////////////////////////////
+
 /*
  * DISCLAIMER: The following file has been slightly modified to ensure
  * compatibility with Clad and to serve as a Clad demo. Specifically, parts of
@@ -51,50 +92,7 @@
  */
 
 #include "clad/Differentiator/Differentiator.h"
-
-#include <helper_cuda.h> // helper functions CUDA error checking and initialization
-#include <helper_functions.h> // helper functions for string parsing
 #include <helper_grad_verify.h>
-
-////////////////////////////////////////////////////////////////////////////////
-// Process an array of optN options on CPU
-////////////////////////////////////////////////////////////////////////////////
-extern "C" void BlackScholesCPU(float* h_CallResult, float* h_PutResult,
-                                float* h_StockPrice, float* h_OptionStrike,
-                                float* h_OptionYears, float Riskfree,
-                                float Volatility, int optN);
-extern "C" double CND(double d);
-
-////////////////////////////////////////////////////////////////////////////////
-// Process an array of OptN options on GPU
-////////////////////////////////////////////////////////////////////////////////
-#include "BlackScholes_kernel.cuh"
-
-////////////////////////////////////////////////////////////////////////////////
-// Helper function, returning uniformly distributed
-// random float in [low, high] range
-////////////////////////////////////////////////////////////////////////////////
-float RandFloat(float low, float high) {
-  float t = (float)rand() / (float)RAND_MAX;
-  return (1.0f - t) * low + t * high;
-}
-
-// This section is included in the helper_grad_verify.h file
-////////////////////////////////////////////////////////////////////////////////
-// Data configuration
-////////////////////////////////////////////////////////////////////////////////
-// const int OPT_N = 4000000;
-// const int NUM_ITERATIONS = 512;
-
-// const int OPT_SZ = OPT_N * sizeof(float);
-// const float RISKFREE = 0.02f;
-// const float VOLATILITY = 0.30f;
-
-// #define DIV_UP(a, b) (((a) + (b) - 1) / (b))
-
-////////////////////////////////////////////////////////////////////////////////
-// Main program
-////////////////////////////////////////////////////////////////////////////////
 
 void launch(float* h_CallResultCPU, float* h_CallResultGPU,
             float* h_PutResultCPU, float* h_PutResultGPU, float* h_StockPrice,
@@ -106,7 +104,7 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
       *d_CallResult = nullptr,
       *d_PutResult = nullptr,
       // GPU instance of input data
-          *d_StockPrice = nullptr, *d_OptionStrike = nullptr,
+      *d_StockPrice = nullptr, *d_OptionStrike = nullptr,
       *d_OptionYears = nullptr;
 
   printf("...allocating GPU memory for options.\n");
@@ -125,11 +123,11 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
 
   printf("Executing Black-Scholes GPU kernel (%i iterations)...\n",
          NUM_ITERATIONS);
-
-  for (int i = 0; i < NUM_ITERATIONS; i++) {
+  int i;
+  for (i = 0; i < NUM_ITERATIONS; i++) {
     BlackScholesGPU<<<DIV_UP((OPT_N / 2), 128), 128 /*480, 128*/>>>(
-        (float2*)d_CallResult, (float2*)d_PutResult, (float2*)d_StockPrice,
-        (float2*)d_OptionStrike, (float2*)d_OptionYears, RISKFREE, VOLATILITY,
+        (float2 *)d_CallResult, (float2 *)d_PutResult, (float2 *)d_StockPrice,
+        (float2 *)d_OptionStrike, (float2 *)d_OptionYears, RISKFREE, VOLATILITY,
         OPT_N);
   }
 
@@ -139,13 +137,6 @@ void launch(float* h_CallResultCPU, float* h_CallResultGPU,
   // Read back GPU results to compare them to CPU results
   cudaMemcpy(h_CallResultGPU, d_CallResult, OPT_SZ, cudaMemcpyDeviceToHost);
   cudaMemcpy(h_PutResultGPU, d_PutResult, OPT_SZ, cudaMemcpyDeviceToHost);
-
-  // Calculate options values on CPU
-  printf("Checking the results...\n");
-  printf("...running CPU calculations.\n\n");
-  // Calculate options values on CPU
-  BlackScholesCPU(h_CallResultCPU, h_PutResultCPU, h_StockPrice, h_OptionStrike,
-                  h_OptionYears, RISKFREE, VOLATILITY, OPT_N);
 
   printf("...releasing GPU memory.\n");
   cudaFree(d_OptionYears);
@@ -171,22 +162,22 @@ int main(int argc, char** argv) {
 
   double delta, ref, sum_delta, sum_ref, max_delta, L1norm, gpuTime;
 
-  StopWatchInterface* hTimer = NULL;
+  StopWatchInterface *hTimer = NULL;
   int i;
 
-  findCudaDevice(argc, (const char**)argv);
+  findCudaDevice(argc, (const char **)argv);
 
   sdkCreateTimer(&hTimer);
 
   printf("Initializing data...\n");
   printf("...allocating CPU memory for options.\n");
-  h_CallResultCPU = (float*)malloc(OPT_SZ);
-  h_PutResultCPU = (float*)malloc(OPT_SZ);
-  h_CallResultGPU = (float*)malloc(OPT_SZ);
-  h_PutResultGPU = (float*)malloc(OPT_SZ);
-  h_StockPrice = (float*)malloc(OPT_SZ);
-  h_OptionStrike = (float*)malloc(OPT_SZ);
-  h_OptionYears = (float*)malloc(OPT_SZ);
+  h_CallResultCPU = (float *)malloc(OPT_SZ);
+  h_PutResultCPU = (float *)malloc(OPT_SZ);
+  h_CallResultGPU = (float *)malloc(OPT_SZ);
+  h_PutResultGPU = (float *)malloc(OPT_SZ);
+  h_StockPrice = (float *)malloc(OPT_SZ);
+  h_OptionStrike = (float *)malloc(OPT_SZ);
+  h_OptionYears = (float *)malloc(OPT_SZ);
 
   printf("...generating input data in CPU mem.\n");
   srand(5347);
@@ -243,14 +234,18 @@ int main(int argc, char** argv) {
   printf("Gigaoptions per second    : %f     \n\n",
          ((double)(2 * OPT_N) * 1E-9) / (gpuTime * 1E-3));
 
-  printf("BlackScholes, Throughput = %.4f GOptions/s, Time = %.5f s, Size = %u "
-         "options, NumDevsUsed = %u, Workgroup = %u\n",
-         (((double)(2.0 * OPT_N) * 1.0E-9) / (gpuTime * 1.0E-3)),
-         gpuTime * 1e-3, (2 * OPT_N), 1, 128);
+  printf(
+      "BlackScholes, Throughput = %.4f GOptions/s, Time = %.5f s, Size = %u "
+      "options, NumDevsUsed = %u, Workgroup = %u\n",
+      (((double)(2.0 * OPT_N) * 1.0E-9) / (gpuTime * 1.0E-3)), gpuTime * 1e-3,
+      (2 * OPT_N), 1, 128);
 
   printf("Checking the results...\n");
-  // Calculate max absolute difference and L1 distance
-  // between CPU and GPU results
+  printf("...running CPU calculations.\n\n");
+  // Calculate options values on CPU
+  BlackScholesCPU(h_CallResultCPU, h_PutResultCPU, h_StockPrice, h_OptionStrike,
+                  h_OptionYears, RISKFREE, VOLATILITY, OPT_N);
+
   printf("Comparing the results...\n");
   // Calculate max absolute difference and L1 distance
   // between CPU and GPU results
@@ -262,8 +257,9 @@ int main(int argc, char** argv) {
     ref = h_CallResultCPU[i];
     delta = fabs(h_CallResultCPU[i] - h_CallResultGPU[i]);
 
-    if (delta > max_delta)
+    if (delta > max_delta) {
       max_delta = delta;
+    }
 
     sum_delta += delta;
     sum_ref += fabs(ref);
@@ -273,48 +269,6 @@ int main(int argc, char** argv) {
   printf("L1 norm: %E\n", L1norm);
   printf("Max absolute error: %E\n\n", max_delta);
 
-  // Verify delta
-  computeL1norm<Call, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
-                             d_StockPrice);
-  // Verify derivatives with respect to the Strike price
-  computeL1norm<Call, dX>(h_StockPrice, h_OptionStrike, h_OptionYears,
-                          d_OptionStrike);
-  // Verify theta
-  computeL1norm<Call, Theta>(h_StockPrice, h_OptionStrike, h_OptionYears,
-                             d_OptionYears);
-
-  /*******************************************************************************/
-
-  // Re-initialize data for next gradient call
-  for (int i = 0; i < OPT_N; i++) {
-    h_CallResultCPU[i] = 0.0f;
-    h_PutResultCPU[i] = -1.0f;
-    d_CallResultGPU[i] = 1.0f;
-    d_PutResultGPU[i] = 1.0f;
-  }
-
-  for (int i = 0; i < OPT_N; i++) {
-    d_StockPrice[i] = 0.f;
-    d_OptionStrike[i] = 0.f;
-    d_OptionYears[i] = 0.f;
-  }
-
-  // Compute the values and derivatives of the price of the Put options
-  putGrad.execute(h_CallResultCPU, h_CallResultGPU, h_PutResultCPU,
-                  h_PutResultGPU, h_StockPrice, h_OptionStrike, h_OptionYears,
-                  d_PutResultGPU, d_StockPrice, d_OptionStrike, d_OptionYears);
-
-  // Verify delta
-  computeL1norm<Put, Delta>(h_StockPrice, h_OptionStrike, h_OptionYears,
-                            d_StockPrice);
-  // Verify derivatives with respect to the Strike price
-  computeL1norm<Put, dX>(h_StockPrice, h_OptionStrike, h_OptionYears,
-                         d_OptionStrike);
-  // Verify theta
-  computeL1norm<Put, Theta>(h_StockPrice, h_OptionStrike, h_OptionYears,
-                            d_OptionYears);
-
-  /*******************************************************************************/
   printf("Shutting down...\n");
   printf("...releasing CPU memory.\n");
   free(h_OptionYears);
@@ -324,13 +278,7 @@ int main(int argc, char** argv) {
   free(h_CallResultGPU);
   free(h_PutResultCPU);
   free(h_CallResultCPU);
-  free(d_OptionYears);
-  free(d_OptionStrike);
-  free(d_StockPrice);
-  free(d_PutResultGPU);
-  free(d_CallResultGPU);
   sdkDeleteTimer(&hTimer);
-
   printf("Shutdown done.\n");
 
   printf("\n[BlackScholes] - Test Summary\n");
@@ -340,8 +288,9 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
 
-  printf("\nNOTE: The CUDA Samples are not meant for performance measurements. "
-         "Results may vary when GPU Boost is enabled.\n\n");
+  printf(
+      "\nNOTE: The CUDA Samples are not meant for performance measurements. "
+      "Results may vary when GPU Boost is enabled.\n\n");
   printf("Test passed\n");
   exit(EXIT_SUCCESS);
 }

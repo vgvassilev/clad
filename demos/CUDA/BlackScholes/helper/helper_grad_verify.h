@@ -2,18 +2,6 @@
 
 extern "C" double CND(double d);
 
-////////////////////////////////////////////////////////////////////////////////
-// Data configuration
-////////////////////////////////////////////////////////////////////////////////
-const int OPT_N = 4000000;
-const int NUM_ITERATIONS = 512;
-
-const int OPT_SZ = OPT_N * sizeof(float);
-const float RISKFREE = 0.02f;
-const float VOLATILITY = 0.30f;
-
-#define DIV_UP(a, b) (((a) + (b) - 1) / (b))
-
 double d1(double S, double X, double T) {
   return (log(S / X) + (RISKFREE + 0.5 * VOLATILITY * VOLATILITY) * T) /
          (VOLATILITY * sqrt(T));
