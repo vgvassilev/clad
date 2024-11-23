@@ -107,18 +107,19 @@ namespace clad {
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
                                      VarDecl::InitializationStyle IS) {
-    return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
-                        TSI, IS);
+    return BuildVarDecl(Type, Identifier, getCurrentScope(), m_Sema.CurContext,
+                        Init, DirectInit, TSI, IS);
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
-                                     Scope* Scope, Expr* Init, bool DirectInit,
+                                     Scope* Scope, DeclContext* DeclCtx,
+                                     Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI,
                                      VarDecl::InitializationStyle IS) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
-    auto* VD = VarDecl::Create(
-        m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
-        m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
+    auto* VD = VarDecl::Create(m_Context, DeclCtx, m_DiffReq->getLocation(),
+                               m_DiffReq->getLocation(), Identifier, Type, TSI,
+                               SC_None);
 
     if (Init) {
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
@@ -149,9 +150,12 @@ namespace clad {
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
                                            bool DirectInit, TypeSourceInfo* TSI,
-                                           VarDecl::InitializationStyle IS) {
+                                           VarDecl::InitializationStyle IS,
+                                           DeclContext* DeclCtx) {
+    DeclCtx = DeclCtx ? DeclCtx : m_Sema.CurContext;
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI, IS);
+                        m_DerivativeFnScope, DeclCtx, Init, DirectInit, TSI,
+                        IS);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,

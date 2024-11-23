@@ -168,6 +168,7 @@ int main() {
 
   // CHECK: inline void operator_call_grad(double ii, double j, double *_d_ii, double *_d_j) const {
   // CHECK-NEXT:     {
+  // CHECK-NEXT:         _d_x += 1 * j * ii;
   // CHECK-NEXT:         *_d_ii += x * 1 * j;
   // CHECK-NEXT:         *_d_j += x * ii * 1;
   // CHECK-NEXT:     }

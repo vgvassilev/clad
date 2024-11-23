@@ -58,7 +58,10 @@ int main() {
 //CHECK-NEXT:     }
 
 //CHECK:     void fn_grad(double x, double *_d_x) {
-//CHECK-NEXT:         *_d_x += 1 * TN::coefficient;
+//CHECK-NEXT:         {
+//CHECK-NEXT:             *_d_x += 1 * TN::coefficient;
+//CHECK-NEXT:             _d_coefficient += x * 1;
+//CHECK-NEXT:         }
 //CHECK-NEXT:     }
 
 //CHECK:     void fn2_grad(double x, double y, double *_d_x, double *_d_y) {

@@ -255,6 +255,24 @@ public:
     // handling of the differentiation plans.
     clang::FunctionDecl* ProcessDiffRequest(DiffRequest& request);
 
+    void ProcessTopLevelDecl(clang::Decl* D) {
+      if (llvm::isa<clang::VarDecl>(D) && m_DO.DumpDerivedFn) {
+        clang::LangOptions LangOpts;
+        LangOpts.CPlusPlus = true;
+        clang::PrintingPolicy Policy(LangOpts);
+        Policy.Bool = true;
+        D->print(llvm::outs(), Policy);
+        llvm::outs() << ";\n";
+      }
+      DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
+      assert(!llvm::is_contained(m_DelayedCalls, DCI) && "Already exists!");
+      AppendDelayed(DCI);
+      // We could not delay the process due to some strange way of
+      // initialization, inform the consumers now.
+      if (!m_Multiplexer)
+        m_CI.getASTConsumer().HandleTopLevelDecl(DCI.m_DGR);
+    }
+
   private:
     void AppendDelayed(DelayedCallInfo DCI) {
       // Incremental processing handles the translation unit in chunks and it is
@@ -268,22 +286,16 @@ public:
     void SendToMultiplexer();
     bool CheckBuiltins();
     void SetRequestOptions(RequestOptions& opts) const;
-
-    void ProcessTopLevelDecl(clang::Decl* D) {
-      DelayedCallInfo DCI{CallKind::HandleTopLevelDecl, D};
-      assert(!llvm::is_contained(m_DelayedCalls, DCI) && "Already exists!");
-      AppendDelayed(DCI);
-      // We could not delay the process due to some strange way of
-      // initialization, inform the consumers now.
-      if (!m_Multiplexer)
-        m_CI.getASTConsumer().HandleTopLevelDecl(DCI.m_DGR);
-    }
     void HandleTopLevelDeclForClad(clang::DeclGroupRef DGR);
     };
 
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
                                             DiffRequest& request) {
       return P.ProcessDiffRequest(request);
+    }
+
+    void ProcessTopLevelDecl(CladPlugin& P, clang::Decl* D) {
+      P.ProcessTopLevelDecl(D);
     }
 
     template <typename ConsumerType>
