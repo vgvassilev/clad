@@ -1413,7 +1413,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // Check DeclRefExpr is a reference to an independent variable.
       auto it = m_Variables.find(VD);
       if (it == std::end(m_Variables)) {
-        if (VD->isFileVarDecl()) {
+        if (VD->isFileVarDecl() &&
+            !m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
           Expr* DREDiff = DifferentiateGlobalVarDecl(VD);
           it = m_Variables.emplace(VD, DREDiff).first;
         } else
@@ -1462,10 +1463,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return foundExpr;
     }
     // Not found, construct the adjoint and register it.
-    VarDecl* VDDiff =
-        BuildVarDecl(VD->getType(), CreateUniqueIdentifier(nameDiff_str),
-                     m_DerivativeFnScope->getParent()->getParent(), DC,
-                     getZeroInit(VD->getType()));
+    QualType TyDiff = getNonConstType(VD->getType(), m_Context, m_Sema);
+    VarDecl* VDDiff = BuildVarDecl(
+        TyDiff, CreateUniqueIdentifier(nameDiff_str),
+        m_DerivativeFnScope->getParent()->getParent(), DC, getZeroInit(TyDiff));
 
     DC->addDecl(VDDiff);
     DC->makeDeclVisibleInContext(VDDiff);
