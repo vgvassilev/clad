@@ -493,12 +493,26 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: 3.11
-    - name: Save PR Info
-      if: ${{ matrix.coverage == true }}
+    - name: Save PR Info on Unix systems
+      if: ${{ runner.os != 'windows' }}
       run: |
         mkdir -p ./pr
         echo ${{ github.event.number }} > ./pr/NR
         echo ${{ github.repository }} > ./pr/REPO
+        export LLVM_HASH=$(git ls-remote https://github.com/llvm/llvm-project.git refs/heads/release/${{ matrix.clang-runtime}}.x | tr '\t' '-')
+        echo "LLVM_HASH=$LLVM_HASH" >> $GITHUB_ENV
+
+    - name: Save PR Info on Windows systems
+      if: ${{ runner.os == 'windows' }}
+      run: |
+        #can be found
+        mkdir  ./pr
+        echo "${{ github.event.number }}" > ./pr/NR
+        echo ${{ github.repository }} > ./pr/REPO
+        $env:LLVM_HASH_TEMP = (git ls-remote https://github.com/llvm/llvm-project.git refs/heads/release/${{ matrix.clang-runtime}}.x )
+        $env:LLVM_HASH = $env:LLVM_HASH_TEMP -replace "\t","-"
+        echo "LLVM_HASH=$env:LLVM_HASH" >> $GITHUB_ENV
+        
     - uses: actions/upload-artifact@v4
       if: ${{ matrix.coverage == true }}
       with:
@@ -511,10 +525,22 @@ jobs:
       run: |
         echo "BUILD_TYPE=Release" >> $GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $GITHUB_ENV
+        if [[ "${os}" == "macos"* ]]; then
+          echo "ncpus=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+        else
+          echo "ncpus=$(nproc --all)" >> $GITHUB_ENV
+        fi
+        
     - name: Setup default Build Type on *nux (build_debug & asserts)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
         echo "BUILD_TYPE=Debug" >> $GITHUB_ENV
+        if [[ "${os}" == "macos"* ]]; then
+          echo "ncpus=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+        else
+          echo "ncpus=$(nproc --all)" >> $GITHUB_ENV
+        fi
+        
     - name: Setup default Build Type on Windows
       if: runner.os == 'windows'
       run: |
@@ -522,6 +548,8 @@ jobs:
         $env:CLAD_CODE_COVERAGE="0"
         echo "BUILD_TYPE=Release" >> $env:GITHUB_ENV
         echo "CLAD_CODE_COVERAGE=0" >> $env:GITHUB_ENV
+        $env:ncpus=$([Environment]::ProcessorCount) 
+        
     - name: Download Coverity Build Tool - Linux
       if: ${{ (matrix.coverity == true) && (runner.os == 'Linux') }}
       run: |
@@ -667,13 +695,14 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
     - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
+      if: ${{ (matrix.debug_build == true) }}
       uses: actions/cache/restore@v4
       id: cache
       with:
         path: |
           llvm-project
-        key: ${{ matrix.os }}-clang-${{ matrix.clang-runtime }}.x-${{ env.BUILD_TYPE }}
+        key: ${{ env.LLVM_HASH }}-${{ matrix.os }}-${{ matrix.compiler }}-clang-${{ matrix.clang-runtime }}.x
+        
     - name: Build LLVM/Cling on Unix if the cache is invalid (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
       run: |
@@ -683,7 +712,6 @@ jobs:
         # Build
         mkdir build
         cd build
-        export CPU_COUNT="$(nproc --all)"
         cmake \
               -DLLVM_ENABLE_PROJECTS="clang"        \
               -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  \
@@ -699,8 +727,36 @@ jobs:
               -DLLVM_INCLUDE_TESTS=OFF              \
               -DLLVM_INCLUDE_DOCS=OFF               \
               ../llvm
-        cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${CPU_COUNT}
+        cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
         cd ../../
+
+
+    - name: Build LLVM/Cling on Windows systems if the cache is invalid
+      if: ${{ runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      run: |
+        git clone --depth=1 -b release/${{ matrix.clang-runtime }}.x https://github.com/llvm/llvm-project.git
+
+        cd llvm-project
+        # Build
+        mkdir build
+        cd build
+        cmake -DLLVM_ENABLE_PROJECTS="clang"        `
+              -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  `
+              -DCMAKE_BUILD_TYPE=Release            `
+              -DLLVM_ENABLE_ASSERTIONS=ON           `
+              -DCLANG_ENABLE_STATIC_ANALYZER=OFF    `
+              -DCLANG_ENABLE_ARCMT=OFF              `
+              -DCLANG_ENABLE_FORMAT=OFF             `
+              -DCLANG_ENABLE_BOOTSTRAP=OFF          `
+              -DLLVM_ENABLE_TERMINFO=OFF            `
+              -DCLANG_INCLUDE_TESTS=OFF             `
+              -DCLANG_INCLUDE_DOCS=OFF              `
+              -DLLVM_INCLUDE_TESTS=OFF              `
+              -DLLVM_INCLUDE_DOCS=OFF               `
+              ..\llvm                
+        cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
+        cd ..\..
+        
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v4
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
@@ -708,6 +764,7 @@ jobs:
         path: |
           llvm-project
         key: ${{ steps.cache.outputs.cache-primary-key }}
+        
     - name: Set LLVM/Cling build path on Unix (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
       run: |
