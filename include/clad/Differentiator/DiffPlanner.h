@@ -34,11 +34,12 @@ private:
   } m_TbrRunInfo;
 
   mutable struct ActivityRunInfo {
-    std::set<const clang::VarDecl*> ToBeRecorded;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
 public:
+  /// All varied declarations.
+  static std::set<const clang::VarDecl*> AllVariedDecls;
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
   /// Name of the base function to be differentiated. Can be different from
@@ -144,13 +145,6 @@ public:
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
-
-  void setToBeRecorded(std::set<const clang::VarDecl*> init) {
-    this->m_ActivityRunInfo.ToBeRecorded = init;
-  }
-  std::set<const clang::VarDecl*> getToBeRecorded() const {
-    return this->m_ActivityRunInfo.ToBeRecorded;
-  }
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;

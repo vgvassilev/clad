@@ -373,6 +373,32 @@ double f11(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
+double f12_1(double y, const double* obs){
+    double nopull = interpolate1d(1.0, 3.0, 5.0, 5, obs);
+    return nopull;
+}
+double f12(double x, const double* obs){
+    double pull = f12_1(x, obs);
+    return pull*x;
+}
+
+// CHECK: void f12_1_pullback(double y, const double *obs, double _d_y0, double *_d_y);
+// CHECK-NEXT: void f12_grad_0(double x, const double *obs, double *_d_x) {
+// CHECK-NEXT:     double _d_pull = 0.;
+// CHECK-NEXT:     double pull = f12_1(x, obs);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_pull += 1 * x;
+// CHECK-NEXT:         *_d_x += pull * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f12_1_pullback(x, obs, _d_pull, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
@@ -384,7 +410,6 @@ int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
     double result[3] = {};
-    double dx = 0;
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
     TEST(f3, 3);// CHECK-EXEC: {0.00}
@@ -393,24 +418,24 @@ int main(){
     TEST(f6, 3);// CHECK-EXEC: {0.00}
     TEST(f7, 3);// CHECK-EXEC: {1.00}
     TEST(f8, 3);// CHECK-EXEC: {1.00}
+    double dx9 = 0;
     auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
-    grad9.execute(3, arr, &dx, darr);
-    printf("%.2f\n", dx);// CHECK-EXEC: 2.00
+    grad9.execute(3, arr, &dx9, darr);
+    printf("%.2f\n", dx9);// CHECK-EXEC: 2.00
     TEST(f10, 3);// CHECK-EXEC: {1.00}
     TEST(f11, 3);// CHECK-EXEC: {1.00}
+    double dx12 = 0;
+    auto grad = clad::gradient<clad::opts::enable_va>(f12, "x");
+    grad.execute(3, arr, &dx12, darr);
+    printf("%.2f\n", dx12);// CHECK-EXEC: 5.00
 }
 
 // CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
-// CHECK-NEXT:     double _d_k = 0.;
 // CHECK-NEXT:     double k = 2 * u;
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double n = 2 * v;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         _d_n += _d_y * k;
-// CHECK-NEXT:         _d_k += n * _d_y;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_n += _d_y * k;
 // CHECK-NEXT:     *_d_v += 2 * _d_n;
-// CHECK-NEXT:     *_d_u += 2 * _d_k;
 // CHECK-NEXT: }
 
 // CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
@@ -438,4 +463,8 @@ int main(){
 // CHECK-NEXT:         *_d_u = 0.;
 // CHECK-NEXT:         *_d_v += _r_d0;
 // CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void f12_1_pullback(double y, const double *obs, double _d_y0, double *_d_y) {
+// CHECK-NEXT:     double nopull = interpolate1d(1., 3., 5., 5, obs);
 // CHECK-NEXT: }

@@ -1672,8 +1672,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg) ||
-          !m_DiffReq.shouldHaveAdjoint(PVD)) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1961,7 +1960,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         pullbackRequest.VerboseDiags = false;
         pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
         pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-        pullbackRequest.setToBeRecorded(m_DiffReq.getToBeRecorded());
         bool isaMethod = isa<CXXMethodDecl>(FD);
         for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
           if (MD && isLambdaCallOperator(MD)) {

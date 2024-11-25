@@ -121,6 +121,8 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
+    bool restoreMarking = m_Marking;
+    bool restoreVaried = m_Varied;
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
@@ -130,25 +132,24 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
       while (innermostType->isPointerType())
         innermostType = innermostType->getPointeeType();
 
-      if ((parType->isReferenceType() ||
-           utils::isArrayOrPointerType(parType)) &&
-          !innermostType.isConstQualified()) {
-        m_Marking = true;
-        m_Varied = true;
-      }
-
+      m_Varied = false;
+      m_Marking = false;
       TraverseStmt(par);
-      if ((parType->isReferenceType() ||
-           utils::isArrayOrPointerType(parType)) &&
-          !innermostType.isConstQualified()) {
-        m_Marking = false; //?
-        m_Varied = false;
-      }
-
-      if ((m_Varied || !innermostType.isConstQualified()))
+      if (m_Varied)
         m_VariedDecls.insert(FDparam[i]);
+      else if ((parType->isReferenceType() ||
+                (utils::isArrayOrPointerType(parType) &&
+                 !innermostType.isConstQualified()))) {
+        m_Varied = true;
+        m_Marking = true;
+        TraverseStmt(par);
+        m_VariedDecls.insert(FDparam[i]);
+      }
     }
+    m_Varied = restoreVaried;
+    m_Marking = restoreMarking;
   }
+
   return true;
 }
 
@@ -159,12 +160,10 @@ bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
     QualType innermost = VDTy;
     while (innermost->isPointerType())
       innermost = innermost->getPointeeType();
-    if (VDTy->isPointerType() && !innermost.isConstQualified()) {
+    if (VDTy->isArrayType() ||
+        (VDTy->isPointerType() && !innermost.isConstQualified())) {
       copyVarToCurBlock(cast<VarDecl>(D));
-      continue;
-    } else if (VDTy->isArrayType()) {
-      copyVarToCurBlock(cast<VarDecl>(D));
-      continue;
+      m_Varied = true;
     }
 
     if (Expr* init = cast<VarDecl>(D)->getInit()) {
