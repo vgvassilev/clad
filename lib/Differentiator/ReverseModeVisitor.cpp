@@ -1471,13 +1471,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     DC->addDecl(VDDiff);
     DC->makeDeclVisibleInContext(VDDiff);
     plugin::ProcessTopLevelDecl(m_CladPlugin, VDDiff);
-    // diag(DiagnosticsEngine::Warning,
-    //        VD->getLocation(),
-    //        "The gradient utilizes a global variable '%0' and its adjoint
-    //        '%1'"
-    //        ". Please make sure to properly reset '%0' and '%1' before
-    //        re-running the gradient.",
-    //       {VD->getNameAsString(), nameDiff_str});
+    diag(DiagnosticsEngine::Warning, VD->getLocation(),
+         "The gradient utilizes a global variable '%0' and its adjoint '%1'"
+         ". Please make sure to properly reset '%0' and '%1' before re-running "
+         "the gradient.",
+         {VD->getNameAsString(), nameDiff_str});
     return BuildDeclRef(VDDiff);
   }
 

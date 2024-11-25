@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang %s -std=c++17 -I%S/../../include -oGradients.out 2>&1 | %filecheck %s
+// RUN: %cladnumdiffclang %s -std=c++17 -I%S/../../include -oGradients.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Gradients.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
@@ -665,9 +665,8 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-double global = 7;
+double global = 7; // expected-warning {{The gradient utilizes a global variable 'global' and its adjoint '_d_global'. Please make sure to properly reset 'global' and '_d_global' before re-running the gradient.}}
 // CHECK: double _d_global = 0.;
-// expected-warning {{The gradient utilizes a global variable 'global' and its adjoint '_d_global'. Please make sure to properly reset 'global' and '_d_global' before re-running the gradient.}}
 
 double fn_global_var_use(double i, double j) {
   double& ref = global;
@@ -1145,7 +1144,7 @@ double f_ref_in_rhs(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-double glob1 = 5;
+double glob1 = 5; // expected-warning {{The gradient utilizes a global variable 'glob1' and its adjoint '_d_glob1'. Please make sure to properly reset 'glob1' and '_d_glob1' before re-running the gradient.}}
 
 double g(double a, double b) {
     glob1 = b;
@@ -1153,9 +1152,7 @@ double g(double a, double b) {
 }
 
 //CHECK: void g_pullback(double a, double b, double _d_y, double *_d_a, double *_d_b);
-
 //CHECK: double _d_glob1 = 0.;
-// expected-warning {{The gradient utilizes a global variable 'glob1' and its adjoint '_d_glob1'. Please make sure to properly reset 'glob1' and '_d_glob1' before re-running the gradient.}}
 
 double f_reuse_global(double x, double t) {
     t = g(t, x);
