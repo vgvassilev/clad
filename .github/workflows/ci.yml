@@ -636,7 +636,7 @@ jobs:
           echo "Unsupported compiler - fix YAML file"
         }
     - name: Setup LLVM/Clang on macOS
-      if: runner.os == 'macOS'
+      if: ${{ runner.os == 'macOS' && (matrix.debug_build != true) }}
       run: |
         #brew update
         brew install --ignore-dependencies llvm
@@ -796,8 +796,9 @@ jobs:
         pip3 install lit # LLVM lit is not part of the llvm releases...
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+        
     - name: Setup LLVM/Clang on Windows
-      if: ${{ runner.os == 'windows' }}
+      if: ${{ runner.os == 'windows' && (matrix.debug_build != true) }}
       run: |
         C:\Miniconda\condabin\conda.bat install -y -c conda-forge "clangdev=${{ matrix.clang-runtime }}"
         $env:PATH_TO_LLVM_BUILD="$env:CONDA\Library"
