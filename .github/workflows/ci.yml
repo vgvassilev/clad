@@ -732,7 +732,7 @@ jobs:
 
 
     - name: Build LLVM/Cling on Windows systems if the cache is invalid
-      if: ${{ runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' }}
+      if: ${{ (matrix.debug_build == true) && runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' }}
       run: |
         git clone --depth=1 -b release/${{ matrix.clang-runtime }}.x https://github.com/llvm/llvm-project.git
 
