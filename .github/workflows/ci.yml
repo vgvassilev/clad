@@ -894,7 +894,14 @@ jobs:
         {
           $env:CLAD_CODE_COVERAGE="0"
         }
-        ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
+        if ( "matrix.debug_build" -imatch "true" )
+        {
+          ((Get-Content -path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake
+        }
+        else
+        {
+          ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
+        }
         $lit = @(which lit)
         cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
         cmake --build . --config Release
