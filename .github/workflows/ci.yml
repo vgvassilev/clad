@@ -762,9 +762,6 @@ jobs:
               ..\llvm                
         cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
         cd ..\..
-        $env:LLVM_BUILD_DIR="$env:GITHUB_WORKSPACE\llvm-project\build"
-        echo "LLVM_BUILD_DIR=$env:LLVM_BUILD_DIR"
-        echo "LLVM_BUILD_DIR=$env:LLVM_BUILD_DIR" >> $env:GITHUB_ENV
         
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v4
@@ -900,6 +897,9 @@ jobs:
         if ( "${{ matrix.debug_build }}" -imatch "true" )
         {
           ((Get-Content -path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake
+          $env:PATH_TO_LLVM_BUILD="$env:GITHUB_WORKSPACE\llvm-project\build"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
+          echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
         }
         else
         {
