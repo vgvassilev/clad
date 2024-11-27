@@ -762,6 +762,9 @@ jobs:
               ..\llvm                
         cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
         cd ..\..
+        $env:LLVM_BUILD_DIR="$env:GITHUB_WORKSPACE\llvm-project\build"
+        echo "LLVM_BUILD_DIR=$env:LLVM_BUILD_DIR"
+        echo "LLVM_BUILD_DIR=$env:LLVM_BUILD_DIR" >> $env:GITHUB_ENV
         
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v4
@@ -885,7 +888,7 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
       run: |
         mkdir obj
-        cd obj
+        cd obj        
         if ( "$env:BUILD_TYPE" -eq "" )
         {
           $env:BUILD_TYPE="RelWithDebInfo"
