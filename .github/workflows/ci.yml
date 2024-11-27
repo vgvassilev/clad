@@ -765,7 +765,7 @@ jobs:
         
     - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
       uses: actions/cache/save@v4
-      if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') && (steps.cache.outputs.cache-hit != 'true') }}
+      if: ${{ (matrix.debug_build == true) && (steps.cache.outputs.cache-hit != 'true') }}
       with:
         path: |
           llvm-project
