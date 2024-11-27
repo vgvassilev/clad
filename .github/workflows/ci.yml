@@ -894,7 +894,7 @@ jobs:
         {
           $env:CLAD_CODE_COVERAGE="0"
         }
-        if ( "matrix.debug_build" -imatch "true" )
+        if ( "${{ matrix.debug_build }}" -imatch "true" )
         {
           ((Get-Content -path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path $env:GITHUB_WORKSPACE/llvm-project/build/lib/cmake/llvm/LLVMConfig.cmake
         }
