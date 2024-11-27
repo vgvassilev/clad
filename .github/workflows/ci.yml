@@ -114,6 +114,12 @@ jobs:
             compiler: msvc
             clang-runtime: '18'
 
+          - name: win2022-msvc-runtime18-debug
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '18'
+            debug_build: true
+
           - name: ubu22-clang15-runtime16-debug
             os: ubuntu-22.04
             compiler: clang-15
