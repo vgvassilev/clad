@@ -1715,10 +1715,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             baseOriginalE = MCE->getImplicitObjectArgument();
           else if (const auto* OCE = dyn_cast<CXXOperatorCallExpr>(CE))
             baseOriginalE = OCE->getArg(0);
-
-          baseDiff = Visit(baseOriginalE);
+          if (baseOriginalE->isXValue()) {
+            QualType dBaseTy =
+                getNonConstType(baseOriginalE->getType(), m_Context, m_Sema);
+            VarDecl* dBaseDecl =
+                BuildVarDecl(dBaseTy, "_r", getZeroInit(dBaseTy));
+            PreCallStmts.push_back(BuildDeclStmt(dBaseDecl));
+            DeclRefExpr* dBaseRef = BuildDeclRef(dBaseDecl);
+            baseDiff = Visit(baseOriginalE, dBaseRef);
+            baseDiff.updateStmtDx(Clone(dBaseRef));
+          } else
+            baseDiff = Visit(baseOriginalE);
           baseExpr = baseDiff.getExpr();
-          Expr* baseDiffStore = GlobalStoreAndRef(baseDiff.getExpr());
+          Expr* baseDiffStore =
+              GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
+          if (baseOriginalE->isXValue())
+            baseExpr = baseDiffStore;
           baseDiff.updateStmt(baseDiffStore);
           Expr* baseDerivative = baseDiff.getExpr_dx();
           if (!baseDerivative->getType()->isPointerType())
