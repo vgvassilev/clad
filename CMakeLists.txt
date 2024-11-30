@@ -208,7 +208,37 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)
 
   set( CLAD_BUILT_STANDALONE 1 )
+else()
+  # Not standalone; we are building within llvm
+  if (NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(FATAL_ERROR "Clang is not enabled; consider enabling it in LLVM_ENABLED_PROJECTS")
+  endif()
+
+  message(STATUS "Building Clad as part of LLVM")
+
+  # Try finding the LLVMConfig.cmake if we build against prebuilt LLVM
+  set(LLVM_CMAKE_PATH "${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm")
+  set(LLVMCONFIG_FILE "${LLVM_CMAKE_PATH}/LLVMConfig.cmake")
+  if(EXISTS ${LLVMCONFIG_FILE})
+    list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_PATH}")
+    include(${LLVMCONFIG_FILE})
+  endif()
+
+  if (NOT CLANG_INCLUDE_DIRS)
+    set (CLANG_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/tools/clang/include")
+    if (NOT EXISTS ${CLANG_INCLUDE_DIRS})
+      # Otherwise assume the monorepo layout.
+      set (CLANG_INCLUDE_DIRS ${LLVM_MAIN_SRC_DIR}/../clang/include )
+    endif()
+    set (CLANG_INCLUDE_DIRS "${CLANG_INCLUDE_DIRS}" "${LLVM_BINARY_DIR}/tools/clang/include")
+  endif()
+  if (NOT LLVM_INCLUDE_DIRS)
+    set (LLVM_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/include" "${LLVM_BINARY_DIR}/include")
+  endif()
 endif()
+
+include_directories(SYSTEM ${CLANG_INCLUDE_DIRS})
+include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 
 ## Code Coverage Configuration
 add_library(coverage_config INTERFACE)
