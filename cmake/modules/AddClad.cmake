@@ -46,6 +46,12 @@ function(ENABLE_CLAD_FOR_TARGET executable)
   set_property(TARGET ${executable} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
   add_dependencies(${executable} clad)
+
+  # We are probably building clad with clang.
+  if (NOT CLAD_BUILT_STANDALONE)
+    add_dependencies(${executable} clad)
+  endif()
+
   # If clad.so changes we don't need to relink but to rebuild the source files.
   # $<TARGET_FILE:clad> does not work for OBJECT_DEPENDS.
   set (CLAD_SO_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/clad${CMAKE_SHARED_LIBRARY_SUFFIX}")
