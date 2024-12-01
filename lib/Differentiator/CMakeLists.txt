@@ -1,8 +1,3 @@
-set(CLANG_SOURCE_DIR ${CLAD_SOURCE_DIR}/../clang/)
-if (NOT EXISTS ${CLANG_SOURCE_DIR})
-  set(CLANG_SOURCE_DIR "${Clang_DIR}/")
-endif()
-
 clad_compat__find_first_existing_vc_file("${CLANG_SOURCE_DIR}" clang_vc)
 clad_compat__find_first_existing_vc_file("${CLAD_SOURCE_DIR}" clad_vc)
 

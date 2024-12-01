@@ -32,19 +32,20 @@ set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules"
   )
 
+# Define clad supported version of clang and llvm.
+set(CLANG_MIN_SUPPORTED 8.0)
+set(CLANG_MAX_SUPPORTED "18.1.x")
+set(CLANG_VERSION_UPPER_BOUND 18.2.0)
+set(LLVM_MIN_SUPPORTED 8.0)
+set(LLVM_MAX_SUPPORTED "18.1.x")
+set(LLVM_VERSION_UPPER_BOUND 18.2.0)
+
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
+  set(CLAD_BUILT_STANDALONE 1)
+
   project(clad)
-
-  ## Define clad supported version of clang and llvm
-
-  set(CLANG_MIN_SUPPORTED 8.0)
-  set(CLANG_MAX_SUPPORTED "18.1.x")
-  set(CLANG_VERSION_UPPER_BOUND 18.2.0)
-  set(LLVM_MIN_SUPPORTED 8.0)
-  set(LLVM_MAX_SUPPORTED "18.1.x")
-  set(LLVM_VERSION_UPPER_BOUND 18.2.0)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
@@ -134,26 +135,21 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
     message(FATAL_ERROR "Please set Clang_DIR pointing to the clang build or installation folder")
   endif()
 
-  set(CLANG_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
-  set(CLANG_VERSION_MINOR ${LLVM_VERSION_MINOR})
-  set(CLANG_VERSION_PATCH ${LLVM_VERSION_PATCH})
-  set(CLANG_PACKAGE_VERSION ${LLVM_PACKAGE_VERSION})
-
-  if (CLANG_PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR CLANG_PACKAGE_VERSION VERSION_GREATER_EQUAL CLANG_VERSION_UPPER_BOUND)
-    message(FATAL_ERROR "Found unsupported version: Clang ${CLANG_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
+  if (LLVM_PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR LLVM_PACKAGE_VERSION VERSION_GREATER_EQUAL CLANG_VERSION_UPPER_BOUND)
+    message(FATAL_ERROR "Found unsupported version: Clang ${LLVM_PACKAGE_VERSION};\nPlease set Clang_DIR pointing to the clang version ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED} build or installation folder")
   endif()
 
-  message(STATUS "Found supported version: Clang ${CLANG_PACKAGE_VERSION}")
+  message(STATUS "Found supported version: Clang ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 
-  if (CLANG_VERSION_MAJOR GREATER_EQUAL 16)
+  if (LLVM_VERSION_MAJOR GREATER_EQUAL 16)
     if (NOT CMAKE_CXX_STANDARD)
       set (CMAKE_CXX_STANDARD 17)
     endif()
     if (CMAKE_CXX_STANDARD LESS 17)
       message(fatal "LLVM/Clad requires C++17 or later")
     endif()
-  elseif (CLANG_VERSION_MAJOR GREATER_EQUAL 10)
+  elseif (LLVM_VERSION_MAJOR GREATER_EQUAL 10)
     if (NOT CMAKE_CXX_STANDARD)
       set (CMAKE_CXX_STANDARD 14)
     endif()
@@ -179,17 +175,11 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
 
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-  # In rare cases we might want to have clang installed in a different place
-  # than llvm and the header files should be found first (even though the
-  # LLVM_INCLUDE_DIRS) contain clang headers, too.
-  include_directories(SYSTEM ${CLANG_INCLUDE_DIRS})
-  include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)
 
-  set( CLAD_BUILT_STANDALONE 1 )
 else()
   # Not standalone; we are building within llvm
   if (NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
@@ -198,24 +188,14 @@ else()
 
   message(STATUS "Building Clad as part of LLVM")
 
-  # Try finding the LLVMConfig.cmake if we build against prebuilt LLVM
-  set(LLVM_CMAKE_PATH "${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm")
-  set(LLVMCONFIG_FILE "${LLVM_CMAKE_PATH}/LLVMConfig.cmake")
-  if(EXISTS ${LLVMCONFIG_FILE})
-    list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_PATH}")
-    include(${LLVMCONFIG_FILE})
+  if (PACKAGE_VERSION VERSION_LESS CLANG_MIN_SUPPORTED OR PACKAGE_VERSION VERSION_GREATER_EQUAL CLANG_VERSION_UPPER_BOUND)
+    message(WARNING "Building against unsupported version: Clang ${PACKAGE_VERSION};\n Supported versions are from ${CLANG_MIN_SUPPORTED} to ${CLANG_MAX_SUPPORTED}.")
   endif()
 
+  set(CLANG_SOURCE_DIR ${LLVM_SOURCE_DIR}/../clang)
+  set(CLANG_BINARY_DIR ${LLVM_TOOLS_BINARY_DIR}/clang)
   if (NOT CLANG_INCLUDE_DIRS)
-    set (CLANG_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/tools/clang/include")
-    if (NOT EXISTS ${CLANG_INCLUDE_DIRS})
-      # Otherwise assume the monorepo layout.
-      set (CLANG_INCLUDE_DIRS ${LLVM_MAIN_SRC_DIR}/../clang/include )
-    endif()
-    set (CLANG_INCLUDE_DIRS "${CLANG_INCLUDE_DIRS}" "${LLVM_BINARY_DIR}/tools/clang/include")
-  endif()
-  if (NOT LLVM_INCLUDE_DIRS)
-    set (LLVM_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/include" "${LLVM_BINARY_DIR}/include")
+    set(CLANG_INCLUDE_DIRS "${CLANG_SOURCE_DIR}/include" "${CLANG_BINARY_DIR}/include")
   endif()
 endif()
 
