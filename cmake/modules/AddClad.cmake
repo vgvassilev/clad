@@ -47,9 +47,9 @@ function(ENABLE_CLAD_FOR_TARGET executable)
 
   add_dependencies(${executable} clad)
 
-  # We are probably building clad with clang.
   if (NOT CLAD_BUILT_STANDALONE)
-    add_dependencies(${executable} clad)
+    # We are probably building clad with clang. Make sure we've built clang.
+    add_dependencies(${executable} clang)
   endif()
 
   # If clad.so changes we don't need to relink but to rebuild the source files.
