@@ -4,6 +4,9 @@ set_target_properties(CladUnitTests PROPERTIES FOLDER "Clad tests")
 # LLVM builds (not installed llvm) provides gtest.
 if (NOT TARGET gtest)
   include(CladGoogleTest)
+  if(NOT CLAD_BUILT_STANDALONE)
+    add_dependencies(googletest clang)
+  endif()
 endif()
 
 # add_clad_unittest(test_dirname file1.cpp file2.cpp)
