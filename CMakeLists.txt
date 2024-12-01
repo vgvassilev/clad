@@ -186,24 +186,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
 
-  # If the llvm sources are present add them with higher priority.
-  if (LLVM_BUILD_MAIN_SRC_DIR)
-    # LLVM_INCLUDE_DIRS contains the include paths to both LLVM's source and
-    # build directories. Since we cannot just include ClangConfig.cmake (see
-    # fixme above) we have to do a little more work to get the right include
-    # paths for clang.
-    #
-    # FIXME: We only support in-tree builds of clang, that is clang being built
-    # in llvm_src/tools/clang.
-    include_directories(SYSTEM ${LLVM_BUILD_MAIN_SRC_DIR}/tools/clang/include/)
-
-    if (NOT LLVM_BUILD_BINARY_DIR)
-      message(FATAL "LLVM_BUILD_* values should be available for the build tree")
-    endif()
-
-    include_directories(SYSTEM ${LLVM_BUILD_BINARY_DIR}/tools/clang/include/)
-  endif()
-
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)
 
