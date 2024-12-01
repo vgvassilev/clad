@@ -280,25 +280,17 @@ Clone the LLVM project and checkout the required LLVM version (Currently support
 
 ```
 git clone https://github.com/llvm/llvm-project.git
+git clone https://github.com/vgvassilev/clad.git
 cd llvm-project
-git checkout llvmorg-16.0.0
-```
-Build Clang:
-```
-mkdir build && cd build
-cmake -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE="DEBUG" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
-cmake --build . --target clang --parallel $(nproc --all)
-make -j8 check-clang # this installs llvm-config required by lit
-cd ../..
+git checkout llvmorg-18.0.0
 ```
 
-Clone and build Clad:
+Build Clad with Clang and LLVM:
 ```
-git clone https://github.com/vgvassilev/clad.git
-cd clad
 mkdir build && cd build
-cmake -DLLVM_DIR=PATH/TO/llvm-project/build -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_EXTERNAL_LIT="$(which lit)" ../
-make -j8 clad
+cmake -DLLVM_ENABLE_PROJECTS="clang" -DLLVM_EXTERNAL_PROJECTS=clad -DLLVM_EXTERNAL_CLAD_SOURCE_DIR=../../clad -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
+cmake --build . --target clad --parallel $(nproc --all)
+cd ../..
 ```
 
 Run the Clad tests:
