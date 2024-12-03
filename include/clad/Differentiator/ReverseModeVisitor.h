@@ -360,7 +360,7 @@ namespace clad {
     clang::CXXRecordDecl*
     diffLambdaCXXRecordDecl(const clang::CXXRecordDecl* Original);
     clang::CXXMethodDecl*
-    DifferentiateCallOperatorIfLambda(const clang::CXXRecordDecl* RD);
+    DifferentiateCallOperatorIfLambda(const clang::CXXRecordDecl* RD, clang::FunctionDecl* preCreatedDerivativeDecl);
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
@@ -386,6 +386,7 @@ namespace clad {
     /// y" will give 'f_grad_0_1' and "x, z" will give 'f_grad_0_2'.
     DerivativeAndOverload Derive();
     DerivativeAndOverload DerivePullback();
+    DerivativeAndOverload DerivePullback(clang::FunctionDecl* preDerivative);
     StmtDiff VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* ASE);
     StmtDiff VisitBinaryOperator(const clang::BinaryOperator* BinOp);
     StmtDiff VisitLambdaExpr(const clang::LambdaExpr* LE);

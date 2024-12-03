@@ -360,6 +360,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   DerivativeAndOverload ReverseModeVisitor::DerivePullback() {
+    return DerivePullback(nullptr);
+  }
+
+  DerivativeAndOverload ReverseModeVisitor::DerivePullback(clang::FunctionDecl* preDerivative) {
     const clang::FunctionDecl* FD = m_DiffReq.Function;
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
@@ -408,10 +412,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
     SourceLocation validLoc{m_DiffReq->getLocation()};
-    DeclWithContext fnBuildRes =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
-                                validLoc, DNI, pullbackFnType);
-    m_Derivative = fnBuildRes.first;
+    if (!preDerivative) {
+      DeclWithContext fnBuildRes =
+          m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
+                                  validLoc, DNI, pullbackFnType);
+      m_Derivative = fnBuildRes.first;
+    } else {
+      m_Derivative = preDerivative;
+    }
 
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeCreatingDerivedFnScope();
@@ -419,7 +427,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
                Scope::DeclScope);
     m_Sema.PushFunctionScope();
-    m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
+    m_Sema.PushDeclContext(getCurrentScope(), m_Derivative); // ASK ABOUT IT
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnScope();
@@ -490,7 +498,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    return DerivativeAndOverload{fnBuildRes.first, nullptr};
+    return DerivativeAndOverload{m_Derivative, nullptr};
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
@@ -1452,7 +1460,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   CXXMethodDecl* ReverseModeVisitor::DifferentiateCallOperatorIfLambda(
-      const clang::CXXRecordDecl* RD) {
+      const clang::CXXRecordDecl* RD, FunctionDecl* preCreatedDerivativeDecl) {
     if (RD) {
       CXXRecordDecl* constructedType = RD->getDefinition();
       bool isLambda = constructedType->isLambda();
@@ -1466,6 +1474,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               req.Function = cxxMethod;
               req.Mode = DiffMode::experimental_pullback;
               req.BaseFunctionName = utils::ComputeEffectiveFnName(cxxMethod);
+              req.LambdaPreCreatedDerivativeTarget = preCreatedDerivativeDecl;
               // Silence diag outputs in nested derivation process.
               req.VerboseDiags = false;
 
@@ -1513,49 +1522,65 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     for (auto* Method : Original->methods()) {
       if (CXXMethodDecl* OriginalOpCall = dyn_cast<CXXMethodDecl>(Method)) {
         if (OriginalOpCall->getOverloadedOperator() == OO_Call) {
-          auto* diffedOpCall = DifferentiateCallOperatorIfLambda(Original);
-          if (diffedOpCall) {
-            diffedOpCall->setAccess(OriginalOpCall->getAccess());
+          // First, we create an operator copied from the original lambda, which we then differentiate
+          {
+            
+          }
+
+          // if (diffedOpCall) {
+            // diffedOpCall->setAccess(OriginalOpCall->getAccess());
             // Cloned->addDecl(diffedOpCall);
 
+            // TRY CLONING THE OPERATOR FIRST, THEN DIFFERENTIATING IT TO MAINTAIN A CONSISTENT CONTEXT
+
+            DiffParams args{};
+            std::copy(OriginalOpCall->param_begin(), OriginalOpCall->param_end(), std::back_inserter(args));
+            auto paramTypes = ComputeParamTypes(args);
+            const auto* originalFnType =
+                dyn_cast<FunctionProtoType>(OriginalOpCall->getType());
+            QualType pullbackFnType = m_Context.getFunctionType(
+                m_Context.VoidTy, paramTypes, originalFnType->getExtProtoInfo());
+
             CXXMethodDecl* ClonedOpCall = CXXMethodDecl::Create(
-                m_Context, Cloned, diffedOpCall->getBeginLoc(),
+                m_Context, Cloned, OriginalOpCall->getBeginLoc(),
                 OriginalOpCall->getNameInfo(),
-                diffedOpCall
-                    ->getType(), // Function type (return type + parameters)
-                diffedOpCall->getTypeSourceInfo(),
-                diffedOpCall->getStorageClass()
-                    CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(diffedOpCall),
-                diffedOpCall->isInlineSpecified(), // Inline specifier
+                pullbackFnType, // Function type (return type + parameters)
+                OriginalOpCall->getTypeSourceInfo(),
+                OriginalOpCall->getStorageClass()
+                    CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(OriginalOpCall),
+                OriginalOpCall->isInlineSpecified(), // Inline specifier
                 clad_compat::Function_GetConstexprKind(
-                    diffedOpCall),        // Constexpr specifier
-                diffedOpCall->getEndLoc() //,
+                    OriginalOpCall),        // Constexpr specifier
+                OriginalOpCall->getEndLoc() //,
                 // diffedOpCall->getTrailingRequiresClause()
             );
 
-            llvm::SmallVector<clang::ParmVarDecl*, 8> params;
-            for (unsigned i = 0; i < diffedOpCall->param_size(); ++i) {
-              ParmVarDecl* p = diffedOpCall->getParamDecl(i);
-              ParmVarDecl* NewParam = ParmVarDecl::Create(
-                  m_Context, ClonedOpCall, p->getBeginLoc(), p->getLocation(),
-                  p->getIdentifier(), p->getType(), p->getTypeSourceInfo(),
-                  p->getStorageClass(), p->getDefaultArg());
-              params.push_back(NewParam);
-            }
-            ClonedOpCall->setParams(params);
+            // Cloned->addDecl(ClonedOpCall); // do we need this?
+
+            auto* diffedOpCall = DifferentiateCallOperatorIfLambda(Original, ClonedOpCall);
+
+            // llvm::SmallVector<clang::ParmVarDecl*, 8> params;
+            // for (unsigned i = 0; i < diffedOpCall->param_size(); ++i) {
+            //   ParmVarDecl* p = diffedOpCall->getParamDecl(i);
+            //   ParmVarDecl* NewParam = ParmVarDecl::Create(
+            //       m_Context, ClonedOpCall, p->getBeginLoc(), p->getLocation(),
+            //       p->getIdentifier(), p->getType(), p->getTypeSourceInfo(),
+            //       p->getStorageClass(), p->getDefaultArg());
+            //   params.push_back(NewParam);
+            // }
+            // ClonedOpCall->setParams(params);
 
             // Copy the method body if it exists
-            if (diffedOpCall->hasBody()) {
-              Stmt* body = diffedOpCall->getBody();
-              Stmt* ClonedBody = Clone(body);
-              ClonedOpCall->setBody(ClonedBody);
-            }
+            // if (diffedOpCall->hasBody()) {
+            //   Stmt* body = diffedOpCall->getBody();
+            //   Stmt* ClonedBody = Clone(body);
+            //   ClonedOpCall->setBody(ClonedBody);
+            // }
 
             ClonedOpCall->setAccess(OriginalOpCall->getAccess());
-            Cloned->addDecl(ClonedOpCall);
 
             break; // we get into an infinite loop otherwise
-          }
+          // }
         }
       }
     }
@@ -3436,7 +3461,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // If the DeclStmt is not empty, check the first declaration in case it is a
     // lambda function. This case it is treated differently.
-    bool isLambda = false;
     const auto* declsBegin = DS->decls().begin();
     if (declsBegin != DS->decls().end() && isa<VarDecl>(*declsBegin)) {
       auto* VD = dyn_cast<VarDecl>(*declsBegin);
@@ -3445,7 +3469,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         QT = QT->getPointeeType();
 
       auto* typeDecl = QT->getAsCXXRecordDecl();
-      isLambda = typeDecl && typeDecl->isLambda();
       if (typeDecl && clad::utils::hasNonDifferentiableAttribute(typeDecl)) {
         for (auto* D : DS->decls())
           if (auto* VD = dyn_cast<VarDecl>(D))

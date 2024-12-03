@@ -79,6 +79,9 @@ public:
   /// order derivatives.
   const clang::CXXRecordDecl* Functor = nullptr;
 
+  /// If we're creating a pullback for a lambda function, we need to put the diffed function into a call operator of another lambda class. Therefore, we need to used a pre-created function declaration to put our derived code into. Only applicable if working with lambdas in the reverse mode.
+  clang::FunctionDecl* LambdaPreCreatedDerivativeTarget = nullptr;
+
   /// Stores differentiation parameters information. Stored information
   /// includes info on indices range for array parameters, and nested data
   /// member information for record (class) type parameters.

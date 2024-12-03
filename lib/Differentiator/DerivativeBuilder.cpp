@@ -422,7 +422,7 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
         InitErrorEstimation(m_ErrorEstHandler, m_EstModel, *this, request);
         V.AddExternalSource(*m_ErrorEstHandler.back());
       }
-      result = V.DerivePullback();
+      result = V.DerivePullback(request.LambdaPreCreatedDerivativeTarget);
       if (!m_ErrorEstHandler.empty())
         CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
     } else if (request.Mode == DiffMode::reverse_mode_forward_pass) {
