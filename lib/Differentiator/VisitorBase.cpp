@@ -418,6 +418,13 @@ namespace clad {
       Expr* zero = ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
       return m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
     }
+    if (const auto* RD = T->getAsCXXRecordDecl())
+      if (RD->hasDefinition() && !RD->isUnion() && RD->isAggregate()) {
+        llvm::SmallVector<Expr*, 4> adjParams;
+        for (const FieldDecl* FD : RD->fields())
+          adjParams.push_back(getZeroInit(FD->getType()));
+        return m_Sema.ActOnInitList(noLoc, adjParams, noLoc).get();
+      }
     return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
   }
 
