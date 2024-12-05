@@ -585,15 +585,6 @@ template <typename T, ::std::size_t N, typename U>
 void size_pullback(::std::array<T, N>* /*a*/, U /*d_y*/,
                    ::std::array<T, N>* /*d_a*/) noexcept {}
 template <typename T, ::std::size_t N>
-::clad::ValueAndAdjoint<::std::array<T, N>, ::std::array<T, N>>
-constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::array<T, N>>,
-                         const ::std::array<T, N>& arr,
-                         const ::std::array<T, N>& d_arr) {
-  ::std::array<T, N> a = arr;
-  ::std::array<T, N> d_a = d_arr;
-  return {a, d_a};
-}
-template <typename T, ::std::size_t N>
 void constructor_pullback(::std::array<T, N>* a, const ::std::array<T, N>& arr,
                           ::std::array<T, N>* d_a, ::std::array<T, N>* d_arr) {
   for (size_t i = 0; i < N; ++i)
