@@ -286,6 +286,11 @@ float f16(float x) {
 //CHECK-NEXT:    return _t0.pushforward;
 //CHECK-NEXT: }
 
+double f17(double x) {
+  double y = std::fabs(x);
+  return 2*y;
+}
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -377,6 +382,10 @@ int main () { //expected-no-diagnostics
 
   auto f16_darg0 = clad::differentiate(f16, 0);
   printf("Result is = %f\n", f16_darg0.execute(0.9)); //CHECK-EXEC: Result is = -2.294157
+
+  INIT_GRADIENT(f17);
+
+  TEST_GRADIENT(f17, /*numOfDerivativeArgs=*/1, -3, &d_result[0]); // CHECK-EXEC: {-2.00}
   
   return 0;
 }
