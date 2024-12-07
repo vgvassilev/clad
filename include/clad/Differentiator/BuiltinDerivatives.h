@@ -208,6 +208,11 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> abs_pushforward(T x, dT d_x) {
 }
 
 template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> fabs_pushforward(T x, dT d_x) {
+  return abs_pushforward(x, d_x);
+}
+
+template <typename T, typename dT>
 CUDA_HOST_DEVICE ValueAndPushforward<T, dT> exp_pushforward(T x, dT d_x) {
   return {::std::exp(x), ::std::exp(x) * d_x};
 }
@@ -413,6 +418,7 @@ using std::atan2_pushforward;
 using std::ceil_pushforward;
 using std::cos_pushforward;
 using std::exp_pushforward;
+using std::fabs_pushforward;
 using std::floor_pushforward;
 using std::fma_pullback;
 using std::fma_pushforward;
