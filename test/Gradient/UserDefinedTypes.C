@@ -395,10 +395,10 @@ MyStruct fn12(MyStruct s) {
 
 // CHECK: void fn12_grad(MyStruct s, MyStruct *_d_s) {
 // CHECK-NEXT:     MyStruct _t0 = s;
-// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = _t0.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {});
+// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = _t0.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
 // CHECK-NEXT:    {
-// CHECK-NEXT:        MyStruct _r0 = {};
-// CHECK-NEXT:        _t0.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {}, &(*_d_s), &_r0);
+// CHECK-NEXT:        MyStruct _r0 = {0., 0.};
+// CHECK-NEXT:        _t0.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
 // CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
 // CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
 // CHECK-NEXT:    }
@@ -465,6 +465,24 @@ void fn13(double *x, double *y, int size)
 // CHECK-NEXT:        _d_p.j = 0;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
+// CHECK-NEXT:}
+
+double fn14(double x, double y) {
+  MyStruct s = {2 * y, 3 * x + 2};
+  return s.a * s.b;
+}
+
+// CHECK: void fn14_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     MyStruct _d_s = {0., 0.};
+// CHECK-NEXT:     MyStruct s = {2 * y, 3 * x + 2};
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_s.a += 1 * s.b;
+// CHECK-NEXT:         _d_s.b += s.a * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_y += 2 * _d_s.a;
+// CHECK-NEXT:         *_d_x += 3 * _d_s.b;
+// CHECK-NEXT:     }
 // CHECK-NEXT:}
 
 void print(const Tangent& t) {
@@ -535,6 +553,9 @@ int main() {
     fn13_test.execute(x, y, 3, d_x, d_y);
     printArray(d_x, size); // CHECK-EXEC: {2.00, 2.00, 2.00}
     printArray(d_y, size); // CHECK-EXEC: {0.00, 0.00, 0.00}
+
+    INIT_GRADIENT(fn14);
+    TEST_GRADIENT(fn14, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {30.00, 22.00}
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
