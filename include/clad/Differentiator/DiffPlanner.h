@@ -34,11 +34,12 @@ private:
   } m_TbrRunInfo;
 
   mutable struct ActivityRunInfo {
-    std::set<const clang::VarDecl*> ToBeRecorded;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
 public:
+  /// All varied declarations.
+  static std::set<const clang::VarDecl*> AllVariedDecls;
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
   /// Name of the base function to be differentiated. Can be different from

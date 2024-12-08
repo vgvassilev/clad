@@ -121,24 +121,56 @@ bool VariedAnalyzer::VisitCallExpr(CallExpr* CE) {
   FunctionDecl* FD = CE->getDirectCallee();
   bool noHiddenParam = (CE->getNumArgs() == FD->getNumParams());
   if (noHiddenParam) {
+    bool restoreMarking = m_Marking;
+    bool restoreVaried = m_Varied;
     MutableArrayRef<ParmVarDecl*> FDparam = FD->parameters();
     for (std::size_t i = 0, e = CE->getNumArgs(); i != e; ++i) {
       clang::Expr* par = CE->getArg(i);
+
+      QualType parType = FDparam[i]->getType();
+      QualType innermostType = parType;
+      while (innermostType->isPointerType())
+        innermostType = innermostType->getPointeeType();
+
+      m_Varied = false;
+      m_Marking = false;
       TraverseStmt(par);
-      m_VariedDecls.insert(FDparam[i]);
+      if (m_Varied)
+        m_VariedDecls.insert(FDparam[i]);
+      else if ((parType->isReferenceType() ||
+                (utils::isArrayOrPointerType(parType) &&
+                 !innermostType.isConstQualified()))) {
+        m_Varied = true;
+        m_Marking = true;
+        TraverseStmt(par);
+        m_VariedDecls.insert(FDparam[i]);
+      }
     }
+    m_Varied = restoreVaried;
+    m_Marking = restoreMarking;
   }
+
   return true;
 }
 
 bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
   for (Decl* D : DS->decls()) {
+
+    QualType VDTy = cast<VarDecl>(D)->getType();
+    QualType innermost = VDTy;
+    while (innermost->isPointerType())
+      innermost = innermost->getPointeeType();
+    if (VDTy->isArrayType() ||
+        (VDTy->isPointerType() && !innermost.isConstQualified())) {
+      copyVarToCurBlock(cast<VarDecl>(D));
+      m_Varied = true;
+    }
+
     if (Expr* init = cast<VarDecl>(D)->getInit()) {
       m_Varied = false;
       TraverseStmt(init);
       m_Marking = true;
-      QualType VDTy = cast<VarDecl>(D)->getType();
-      if (m_Varied || utils::isArrayOrPointerType(VDTy))
+      if (m_Varied)
         copyVarToCurBlock(cast<VarDecl>(D));
       m_Marking = false;
     }
@@ -147,12 +179,7 @@ bool VariedAnalyzer::VisitDeclStmt(DeclStmt* DS) {
 }
 
 bool VariedAnalyzer::VisitUnaryOperator(UnaryOperator* UnOp) {
-  const auto opCode = UnOp->getOpcode();
   Expr* E = UnOp->getSubExpr();
-  if (opCode == UO_AddrOf || opCode == UO_Deref) {
-    m_Varied = true;
-    m_Marking = true;
-  }
   TraverseStmt(E);
   m_Marking = false;
   return true;
@@ -163,7 +190,7 @@ bool VariedAnalyzer::VisitDeclRefExpr(DeclRefExpr* DRE) {
   if (!VD)
     return true;
 
-  if (isVaried(VD))
+  if (isVaried(VD) || VD->getType()->isArrayType())
     m_Varied = true;
 
   if (m_Varied && m_Marking)
