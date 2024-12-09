@@ -753,21 +753,22 @@ jobs:
         # Build
         mkdir build
         cd build
-        cmake -G Ninja                              `
-              -DLLVM_ENABLE_PROJECTS="clang"        `
-              -DLLVM_ENABLE_PLUGINS=On              `
-              -DLLVM_TARGETS_TO_BUILD="host"  `
-              -DCMAKE_BUILD_TYPE=RelWithDebInfo     `
-              -DLLVM_ENABLE_ASSERTIONS=ON           `
-              -DCLANG_ENABLE_STATIC_ANALYZER=OFF    `
-              -DCLANG_ENABLE_ARCMT=OFF              `
-              -DCLANG_ENABLE_FORMAT=OFF             `
-              -DCLANG_ENABLE_BOOTSTRAP=OFF          `
-              -DLLVM_ENABLE_TERMINFO=OFF            `
-              -DCLANG_INCLUDE_TESTS=OFF             `
-              -DCLANG_INCLUDE_DOCS=OFF              `
-              -DLLVM_INCLUDE_TESTS=OFF              `
-              -DLLVM_INCLUDE_DOCS=OFF               `
+        cmake -G Ninja                                    `
+              -DLLVM_ENABLE_PROJECTS="clang"              `
+              -DLLVM_ENABLE_PLUGINS=On                    `
+              -DLLVM_TARGETS_TO_BUILD="host"              `
+              -DLLVM_HOST_TRIPLE=x86_64-pc-windows-msvc   `
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo           `
+              -DLLVM_ENABLE_ASSERTIONS=ON                 `
+              -DCLANG_ENABLE_STATIC_ANALYZER=OFF          `
+              -DCLANG_ENABLE_ARCMT=OFF                    `
+              -DCLANG_ENABLE_FORMAT=OFF                   `
+              -DCLANG_ENABLE_BOOTSTRAP=OFF                `
+              -DLLVM_ENABLE_TERMINFO=OFF                  `
+              -DCLANG_INCLUDE_TESTS=OFF                   `
+              -DCLANG_INCLUDE_DOCS=OFF                    `
+              -DLLVM_INCLUDE_TESTS=OFF                    `
+              -DLLVM_INCLUDE_DOCS=OFF                     `
               ..\llvm                
         cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
         cd ..\
