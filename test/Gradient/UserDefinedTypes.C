@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oUserDefinedTypes.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./UserDefinedTypes.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oUserDefinedTypes.out
 // RUN: ./UserDefinedTypes.out | %filecheck_exec %s
@@ -485,6 +485,35 @@ double fn14(double x, double y) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:}
 
+template <typename T, std::size_t N>
+struct SimpleArray {
+    T elements[N]; // Aggregate initialization
+};
+
+namespace clad {
+namespace custom_derivatives {
+namespace class_functions {
+template<::std::size_t N>
+::clad::ValueAndAdjoint<SimpleArray<double, N>, SimpleArray<double, N>> // expected-note {{'clad::custom_derivatives::class_functions::constructor_reverse_forw<2}}{{' is defined here}}
+constructor_reverse_forw(::clad::ConstructorReverseForwTag<SimpleArray<double, N>>) {
+  SimpleArray<double, N> a;
+  SimpleArray<double, N> d_a;
+  return {a, d_a};
+}
+}}}
+
+double fn15(double x, double y) {
+  SimpleArray<double, 2> arr; // expected-warning {{'SimpleArray<double, 2>' is an aggregate type and its constructor does not require a user-defined forward sweep function}}
+  return arr.elements[0];
+}
+
+// CHECK:void fn15_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:    ::clad::ValueAndAdjoint<SimpleArray<double, {{2U|2UL|2ULL}}>, SimpleArray<double, {{2U|2UL|2ULL}}> > _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<SimpleArray<double, 2> >());
+// CHECK-NEXT:    SimpleArray<double, 2> _d_arr(_t0.adjoint);
+// CHECK-NEXT:    SimpleArray<double, 2> arr(_t0.value);
+// CHECK-NEXT:    _d_arr.elements[0] += 1;
+// CHECK-NEXT:}
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -556,6 +585,8 @@ int main() {
 
     INIT_GRADIENT(fn14);
     TEST_GRADIENT(fn14, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);    // CHECK-EXEC: {30.00, 22.00}
+
+    INIT_GRADIENT(fn15);
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
