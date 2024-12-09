@@ -4281,12 +4281,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
             CE->getConstructor(), primalArgs, reverseForwAdjointArgs,
             /*baseExpr=*/nullptr)) {
       if (RD->isAggregate()) {
-        diag(DiagnosticsEngine::Note, CE->getConstructor()->getBeginLoc(),
-             "No need to provide a custom constructor forward sweep for an "
-             "aggregate type.");
+        // set up printing policy
+        clang::LangOptions LangOpts;
+        LangOpts.CPlusPlus = true;
+        clang::PrintingPolicy Policy(LangOpts);
+        Policy.Bool = true;
+        SmallString<128> Name_class;
+        llvm::raw_svector_ostream OS_class(Name_class);
+        RD->getNameForDiagnostic(OS_class, Policy, /*qualified=*/true);
         diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
-             "No need to provide a custom constructor forward sweep for an "
-             "aggregate type.");
+             "'%0' is an aggregate type and its constructor does not require a "
+             "user-defined forward sweep function",
+             {OS_class.str()});
+        const FunctionDecl* constr_forw =
+            cast<CallExpr>(customReverseForwFnCall)->getDirectCallee();
+        SmallString<128> Name_forw;
+        llvm::raw_svector_ostream OS_forw(Name_forw);
+        constr_forw->getNameForDiagnostic(OS_forw, Policy, /*qualified=*/true);
+        diag(DiagnosticsEngine::Note, constr_forw->getBeginLoc(),
+             "'%0' is defined here", {OS_forw.str()});
       }
       Expr* callRes = StoreAndRef(customReverseForwFnCall);
       Expr* val =
