@@ -1555,9 +1555,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                 // diffedOpCall->getTrailingRequiresClause()
             );
 
-            // Cloned->addDecl(ClonedOpCall); // do we need this?
+            Cloned->addDecl(ClonedOpCall);
 
-            auto* diffedOpCall = DifferentiateCallOperatorIfLambda(Original, ClonedOpCall);
+            // auto* diffedOpCall = DifferentiateCallOperatorIfLambda(Original, ClonedOpCall);
 
             // llvm::SmallVector<clang::ParmVarDecl*, 8> params;
             // for (unsigned i = 0; i < diffedOpCall->param_size(); ++i) {
@@ -1592,7 +1592,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   StmtDiff ReverseModeVisitor::VisitLambdaExpr(const clang::LambdaExpr* LE) {
-    // ============== CAP
+    // ============== CAPTURES
     
     auto children_iterator_range = LE->children();
     std::vector<Expr *> children_Exp;
@@ -1633,7 +1633,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::ArrayRef<Expr*> childrenRef_Exp_dx; // =
         // clad_compat::makeArrayRef(children_Exp_dx.data(), children_Exp_dx.size());
 
-    // ============== CAP
+    // ============== CAPTURES
 
     // FIXME: ideally, we need to create a reverse_forw lambda and not copy the original one for the forward pass.
     auto forwardLambdaClass = LE->getLambdaClass();
@@ -2310,7 +2310,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // FIXME: Add support for reference arguments to the numerical diff. If
         // it already correctly support reference arguments then confirm the
         // support and add tests for the same.
-        if (!pullbackFD && !utils::HasAnyReferenceOrPointerArgument(FD) &&
+      if (!pullbackFD && !utils::HasAnyReferenceOrPointerArgument(FD) &&
             !isa<CXXMethodDecl>(FD)) {
           // Try numerically deriving it.
           if (NArgs == 1) {
