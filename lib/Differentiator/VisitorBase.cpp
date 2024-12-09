@@ -13,8 +13,8 @@
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
-
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Lex/Preprocessor.h"
@@ -26,6 +26,7 @@
 #include "clang/Sema/Template.h"
 
 #include <algorithm>
+#include <llvm/ADT/SmallVector.h>
 #include <numeric>
 
 #include "clad/Differentiator/Compatibility.h"
