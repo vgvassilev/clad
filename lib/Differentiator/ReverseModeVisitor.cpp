@@ -4280,10 +4280,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (Expr* customReverseForwFnCall = BuildCallToCustomForwPassFn(
             CE->getConstructor(), primalArgs, reverseForwAdjointArgs,
             /*baseExpr=*/nullptr)) {
-      if (RD->isAggregate())
+      if (RD->isAggregate()) {
         diag(DiagnosticsEngine::Note, CE->getConstructor()->getBeginLoc(),
              "No need to provide a custom constructor forward sweep for an "
              "aggregate type.");
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "No need to provide a custom constructor forward sweep for an "
+             "aggregate type.");
+      }
       Expr* callRes = StoreAndRef(customReverseForwFnCall);
       Expr* val =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
