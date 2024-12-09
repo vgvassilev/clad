@@ -43,7 +43,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     double _d_x0 = 1;
 // CHECK-NEXT:     double _d__d_y = 0.;
 // CHECK-NEXT:     double _d_y0 = 0;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d__d_ans = 0.;
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
@@ -53,7 +53,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {};
+// CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {0., 0.};
 // CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _r2 = 0.;
@@ -81,7 +81,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     double _d_x0 = 0;
 // CHECK-NEXT:     double _d__d_y = 0.;
 // CHECK-NEXT:     double _d_y0 = 1;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {};
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _d__t0 = {0., 0.};
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t00 = f_pushforward(x, y, _d_x0, _d_y0);
 // CHECK-NEXT:     double _d__d_ans = 0.;
 // CHECK-NEXT:     double _d_ans = _t00.pushforward;
@@ -91,7 +91,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.value += _d_ans0;
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {};
+// CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {0., 0.};
 // CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _r2 = 0.;

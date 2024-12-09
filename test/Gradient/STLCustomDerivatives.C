@@ -499,7 +499,7 @@ int main() {
 // CHECK-NEXT:        clad::tape<std::array<double, 3> > _t2 = {};
 // CHECK-NEXT:        clad::tape<double> _t3 = {};
 // CHECK-NEXT:        clad::tape<std::array<double, 3> > _t4 = {};
-// CHECK-NEXT:        std::array<double, 3> _d_a({});
+// CHECK-NEXT:        std::array<double, 3> _d_a({{.*}});
 // CHECK-NEXT:        std::array<double, 3> a;
 // CHECK-NEXT:        std::array<double, 3> _t0 = a;
 // CHECK-NEXT:        {{.*}}fill_reverse_forw(&a, x, &_d_a, *_d_x);
@@ -544,7 +544,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK:     void fn16_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:         std::array<double, 2> _d_a({});
+// CHECK-NEXT:         std::array<double, 2> _d_a({{.*}});
 // CHECK-NEXT:         std::array<double, 2> a;
 // CHECK-NEXT:         std::array<double, 2> _t0 = a;
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, _r0);
@@ -554,7 +554,7 @@ int main() {
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t4 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, _r1);
 // CHECK-NEXT:         double _t5 = _t4.value;
 // CHECK-NEXT:         _t4.value = y;
-// CHECK-NEXT:         std::array<double, 3> _d__b({});
+// CHECK-NEXT:         std::array<double, 3> _d__b({{.*}});
 // CHECK-NEXT:         std::array<double, 3> _b0;
 // CHECK-NEXT:         std::array<double, 3> _t6 = _b0;
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t7 = {{.*}}operator_subscript_reverse_forw(&_b0, 0, &_d__b, _r2);
@@ -568,23 +568,22 @@ int main() {
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t13 = {{.*}}operator_subscript_reverse_forw(&_b0, 2, &_d__b, _r4);
 // CHECK-NEXT:         double _t14 = _t13.value;
 // CHECK-NEXT:         _t13.value = x * x;
-// CHECK-NEXT:         ::clad::ValueAndAdjoint< ::std::array<double, {{3U|3UL}}>, ::std::array<double, {{3U|3UL}}> > _t15 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<array<double, 3> >(), _b0, _d__b);
-// CHECK-NEXT:         std::array<double, 3> _d_b = _t15.adjoint;
-// CHECK-NEXT:         const std::array<double, 3> b = _t15.value;
-// CHECK-NEXT:         std::array<double, 2> _t18 = a;
-// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t19 = {{.*}}back_reverse_forw(&a, &_d_a);
+// CHECK-NEXT:         std::array<double, 3> _d_b = {{.*}};
+// CHECK-NEXT:         const std::array<double, 3> b = _b0;
+// CHECK-NEXT:         std::array<double, 2> _t17 = a;
+// CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t18 = {{.*}}back_reverse_forw(&a, &_d_a);
+// CHECK-NEXT:         std::array<double, 3> _t19 = b;
+// CHECK-NEXT:         {{.*}}value_type _t16 = b.front();
 // CHECK-NEXT:         std::array<double, 3> _t20 = b;
-// CHECK-NEXT:         {{.*}}value_type _t17 = b.front();
+// CHECK-NEXT:         {{.*}}value_type _t15 = b.at(2);
 // CHECK-NEXT:         std::array<double, 3> _t21 = b;
-// CHECK-NEXT:         {{.*}}value_type _t16 = b.at(2);
-// CHECK-NEXT:         std::array<double, 3> _t22 = b;
 // CHECK-NEXT:         {
-// CHECK-NEXT:             {{.*}}back_pullback(&_t18, 1 * _t16 * _t17, &_d_a);
-// CHECK-NEXT:             {{.*}}front_pullback(&_t20, _t19.value * 1 * _t16, &_d_b);
+// CHECK-NEXT:             {{.*}}back_pullback(&_t17, 1 * _t15 * _t16, &_d_a);
+// CHECK-NEXT:             {{.*}}front_pullback(&_t19, _t18.value * 1 * _t15, &_d_b);
 // CHECK-NEXT:             {{.*}}size_type _r5 = {{0U|0UL}};
-// CHECK-NEXT:             {{.*}}at_pullback(&_t21, 2, _t19.value * _t17 * 1, &_d_b, &_r5);
+// CHECK-NEXT:             {{.*}}at_pullback(&_t20, 2, _t18.value * _t16 * 1, &_d_b, &_r5);
 // CHECK-NEXT:             {{.*}}size_type _r6 = {{0U|0UL}};
-// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t22, 1, 1, &_d_b, &_r6);
+// CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t21, 1, 1, &_d_b, &_r6);
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {{.*}}constructor_pullback(&b, _b0, &_d_b, &_d__b);
 // CHECK-NEXT:         {
@@ -629,7 +628,7 @@ int main() {
 // CHECK-NEXT:     }
 
 // CHECK:     void fn17_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:         std::array<double, 50> _d_a({});
+// CHECK-NEXT:         std::array<double, 50> _d_a({{.*}});
 // CHECK-NEXT:         std::array<double, 50> a;
 // CHECK-NEXT:         std::array<double, 50> _t0 = a;
 // CHECK-NEXT:         {{.*}}fill_reverse_forw(&a, y + x + x, &_d_a, _r0);
@@ -653,7 +652,7 @@ int main() {
 // CHECK-NEXT:     }
 
 // CHECK:     void fn18_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:         std::array<double, 2> _d_a({});
+// CHECK-NEXT:         std::array<double, 2> _d_a({{.*}});
 // CHECK-NEXT:         std::array<double, 2> a;
 // CHECK-NEXT:         std::array<double, 2> _t0 = a;
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, _r0);
