@@ -701,7 +701,7 @@ jobs:
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
     - name: Install deps on Windows
-      if: ${{ runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' && (matrix.debug_build == true }}
+      if: ${{ runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' && matrix.debug_build == true }}
       run: |
         choco install ninja findutils
         $env:PATH="C:\Program Files (x86)\GnuWin32\bin;$env:PATH"
