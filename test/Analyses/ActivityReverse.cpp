@@ -6,6 +6,26 @@
 
 #include "clad/Differentiator/Differentiator.h"
 
+inline double interpolate1d(double low, double high, double val, unsigned int numBins, double const* vals)
+{
+   double binWidth = (high - low) / numBins;
+   int idx = val >= high ? numBins - 1 : std::abs((val - low) / binWidth);
+
+   // interpolation
+   double central = low + (idx + 0.5) * binWidth;
+   if (val > low + 0.5 * binWidth && val < high - 0.5 * binWidth) {
+      double slope;
+      if (val < central) {
+          slope = vals[idx] - vals[idx - 1];
+      } else {
+          slope = vals[idx + 1] - vals[idx];
+      }
+      return vals[idx] + slope * (val - central) / binWidth;
+   }
+
+   return vals[idx];
+}
+
 double f1(double x){
   double a = x*x;
   double b = 1;
@@ -264,7 +284,7 @@ double f8(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-double fn9(double x, double const *obs)
+double f9(double x, double const *obs)
 {
    double res = 0.0;
    for (int loopIdx0 = 0; loopIdx0 < 2; loopIdx0++) {
@@ -273,7 +293,7 @@ double fn9(double x, double const *obs)
    return res;
 }
 
-// CHECK: void fn9_grad(double x, const double *obs, double *_d_x, double *_d_obs) {
+// CHECK: void f9_grad_0(double x, const double *obs, double *_d_x) {
 // CHECK-NEXT:     int loopIdx0 = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
@@ -304,6 +324,81 @@ double fn9(double x, double const *obs)
 // CHECK-NEXT: }
 
 
+void f10_1(double x, double* t){
+    t[0] = x;
+}
+
+double f10(double x){
+    double t[3];
+    f10_1(x, t);
+    return t[0];
+}
+// CHECK: void f10_1_pullback(double x, double *t, double *_d_x, double *_d_t);
+// CHECK-NEXT: void f10_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_t[3] = {0};
+// CHECK-NEXT:     double t[3];
+// CHECK-NEXT:     f10_1(x, t);
+// CHECK-NEXT:     _d_t[0] += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f10_1_pullback(x, t, &_r0, _d_t);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f11_1(double v, double& u){
+  u = v;
+  return u;
+}
+
+double f11(double x){
+  double y;
+  double c = f11_1(x, y);
+  return y;
+}
+
+// CHECK: void f11_1_pullback(double v, double &u, double _d_y, double *_d_v, double *_d_u);
+// CHECK-NEXT: void f11_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_y = 0.;
+// CHECK-NEXT:     double y;
+// CHECK-NEXT:     double _t0 = y;
+// CHECK-NEXT:     double _d_c = 0.;
+// CHECK-NEXT:     double c = f11_1(x, y);
+// CHECK-NEXT:     _d_y += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         y = _t0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f11_1_pullback(x, _t0, _d_c, &_r0, &_d_y);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f12_1(double y, const double* obs){
+    double nopull = interpolate1d(1.0, 3.0, 5.0, 5, obs);
+    return nopull;
+}
+double f12(double x, const double* obs){
+    double pull = f12_1(x, obs);
+    return pull*x;
+}
+
+// CHECK: void f12_1_pullback(double y, const double *obs, double _d_y0, double *_d_y);
+// CHECK-NEXT: void f12_grad_0(double x, const double *obs, double *_d_x) {
+// CHECK-NEXT:     double _d_pull = 0.;
+// CHECK-NEXT:     double pull = f12_1(x, obs);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_pull += 1 * x;
+// CHECK-NEXT:         *_d_x += pull * 1;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f12_1_pullback(x, obs, _d_pull, &_r0);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
@@ -315,7 +410,6 @@ int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
     double result[3] = {};
-    double dx;
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
     TEST(f3, 3);// CHECK-EXEC: {0.00}
@@ -324,24 +418,53 @@ int main(){
     TEST(f6, 3);// CHECK-EXEC: {0.00}
     TEST(f7, 3);// CHECK-EXEC: {1.00}
     TEST(f8, 3);// CHECK-EXEC: {1.00}
-    auto grad = clad::gradient<clad::opts::enable_va>(fn9);
-    grad.execute(3, arr, &dx, darr);
-    printf("%.2f\n", dx);// CHECK-EXEC: 2.00
+    double dx9 = 0;
+    auto grad9 = clad::gradient<clad::opts::enable_va>(f9, "x");
+    grad9.execute(3, arr, &dx9, darr);
+    printf("%.2f\n", dx9);// CHECK-EXEC: 2.00
+    TEST(f10, 3);// CHECK-EXEC: {1.00}
+    TEST(f11, 3);// CHECK-EXEC: {1.00}
+    double dx12 = 0;
+    auto grad = clad::gradient<clad::opts::enable_va>(f12, "x");
+    grad.execute(3, arr, &dx12, darr);
+    printf("%.2f\n", dx12);// CHECK-EXEC: 5.00
 }
 
 // CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
-// CHECK-NEXT:     double _d_k = 0.;
 // CHECK-NEXT:     double k = 2 * u;
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double n = 2 * v;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         _d_n += _d_y * k;
-// CHECK-NEXT:         _d_k += n * _d_y;
-// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_n += _d_y * k;
 // CHECK-NEXT:     *_d_v += 2 * _d_n;
-// CHECK-NEXT:     *_d_u += 2 * _d_k;
 // CHECK-NEXT: }
 
 // CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
 // CHECK-NEXT:     *_d_v += _d_y;
+// CHECK-NEXT: }
+
+// CHECK: void f10_1_pullback(double x, double *t, double *_d_x, double *_d_t) {
+// CHECK-NEXT:     double _t0 = t[0];
+// CHECK-NEXT:     t[0] = x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         t[0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_t[0];
+// CHECK-NEXT:         _d_t[0] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void f11_1_pullback(double v, double &u, double _d_y, double *_d_v, double *_d_u) {
+// CHECK-NEXT:     double _t0 = u;
+// CHECK-NEXT:     u = v;
+// CHECK-NEXT:     *_d_u += _d_y;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         u = _t0;
+// CHECK-NEXT:         double _r_d0 = *_d_u;
+// CHECK-NEXT:         *_d_u = 0.;
+// CHECK-NEXT:         *_d_v += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK: void f12_1_pullback(double y, const double *obs, double _d_y0, double *_d_y) {
+// CHECK-NEXT:     double nopull = interpolate1d(1., 3., 5., 5, obs);
 // CHECK-NEXT: }
