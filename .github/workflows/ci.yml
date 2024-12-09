@@ -116,7 +116,7 @@ jobs:
 
           - name: win2022-msvc-runtime18-debug
             os: windows-2022
-            compiler: msvc
+            compiler: clang
             clang-runtime: '18'
             debug_build: true
 
@@ -628,8 +628,8 @@ jobs:
           echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
           clang --version
           #
-          $env:CC="clang"
-          $env:CXX="clang++"
+          $env:CC="clang-cl"
+          $env:CXX="clang-cl"
           echo "CC=clang" >> $env:GITHUB_ENV
           echo "CXX=clang++" >> $env:GITHUB_ENV
         }
@@ -700,6 +700,13 @@ jobs:
         # We need PATH_TO_LLVM_BUILD later
         echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
 
+    - name: Install deps on Windows
+      if: ${{ runner.os == 'windows' && steps.cache.outputs.cache-hit != 'true' && (matrix.debug_build == true }}
+      run: |
+        choco install ninja findutils
+        $env:PATH="C:\Program Files (x86)\GnuWin32\bin;$env:PATH"
+        $env:PATH="C:\Program Files (x86)\Ninja\bin;$env:PATH"
+
     - name: Restore Cache LLVM/Clang runtime build directory (debug_build==true)
       if: ${{ (matrix.debug_build == true) }}
       uses: actions/cache/restore@v4
@@ -746,9 +753,11 @@ jobs:
         # Build
         mkdir build
         cd build
-        cmake -DLLVM_ENABLE_PROJECTS="clang"        `
-              -DLLVM_TARGETS_TO_BUILD="host;NVPTX"  `
-              -DCMAKE_BUILD_TYPE=Release            `
+        cmake -G Ninja                              `
+              -DLLVM_ENABLE_PROJECTS="clang"        `
+              -DLLVM_ENABLE_PLUGINS=On              `
+              -DLLVM_TARGETS_TO_BUILD="host"  `
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo     `
               -DLLVM_ENABLE_ASSERTIONS=ON           `
               -DCLANG_ENABLE_STATIC_ANALYZER=OFF    `
               -DCLANG_ENABLE_ARCMT=OFF              `
@@ -761,15 +770,22 @@ jobs:
               -DLLVM_INCLUDE_DOCS=OFF               `
               ..\llvm                
         cmake --build . --target clang FileCheck llvm-config clang-repl --parallel ${{ env.ncpus }}
-        cd ..\..
-        
-    - name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
-      uses: actions/cache/save@v4
-      if: ${{ (matrix.debug_build == true) && (steps.cache.outputs.cache-hit != 'true') }}
-      with:
-        path: |
-          llvm-project
-        key: ${{ steps.cache.outputs.cache-primary-key }}
+        cd ..\
+        rm -r -force $(find.exe . -maxdepth 1 ! -name "build" ! -name "llvm" ! -name "clang" ! -name ".")    
+        cd .\llvm\
+        rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake" ! -name ".")
+        cd ..\clang\
+        rm -r -force $(find.exe . -maxdepth 1 ! -name "include" ! -name "lib" ! -name "cmake"  ! -name ".")
+        cd ..\..     
+
+    #Commented out while debugging
+    #- name: Save Cache LLVM/Clang runtime build directory (debug_build==true)
+    #  uses: actions/cache/save@v4
+    #  if: ${{ (matrix.debug_build == true) && (steps.cache.outputs.cache-hit != 'true') }}
+    #  with:
+    #    path: |
+    #      llvm-project
+    #    key: ${{ steps.cache.outputs.cache-primary-key }}
         
     - name: Set LLVM/Cling build path on Unix (debug_build==true)
       if: ${{ (matrix.debug_build == true) && (runner.os != 'windows') }}
@@ -900,14 +916,19 @@ jobs:
           $env:PATH_TO_LLVM_BUILD="$env:GITHUB_WORKSPACE\llvm-project\build"
           echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
           echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
+          $lit = @(which lit)
+          cmake -G Ninja  -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD"  -DLLVM_BUILD_LLVM_DYLIB_VIS=On -DLLVM_LINK_LLVM_DYLIB=On -DCLANG_LINK_CLANG_DYLIB=On -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+          cmake --build . --config "$env:BUILD_TYPE"
         }
         else
         {
           ((Get-Content -path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake -Raw) -replace 'LLVM_ENABLE_DIA_SDK ON','LLVM_ENABLE_DIA_SDK OFF') | Set-Content -Path C:/Miniconda/Library/lib/cmake/llvm/LLVMConfig.cmake
+          $lit = @(which lit)
+          cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+          cmake --build . --config Release
         }
-        $lit = @(which lit)
-        cmake -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD" -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
-        cmake --build . --config Release
+        
+        
     - name: Build Clad for Coverity Scan
       if: ${{ matrix.coverity == true }}
       run: |
