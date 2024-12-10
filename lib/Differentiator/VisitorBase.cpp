@@ -13,8 +13,8 @@
 #include "clad/Differentiator/ErrorEstimator.h"
 #include "clad/Differentiator/Sins.h"
 #include "clad/Differentiator/StmtClone.h"
-
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Lex/Preprocessor.h"
@@ -26,6 +26,7 @@
 #include "clang/Sema/Template.h"
 
 #include <algorithm>
+#include <llvm/ADT/SmallVector.h>
 #include <numeric>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -418,6 +419,13 @@ namespace clad {
       Expr* zero = ConstantFolder::synthesizeLiteral(T, m_Context, /*val=*/0);
       return m_Sema.ActOnInitList(noLoc, {zero}, noLoc).get();
     }
+    if (const auto* RD = T->getAsCXXRecordDecl())
+      if (RD->hasDefinition() && !RD->isUnion() && RD->isAggregate()) {
+        llvm::SmallVector<Expr*, 4> adjParams;
+        for (const FieldDecl* FD : RD->fields())
+          adjParams.push_back(getZeroInit(FD->getType()));
+        return m_Sema.ActOnInitList(noLoc, adjParams, noLoc).get();
+      }
     return m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
   }
 

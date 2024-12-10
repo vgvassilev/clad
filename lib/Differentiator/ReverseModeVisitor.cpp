@@ -34,7 +34,9 @@
 #include <clang/AST/OperationKinds.h>
 #include <clang/Sema/Ownership.h>
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Support/SaveAndRestore.h"
+#include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
 #include <numeric>
@@ -1309,7 +1311,16 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
       }
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      return StmtDiff(clonedILE);
+
+      const CXXRecordDecl* RD = ILEType->getAsCXXRecordDecl();
+      Expr* adjointInit = nullptr;
+      if (RD && RD->isAggregate()) {
+        llvm::SmallVector<Expr*, 4> adjParams;
+        for (const FieldDecl* FD : RD->fields())
+          adjParams.push_back(getZeroInit(FD->getType()));
+        adjointInit = m_Sema.ActOnInitList(noLoc, adjParams, noLoc).get();
+      }
+      return StmtDiff(clonedILE, nullptr, adjointInit);
     }
 
     // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
@@ -2753,6 +2764,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     ConstructorPullbackCallInfo constructorPullbackInfo;
 
+    bool isConstructInit =
+        VD->getInit() && isa<CXXConstructExpr>(VD->getInit()->IgnoreImplicit());
+
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (promoteToFnScope)
@@ -2798,7 +2812,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         VDDerivedInit = initDiff.getForwSweepExpr_dx();
     }
 
-    if (VDType->isStructureOrClassType()) {
+    if (isConstructInit) {
       m_TrackConstructorPullbackInfo = true;
       initDiff = Visit(VD->getInit());
       m_TrackConstructorPullbackInfo = false;
@@ -2870,13 +2884,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
       }
 
-      if (VD->getInit()) {
-        if (VDType->isStructureOrClassType()) {
-          if (!initDiff.getExpr())
-            initDiff = Visit(VD->getInit());
-        } else
-          initDiff = Visit(VD->getInit(), derivedE);
-      }
+      if (VD->getInit() && !isConstructInit)
+        initDiff = Visit(VD->getInit(), derivedE);
 
       // If we are differentiating `VarDecl` corresponding to a local variable
       // inside a loop, then we need to reset it to 0 at each iteration.
@@ -4155,7 +4164,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
-
     llvm::SmallVector<Expr*, 4> primalArgs;
     llvm::SmallVector<Expr*, 4> adjointArgs;
     llvm::SmallVector<Expr*, 4> reverseForwAdjointArgs;
@@ -4214,8 +4222,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     // Try to create a pullback constructor call
     llvm::SmallVector<Expr*, 4> pullbackArgs;
-    QualType recordType =
-        m_Context.getRecordType(CE->getConstructor()->getParent());
+    const CXXRecordDecl* RD = CE->getConstructor()->getParent();
+    QualType recordType = m_Context.getRecordType(RD);
     QualType recordPointerType = m_Context.getPointerType(recordType);
     // thisE = object being created by this constructor call.
     // dThisE = adjoint of the object being created by this constructor call.
@@ -4274,6 +4282,24 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (Expr* customReverseForwFnCall = BuildCallToCustomForwPassFn(
             CE->getConstructor(), primalArgs, reverseForwAdjointArgs,
             /*baseExpr=*/nullptr)) {
+      if (RD->isAggregate()) {
+        SmallString<128> Name_class;
+        llvm::raw_svector_ostream OS_class(Name_class);
+        RD->getNameForDiagnostic(OS_class, m_Context.getPrintingPolicy(),
+                                 /*qualified=*/true);
+        diag(DiagnosticsEngine::Warning, CE->getBeginLoc(),
+             "'%0' is an aggregate type and its constructor does not require a "
+             "user-defined forward sweep function",
+             {OS_class.str()});
+        const FunctionDecl* constr_forw =
+            cast<CallExpr>(customReverseForwFnCall)->getDirectCallee();
+        SmallString<128> Name_forw;
+        llvm::raw_svector_ostream OS_forw(Name_forw);
+        constr_forw->getNameForDiagnostic(
+            OS_forw, m_Context.getPrintingPolicy(), /*qualified=*/true);
+        diag(DiagnosticsEngine::Note, constr_forw->getBeginLoc(),
+             "'%0' is defined here", {OS_forw.str()});
+      }
       Expr* callRes = StoreAndRef(customReverseForwFnCall);
       Expr* val =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
