@@ -22,8 +22,8 @@
 using namespace clang;
 
 namespace clad {
-std::set<const clang::VarDecl*> DiffRequest::AllVariedDecls;
-static SourceLocation noLoc;
+// std::set<const clang::VarDecl*> DiffRequest::AllVariedDecls;
+static SourceLocation noloc;
 
 /// Returns `DeclRefExpr` node corresponding to the function, method or
 /// functor argument which is to be differentiated.
@@ -62,7 +62,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       auto callOperatorDeclName =
           m_SemaRef.getASTContext().DeclarationNames.getCXXOperatorName(
               OverloadedOperatorKind::OO_Call);
-      LookupResult R(m_SemaRef, callOperatorDeclName, noLoc,
+      LookupResult R(m_SemaRef, callOperatorDeclName, noloc,
                      Sema::LookupNameKind::LookupMemberName);
       // We do not want diagnostics that would fire because of this lookup.
       R.suppressDiagnostics();
@@ -149,7 +149,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
         auto* newFnDRE =
             clad_compat::GetResult<Expr*>(m_SemaRef.BuildDeclRefExpr(
                 callOperator, callOperator->getType(),
-                CLAD_COMPAT_ExprValueKind_R_or_PR_Value, noLoc, &CSS));
+                CLAD_COMPAT_ExprValueKind_R_or_PR_Value, noloc, &CSS));
         m_FnDRE = cast<DeclRefExpr>(newFnDRE);
       }
       return false;
@@ -198,7 +198,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       auto kernelArgIdx = numArgs - 1;
       auto* cudaKernelFlag =
           SemaRef
-              .ActOnCXXBoolLiteral(noLoc,
+              .ActOnCXXBoolLiteral(noloc,
                                    replacementFD->hasAttr<CUDAGlobalAttr>()
                                        ? tok::kw_true
                                        : tok::kw_false)
@@ -209,7 +209,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
 
     // Create ref to generated FD.
     DeclRefExpr* DRE =
-        DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noLoc, replacementFD,
+        DeclRefExpr::Create(C, oldDRE->getQualifierLoc(), noloc, replacementFD,
                             /*RefersToEnclosingVariableOrCapture=*/false,
                             replacementFD->getNameInfo(),
                             replacementFD->getType(), oldDRE->getValueKind());
@@ -225,7 +225,7 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       // Add the "&" operator
       auto* newUnOp =
           SemaRef
-              .BuildUnaryOp(nullptr, noLoc, UnaryOperatorKind::UO_AddrOf, DRE)
+              .BuildUnaryOp(nullptr, noloc, UnaryOperatorKind::UO_AddrOf, DRE)
               .get();
       call->setArg(derivedFnArgIdx, newUnOp);
     }
@@ -618,15 +618,25 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
       return true;
 
     if (!m_ActivityRunInfo.HasAnalysisRun) {
+      if (Builder)
+        for (auto diffreq : this->Builder->m_DiffRequestGraph.getNodes())
+          for (auto vd : diffreq.getVariedDecls())
+            m_ActivityRunInfo.VariedDecls.insert(vd);
+
       if (Args)
         for (const auto& dParam : DVI)
-          AllVariedDecls.insert(cast<VarDecl>(dParam.param));
-      VariedAnalyzer analyzer(Function->getASTContext(), AllVariedDecls);
+          m_ActivityRunInfo.VariedDecls.insert(cast<VarDecl>(dParam.param));
+      VariedAnalyzer analyzer(Function->getASTContext(),
+                              m_ActivityRunInfo.VariedDecls);
       analyzer.Analyze(Function);
       m_ActivityRunInfo.HasAnalysisRun = true;
+      if (Builder)
+        this->Builder->m_DiffRequestGraph.addNode(*this);
     }
-    auto found = AllVariedDecls.find(VD);
-    return found != AllVariedDecls.end();
+    auto found = m_ActivityRunInfo.VariedDecls.find(VD);
+    return found != m_ActivityRunInfo.VariedDecls.end();
+
+    return false;
   }
 
   bool DiffCollector::VisitCallExpr(CallExpr* E) {

@@ -13,6 +13,7 @@
 #include "clang/Sema/Sema.h"
 #include "clad/Differentiator/DerivedFnCollector.h"
 #include "clad/Differentiator/DiffPlanner.h"
+#include "clad/Differentiator/DynamicGraph.h"
 
 #include <array>
 #include <stack>
@@ -72,6 +73,7 @@ namespace clad {
   class DerivativeBuilder {
   private:
     friend class VisitorBase;
+    friend class DiffRequest;
     friend class BaseForwardModeVisitor;
     friend class PushForwardModeVisitor;
     friend class VectorForwardModeVisitor;
