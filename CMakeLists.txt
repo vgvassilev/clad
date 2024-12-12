@@ -193,9 +193,9 @@ else()
   endif()
 
   set(CLANG_SOURCE_DIR ${LLVM_SOURCE_DIR}/../clang)
-  set(CLANG_BINARY_DIR ${LLVM_TOOLS_BINARY_DIR}/clang)
+  set(CLANG_BINARY_DIR ${LLVM_TOOLS_BINARY_DIR})
   if (NOT CLANG_INCLUDE_DIRS)
-    set(CLANG_INCLUDE_DIRS "${CLANG_SOURCE_DIR}/include" "${CLANG_BINARY_DIR}/include")
+    set(CLANG_INCLUDE_DIRS "${CLANG_SOURCE_DIR}/include")
   endif()
 endif()
 
