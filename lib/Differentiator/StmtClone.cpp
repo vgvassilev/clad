@@ -247,7 +247,7 @@ DEFINE_CLONE_EXPR(SubstNonTypeTemplateParmExpr,
                   (CloneType(Node->getType()), Node->getValueKind(),
                    Node->getBeginLoc(), Node->getReplacement(),
                    Node->getAssociatedDecl(), Node->getIndex(),
-                   Node->getPackIndex(), Node->isReferenceParameter()));
+                   Node->getPackIndex(), Node->isReferenceParameter()))
 #endif
 DEFINE_CREATE_EXPR(PseudoObjectExpr, (Ctx, Node->getSyntacticForm(), llvm::SmallVector<Expr*, 4>(Node->semantics_begin(), Node->semantics_end()), Node->getResultExprIndex()))
 // NOLINTEND(modernize-use-auto)
