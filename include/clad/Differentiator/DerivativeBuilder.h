@@ -117,7 +117,7 @@ namespace clad {
     /// null otherwise.
     clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
-        clang::Scope* S, clang::DeclContext* originalFnDC,
+        clang::Scope* S, const clang::DeclContext* originalFnDC,
         bool forCustomDerv = true, bool namespaceShouldExist = true,
         clang::Expr* CUDAExecConfig = nullptr);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
@@ -150,7 +150,7 @@ namespace clad {
     /// \returns The lookup result of the custom derivative or numerical
     /// differentiation function.
     clang::LookupResult LookupCustomDerivativeOrNumericalDiff(
-        const std::string& Name, clang::DeclContext* originalFnDC,
+        const std::string& Name, const clang::DeclContext* originalFnDC,
         clang::CXXScopeSpec& SS, bool forCustomDerv = true,
         bool namespaceShouldExist = true);
 
@@ -160,7 +160,7 @@ namespace clad {
     /// \returns The custom derivative function if found, nullptr otherwise.
     clang::FunctionDecl*
     LookupCustomDerivativeDecl(const std::string& Name,
-                               clang::DeclContext* originalFnDC,
+                               const clang::DeclContext* originalFnDC,
                                clang::QualType functionType);
 
   public:

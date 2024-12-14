@@ -1828,7 +1828,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPushforward, pushforwardCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()),
+              FD->getDeclContext(),
               /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
       if (OverloadedDerivedFn)
@@ -1932,7 +1932,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
               customPullback, pullbackCallArgs, getCurrentScope(),
-              const_cast<DeclContext*>(FD->getDeclContext()),
+              FD->getDeclContext(),
               /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
       if (baseDiff.getExpr())
@@ -4248,8 +4248,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (Expr* customPullbackCall =
             m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
                 customPullbackName, pullbackArgs, getCurrentScope(),
-                const_cast<DeclContext*>(
-                    CE->getConstructor()->getDeclContext()))) {
+                CE->getConstructor()->getDeclContext())) {
       curRevBlock.insert(it, customPullbackCall);
       if (m_TrackConstructorPullbackInfo) {
         setConstructorPullbackCallInfo(llvm::cast<CallExpr>(customPullbackCall),
@@ -4585,8 +4584,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     args.append(derivedArgs.begin(), derivedArgs.end());
     Expr* customForwPassCE =
         m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-            forwPassFnName, args, getCurrentScope(),
-            const_cast<DeclContext*>(FD->getDeclContext()));
+            forwPassFnName, args, getCurrentScope(), FD->getDeclContext());
     return customForwPassCE;
   }
 

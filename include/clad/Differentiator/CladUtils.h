@@ -126,7 +126,7 @@ namespace clad {
     /// such declaration context is found, then returns `nullptr`.
     clang::DeclContext* FindDeclContext(clang::Sema& semaRef,
                                         clang::DeclContext* DC1,
-                                        clang::DeclContext* DC2);
+                                        const clang::DeclContext* DC2);
 
     /// Finds the qualified name `name` in the declaration context `DC`.
     ///

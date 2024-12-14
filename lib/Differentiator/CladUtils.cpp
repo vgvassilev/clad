@@ -187,8 +187,8 @@ namespace clad {
     }
 
     DeclContext* FindDeclContext(clang::Sema& semaRef, clang::DeclContext* DC1,
-                                 clang::DeclContext* DC2) {
-      llvm::SmallVector<clang::DeclContext*, 4> contexts;
+                                 const clang::DeclContext* DC2) {
+      llvm::SmallVector<const clang::DeclContext*, 4> contexts;
       assert((isa<NamespaceDecl>(DC1) || isa<TranslationUnitDecl>(DC1)) &&
              "DC1 can only be extended if it is a "
              "namespace or translation unit decl.");
@@ -240,7 +240,7 @@ namespace clad {
       }
       DeclContext* DC = DC1;
       for (int i = contexts.size() - 1; i >= 0; --i) {
-        NamespaceDecl* ND = cast<NamespaceDecl>(contexts[i]);
+        const auto* ND = cast<NamespaceDecl>(contexts[i]);
         if (ND->getIdentifier())
           DC = LookupNSD(semaRef, ND->getIdentifier()->getName(),
                          /*shouldExist=*/false, DC1);
