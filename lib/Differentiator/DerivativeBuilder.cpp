@@ -8,6 +8,7 @@
 
 #include "JacobianModeVisitor.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -247,9 +248,29 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
-      clang::Scope* S, const clang::DeclContext* originalFnDC,
+      clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
       Expr* CUDAExecConfig /*=nullptr*/) {
+    const DeclContext* originalFnDC = nullptr;
+
+    // FIXME: callSite must not be null but it comes when we try to build
+    // a numerical diff call. We should merge both paths and remove the
+    // special branches being taken for propagators and numerical diff.
+    if (callSite) {
+      // Check if the callSite is not associated with a shadow declaration.
+      if (const auto* ME = dyn_cast<CXXMemberCallExpr>(callSite)) {
+        originalFnDC = ME->getMethodDecl()->getParent();
+      } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
+        const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
+          originalFnDC = DRE->getFoundDecl()->getDeclContext();
+        else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
+          originalFnDC = MemberE->getFoundDecl().getDecl()->getDeclContext();
+      } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
+        originalFnDC = CtorExpr->getConstructor()->getDeclContext();
+      }
+    }
+
     CXXScopeSpec SS;
     LookupResult R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);

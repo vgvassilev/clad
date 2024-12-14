@@ -1827,8 +1827,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
           DerivedCallArgs.front()->getType(), m_Context, 1));
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              customPushforward, pushforwardCallArgs, getCurrentScope(),
-              FD->getDeclContext(),
+              customPushforward, pushforwardCallArgs, getCurrentScope(), CE,
               /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
       if (OverloadedDerivedFn)
@@ -1931,8 +1930,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-              customPullback, pullbackCallArgs, getCurrentScope(),
-              FD->getDeclContext(),
+              customPullback, pullbackCallArgs, getCurrentScope(), CE,
               /*forCustomDerv=*/true, /*namespaceShouldExist=*/true,
               CUDAExecConfig);
       if (baseDiff.getExpr())
@@ -2064,7 +2062,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
                                                   baseDiff.getExpr_dx(), Loc));
 
     if (Expr* customForwardPassCE =
-            BuildCallToCustomForwPassFn(FD, CallArgs, CallArgDx, baseExpr)) {
+            BuildCallToCustomForwPassFn(CE, CallArgs, CallArgDx, baseExpr)) {
       if (!utils::isNonConstReferenceType(returnType) &&
           !returnType->isPointerType())
         return StmtDiff{customForwardPassCE};
@@ -2214,7 +2212,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     std::string Name = "central_difference";
     return m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
         Name, NumDiffArgs, getCurrentScope(),
-        /*OriginalFnDC=*/nullptr,
+        /*callSite=*/nullptr,
         /*forCustomDerv=*/false,
         /*namespaceShouldExist=*/false, CUDAExecConfig);
   }
@@ -4247,8 +4245,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     std::string customPullbackName = "constructor_pullback";
     if (Expr* customPullbackCall =
             m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                customPullbackName, pullbackArgs, getCurrentScope(),
-                CE->getConstructor()->getDeclContext())) {
+                customPullbackName, pullbackArgs, getCurrentScope(), CE)) {
       curRevBlock.insert(it, customPullbackCall);
       if (m_TrackConstructorPullbackInfo) {
         setConstructorPullbackCallInfo(llvm::cast<CallExpr>(customPullbackCall),
@@ -4278,9 +4275,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // SomeClass _d_c = _t0.adjoint;
     // SomeClass c = _t0.value;
     // ```
-    if (Expr* customReverseForwFnCall = BuildCallToCustomForwPassFn(
-            CE->getConstructor(), primalArgs, reverseForwAdjointArgs,
-            /*baseExpr=*/nullptr)) {
+    if (Expr* customReverseForwFnCall =
+            BuildCallToCustomForwPassFn(CE, primalArgs, reverseForwAdjointArgs,
+                                        /*baseExpr=*/nullptr)) {
       if (RD->isAggregate()) {
         SmallString<128> Name_class;
         llvm::raw_svector_ostream OS_class(Name_class);
@@ -4555,16 +4552,20 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   Expr* ReverseModeVisitor::BuildCallToCustomForwPassFn(
-      const FunctionDecl* FD, llvm::ArrayRef<Expr*> primalArgs,
+      const Expr* callSite, llvm::ArrayRef<Expr*> primalArgs,
       llvm::ArrayRef<clang::Expr*> derivedArgs, Expr* baseExpr) {
-    std::string forwPassFnName =
-        clad::utils::ComputeEffectiveFnName(FD) + "_reverse_forw";
     llvm::SmallVector<Expr*, 4> args;
     if (baseExpr) {
       baseExpr = BuildOp(UnaryOperatorKind::UO_AddrOf, baseExpr,
                          m_DiffReq->getLocation());
       args.push_back(baseExpr);
     }
+    const FunctionDecl* FD = nullptr;
+    if (const auto* CE = dyn_cast<CallExpr>(callSite))
+      FD = CE->getDirectCallee();
+    else
+      FD = cast<CXXConstructExpr>(callSite)->getConstructor();
+
     if (auto CD = llvm::dyn_cast<CXXConstructorDecl>(FD)) {
       const RecordDecl* RD = CD->getParent();
       QualType constructorReverseForwTagT =
@@ -4582,9 +4583,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     args.append(primalArgs.begin(), primalArgs.end());
     args.append(derivedArgs.begin(), derivedArgs.end());
+    std::string forwPassFnName =
+        clad::utils::ComputeEffectiveFnName(FD) + "_reverse_forw";
     Expr* customForwPassCE =
         m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-            forwPassFnName, args, getCurrentScope(), FD->getDeclContext());
+            forwPassFnName, args, getCurrentScope(), callSite);
     return customForwPassCE;
   }
 

@@ -400,20 +400,20 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
 // CHECK-NEXT:     double gaus = 1. / _t6 * _t5;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r8 = 0.;
-// CHECK-NEXT:         _r8 += 1 * clad::custom_derivatives::log_pushforward(gaus, 1.).pushforward;
+// CHECK-NEXT:         _r8 += 1 * clad::custom_derivatives::std::log_pushforward(gaus, 1.).pushforward;
 // CHECK-NEXT:         _d_gaus += _r8;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         double _r3 = _d_gaus * _t5 * -(1. / (_t6 * _t6));
 // CHECK-NEXT:         double _r4 = 0.;
-// CHECK-NEXT:         _r4 += _r3 * clad::custom_derivatives::sqrt_pushforward(_t7 * sigma, 1.).pushforward;
+// CHECK-NEXT:         _r4 += _r3 * clad::custom_derivatives::std::sqrt_pushforward(_t7 * sigma, 1.).pushforward;
 // CHECK-NEXT:         double _r5 = 0.;
 // CHECK-NEXT:         double _r6 = 0.;
-// CHECK-NEXT:         clad::custom_derivatives::pow_pullback(2 * 3.1415926535897931, n, _r4 * sigma, &_r5, &_r6);
+// CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(2 * 3.1415926535897931, n, _r4 * sigma, &_r5, &_r6);
 // CHECK-NEXT:         _d_n += _r6;
 // CHECK-NEXT:         _d_sigma += _t7 * _r4;
 // CHECK-NEXT:         double _r7 = 0.;
-// CHECK-NEXT:         _r7 += 1. / _t6 * _d_gaus * clad::custom_derivatives::exp_pushforward(power, 1.).pushforward;
+// CHECK-NEXT:         _r7 += 1. / _t6 * _d_gaus * clad::custom_derivatives::std::exp_pushforward(power, 1.).pushforward;
 // CHECK-NEXT:         _d_power += _r7;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {

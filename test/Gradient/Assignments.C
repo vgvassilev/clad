@@ -716,7 +716,7 @@ double f19(double a, double b) {
 //CHECK-NEXT:         double _r0 = 0.;
 //CHECK-NEXT:         double _r1 = 0.;
 //CHECK-NEXT:         double _r2 = 0.;
-//CHECK-NEXT:         clad::custom_derivatives::fma_pullback(a, b, b, 1, &_r0, &_r1, &_r2);
+//CHECK-NEXT:         clad::custom_derivatives::std::fma_pullback(a, b, b, 1, &_r0, &_r1, &_r2);
 //CHECK-NEXT:         *_d_a += _r0;
 //CHECK-NEXT:         *_d_b += _r1;
 //CHECK-NEXT:         *_d_b += _r2;
