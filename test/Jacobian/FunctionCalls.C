@@ -19,10 +19,10 @@ void fn1(double i, double j, double* output) {
 // CHECK-NEXT:     clad::array<double> _d_vector_i = clad::one_hot_vector(indepVarCount, {{0U|0UL|0ULL}});
 // CHECK-NEXT:     clad::array<double> _d_vector_j = clad::one_hot_vector(indepVarCount, {{1U|1UL|1ULL}});
 // CHECK-NEXT:     *_d_vector_output = clad::identity_matrix(_d_vector_output->rows(), indepVarCount, {{2U|2UL|2ULL}});
-// CHECK-NEXT:     {{.*}} _t0 = clad::custom_derivatives::pow_pushforward(i, j, _d_vector_i, _d_vector_j);
+// CHECK-NEXT:     {{.*}} _t0 = clad::custom_derivatives::std::pow_pushforward(i, j, _d_vector_i, _d_vector_j);
 // CHECK-NEXT:     *_d_vector_output[0] = _t0.pushforward;
 // CHECK-NEXT:     output[0] = _t0.value;
-// CHECK-NEXT:     {{.*}} _t1 = clad::custom_derivatives::pow_pushforward(j, i, _d_vector_j, _d_vector_i);
+// CHECK-NEXT:     {{.*}} _t1 = clad::custom_derivatives::std::pow_pushforward(j, i, _d_vector_j, _d_vector_i);
 // CHECK-NEXT:     *_d_vector_output[1] = _t1.pushforward;
 // CHECK-NEXT:     output[1] = _t1.value;
 // CHECK-NEXT: }

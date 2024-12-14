@@ -171,7 +171,7 @@ double f4_darg0(double x, int y);
 // CHECK-NEXT:   {
 // CHECK-NEXT:     _d_i = 0;
 // CHECK-NEXT:     for (i = 0; i < y; [&]             {
-// CHECK-NEXT:       ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::sin_pushforward(x, _d_x);
+// CHECK-NEXT:       ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
 // CHECK-NEXT:       double &_t3 = _t2.value;
 // CHECK-NEXT:       _d_r = _d_r * _t3 + r * _t2.pushforward;
 // CHECK-NEXT:       r = r * _t3;
@@ -204,7 +204,7 @@ double f4_inc_darg0(double x, int y);
 //CHECK-NEXT:       {
 //CHECK-NEXT:           _d_i = 0;
 //CHECK-NEXT:           for (i = 0; i < y; [&]             {
-//CHECK-NEXT:             ValueAndPushforward<double, double> _t3 = clad::custom_derivatives::sin_pushforward(x, _d_x);
+//CHECK-NEXT:             ValueAndPushforward<double, double> _t3 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
 //CHECK-NEXT:             double &_t4 = _t3.pushforward;
 //CHECK-NEXT:             double &_t5 = _t3.value;
 //CHECK-NEXT:             _d_r = _d_r * _t5 + r * _t4;

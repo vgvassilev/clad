@@ -1167,7 +1167,7 @@ int main() {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         unsigned int _d_i = 0;
 // CHECK-NEXT:         for (unsigned int i = 0; i < 5U; ++i) {
-// CHECK-NEXT:             {{(clad::)?}}ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::pow_pushforward(a.data[i], b.data[i], _d_a.data[i], _d_b.data[i]);
+// CHECK-NEXT:             {{(clad::)?}}ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::pow_pushforward(a.data[i], b.data[i], _d_a.data[i], _d_b.data[i]);
 // CHECK-NEXT:             _d_res.data[i] = _t0.pushforward;
 // CHECK-NEXT:             res.data[i] = _t0.value;
 // CHECK-NEXT:         }

@@ -15,6 +15,8 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
+#include <llvm/ADT/ArrayRef.h>
+
 #include <array>
 #include <limits>
 #include <memory>
@@ -107,7 +109,7 @@ namespace clad {
 
     /// Tries to find and build call to user-provided `_forw` function.
     clang::Expr* BuildCallToCustomForwPassFn(
-        const clang::FunctionDecl* FD, llvm::ArrayRef<clang::Expr*> primalArgs,
+        const clang::Expr* callSite, llvm::ArrayRef<clang::Expr*> primalArgs,
         llvm::ArrayRef<clang::Expr*> derivedArgs, clang::Expr* baseExpr);
 
   public:

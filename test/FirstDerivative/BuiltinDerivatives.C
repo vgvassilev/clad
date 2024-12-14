@@ -7,6 +7,34 @@
 #include "../TestUtils.h"
 extern "C" int printf(const char* fmt, ...);
 
+
+namespace N {
+  namespace impl {
+    double sq(double x) { return x * x;}
+  }
+  using impl::sq; // using shadow
+}
+
+namespace clad {
+  namespace custom_derivatives {
+    namespace N {
+      clad::ValueAndPushforward<double, double> sq_pushforward(double x, double d_x) {
+        return { x * x, 2 * x * d_x };
+      }
+    }
+  }
+}
+
+float f0 (float x) {
+  return N::sq(x); // must find the sq_pushforward.
+}
+
+// CHECK: float f0_darg0(float x) {
+// CHECK-NEXT: float _d_x = 1;
+// CHECK-NEXT: {{.*}} _t0 = clad::custom_derivatives::N::sq_pushforward(x, _d_x);
+// CHECK-NEXT: return _t0.pushforward;
+// CHECK-NEXT: }
+
 namespace clad{
   namespace custom_derivatives{
     float f1_darg0(float x) {
@@ -208,7 +236,7 @@ double f12(double a, double b) { return std::fma(a, b, b); }
 //CHECK: double f12_darg1(double a, double b) {
 //CHECK-NEXT:     double _d_a = 0;
 //CHECK-NEXT:     double _d_b = 1;
-//CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::fma(double(), double(), double())), decltype(::std::fma(double(), double(), double()))> _t0 = clad::custom_derivatives::fma_pushforward(a, b, b, _d_a, _d_b, _d_b);
+//CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<decltype(::std::fma(double(), double(), double())), decltype(::std::fma(double(), double(), double()))> _t0 = clad::custom_derivatives::std::fma_pushforward(a, b, b, _d_a, _d_b, _d_b);
 //CHECK-NEXT:     return _t0.pushforward;
 //CHECK-NEXT: }
 
@@ -295,6 +323,9 @@ int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
   int i_result[1];
+
+  auto f0_darg0 = clad::differentiate(f0, 0);
+  printf("Result is = %f\n", f0_darg0.execute(1)); // CHECK-EXEC: Result is = 2
 
   auto f1_darg0 = clad::differentiate(f1, 0);
   printf("Result is = %f\n", f1_darg0.execute(60)); // CHECK-EXEC: Result is = -0.952413

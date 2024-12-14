@@ -107,6 +107,8 @@ namespace clad {
     /// overload to be found.
     /// \param[in] CallArgs The call args to be used to resolve to the
     /// correct overload.
+    /// \param[in] callSite - The call expression which triggers the custom
+    ///            derivative call.
     /// \param[in] forCustomDerv A flag to keep track of which
     /// namespace we should look in for the overloads.
     /// \param[in] namespaceShouldExist A flag to enforce assertion failure
@@ -117,8 +119,8 @@ namespace clad {
     /// null otherwise.
     clang::Expr* BuildCallToCustomDerivativeOrNumericalDiff(
         const std::string& Name, llvm::SmallVectorImpl<clang::Expr*>& CallArgs,
-        clang::Scope* S, const clang::DeclContext* originalFnDC,
-        bool forCustomDerv = true, bool namespaceShouldExist = true,
+        clang::Scope* S, const clang::Expr* callSite, bool forCustomDerv = true,
+        bool namespaceShouldExist = true,
         clang::Expr* CUDAExecConfig = nullptr);
     bool noOverloadExists(clang::Expr* UnresolvedLookup,
                           llvm::MutableArrayRef<clang::Expr*> ARargs);

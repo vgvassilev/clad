@@ -57,9 +57,9 @@ int main () { // expected-no-diagnostics
 // CHECK: clad::ValueAndPushforward<double, double> sq_pushforward(double x, double _d_x);
 
 // CHECK: clad::ValueAndPushforward<double, double> one_pushforward(double x, double _d_x) {
-// CHECK-NEXT:     ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::sin_pushforward(x, _d_x);
+// CHECK-NEXT:     ValueAndPushforward<double, double> _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = sq_pushforward(_t0.value, _t0.pushforward);
-// CHECK-NEXT:     ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::cos_pushforward(x, _d_x);
+// CHECK-NEXT:     ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::cos_pushforward(x, _d_x);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t3 = sq_pushforward(_t2.value, _t2.pushforward);
 // CHECK-NEXT:     return {_t1.value + _t3.value, _t1.pushforward + _t3.pushforward};
 // CHECK-NEXT: }
@@ -71,12 +71,12 @@ int main () { // expected-no-diagnostics
 //CHECK-NEXT:           double _r0 = 0.;
 //CHECK-NEXT:           sq_pullback(std::sin(x), _d_y, &_r0);
 //CHECK-NEXT:           double _r1 = 0.;
-//CHECK-NEXT:           _r1 += _r0 * clad::custom_derivatives::sin_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           _r1 += _r0 * clad::custom_derivatives::std::sin_pushforward(x, 1.).pushforward;
 //CHECK-NEXT:           *_d_x += _r1;
 //CHECK-NEXT:           double _r2 = 0.;
 //CHECK-NEXT:           sq_pullback(std::cos(x), _d_y, &_r2);
 //CHECK-NEXT:           double _r3 = 0.;
-//CHECK-NEXT:           _r3 += _r2 * clad::custom_derivatives::cos_pushforward(x, 1.).pushforward;
+//CHECK-NEXT:           _r3 += _r2 * clad::custom_derivatives::std::cos_pushforward(x, 1.).pushforward;
 //CHECK-NEXT:           *_d_x += _r3;
 //CHECK-NEXT:       }
 //CHECK-NEXT:   }
