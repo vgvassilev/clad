@@ -30,6 +30,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <string>
 
 #include "clad/Differentiator/CladUtils.h"
 #include "clad/Differentiator/Compatibility.h"
@@ -167,7 +168,7 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   }
 
   LookupResult DerivativeBuilder::LookupCustomDerivativeOrNumericalDiff(
-      const std::string& Name, clang::DeclContext* originalFnDC,
+      const std::string& Name, const clang::DeclContext* originalFnDC,
       CXXScopeSpec& SS, bool forCustomDerv /*=true*/,
       bool namespaceShouldExist /*=true*/) {
 
@@ -222,7 +223,7 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   }
 
   FunctionDecl* DerivativeBuilder::LookupCustomDerivativeDecl(
-      const std::string& Name, clang::DeclContext* originalFnDC,
+      const std::string& Name, const clang::DeclContext* originalFnDC,
       QualType functionType) {
     CXXScopeSpec SS;
     LookupResult R =
@@ -246,7 +247,7 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
 
   Expr* DerivativeBuilder::BuildCallToCustomDerivativeOrNumericalDiff(
       const std::string& Name, llvm::SmallVectorImpl<Expr*>& CallArgs,
-      clang::Scope* S, clang::DeclContext* originalFnDC,
+      clang::Scope* S, const clang::DeclContext* originalFnDC,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
       Expr* CUDAExecConfig /*=nullptr*/) {
     CXXScopeSpec SS;
