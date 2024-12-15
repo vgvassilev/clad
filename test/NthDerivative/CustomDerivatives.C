@@ -160,8 +160,8 @@ int main() {
     printf("Result is = %f\n", test_exp_d2arg0(2)); // CHECK-EXEC: Result is = 982.766663
 
 // CHECK:   clad::ValueAndPushforward<ValueAndPushforward<float, float>, ValueAndPushforward<float, float> > exp_pushforward_pushforward(float x, float d_x, float _d_x, float _d_d_x) {
-// CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, _d_x);
-// CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives{{(::std)?}}::exp_pushforward(x, _d_x);
+// CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::std::exp_pushforward(x, _d_x);
+// CHECK-NEXT:    {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::std::exp_pushforward(x, _d_x);
 // CHECK-NEXT:    float &_t2 = _t1.value;
 // CHECK-NEXT:    return {{[{][(]ValueAndPushforward<float, float>[)][{]}}_t0.value, _t2 * d_x}, (ValueAndPushforward<float, float>){_t0.pushforward, _t1.pushforward * d_x + _t2 * _d_d_x{{[}][}]}};
 // CHECK-NEXT:}

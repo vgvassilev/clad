@@ -32,7 +32,7 @@ float sqrt_func(float x, float y) {
 // CHECK: float sqrt_func_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y);
+// CHECK-NEXT: ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::sqrt_pushforward(x * x + y * y, _d_x * x + x * _d_x + _d_y * y + y * _d_y);
 // CHECK-NEXT: return _t0.pushforward - _d_y;
 // CHECK-NEXT: }
 
@@ -219,7 +219,7 @@ int main () { // expected-no-diagnostics
 // CHECK-NEXT:     double _d_binWidth = ((_d_high - _d_low) * numBins - _t0 * _d_numBins) / (numBins * numBins);
 // CHECK-NEXT:     double binWidth = _t0 / numBins;
 // CHECK-NEXT:     double _t1 = (val - low);
-// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<double, double> _t2 = clad::custom_derivatives{{(::std)?}}::abs_pushforward(_t1 / binWidth, ((_d_val - _d_low) * binWidth - _t1 * _d_binWidth) / (binWidth * binWidth));
+// CHECK-NEXT:     {{(clad::)?}}ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::abs_pushforward(_t1 / binWidth, ((_d_val - _d_low) * binWidth - _t1 * _d_binWidth) / (binWidth * binWidth));
 // CHECK-NEXT:     bool _t3 = val >= high;
 // CHECK-NEXT:     return {(unsigned int)(_t3 ? numBins - 1 : _t2.value), (unsigned int)(_t3 ? _d_numBins - 0 : _t2.pushforward)};
 // CHECK-NEXT: }
