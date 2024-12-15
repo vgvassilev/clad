@@ -16,6 +16,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
@@ -25,8 +26,9 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 
+#include "llvm/ADT/SmallVector.h"
+
 #include <algorithm>
-#include <llvm/ADT/SmallVector.h>
 #include <numeric>
 
 #include "clad/Differentiator/Compatibility.h"
@@ -237,38 +239,40 @@ namespace clad {
   }
 
   DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
-                                         const CXXScopeSpec* SS /*=nullptr*/,
+                                         NestedNameSpecifier* NNS /*=nullptr*/,
                                          ExprValueKind VK /*=VK_LValue*/) {
+    CXXScopeSpec CSS;
+    SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
+    if (NNS) {
+      CSS.MakeTrivial(m_Context, NNS, fakeLoc);
+    } else {
+      // If no CXXScopeSpec is provided we should try to find the common path
+      // between the current scope (in which presumably we will make the call)
+      // and where `D` is.
+      llvm::SmallVector<DeclContext*, 4> DCs;
+      DeclContext* DeclDC = D->getDeclContext();
+      // FIXME: We should respect using clauses and shorten the qualified names.
+      while (!DeclDC->isTranslationUnit()) {
+        // Stop when we find the common ancestor.
+        if (DeclDC->Equals(m_Sema.CurContext))
+          break;
+
+        // FIXME: We should extend that for classes and class templates. See
+        // clang's getFullyQualifiedNestedNameSpecifier.
+        if (DeclDC->isNamespace() && !DeclDC->isInlineNamespace())
+          DCs.push_back(DeclDC);
+
+        DeclDC = DeclDC->getParent();
+      }
+
+      for (unsigned i = DCs.size(); i > 0; --i)
+        CSS.Extend(m_Context, cast<NamespaceDecl>(DCs[i - 1]), fakeLoc,
+                   fakeLoc);
+    }
     QualType T = D->getType();
     T = T.getNonReferenceType();
     return cast<DeclRefExpr>(clad_compat::GetResult<Expr*>(
-        m_Sema.BuildDeclRefExpr(D, T, VK, D->getBeginLoc(), SS)));
-  }
-
-  DeclRefExpr* VisitorBase::BuildDeclRef(DeclaratorDecl* D,
-                                         NestedNameSpecifier* NNS,
-                                         ExprValueKind VK /*=VK_LValue*/) {
-    std::vector<NestedNameSpecifier*> NNChain;
-    CXXScopeSpec CSS;
-    while (NNS) {
-      NNChain.push_back(NNS);
-      NNS = NNS->getPrefix();
-    }
-
-    std::reverse(NNChain.begin(), NNChain.end());
-
-    for (size_t i = 0; i < NNChain.size(); ++i) {
-      NNS = NNChain[i];
-      // FIXME: this needs to be extended to support more NNS kinds. An
-      // inspiration can be take from getFullyQualifiedNestedNameSpecifier in
-      // llvm-project/clang/lib/AST/QualTypeNames.cpp
-      if (NNS->getKind() == NestedNameSpecifier::Namespace) {
-        NamespaceDecl* NS = NNS->getAsNamespace();
-        CSS.Extend(m_Context, NS, noLoc, noLoc);
-      }
-    }
-
-    return BuildDeclRef(D, &CSS, VK);
+        m_Sema.BuildDeclRefExpr(D, T, VK, D->getBeginLoc(), &CSS)));
   }
 
   IdentifierInfo*
@@ -681,13 +685,12 @@ namespace clad {
   Expr*
   VisitorBase::BuildCallExprToFunction(FunctionDecl* FD,
                                        llvm::MutableArrayRef<Expr*> argExprs,
-                                       bool useRefQualifiedThisObj /*=false*/,
-                                       const CXXScopeSpec* SS /*=nullptr*/) {
+                                       bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
     if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
       call = BuildCallExprToMemFn(derMethod, argExprs, useRefQualifiedThisObj);
     } else {
-      Expr* exprFunc = BuildDeclRef(FD, SS);
+      Expr* exprFunc = BuildDeclRef(FD);
       call = m_Sema
                  .ActOnCallExpr(
                      getCurrentScope(),
@@ -720,7 +723,8 @@ namespace clad {
     clang::TemplateArgumentList TL(TemplateArgumentList::OnStack, templateArgs);
     FunctionDecl* FD = m_Sema.InstantiateFunctionDeclaration(FTD, &TL, loc);
 
-    return BuildCallExprToFunction(FD, argExprs, false, &CSS);
+    return BuildCallExprToFunction(FD, argExprs,
+                                   /*useRefQualifiedThisObj=*/false);
   }
 
   TemplateDecl* VisitorBase::GetCladArrayRefDecl() {
