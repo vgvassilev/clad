@@ -560,10 +560,10 @@ std::complex<double> fn10(double i, double j) {
 // CHECK-NEXT:     c1.imag_pushforward(5 * i, &_d_c1, 0 * i + 5 * _d_i);
 // CHECK-NEXT:     c2.real_pushforward(5 * i, &_d_c2, 0 * i + 5 * _d_i);
 // CHECK-NEXT:     c2.imag_pushforward(2 * i, &_d_c2, 0 * i + 2 * _d_i);
-// CHECK-NEXT:     clad::ValueAndPushforward<complex<double>, complex<double> > _t0 = operator_plus_pushforward(c1, c2, _d_c1, _d_c2);
+// CHECK-NEXT:     clad::ValueAndPushforward<complex<double>, complex<double> > _t0 = std::operator_plus_pushforward(c1, c2, _d_c1, _d_c2);
 // CHECK-NEXT:     clad::ValueAndPushforward<complex<double> &, complex<double> &> _t1 = c1.operator_equal_pushforward({{(static_cast<std(::__1)?::complex<double> &&>\(_t0.value\))|(_t0.value)}}, &_d_c1, {{(static_cast<std(::__1)?::complex<double> &&>\(_t0.pushforward\))|(_t0.pushforward)}});
 // CHECK-NEXT:     clad::ValueAndPushforward<complex<double> &, complex<double> &> _t2 = c1.operator_plus_equal_pushforward(c2, &_d_c1, _d_c2);
-// CHECK-NEXT:     clad::ValueAndPushforward<complex<double>, complex<double> > _t3 = operator_plus_pushforward(c1, c1, _d_c1, _d_c1);
+// CHECK-NEXT:     clad::ValueAndPushforward<complex<double>, complex<double> > _t3 = std::operator_plus_pushforward(c1, c1, _d_c1, _d_c1);
 // CHECK-NEXT:     return _t3.pushforward;
 // CHECK-NEXT: }
 
@@ -883,13 +883,13 @@ double fn14(double i, double j) {
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<{{.*}}, {{.*}}> _t1 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&v, 1, &_d_v, 0);
 // CHECK-NEXT:     _t1.pushforward = 0 * i + 11 * _d_i;
 // CHECK-NEXT:     _t1.value = 11 * i;
-// CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.begin()), decltype({{.*}}.begin())> _t2 = begin_pushforward(v, _d_v);
+// CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.begin()), decltype({{.*}}.begin())> _t2 = std::begin_pushforward(v, _d_v);
 // CHECK-NEXT:     {{.*}} _d_b = _t2.pushforward;
 // CHECK-NEXT:     {{.*}} b = _t2.value;
-// CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.end()), decltype({{.*}}.end())> _t3 = end_pushforward(v, _d_v);
+// CHECK-NEXT:     clad::ValueAndPushforward<decltype({{.*}}.end()), decltype({{.*}}.end())> _t3 = std::end_pushforward(v, _d_v);
 // CHECK-NEXT:     {{.*}} _d_e = _t3.pushforward;
 // CHECK-NEXT:     {{.*}} e = _t3.value;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t4 = accumulate_pushforward(b, e, 0., _d_b, _d_e, 0.);
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t4 = std::accumulate_pushforward(b, e, 0., _d_b, _d_e, 0.);
 // CHECK-NEXT:     double _d_res = _t4.pushforward;
 // CHECK-NEXT:     double res = _t4.value;
 // CHECK-NEXT:     return _d_res;

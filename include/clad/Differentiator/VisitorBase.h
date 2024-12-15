@@ -7,10 +7,6 @@
 #ifndef CLAD_VISITOR_BASE_H
 #define CLAD_VISITOR_BASE_H
 
-namespace clad {
-  class DerivativeBuilder;
-}
-
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
 
@@ -21,6 +17,10 @@ namespace clad {
 #include <array>
 #include <stack>
 #include <unordered_map>
+
+namespace clang {
+class NestedNameSpecifier;
+} // namespace clang
 
 namespace clad {
   /// A class that represents the result of Visit of ForwardModeVisitor.
@@ -360,18 +360,11 @@ namespace clad {
     /// declaration reference expressions. This function builds a declaration
     /// reference given a declaration.
     /// \param[in] D The declaration to build a DeclRefExpr for.
-    /// \param[in] SS The scope specifier for the declaration.
+    /// \param[in] SS The nested name specifier for the declaration.
     /// \returns the DeclRefExpr for the given declaration.
     clang::DeclRefExpr*
     BuildDeclRef(clang::DeclaratorDecl* D,
-                 const clang::CXXScopeSpec* SS = nullptr,
-                 clang::ExprValueKind VK = clang::VK_LValue);
-    /// Builds a DeclRefExpr to a given Decl, adding proper nested name
-    /// qualifiers.
-    /// \param[in] D The declaration to build a DeclRefExpr for.
-    /// \param[in] NNS The nested name specifier to use.
-    clang::DeclRefExpr*
-    BuildDeclRef(clang::DeclaratorDecl* D, clang::NestedNameSpecifier* NNS,
+                 clang::NestedNameSpecifier* NNS = nullptr,
                  clang::ExprValueKind VK = clang::VK_LValue);
 
     /// Stores the result of an expression in a temporary variable (of the same
@@ -543,8 +536,7 @@ namespace clad {
     clang::Expr*
     BuildCallExprToFunction(clang::FunctionDecl* FD,
                             llvm::MutableArrayRef<clang::Expr*> argExprs,
-                            bool useRefQualifiedThisObj = false,
-                            const clang::CXXScopeSpec* SS = nullptr);
+                            bool useRefQualifiedThisObj = false);
 
     /// Build a call to templated free function inside the clad namespace.
     ///
