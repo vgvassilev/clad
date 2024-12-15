@@ -137,7 +137,7 @@ float func4(float x, float y) { return std::pow(x, y); }
 //CHECK-NEXT:     {
 //CHECK-NEXT:         float _r0 = 0.F;
 //CHECK-NEXT:         float _r1 = 0.F;
-//CHECK-NEXT:         clad::custom_derivatives{{(::std)?}}::pow_pullback(x, y, 1, &_r0, &_r1);
+//CHECK-NEXT:         clad::custom_derivatives::std::pow_pullback(x, y, 1, &_r0, &_r1);
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:         *_d_y += _r1;
 //CHECK-NEXT:     }
@@ -167,7 +167,7 @@ float func5(float x, float y) {
 //CHECK-NEXT:         float _r_d0 = *_d_y;
 //CHECK-NEXT:         *_d_y = 0.F;
 //CHECK-NEXT:         float _r0 = 0.F;
-//CHECK-NEXT:         _r0 += _r_d0 * clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, 1.F).pushforward;
+//CHECK-NEXT:         _r0 += _r_d0 * clad::custom_derivatives::std::sin_pushforward(x, 1.F).pushforward;
 //CHECK-NEXT:         *_d_x += _r0;
 //CHECK-NEXT:     }
 //CHECK-NEXT:     _final_error += std::abs(*_d_x * x * {{.+}});

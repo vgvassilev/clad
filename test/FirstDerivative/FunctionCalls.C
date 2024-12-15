@@ -107,8 +107,8 @@ float test_6(float x, float y) {
 // CHECK: float test_6_darg0(float x, float y) {
 // CHECK-NEXT: float _d_x = 1;
 // CHECK-NEXT: float _d_y = 0;
-// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives{{(::std)?}}::sin_pushforward(x, _d_x);
-// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives{{(::std)?}}::cos_pushforward(y, _d_y);
+// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t0 = clad::custom_derivatives::std::sin_pushforward(x, _d_x);
+// CHECK-NEXT: {{(clad::)?}}ValueAndPushforward<float, float> _t1 = clad::custom_derivatives::std::cos_pushforward(y, _d_y);
 // CHECK-NEXT: return _t0.pushforward + _t1.pushforward;
 // CHECK-NEXT: }
 
