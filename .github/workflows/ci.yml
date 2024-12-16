@@ -944,11 +944,11 @@ jobs:
       run: |
         cd obj
         cmake --build . --target check-clad -- -j4
-    - name: Test Clad on Windows
-      if: ${{ matrix.coverity == false && runner.os == 'windows' }}
+    - name: Test Clad on Windows (only on debug mode for now)
+      if: ${{ (matrix.debug_build == true) && runner.os == 'windows' }}
       run: |
         cd obj
-        #cmake --build . --target check-clad
+        cmake --build . --target check-clad
     - name: Benchmark Clad
       if: ${{ matrix.benchmark }}
       run: |
