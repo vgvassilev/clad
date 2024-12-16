@@ -132,15 +132,6 @@ if (NOT CLAD_BUILD_STATIC_ONLY)
     target_link_libraries(clad PUBLIC ${_enzyme_link_flags})
 
     add_dependencies(clad LLVMEnzyme)
-
-    # Add clad deps if we build together with clang.
-    if (TARGET intrinsics_gen)
-      add_dependencies(clad intrinsics_gen)
-    endif()
-    if (TARGET clang-headers)
-      add_dependencies(clad clang-headers)
-    endif()
-
   endif(CLAD_ENABLE_ENZYME_BACKEND)
 endif()
 set_source_files_properties(ClangPlugin.cpp PROPERTIES COMPILE_DEFINITIONS CLANG_MAJOR_VERSION="${LLVM_VERSION_MAJOR}")
