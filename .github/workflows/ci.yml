@@ -908,7 +908,7 @@ jobs:
           echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD"
           echo "PATH_TO_LLVM_BUILD=$env:PATH_TO_LLVM_BUILD" >> $env:GITHUB_ENV
           $lit = @(which lit)
-          cmake -G Ninja  -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD"  -DLLVM_BUILD_LLVM_DYLIB_VIS=On -DLLVM_LINK_LLVM_DYLIB=On -DCLANG_LINK_CLANG_DYLIB=On -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" ${{ matrix.extra_cmake_options }}
+          cmake -G Ninja  -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" -DClang_DIR="$env:PATH_TO_LLVM_BUILD" -DLLVM_DIR="$env:PATH_TO_LLVM_BUILD"  -DLLVM_BUILD_LLVM_DYLIB_VIS=On -DLLVM_LINK_LLVM_DYLIB=On -DCLANG_LINK_CLANG_DYLIB=On -DCLAD_CODE_COVERAGE="$env:CLAD_CODE_COVERAGE" -DCLAD_BUILD_STATIC_ONLY="ON" -DLLVM_EXTERNAL_LIT="$lit" "$env:GITHUB_WORKSPACE" -DCLAD_DISABLE_TESTS=OFF ${{ matrix.extra_cmake_options }}
           cmake --build . --config "$env:BUILD_TYPE" --parallel ${{ env.ncpus }}
         }
         else
