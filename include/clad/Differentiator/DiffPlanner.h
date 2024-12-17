@@ -170,7 +170,7 @@ public:
     const clang::FunctionDecl* m_TopMostFD = nullptr;
     clang::Sema& m_Sema;
 
-    RequestOptions& m_Options;
+    const RequestOptions& m_Options;
 
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
