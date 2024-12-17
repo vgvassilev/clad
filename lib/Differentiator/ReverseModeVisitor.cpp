@@ -216,6 +216,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
 
     auto derivativeBaseName = m_DiffReq.BaseFunctionName;
+    // llvm::errs() << "\nBaseFunctionName: " << derivativeBaseName << "\n";
     std::string gradientName = derivativeBaseName + funcPostfix();
     // To be consistent with older tests, nothing is appended to 'f_grad' if
     // we differentiate w.r.t. all the parameters at once.
@@ -1672,8 +1673,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // We do not need to create result arg for arguments passed by reference
       // because the derivatives of arguments passed by reference are directly
       // modified by the derived callee function.
-      if (utils::IsReferenceOrPointerArg(arg) ||
-          !m_DiffReq.shouldHaveAdjoint(PVD)) {
+      if (utils::IsReferenceOrPointerArg(arg)) {
         argDiff = Visit(arg);
         CallArgDx.push_back(argDiff.getExpr_dx());
       } else {
@@ -1945,7 +1945,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
       // Overloaded derivative was not found, request the CladPlugin to
       // derive the called function.
-      DiffRequest pullbackRequest{};
+      DiffRequest pullbackRequest(m_Builder);
       pullbackRequest.Function = FD;
 
       // Mark the indexes of the global args. Necessary if the argument of the
@@ -1959,6 +1959,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       pullbackRequest.VerboseDiags = false;
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+      pullbackRequest.setVariedDecls(m_DiffReq.getVariedDecls());
       bool isaMethod = isa<CXXMethodDecl>(FD);
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
         if (MD && isLambdaCallOperator(MD)) {

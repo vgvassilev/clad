@@ -3,12 +3,13 @@
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallSet.h"
+#include <iterator>
+#include <set>
+#include "clad/Differentiator/DerivativeBuilder.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
-#include <iterator>
-#include <set>
 namespace clang {
 class CallExpr;
 class CompilerInstance;
@@ -21,6 +22,7 @@ class Type;
 } // namespace clang
 
 namespace clad {
+class DerivativeBuilder;
 
 /// A struct containing information about request to differentiate a function.
 struct DiffRequest {
@@ -34,11 +36,13 @@ private:
   } m_TbrRunInfo;
 
   mutable struct ActivityRunInfo {
-    std::set<const clang::VarDecl*> ToBeRecorded;
+    std::set<const clang::VarDecl*> VariedDecls;
     bool HasAnalysisRun = false;
   } m_ActivityRunInfo;
 
 public:
+  const DerivativeBuilder* Builder = nullptr;
+  // static std::set<const clang::VarDecl*> AllVariedDecls;
   /// Function to be differentiated.
   const clang::FunctionDecl* Function = nullptr;
   /// Name of the base function to be differentiated. Can be different from
@@ -127,7 +131,8 @@ public:
            Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
-           DeclarationOnly == other.DeclarationOnly;
+           DeclarationOnly == other.DeclarationOnly &&
+           getVariedDecls() == other.getVariedDecls();
   }
 
   const clang::FunctionDecl* operator->() const { return Function; }
@@ -144,6 +149,16 @@ public:
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+
+  void setVariedDecls(std::set<const clang::VarDecl*> init) {
+    for (auto* vd : init)
+      this->m_ActivityRunInfo.VariedDecls.insert(vd);
+  }
+  std::set<const clang::VarDecl*> getVariedDecls() const {
+    return this->m_ActivityRunInfo.VariedDecls;
+  }
+  DiffRequest() {}
+  DiffRequest(DerivativeBuilder& builder) : Builder(&builder) {}
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
