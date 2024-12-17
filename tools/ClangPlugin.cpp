@@ -164,11 +164,12 @@ namespace clad {
         request.Function = request.Function->getDefinition();
       request.UpdateDiffParamsInfo(m_CI.getSema());
       const FunctionDecl* FD = request.Function;
-      // set up printing policy
-      clang::LangOptions LangOpts;
-      LangOpts.CPlusPlus = true;
-      clang::PrintingPolicy Policy(LangOpts);
-      Policy.Bool = true;
+      ASTContext& C = S.getASTContext();
+      clang::PrintingPolicy Policy = C.getPrintingPolicy();
+#if CLANG_VERSION_MAJOR > 10
+      // Our testsuite expects 'a<b<c> >' rather than 'a<b<c>>'.
+      Policy.SplitTemplateClosers = true;
+#endif
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
         FD->print(llvm::outs(), Policy);
@@ -183,11 +184,9 @@ namespace clad {
         std::string Err;
         if (llvm::sys::DynamicLibrary::
                 LoadLibraryPermanently(m_DO.CustomModelName.c_str(), &Err)) {
-          auto& SemaInst = m_CI.getSema();
-          unsigned diagID = SemaInst.Diags.getCustomDiagID(
+          unsigned diagID = S.Diags.getCustomDiagID(
               DiagnosticsEngine::Error, "Failed to load '%0', %1. Aborting.");
-          clang::Sema::SemaDiagnosticBuilder stream = SemaInst.Diag(noLoc,
-                                                                    diagID);
+          clang::Sema::SemaDiagnosticBuilder stream = S.Diag(noLoc, diagID);
           stream << m_DO.CustomModelName << Err;
           return nullptr;
         }
