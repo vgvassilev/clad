@@ -1959,12 +1959,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       pullbackRequest.VerboseDiags = false;
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-      bool isaMethod = isa<CXXMethodDecl>(FD);
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
         if (MD && isLambdaCallOperator(MD)) {
           if (const auto* paramDecl = FD->getParamDecl(i))
             pullbackRequest.DVI.push_back(paramDecl);
-        } else if (DerivedCallOutputArgs[i + isaMethod])
+        } else if (DerivedCallOutputArgs[i + (bool)MD])
           pullbackRequest.DVI.push_back(FD->getParamDecl(i));
 
       FunctionDecl* pullbackFD = nullptr;
