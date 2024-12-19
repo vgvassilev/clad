@@ -65,6 +65,9 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
   // Consider out-of-line virtual functions.
   {
     DeclContext* LookupCtx = derivedFD->getDeclContext();
+    // Find the first non-transparent context to perform the lookup in.
+    while (LookupCtx->isTransparentContext())
+      LookupCtx = LookupCtx->getParent();
     auto R = LookupCtx->noload_lookup(derivedFD->getDeclName());
 
     for (NamedDecl* I : R) {
