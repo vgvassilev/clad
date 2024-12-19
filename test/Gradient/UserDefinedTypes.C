@@ -97,8 +97,9 @@ double fn3(double i, double j) {
 }
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     Tangent _d_t({});
 // CHECK-NEXT:     Tangent t;
+// CHECK-NEXT:     Tangent _d_t({});
+// CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     double _t0 = t.data[0];
 // CHECK-NEXT:     t.data[0] = 2 * i;
 // CHECK-NEXT:     double _t1 = t.data[1];
@@ -130,10 +131,12 @@ double fn4(double i, double j) {
 }
 
 // CHECK: void fn4_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     pairdd _d_p({});
 // CHECK-NEXT:     pairdd p(1, 3);
-// CHECK-NEXT:     pairdd _d_q({});
+// CHECK-NEXT:     pairdd _d_p(p);
+// CHECK-NEXT:     clad::zero_init(_d_p);
 // CHECK-NEXT:     pairdd q({7, 5});
+// CHECK-NEXT:     pairdd _d_q(q);
+// CHECK-NEXT:     clad::zero_init(_d_q);
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_p.first += 1 * i;
 // CHECK-NEXT:         *_d_i += p.first * 1;
@@ -370,8 +373,9 @@ double fn11(double x, double y) {
 }
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:     Tangent _d_t({});
 // CHECK-NEXT:     Tangent t;
+// CHECK-NEXT:     Tangent _d_t({});
+// CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     double _t0 = t.data[0];
 // CHECK-NEXT:     t.data[0] = -y;
 // CHECK-NEXT:     operator_plus_pullback(x, t, 1, &*_d_x, &_d_t);
