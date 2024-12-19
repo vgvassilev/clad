@@ -21,8 +21,10 @@
 #include "Tape.h"
 
 #include <assert.h>
-#include <stddef.h>
 #include <cstring>
+#include <iterator>
+#include <stddef.h>
+#include <type_traits>
 
 namespace clad {
 
@@ -82,25 +84,50 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   }
 
   /// The purpose of this function is to initialize adjoints
-  /// (or all of its differentiable fields) with 0.
-  // FIXME: Add support for objects.
-  /// Initialize a non-array variable.
-  template <typename T> CUDA_HOST_DEVICE void zero_init(T& x) { new (&x) T(); }
+  /// (or all of its iteratable elements) with 0.
+  namespace zero_init_detail {
+  template <class T> struct iterator_traits : std::iterator_traits<T> {};
+  template <> struct iterator_traits<void*> {};
+  template <> struct iterator_traits<const void*> {};
 
-  /// Initialize a non-const sized array when the size is known and is equal to
-  /// N.
+  template <class T, class It>
+  std::integral_constant<
+      bool, !std::is_same<typename std::remove_cv<T>::type,
+                          typename iterator_traits<It>::value_type>::value>
+  is_range_check(It first, It last);
+
+  template <class T>
+  decltype(is_range_check<T>(std::begin(std::declval<const T&>()),
+                             std::end(std::declval<const T&>())))
+  is_range_(int);
+  template <class T> std::false_type is_range_(...);
+  } // namespace zero_init_detail
+
+  template <class T>
+  struct is_range : decltype(zero_init_detail::is_range_<T>(0)) {};
+
+  template <class T> void zero_init(T& t);
+
+  template <class T,
+            typename std::enable_if<!is_range<T>::value, int>::type = 0>
+  void zero_impl(volatile T& t) {
+    unsigned char tmp[sizeof(T)] = {};
+    std::memcpy(const_cast<T*>(&t), tmp, sizeof(T));
+  }
+
+  template <class T, typename std::enable_if<is_range<T>::value, int>::type = 0>
+  void zero_impl(T& t) {
+    for (auto& x : t)
+      zero_init(x);
+  }
+
+  template <class T> void zero_init(T& t) { zero_impl(t); }
+
+  /// Initialize a const sized array.
   template <typename T> CUDA_HOST_DEVICE void zero_init(T* x, std::size_t N) {
     for (std::size_t i = 0; i < N; ++i)
       zero_init(x[i]);
   }
-
-  /// Initialize a const sized array.
-  // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
-  template <typename T, std::size_t N>
-  CUDA_HOST_DEVICE void zero_init(T (&arr)[N]) {
-    zero_init((T*)arr, N);
-  }
-  // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
   /// Pad the args supplied with nullptr(s) or zeros to match the the num of
   /// params of the function and then execute the function using the padded args

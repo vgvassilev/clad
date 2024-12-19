@@ -23,6 +23,15 @@ public:
   }
 };
 
+namespace clad {
+  template <> void zero_init(SimpleFunctions1& f) {
+    f.x = 0;
+    f.y = 0;
+    f.x_pointer = &f.x;
+    f.y_pointer = &f.y;
+  }
+}
+
 double fn_s1_mem_fn(double i, double j) {
   SimpleFunctions1 obj(2, 3);
   return obj.mem_fn_1(i, j) + i * j;
@@ -125,8 +134,9 @@ int main() {
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j);
 
     // CHECK: void fn_s1_mem_fn_grad(double i, double j, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     SimpleFunctions1 _d_obj({});
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
+    // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
+    // CHECK-NEXT:     clad::zero_init(_d_obj);
     // CHECK-NEXT:     SimpleFunctions1 _t0 = obj;
     // CHECK-NEXT:     {
     // CHECK-NEXT:         double _r2 = 0.;
@@ -144,8 +154,9 @@ int main() {
     // CHECK-NEXT: }
     
     // CHECK: void fn_s1_field_grad(double i, double j, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     SimpleFunctions1 _d_obj({});
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
+    // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
+    // CHECK-NEXT:     clad::zero_init(_d_obj);
     // CHECK-NEXT:     {
     // CHECK-NEXT:         _d_obj.x += 1 * obj.y;
     // CHECK-NEXT:         *_d_i += 1 * j;
@@ -158,8 +169,9 @@ int main() {
     // CHECK-NEXT: }
     
     // CHECK: void fn_s1_field_pointer_grad(double i, double j, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     SimpleFunctions1 _d_obj({});
     // CHECK-NEXT:     SimpleFunctions1 obj(2, 3);
+    // CHECK-NEXT:     SimpleFunctions1 _d_obj(obj);
+    // CHECK-NEXT:     clad::zero_init(_d_obj);
     // CHECK-NEXT:     {
     // CHECK-NEXT:         *_d_obj.x_pointer += 1 * *obj.y_pointer;
     // CHECK-NEXT:         *_d_i += 1 * j;
