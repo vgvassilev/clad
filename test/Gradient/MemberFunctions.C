@@ -528,17 +528,17 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      double &_d_w = *_d_u;
 // CHECK-NEXT:      double &w = u;
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t0 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>());
-// CHECK-NEXT:      SafeTestClass _d_s1(_t0.adjoint);
 // CHECK-NEXT:      SafeTestClass s1(_t0.value);
+// CHECK-NEXT:      SafeTestClass _d_s1(_t0.adjoint);
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t1 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), u, &v, *_d_u, &*_d_v);
-// CHECK-NEXT:      SafeTestClass _d_s2(_t1.adjoint);
 // CHECK-NEXT:      SafeTestClass s2(_t1.value);
+// CHECK-NEXT:      SafeTestClass _d_s2(_t1.adjoint);
 // CHECK-NEXT:      clad::ValueAndAdjoint<SafeTestClass, SafeTestClass> _t2 = {{.*}}constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>(), w, _d_w);
+// CHECK-NEXT:      SafeTestClass s3(_t2.value);
 // CHECK-NEXT:      SafeTestClass _d_s3(_t2.adjoint);
-// CHECK-NEXT:          SafeTestClass s3(_t2.value);
-// CHECK-NEXT:          *_d_v += 1;
-// CHECK-NEXT:          {{.*}}constructor_pullback(&s2, u, &v, &_d_s2, &*_d_u, &*_d_v);
-// CHECK-NEXT:      }
+// CHECK-NEXT:      *_d_v += 1;
+// CHECK-NEXT:      {{.*}}constructor_pullback(&s2, u, &v, &_d_s2, &*_d_u, &*_d_v);
+// CHECK-NEXT:  }
 
 
 int main() {
@@ -632,8 +632,9 @@ int main() {
 // CHECK: void fn3_grad_2_3(double x, double y, double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     double _d_x = 0.;
 // CHECK-NEXT:     double _d_y = 0.;
-// CHECK-NEXT:     SimpleFunctions _d_sf({});
 // CHECK-NEXT:     SimpleFunctions sf(x, y);
+// CHECK-NEXT:     SimpleFunctions _d_sf(sf);
+// CHECK-NEXT:     clad::zero_init(_d_sf);
 // CHECK-NEXT:     SimpleFunctions _t0 = sf;
 // CHECK-NEXT:         {
 // CHECK-NEXT:             double _r0 = 0.;
