@@ -319,6 +319,10 @@ double f17(double x) {
   return 2*y;
 }
 
+extern "C" {
+  double f18(double x) { return x * x; }
+}
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -417,6 +421,9 @@ int main () { //expected-no-diagnostics
   INIT_GRADIENT(f17);
 
   TEST_GRADIENT(f17, /*numOfDerivativeArgs=*/1, -3, &d_result[0]); // CHECK-EXEC: {-2.00}
-  
+
+  auto f18_darg0 = clad::differentiate(f18, 0);
+  printf("Result is = %f\n", f18_darg0.execute(1)); // CHECK-EXEC: Result is = 2
+
   return 0;
 }
