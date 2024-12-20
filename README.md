@@ -312,11 +312,11 @@ Note: If for any reason clad is unable to algorithmically differentiate a functi
 ### Specifying custom derivatives
 Sometimes Clad may be unable to differentiate your function (e.g. if its definition is in a library and source code is not available). Alternatively, an efficient/more numerically stable expression for derivatives may be know. In such cases, it is useful to be able to specify a custom derivatives for your function.
 
-Clad supports that functionality by allowing to specify your own derivatives in `namespace custom_derivatives`. For a function named `FNAME` you can specify:
-* a custom derivative w.r.t `I`-th argument by defining a function `FNAME_dargI` inside `namespace custom_derivatives`
-* a custom gradient w.r.t every argument by defining a function `FNAME_grad` inside `namespace custom_derivatives`
+Clad supports that functionality by allowing to specify your own derivatives in `namespace clad::custom_derivatives`. For a function named `FNAME` you can specify:
+* a custom derivative w.r.t `I`-th argument by defining a function `FNAME_dargI` inside `namespace clad::custom_derivatives`
+* a custom gradient w.r.t every argument by defining a function `FNAME_grad` inside `namespace clad::custom_derivatives`
 
-When Clad will encounter a function `FNAME`, it will first do a lookup inside the `custom_derivatives` namespace to try to find a suitable custom function, and only if none is found will proceed to automatically derive it.
+When Clad will encounter a function `FNAME`, it will first do a lookup inside the `clad::custom_derivatives` namespace to try to find a suitable custom function, and only if none is found will proceed to automatically derive it.
 
 Example:
 * Suppose that you have a function `my_pow(x, y)` which computes `x` to the power of `y`. However, Clad is not able to differentiate `my_pow`'s body (e.g. it calls an external library or uses some non-differentiable approximation):
@@ -325,14 +325,14 @@ double my_pow(double x, double y) { // something non-differentiable here... }
 ```
 However, you know analytical formulas of its derivatives, and you can easily specify custom derivatives:
 ```cpp
-namespace custom_derivatives {
+namespace clad::custom_derivatives {
   double my_pow_darg0(double x, double y) { return y * my_pow(x, y - 1); }
   double my_pow_darg1(dobule x, double y) { return my_pow(x, y) * std::log(x); }
 }
 ```
 You can also specify a custom gradient:
 ```cpp
-namespace custom_derivatives {
+namespace clad::custom_derivatives {
   void my_pow_grad(double x, double y, array_ref<double> _d_x, array_ref<double> _d_y) {
      double t = my_pow(x, y - 1);
      *_d_x = y * t;
