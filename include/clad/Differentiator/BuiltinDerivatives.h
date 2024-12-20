@@ -6,9 +6,6 @@
 
 #ifndef CLAD_BUILTIN_DERIVATIVES
 #define CLAD_BUILTIN_DERIVATIVES
-// Avoid assertion custom_derivative namespace not found. FIXME: This in future
-// should go.
-namespace custom_derivatives{}
 
 #include "clad/Differentiator/ArrayRef.h"
 #include "clad/Differentiator/CladConfig.h"
