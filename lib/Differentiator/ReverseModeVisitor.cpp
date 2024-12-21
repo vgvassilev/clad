@@ -61,6 +61,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   return nullptr;
 }
 
+Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
+  if (E)
+    if (const auto* CXXILE =
+            dyn_cast<CXXStdInitializerListExpr>(E->IgnoreImplicit()))
+      if (const auto* ILE =
+              dyn_cast<InitListExpr>(CXXILE->getSubExpr()->IgnoreImplicit())) {
+        unsigned numInits = ILE->getNumInits();
+        return ConstantFolder::synthesizeLiteral(m_Context.getSizeType(),
+                                                 m_Context, numInits);
+      }
+  return nullptr;
+}
+
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
@@ -2645,6 +2658,26 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
   }
 
+  QualType ReverseModeVisitor::CloneType(QualType T) {
+    QualType dT = VisitorBase::CloneType(T);
+
+    bool isLValueRefType = dT->isLValueReferenceType();
+    dT = dT.getNonReferenceType();
+
+    // We need to replace std::initializer_list with clad::array because the
+    // former is temporary by design and it's not possible to create modifiable
+    // adjoints.
+    QualType elemType;
+    if (m_Sema.isStdInitializerList(utils::GetValueType(T),
+                                    /*Element=*/&elemType))
+      dT = GetCladArrayOfType(elemType);
+
+    if (isLValueRefType)
+      return m_Context.getLValueReferenceType(dT);
+
+    return dT;
+  }
+
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                                              bool keepLocal) {
     StmtDiff initDiff;
@@ -2679,37 +2712,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool isInitializedByNewExpr = false;
     bool initializeDerivedVar = true;
 
-    // We need to replace std::initializer_list with clad::array because the
-    // former is temporary by design and it's not possible to create modifiable
-    // adjoints.
-    if (m_Sema.isStdInitializerList(utils::GetValueType(VDType),
-                                    /*Element=*/nullptr)) {
-      if (const Expr* init = VD->getInit()) {
-        if (const auto* CXXILE =
-                dyn_cast<CXXStdInitializerListExpr>(init->IgnoreImplicit())) {
-          if (const auto* ILE = dyn_cast<InitListExpr>(
-                  CXXILE->getSubExpr()->IgnoreImplicit())) {
-            VDDerivedType =
-                GetCladArrayOfType(ILE->getInit(/*Init=*/0)->getType());
-            unsigned numInits = ILE->getNumInits();
-            VDDerivedInit = ConstantFolder::synthesizeLiteral(
-                m_Context.getSizeType(), m_Context, numInits);
-            VDCloneType = VDDerivedType;
-          }
-        } else if (isRefType) {
-          initDiff = Visit(init);
-          if (promoteToFnScope) {
-            VDDerivedInit = BuildOp(UO_AddrOf, initDiff.getExpr_dx());
-            VDDerivedType = VDDerivedInit->getType();
-          } else {
-            VDDerivedInit = initDiff.getExpr_dx();
-            VDDerivedType =
-                m_Context.getLValueReferenceType(VDDerivedInit->getType());
-          }
-          VDCloneType = VDDerivedType;
-        }
-      }
-    }
+    if (Expr* size = getStdInitListSizeExpr(VD->getInit()))
+      VDDerivedInit = size;
 
     // Check if the variable is pointer type and initialized by new expression
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
