@@ -2,6 +2,7 @@
 #define CLAD_STL_BUILTINS_H
 
 #include <array>
+#include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
@@ -459,6 +460,17 @@ void constructor_pullback(::std::vector<T>* v, S count, U val,
   for (unsigned i = 0; i < count; ++i)
     *d_val += (*d_v)[i];
   d_v->clear();
+}
+
+// A specialization for std::initializer_list (which is replaced with
+// clad::array).
+template <typename T>
+void constructor_pullback(::std::vector<T>* v, clad::array<T> init,
+                          ::std::vector<T>* d_v, clad::array<T>* d_init) {
+  for (unsigned i = 0; i < init.size(); ++i) {
+    (*d_init)[i] += (*d_v)[i];
+    (*d_v)[i] = 0;
+  }
 }
 
 template <typename T, typename U, typename dU>
