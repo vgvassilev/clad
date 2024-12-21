@@ -4284,8 +4284,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // double _r0 = 0;
         // SomeClass_pullback(c, u, ..., &_d_c, &_r0, ...);
         // _d_u += _r0;
-        QualType dArgTy = getNonConstType(ArgTy, m_Context, m_Sema);
-        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        QualType dArgTy = getNonConstType(CloneType(ArgTy), m_Context, m_Sema);
+        Expr* init = getStdInitListSizeExpr(arg);
+        if (!init)
+          init = getZeroInit(dArgTy);
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", init);
         prePullbackCallStmts.push_back(BuildDeclStmt(dArgDecl));
         adjointArg = BuildDeclRef(dArgDecl);
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));
