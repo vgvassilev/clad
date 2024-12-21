@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oFunctors.out 2>&1 | %filecheck %s
+// RUN: %cladclang %s -I%S/../../include -oFunctors.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Functors.out | %filecheck_exec %s
 // RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oFunctors.out
 // RUN: ./Functors.out | %filecheck_exec %s
@@ -122,8 +122,8 @@ namespace outer {
   printf("{%.2f, %.2f, %.2f, %.2f}\n", result[0], result[1], result[2], \
          result[3]);
 
-double x = 3;
-double y = 5;
+double x = 3; // expected-warning {{The gradient utilizes a global variable 'x' and its adjoint '_d_x'. Please make sure to properly reset 'x' and '_d_x' before re-running the gradient.}}
+double y = 5; // expected-warning {{The gradient utilizes a global variable 'y' and its adjoint '_d_y'. Please make sure to properly reset 'y' and '_d_y' before re-running the gradient.}}
 int main() {
   double result[4];
   Experiment E(3, 5);

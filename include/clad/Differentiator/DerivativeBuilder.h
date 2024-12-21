@@ -38,6 +38,7 @@ namespace clad {
     class CladPlugin;
     clang::FunctionDecl* ProcessDiffRequest(CladPlugin& P,
                                             DiffRequest& request);
+    void ProcessTopLevelDecl(CladPlugin& P, clang::Decl* D);
   } // namespace plugin
 
 } // namespace clad
