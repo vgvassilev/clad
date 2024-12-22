@@ -30,6 +30,7 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include <algorithm>
+#include <iostream> // for std::cerr
 
 using namespace clang;
 
@@ -526,7 +527,7 @@ namespace clad {
 
       // Print the graph of the diff requests.
       llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-      m_DiffRequestGraph.print();
+      m_DiffRequestGraph.print(std::cerr);
 
       m_Multiplexer->PrintStats();
     }

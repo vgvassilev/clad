@@ -1,14 +1,17 @@
 #ifndef CLAD_DIFF_PLANNER_H
 #define CLAD_DIFF_PLANNER_H
 
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "llvm/ADT/SmallSet.h"
 #include "clad/Differentiator/DiffMode.h"
 #include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
 
+#include "clang/AST/RecursiveASTVisitor.h"
+
+#include "llvm/Support/raw_ostream.h"
+
 #include <iterator>
 #include <set>
+
 namespace clang {
 class CallExpr;
 class CompilerInstance;
@@ -132,15 +135,15 @@ public:
 
   const clang::FunctionDecl* operator->() const { return Function; }
 
-  // String operator for printing the node.
   operator std::string() const {
-    std::string res = BaseFunctionName + "__order_" +
-                      std::to_string(CurrentDerivativeOrder) + "__mode_" +
-                      DiffModeToString(Mode);
-    if (EnableTBRAnalysis)
-      res += "__TBR";
+    std::string res;
+    llvm::raw_string_ostream s(res);
+    print(s);
+    s.flush();
     return res;
   }
+  void print(llvm::raw_ostream& Out) const;
+  void dump() const { print(llvm::errs()); }
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;

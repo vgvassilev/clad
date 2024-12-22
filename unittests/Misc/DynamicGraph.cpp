@@ -1,3 +1,4 @@
+#include "clad/Differentiator/DynamicGraph.h"
 #include "clad/Differentiator/Differentiator.h"
 
 #include <iostream>
@@ -46,7 +47,7 @@ TEST(DynamicGraphTest, Printing) {
   std::stringstream ss;
   std::streambuf* coutbuf = std::cout.rdbuf();
   std::cout.rdbuf(ss.rdbuf());
-  G.print();
+  G.print(std::cout);
   std::cout.rdbuf(coutbuf);
   std::string expectedOutput = "node0: #0 (source), (unprocessed)\n"
                                "node1: #1, (unprocessed)\n"

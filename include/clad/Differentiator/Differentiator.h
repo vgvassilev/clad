@@ -14,14 +14,12 @@
 #include "BuiltinDerivativesCUDA.cuh"
 #endif
 #include "CladConfig.h"
-#include "DynamicGraph.h"
 #include "FunctionTraits.h"
 #include "Matrix.h"
 #include "NumericalDiff.h"
 #include "Tape.h"
 
-#include <assert.h>
-#include <stddef.h>
+#include <array>
 #include <cstring>
 
 namespace clad {

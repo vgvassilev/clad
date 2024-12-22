@@ -6,6 +6,7 @@
 #include <iostream>
 #include <queue>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -109,23 +110,26 @@ public:
   const std::vector<T>& getNodes() const { return m_nodes; }
   std::vector<T>& getNodes() { return m_nodes; }
 
+  /// Dump the nodes and edges.
+  void dump() const { print(std::cerr); }
+
   /// Print the nodes and edges in the graph.
-  void print() {
+  void print(std::ostream& Out) const {
     // First print the nodes with their insertion order.
     for (const T& node : m_nodes) {
-      std::pair<bool, int> nodeInfo = m_nodeMap[node];
-      std::cout << (std::string)node << ": #" << nodeInfo.second;
+      std::pair<bool, int> nodeInfo = m_nodeMap.at(node);
+      Out << (std::string)node << ": #" << nodeInfo.second;
       if (m_sources.find(nodeInfo.second) != m_sources.end())
-        std::cout << " (source)";
+        Out << " (source)";
       if (nodeInfo.first)
-        std::cout << ", (done)\n";
+        Out << ", (done)\n";
       else
-        std::cout << ", (unprocessed)\n";
+        Out << ", (unprocessed)\n";
     }
     // Then print the edges.
     for (int i = 0; i < m_nodes.size(); i++)
-      for (size_t dest : m_adjList[i])
-        std::cout << i << " -> " << dest << "\n";
+      for (size_t dest : m_adjList.at(i))
+        Out << i << " -> " << dest << "\n";
   }
 
   /// Get the next node to be processed from the queue of nodes to be
