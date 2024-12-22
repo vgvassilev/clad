@@ -1,5 +1,7 @@
 #include "clad/Differentiator/DiffPlanner.h"
 
+#include "clad/Differentiator/DiffMode.h"
+
 #include "ActivityAnalyzer.h"
 #include "TBRAnalyzer.h"
 
@@ -599,6 +601,19 @@ namespace clad {
                     "Failed to parse the parameters, must be a string or "
                     "numeric literal");
     return;
+  }
+
+  void DiffRequest::print(llvm::raw_ostream& Out) const {
+    Out << '<';
+    PrintingPolicy Policy(Function->getASTContext().getLangOpts());
+    Function->getNameForDiagnostic(Out, Policy, /*Qualified=*/true);
+    Out << ">[name=" << BaseFunctionName << ", "
+        << "order=" << CurrentDerivativeOrder << ", "
+        << "mode=" << DiffModeToString(Mode);
+    if (EnableTBRAnalysis)
+      Out << ", tbr";
+    Out << ']';
+    Out.flush();
   }
 
   bool DiffRequest::shouldBeRecorded(Expr* E) const {
