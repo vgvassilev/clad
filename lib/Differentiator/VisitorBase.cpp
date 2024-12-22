@@ -27,6 +27,7 @@
 #include "clang/Sema/Template.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 
 #include <algorithm>
 #include <numeric>
@@ -400,7 +401,24 @@ namespace clad {
     // Debug clang requires the location to be valid
     if (!OpLoc.isValid())
       OpLoc = utils::GetValidSLoc(m_Sema);
+    // Call function for UnaryMinus
+    if (OpCode == UO_Minus)
+      return ResolveUnaryMinus(E->IgnoreCasts(), OpLoc);
     return m_Sema.BuildUnaryOp(nullptr, OpLoc, OpCode, E).get();
+  }
+  Expr* VisitorBase::ResolveUnaryMinus(Expr* E, SourceLocation OpLoc) {
+    if (auto* UO = llvm::dyn_cast<clang::UnaryOperator>(E)) {
+      if (UO->getOpcode() == clang::UO_Minus)
+        return (UO->getSubExpr())->IgnoreParens();
+    }
+    Expr* E_LHS = E;
+    while (auto* BO = llvm::dyn_cast<BinaryOperator>(E_LHS))
+      E_LHS = BO->getLHS();
+    if (auto* UO = llvm::dyn_cast<clang::UnaryOperator>(E_LHS->IgnoreCasts())) {
+      if (UO->getOpcode() == clang::UO_Minus)
+        E = m_Sema.ActOnParenExpr(E->getBeginLoc(), E->getEndLoc(), E).get();
+    }
+    return m_Sema.BuildUnaryOp(nullptr, OpLoc, clang::UO_Minus, E).get();
   }
 
   Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, Expr* L, Expr* R,
