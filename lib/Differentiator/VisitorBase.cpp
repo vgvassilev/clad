@@ -400,7 +400,30 @@ namespace clad {
     // Debug clang requires the location to be valid
     if (!OpLoc.isValid())
       OpLoc = utils::GetValidSLoc(m_Sema);
+    // Call function for UnaryMinus
+    if (OpCode == UO_Minus)
+      return RemoveFirstUnaryMinus(E->IgnoreCasts(), OpLoc);
     return m_Sema.BuildUnaryOp(nullptr, OpLoc, OpCode, E).get();
+  }
+  Expr* VisitorBase::RemoveFirstUnaryMinus(Expr* E, SourceLocation OpLoc) {
+    if (auto* UO = llvm::dyn_cast<UnaryOperator>(E)) {
+      if (UO->getOpcode() == UO_Minus)
+        return UO->getSubExpr();
+    }
+    if (auto* BO = llvm::dyn_cast<BinaryOperator>(E)) {
+      if (BO->getOpcode() == BO_Mul || BO->getOpcode() == BO_Div) {
+        Expr* LHS = BO->getLHS();
+        Expr* RHS = BO->getRHS();
+        Expr* LHSModified = RemoveFirstUnaryMinus(LHS->IgnoreCasts(), OpLoc);
+        SourceLocation BO_loc = BO->getExprLoc();
+        return m_Sema
+            .BuildBinOp(nullptr, BO_loc, BO->getOpcode(), LHSModified, RHS)
+            .get();
+      }
+    }
+    if (!OpLoc.isValid())
+      OpLoc = utils::GetValidSLoc(m_Sema);
+    return m_Sema.BuildUnaryOp(nullptr, OpLoc, UO_Minus, E).get();
   }
 
   Expr* VisitorBase::BuildOp(clang::BinaryOperatorKind OpCode, Expr* L, Expr* R,
