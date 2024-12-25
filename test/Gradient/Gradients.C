@@ -353,7 +353,7 @@ struct S {
     return c1 * x + c2 * y;
   }
 
-  //CHECK:   void f_grad(double x, double y, S *_d_this, double *_d_x, double *_d_y) {
+  //CHECK:   void S::f_grad(double x, double y, S *_d_this, double *_d_x, double *_d_y) {
   //CHECK-NEXT:       {
   //CHECK-NEXT:           (*_d_this).c1 += 1 * x;
   //CHECK-NEXT:           *_d_x += this->c1 * 1;

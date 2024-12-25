@@ -1,6 +1,5 @@
 // RUN: %cladclang %s -I%S/../../include -oVirtualMethodsCall.out 2>&1 | %filecheck %s
 // RUN: ./VirtualMethodsCall.out | %filecheck_exec %s
-// XFAIL: asserts
 
 #include "clad/Differentiator/Differentiator.h"
 
@@ -41,7 +40,7 @@ public:
     // TODO: Remove call forward when execute works with polymorphic methods
     auto vm_darg0_cf = clad::differentiate(&A::vm, 0);
 // FIXME: We need to make this out-of-line
-//CHECK: float vm_darg0(float x, float y) {
+//CHECK: float A::vm_darg0(float x, float y) {
 //CHECK-NEXT:       float _d_x = 1;
 //CHECK-NEXT:       float _d_y = 0;
 //CHECK-NEXT:      A _d_this_obj;
@@ -49,7 +48,7 @@ public:
 //CHECK-NEXT:       return _d_x + _d_y;
 //CHECK-NEXT: }
     auto vm_darg1_cf = clad::differentiate(&A::vm, 1);
-//CHECK:   float vm_darg1(float x, float y) {
+//CHECK:   float A::vm_darg1(float x, float y) {
 //CHECK-NEXT:       float _d_x = 0;
 //CHECK-NEXT:       float _d_y = 1;
 //CHECK-NEXT:       A _d_this_obj;
@@ -130,6 +129,9 @@ public:
     return x*y + x*y;
   }
 
+  float vm_darg0(float x, float y) override; // forward
+  float vm_darg1(float x, float y) override; // forward
+
   // Inherited from A
   // float vm1(float x, float y)...
 
@@ -180,7 +182,8 @@ int main () {
   printf("---\n"); // CHECK-EXEC: ---
 
   auto vm_darg0_A = clad::differentiate((float(A::*)(float,float))&A::vm, 0);
-//CHECK: float vm_darg0(float x, float y) override {
+  //FIXME: This should select the implementation of vm in A!
+//CHECK: float B::vm_darg0(float x, float y) {
 //CHECK-NEXT:     float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
 // CHECK-NEXT:     B _d_this_obj;
@@ -188,7 +191,7 @@ int main () {
 //CHECK-NEXT:     return _d_x * x + x * _d_x + _d_y * y + y * _d_y;
 //CHECK-NEXT: }
   auto vm_darg0_B = clad::differentiate((float(B::*)(float,float))&B::vm, 0);
-//CHECK: float vm_darg1(float x, float y) override {
+//CHECK: float B::vm_darg1(float x, float y) {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
 // CHECK-NEXT:     B _d_this_obj;
@@ -208,7 +211,7 @@ int main () {
 //CHECK-NEXT:     return _d_x - _d_y;
 //CHECK-NEXT: }
   auto vm1_darg0_B = clad::differentiate((float(B::*)(float,float))&B::vm1, 0);
-//CHECK: float vm1_darg0(float x, float y) override {
+//CHECK: float vm1_darg0(float x, float y) {
 //CHECK-NEXT:    float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
 // CHECK-NEXT:     B _d_this_obj;
@@ -224,7 +227,7 @@ int main () {
 //CHECK-NEXT:     return _d_x - _d_y;
 //CHECK-NEXT: }
   auto vm1_darg1_B = clad::differentiate((float(B::*)(float,float))&B::vm1, 1);
-//CHECK: float vm1_darg1(float x, float y) override {
+//CHECK: float vm1_darg1(float x, float y) {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
 // CHECK-NEXT:     B _d_this_obj;
@@ -255,7 +258,7 @@ int main () {
   printf("---\n"); // CHECK-EXEC: ---
 
   auto vm_darg0_B1 = clad::differentiate(&B1::vm, 0);
-//CHECK: float vm_darg0(float x, float y) override {
+//CHECK: float B1::vm_darg0(float x, float y) {
 //CHECK-NEXT:     float _d_x = 1;
 //CHECK-NEXT:     float _d_y = 0;
 // CHECK-NEXT:     B1 _d_this_obj;
@@ -263,7 +266,7 @@ int main () {
 //CHECK-NEXT:     return _d_x * y + x * _d_y + _d_x * y + x * _d_y;
 //CHECK-NEXT: }
   auto vm_darg1_B1 = clad::differentiate(&B1::vm, 1);
-//CHECK: float vm_darg1(float x, float y) override {
+//CHECK: float B1::vm_darg1(float x, float y) {
 //CHECK-NEXT:     float _d_x = 0;
 //CHECK-NEXT:     float _d_y = 1;
 // CHECK-NEXT:     B1 _d_this_obj;
