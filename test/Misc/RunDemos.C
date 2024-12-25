@@ -4,8 +4,6 @@
 // RUN: %cladclang %S/../../demos/RosenbrockFunction.cpp -I%S/../../include 2>&1
 // RUN: %cladclang %S/../../demos/ComputerGraphics/smallpt/SmallPT.cpp -I%S/../../include 2>&1
 
-// XFAIL: asserts
-
 //-----------------------------------------------------------------------------/
 //  Demo: Gradient.cpp
 //-----------------------------------------------------------------------------/

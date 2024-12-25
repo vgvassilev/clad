@@ -8,8 +8,12 @@
 
 #include "JacobianModeVisitor.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/Basic/LLVM.h" // isa, dyn_cast
+#include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -50,48 +54,33 @@ DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
 
 DerivativeBuilder::~DerivativeBuilder() {}
 
-static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
-  LookupResult R(semaRef, derivedFD->getNameInfo(), Sema::LookupOrdinaryName);
-  // FIXME: Attach out-of-line virtual function definitions to the TUScope.
-  Scope* S = semaRef.getScopeForContext(derivedFD->getDeclContext());
-  semaRef.CheckFunctionDeclaration(
-      S, derivedFD, R,
-      /*IsMemberSpecialization=*/
-      false
-      /*DeclIsDefn*/ CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(
-          derivedFD));
+static void registerDerivative(FunctionDecl* dFD, Sema& S,
+                               const DiffRequest& R) {
+  DeclContext* DC = dFD->getLexicalDeclContext();
+  LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
+  S.LookupQualifiedName(Previous, dFD->getParent());
 
-  // FIXME: Avoid the DeclContext lookup and the manual setPreviousDecl.
-  // Consider out-of-line virtual functions.
-  {
-    DeclContext* LookupCtx = derivedFD->getDeclContext();
-    // Find the first non-transparent context to perform the lookup in.
-    while (LookupCtx->isTransparentContext())
-      LookupCtx = LookupCtx->getParent();
-    auto R = LookupCtx->noload_lookup(derivedFD->getDeclName());
-
-    for (NamedDecl* I : R) {
-      if (auto* FD = dyn_cast<FunctionDecl>(I)) {
-        // FIXME: We still do extra work in creating a derivative and throwing
-        // it away.
-        if (FD->getDefinition())
-          return;
-
-        if (derivedFD->getASTContext().hasSameFunctionTypeIgnoringExceptionSpec(
-                derivedFD->getType(), FD->getType())) {
-          // Register the function on the redecl chain.
-          derivedFD->setPreviousDecl(FD);
-          break;
-        }
-      }
-    }
-    // Inform the decl's decl context for its existance after the lookup,
-    // otherwise it would end up in the LookupResult.
-    derivedFD->getDeclContext()->addDecl(derivedFD);
-
-    // FIXME: Rebuild VTable to remove requirements for "forward" declared
-    // virtual methods
+  // Check if we created a top-level decl with the same name for another class.
+  // FIXME: This case should be addressed by providing proper names and function
+  // implementation that does not rely on accessing private data from the class.
+  bool IsBrokenDecl = isa<RecordDecl>(DC);
+  if (!IsBrokenDecl) {
+    S.CheckFunctionDeclaration(
+        /*Scope=*/nullptr, dFD, Previous,
+        /*IsMemberSpecialization=*/
+        false
+        /*DeclIsDefn*/
+        CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(dFD));
+  } else if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder) {
+    // Size >= current derivative order means that there exists a declaration
+    // or prototype for the currently derived function.
+    dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
   }
+
+  if (dFD->isInvalidDecl())
+    return; // CheckFunctionDeclaration was unhappy about derivedFD
+
+  DC->addDecl(dFD);
 }
 
   static bool hasAttribute(const Decl *D, attr::Kind Kind) {
@@ -107,33 +96,42 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       clang::DeclarationNameInfo name, clang::QualType functionType) {
     FunctionDecl* returnedFD = nullptr;
     NamespaceDecl* enclosingNS = nullptr;
+    TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(functionType);
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
       returnedFD = CXXMethodDecl::Create(
-          m_Context, CXXRD, noLoc, name, functionType, FD->getTypeSourceInfo(),
+          m_Context, CXXRD, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), clad_compat::Function_GetConstexprKind(FD),
           noLoc);
-      returnedFD->setAccess(FD->getAccess());
+      // Generated member function should be called outside of class definitions
+      // even if their original function had different access specifier.
+      returnedFD->setAccess(AS_public);
     } else {
       assert (isa<FunctionDecl>(FD) && "Unexpected!");
       enclosingNS = VB.RebuildEnclosingNamespaces(DC);
       returnedFD = FunctionDecl::Create(
-          m_Context, m_Sema.CurContext, noLoc, name, functionType,
-          FD->getTypeSourceInfo(),
+          m_Context, m_Sema.CurContext, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->hasWrittenPrototype(),
           clad_compat::Function_GetConstexprKind(FD)
               CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(
                   FD->getTrailingRequiresClause()));
-    } 
 
-    for (const FunctionDecl* NFD : FD->redecls())
-      for (const auto* Attr : NFD->attrs())
+      returnedFD->setAccess(FD->getAccess());
+    }
+
+    for (const FunctionDecl* NFD : FD->redecls()) {
+      for (const auto* Attr : NFD->attrs()) {
+        // We only need the keywords final and override in the tag declaration.
+        if (isa<OverrideAttr>(Attr) || isa<FinalAttr>(Attr))
+          continue;
         if (!hasAttribute(returnedFD, Attr->getKind()))
           returnedFD->addAttr(Attr->clone(m_Context));
+      }
+    }
 
     return { returnedFD, enclosingNS };
   }
@@ -475,9 +473,9 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
     //   derivative is a member function it goes into an infinite loop
     if (!m_DFC.IsCustomDerivative(result.derivative)) {
       if (auto* FD = result.derivative)
-        registerDerivative(FD, m_Sema);
+        registerDerivative(FD, m_Sema, request);
       if (auto* OFD = result.overload)
-        registerDerivative(OFD, m_Sema);
+        registerDerivative(OFD, m_Sema, request);
     }
 
     return result;

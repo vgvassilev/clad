@@ -286,7 +286,7 @@ namespace clad {
           // decl or is contained in a namespace decl.
           // FIXME: We could get rid of this by prepending the produced
           // derivatives in CladPlugin::HandleTranslationUnitDecl
-          DeclContext* derivativeDC = DerivativeDecl->getDeclContext();
+          DeclContext* derivativeDC = DerivativeDecl->getLexicalDeclContext();
           bool isTUorND =
               derivativeDC->isTranslationUnit() || derivativeDC->isNamespace();
           if (isTUorND) {

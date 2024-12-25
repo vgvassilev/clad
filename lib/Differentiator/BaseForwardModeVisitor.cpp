@@ -201,16 +201,30 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       addToCurrentBlock(BodyDiff);
     Stmt* derivativeBody = endBlock();
     derivedFD->setBody(derivativeBody);
-
     endScope(); // Function body scope
-
-    // Size >= current derivative order means that there exists a declaration
-    // or prototype for the currently derived function.
-    if (m_DiffReq.DerivedFDPrototypes.size() >=
-        m_DiffReq.CurrentDerivativeOrder)
-      m_Derivative->setPreviousDeclaration(
-          m_DiffReq.DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
   }
+
+  // FIXME: Drop the static specifier for the out-of-line definitions.
+  if (auto* RD = dyn_cast<RecordDecl>(m_Derivative->getDeclContext())) {
+    DeclContext::lookup_result R =
+        RD->getPrimaryContext()->lookup(m_Derivative->getDeclName());
+    FunctionDecl* FoundFD =
+        R.empty() ? nullptr : dyn_cast<FunctionDecl>(R.front());
+    if (!RD->isLambda() && !R.empty() &&
+        !m_Builder.m_DFC.IsCladDerivative(FoundFD)) {
+      Sema::NestedNameSpecInfo IdInfo(RD->getIdentifier(), noLoc, noLoc,
+                                      /*ObjectType=*/nullptr);
+      // FIXME: Address nested classes where SS should be set.
+      CXXScopeSpec SS;
+      m_Sema.BuildCXXNestedNameSpecifier(getCurrentScope(), IdInfo,
+                                         /*EnteringContext=*/true, SS,
+                                         /*ScopeLookupResult=*/nullptr,
+                                         /*ErrorRecoveryLookup=*/false);
+      m_Derivative->setQualifierInfo(SS.getWithLocInContext(m_Context));
+      m_Derivative->setLexicalDeclContext(RD->getParent());
+    }
+  }
+
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
   endScope(); // Function decl scope

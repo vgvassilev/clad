@@ -666,8 +666,9 @@ namespace clad {
                      .get();
       isArrow = false;
     }
-    NestedNameSpecifierLoc NNS(FD->getQualifier(),
-                               /*Data=*/nullptr);
+    // Leads to printing this->Class::Function(x, y).
+    // FIXME: Enable for static functions.
+    NestedNameSpecifierLoc NNS /* = FD->getQualifierLoc()*/;
     auto DAP = DeclAccessPair::make(FD, FD->getAccess());
     auto* memberExpr = MemberExpr::Create(
         m_Context, thisExpr, isArrow, Loc, NNS, noLoc, FD, DAP,

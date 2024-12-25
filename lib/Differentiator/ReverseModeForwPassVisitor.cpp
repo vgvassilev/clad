@@ -82,13 +82,6 @@ DerivativeAndOverload ReverseModeForwPassVisitor::Derive() {
     Stmt* fnBody = endBlock();
     m_Derivative->setBody(fnBody);
     endScope();
-
-    // Size >= current derivative order means that there exists a declaration
-    // or prototype for the currently derived function.
-    if (m_DiffReq.DerivedFDPrototypes.size() >=
-        m_DiffReq.CurrentDerivativeOrder)
-      m_Derivative->setPreviousDeclaration(
-          m_DiffReq.DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
   }
   m_Sema.PopFunctionScopeInfo();
   m_Sema.PopDeclContext();
