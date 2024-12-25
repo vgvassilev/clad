@@ -398,9 +398,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParamTypes(paramTypes);
 
-    QualType pullbackFnType = m_Context.getFunctionType(
-        m_Context.VoidTy, paramTypes, originalFnType->getExtProtoInfo());
-
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
@@ -409,6 +406,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
     SourceLocation validLoc{m_DiffReq->getLocation()};
+    QualType pullbackFnType = m_Context.getFunctionType(
+        m_Context.VoidTy, paramTypes, originalFnType->getExtProtoInfo());
     DeclWithContext fnBuildRes =
         m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
                                 validLoc, DNI, pullbackFnType);
