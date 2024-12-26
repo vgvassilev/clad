@@ -37,9 +37,8 @@ public:
 
   DerivativeAndOverload DerivePushforward();
 
-  /// Returns the return type for the pushforward function of the function
-  /// `m_DiffReq->Function`.
-  clang::QualType ComputePushforwardFnReturnType();
+  /// Computes the return type of the derivative in `m_DiffReq->Function`.
+  clang::QualType ComputeDerivativeFunctionType();
 
   virtual void ExecuteInsidePushforwardFunctionBlock();
 
