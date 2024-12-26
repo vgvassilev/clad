@@ -669,6 +669,44 @@ namespace clad {
     return found != m_ActivityRunInfo.ToBeRecorded.end();
   }
 
+  std::string DiffRequest::ComputeDerivativeName() const {
+    if (Mode != DiffMode::forward && Mode != DiffMode::reverse)
+      return BaseFunctionName + "_" + DiffModeToString(Mode);
+
+    if (DVI.empty())
+      return "<no independent variable specified>";
+
+    DiffInputVarInfo VarInfo = DVI.back();
+    const ValueDecl* IndependentVar = VarInfo.param;
+    unsigned argIndex = ~0;
+    // If we are differentiating a call operator, that has no parameters,
+    // then the specified independent argument is a member variable of the
+    // class defining the call operator.
+    // Thus, we need to find index of the member variable instead.
+    if (Function->param_empty() && Functor)
+      argIndex = std::distance(Functor->field_begin(),
+                               std::find(Functor->field_begin(),
+                                         Functor->field_end(), IndependentVar));
+    else
+      argIndex =
+          std::distance(Function->param_begin(),
+                        std::find(Function->param_begin(),
+                                  Function->param_end(), IndependentVar));
+
+    std::string argInfo = std::to_string(argIndex);
+    for (const std::string& field : VarInfo.fields)
+      argInfo += "_" + field;
+
+    std::string s;
+    if (CurrentDerivativeOrder > 1)
+      s = std::to_string(CurrentDerivativeOrder);
+
+    if (utils::isArrayOrPointerType(IndependentVar->getType()))
+      argInfo += "_" + std::to_string(VarInfo.paramIndexInterval.Start);
+
+    return BaseFunctionName + "_d" + s + "arg" + argInfo;
+  }
+
   ///\returns true on error.
   static bool ProcessInvocationArgs(Sema& S, SourceLocation endLoc,
                                     const RequestOptions& ReqOpts,

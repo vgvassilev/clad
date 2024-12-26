@@ -9,6 +9,7 @@
 
 #include "Compatibility.h"
 #include "DerivativeBuilder.h"
+#include "clad/Differentiator/CladUtils.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
@@ -199,7 +200,7 @@ namespace clad {
     }
     /// For a qualtype QT returns if it's type is Array or Pointer Type
     static bool isArrayOrPointerType(const clang::QualType QT) {
-      return QT->isArrayType() || QT->isPointerType();
+      return utils::isArrayOrPointerType(QT);
     }
 
     clang::CompoundStmt* MakeCompoundStmt(const Stmts& Stmts);
