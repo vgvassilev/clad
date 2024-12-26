@@ -870,7 +870,7 @@ int main() {
 // CHECK-NEXT:      }
 
 // CHECK:      void fn22_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:      std::vector<double> ls{u, v};
+// CHECK-NEXT:      std::vector<double> ls{{.*u, v.*}};
 // CHECK-NEXT:      std::vector<double> _d_ls(ls);
 // CHECK-NEXT:      clad::zero_init(_d_ls);
 // CHECK-NEXT:      std::vector<double> _t0 = ls;
@@ -910,7 +910,7 @@ int main() {
 // CHECK-NEXT:                  break;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          _t0++;
-// CHECK-NEXT:          clad::push(_t1, ls) , ls = {u, v};
+// CHECK-NEXT:          clad::push(_t1, ls) , ls = {{.*u, v.*}};
 // CHECK-NEXT:          _d_ls = ls;
 // CHECK-NEXT:          clad::zero_init(_d_ls);
 // CHECK-NEXT:          clad::push(_t2, ls);
