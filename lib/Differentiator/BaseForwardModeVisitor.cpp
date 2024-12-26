@@ -178,7 +178,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   m_Derivative = derivedFD;
 
   llvm::SmallVector<ParmVarDecl*, 4> params;
-  ParmVarDecl* newPVD = nullptr;
   const ParmVarDecl* PVD = nullptr;
 
   // Function declaration scope
@@ -187,17 +186,11 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   m_Sema.PushFunctionScope();
   m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
 
-  // FIXME: We should implement FunctionDecl and ParamVarDecl cloning.
   for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
     PVD = FD->getParamDecl(i);
-    Expr* clonedPVDDefaultArg = 0;
-    if (PVD->hasDefaultArg())
-      clonedPVDDefaultArg = Clone(PVD->getDefaultArg());
-
-    newPVD = ParmVarDecl::Create(m_Context, m_Sema.CurContext, validLoc,
-                                 validLoc, PVD->getIdentifier(), PVD->getType(),
-                                 PVD->getTypeSourceInfo(),
-                                 PVD->getStorageClass(), clonedPVDDefaultArg);
+    auto* newPVD = CloneParmVarDecl(PVD, PVD->getIdentifier(),
+                                    /*pushOnScopeChains=*/true,
+                                    /*cloneDefaultArg=*/false);
 
     // Make m_IndependentVar to point to the argument of the newly created
     // derivedFD.
@@ -205,10 +198,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       m_IndependentVar = newPVD;
 
     params.push_back(newPVD);
-    // Add the args in the scope and id chain so that they could be found.
-    if (newPVD->getIdentifier())
-      m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
-                               /*AddToContext*/ false);
   }
 
   llvm::ArrayRef<ParmVarDecl*> paramsRef =
