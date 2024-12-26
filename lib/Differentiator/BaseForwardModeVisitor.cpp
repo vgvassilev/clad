@@ -28,6 +28,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <string>
 
 #include "clad/Differentiator/Compatibility.h"
 
@@ -98,7 +99,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
   // performed. Mathematically, independent variables are all the function
   // parameters, thus, does not convey the intendend meaning.
   m_IndependentVar = DVI.back().param;
-  std::string derivativeSuffix("");
   // If param is not real (i.e. floating point or integral), a pointer to a
   // real type, or an array of a real type we cannot differentiate it.
   // FIXME: we should support custom numeric types in the future.
@@ -113,7 +113,6 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
       return {};
     }
     m_IndependentVarIndex = diffVarInfo.paramIndexInterval.Start;
-    derivativeSuffix = "_" + std::to_string(m_IndependentVarIndex);
   } else {
     QualType T = m_IndependentVar->getType();
     bool isField = false;
@@ -132,32 +131,9 @@ DerivativeAndOverload BaseForwardModeVisitor::Derive() {
     }
   }
 
-  // If we are differentiating a call operator, that has no parameters,
-  // then the specified independent argument is a member variable of the
-  // class defining the call operator.
-  // Thus, we need to find index of the member variable instead.
-  unsigned argIndex = ~0;
-  const CXXRecordDecl* functor = m_DiffReq.Functor;
-  if (m_DiffReq->param_empty() && functor)
-    argIndex = std::distance(functor->field_begin(),
-                             std::find(functor->field_begin(),
-                                       functor->field_end(), m_IndependentVar));
-  else
-    argIndex = std::distance(
-        FD->param_begin(),
-        std::find(FD->param_begin(), FD->param_end(), m_IndependentVar));
-
-  std::string argInfo = std::to_string(argIndex);
-  for (auto field : diffVarInfo.fields)
-    argInfo += "_" + field;
-
-  std::string s;
-  if (m_DiffReq.CurrentDerivativeOrder > 1)
-    s = std::to_string(m_DiffReq.CurrentDerivativeOrder);
-
   // Check if the function is already declared as a custom derivative.
-  std::string gradientName = m_DiffReq.BaseFunctionName + "_d" + s + "arg" +
-                             argInfo + derivativeSuffix;
+  std::string gradientName = m_DiffReq.ComputeDerivativeName();
+
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
@@ -428,12 +404,9 @@ DerivativeAndOverload BaseForwardModeVisitor::DerivePushforward() {
   llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
                                          getEnclosingNamespaceOrTUScope());
 
-  auto originalFnEffectiveName = utils::ComputeEffectiveFnName(FD);
-
-  IdentifierInfo* derivedFnII = &m_Context.Idents.get(
-      originalFnEffectiveName + GetPushForwardFunctionSuffix());
+  IdentifierInfo* II = &m_Context.Idents.get(m_DiffReq.ComputeDerivativeName());
   SourceLocation loc{FD->getLocation()};
-  DeclarationNameInfo derivedFnName(derivedFnII, loc);
+  DeclarationNameInfo derivedFnName(II, loc);
 
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
