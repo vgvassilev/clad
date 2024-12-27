@@ -155,6 +155,13 @@ private:
   /// Prepares the derivative function parameters.
   void
   SetupDerivativeParameters(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
+
+  /// Generate a seed initializing each independent argument with 1 and 0
+  /// otherwise:
+  /// double f_darg0(double x, double y) {
+  ///   double _d_x = 1;
+  ///   double _d_y = 0;
+  void GenerateSeeds(const clang::FunctionDecl* dFD);
 };
 } // end namespace clad
 
