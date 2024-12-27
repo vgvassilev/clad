@@ -8,6 +8,8 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
 
+#include "llvm/ADT/SmallVector.h"
+
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -36,9 +38,6 @@ public:
   DerivativeAndOverload Derive();
 
   DerivativeAndOverload DerivePushforward();
-
-  /// Computes the return type of the derivative in `m_DiffReq->Function`.
-  clang::QualType ComputeDerivativeFunctionType();
 
   virtual void ExecuteInsidePushforwardFunctionBlock();
 
@@ -148,6 +147,14 @@ protected:
       const clang::CXXConstructExpr* CE,
       llvm::SmallVectorImpl<clang::Expr*>& clonedArgs,
       llvm::SmallVectorImpl<clang::Expr*>& derivedArgs);
+
+private:
+  /// Computes the return type of the derivative in `m_DiffReq->Function`.
+  clang::QualType ComputeDerivativeFunctionType();
+
+  /// Prepares the derivative function parameters.
+  void
+  SetupDerivativeParameters(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 };
 } // end namespace clad
 
