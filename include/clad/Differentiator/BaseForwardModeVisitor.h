@@ -37,9 +37,7 @@ public:
   ///
   DerivativeAndOverload Derive();
 
-  DerivativeAndOverload DerivePushforward();
-
-  virtual void ExecuteInsidePushforwardFunctionBlock();
+  virtual void ExecuteInsidePushforwardFunctionBlock() {}
 
   static bool IsDifferentiableType(clang::QualType T);
 

@@ -431,13 +431,13 @@ static void registerDerivative(FunctionDecl* derivedFD, Sema& semaRef) {
       result = V.Derive();
     } else if (request.Mode == DiffMode::experimental_pushforward) {
       PushForwardModeVisitor V(*this, request);
-      result = V.DerivePushforward();
+      result = V.Derive();
     } else if (request.Mode == DiffMode::vector_forward_mode) {
       VectorForwardModeVisitor V(*this, request);
       result = V.DeriveVectorMode();
     } else if (request.Mode == DiffMode::experimental_vector_pushforward) {
       VectorPushForwardModeVisitor V(*this, request);
-      result = V.DerivePushforward();
+      result = V.Derive();
     } else if (request.Mode == DiffMode::reverse) {
       ReverseModeVisitor V(*this, request);
       result = V.Derive();
