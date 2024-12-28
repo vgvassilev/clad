@@ -215,21 +215,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
 
-    auto derivativeBaseName = m_DiffReq.BaseFunctionName;
-    std::string gradientName = derivativeBaseName + funcPostfix();
-    // To be consistent with older tests, nothing is appended to 'f_grad' if
-    // we differentiate w.r.t. all the parameters at once.
-    if (args.size() != FD->getNumParams()) {
-      for (const auto* arg : args) {
-        const auto* it = std::find(FD->param_begin(), FD->param_end(), arg);
-        auto idx = std::distance(FD->param_begin(), it);
-        gradientName += ('_' + std::to_string(idx));
-      }
-    }
-
-    IdentifierInfo* II = &m_Context.Idents.get(gradientName);
-    DeclarationNameInfo name(II, noLoc);
-
     // If we are in error estimation mode, we have an extra `double&`
     // parameter that stores the final error
     unsigned numExtraParam = 0;
@@ -266,6 +251,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         originalFnType->getExtProtoInfo());
 
     // Check if the function is already declared as a custom derivative.
+    std::string gradientName = m_DiffReq.ComputeDerivativeName();
+    IdentifierInfo* II = &m_Context.Idents.get(gradientName);
+    DeclarationNameInfo name(II, noLoc);
+
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
@@ -385,10 +374,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
 
-    auto derivativeName =
-        utils::ComputeEffectiveFnName(m_DiffReq.Function) + "_pullback";
-    for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
-      derivativeName += "_" + std::to_string(index);
+    auto derivativeName = m_DiffReq.ComputeDerivativeName();
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
 
     auto paramTypes = ComputeParamTypes(args);

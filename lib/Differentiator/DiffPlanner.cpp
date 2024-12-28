@@ -6,7 +6,9 @@
 #include "TBRAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
@@ -20,6 +22,7 @@
 #include "clad/Differentiator/Compatibility.h"
 
 #include <algorithm>
+#include <string>
 
 using namespace clang;
 
@@ -670,39 +673,67 @@ namespace clad {
   }
 
   std::string DiffRequest::ComputeDerivativeName() const {
-    if (Mode != DiffMode::forward && Mode != DiffMode::reverse)
-      return BaseFunctionName + "_" + DiffModeToString(Mode);
+    if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
+        Mode != DiffMode::vector_forward_mode) {
+      std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
+      for (auto index : CUDAGlobalArgsIndexes)
+        name += "_" + std::to_string(index);
+      return name;
+    }
 
     if (DVI.empty())
       return "<no independent variable specified>";
 
-    DiffInputVarInfo VarInfo = DVI.back();
-    const ValueDecl* IndependentVar = VarInfo.param;
-    unsigned argIndex = ~0;
-    // If we are differentiating a call operator, that has no parameters,
-    // then the specified independent argument is a member variable of the
-    // class defining the call operator.
-    // Thus, we need to find index of the member variable instead.
-    if (Function->param_empty() && Functor)
-      argIndex = std::distance(Functor->field_begin(),
-                               std::find(Functor->field_begin(),
-                                         Functor->field_end(), IndependentVar));
-    else
-      argIndex =
-          std::distance(Function->param_begin(),
-                        std::find(Function->param_begin(),
-                                  Function->param_end(), IndependentVar));
+    // FIXME: Harmonize names accross modes. We have darg0 but dvec_0 and _grad.
+    std::string argInfo;
+    for (const DiffInputVarInfo& dParamInfo : DVI) {
+      // If we differentiate w.r.t all arguments we do not need to specify them.
+      if (DVI.size() == Function->getNumParams() && Mode != DiffMode::forward)
+        break;
 
-    std::string argInfo = std::to_string(argIndex);
-    for (const std::string& field : VarInfo.fields)
-      argInfo += "_" + field;
+      const ValueDecl* IndP = dParamInfo.param;
+      // If we are differentiating a call operator, that has no parameters,
+      // then the specified independent argument is a member variable of the
+      // class defining the call operator.
+      // Thus, we need to find index of the member variable instead.
+      unsigned idx = ~0U;
+      if (Function->param_empty() && Functor) {
+        auto it = std::find(Functor->field_begin(), Functor->field_end(), IndP);
+        idx = std::distance(Functor->field_begin(), it);
+      } else {
+        const auto* it =
+            std::find(Function->param_begin(), Function->param_end(), IndP);
+        idx = std::distance(Function->param_begin(), it);
+      }
+      argInfo += ((Mode == DiffMode::forward) ? "" : "_") + std::to_string(idx);
+
+      if (dParamInfo.paramIndexInterval.isValid()) {
+        assert(utils::isArrayOrPointerType(IndP->getType()) && "Not array?");
+        // FIXME: What about ranges [Start;Finish)?
+        argInfo += "_" + std::to_string(dParamInfo.paramIndexInterval.Start);
+      }
+
+      for (const std::string& field : dParamInfo.fields)
+        argInfo += "_" + field;
+    }
+
+    if (Mode == DiffMode::vector_forward_mode) {
+      if (DVI.size() != Function->getNumParams())
+        return BaseFunctionName + "_dvec" + argInfo;
+      return BaseFunctionName + "_dvec";
+    }
+
+    if (Mode == DiffMode::reverse) {
+      if (DVI.size() != Function->getNumParams())
+        return BaseFunctionName + "_grad" + argInfo;
+      if (use_enzyme)
+        return BaseFunctionName + "_grad" + "_enzyme";
+      return BaseFunctionName + "_grad";
+    }
 
     std::string s;
     if (CurrentDerivativeOrder > 1)
       s = std::to_string(CurrentDerivativeOrder);
-
-    if (utils::isArrayOrPointerType(IndependentVar->getType()))
-      argInfo += "_" + std::to_string(VarInfo.paramIndexInterval.Start);
 
     return BaseFunctionName + "_d" + s + "arg" + argInfo;
   }
