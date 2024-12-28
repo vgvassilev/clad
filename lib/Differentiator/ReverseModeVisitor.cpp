@@ -453,26 +453,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
-      StmtDiff bodyDiff = Visit(m_DiffReq->getBody());
-      Stmt* forward = bodyDiff.getStmt();
-      Stmt* reverse = bodyDiff.getStmt_dx();
-
-      // Create the body of the function.
-      // Firstly, all "global" Stmts are put into fn's body.
-      for (Stmt* S : m_Globals)
-        addToCurrentBlock(S, direction::forward);
-      // Forward pass.
-      if (auto* CS = dyn_cast<CompoundStmt>(forward))
-        for (Stmt* S : CS->body())
-          addToCurrentBlock(S, direction::forward);
-
-      // Reverse pass.
-      if (auto* RCS = dyn_cast<CompoundStmt>(reverse))
-        for (Stmt* S : RCS->body())
-          addToCurrentBlock(S, direction::forward);
-
-      if (m_ExternalSource)
-        m_ExternalSource->ActOnEndOfDerivedFnBody();
+      DifferentiateWithClad();
 
       Stmt* fnBody = endBlock();
       m_Derivative->setBody(fnBody);
@@ -494,25 +475,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
-    llvm::ArrayRef<ParmVarDecl*> paramsRef = m_Derivative->parameters();
-
-    // create derived variables for parameters which are not part of
-    // independent variables (args).
-    for (std::size_t i = 0; i < m_DiffReq->getNumParams(); ++i) {
-      ParmVarDecl* param = paramsRef[i];
-      // derived variables are already created for independent variables.
-      if (m_Variables.count(param))
-        continue;
-      auto VDDerivedType = getNonConstType(param->getType(), m_Context, m_Sema);
-      // We cannot initialize derived variable for pointer types because
-      // we do not know the correct size.
-      if (utils::isArrayOrPointerType(VDDerivedType))
-        continue;
-      auto* VDDerived =
-          BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
-                             getZeroInit(VDDerivedType));
-      m_Variables[param] = BuildDeclRef(VDDerived);
-      addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+    if (m_DiffReq.Mode == DiffMode::reverse && !m_ExternalSource) {
+      // create derived variables for parameters which are not part of
+      // independent variables (args).
+      for (ParmVarDecl* param : m_Derivative->parameters()) {
+        // derived variables are already created for independent variables.
+        if (m_Variables.count(param))
+          continue;
+        auto VDDerivedType =
+            getNonConstType(param->getType(), m_Context, m_Sema);
+        // We cannot initialize derived variable for pointer types because
+        // we do not know the correct size.
+        if (utils::isArrayOrPointerType(VDDerivedType))
+          continue;
+        auto* VDDerived =
+            BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
+                               getZeroInit(VDDerivedType));
+        m_Variables[param] = BuildDeclRef(VDDerived);
+        addToBlock(BuildDeclStmt(VDDerived), m_Globals);
+      }
     }
     // Start the visitation process which outputs the statements in the
     // current block.
