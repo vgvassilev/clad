@@ -30,7 +30,8 @@ namespace clad {
 
     std::size_t size() { return Finish - Start; }
 
-    bool isInInterval(std::size_t n) { return n >= Start && n <= Finish; }
+    bool isInInterval(std::size_t n) const { return n >= Start && n <= Finish; }
+    bool isValid() const { return Start != Finish; }
 
     bool operator==(const IndexInterval& rhs) const {
       return Start == rhs.Start && Finish == rhs.Finish;

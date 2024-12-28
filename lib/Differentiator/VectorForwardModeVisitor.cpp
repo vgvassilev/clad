@@ -59,24 +59,11 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
   const FunctionDecl* FD = m_DiffReq.Function;
   assert(m_DiffReq.Mode == DiffMode::vector_forward_mode);
 
+  // Generate the function type for the derivative.
   DiffParams args{};
   for (const auto& dParam : m_DiffReq.DVI)
     args.push_back(dParam.param);
 
-  // Generate name for the derivative function.
-  std::string derivedFnName = m_DiffReq.BaseFunctionName + "_dvec";
-  if (args.size() != FD->getNumParams()) {
-    for (auto arg : args) {
-      auto it = std::find(FD->param_begin(), FD->param_end(), arg);
-      auto idx = std::distance(FD->param_begin(), it);
-      derivedFnName += ('_' + std::to_string(idx));
-    }
-  }
-  IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
-  SourceLocation loc{m_DiffReq->getLocation()};
-  DeclarationNameInfo name(II, loc);
-
-  // Generate the function type for the derivative.
   llvm::SmallVector<clang::QualType, 8> paramTypes;
   paramTypes.reserve(m_DiffReq->getNumParams() + args.size());
   for (auto* PVD : m_DiffReq->parameters())
@@ -106,6 +93,12 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
       dyn_cast<FunctionProtoType>(m_DiffReq->getType())->getExtProtoInfo());
 
   // Create the function declaration for the derivative.
+  std::string derivedFnName = m_DiffReq.ComputeDerivativeName();
+
+  IdentifierInfo* II = &m_Context.Idents.get(derivedFnName);
+  SourceLocation loc{m_DiffReq->getLocation()};
+  DeclarationNameInfo name(II, loc);
+
   // FIXME: We should not use const_cast to get the decl context here.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
