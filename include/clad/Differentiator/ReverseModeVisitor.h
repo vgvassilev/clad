@@ -60,8 +60,6 @@ namespace clad {
     Stmts m_Globals;
     /// Global GPU args of the function.
     std::unordered_set<const clang::ParmVarDecl*> m_CUDAGlobalArgs;
-    //// A reference to the output parameter of the gradient function.
-    clang::Expr* m_Result;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
