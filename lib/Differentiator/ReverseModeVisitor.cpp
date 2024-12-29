@@ -178,7 +178,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
   ReverseModeVisitor::ReverseModeVisitor(DerivativeBuilder& builder,
                                          const DiffRequest& request)
-      : VisitorBase(builder, request), m_Result(nullptr) {}
+      : VisitorBase(builder, request) {}
 
   ReverseModeVisitor::~ReverseModeVisitor() {
     if (m_ExternalSource) {
