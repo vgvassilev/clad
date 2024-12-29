@@ -4363,22 +4363,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         m_DiffReq.Mode == DiffMode::experimental_pullback) {
       QualType effectiveReturnType =
           m_DiffReq->getReturnType().getNonReferenceType();
-      if (m_DiffReq.Mode == DiffMode::experimental_pullback) {
-        // FIXME: Generally, we use the function's return type as the argument's
-        // derivative type. We cannot follow this strategy for `void` function
-        // return type. Thus, temporarily use `double` type as the placeholder
-        // type for argument derivatives. We should think of a more uniform and
-        // consistent solution to this problem. One effective strategy that may
-        // hold well: If we are differentiating a variable of type Y with
-        // respect to variable of type X, then the derivative should be of type
-        // X. Check this related issue for more details:
-        // https://github.com/vgvassilev/clad/issues/385
-        if (effectiveReturnType->isVoidType() ||
-            effectiveReturnType->isPointerType())
-          effectiveReturnType = m_Context.DoubleTy;
-        else
-          paramTypes.push_back(effectiveReturnType);
-      }
+      // FIXME: We ignore the pointer return type for pullbacks.
+      if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
+          !effectiveReturnType->isVoidType() &&
+          !effectiveReturnType->isPointerType())
+        paramTypes.push_back(effectiveReturnType);
 
       if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
         const CXXRecordDecl* RD = MD->getParent();
