@@ -131,8 +131,6 @@ namespace clad {
     /// A stack of all the blocks where the statements of the gradient function
     /// are stored (e.g., function body, if statement blocks).
     std::vector<Stmts> m_Blocks;
-    /// Stores output variables for vector-valued functions
-    VectorOutputs m_VectorOutput;
     /// Stores derivative expression of the implicit `this` pointer.
     ///
     /// In the forward mode, `this` pointer derivative expression is of pointer

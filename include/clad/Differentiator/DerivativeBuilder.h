@@ -62,9 +62,6 @@ namespace clad {
         : derivative(p_derivative), overload(p_overload) {}
   };
 
-  using VectorOutputs =
-      std::vector<std::unordered_map<const clang::ValueDecl*, clang::Expr*>>;
-
   static clang::SourceLocation noLoc{};
   class VisitorBase;
   /// The main builder class which then uses either ForwardModeVisitor or
