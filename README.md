@@ -272,7 +272,11 @@ cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/llvm -DClang_DIR=/o
 make && make install
 make check-clad
 ```
-###  Developer Environment - Build LLVM, Clang and Clad from source:
+
+> **NOTE**: If you are using clad as a clang plugin after building it from source, use the version of clang from your llvm@12 installation directory(/opt/homebrew/opt/llvm@12/bin/clang). Using the systemwide clang binary may not work.
+
+### Developer Environment - Build LLVM, Clang and Clad from source:
+
 ```
 pip3 install lit
 ```
