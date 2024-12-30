@@ -1524,7 +1524,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
-        if (auto* DRE = dyn_cast<DeclRefExpr>(Arg->IgnoreImpCasts())) {
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(Arg->IgnoreImpCasts())) {
           // If the arg is used as independent variable, then we cannot free it
           // as it holds the result to be returned to the user.
           if (std::find(m_DiffReq.DVI.begin(), m_DiffReq.DVI.end(),
