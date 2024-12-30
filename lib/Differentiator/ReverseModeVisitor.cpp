@@ -1524,12 +1524,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       for (const Expr* Arg : CE->arguments()) {
         StmtDiff ArgDiff = Visit(Arg, dfdx());
         CallArgs.push_back(ArgDiff.getExpr());
-        if (auto* DRE = dyn_cast<DeclRefExpr>(ArgDiff.getExpr())) {
-          // If the arg is used for differentiation of the function, then we
-          // cannot free it in the end as it's the result to be returned to the
-          // user.
-          if (m_ParamVarsWithDiff.find(DRE->getDecl()) ==
-              m_ParamVarsWithDiff.end())
+        if (const auto* DRE = dyn_cast<DeclRefExpr>(Arg->IgnoreImpCasts())) {
+          // If the arg is used as independent variable, then we cannot free it
+          // as it holds the result to be returned to the user.
+          if (std::find(m_DiffReq.DVI.begin(), m_DiffReq.DVI.end(),
+                        DRE->getDecl()) == m_DiffReq.DVI.end())
             DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
         }
       }
@@ -4425,19 +4424,17 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
 
     for (auto* PVD : m_DiffReq->parameters()) {
-      auto* newPVD = utils::BuildParmVarDecl(
-          m_Sema, m_Derivative, PVD->getIdentifier(), PVD->getType(),
-          PVD->getStorageClass(), /*DefArg=*/nullptr, PVD->getTypeSourceInfo());
-      params.push_back(newPVD);
-
-      if (newPVD->getIdentifier())
-        m_Sema.PushOnScopeChains(newPVD, getCurrentScope(),
-                                 /*AddToContext=*/false);
-      else {
-        IdentifierInfo* newName = CreateUniqueIdentifier("arg");
-        newPVD->setDeclName(newName);
+      IdentifierInfo* PVDII = PVD->getIdentifier();
+      // Implicitly created special member functions have no parameter names.
+      if (!PVD->getDeclName())
+        PVDII = CreateUniqueIdentifier("arg");
+      auto* newPVD = CloneParmVarDecl(PVD, PVDII,
+                                      /*pushOnScopeChains=*/true,
+                                      /*cloneDefaultArg=*/false);
+      if (!PVD->getDeclName()) // We can't use lookup-based replacements
         m_DeclReplacements[PVD] = newPVD;
-      }
+
+      params.push_back(newPVD);
 
       auto* it = std::find(std::begin(diffParams), std::end(diffParams), PVD);
       if (it != std::end(diffParams)) {
@@ -4469,7 +4466,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
               m_Variables[*it] =
                   utils::BuildParenExpr(m_Sema, m_Variables[*it]);
           }
-          m_ParamVarsWithDiff.emplace(*it);
         }
       }
     }

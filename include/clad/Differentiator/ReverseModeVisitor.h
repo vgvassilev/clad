@@ -40,11 +40,6 @@ namespace clad {
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
     llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
-    /// Set used to keep track of parameter variables w.r.t which the
-    /// the derivative (gradient) is being computed. This is separate from the
-    /// m_Variables map because all other intermediate variables will
-    /// not be stored here.
-    std::unordered_set<const clang::ValueDecl*> m_ParamVarsWithDiff;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
