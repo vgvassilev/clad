@@ -192,7 +192,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   DerivativeAndOverload ReverseModeVisitor::Derive() {
-    const FunctionDecl* FD = m_DiffReq.Function;
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
     if (m_DiffReq.Mode == DiffMode::error_estimation)
@@ -204,13 +203,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
-    if (m_DiffReq.Args)
-      for (const auto& dParam : m_DiffReq.DVI)
-        args.push_back(dParam.param);
-    else
-      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
-    if (args.empty())
-      return {};
+    for (const auto& dParam : m_DiffReq.DVI)
+      args.push_back(dParam.param);
 
     if (m_ExternalSource)
       m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
@@ -350,7 +344,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   DerivativeAndOverload ReverseModeVisitor::DerivePullback() {
-    const clang::FunctionDecl* FD = m_DiffReq.Function;
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
@@ -359,13 +352,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     assert(m_DiffReq.Function && "Must not be null.");
 
     DiffParams args{};
-    if (!m_DiffReq.DVI.empty())
-      for (const auto& dParam : m_DiffReq.DVI)
-        args.push_back(dParam.param);
-    else
-      std::copy(FD->param_begin(), FD->param_end(), std::back_inserter(args));
+    for (const auto& dParam : m_DiffReq.DVI)
+      args.push_back(dParam.param);
 #ifndef NDEBUG
-    bool isStaticMethod = utils::IsStaticMethod(FD);
+    bool isStaticMethod = utils::IsStaticMethod(m_DiffReq.Function);
     assert((!args.empty() || !isStaticMethod) &&
            "Cannot generate pullback function of a function "
            "with no differentiable arguments");
