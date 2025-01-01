@@ -48,7 +48,6 @@ class ErrorEstimationHandler : public ExternalRMVSource {
 
   std::stack<bool> m_ShouldEmit;
   ReverseModeVisitor* m_RMV;
-  llvm::SmallVectorImpl<clang::QualType>* m_ParamTypes = nullptr;
   llvm::SmallVectorImpl<clang::ParmVarDecl*>* m_Params = nullptr;
 
 public:
