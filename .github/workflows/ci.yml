@@ -24,11 +24,6 @@ jobs:
       matrix:
 
         include:
-          - name: osx14-arm-clang-runtime13
-            os: macos-14
-            compiler: clang
-            clang-runtime: '13'
-
           - name: osx14-arm-clang-runtime14
             os: macos-14
             compiler: clang
@@ -58,11 +53,6 @@ jobs:
             os: macos-13
             compiler: clang
             clang-runtime: '12'
-
-          - name: osx13-x86-clang-runtime13
-            os: macos-13
-            compiler: clang
-            clang-runtime: '13'
 
           - name: osx13-x86-clang-runtime14
             os: macos-13
