@@ -1877,6 +1877,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     Expr* call = nullptr;
 
     QualType returnType = FD->getReturnType();
+    // Stores the dx of the call arguments for the function to be derived
+    for (std::size_t i = 0, e = CE->getNumArgs() - isMethodOperatorCall; i != e;
+         ++i) {
+      const Expr* arg = CE->getArg(i + isMethodOperatorCall);
+      if (!utils::IsReferenceOrPointerArg(arg))
+        CallArgDx[i] = getZeroInit(arg->getType());
+    }
     if (baseDiff.getExpr_dx() &&
         !baseDiff.getExpr_dx()->getType()->isPointerType())
       CallArgDx.insert(CallArgDx.begin(), BuildOp(UnaryOperatorKind::UO_AddrOf,
@@ -1909,38 +1916,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       assert(calleeFnForwPassFD &&
              "Clad failed to generate callee function forward pass function");
 
-      // FIXME: We are using the derivatives in forward pass here
-      // If `expr_dx()` is only meant to be used in reverse pass,
-      // (for example, `clad::pop(...)` expression and a corresponding
-      // `clad::push(...)` in the forward pass), then this can result in
-      // incorrect derivative or crash at runtime. Ideally, we should have
-      // a separate routine to use derivative in the forward pass.
-
-      // We cannot reuse the derivatives previously computed because
-      // they might contain 'clad::pop(..)` expression.
-      if (baseDiff.getExpr_dx()) {
-        Expr* derivedBase = baseDiff.getExpr_dx();
-        // FIXME: We may need this if-block once we support pointers, and
-        // passing pointers-by-reference if
-        // (isCladArrayType(derivedBase->getType()))
-        //   CallArgs.push_back(derivedBase);
-        // else
-        // Currently derivedBase `*d_this` can never be CladArrayType
-        CallArgs.push_back(
-            BuildOp(UnaryOperatorKind::UO_AddrOf, derivedBase, Loc));
-      }
-
-      for (std::size_t i = static_cast<std::size_t>(isMethodOperatorCall),
-                       e = CE->getNumArgs();
-           i != e; ++i) {
-        const Expr* arg = CE->getArg(i);
-        StmtDiff argDiff = Visit(arg);
-        // Has to be removed once nondifferentiable arguments are handeled
-        if (argDiff.getStmt_dx())
-          CallArgs.push_back(argDiff.getExpr_dx());
-        else
-          CallArgs.push_back(getZeroInit(arg->getType()));
-      }
+      CallArgs.insert(CallArgs.end(), CallArgDx.begin(), CallArgDx.end());
       if (Expr* baseE = baseDiff.getExpr()) {
         call = BuildCallExprToMemFn(baseE, calleeFnForwPassFD->getName(),
                                     CallArgs, Loc);
