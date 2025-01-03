@@ -289,8 +289,9 @@ namespace clad {
     /// \returns The newly built variable declaration.
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
-                 clang::Scope* scope, clang::Expr* Init = nullptr,
-                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
+                 clang::Scope* scope, clang::DeclContext* DeclCtx,
+                 clang::Expr* Init = nullptr, bool DirectInit = false,
+                 clang::TypeSourceInfo* TSI = nullptr,
                  clang::VarDecl::InitializationStyle IS =
                      clang::VarDecl::InitializationStyle::CInit);
     /// Builds variable declaration to be used inside the derivative
@@ -333,7 +334,8 @@ namespace clad {
                        clang::Expr* Init = nullptr, bool DirectInit = false,
                        clang::TypeSourceInfo* TSI = nullptr,
                        clang::VarDecl::InitializationStyle IS =
-                           clang::VarDecl::InitializationStyle::CInit);
+                           clang::VarDecl::InitializationStyle::CInit,
+                       clang::DeclContext* DeclCtx = nullptr);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
