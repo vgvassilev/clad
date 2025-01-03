@@ -23,6 +23,10 @@
 #include <stack>
 #include <unordered_map>
 
+namespace llvm {
+template <typename T> class SmallVectorImpl;
+}
+
 namespace clad {
   class ErrorEstimationHandler;
   class ExternalRMVSource;
@@ -682,19 +686,11 @@ namespace clad {
     ///\paramp[in] source An external RMV source
     void AddExternalSource(ExternalRMVSource& source);
 
-    /// Computes and returns the sequence of derived function parameter types.
-    ///
-    /// Information about the original function and the differentiation mode
-    /// are taken from the data member variables.
-    llvm::SmallVector<clang::QualType, 8> ComputeParamTypes(const DiffParams& diffParams);
+    /// Computes and returns the derived function prototype.
+    clang::QualType ComputeDerivativeFunctionType();
 
     /// Builds and returns the sequence of derived function parameters.
-    ///
-    /// Information about the original function, derived function, derived
-    /// function parameter types and the differentiation mode are implicitly
-    /// taken from the data member variables.
-    llvm::SmallVector<clang::ParmVarDecl*, 8>
-    BuildParams(DiffParams& diffParams);
+    void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 
     clang::QualType ComputeAdjointType(clang::QualType T);
     clang::QualType ComputeParamType(clang::QualType T);
