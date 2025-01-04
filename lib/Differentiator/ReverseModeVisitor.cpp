@@ -18,6 +18,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
@@ -199,20 +200,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
 
-    m_Pullback =
-        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
-
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
-    if (!m_ExternalSource)
-      shouldCreateOverload = true;
-    if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
-      // If the overload is already created, we don't need to create it again.
-      shouldCreateOverload = false;
-
+    if (m_DiffReq.Mode == DiffMode::reverse) {
+      m_Pullback = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                                     /*val=*/1);
+      shouldCreateOverload = !m_ExternalSource;
+      if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
+        // If the overload is already created, we don't need to create it again.
+        shouldCreateOverload = false;
+    }
     // For a function f of type R(A1, A2, ..., An),
     // the type of the gradient function is void(A1, A2, ..., An, R*, R*, ...,
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
@@ -265,10 +265,15 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
     m_Derivative->setParams(params);
+    // Match the global arguments of the call to the device function to the
+    // pullback function's parameters.
+    if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
+      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
+        m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
     // if the function is a global kernel, all the adjoint parameters reside in
     // the global memory of the GPU. To facilitate the process, all the params
     // of the kernel are added to the set.
-    if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
       for (auto* param : params)
         m_CUDAGlobalArgs.emplace(param);
     m_Derivative->setBody(nullptr);
@@ -284,10 +289,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
-      if (!m_DiffReq.use_enzyme)
-        DifferentiateWithClad();
-      else
+      if (m_DiffReq.use_enzyme) {
+        assert(m_DiffReq.Mode == DiffMode::reverse && "Not in reverse?");
         DifferentiateWithEnzyme();
+      } else {
+        DifferentiateWithClad();
+      }
 
       Stmt* fnBody = endBlock();
       m_Derivative->setBody(fnBody);
@@ -309,91 +316,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       return DerivativeAndOverload{result.first, /*overload=*/nullptr};
 
     return DerivativeAndOverload{result.first, CreateDerivativeOverload()};
-  }
-
-  DerivativeAndOverload ReverseModeVisitor::DerivePullback() {
-    assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
-    assert(m_DiffReq.Function && "Must not be null.");
-    // FIXME: Duplication of external source here is a workaround
-    // for the two 'Derive's being different functions.
-    if (m_ExternalSource)
-      m_ExternalSource->ActOnStartOfDerive();
-
-    llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
-    llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
-                                           getEnclosingNamespaceOrTUScope());
-    // FIXME: We should not use const_cast to get the decl context here.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-    m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-
-    SourceLocation loc = m_DiffReq->getLocation();
-    QualType pullbackFnType = ComputeDerivativeFunctionType();
-    std::string derivativeName = m_DiffReq.ComputeDerivativeName();
-    auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
-    DeclWithContext fnBuildRes = m_Builder.cloneFunction(
-        m_DiffReq.Function, *this, m_Sema.CurContext, loc, DNI, pullbackFnType);
-    m_Derivative = fnBuildRes.first;
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActBeforeCreatingDerivedFnScope();
-
-    beginScope(Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-               Scope::DeclScope);
-    m_Sema.PushFunctionScope();
-    m_Sema.PushDeclContext(getCurrentScope(), m_Derivative);
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnScope();
-
-    llvm::SmallVector<ParmVarDecl*, 8> params;
-    BuildParams(params);
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
-
-    m_Derivative->setParams(params);
-    // Match the global arguments of the call to the device function to the
-    // pullback function's parameters.
-    if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
-      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
-        m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
-    // if the function is a global kernel, all the adjoint parameters reside in
-    // the global memory of the GPU. To facilitate the process, all the params
-    // of the kernel are added to the set.
-    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-      for (auto* param : params)
-        m_CUDAGlobalArgs.emplace(param);
-    m_Derivative->setBody(nullptr);
-
-    if (!m_DiffReq.DeclarationOnly) {
-      if (m_ExternalSource)
-        m_ExternalSource->ActBeforeCreatingDerivedFnBodyScope();
-
-      beginScope(Scope::FnScope | Scope::DeclScope);
-      m_DerivativeFnScope = getCurrentScope();
-
-      beginBlock();
-      if (m_ExternalSource)
-        m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
-
-      DifferentiateWithClad();
-
-      Stmt* fnBody = endBlock();
-      m_Derivative->setBody(fnBody);
-      endScope(); // Function body scope
-
-      // Size >= current derivative order means that there exists a declaration
-      // or prototype for the currently derived function.
-      if (m_DiffReq.DerivedFDPrototypes.size() >=
-          m_DiffReq.CurrentDerivativeOrder)
-        m_Derivative->setPreviousDeclaration(
-            m_DiffReq
-                .DerivedFDPrototypes[m_DiffReq.CurrentDerivativeOrder - 1]);
-    }
-    m_Sema.PopFunctionScopeInfo();
-    m_Sema.PopDeclContext();
-    endScope(); // Function decl scope
-
-    return DerivativeAndOverload{fnBuildRes.first, nullptr};
   }
 
   void ReverseModeVisitor::DifferentiateWithClad() {
