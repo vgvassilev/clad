@@ -192,6 +192,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   }
 
   DerivativeAndOverload ReverseModeVisitor::Derive() {
+    assert(m_DiffReq.Function && "Must not be null.");
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
     if (m_DiffReq.Mode == DiffMode::error_estimation)
@@ -200,7 +201,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
 
     m_Pullback =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
-    assert(m_DiffReq.Function && "Must not be null.");
 
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
@@ -218,24 +218,21 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // R*) . the type of the jacobian function is void(A1, A2, ..., An, R*, R*)
     // and for error estimation, the function type is
     // void(A1, A2, ..., An, R*, R*, ..., R*, double&)
-    QualType gradientFunctionType = ComputeDerivativeFunctionType();
+    QualType dFnType = ComputeDerivativeFunctionType();
 
     // Check if the function is already declared as a custom derivative.
-    std::string gradientName = m_DiffReq.ComputeDerivativeName();
-    IdentifierInfo* II = &m_Context.Idents.get(gradientName);
-    DeclarationNameInfo name(II, noLoc);
+    std::string name = m_DiffReq.ComputeDerivativeName();
 
     // FIXME: We should not use const_cast to get the decl context here.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     auto* DC = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
-    if (FunctionDecl* customDerivative = m_Builder.LookupCustomDerivativeDecl(
-            gradientName, DC, gradientFunctionType)) {
+    if (FunctionDecl* customDerivative =
+            m_Builder.LookupCustomDerivativeDecl(name, DC, dFnType)) {
       // Set m_Derivative for creating the overload.
       m_Derivative = customDerivative;
-      FunctionDecl* gradientOverloadFD = nullptr;
       if (shouldCreateOverload)
-        gradientOverloadFD = CreateDerivativeOverload();
-      return DerivativeAndOverload{customDerivative, gradientOverloadFD};
+        return DerivativeAndOverload{m_Derivative, CreateDerivativeOverload()};
+      return DerivativeAndOverload{m_Derivative, /*overload=*/nullptr};
     }
 
     // Create the gradient function declaration.
@@ -243,10 +240,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     llvm::SaveAndRestore<Scope*> SaveScope(getCurrentScope(),
                                            getEnclosingNamespaceOrTUScope());
     m_Sema.CurContext = DC;
-    DeclWithContext result = m_Builder.cloneFunction(
-        m_DiffReq.Function, *this, DC, noLoc, name, gradientFunctionType);
-    FunctionDecl* gradientFD = result.first;
-    m_Derivative = gradientFD;
+    SourceLocation loc = m_DiffReq->getLocation();
+    DeclarationNameInfo DNI = utils::BuildDeclarationNameInfo(m_Sema, name);
+    DeclWithContext result = m_Builder.cloneFunction(m_DiffReq.Function, *this,
+                                                     DC, loc, DNI, dFnType);
+    m_Derivative = result.first;
 
     if (m_ExternalSource)
       m_ExternalSource->ActBeforeCreatingDerivedFnScope();
@@ -266,17 +264,14 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (m_ExternalSource)
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
+    m_Derivative->setParams(params);
     // if the function is a global kernel, all the adjoint parameters reside in
     // the global memory of the GPU. To facilitate the process, all the params
     // of the kernel are added to the set.
     if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
       for (auto* param : params)
         m_CUDAGlobalArgs.emplace(param);
-
-    llvm::ArrayRef<ParmVarDecl*> paramsRef =
-        clad_compat::makeArrayRef(params.data(), params.size());
-    gradientFD->setParams(paramsRef);
-    gradientFD->setBody(nullptr);
+    m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
       if (m_ExternalSource)
@@ -289,15 +284,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       if (m_ExternalSource)
         m_ExternalSource->ActOnStartOfDerivedFnBody(m_DiffReq);
 
-      Stmt* gradientBody = nullptr;
-
       if (!m_DiffReq.use_enzyme)
         DifferentiateWithClad();
       else
         DifferentiateWithEnzyme();
 
-      gradientBody = endBlock();
-      m_Derivative->setBody(gradientBody);
+      Stmt* fnBody = endBlock();
+      m_Derivative->setBody(fnBody);
       endScope(); // Function body scope
 
       // Size >= current derivative order means that there exists a declaration
@@ -312,21 +305,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     m_Sema.PopDeclContext();
     endScope(); // Function decl scope
 
-    FunctionDecl* gradientOverloadFD = nullptr;
-    if (shouldCreateOverload) {
-      gradientOverloadFD = CreateDerivativeOverload();
-    }
+    if (!shouldCreateOverload)
+      return DerivativeAndOverload{result.first, /*overload=*/nullptr};
 
-    return DerivativeAndOverload{result.first, gradientOverloadFD};
+    return DerivativeAndOverload{result.first, CreateDerivativeOverload()};
   }
 
   DerivativeAndOverload ReverseModeVisitor::DerivePullback() {
+    assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
+    assert(m_DiffReq.Function && "Must not be null.");
     // FIXME: Duplication of external source here is a workaround
     // for the two 'Derive's being different functions.
     if (m_ExternalSource)
       m_ExternalSource->ActOnStartOfDerive();
-    assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
-    assert(m_DiffReq.Function && "Must not be null.");
 
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
@@ -335,13 +326,12 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     m_Sema.CurContext = const_cast<DeclContext*>(m_DiffReq->getDeclContext());
 
-    SourceLocation validLoc{m_DiffReq->getLocation()};
+    SourceLocation loc = m_DiffReq->getLocation();
     QualType pullbackFnType = ComputeDerivativeFunctionType();
-    auto derivativeName = m_DiffReq.ComputeDerivativeName();
+    std::string derivativeName = m_DiffReq.ComputeDerivativeName();
     auto DNI = utils::BuildDeclarationNameInfo(m_Sema, derivativeName);
-    DeclWithContext fnBuildRes =
-        m_Builder.cloneFunction(m_DiffReq.Function, *this, m_Sema.CurContext,
-                                validLoc, DNI, pullbackFnType);
+    DeclWithContext fnBuildRes = m_Builder.cloneFunction(
+        m_DiffReq.Function, *this, m_Sema.CurContext, loc, DNI, pullbackFnType);
     m_Derivative = fnBuildRes.first;
 
     if (m_ExternalSource)
