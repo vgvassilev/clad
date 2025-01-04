@@ -25,8 +25,6 @@ public:
 
   void ActOnStartOfDerive() override;
   void ActOnEndOfDerive() override;
-  void ActAfterParsingDiffArgs(const DiffRequest& request,
-                               DiffParams& args) override;
   void
   ActAfterProcessingArraySubscriptExpr(const clang::Expr* revArrSub) override;
   void ActBeforeCreatingDerivedFnParamTypes(unsigned& numExtraParams) override;

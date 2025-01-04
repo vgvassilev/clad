@@ -35,13 +35,6 @@ void MultiplexExternalRMVSource::ActOnEndOfDerive() {
   }
 }
 
-void MultiplexExternalRMVSource::ActAfterParsingDiffArgs(
-    const DiffRequest& request, DiffParams& args) {
-  for (auto source : m_Sources) {
-    source->ActAfterParsingDiffArgs(request, args);
-  }
-}
-
 void MultiplexExternalRMVSource::ActAfterProcessingArraySubscriptExpr(
     const clang::Expr* revArrSub) {
   for (auto source : m_Sources)

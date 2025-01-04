@@ -202,13 +202,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 1);
     assert(m_DiffReq.Function && "Must not be null.");
 
-    DiffParams args{};
-    for (const auto& dParam : m_DiffReq.DVI)
-      args.push_back(dParam.param);
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
-
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
@@ -334,19 +327,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       m_ExternalSource->ActOnStartOfDerive();
     assert(m_DiffReq.Mode == DiffMode::experimental_pullback);
     assert(m_DiffReq.Function && "Must not be null.");
-
-    DiffParams args{};
-    for (const auto& dParam : m_DiffReq.DVI)
-      args.push_back(dParam.param);
-#ifndef NDEBUG
-    bool isStaticMethod = utils::IsStaticMethod(m_DiffReq.Function);
-    assert((!args.empty() || !isStaticMethod) &&
-           "Cannot generate pullback function of a function "
-           "with no differentiable arguments");
-#endif
-
-    if (m_ExternalSource)
-      m_ExternalSource->ActAfterParsingDiffArgs(m_DiffReq, args);
 
     llvm::SaveAndRestore<DeclContext*> saveContext(m_Sema.CurContext);
     llvm::SaveAndRestore<Scope*> saveScope(getCurrentScope(),
