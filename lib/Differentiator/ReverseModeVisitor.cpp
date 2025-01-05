@@ -4278,16 +4278,13 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return DeclDiff<StaticAssertDecl>(nullptr, nullptr);
   }
 
-  QualType ReverseModeVisitor::GetParameterDerivativeType(QualType yType,
-                                                          QualType xType) {
+  QualType ReverseModeVisitor::GetParameterDerivativeType(QualType Type) {
 
-    assert((m_DiffReq.Mode != DiffMode::reverse || yType->isRealType()) &&
-           "yType should be a non-reference builtin-numerical scalar type!!");
-    QualType xValueType = utils::GetValueType(xType);
+    QualType ValueType = utils::GetValueType(Type);
     // derivative variables should always be of non-const type.
-    xValueType.removeLocalConst();
-    QualType nonRefXValueType = xValueType.getNonReferenceType();
-    return m_Context.getPointerType(nonRefXValueType);
+    ValueType.removeLocalConst();
+    QualType nonRefValueType = ValueType.getNonReferenceType();
+    return m_Context.getPointerType(nonRefValueType);
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXStaticCastExpr(
@@ -4310,11 +4307,6 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     }
     T.removeLocalConst();
     return T;
-  }
-
-  clang::QualType ReverseModeVisitor::ComputeParamType(clang::QualType T) {
-    QualType TValueType = utils::GetValueType(T);
-    return m_Context.getPointerType(TValueType);
   }
 
   static bool needsDThis(const FunctionDecl* FD) {
@@ -4348,7 +4340,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool HasThis = needsDThis(FD);
     if (HasThis) {
       const auto* MD = cast<CXXMethodDecl>(FD);
-      QualType thisTy = GetParameterDerivativeType(dRetTy, MD->getThisType());
+      QualType thisTy = GetParameterDerivativeType(MD->getThisType());
       FnTypes.push_back(thisTy);
     }
 
@@ -4363,7 +4355,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       // DiffInputVarInfo to check if this is a variable we differentiate wrt.
       for (const DiffInputVarInfo& VarInfo : m_DiffReq.DVI)
         if (VarInfo.param == FD->getParamDecl(i))
-          FnTypes.push_back(ComputeParamType(PVDTy));
+          FnTypes.push_back(GetParameterDerivativeType(PVDTy));
     }
 
     if (m_ExternalSource)
@@ -4436,7 +4428,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (HasThis) {
       IdentifierInfo* dThisII = &m_Context.Idents.get("_d_this");
       const auto* MD = cast<CXXMethodDecl>(FD);
-      QualType thisTy = GetParameterDerivativeType(dRetTy, MD->getThisType());
+      QualType thisTy = GetParameterDerivativeType(MD->getThisType());
 
       auto* dPVD =
           utils::BuildParmVarDecl(m_Sema, m_Sema.CurContext, dThisII, thisTy);
