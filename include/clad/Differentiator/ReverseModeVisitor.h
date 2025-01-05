@@ -490,15 +490,12 @@ namespace clad {
     }
 
     /// Returns the type that should be used to represent the derivative of a
-    /// variable of type `yType` with respect to a parameter variable of type
-    /// `xType`.
     ///
     /// FIXME: Parameter derivative type rules are different from the derivative
     /// type rules for local variables. We should remove this inconsistency.
     /// See the following issue for more details:
     /// https://github.com/vgvassilev/clad/issues/385
-    clang::QualType GetParameterDerivativeType(clang::QualType yType,
-                                               clang::QualType xType);
+    clang::QualType GetParameterDerivativeType(clang::QualType Type);
 
     /// Allows to easily create and manage a counter for counting the number of
     /// executed iterations of a loop.
@@ -693,7 +690,6 @@ namespace clad {
     void BuildParams(llvm::SmallVectorImpl<clang::ParmVarDecl*>& params);
 
     clang::QualType ComputeAdjointType(clang::QualType T);
-    clang::QualType ComputeParamType(clang::QualType T);
     /// Stores data required for differentiating a switch statement.
     struct SwitchStmtInfo {
       llvm::SmallVector<clang::SwitchCase*, 16> cases;
