@@ -273,7 +273,7 @@ make && make install
 make check-clad
 ```
 
-> **NOTE**: If you are using clad as a clang plugin after building it from source, use the version of clang from your llvm@12 installation directory(/opt/homebrew/opt/llvm@12/bin/clang). Using the systemwide clang binary may not work.
+> **NOTE**: If you are using clad as a clang plugin after building it from source, please make sure that you uses the same compiler version you built clad against. Apple distributed clang does not work because Apple has disabled clang plugins.
 
 ### Developer Environment - Build LLVM, Clang and Clad from source:
 
