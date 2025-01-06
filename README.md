@@ -272,7 +272,11 @@ cmake ../clad -DLLVM_DIR=/opt/homebrew/opt/llvm@12/lib/cmake/llvm -DClang_DIR=/o
 make && make install
 make check-clad
 ```
-###  Developer Environment - Build LLVM, Clang and Clad from source:
+
+> **NOTE**: If you are using clad as a clang plugin after building it from source, please make sure that you uses the same compiler version you built clad against. Apple distributed clang does not work because Apple has disabled clang plugins.
+
+### Developer Environment - Build LLVM, Clang and Clad from source:
+
 ```
 pip3 install lit
 ```
