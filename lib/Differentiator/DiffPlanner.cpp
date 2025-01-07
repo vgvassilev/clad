@@ -608,8 +608,10 @@ namespace clad {
 
   void DiffRequest::print(llvm::raw_ostream& Out) const {
     Out << '<';
-    PrintingPolicy Policy(Function->getASTContext().getLangOpts());
-    Function->getNameForDiagnostic(Out, Policy, /*Qualified=*/true);
+    PrintingPolicy P(Function->getASTContext().getLangOpts());
+    P.TerseOutput = true;
+    P.FullyQualifiedName = true;
+    Function->print(Out, P, /*Indentation=*/0, /*PrintInstantiation=*/true);
     Out << ">[name=" << BaseFunctionName << ", "
         << "order=" << CurrentDerivativeOrder << ", "
         << "mode=" << DiffModeToString(Mode);
