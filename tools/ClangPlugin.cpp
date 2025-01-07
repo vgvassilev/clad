@@ -527,7 +527,7 @@ namespace clad {
 
       // Print the graph of the diff requests.
       llvm::errs() << "\n*** INFORMATION ABOUT THE DIFF REQUESTS\n";
-      m_DiffRequestGraph.print(std::cerr);
+      m_DiffRequestGraph.dump();
 
       m_Multiplexer->PrintStats();
     }
