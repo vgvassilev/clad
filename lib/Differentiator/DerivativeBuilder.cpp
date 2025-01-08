@@ -221,6 +221,10 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
     }
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
+
+    if (R.empty())
+      SS.clear();
+
     return R;
   }
 
@@ -252,7 +256,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
       Expr* CUDAExecConfig /*=nullptr*/) {
-    const DeclContext* originalFnDC = nullptr;
+    DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
     // a numerical diff call. We should merge both paths and remove the
@@ -264,7 +268,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
         const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
         if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
-          originalFnDC = DRE->getFoundDecl()->getDeclContext();
+          originalFnDC = const_cast<DeclContext*>(DRE->getFoundDecl()->getDeclContext());
         else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
           originalFnDC = MemberE->getFoundDecl().getDecl()->getDeclContext();
       } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
@@ -272,9 +276,27 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       }
     }
 
+    // Try to find if clad already built a derivative.
+    LookupResult R = utils::LookupQualifiedName(Name, m_Sema, originalFnDC);
     CXXScopeSpec SS;
-    LookupResult R = LookupCustomDerivativeOrNumericalDiff(
+    if (R.empty()) {
+      R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
+    }
+#ifndef NDEBUG
+    else {
+      // Make sure we don't have both a clad-generated derivative and a
+      // user-provided one.
+      LookupResult R1 = LookupCustomDerivativeOrNumericalDiff(
+        Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
+      bool derivativeNotFound = R1.empty();
+      if (R.isSingleResult() && R1.isSingleResult())
+        derivativeNotFound = R.getFoundDecl() == R1.getFoundDecl();
+
+      assert(derivativeNotFound && "We clad built a derivative for entity which"
+             "has a custom derivative!");
+    }
+#endif // NDEBUG
 
     Expr* OverloadedFn = nullptr;
     if (!R.empty()) {

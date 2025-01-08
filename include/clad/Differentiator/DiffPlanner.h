@@ -171,7 +171,7 @@ public:
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
-    const clang::FunctionDecl* m_TopMostFD = nullptr;
+    const DiffRequest* m_TopMostReq = nullptr;
     clang::Sema& m_Sema;
 
     const RequestOptions& m_Options;
