@@ -5,14 +5,12 @@
 #include "clad/Differentiator/Differentiator.h"
 // CHECK: Timers for Clad Funcs
 // CHECK_STATS: *** INFORMATION ABOUT THE DIFF REQUESTS
-// CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #0 (source), (done)
-// CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #1 (source), (done)
-// CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='']: #2, (done)
-// CHECK_STATS-NEXT: <double nested2(double z)>[name=nested2, order=1, mode=pullback, args='']: #3, (done)
-// CHECK_STATS-NEXT: 0 -> 2
-// CHECK_STATS-NEXT: 1 -> 3
+// CHECK_STATS-NEXT: <double nested1(double c)>[name=nested1, order=1, mode=pushforward, args='c']: #0 (source), (done)
+// CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #1 (source), (done)
+// CHECK_STATS-NEXT: <double nested2(double z)>[name=nested2, order=1, mode=pullback, args='z']: #2 (source), (done)
+// CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #3 (source), (done)
 
-// CHECK_STATS_TBR: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"', tbr]: #0 (source), (done)
+// CHECK_STATS_TBR: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"', tbr]: #1 (source), (done)
 
 double nested1(double c){
   return c*3*c;

@@ -6,9 +6,11 @@
 #define CLAD_PARSE_DIFF_ARGS_TYPES_H
 
 #include "clang/AST/Decl.h"
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 
 #include <cstddef>
 #include <utility>
@@ -36,8 +38,15 @@ namespace clad {
     bool operator==(const IndexInterval& rhs) const {
       return Start == rhs.Start && Finish == rhs.Finish;
     }
+    void print(llvm::raw_ostream& Out) const {
+      if (!isValid()) {
+        Out << "<invalid>";
+        return;
+      }
+      Out << '[' << Start << ':' << Finish << ']';
+    }
   };
-  
+
   using IndexIntervalTable = llvm::SmallVector<IndexInterval, 16>;
 
   /// `DiffInputVarInfo` is designed to store all the essential information about a
@@ -76,6 +85,17 @@ namespace clad {
              paramIndexInterval == rhs.paramIndexInterval &&
              fields == rhs.fields;
     }
+    void print(llvm::raw_ostream& Out) const {
+      if (!source.empty())
+        Out << source;
+
+      if (param)
+        Out << param->getNameAsString();
+
+      if (paramIndexInterval.isValid())
+        paramIndexInterval.print(Out);
+    }
+    LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
   };
 
   using DiffInputVarsInfo = llvm::SmallVector<DiffInputVarInfo, 16>;
