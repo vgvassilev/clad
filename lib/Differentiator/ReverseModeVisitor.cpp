@@ -1792,10 +1792,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                 globalCallArgs.emplace_back(i);
               }
 
-      if (baseDiff.getExpr())
-        pullbackCallArgs.insert(
-            pullbackCallArgs.begin(),
-            BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr()));
+      if (Expr* Base = baseDiff.getExpr())
+        pullbackCallArgs.insert(pullbackCallArgs.begin(), Base);
 
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
