@@ -263,6 +263,10 @@ namespace clad {
       if (!DC)
         DC = C.getTranslationUnitDecl();
       S.LookupQualifiedName(Result, DC);
+
+      if (auto* CXXRD = dyn_cast<CXXRecordDecl>(DC))
+        Result.setNamingClass(CXXRD);
+
       return Result;
     }
 

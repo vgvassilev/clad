@@ -12,6 +12,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
 #include "clang/Sema/Lookup.h"
@@ -35,6 +36,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <string>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -58,7 +60,14 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
                                const DiffRequest& R) {
   DeclContext* DC = dFD->getLexicalDeclContext();
   LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
-  S.LookupQualifiedName(Previous, dFD->getParent());
+  // Template instantiations of function templates should not be considered
+  // redeclarations.
+  // FIXME: Currently we produce a FunctionDecl per instantiation, however, we
+  // should follow closer what clang does, namely building a
+  // FunctionTemplateDecl and then we should instantiate it with the particular
+  // template parameters.
+  if (R.Function && !R.Function->getPrimaryTemplate())
+    S.LookupQualifiedName(Previous, dFD->getParent());
 
   // Check if we created a top-level decl with the same name for another class.
   // FIXME: This case should be addressed by providing proper names and function
@@ -121,6 +130,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
 
       returnedFD->setAccess(FD->getAccess());
     }
+    returnedFD->setImplicitlyInline(FD->isInlined());
 
     for (const FunctionDecl* NFD : FD->redecls()) {
       for (const auto* Attr : NFD->attrs()) {
@@ -136,12 +146,23 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
   }
 
   // This method is derived from the source code of both
-  // buildOverloadedCallSet() in SemaOverload.cpp
-  // and ActOnCallExpr() in SemaExpr.cpp.
+  // buildOverloadedCallSet() in SemaOverload.cpp and ActOnCallExpr() in
+  // SemaExpr.cpp.
   bool
   DerivativeBuilder::noOverloadExists(Expr* UnresolvedLookup,
                                       llvm::MutableArrayRef<Expr*> ARargs) {
-    if (UnresolvedLookup->getType() == m_Context.OverloadTy) {
+    auto NeedsMoreArgs = [](const FunctionDecl* FD, size_t Size) {
+      return FD->getMinRequiredArguments() > Size || FD->getNumParams() < Size;
+    };
+    if (UnresolvedLookup->hasPlaceholderType(BuiltinType::BoundMember)) {
+      // See Sema::BuildCallToMemberFunction.
+      if (auto* ME = dyn_cast<MemberExpr>(UnresolvedLookup->IgnoreParens())) {
+        auto* M = cast<CXXMethodDecl>(ME->getMemberDecl());
+        return NeedsMoreArgs(M, ARargs.size());
+      }
+      return false;
+    }
+    if (UnresolvedLookup->hasPlaceholderType(BuiltinType::Overload)) {
       OverloadExpr::FindResult find = OverloadExpr::find(UnresolvedLookup);
 
       if (!find.HasFormOfMemberPointer) {
@@ -164,7 +185,16 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
             return true;
         }
       }
+      return false;
     }
+
+    if (!isa<DeclRefExpr>(UnresolvedLookup))
+      return false;
+
+    const auto* DRE = cast<DeclRefExpr>(UnresolvedLookup);
+    if (const auto* FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+      return NeedsMoreArgs(FD, ARargs.size());
+
     return false;
   }
 
@@ -220,6 +250,10 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
     }
     if (DC)
       m_Sema.LookupQualifiedName(R, DC);
+
+    if (R.empty())
+      SS.clear();
+
     return R;
   }
 
@@ -251,7 +285,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       clang::Scope* S, const clang::Expr* callSite,
       bool forCustomDerv /*=true*/, bool namespaceShouldExist /*=true*/,
       Expr* CUDAExecConfig /*=nullptr*/) {
-    const DeclContext* originalFnDC = nullptr;
+    DeclContext* originalFnDC = nullptr;
 
     // FIXME: callSite must not be null but it comes when we try to build
     // a numerical diff call. We should merge both paths and remove the
@@ -263,7 +297,8 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
         const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
         if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
-          originalFnDC = DRE->getFoundDecl()->getDeclContext();
+          originalFnDC =
+              const_cast<DeclContext*>(DRE->getFoundDecl()->getDeclContext());
         else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
           originalFnDC = MemberE->getFoundDecl().getDecl()->getDeclContext();
       } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
@@ -274,17 +309,64 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
     CXXScopeSpec SS;
     LookupResult R = LookupCustomDerivativeOrNumericalDiff(
         Name, originalFnDC, SS, forCustomDerv, namespaceShouldExist);
+    bool hasUserDefinedPropagator = false;
+    if (!R.empty()) {
+      hasUserDefinedPropagator = true;
+#ifndef NDEBUG
+      // FIXME: Figure out how to assert here in cases where we have provided
+      // both a clad-generated derivative and a user-provided one.
+      // LookupResult R1 = utils::LookupQualifiedName(Name, m_Sema,
+      // originalFnDC); assert((R1.empty() || R1.getFoundDecl() ==
+      // R.getFoundDecl()) &&
+      //        "We clad built a derivative for entity which"
+      //        "has a custom derivative!");
+#endif // NDEBUG
+    } else {
+      // Try to find if clad already built a derivative.
+      R = utils::LookupQualifiedName(Name, m_Sema, originalFnDC);
+      if (originalFnDC && !originalFnDC->isRecord())
+        utils::BuildNNS(m_Sema, originalFnDC, SS);
+    }
 
     Expr* OverloadedFn = nullptr;
     if (!R.empty()) {
-      // FIXME: We should find a way to specify nested name specifier
-      // after finding the custom derivative.
+      auto MARargs = llvm::MutableArrayRef<Expr*>(CallArgs);
+      SourceLocation Loc;
+
+      if (forCustomDerv && (isa<CXXMemberCallExpr>(callSite) ||
+                            isa<CXXOperatorCallExpr>(callSite))) {
+        if (R.getNamingClass()) {
+          Expr* Base = CallArgs[0];
+          // if (Loc.isInvalid())
+          //   Loc = m_DiffReq->getLocation();
+          UnqualifiedId Member;
+          Member.setIdentifier(&m_Context.Idents.get(Name), Loc);
+          bool isArrow = Base->getType()->isPointerType();
+          // FIXME: update SS here?
+          auto ME = m_Sema
+                        .ActOnMemberAccessExpr(S, Base, Loc,
+                                               isArrow ? tok::TokenKind::arrow
+                                                       : tok::TokenKind::period,
+                                               SS, noLoc, Member,
+                                               /*ObjCImpDecl=*/nullptr)
+                        .get();
+          if (noOverloadExists(ME, MARargs.drop_front()))
+            return nullptr;
+
+          return m_Sema
+              .ActOnCallExpr(S, ME, Loc, MARargs.drop_front(), Loc,
+                             CUDAExecConfig)
+              .get();
+        }
+        // If we have user-defined propagators we pass the first argument by
+        // pointer.
+        if (hasUserDefinedPropagator &&
+            !CallArgs[0]->getType()->isPointerType())
+          CallArgs[0] =
+              m_Sema.BuildUnaryOp(S, noLoc, UO_AddrOf, CallArgs[0]).get();
+      }
       Expr* UnresolvedLookup =
           m_Sema.BuildDeclarationNameExpr(SS, R, /*ADL*/ false).get();
-
-      auto MARargs = llvm::MutableArrayRef<Expr*>(CallArgs);
-
-      SourceLocation Loc;
 
       if (noOverloadExists(UnresolvedLookup, MARargs))
         return nullptr;
@@ -301,7 +383,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       // Adding it to the set of derivatives ensures that the custom
       // derivative is not differentiated again using numerical
       // differentiation due to unavailable definition.
-      if (auto* CE = dyn_cast<CallExpr>(OverloadedFn))
+      if (auto* CE = dyn_cast_or_null<CallExpr>(OverloadedFn))
         if (FunctionDecl* FD = CE->getDirectCallee())
           m_DFC.AddToCustomDerivativeSet(FD);
     }

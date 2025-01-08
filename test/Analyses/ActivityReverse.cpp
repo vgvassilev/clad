@@ -168,7 +168,18 @@ double f4(double x){
   double c = f4_1(x, 1);
   return c;
 }
-// CHECK-NEXT: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u);
+// CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
+// CHECK-NEXT:     double _d_k = 0.;
+// CHECK-NEXT:     double k = 2 * u;
+// CHECK-NEXT:     double _d_n = 0.;
+// CHECK-NEXT:     double n = 2 * v;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _d_n += _d_y * k;
+// CHECK-NEXT:         _d_k += n * _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_v += 2 * _d_n;
+// CHECK-NEXT:     *_d_u += 2 * _d_k;
+// CHECK-NEXT: }
 
 // CHECK: void f4_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _d_c = 0.;
@@ -249,7 +260,9 @@ double f8(double x){
   double f = f8_1(x, 1);
   return f;
 }
-// CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u);
+// CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
+// CHECK-NEXT:     *_d_v += _d_y;
+// CHECK-NEXT: }
 
 // CHECK-NEXT: void f8_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double c = f8_1(1, 1);
@@ -328,20 +341,3 @@ int main(){
     grad.execute(3, arr, &dx, darr);
     printf("%.2f\n", dx);// CHECK-EXEC: 2.00
 }
-
-// CHECK: void f4_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
-// CHECK-NEXT:     double _d_k = 0.;
-// CHECK-NEXT:     double k = 2 * u;
-// CHECK-NEXT:     double _d_n = 0.;
-// CHECK-NEXT:     double n = 2 * v;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         _d_n += _d_y * k;
-// CHECK-NEXT:         _d_k += n * _d_y;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     *_d_v += 2 * _d_n;
-// CHECK-NEXT:     *_d_u += 2 * _d_k;
-// CHECK-NEXT: }
-
-// CHECK: void f8_1_pullback(double v, double u, double _d_y, double *_d_v, double *_d_u) {
-// CHECK-NEXT:     *_d_v += _d_y;
-// CHECK-NEXT: }

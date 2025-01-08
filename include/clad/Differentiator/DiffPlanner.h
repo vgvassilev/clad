@@ -7,7 +7,9 @@
 
 #include "clang/AST/RecursiveASTVisitor.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
@@ -120,15 +122,15 @@ public:
   ///      function will be differentiated w.r.t. to its every parameter.
   void UpdateDiffParamsInfo(clang::Sema& semaRef);
 
-  /// Define the == operator for DiffRequest.
+  /// Allow comparing DiffRequests.
   bool operator==(const DiffRequest& other) const {
-    // either function match or previous declaration match
+    // Note that CallContext is always different and we should ignore it.
     return Function == other.Function &&
            BaseFunctionName == other.BaseFunctionName &&
            CurrentDerivativeOrder == other.CurrentDerivativeOrder &&
            RequestedDerivativeOrder == other.RequestedDerivativeOrder &&
-           CallContext == other.CallContext && Args == other.Args &&
-           Mode == other.Mode && EnableTBRAnalysis == other.EnableTBRAnalysis &&
+           Args == other.Args && Mode == other.Mode &&
+           EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
            DeclarationOnly == other.DeclarationOnly;
@@ -172,16 +174,27 @@ public:
     /// If set it means that we need to find the called functions and
     /// add them for implicit diff.
     ///
-    const clang::FunctionDecl* m_TopMostFD = nullptr;
+    const DiffRequest* m_TopMostReq = nullptr;
     clang::Sema& m_Sema;
 
     const RequestOptions& m_Options;
+
+    llvm::DenseSet<const clang::FunctionDecl*> m_Traversed;
+
+    bool m_IsTraversingTopLevelDecl = true;
 
   public:
     DiffCollector(clang::DeclGroupRef DGR, DiffInterval& Interval,
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
                   RequestOptions& opts);
     bool VisitCallExpr(clang::CallExpr* E);
+    bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
+      llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
+      if (m_Traversed.count(FD))
+        return true;
+      m_Traversed.insert(FD);
+      return TraverseDecl(const_cast<clang::FunctionDecl*>(FD));
+    }
 
   private:
     bool isInInterval(clang::SourceLocation Loc) const;

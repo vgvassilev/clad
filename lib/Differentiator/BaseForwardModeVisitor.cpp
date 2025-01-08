@@ -18,6 +18,7 @@
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
@@ -1034,6 +1035,10 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   // Calls to lambda functions are processed differently
   bool isLambda = isLambdaCallOperator(FD);
 
+  Expr* CUDAExecConfig = nullptr;
+  if (auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
+    CUDAExecConfig = Clone(KCE->getConfig());
+
   // If the function is non_differentiable, return zero derivative.
   if (clad::utils::hasNonDifferentiableAttribute(CE)) {
     // Calling the function without computing derivatives
@@ -1041,10 +1046,11 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     for (unsigned i = 0, e = CE->getNumArgs(); i < e; ++i)
       ClonedArgs.push_back(Clone(CE->getArg(i)));
 
-    Expr* Call = m_Sema
-                     .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
-                                    validLoc, ClonedArgs, validLoc)
-                     .get();
+    Expr* Call =
+        m_Sema
+            .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
+                           ClonedArgs, validLoc, CUDAExecConfig)
+            .get();
     // Creating a zero derivative
     auto* zero =
         ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
@@ -1127,6 +1133,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     CallArgs.push_back(argDiff.getExpr());
     if (BaseForwardModeVisitor::IsDifferentiableType(arg->getType())) {
       Expr* dArg = argDiff.getExpr_dx();
+      if (!dArg)
+        dArg = getZeroInit(arg->getType());
       // FIXME: What happens when dArg is nullptr?
       diffArgs.push_back(dArg);
     }
@@ -1140,18 +1148,16 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
 
   auto customDerivativeArgs = pushforwardFnArgs;
 
-  if (Expr* baseE = baseDiff.getExpr()) {
-    if (!baseE->getType()->isPointerType())
-      baseE = BuildOp(UnaryOperatorKind::UO_AddrOf, baseE);
+  if (Expr* baseE = baseDiff.getExpr())
     customDerivativeArgs.insert(customDerivativeArgs.begin(), baseE);
-  }
 
   // Try to find a user-defined overloaded derivative.
   Expr* callDiff = nullptr;
   std::string customPushforward =
       clad::utils::ComputeEffectiveFnName(FD) + GetPushForwardFunctionSuffix();
   callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-      customPushforward, customDerivativeArgs, getCurrentScope(), CE);
+      customPushforward, customDerivativeArgs, getCurrentScope(), CE,
+      /*forCustomDerv=*/true, /*namespaceShouldExist=*/true, CUDAExecConfig);
   // Custom derivative templates can be written in a
   // general way that works for both vectorized and non-vectorized
   // modes. We have to also look for the pushforward with the regular name.
@@ -1159,7 +1165,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     customPushforward =
         clad::utils::ComputeEffectiveFnName(FD) + "_pushforward";
     callDiff = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-        customPushforward, customDerivativeArgs, getCurrentScope(), CE);
+        customPushforward, customDerivativeArgs, getCurrentScope(), CE,
+        /*forCustomDerv=*/true, /*namespaceShouldExist=*/true, CUDAExecConfig);
   }
   if (!isLambda) {
     // Check if it is a recursive call.
@@ -1171,11 +1178,12 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
               .BuildDeclarationNameExpr(
                   CXXScopeSpec(), m_Derivative->getNameInfo(), m_Derivative)
               .get();
-      callDiff = m_Sema
-                     .ActOnCallExpr(
-                         m_Sema.getScopeForContext(m_Sema.CurContext),
-                         derivativeRef, validLoc, pushforwardFnArgs, validLoc)
-                     .get();
+      callDiff =
+          m_Sema
+              .ActOnCallExpr(m_Sema.getScopeForContext(m_Sema.CurContext),
+                             derivativeRef, validLoc, pushforwardFnArgs,
+                             validLoc, CUDAExecConfig)
+              .get();
     }
   }
 
@@ -1199,7 +1207,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
             m_Sema
                 .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()),
                                validLoc, llvm::MutableArrayRef<Expr*>(CallArgs),
-                               validLoc)
+                               validLoc, CUDAExecConfig)
                 .get();
         auto* zero = getZeroInit(CE->getType());
         return StmtDiff(call, zero);
@@ -1227,14 +1235,12 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
             BuildCallExprToMemFn(baseDiff.getExpr(), pushforwardFD->getName(),
                                  pushforwardFnArgs, CE->getBeginLoc());
       } else {
-        Expr* execConfig = nullptr;
-        if (auto KCE = dyn_cast<CUDAKernelCallExpr>(CE))
-          execConfig = Clone(KCE->getConfig());
-        callDiff = m_Sema
-                       .ActOnCallExpr(getCurrentScope(),
-                                      BuildDeclRef(pushforwardFD), validLoc,
-                                      pushforwardFnArgs, validLoc, execConfig)
-                       .get();
+        callDiff =
+            m_Sema
+                .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pushforwardFD),
+                               validLoc, pushforwardFnArgs, validLoc,
+                               CUDAExecConfig)
+                .get();
       }
     }
   }
@@ -1246,7 +1252,8 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     Expr* call =
         m_Sema
             .ActOnCallExpr(getCurrentScope(), Clone(CE->getCallee()), validLoc,
-                           llvm::MutableArrayRef<Expr*>(CallArgs), validLoc)
+                           llvm::MutableArrayRef<Expr*>(CallArgs), validLoc,
+                           CUDAExecConfig)
             .get();
     // FIXME: Extend this for multiarg support
     // Check if the function is eligible for numerical differentiation.
