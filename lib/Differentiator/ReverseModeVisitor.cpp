@@ -3996,10 +3996,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     // FIXME: Restore arguments passed as non-const reference.
     for (const auto* arg : CE->arguments()) {
-      // FIXME: Use this workaround to support some custom constructors.
-      // Remove when default arguments are supported.
-      if (isa<CXXDefaultArgExpr>(arg->IgnoreImplicit()))
-        break;
       QualType ArgTy = arg->getType();
       StmtDiff argDiff{};
       Expr* adjointArg = nullptr;

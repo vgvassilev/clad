@@ -185,7 +185,8 @@ double fn21(double x, double y) {
 }
 
 double fn22(double u, double v) {
-    std::vector<double> ls{u, v};
+    std::vector<double>::allocator_type alloc;
+    std::vector<double> ls({u, v}, alloc);
     return ls[1] - 2 * ls[0];
 }
 
@@ -850,7 +851,9 @@ int main() {
 // CHECK-NEXT:      }
 
 // CHECK:      void fn22_grad(double u, double v, double *_d_u, double *_d_v) {
-// CHECK-NEXT:      {{.*}} _t0 = {{.*}}::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{.*}}> >(), {{.*u, v.*}}, {}); 
+// CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc({});
+// CHECK-NEXT:      std::vector<double>::allocator_type alloc;
+// CHECK-NEXT:      {{.*}} _t0 = {{.*}}::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<{{.*}}>(), {{.*u, v.*}}, alloc, {}, _d_alloc); 
 // CHECK-NEXT:      std::vector<double> _d_ls(_t0.adjoint);
 // CHECK-NEXT:      std::vector<double> ls(_t0.value);
 // CHECK-NEXT:      std::vector<double> _t1 = ls;
@@ -866,8 +869,7 @@ int main() {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          clad::array<double> _r0 = {{2U|2UL|2ULL}};
-// CHECK-NEXT:          clad::custom_derivatives::class_functions::constructor_pullback(&ls, {u, v}, &_d_ls, &_r0);
+// CHECK-NEXT:          {{.*}}::class_functions::constructor_pullback(&ls, {{.*u, v.*}}, alloc, &_d_ls, &_r0, &_d_alloc);
 // CHECK-NEXT:          *_d_u += _r0[0];
 // CHECK-NEXT:          *_d_v += _r0[1];
 // CHECK-NEXT:      }
-// CHECK-NEXT:  }
