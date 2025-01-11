@@ -2,6 +2,7 @@
 #define CLAD_STL_BUILTINS_H
 
 #include <array>
+#include <clad/Differentiator/Array.h>
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
@@ -463,6 +464,24 @@ constructor_reverse_forw(::clad::ConstructorReverseForwTag<::std::vector<T>>,
   return {v, d_v};
 }
 
+// A specialization for std::initializer_list (which is replaced with
+// clad::array).
+template <typename T>
+::clad::ValueAndAdjoint<::std::vector<T>, ::std::vector<T>>
+constructor_reverse_forw(
+    ::clad::ConstructorReverseForwTag<::std::vector<T>>,
+    const clad::array<T>& list,
+    const typename ::std::vector<T>::allocator_type& alloc,
+    const clad::array<T>& d_list,
+    const typename ::std::vector<T>::allocator_type& d_alloc) {
+  ::std::vector<T> v(list.size());
+  const T* iter = list.begin();
+  for (T& el : v)
+    el = *(iter++);
+  ::std::vector<T> d_v(list.size(), 0);
+  return {v, d_v};
+}
+
 template <typename T, typename S, typename U>
 void constructor_pullback(::std::vector<T>* v, S count, U val,
                           typename ::std::vector<T>::allocator_type alloc,
@@ -471,6 +490,20 @@ void constructor_pullback(::std::vector<T>* v, S count, U val,
   for (unsigned i = 0; i < count; ++i)
     *d_val += (*d_v)[i];
   d_v->clear();
+}
+
+// A specialization for std::initializer_list (which is replaced with
+// clad::array).
+template <typename T>
+void constructor_pullback(
+    ::std::vector<T>* v, clad::array<T> init,
+    const typename ::std::vector<T>::allocator_type& alloc,
+    ::std::vector<T>* d_v, clad::array<T>* d_init,
+    const typename ::std::vector<T>::allocator_type* d_alloc) {
+  for (unsigned i = 0; i < init.size(); ++i) {
+    (*d_init)[i] += (*d_v)[i];
+    (*d_v)[i] = 0;
+  }
 }
 
 template <typename T, typename U, typename dU>

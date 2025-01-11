@@ -60,6 +60,19 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
   return nullptr;
 }
 
+Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
+  if (E)
+    if (const auto* CXXILE =
+            dyn_cast<CXXStdInitializerListExpr>(E->IgnoreImplicit()))
+      if (const auto* ILE =
+              dyn_cast<InitListExpr>(CXXILE->getSubExpr()->IgnoreImplicit())) {
+        unsigned numInits = ILE->getNumInits();
+        return ConstantFolder::synthesizeLiteral(m_Context.getSizeType(),
+                                                 m_Context, numInits);
+      }
+  return nullptr;
+}
+
   Expr* ReverseModeVisitor::CladTapeResult::Last() {
     LookupResult& Back = V.GetCladTapeBack();
     CXXScopeSpec CSS;
@@ -2501,6 +2514,25 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     return StmtDiff(op, ResultRef, nullptr, valueForRevPass);
   }
 
+  QualType ReverseModeVisitor::CloneType(QualType T) {
+    QualType dT = VisitorBase::CloneType(T);
+
+    bool isLValueRefType = dT->isLValueReferenceType();
+    dT = dT.getNonReferenceType();
+
+    // We need to replace std::initializer_list with clad::array because the
+    // former is temporary by design and it's not possible to create modifiable
+    // adjoints.
+    QualType elemType;
+    if (m_Sema.isStdInitializerList(utils::GetValueType(T), &elemType))
+      dT = GetCladArrayOfType(elemType);
+
+    if (isLValueRefType)
+      return m_Context.getLValueReferenceType(dT);
+
+    return dT;
+  }
+
   DeclDiff<VarDecl> ReverseModeVisitor::DifferentiateVarDecl(const VarDecl* VD,
                                                              bool keepLocal) {
     StmtDiff initDiff;
@@ -2516,6 +2548,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     QualType VDCloneType;
     QualType VDDerivedType;
     QualType VDType = VD->getType();
+    VarDecl::InitializationStyle VDStyle = VD->getInitStyle();
     // If the cloned declaration is moved to the function global scope,
     // change its type for the corresponding adjoint type.
     if (promoteToFnScope) {
@@ -2535,37 +2568,8 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     bool isInitializedByNewExpr = false;
     bool initializeDerivedVar = true;
 
-    // We need to replace std::initializer_list with clad::array because the
-    // former is temporary by design and it's not possible to create modifiable
-    // adjoints.
-    if (m_Sema.isStdInitializerList(utils::GetValueType(VDType),
-                                    /*Element=*/nullptr)) {
-      if (const Expr* init = VD->getInit()) {
-        if (const auto* CXXILE =
-                dyn_cast<CXXStdInitializerListExpr>(init->IgnoreImplicit())) {
-          if (const auto* ILE = dyn_cast<InitListExpr>(
-                  CXXILE->getSubExpr()->IgnoreImplicit())) {
-            VDDerivedType =
-                GetCladArrayOfType(ILE->getInit(/*Init=*/0)->getType());
-            unsigned numInits = ILE->getNumInits();
-            VDDerivedInit = ConstantFolder::synthesizeLiteral(
-                m_Context.getSizeType(), m_Context, numInits);
-            VDCloneType = VDDerivedType;
-          }
-        } else if (isRefType) {
-          initDiff = Visit(init);
-          if (promoteToFnScope) {
-            VDDerivedInit = BuildOp(UO_AddrOf, initDiff.getExpr_dx());
-            VDDerivedType = VDDerivedInit->getType();
-          } else {
-            VDDerivedInit = initDiff.getExpr_dx();
-            VDDerivedType =
-                m_Context.getLValueReferenceType(VDDerivedInit->getType());
-          }
-          VDCloneType = VDDerivedType;
-        }
-      }
-    }
+    if (Expr* size = getStdInitListSizeExpr(VD->getInit()))
+      VDDerivedInit = size;
 
     // Check if the variable is pointer type and initialized by new expression
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
@@ -2629,6 +2633,10 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
       resetConstructorPullbackCallInfo();
       if (initDiff.getForwSweepExpr_dx())
         VDDerivedInit = initDiff.getForwSweepExpr_dx();
+      // ListInit style combined with `_t0.value`/`_t0.adjoint` inits will be
+      // displayed incorrectly.
+      if (VDStyle == VarDecl::InitializationStyle::ListInit)
+        VDStyle = VarDecl::InitializationStyle::CallInit;
     }
 
     // FIXME: Remove the special cases introduced by `specialThisDiffCase`
@@ -2675,7 +2683,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     if (initializeDerivedVar)
       VDDerived =
           BuildGlobalVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                             VDDerivedInit, false, nullptr, VD->getInitStyle());
+                             VDDerivedInit, false, nullptr, VDStyle);
 
     if (!m_DiffReq.shouldHaveAdjoint((VD)))
       VDDerived = nullptr;
@@ -2758,7 +2766,7 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     else
       VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                    initDiff.getExpr(), VD->isDirectInit(),
-                                   nullptr, VD->getInitStyle());
+                                   nullptr, VDStyle);
     if (isPointerType && derivedVDE) {
       if (promoteToFnScope) {
         Expr* assignDerivativeE = BuildOp(BinaryOperatorKind::BO_Assign,
@@ -3108,7 +3116,9 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
     StmtDiff subExprDiff = Visit(EWC->getSubExpr(), dfdx());
     // FIXME: We are unable to create cleanup objects currently, this can be
     // potentially problematic
-    return StmtDiff(subExprDiff.getExpr(), subExprDiff.getExpr_dx());
+    return StmtDiff(subExprDiff.getStmt(), subExprDiff.getStmt_dx(),
+                    subExprDiff.getForwSweepStmt_dx(),
+                    subExprDiff.getRevSweepStmt());
   }
 
   bool ReverseModeVisitor::ShouldRecompute(const Expr* E) {
@@ -4008,8 +4018,11 @@ Expr* getArraySizeExpr(const ArrayType* AT, ASTContext& context,
         // double _r0 = 0;
         // SomeClass_pullback(c, u, ..., &_d_c, &_r0, ...);
         // _d_u += _r0;
-        QualType dArgTy = getNonConstType(ArgTy, m_Context, m_Sema);
-        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", getZeroInit(dArgTy));
+        QualType dArgTy = getNonConstType(CloneType(ArgTy), m_Context, m_Sema);
+        Expr* init = getStdInitListSizeExpr(arg);
+        if (!init)
+          init = getZeroInit(dArgTy);
+        VarDecl* dArgDecl = BuildVarDecl(dArgTy, "_r", init);
         prePullbackCallStmts.push_back(BuildDeclStmt(dArgDecl));
         adjointArg = BuildDeclRef(dArgDecl);
         argDiff = Visit(arg, BuildDeclRef(dArgDecl));

@@ -200,6 +200,14 @@ namespace clad {
     /// \returns True if the statement was added to the block, false otherwise.
     bool AddToGlobalBlock(clang::Stmt* S) { return addToBlock(S, m_Globals); }
 
+    /// Updates size references in VariableArrayType and replaces
+    /// std::initializer_list with clad::array.
+    clang::QualType CloneType(clang::QualType T);
+
+    /// If E is a CXXSTDInializerListExpr, returns its size expr.
+    /// Otherwise, returns nullptr;
+    clang::Expr* getStdInitListSizeExpr(const clang::Expr* E);
+
     /// Stores the result of an expression in a temporary variable (of the same
     /// type as is the result of the expression) and returns a reference to it.
     /// If force decl creation is true, this will allways create a temporary
