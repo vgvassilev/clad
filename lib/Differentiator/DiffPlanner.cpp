@@ -614,7 +614,11 @@ namespace clad {
     Function->print(Out, P, /*Indentation=*/0, /*PrintInstantiation=*/true);
     Out << ">[name=" << BaseFunctionName << ", "
         << "order=" << CurrentDerivativeOrder << ", "
-        << "mode=" << DiffModeToString(Mode);
+        << "mode=" << DiffModeToString(Mode) << ", "
+        << "args='";
+    if (Args)
+      Args->printPretty(Out, /*Helper=*/nullptr, P);
+    Out << "'";
     if (EnableTBRAnalysis)
       Out << ", tbr";
     Out << ']';
