@@ -7,6 +7,7 @@
 
 #include "clang/AST/RecursiveASTVisitor.h"
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
@@ -143,7 +144,7 @@ public:
     return res;
   }
   void print(llvm::raw_ostream& Out) const;
-  void dump() const { print(llvm::errs()); }
+  LLVM_DUMP_METHOD void dump() const { print(llvm::errs()); }
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
