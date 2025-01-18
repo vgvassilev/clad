@@ -468,6 +468,142 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
+          - name: ubu22-arm-gcc10-runtime14
+            os: ubuntu-22.04-arm
+            compiler: gcc-10
+            clang-runtime: '14'
+
+          - name: ubu22-arm-gcc11-runtime14
+            os: ubuntu-22.04-arm
+            compiler: gcc-11
+            clang-runtime: '14'
+
+          - name: ubu22-arm-gcc12-runtime14
+            os: ubuntu-22.04-arm
+            compiler: gcc-12
+            clang-runtime: '14'
+
+          - name: ubu22-arm-gcc12-runtime15
+            os: ubuntu-22.04-arm
+            compiler: gcc-12
+            clang-runtime: '15'
+
+          - name: ubu22-arm-clang11-runtime14
+            os: ubuntu-22.04-arm
+            compiler: clang-11
+            clang-runtime: '14'
+
+          - name: ubu22-arm-clang12-runtime14
+            os: ubuntu-22.04-arm
+            compiler: clang-12
+            clang-runtime: '14'
+
+          - name: ubu22-arm-clang13-runtime14
+            os: ubuntu-22.04-arm
+            compiler: clang-13
+            clang-runtime: '14'
+
+          - name: ubu22-arm-clang14-runtime14
+            os: ubuntu-22.04-arm
+            compiler: clang-14
+            clang-runtime: '14'
+
+          - name: ubu22-arm-clang14-runtime15
+            os: ubuntu-22.04-arm
+            compiler: clang-14
+            clang-runtime: '15'
+
+          - name: ubu22-arm-clang15-runtime14
+            os: ubuntu-22.04-arm
+            compiler: clang-15
+            clang-runtime: '14'
+
+          - name: ubu22-arm-clang15-runtime15
+            os: ubuntu-22.04-arm
+            compiler: clang-15
+            clang-runtime: '15'
+
+          - name: ubu24-arm-gcc10-runtime14
+            os: ubuntu-24.04-arm
+            compiler: gcc-10
+            clang-runtime: '14'
+
+          - name: ubu24-arm-gcc11-runtime14
+            os: ubuntu-24.04-arm
+            compiler: gcc-11
+            clang-runtime: '14'
+
+          - name: ubu24-arm-gcc12-runtime14
+            os: ubuntu-24.04-arm
+            compiler: gcc-12
+            clang-runtime: '14'
+
+          - name: ubu24-arm-gcc12-runtime15
+            os: ubuntu-24.04-arm
+            compiler: gcc-12
+            clang-runtime: '15'
+
+          - name: ubu24-arm-gcc12-runtime16
+            os: ubuntu-24.04-arm
+            compiler: gcc-12
+            clang-runtime: '16'
+
+          - name: ubu24-arm-clang14-runtime14
+            os: ubuntu-24.04-arm
+            compiler: clang-14
+            clang-runtime: '14'
+
+          - name: ubu24-arm-clang14-runtime15
+            os: ubuntu-24.04-arm
+            compiler: clang-14
+            clang-runtime: '15'
+
+          - name: ubu24-arm-clang15-runtime14
+            os: ubuntu-24.04-arm
+            compiler: clang-15
+            clang-runtime: '14'
+
+          - name: ubu24-arm-clang15-runtime15
+            os: ubuntu-22.04-arm
+            compiler: clang-15
+            clang-runtime: '15'
+
+          - name: ubu24-arm-clang15-runtime16
+            os: ubuntu-24.04-arm
+            compiler: clang-15
+            clang-runtime: '16'
+
+          - name: ubu24-arm-clang15-runtime16-doc
+            os: ubuntu-24.04-arm
+            compiler: clang-15
+            clang-runtime: '16'
+            doc_build: true
+
+          - name: ubu24-arm-clang16-runtime17
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '17'
+
+          - name: ubu24-arm-clang16-runtime17-shared-libs
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            extra_cmake_options: '-DBUILD_SHARED_LIBS=On'
+            clang-runtime: '17'
+
+          - name: ubu24-arm-clang16-runtime17-kokkos
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '17'
+            extra_packages: 'libtrilinos-kokkos-dev ninja-build'
+            extra_cmake_options: '-G Ninja'
+
+          - name: ubu24-arm-clang16-runtime18
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '18'
+
+
+
           # Оld, still supported versions
 
           - name: ubu20-gcc9-runtime8
@@ -528,12 +664,22 @@ jobs:
     - name: Setup Ubuntu apt sources
       if: runner.os == 'Linux'
       run: |
-        if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
-          curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
-          echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
-        fi
+        export ARCHITECHURE=$(uname -m)
+        
+        if [[ "$ARCHITECHURE" == "x86_64" ]]; then
+          if ! sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev ; then
+            curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+            os_codename="`cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2`"
+            echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-${{ matrix.clang-runtime }} main" | sudo tee -a /etc/apt/sources.list
+            sudo apt update
+          fi
+        else
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/llvm-snapshot.gpg
+          sudo chmod a+r /etc/apt/keyrings/llvm-snapshot.gpg
+          echo   "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
+          echo   "deb-src [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/"$(. /etc/os-release && echo "$VERSION_CODENAME")"/ llvm-toolchain-"$(. /etc/os-release && echo "$VERSION_CODENAME")" main" | sudo tee -a /etc/apt/sources.list.d/llvm-snapshot.list > /dev/null
+          cat /etc/apt/sources.list.d/llvm-snapshot.list
+        fi        
         sudo apt install -y llvm-${{ matrix.clang-runtime }}-dev \
                          llvm-${{ matrix.clang-runtime }}-tools \
                          clang-${{ matrix.clang-runtime }} \
