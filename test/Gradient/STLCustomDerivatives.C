@@ -11,6 +11,7 @@
 
 #include <array>
 #include <vector>
+#include <memory>
 
 double fn10(double u, double v) {
     std::vector<double> vec;
@@ -200,6 +201,12 @@ double fn23(double u, double v) {
     return u;
 }
 
+double fn24(double d, double e) {
+  double *p = new double(d);
+  std::unique_ptr<double> up(p);
+  *up += 5 * e;
+  return *up;
+}
 
 int main() {
     double d_i, d_j;
@@ -217,6 +224,7 @@ int main() {
     INIT_GRADIENT(fn21);
     INIT_GRADIENT(fn22);
     INIT_GRADIENT(fn23);
+    INIT_GRADIENT(fn24);
 
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
     TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {2.00, 1.00}
@@ -232,6 +240,7 @@ int main() {
     TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {6.00, 0.00}
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {-2.00, 1.00}
     TEST_GRADIENT(fn23, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
+    TEST_GRADIENT(fn24, /*NumOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 5.00}
 }
 
 // CHECK: void fn10_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -967,3 +976,23 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
+
+// CHECK: void fn24_grad(double d, double e, double *_d_d, double *_d_e) {
+// CHECK-NEXT:     double *_d_p = new double(*_d_d);
+// CHECK-NEXT:     double *p = new double(d);
+// CHECK-NEXT:     clad::ValueAndAdjoint< {{.*}}, {{.*}} > _t0 = {{.*}}class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<unique_ptr{{.*}}, p, _d_p);
+// CHECK-NEXT:     std::unique_ptr{{.*}} up(static_cast<std::unique_ptr{{.*}}(_t0.value));
+// CHECK-NEXT:     std::unique_ptr{{.*}} _d_up = static_cast<std::unique_ptr{{.*}}(_t0.adjoint);
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t1 = {{.*}}class_functions::operator_star_reverse_forw(&up, &_d_up);
+// CHECK-NEXT:     double _t2 = _t1.value;
+// CHECK-NEXT:     _t1.value += 5 * e;
+// CHECK-NEXT:     {{.*}}ValueAndAdjoint<double &, double &> _t3 = {{.*}}class_functions::operator_star_reverse_forw(&up, &_d_up);
+// CHECK-NEXT:     {{.*}}class_functions::operator_star_pullback(&up, 1, &_d_up);
+// CHECK-NEXT:     {
+// CHECK-NEXT:         _t1.value = _t2;
+// CHECK-NEXT:         double _r_d0 = _t1.adjoint;
+// CHECK-NEXT:         *_d_e += 5 * _r_d0;
+// CHECK-NEXT:         {{.*}}class_functions::operator_star_pullback(&up, 0., &_d_up);
+// CHECK-NEXT:     }
+// CHECK-NEXT:     *_d_d += *_d_p;
+// CHECK-NEXT: }
