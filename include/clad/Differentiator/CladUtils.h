@@ -11,6 +11,7 @@
 #include "clang/AST/Type.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <clang/AST/DeclCXX.h>
 #include <string>
 
 namespace clang {
@@ -334,6 +335,9 @@ namespace clad {
 
     /// Returns true if QT is a non-const reference type.
     bool isNonConstReferenceType(clang::QualType QT);
+
+    bool isCopyable(const clang::CXXRecordDecl* RD);
+
     } // namespace utils
     } // namespace clad
 
