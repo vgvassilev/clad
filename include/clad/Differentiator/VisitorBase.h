@@ -274,7 +274,12 @@ namespace clad {
     /// either LHS or RHS is null.
     clang::Expr* BuildOp(clang::BinaryOperatorKind OpCode, clang::Expr* L,
                          clang::Expr* R, clang::SourceLocation OpLoc = noLoc);
-
+    /// Function to resolve Unary Minus. If the leftmost operand
+    /// has a Unary Minus then adds parens before adding the unary minus.
+    /// \param[in] E Expression fed to the recursive call.
+    /// \param[in] OpLoc Location to add Unary Minus if needed.
+    /// \returns Expression with correct Unary Operator placement.
+    clang::Expr* ResolveUnaryMinus(clang::Expr* E, clang::SourceLocation OpLoc);
     clang::Expr* BuildParens(clang::Expr* E);
     /// Builds variable declaration to be used inside the derivative
     /// body.
