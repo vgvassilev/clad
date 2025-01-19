@@ -6,6 +6,7 @@
 #include <clad/Differentiator/BuiltinDerivatives.h>
 #include <clad/Differentiator/FunctionTraits.h>
 #include <initializer_list>
+#include <memory>
 #include <tuple>
 #include <vector>
 
@@ -605,6 +606,26 @@ operator_equal_pushforward(::std::tuple<Args1...>* tu,
   ::std::tuple<Args1...> t1 = (*tu = in);
   ::std::tuple<Args1...> t2 = (*d_tu = d_in);
   return {t1, t2};
+}
+
+// std::unique_ptr<T> custom derivatives...
+template <typename T, typename U>
+clad::ValueAndAdjoint<::std::unique_ptr<T>, ::std::unique_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::unique_ptr<T>>,
+                         U* p, U* d_p) {
+  return {::std::unique_ptr<T>(p), ::std::unique_ptr<T>(d_p)};
+}
+
+template <typename T>
+clad::ValueAndAdjoint<T&, T&>
+operator_star_reverse_forw(::std::unique_ptr<T>* u, ::std::unique_ptr<T>* d_u) {
+  return {**u, **d_u};
+}
+
+template <typename T, typename U>
+void operator_star_pullback(::std::unique_ptr<T>* u, U pullback,
+                            ::std::unique_ptr<T>* d_u) {
+  **d_u += pullback;
 }
 
 } // namespace class_functions
