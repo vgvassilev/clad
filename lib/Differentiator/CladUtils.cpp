@@ -729,5 +729,18 @@ namespace clad {
       return QT->isReferenceType() &&
              !QT.getNonReferenceType().isConstQualified();
     }
+
+    bool isCopyable(const clang::CXXRecordDecl* RD) {
+      if (RD->defaultedCopyConstructorIsDeleted())
+        return false;
+      if (RD->hasUserDeclaredCopyConstructor()) {
+        std::string qualifiedName = RD->getQualifiedNameAsString();
+        // FIXME: I don't know why Clang things that unique_ptr has
+        // user-declared copy constructor.
+        if (qualifiedName == "std::unique_ptr")
+          return false;
+      }
+      return true;
+    }
   } // namespace utils
 } // namespace clad

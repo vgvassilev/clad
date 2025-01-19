@@ -1736,11 +1736,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             baseDiff = Visit(baseOriginalE);
           baseExpr = baseDiff.getExpr();
-          Expr* baseDiffStore =
-              GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-          if (baseOriginalE->isXValue())
-            baseExpr = baseDiffStore;
-          baseDiff.updateStmt(baseDiffStore);
+          CXXRecordDecl* baseRD = baseExpr->getType()->getAsCXXRecordDecl();
+          bool shouldStore = utils::isCopyable(baseRD);
+          if (shouldStore) {
+            Expr* baseDiffStore =
+                GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
+            if (baseOriginalE->isXValue())
+              baseExpr = baseDiffStore;
+            baseDiff.updateStmt(baseDiffStore);
+          }
           Expr* baseDerivative = baseDiff.getExpr_dx();
           if (!baseDerivative->getType()->isPointerType())
             baseDerivative =
@@ -2789,8 +2793,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ```
     // Also, if the original is initialized with a zero-constructor, it can be
     // used for the adjoint as well.
-    if (isConstructInit && emptyInitListInit &&
-        cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs()) {
+    bool shouldCopyInitialize =
+        isConstructInit && emptyInitListInit &&
+        cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs();
+    shouldCopyInitialize = shouldCopyInitialize &&
+                           (VDType->getAsCXXRecordDecl() &&
+                            utils::isCopyable(VDType->getAsCXXRecordDecl()));
+    if (shouldCopyInitialize) {
       Expr* copyExpr = BuildDeclRef(VDClone);
       QualType origTy = VDClone->getType();
       // if VDClone is volatile, we have to use const_cast to be able to use
@@ -4197,6 +4206,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       Expr* adjoint =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "adjoint");
+      if (!utils::isCopyable(RD)) {
+        val = utils::BuildStaticCastToRValue(m_Sema, val);
+        adjoint = utils::BuildStaticCastToRValue(m_Sema, adjoint);
+      }
       return {val, adjoint};
     }
 
