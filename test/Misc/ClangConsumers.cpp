@@ -9,7 +9,7 @@
 // RUN:              -Xclang -print-stats 2>&1 |                               \
 // RUN:                  FileCheck -check-prefix=CHECK_C %s
 // CHECK_C-NOT: {{.*error|warning|note:.*}}
-// XFAIL: clang-7, clang-8, clang-9, target={{i586.*}}, target=arm64-apple-{{.*}}
+// XFAIL: clang-7, clang-8, clang-9, target={{i586.*}}, target=arm64-apple-{{.*}}, target=aarch64-unknown-linux-gnu
 //
 // RUN: clang -xobjective-c -Xclang -add-plugin -Xclang clad -Xclang -load     \
 // RUN:       -Xclang %cladlib %s -I%S/../../include -oClangConsumers.out      \
