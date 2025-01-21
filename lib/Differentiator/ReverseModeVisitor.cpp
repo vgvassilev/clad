@@ -4151,6 +4151,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // responsible for updating these args.
     Expr* thisE = getZeroInit(recordPointerType);
     Expr* dThisE = getZeroInit(recordPointerType);
+    if (!m_TrackConstructorPullbackInfo && dfdx() &&
+        m_DiffReq.Mode == DiffMode::experimental_pullback)
+      dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
+                       m_DiffReq->getLocation());
 
     pullbackArgs.push_back(thisE);
     pullbackArgs.append(primalArgs.begin(), primalArgs.end());
@@ -4170,7 +4174,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_TrackConstructorPullbackInfo) {
         setConstructorPullbackCallInfo(llvm::cast<CallExpr>(customPullbackCall),
                                        primalArgs.size() + 1);
-        m_TrackConstructorPullbackInfo = false;
       }
     }
     // FIXME: If no compatible custom constructor pullback is found then try
@@ -4227,7 +4230,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* clonedArgsE = nullptr;
 
     if (CE->getNumArgs() != 1) {
-      if (CE->isListInitialization()) {
+      // FIXME: We generate a InitListExpr when the constructor is called
+      // outside of a VarDecl init. This works out when it is later used in a
+      // ReturnStmt. However, to support member exprs/calls of constructors, we
+      // need to explicitly generate a constructor and not rely on higher level
+      // Sema functions.
+      if (CE->isListInitialization() || !m_TrackConstructorPullbackInfo) {
         clonedArgsE = m_Sema.ActOnInitList(noLoc, primalArgs, noLoc).get();
       } else {
         if (CE->getNumArgs() == 0) {
