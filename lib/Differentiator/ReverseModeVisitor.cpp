@@ -215,14 +215,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
       const_cast<DiffRequest&>(m_DiffReq).Mode = DiffMode::reverse;
 
+    QualType returnTy = m_DiffReq->getReturnType();
     // If reverse mode differentiates only part of the arguments it needs to
     // generate an overload that can take in all the diff variables
     bool shouldCreateOverload = false;
     // FIXME: Gradient overload doesn't know how to handle additional parameters
     // added by the plugins yet.
     if (m_DiffReq.Mode == DiffMode::reverse) {
-      m_Pullback = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
-                                                     /*val=*/1);
+      if (returnTy->isRealType())
+        m_Pullback =
+            ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context,
+                                              /*val=*/1);
+      else if (!returnTy->isVoidType()) {
+        diag(DiagnosticsEngine::Warning, m_DiffReq.Function->getBeginLoc(),
+             "clad::gradient only supports differentiation functions of real "
+             "return types. Return stmt ignored.");
+        diag(DiagnosticsEngine::Note, m_DiffReq.CallContext->getBeginLoc(),
+             "Use clad::jacobian to compute derivatives of multiple real "
+             "outputs w.r.t. multiple real inputs.");
+      }
       shouldCreateOverload = !m_ExternalSource;
       if (!m_DiffReq.DeclarationOnly && !m_DiffReq.DerivedFDPrototypes.empty())
         // If the overload is already created, we don't need to create it again.
@@ -4151,8 +4162,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // responsible for updating these args.
     Expr* thisE = getZeroInit(recordPointerType);
     Expr* dThisE = getZeroInit(recordPointerType);
-    if (!m_TrackConstructorPullbackInfo && dfdx() &&
-        m_DiffReq.Mode == DiffMode::experimental_pullback)
+    if (!m_TrackConstructorPullbackInfo && dfdx())
       dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
                        m_DiffReq->getLocation());
 
