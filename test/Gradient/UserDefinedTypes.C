@@ -392,7 +392,7 @@ struct MyStruct{
   double b;
 }; 
 
-MyStruct fn12(MyStruct s) {
+MyStruct fn12(MyStruct s) {  // expected-warning {{clad::gradient only supports differentiation functions of real return types. Return stmt ignored.}}
   s = {2 * s.a, 2 * s.b + 2};
   return s;
 }
@@ -674,6 +674,21 @@ double fn19(double i, double j) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+void fn20(MyStruct s) {
+  s = {2 * s.a, 2 * s.b + 2};
+}
+
+// CHECK: void fn20_grad(MyStruct s, MyStruct *_d_s) {
+// CHECK-NEXT:     MyStruct _t0 = s;
+// CHECK-NEXT:     clad::ValueAndAdjoint<MyStruct &, MyStruct &> _t1 = _t0.operator_equal_forw({2 * s.a, 2 * s.b + 2}, &(*_d_s), {0., 0.});
+// CHECK-NEXT:    {
+// CHECK-NEXT:        MyStruct _r0 = {0., 0.};
+// CHECK-NEXT:        _t0.operator_equal_pullback({2 * s.a, 2 * s.b + 2}, {0., 0.}, &(*_d_s), &_r0);
+// CHECK-NEXT:        (*_d_s).a += 2 * _r0.a;
+// CHECK-NEXT:        (*_d_s).b += 2 * _r0.b;
+// CHECK-NEXT:    }
+// CHECK-NEXT:}
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -731,7 +746,7 @@ int main() {
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 5, 10, &d_i, &d_j);  // CHECK-EXEC: {1.00, 0.00}
     TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, -14, &d_i, &d_j);  // CHECK-EXEC: {1.00, -1.00}
     MyStruct s = {1.0, 2.0}, d_s = {1.0, 1.0};
-    auto fn12_test = clad::gradient(fn12);
+    auto fn12_test = clad::gradient(fn12); // expected-note {{Use clad::jacobian to compute derivatives of multiple real outputs w.r.t. multiple real inputs.}}
     fn12_test.execute(s, &d_s);
     print(d_s); // CHECK-EXEC: {2.00, 2.00}
 
@@ -759,6 +774,11 @@ int main() {
     
     INIT_GRADIENT(fn19);
     TEST_GRADIENT(fn19, /*numOfDerivativeArgs=*/2, 2, 3, &d_i, &d_j);    // CHECK-EXEC: {30.00, 12.00}
+
+    s = {1.0, 2.0}, d_s = {1.0, 1.0};
+    auto fn20_test = clad::gradient(fn20);
+    fn20_test.execute(s, &d_s);
+    print(d_s); // CHECK-EXEC: {2.00, 2.00}
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
