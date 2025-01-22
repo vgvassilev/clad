@@ -2316,15 +2316,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
              BinOp->getEndLoc(),
              "derivative of an assignment attempts to assign to unassignable "
              "expr, assignment ignored");
-        auto* LDRE = dyn_cast<DeclRefExpr>(L);
-        auto* RDRE = dyn_cast<DeclRefExpr>(R);
-
-        if (!LDRE && !RDRE)
-          return Clone(BinOp);
-        Expr* LExpr = LDRE ? Visit(L).getRevSweepAsExpr() : L;
-        Expr* RExpr = RDRE ? Visit(R).getRevSweepAsExpr() : R;
-
-        return BuildOp(opCode, LExpr, RExpr);
+        return Clone(BinOp);
       }
 
       // Visit LHS, but delay emission of its derivative statements, save them
