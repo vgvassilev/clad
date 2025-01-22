@@ -2139,7 +2139,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       valueForRevPass = utils::BuildParenExpr(m_Sema, sum);
     } else if (opCode == UnaryOperatorKind::UO_Real ||
                opCode == UnaryOperatorKind::UO_Imag) {
-      diff = VisitWithExplicitNoDfDx(E);
+      diff = Visit(E);
       ResultRef = BuildOp(opCode, diff.getExpr_dx());
       /// Create and add `__real r += dfdx()` expression.
       if (dfdx()) {
@@ -3202,7 +3202,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
-    auto baseDiff = VisitWithExplicitNoDfDx(ME->getBase());
+    auto baseDiff = Visit(ME->getBase());
     auto* field = ME->getMemberDecl();
     assert(!isa<CXXMethodDecl>(field) &&
            "CXXMethodDecl nodes not supported yet!");

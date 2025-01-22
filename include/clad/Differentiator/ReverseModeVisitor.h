@@ -128,28 +128,6 @@ namespace clad {
       return result;
     }
 
-    /// This visit method explicitly sets `dfdx` to `nullptr` for this visit.
-    ///
-    /// This method is helpful when we need derivative of some expression but we
-    /// do not want `_d_expression += dfdx` statments to be (automatically)
-    /// added.
-    ///
-    /// FIXME: Think of a better way for handling this situation. Maybe we
-    /// should improve the overall dfdx design and approach. One other way of
-    /// designing `VisitWithExplicitNoDfDx` in a more general way is
-    /// to develop a function that takes an expression E and returns the
-    /// corresponding derivative without any side effects. The difference
-    /// between this function and the current `VisitWithExplicitNoDfDx` will be
-    /// 1) better intent through the function name 2) We will also get
-    /// derivatives of expressions other than `DeclRefExpr` and `MemberExpr`.
-    StmtDiff VisitWithExplicitNoDfDx(const clang::Stmt* stmt) {
-      m_Stack.push(nullptr);
-      auto result =
-          clang::ConstStmtVisitor<ReverseModeVisitor, StmtDiff>::Visit(stmt);
-      m_Stack.pop();
-      return result;
-    }
-
     /// Get the latest block of code (i.e. place for statements output).
     Stmts& getCurrentBlock(direction d = direction::forward) {
       if (d == direction::forward)
