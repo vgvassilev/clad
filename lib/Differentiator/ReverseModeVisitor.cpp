@@ -3232,12 +3232,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitExprWithCleanups(const ExprWithCleanups* EWC) {
-    StmtDiff subExprDiff = Visit(EWC->getSubExpr(), dfdx());
     // FIXME: We are unable to create cleanup objects currently, this can be
     // potentially problematic
-    return StmtDiff(subExprDiff.getStmt(), subExprDiff.getStmt_dx(),
-                    subExprDiff.getForwSweepStmt_dx(),
-                    subExprDiff.getRevSweepStmt());
+    return Visit(EWC->getSubExpr(), dfdx());
   }
 
   bool ReverseModeVisitor::ShouldRecompute(const Expr* E) {
