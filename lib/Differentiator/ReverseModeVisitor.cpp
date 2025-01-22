@@ -1187,16 +1187,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
       }
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-
-      const CXXRecordDecl* RD = ILEType->getAsCXXRecordDecl();
-      Expr* adjointInit = nullptr;
-      if (RD && RD->isAggregate()) {
-        llvm::SmallVector<Expr*, 4> adjParams;
-        for (const FieldDecl* FD : RD->fields())
-          adjParams.push_back(getZeroInit(FD->getType()));
-        adjointInit = m_Sema.ActOnInitList(noLoc, adjParams, noLoc).get();
-      }
-      return StmtDiff(clonedILE, nullptr, adjointInit);
+      return StmtDiff(clonedILE);
     }
 
     // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
