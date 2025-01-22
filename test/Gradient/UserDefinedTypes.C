@@ -521,6 +521,7 @@ double fn15(double x, double y) {
 class SimpleFunctions1 {
 public:
   SimpleFunctions1() noexcept : x(0), y(0) {}
+  SimpleFunctions1(double px) : x(px), y(0) {}
   SimpleFunctions1(double p_x, double p_y) noexcept : x(p_x), y(p_y) {}
   double x;
   double y;
@@ -538,6 +539,9 @@ public:
 namespace clad {
 namespace custom_derivatives {
 namespace class_functions {
+void constructor_pullback(SimpleFunctions1* f, double x, SimpleFunctions1* d_f, double* d_x) {
+  *d_x += d_f->x;
+}
 void constructor_pullback(SimpleFunctions1* f, double x, double y, SimpleFunctions1* d_f, double* d_x, double* d_y) {
   *d_x += d_f->x;
   *d_y += d_f->y;
@@ -547,6 +551,10 @@ void constructor_pullback(SimpleFunctions1* f, const SimpleFunctions1& other, Si
   d_other->y += d_f->y;
 }
 }}}
+
+double operator+(const double& val, const SimpleFunctions1& a) {
+  return a.x + val;
+}
 
 // CHECK: void operator_plus_pullback(const SimpleFunctions1 &other, SimpleFunctions1 _d_y, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_other) const;
 
@@ -689,6 +697,21 @@ void fn20(MyStruct s) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
+// CHECK: void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a);
+
+double fn21(double i, double j) {
+    return 2 + SimpleFunctions1(i);
+}
+
+// CHECK:  void fn21_grad(double i, double j, double *_d_i, double *_d_j) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          SimpleFunctions1 _r1 = {};
+// CHECK-NEXT:          operator_plus_pullback(2, SimpleFunctions1(i), 1, &_r0, &_r1);
+// CHECK-NEXT:          clad::custom_derivatives::class_functions::constructor_pullback(nullptr, i, &_r1, &*_d_i);
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -779,6 +802,9 @@ int main() {
     auto fn20_test = clad::gradient(fn20);
     fn20_test.execute(s, &d_s);
     print(d_s); // CHECK-EXEC: {2.00, 2.00}
+    
+    INIT_GRADIENT(fn21);
+    TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
@@ -977,3 +1003,10 @@ int main() {
 // CHECK-NEXT:        (*_d_rhs).y += this->y * _r1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
+
+// CHECK:  void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_a).x += _d_y;
+// CHECK-NEXT:          *_d_val += _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }

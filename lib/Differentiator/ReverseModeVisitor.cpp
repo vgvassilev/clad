@@ -534,6 +534,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
+      const clang::CXXFunctionalCastExpr* FCE) {
+    StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
+    castExprDiff.updateStmt(m_Sema
+                                .BuildCXXFunctionalCastExpr(
+                                    FCE->getTypeInfoAsWritten(), FCE->getType(),
+                                    FCE->getBeginLoc(), castExprDiff.getExpr(),
+                                    FCE->getEndLoc())
+                                .get());
+    return castExprDiff;
+  }
+
   StmtDiff ReverseModeVisitor::VisitCompoundStmt(const CompoundStmt* CS) {
     int scopeFlags = Scope::DeclScope;
     // If this is the outermost compound statement of the function,

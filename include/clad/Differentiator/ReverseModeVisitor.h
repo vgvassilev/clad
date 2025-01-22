@@ -396,6 +396,8 @@ namespace clad {
     StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
     StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
+    StmtDiff
+    VisitCXXFunctionalCastExpr(const clang::CXXFunctionalCastExpr* FCE);
     virtual StmtDiff VisitDeclRefExpr(const clang::DeclRefExpr* DRE);
     StmtDiff VisitDeclStmt(const clang::DeclStmt* DS);
     StmtDiff VisitFloatingLiteral(const clang::FloatingLiteral* FL);
