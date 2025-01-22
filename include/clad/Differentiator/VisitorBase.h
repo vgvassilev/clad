@@ -31,15 +31,12 @@ namespace clad {
   class StmtDiff {
   private:
     std::array<clang::Stmt*, 2> data;
-    clang::Stmt* m_DerivativeForForwSweep;
     clang::Stmt* m_ValueForRevSweep;
 
   public:
     StmtDiff(clang::Stmt* orig = nullptr, clang::Stmt* diff = nullptr,
-             clang::Stmt* forwSweepDiff = nullptr,
              clang::Stmt* valueForRevSweep = nullptr)
-        : m_DerivativeForForwSweep(forwSweepDiff),
-          m_ValueForRevSweep(valueForRevSweep) {
+        : m_ValueForRevSweep(valueForRevSweep) {
       data[1] = orig;
       data[0] = diff;
     }
@@ -58,8 +55,6 @@ namespace clad {
     // Stmt_dx goes first!
     std::array<clang::Stmt*, 2>& getBothStmts() { return data; }
 
-    clang::Stmt* getForwSweepStmt_dx() { return m_DerivativeForForwSweep; }
-
     clang::Expr* getRevSweepAsExpr() {
       return llvm::cast_or_null<clang::Expr>(getRevSweepStmt());
     }
@@ -71,12 +66,6 @@ namespace clad {
         return data[1];
       return m_ValueForRevSweep;
     }
-
-    clang::Expr* getForwSweepExpr_dx() {
-      return llvm::cast_or_null<clang::Expr>(m_DerivativeForForwSweep);
-    }
-
-    void setForwSweepStmt_dx(clang::Stmt* S) { m_DerivativeForForwSweep = S; }
   };
 
   template <typename T> class DeclDiff {
