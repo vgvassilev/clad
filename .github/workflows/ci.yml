@@ -49,6 +49,11 @@ jobs:
             compiler: clang
             clang-runtime: '18'
 
+          - name: osx14-arm-clang-runtime19
+            os: macos-14
+            compiler: clang
+            clang-runtime: '19'
+
           - name: osx13-x86-clang-runtime12
             os: macos-13
             compiler: clang
@@ -79,6 +84,11 @@ jobs:
             compiler: clang
             clang-runtime: '18'
 
+          - name: osx13-x86-clang-runtime19
+            os: macos-13
+            compiler: clang
+            clang-runtime: '19'
+
           - name: win2022-msvc-runtime14
             os: windows-2022
             compiler: msvc
@@ -103,6 +113,11 @@ jobs:
             os: windows-2022
             compiler: msvc
             clang-runtime: '18'
+
+          - name: win2022-msvc-runtime19
+            os: windows-2022
+            compiler: msvc
+            clang-runtime: '19'
 
           - name: ubu22-clang15-runtime16-debug
             os: ubuntu-22.04
@@ -468,6 +483,11 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
+          - name: ubu22-clang16-runtime19
+            os: ubuntu-22.04
+            compiler: clang-16
+            clang-runtime: '19'
+
           - name: ubu24-arm-clang16-runtime17
             os: ubuntu-24.04-arm
             compiler: clang-16
@@ -490,6 +510,11 @@ jobs:
             os: ubuntu-24.04-arm
             compiler: clang-16
             clang-runtime: '18'
+
+          - name: ubu24-arm-clang16-runtime19
+            os: ubuntu-24.04-arm
+            compiler: clang-16
+            clang-runtime: '19'
 
 
 
