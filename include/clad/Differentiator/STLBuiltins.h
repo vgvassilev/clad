@@ -477,6 +477,17 @@ void constructor_pullback(
   }
 }
 
+// A specialization for std::initializer_list (which is replaced with
+// clad::array).
+template <typename T>
+void constructor_pullback(::std::vector<T>* v, clad::array<T> init,
+                          ::std::vector<T>* d_v, clad::array<T>* d_init) {
+  for (unsigned i = 0; i < init.size(); ++i) {
+    (*d_init)[i] += (*d_v)[i];
+    (*d_v)[i] = 0;
+  }
+}
+
 template <typename T, typename U, typename dU>
 void assign_pullback(::std::vector<T>* v,
                      typename ::std::vector<T>::size_type n, U /*val*/,

@@ -8,9 +8,11 @@
 #define CLAD_REVERSE_MODE_VISITOR_H
 
 #include "clad/Differentiator/Compatibility.h"
-#include "clad/Differentiator/VisitorBase.h"
-#include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
 #include "clad/Differentiator/ParseDiffArgsTypes.h"
+#include "clad/Differentiator/ReverseModeVisitorDirectionKinds.h"
+#include "clad/Differentiator/VisitorBase.h"
+
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/Sema.h"
@@ -370,6 +372,7 @@ namespace clad {
     virtual StmtDiff VisitCompoundStmt(const clang::CompoundStmt* CS);
     StmtDiff VisitConditionalOperator(const clang::ConditionalOperator* CO);
     StmtDiff VisitCXXBoolLiteralExpr(const clang::CXXBoolLiteralExpr* BL);
+    StmtDiff VisitCXXBindTemporaryExpr(const clang::CXXBindTemporaryExpr* BTE);
     StmtDiff VisitCharacterLiteral(const clang::CharacterLiteral* CL);
     StmtDiff VisitStringLiteral(const clang::StringLiteral* SL);
     StmtDiff VisitCXXDefaultArgExpr(const clang::CXXDefaultArgExpr* DE);
@@ -403,6 +406,8 @@ namespace clad {
     StmtDiff VisitBreakStmt(const clang::BreakStmt* BS);
     StmtDiff
     VisitCXXStdInitializerListExpr(const clang::CXXStdInitializerListExpr* ILE);
+    StmtDiff
+    VisitCXXTemporaryObjectExpr(const clang::CXXTemporaryObjectExpr* TOE);
     StmtDiff VisitCXXThisExpr(const clang::CXXThisExpr* CTE);
     StmtDiff VisitCXXNewExpr(const clang::CXXNewExpr* CNE);
     StmtDiff VisitCXXDeleteExpr(const clang::CXXDeleteExpr* CDE);
