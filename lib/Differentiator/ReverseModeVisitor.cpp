@@ -41,6 +41,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/StringRef.h>
+#include <llvm/Support/Casting.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
@@ -4021,6 +4022,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {clonedCTE, m_ThisExprDerivative};
   }
 
+  StmtDiff ReverseModeVisitor::VisitCXXTemporaryObjectExpr(
+      const clang::CXXTemporaryObjectExpr* TOE) {
+    return Clone(TOE);
+  }
+
+  StmtDiff ReverseModeVisitor::VisitCXXBindTemporaryExpr(
+      const clang::CXXBindTemporaryExpr* BTE) {
+    return Visit(BTE->getSubExpr(), dfdx());
+  }
+
   StmtDiff ReverseModeVisitor::VisitCXXNewExpr(const clang::CXXNewExpr* CNE) {
     StmtDiff initializerDiff;
     if (CNE->hasInitializer())
@@ -4142,29 +4153,33 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // created. The caller which triggers 'VisitCXXConstructExpr' is
     // responsible for updating these args.
     Expr* thisE = getZeroInit(recordPointerType);
-    Expr* dThisE = getZeroInit(recordPointerType);
-    if (!m_TrackConstructorPullbackInfo && dfdx())
+    Expr* dThisE = nullptr;
+    if (m_TrackConstructorPullbackInfo)
+      dThisE = getZeroInit(recordPointerType);
+    else if (dfdx())
       dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
                        m_DiffReq->getLocation());
 
-    pullbackArgs.push_back(thisE);
-    pullbackArgs.append(primalArgs.begin(), primalArgs.end());
-    pullbackArgs.push_back(dThisE);
-    pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
+    if (dThisE) {
+      pullbackArgs.push_back(thisE);
+      pullbackArgs.append(primalArgs.begin(), primalArgs.end());
+      pullbackArgs.push_back(dThisE);
+      pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
 
-    Stmts& curRevBlock = getCurrentBlock(direction::reverse);
-    Stmts::iterator it = std::begin(curRevBlock) + insertionPoint;
-    curRevBlock.insert(it, prePullbackCallStmts.begin(),
-                       prePullbackCallStmts.end());
-    it += prePullbackCallStmts.size();
-    std::string customPullbackName = "constructor_pullback";
-    if (Expr* customPullbackCall =
-            m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                customPullbackName, pullbackArgs, getCurrentScope(), CE)) {
-      curRevBlock.insert(it, customPullbackCall);
-      if (m_TrackConstructorPullbackInfo) {
-        setConstructorPullbackCallInfo(llvm::cast<CallExpr>(customPullbackCall),
-                                       primalArgs.size() + 1);
+      Stmts& curRevBlock = getCurrentBlock(direction::reverse);
+      Stmts::iterator it = std::begin(curRevBlock) + insertionPoint;
+      curRevBlock.insert(it, prePullbackCallStmts.begin(),
+                         prePullbackCallStmts.end());
+      it += prePullbackCallStmts.size();
+      std::string customPullbackName = "constructor_pullback";
+      if (Expr* customPullbackCall =
+              m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+                  customPullbackName, pullbackArgs, getCurrentScope(), CE)) {
+        curRevBlock.insert(it, customPullbackCall);
+        if (m_TrackConstructorPullbackInfo) {
+          setConstructorPullbackCallInfo(
+              llvm::cast<CallExpr>(customPullbackCall), primalArgs.size() + 1);
+        }
       }
     }
     // FIXME: If no compatible custom constructor pullback is found then try

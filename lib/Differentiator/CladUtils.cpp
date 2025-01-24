@@ -323,7 +323,8 @@ namespace clad {
       // The argument is passed by reference if it's passed as an L-value.
       // However, if arg is a MaterializeTemporaryExpr, then arg is a
       // temporary variable passed as a const reference.
-      bool isRefType = arg->isLValue() && !isa<MaterializeTemporaryExpr>(arg);
+      bool isRefType = arg->isLValue() && !isa<MaterializeTemporaryExpr>(arg) &&
+                       !isa<CXXDefaultArgExpr>(arg);
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 
