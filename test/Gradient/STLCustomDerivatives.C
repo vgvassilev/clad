@@ -236,7 +236,7 @@ int main() {
 
 // CHECK: void fn10_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> vec;
-// CHECK-NEXT:     std::vector<double> _d_vec({});
+// CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
 // CHECK-NEXT:     std::vector<double> _t0 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::push_back_reverse_forw(&vec, u, &_d_vec, *_d_u);
@@ -258,7 +258,7 @@ int main() {
 
 // CHECK-NEXT: void fn11_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:     std::vector<double> vec;
-// CHECK-NEXT:     std::vector<double> _d_vec({});
+// CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
 // CHECK-NEXT:     std::vector<double> _t0 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::push_back_reverse_forw(&vec, u, &_d_vec, *_d_u);
@@ -317,7 +317,7 @@ int main() {
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0;
 // CHECK-NEXT:     std::vector<double> vec;
-// CHECK-NEXT:     std::vector<double> _d_vec({});
+// CHECK-NEXT:     std::vector<double> _d_vec = {};
 // CHECK-NEXT:     clad::zero_init(_d_vec);
 // CHECK-NEXT:     std::vector<double> _t0 = vec;
 // CHECK-NEXT:     {{.*}}class_functions::resize_reverse_forw(&vec, 3, &_d_vec, {{0U|0UL|0}});
@@ -463,7 +463,7 @@ int main() {
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = u;
 // CHECK-NEXT:     {{.*}}allocator_type allocator;
-// CHECK-NEXT:     {{.*}}allocator_type _d_allocator({});
+// CHECK-NEXT:     {{.*}}allocator_type _d_allocator = {};
 // CHECK-NEXT:     clad::zero_init(_d_allocator);
 // CHECK-NEXT:     {{.*}} _d_count = {{0U|0UL}};
 // CHECK-NEXT:     {{.*}} count = 3;
@@ -490,7 +490,7 @@ int main() {
 
 // CHECK:      void fn14_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          std::vector<double> a;
-// CHECK-NEXT:          std::vector<double> _d_a({});
+// CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
 // CHECK-NEXT:          std::vector<double> _t0 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, x, &_d_a, *_d_x);
@@ -525,7 +525,7 @@ int main() {
 // CHECK-NEXT:        clad::tape<std::array<double, 3> > _t2 = {};
 // CHECK-NEXT:        clad::tape<double> _t3 = {};
 // CHECK-NEXT:        clad::tape<std::array<double, 3> > _t4 = {};
-// CHECK-NEXT:        std::array<double, 3> _d_a({{.*}});
+// CHECK-NEXT:        std::array<double, 3> _d_a = {{.*}};
 // CHECK-NEXT:        std::array<double, 3> a;
 // CHECK-NEXT:        std::array<double, 3> _t0 = a;
 // CHECK-NEXT:        {{.*}}fill_reverse_forw(&a, x, &_d_a, *_d_x);
@@ -570,7 +570,7 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK:     void fn16_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:         std::array<double, 2> _d_a({{.*}});
+// CHECK-NEXT:         std::array<double, 2> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 2> a;
 // CHECK-NEXT:         std::array<double, 2> _t0 = a;
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 0, &_d_a, {{0U|0UL|0}});
@@ -580,7 +580,7 @@ int main() {
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t4 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, {{0U|0UL|0}});
 // CHECK-NEXT:         double _t5 = _t4.value;
 // CHECK-NEXT:         _t4.value = y;
-// CHECK-NEXT:         std::array<double, 3> _d__b({{.*}});
+// CHECK-NEXT:         std::array<double, 3> _d__b = {{.*}};
 // CHECK-NEXT:         std::array<double, 3> _b0;
 // CHECK-NEXT:         std::array<double, 3> _t6 = _b0;
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t7 = {{.*}}operator_subscript_reverse_forw(&_b0, 0, &_d__b, {{0U|0UL|0}});
@@ -654,7 +654,7 @@ int main() {
 // CHECK-NEXT:     }
 
 // CHECK:     void fn17_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:         std::array<double, 50> _d_a({{.*}});
+// CHECK-NEXT:         std::array<double, 50> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 50> a;
 // CHECK-NEXT:         std::array<double, 50> _t0 = a;
 // CHECK-NEXT:         {{.*}}fill_reverse_forw(&a, y + x + x, &_d_a, 0.);
@@ -678,7 +678,7 @@ int main() {
 // CHECK-NEXT:     }
 
 // CHECK:     void fn18_grad(double x, double y, double *_d_x, double *_d_y) {
-// CHECK-NEXT:         std::array<double, 2> _d_a({{.*}});
+// CHECK-NEXT:         std::array<double, 2> _d_a = {{.*}};
 // CHECK-NEXT:         std::array<double, 2> a;
 // CHECK-NEXT:         std::array<double, 2> _t0 = a;
 // CHECK-NEXT:         clad::ValueAndAdjoint<double &, double &> _t1 = {{.*}}operator_subscript_reverse_forw(&a, 1, &_d_a, {{0U|0UL|0}});
@@ -710,7 +710,7 @@ int main() {
 // CHECK-NEXT:          {{.*}}tape<double> _t4 = {};
 // CHECK-NEXT:          {{.*}}tape<{{.*}}vector<double> > _t5 = {};
 // CHECK-NEXT:          {{.*}}vector<double> v;
-// CHECK-NEXT:          {{.*}}vector<double> _d_v({});
+// CHECK-NEXT:          {{.*}}vector<double> _d_v = {};
 // CHECK-NEXT:          clad::zero_init(_d_v);
 // CHECK-NEXT:          {{.*}} _t0 = {{0U|0UL|0}};
 // CHECK-NEXT:          for (i = 0; ; ++i) {
@@ -801,7 +801,7 @@ int main() {
 
 // CHECK:      void fn20_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          {{.*}}vector<double> v;
-// CHECK-NEXT:          {{.*}}vector<double> _d_v({});
+// CHECK-NEXT:          {{.*}}vector<double> _d_v = {};
 // CHECK-NEXT:          clad::zero_init(_d_v);
 // CHECK-NEXT:          {{.*}}vector<double> _t0 = v;
 // CHECK-NEXT:          v.reserve(10);
@@ -842,7 +842,7 @@ int main() {
 
 // CHECK:      void fn21_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:          std::vector<double> a;
-// CHECK-NEXT:          std::vector<double> _d_a({});
+// CHECK-NEXT:          std::vector<double> _d_a = {};
 // CHECK-NEXT:          clad::zero_init(_d_a);
 // CHECK-NEXT:          std::vector<double> _t0 = a;
 // CHECK-NEXT:          {{.*}}push_back_reverse_forw(&a, 0{{.*}}, &_d_a, 0.);
@@ -873,7 +873,7 @@ int main() {
 
 // CHECK:      void fn22_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      std::vector<double>::allocator_type alloc;
-// CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc({});
+// CHECK-NEXT:      std::vector<double>::allocator_type _d_alloc = {};
 // CHECK-NEXT:      clad::zero_init(_d_alloc);
 // CHECK-NEXT:      std::vector<double> ls({u, v}, alloc);
 // CHECK-NEXT:      std::vector<double> _d_ls(ls);
@@ -909,7 +909,7 @@ int main() {
 // CHECK-NEXT:      clad::tape<double> _t7 = {};
 // CHECK-NEXT:      clad::tape<std::vector<double> > _t8 = {};
 // CHECK-NEXT:      {{.*}}allocator_type alloc;
-// CHECK-NEXT:      {{.*}}allocator_type _d_alloc({});
+// CHECK-NEXT:      {{.*}}allocator_type _d_alloc = {};
 // CHECK-NEXT:      clad::zero_init(_d_alloc);
 // CHECK-NEXT:      unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:      for (i = 0; ; ++i) {

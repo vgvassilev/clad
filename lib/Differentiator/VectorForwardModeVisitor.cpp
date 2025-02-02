@@ -5,6 +5,8 @@
 
 #include "clang/AST/TemplateName.h"
 #include "clang/Sema/Lookup.h"
+#include <clang/AST/Decl.h>
+
 #include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
@@ -502,9 +504,8 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
   QualType cladArrayType = GetCladArrayOfType(utils::GetValueType(retType));
-  auto dVectorParamDecl =
-      BuildVarDecl(cladArrayType, "_d_vector_return", derivedRetValE, false,
-                   nullptr, VarDecl::InitializationStyle::CallInit);
+  VarDecl* dVectorParamDecl = BuildVarDecl(cladArrayType, "_d_vector_return",
+                                           derivedRetValE, /*DirectInit=*/true);
   // Create an array of statements to hold the return statement and the
   // assignments to the derivatives of the parameters.
   Stmts returnStmts;
@@ -578,13 +579,12 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   StmtDiff initDiff = VD->getInit() ? Visit(VD->getInit()) : StmtDiff{};
   // Here we are assuming that derived type and the original type are same.
   // This may not necessarily be true in the future.
-  VarDecl* VDClone =
-      BuildVarDecl(VD->getType(), VD->getNameAsString(), initDiff.getExpr(),
-                   VD->isDirectInit(), nullptr, VD->getInitStyle());
+  VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
+                                  initDiff.getExpr(), VD->isDirectInit());
   VarDecl* VDDerived =
       BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
                    "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-                   false, nullptr, VarDecl::InitializationStyle::CallInit);
+                   /*DirectInit=*/true);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);

@@ -194,26 +194,22 @@ namespace clad {
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, direction d = direction::forward,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit) {
+                             bool forceDeclCreation = false) {
       assert(E && "cannot infer type from null expression");
       return StoreAndRef(E, getNonConstType(E->getType(), m_Context, m_Sema), d,
-                         prefix, forceDeclCreation, IS);
+                         prefix, forceDeclCreation);
     }
 
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type,
                              direction d = direction::forward,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit) {
+                             bool forceDeclCreation = false) {
       // Name reverse temporaries as "_r" instead of "_t".
       if ((d == direction::reverse) && (prefix == "_t"))
         prefix = "_r";
       return VisitorBase::StoreAndRef(E, Type, getCurrentBlock(d), prefix,
-                                      forceDeclCreation, IS);
+                                      forceDeclCreation);
     }
 
     /// For an expr E, decides if it is useful to store it in a global temporary

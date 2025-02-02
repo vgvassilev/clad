@@ -109,15 +109,13 @@ namespace clad {
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     TypeSourceInfo* TSI) {
     return BuildVarDecl(Type, Identifier, getCurrentScope(), Init, DirectInit,
-                        TSI, IS);
+                        TSI);
   }
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Scope* Scope, Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     TypeSourceInfo* TSI) {
     // add namespace specifier in variable declaration if needed.
     Type = utils::AddNamespaceSpecifier(m_Sema, m_Context, Type);
     auto* VD = VarDecl::Create(
@@ -125,8 +123,11 @@ namespace clad {
         m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 
     if (Init) {
+      // Clang expects direct inits to be wrapped either in InitListExpr or
+      // ParenListExpr.
+      if (DirectInit && !isa<InitListExpr>(Init) && !isa<ParenListExpr>(Init))
+        Init = m_Sema.ActOnParenListExpr(noLoc, noLoc, Init).get();
       m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
-      VD->setInitStyle(IS);
     } else {
       m_Sema.ActOnUninitializedDecl(VD);
     }
@@ -144,18 +145,17 @@ namespace clad {
 
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, llvm::StringRef prefix,
                                      Expr* Init, bool DirectInit,
-                                     TypeSourceInfo* TSI,
-                                     VarDecl::InitializationStyle IS) {
+                                     TypeSourceInfo* TSI) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix), Init, DirectInit,
-                        TSI, IS);
+                        TSI);
   }
 
   VarDecl* VisitorBase::BuildGlobalVarDecl(QualType Type,
                                            llvm::StringRef prefix, Expr* Init,
-                                           bool DirectInit, TypeSourceInfo* TSI,
-                                           VarDecl::InitializationStyle IS) {
+                                           bool DirectInit,
+                                           TypeSourceInfo* TSI) {
     return BuildVarDecl(Type, CreateUniqueIdentifier(prefix),
-                        m_DerivativeFnScope, Init, DirectInit, TSI, IS);
+                        m_DerivativeFnScope, Init, DirectInit, TSI);
   }
 
   NamespaceDecl* VisitorBase::BuildNamespaceDecl(IdentifierInfo* II,
@@ -320,18 +320,16 @@ namespace clad {
   }
 
   Expr* VisitorBase::StoreAndRef(Expr* E, llvm::StringRef prefix,
-                                 bool forceDeclCreation,
-                                 VarDecl::InitializationStyle IS) {
-    return StoreAndRef(E, getCurrentBlock(), prefix, forceDeclCreation, IS);
+                                 bool forceDeclCreation) {
+    return StoreAndRef(E, getCurrentBlock(), prefix, forceDeclCreation);
   }
   Expr* VisitorBase::StoreAndRef(Expr* E, Stmts& block, llvm::StringRef prefix,
-                                 bool forceDeclCreation,
-                                 VarDecl::InitializationStyle IS) {
+                                 bool forceDeclCreation) {
     assert(E && "cannot infer type from null expression");
     QualType Type = E->getType();
     if (E->isModifiableLvalue(m_Context) == Expr::MLV_Valid)
       Type = m_Context.getLValueReferenceType(Type);
-    return StoreAndRef(E, Type, block, prefix, forceDeclCreation, IS);
+    return StoreAndRef(E, Type, block, prefix, forceDeclCreation);
   }
 
   bool VisitorBase::UsefulToStore(Expr* E) {
@@ -357,8 +355,8 @@ namespace clad {
   }
 
   Expr* VisitorBase::StoreAndRef(Expr* E, QualType Type, Stmts& block,
-                                 llvm::StringRef prefix, bool forceDeclCreation,
-                                 VarDecl::InitializationStyle IS) {
+                                 llvm::StringRef prefix,
+                                 bool forceDeclCreation) {
     if (!forceDeclCreation) {
       // If Expr is simple (i.e. a reference or a literal), there is no point
       // in storing it as there is no evaluation going on.
@@ -367,8 +365,7 @@ namespace clad {
     }
     // Create variable declaration.
     VarDecl* Var = BuildVarDecl(Type, CreateUniqueIdentifier(prefix), E,
-                                /*DirectInit=*/false,
-                                /*TSI=*/nullptr, IS);
+                                /*DirectInit=*/false);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), block);
