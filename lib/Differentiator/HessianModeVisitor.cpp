@@ -356,9 +356,7 @@ DerivativeAndOverload HessianModeVisitor::Derive() {
           // variable is of `const` type. This behaviour is consistent with the built-in
           // scalar numerical types as well.
           thisObjectType.removeLocalConst();
-          auto dThisVD = BuildVarDecl(thisObjectType, "_d_this",
-                                      /*Init=*/nullptr, false, /*TSI=*/nullptr,
-                                      VarDecl::InitializationStyle::CallInit);
+          VarDecl* dThisVD = BuildVarDecl(thisObjectType, "_d_this");
           CompStmtSave.push_back(BuildDeclStmt(dThisVD));
           Expr* dThisExpr = BuildDeclRef(dThisVD);
           DeclRefToParams.push_back(

@@ -494,7 +494,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Prepare the statements that assign the gradients to
     // non array/pointer type parameters of the original function
     if (!enzymeRealParams.empty()) {
-      auto* gradDeclStmt = BuildVarDecl(QT, "grad", enzymeCall, true);
+      auto* gradDeclStmt =
+          BuildVarDecl(QT, "grad", enzymeCall, /*DirectInit=*/true);
       addToCurrentBlock(BuildDeclStmt(gradDeclStmt), direction::forward);
 
       for (unsigned i = 0; i < enzymeRealParams.size(); i++) {
@@ -2561,7 +2562,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     QualType VDCloneType;
     QualType VDDerivedType;
     QualType VDType = VD->getType();
-    VarDecl::InitializationStyle VDStyle = VD->getInitStyle();
     // If the cloned declaration is moved to the function global scope,
     // change its type for the corresponding adjoint type.
     if (promoteToFnScope) {
@@ -2651,10 +2651,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         VDDerivedInit = initDiff.getExpr_dx();
         emptyInitListInit = false;
       }
-      // ListInit style combined with `_t0.value`/`_t0.adjoint` inits will be
-      // displayed incorrectly.
-      if (VDStyle == VarDecl::InitializationStyle::ListInit)
-        VDStyle = VarDecl::InitializationStyle::CallInit;
     }
 
     // FIXME: Remove the special cases introduced by `specialThisDiffCase`
@@ -2699,9 +2695,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
     if (initializeDerivedVar)
-      VDDerived =
-          BuildGlobalVarDecl(VDDerivedType, "_d_" + VD->getNameAsString(),
-                             VDDerivedInit, false, nullptr, VDStyle);
+      VDDerived = BuildGlobalVarDecl(
+          VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit);
 
     if (!m_DiffReq.shouldHaveAdjoint(VD))
       VDDerived = nullptr;
@@ -2782,8 +2777,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           VD->isDirectInit());
     else
       VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                   initDiff.getExpr(), VD->isDirectInit(),
-                                   nullptr, VDStyle);
+                                   initDiff.getExpr(), VD->isDirectInit());
 
     // We initialize adjoints with original variables as part of
     // the strategy to maintain the structure of the original variable.
@@ -3257,14 +3251,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     setCurrentScope(m_DerivativeFnScope);
 
     VarDecl* Var = nullptr;
-    if (isa<ArrayType>(Type)) {
+    if (isa<ArrayType>(Type))
       Type = GetCladArrayOfType(m_Context.getBaseElementType(Type));
-      Var = BuildVarDecl(Type, identifier, init, false, nullptr,
-                         clang::VarDecl::InitializationStyle::CallInit);
-    } else {
-      Var = BuildVarDecl(Type, identifier, init, false, nullptr,
-                         VarDecl::InitializationStyle::CInit);
-    }
+    Var = BuildVarDecl(Type, identifier, init);
 
     // Add the declaration to the body of the gradient function.
     addToBlock(BuildDeclStmt(Var), m_Globals);

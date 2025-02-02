@@ -62,7 +62,7 @@ int main() {
 //CHECK-NEXT:     }
 
 //CHECK:     void fn2_grad(double x, double y, double *_d_x, double *_d_y) {
-//CHECK-NEXT:         TN::Test2<double> _d_t({});
+//CHECK-NEXT:         TN::Test2<double> _d_t = {};
 //CHECK-NEXT:         TN::Test2<double> t;
 //CHECK-NEXT:         TN::Test2<double> _t0 = t;
 //CHECK-NEXT:         double _d_q = 0.;

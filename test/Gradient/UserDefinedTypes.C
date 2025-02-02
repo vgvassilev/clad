@@ -98,7 +98,7 @@ double fn3(double i, double j) {
 
 // CHECK: void fn3_grad(double i, double j, double *_d_i, double *_d_j) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t({});
+// CHECK-NEXT:     Tangent _d_t = {};
 // CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     double _t0 = t.data[0];
 // CHECK-NEXT:     t.data[0] = 2 * i;
@@ -126,7 +126,7 @@ double fn3(double i, double j) {
 
 double fn4(double i, double j) {
     pairdd p(1, 3);
-    pairdd q({7, 5});
+    pairdd q{7, 5};
     return p.first*i + p.second*j + q.first*i + q.second*j;
 }
 
@@ -134,7 +134,7 @@ double fn4(double i, double j) {
 // CHECK-NEXT:     pairdd p(1, 3);
 // CHECK-NEXT:     pairdd _d_p(p);
 // CHECK-NEXT:     clad::zero_init(_d_p);
-// CHECK-NEXT:     pairdd q({7, 5});
+// CHECK-NEXT:     pairdd q{7, 5};
 // CHECK-NEXT:     pairdd _d_q(q);
 // CHECK-NEXT:     clad::zero_init(_d_q);
 // CHECK-NEXT:     {
@@ -148,9 +148,8 @@ double fn4(double i, double j) {
 // CHECK-NEXT:         *_d_j += q.second * 1;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         {{.*}} _r2 = {};
+// CHECK-NEXT:         int _r2 = 0;
 // CHECK-NEXT:         int _r3 = 0;
-// CHECK-NEXT:         int _r4 = 0;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         int _r0 = 0;
@@ -374,7 +373,7 @@ double fn11(double x, double y) {
 
 // CHECK: void fn11_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:     Tangent t;
-// CHECK-NEXT:     Tangent _d_t({});
+// CHECK-NEXT:     Tangent _d_t = {};
 // CHECK-NEXT:     clad::zero_init(_d_t);
 // CHECK-NEXT:     double _t0 = t.data[0];
 // CHECK-NEXT:     t.data[0] = -y;
@@ -433,7 +432,7 @@ void fn13(double *x, double *y, int size)
 // CHECK-NEXT: Fint _t1;
 // CHECK-NEXT: clad::tape<Fint> _t2 = {};
 // CHECK-NEXT: clad::tape<double> _t3 = {};
-// CHECK-NEXT: Findex _d_p({});
+// CHECK-NEXT: Findex _d_p = {};
 // CHECK-NEXT: Findex p;
 // CHECK-NEXT: unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT: _t1 = p.j;
@@ -513,7 +512,7 @@ double fn15(double x, double y) {
 
 // CHECK:void fn15_grad(double x, double y, double *_d_x, double *_d_y) {
 // CHECK-NEXT:    ::clad::ValueAndAdjoint<SimpleArray<double, {{2U|2UL|2ULL}}>, SimpleArray<double, {{2U|2UL|2ULL}}> > _t0 = clad::custom_derivatives::class_functions::constructor_reverse_forw(clad::ConstructorReverseForwTag<SimpleArray<double, 2> >());
-// CHECK-NEXT:    SimpleArray<double, 2> _d_arr(_t0.adjoint);
+// CHECK-NEXT:    SimpleArray<double, 2> _d_arr = _t0.adjoint;
 // CHECK-NEXT:    SimpleArray<double, 2> arr(_t0.value);
 // CHECK-NEXT:    _d_arr.elements[0] += 1;
 // CHECK-NEXT:}

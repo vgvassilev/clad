@@ -15,6 +15,9 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
+#include <clang/AST/Type.h>
+#include <llvm/ADT/StringRef.h>
+
 #include <array>
 #include <stack>
 #include <unordered_map>
@@ -284,9 +287,7 @@ namespace clad {
     clang::VarDecl*
     BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
                  clang::Scope* scope, clang::Expr* Init = nullptr,
-                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+                 bool DirectInit = false, clang::TypeSourceInfo* TSI = nullptr);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -298,12 +299,11 @@ namespace clad {
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
     /// \returns The newly built variable declaration.
-    clang::VarDecl*
-    BuildVarDecl(clang::QualType Type, clang::IdentifierInfo* Identifier,
-                 clang::Expr* Init = nullptr, bool DirectInit = false,
-                 clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildVarDecl(clang::QualType Type,
+                                 clang::IdentifierInfo* Identifier,
+                                 clang::Expr* Init = nullptr,
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -314,20 +314,18 @@ namespace clad {
     /// C style initalization.
     /// \param[in] TSI The type source information of the variable declaration.
     /// \returns The newly built variable declaration.
-    clang::VarDecl*
-    BuildVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
-                 clang::Expr* Init = nullptr, bool DirectInit = false,
-                 clang::TypeSourceInfo* TSI = nullptr,
-                 clang::VarDecl::InitializationStyle IS =
-                     clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildVarDecl(clang::QualType Type,
+                                 llvm::StringRef prefix = "_t",
+                                 clang::Expr* Init = nullptr,
+                                 bool DirectInit = false,
+                                 clang::TypeSourceInfo* TSI = nullptr);
     /// Builds variable declaration to be used inside the derivative
     /// body in the derivative function global scope.
-    clang::VarDecl*
-    BuildGlobalVarDecl(clang::QualType Type, llvm::StringRef prefix = "_t",
-                       clang::Expr* Init = nullptr, bool DirectInit = false,
-                       clang::TypeSourceInfo* TSI = nullptr,
-                       clang::VarDecl::InitializationStyle IS =
-                           clang::VarDecl::InitializationStyle::CInit);
+    clang::VarDecl* BuildGlobalVarDecl(clang::QualType Type,
+                                       llvm::StringRef prefix = "_t",
+                                       clang::Expr* Init = nullptr,
+                                       bool DirectInit = false,
+                                       clang::TypeSourceInfo* TSI = nullptr);
     /// Creates a namespace declaration and enters its context. All subsequent
     /// Stmts are built inside that namespace, until
     /// m_Sema.PopDeclContextIsUsed.
@@ -368,20 +366,14 @@ namespace clad {
     /// direct references in intermediate variables)
     clang::Expr* StoreAndRef(clang::Expr* E, Stmts& block,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit);
+                             bool forceDeclCreation = false);
     /// A shorthand to store directly to the current block.
     clang::Expr* StoreAndRef(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit);
+                             bool forceDeclCreation = false);
     /// An overload allowing to specify the type for the variable.
     clang::Expr* StoreAndRef(clang::Expr* E, clang::QualType Type, Stmts& block,
                              llvm::StringRef prefix = "_t",
-                             bool forceDeclCreation = false,
-                             clang::VarDecl::InitializationStyle IS =
-                                 clang::VarDecl::InitializationStyle::CInit);
+                             bool forceDeclCreation = false);
     /// For an expr E, decides if it is useful to store it in a temporary
     /// variable and replace E's further usage by a reference to that variable
     /// to avoid recomputation.

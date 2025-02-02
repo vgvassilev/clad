@@ -107,8 +107,8 @@ double fnVec4(double u, double v) {
 // CHECK-NEXT:     double _d_u = 1;
 // CHECK-NEXT:     double _d_v = 0;
 // CHECK-NEXT:     {{.*}}ValueAndPushforward< ::std::vector<double>, ::std::vector<double> > _t0 = clad::custom_derivatives::class_functions::constructor_pushforward(clad::ConstructorPushforwardTag<std::vector<double> >(), {u, v, u * v}, {{.*}}{_d_u, _d_v, _d_u * v + u * _d_v}{{.*}});
-// CHECK-NEXT:     std::vector<double> _d_V_t0.pushforward;
-// CHECK-NEXT:     std::vector<double> V_t0.value;
+// CHECK-NEXT:     std::vector<double> _d_V(_t0.pushforward);
+// CHECK-NEXT:     std::vector<double> V(_t0.value);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double &, double &> _t1 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V, 0, &_d_V, 0);
 // CHECK-NEXT:     {{.*}}ValueAndPushforward<double &, double &> _t2 = clad::custom_derivatives::class_functions::operator_subscript_pushforward(&V, 2, &_d_V, 0);
 // CHECK-NEXT:     double &_t3 = _t1.value;
