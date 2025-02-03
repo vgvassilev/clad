@@ -1996,9 +1996,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           m_Context, Clone(OCE->getArg(0)), /*isArrow=*/false, Loc, NNS, noLoc,
           FD, DAP, FD->getNameInfo(),
           /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-          CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-          ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
-              NOUR_None));
+          CLAD_COMPAT_ExprValueKind_R_or_PR_Value, ExprObjectKind::OK_Ordinary,
+          NOUR_None);
       call = m_Sema
                  .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc,
                                             CallArgs, Loc)

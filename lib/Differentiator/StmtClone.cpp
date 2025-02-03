@@ -80,9 +80,7 @@ Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
       Ctx, Node->getQualifierLoc(), Node->getTemplateKeywordLoc(),
       Node->getDecl(), Node->refersToEnclosingVariableOrCapture(),
       Node->getNameInfo(), CloneType(Node->getType()), Node->getValueKind(),
-      Node->getFoundDecl(),
-      &TAListInfo CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
-          Node->isNonOdrUse()));
+      Node->getFoundDecl(), &TAListInfo, Node->isNonOdrUse());
 }
 DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
@@ -113,8 +111,7 @@ Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
       Node->getQualifierLoc(), Node->getTemplateKeywordLoc(),
       Node->getMemberDecl(), Node->getFoundDecl(), Node->getMemberNameInfo(),
       &TemplateArgs, CloneType(Node->getType()), Node->getValueKind(),
-      Node->getObjectKind()
-          CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(Node->isNonOdrUse()));
+      Node->getObjectKind(), Node->isNonOdrUse());
   // Copy Value and Type dependent
   clad_compat::ExprSetDeps(result, Node);
   return result;
@@ -439,9 +436,7 @@ DEFINE_CLONE_STMT(CXXCatchStmt, (Node->getCatchLoc(),
                                  CloneDeclOrNull(Node->getExceptionDecl()),
                                  Clone(Node->getHandlerBlock())))
 
-#if CLANG_VERSION_MAJOR > 8
 DEFINE_CLONE_STMT(ValueStmt, (Node->getStmtClass()))
-#endif
 
 Stmt* StmtClone::VisitCXXTryStmt(CXXTryStmt* Node) {
   llvm::SmallVector<Stmt*, 4> CatchStmts(std::max(1u, Node->getNumHandlers()));

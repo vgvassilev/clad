@@ -750,19 +750,20 @@ namespace clad {
                                     const FunctionDecl* FD,
                                     DiffRequest& request) {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-    if (A->getAnnotation().equals("E")) {
+    std::string Annotation = A->getAnnotation().str();
+    if (Annotation == "E") {
       // Error estimation has no options yet.
       request.Mode = DiffMode::error_estimation;
       return false;
     }
 
-    if (A->getAnnotation().equals("D"))
+    if (Annotation == "D")
       request.Mode = DiffMode::forward;
-    else if (A->getAnnotation().equals("H"))
+    else if (Annotation == "H")
       request.Mode = DiffMode::hessian;
-    else if (A->getAnnotation().equals("J"))
+    else if (Annotation == "J")
       request.Mode = DiffMode::jacobian;
-    else if (A->getAnnotation().equals("G"))
+    else if (Annotation == "G")
       request.Mode = DiffMode::reverse;
     else {
       utils::EmitDiag(S, DiagnosticsEngine::Error, endLoc, "Unknown mode '%0'",
@@ -892,9 +893,9 @@ namespace clad {
     const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
     if (!A)
       return true;
-    if (!A->getAnnotation().equals("D") && !A->getAnnotation().equals("G") &&
-        !A->getAnnotation().equals("H") && !A->getAnnotation().equals("J") &&
-        !A->getAnnotation().equals("E"))
+    std::string Annotation = A->getAnnotation().str();
+    if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
+        Annotation != "J" && Annotation != "E")
       return true;
 
     // A call to clad::differentiate or clad::gradient was found.

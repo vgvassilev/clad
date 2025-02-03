@@ -271,7 +271,7 @@ namespace clad {
       // Find the builtin derivatives/numerical diff namespace
       DeclarationName Name = &C.Idents.get(namespc);
       LookupResult R(S, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     Sema::ForVisibleRedeclaration);
+                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       S.LookupQualifiedName(R, DC,
                             /*allowBuiltinCreation*/ false);
       if (!shouldExist && R.empty())
@@ -437,7 +437,7 @@ namespace clad {
               .BuildCXXNew(
                   SourceRange(), false, noLoc, MultiExprArg(), noLoc,
                   SourceRange(), qType, TSI,
-                  (arraySize ? arraySize : clad_compat::ArraySize_None()),
+                  arraySize ? arraySize : clad_compat::llvm_Optional<Expr*>(),
                   initializer ? GetValidSRange(semaRef) : SourceRange(),
                   initializer)
               .getAs<CXXNewExpr>();

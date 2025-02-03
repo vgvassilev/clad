@@ -211,10 +211,16 @@ public:
       AppendDelayed({CallKind::CompleteTentativeDefinition, D});
     }
 #if CLANG_VERSION_MAJOR > 9
+#if CLANG_VERSION_MAJOR < 19
     void CompleteExternalDeclaration(clang::VarDecl* D) override {
       AppendDelayed({CallKind::CompleteExternalDeclaration, D});
     }
+#else
+    void CompleteExternalDeclaration(clang::DeclaratorDecl* D) override {
+      AppendDelayed({CallKind::CompleteExternalDeclaration, D});
+    }
 #endif
+#endif // CLANG_VERSION_MAJOR > 9
     void AssignInheritanceModel(clang::CXXRecordDecl* D) override {
       AppendDelayed({CallKind::AssignInheritanceModel, D});
     }

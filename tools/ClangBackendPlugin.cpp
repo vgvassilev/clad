@@ -6,7 +6,6 @@
 
 #include "clang/Basic/Version.h" // for CLANG_VERSION_MAJOR
 
-#if CLANG_VERSION_MAJOR > 8
 #include "ClangBackendPlugin.h"
 
 #include "llvm/Passes/PassBuilder.h"
@@ -16,9 +15,9 @@
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 
-#if LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
+#if CLANG_VERSION_MAJOR >= 10 && CLANG_VERSION_MAJOR < 16
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#endif // LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
+#endif // CLANG_VERSION_MAJOR >= 10 && CLANG_VERSION_MAJOR < 16
 
 namespace clad {
 using namespace llvm;
@@ -34,8 +33,6 @@ void ClangBackendPluginPass::registerCallbacks(PassBuilder& PB) {
       });
 }
 } // namespace clad
-
-#endif // CLANG_VERSION_MAJOR > 8
 
 #if LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
 
