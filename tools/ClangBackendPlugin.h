@@ -9,8 +9,6 @@
 
 #include "llvm/Config/llvm-config.h" // for CLANG_VERSION_MAJOR
 
-#if CLANG_VERSION_MAJOR > 8
-
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassPlugin.h"
 
@@ -27,5 +25,4 @@ struct ClangBackendPluginPass
 };
 } // end namespace clad
 
-#endif // CLANG_VERSION_MAJOR > 8
 #endif // CLANG_BACKEND_PLUGIN_H

@@ -103,8 +103,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
           m_Context, CXXRD, noLoc, name, functionType, TSI,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
-          FD->isInlineSpecified(), clad_compat::Function_GetConstexprKind(FD),
-          noLoc);
+          FD->isInlineSpecified(), FD->getConstexprKind(), noLoc);
       // Generated member function should be called outside of class definitions
       // even if their original function had different access specifier.
       returnedFD->setAccess(AS_public);
@@ -116,7 +115,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->hasWrittenPrototype(),
-          clad_compat::Function_GetConstexprKind(FD)
+          FD->getConstexprKind()
               CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(
                   FD->getTrailingRequiresClause()));
 

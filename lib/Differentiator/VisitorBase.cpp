@@ -165,7 +165,7 @@ namespace clad {
     // From Sema::ActOnStartNamespaceDef:
     if (II) {
       LookupResult R(m_Sema, II, noLoc, Sema::LookupOrdinaryName,
-                     Sema::ForVisibleRedeclaration);
+                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       m_Sema.LookupQualifiedName(R, m_Sema.CurContext->getRedeclContext());
       NamedDecl* FoundDecl =
           R.isSingleResult() ? R.getRepresentativeDecl() : nullptr;
@@ -488,7 +488,7 @@ namespace clad {
       return Result;
     DeclarationName CladName = &m_Context.Idents.get("clad");
     LookupResult CladR(m_Sema, CladName, noLoc, Sema::LookupNamespaceName,
-                       Sema::ForVisibleRedeclaration);
+                       CLAD_COMPAT_Sema_ForVisibleRedeclaration);
     m_Sema.LookupQualifiedName(CladR, m_Context.getTranslationUnitDecl());
     assert(!CladR.empty() && "cannot find clad namespace");
     Result = cast<NamespaceDecl>(CladR.getFoundDecl());
@@ -502,7 +502,7 @@ namespace clad {
     CSS.Extend(m_Context, CladNS, noLoc, noLoc);
     DeclarationName TapeName = &m_Context.Idents.get(ClassName);
     LookupResult TapeR(m_Sema, TapeName, noLoc, Sema::LookupUsingDeclName,
-                       Sema::ForVisibleRedeclaration);
+                       CLAD_COMPAT_Sema_ForVisibleRedeclaration);
     m_Sema.LookupQualifiedName(TapeR, CladNS, CSS);
     assert(!TapeR.empty() && isa<TemplateDecl>(TapeR.getFoundDecl()) &&
            "cannot find clad::tape");
@@ -646,8 +646,8 @@ namespace clad {
     ASTContext& C = semaRef.getASTContext();
     CXXRecordDecl* RD = MD->getParent();
     auto RDType = RD->getTypeForDecl();
-    auto thisObjectQType = C.getQualifiedType(
-        RDType, clad_compat::CXXMethodDecl_getMethodQualifiers(MD));
+    auto thisObjectQType =
+        C.getQualifiedType(RDType, MD->getMethodQualifiers());
     if (MD->getRefQualifier() == RefQualifierKind::RQ_RValue)
       thisObjectQType = C.getRValueReferenceType(thisObjectQType);
     else if (MD->getRefQualifier() == RefQualifierKind::RQ_LValue)
@@ -658,7 +658,8 @@ namespace clad {
   Expr* VisitorBase::BuildCallExprToMemFn(
       clang::CXXMethodDecl* FD, llvm::MutableArrayRef<clang::Expr*> argExprs,
       bool useRefQualifiedThisObj, SourceLocation Loc /*=noLoc*/) {
-    Expr* thisExpr = clad_compat::Sema_BuildCXXThisExpr(m_Sema, FD);
+    QualType ThisTy = FD->getThisType();
+    Expr* thisExpr = m_Sema.BuildCXXThisExpr(Loc, ThisTy, /*IsImplicit=*/true);
     bool isArrow = true;
     if (Loc.isInvalid())
       Loc = m_DiffReq->getLocation();
@@ -688,13 +689,12 @@ namespace clad {
     // FIXME: Enable for static functions.
     NestedNameSpecifierLoc NNS /* = FD->getQualifierLoc()*/;
     auto DAP = DeclAccessPair::make(FD, FD->getAccess());
-    auto* memberExpr = MemberExpr::Create(
-        m_Context, thisExpr, isArrow, Loc, NNS, noLoc, FD, DAP,
-        FD->getNameInfo(),
-        /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
-        CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
-        ExprObjectKind::OK_Ordinary CLAD_COMPAT_CLANG9_MemberExpr_ExtraParams(
-            NOUR_None));
+    auto* memberExpr =
+        MemberExpr::Create(m_Context, thisExpr, isArrow, Loc, NNS, noLoc, FD,
+                           DAP, FD->getNameInfo(),
+                           /*TemplateArgs=*/nullptr, m_Context.BoundMemberTy,
+                           CLAD_COMPAT_ExprValueKind_R_or_PR_Value,
+                           ExprObjectKind::OK_Ordinary, NOUR_None);
     return m_Sema
         .BuildCallToMemberFunction(getCurrentScope(), memberExpr, Loc, argExprs,
                                    Loc)
@@ -739,7 +739,11 @@ namespace clad {
     // FIXME: currently this doesn't print func<templates>(args...) while
     // dumping and only prints func(args...), we need to fix this.
     auto* FTD = dyn_cast<FunctionTemplateDecl>(R.getRepresentativeDecl());
+#if CLANG_VERSION_MAJOR < 19
     clang::TemplateArgumentList TL(TemplateArgumentList::OnStack, templateArgs);
+#else
+    auto& TL = *TemplateArgumentList::CreateCopy(m_Context, templateArgs);
+#endif
     FunctionDecl* FD = m_Sema.InstantiateFunctionDeclaration(FTD, &TL, loc);
 
     return BuildCallExprToFunction(FD, argExprs,

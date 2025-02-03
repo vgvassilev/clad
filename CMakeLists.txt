@@ -33,12 +33,12 @@ set(CMAKE_MODULE_PATH
   )
 
 # Define clad supported version of clang and llvm.
-set(CLANG_MIN_SUPPORTED 8.0)
-set(CLANG_MAX_SUPPORTED "18.1.x")
-set(CLANG_VERSION_UPPER_BOUND 18.2.0)
-set(LLVM_MIN_SUPPORTED 8.0)
-set(LLVM_MAX_SUPPORTED "18.1.x")
-set(LLVM_VERSION_UPPER_BOUND 18.2.0)
+set(CLANG_MIN_SUPPORTED 9.0)
+set(CLANG_MAX_SUPPORTED "19.2.x")
+set(CLANG_VERSION_UPPER_BOUND 19.2.0)
+set(LLVM_MIN_SUPPORTED 9.0)
+set(LLVM_MAX_SUPPORTED "19.2.x")
+set(LLVM_VERSION_UPPER_BOUND 19.2.0)
 
 # If we are not building as a part of LLVM, build clad as an
 # standalone project, using LLVM as an external library:

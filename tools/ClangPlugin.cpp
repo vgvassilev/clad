@@ -75,7 +75,6 @@ namespace clad {
 
     CladPlugin::CladPlugin(CompilerInstance& CI, DifferentiationOptions& DO)
         : m_CI(CI), m_DO(DO), m_HasRuntime(false) {
-#if CLANG_VERSION_MAJOR > 8
       FrontendOptions& Opts = CI.getFrontendOpts();
       // Find the path to clad.
       llvm::StringRef CladSoPath;
@@ -90,7 +89,6 @@ namespace clad {
         CodeGenOptions& CGOpts = CI.getCodeGenOpts();
         CGOpts.PassPlugins.push_back(CladSoPath.str());
       }
-#endif // CLANG_VERSION_MAJOR > 8
 
       // Add define for __CLAD__, so that CladFunction::CladFunction()
       // doesn't throw an error.
@@ -399,7 +397,7 @@ namespace clad {
       DeclarationName Name = &C.Idents.get("clad");
       Sema &SemaR = m_CI.getSema();
       LookupResult R(SemaR, Name, SourceLocation(), Sema::LookupNamespaceName,
-                     Sema::ForVisibleRedeclaration);
+                     CLAD_COMPAT_Sema_ForVisibleRedeclaration);
       SemaR.LookupQualifiedName(R, C.getTranslationUnitDecl(),
                                 /*allowBuiltinCreation*/ false);
       m_HasRuntime = !R.empty();
@@ -573,9 +571,6 @@ X("clad", "Produces derivatives or arbitrary functions");
 static PragmaHandlerRegistry::Add<CladPragmaHandler>
     Y("clad", "Clad pragma directives handler.");
 
-#include "clang/Basic/Version.h" // for CLANG_VERSION_MAJOR
-#if CLANG_VERSION_MAJOR > 8
-
 // Attach the backend plugin.
 
 #include "ClangBackendPlugin.h"
@@ -589,5 +584,3 @@ llvmGetPassPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, BACKEND_PLUGIN_NAME, BACKEND_PLUGIN_VERSION,
           clad::ClangBackendPluginPass::registerCallbacks};
 }
-
-#endif // CLANG_VERSION_MAJOR
