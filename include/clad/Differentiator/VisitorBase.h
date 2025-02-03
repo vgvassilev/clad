@@ -273,6 +273,15 @@ namespace clad {
     /// \returns Expression with correct Unary Operator placement.
     clang::Expr* ResolveUnaryMinus(clang::Expr* E, clang::SourceLocation OpLoc);
     clang::Expr* BuildParens(clang::Expr* E);
+    /// Sets Init as the initializer of the declaration VD and compute its
+    /// initialization kind.
+    ///\param[in] VD - variable declaration
+    ///\param[in] Init - can be nullptr, then only initialization kind is
+    /// computed.
+    ///\param[in] DirectInit - tells whether the initialization is
+    /// direct.
+    void SetDeclInit(clang::VarDecl* VD, clang::Expr* Init = nullptr,
+                     bool DirectInit = false);
     /// Builds variable declaration to be used inside the derivative
     /// body.
     /// \param[in] Type The type of variable declaration to build.
@@ -478,7 +487,7 @@ namespace clad {
                                      clang::Sema::AA_Casting);
       assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
-      VD->setInit(ICAR.get());
+      SetDeclInit(VD, ICAR.get());
     }
 
     /// Build a call to member function through Base expr and using the function

@@ -494,16 +494,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // Prepare the statements that assign the gradients to
     // non array/pointer type parameters of the original function
     if (!enzymeRealParams.empty()) {
-      auto* gradDeclStmt =
-          BuildVarDecl(QT, "grad", enzymeCall, /*DirectInit=*/true);
-      addToCurrentBlock(BuildDeclStmt(gradDeclStmt), direction::forward);
+      VarDecl* gradVD = BuildVarDecl(QT, "grad", enzymeCall);
+      addToCurrentBlock(BuildDeclStmt(gradVD), direction::forward);
 
       for (unsigned i = 0; i < enzymeRealParams.size(); i++) {
         auto* LHSExpr =
             BuildOp(UO_Deref, BuildDeclRef(enzymeRealParamsDerived[i]));
 
         auto* ME = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                          BuildDeclRef(gradDeclStmt), "d_arr");
+                                          BuildDeclRef(gradVD), "d_arr");
 
         Expr* gradIndex = dyn_cast<Expr>(
             IntegerLiteral::Create(m_Context, llvm::APSInt(std::to_string(i)),
@@ -832,7 +831,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl_dx()));
 
     Expr* loopInit = LoopVDDiff.getDecl()->getInit();
-    LoopVDDiff.getDecl()->setInit(getZeroInit(LoopVDDiff.getDecl()->getType()));
+    SetDeclInit(LoopVDDiff.getDecl(),
+                getZeroInit(LoopVDDiff.getDecl()->getType()));
     addToCurrentBlock(BuildDeclStmt(LoopVDDiff.getDecl()));
     Expr* assignLoop =
         BuildOp(BO_Assign, BuildDeclRef(LoopVDDiff.getDecl()), loopInit);
@@ -2810,8 +2810,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                    copyExpr, range, range)
                 .get();
       }
-      m_Sema.AddInitializerToDecl(VDDerived, copyExpr, /*DirectInit=*/true);
-      VDDerived->setInitStyle(VarDecl::InitializationStyle::CallInit);
+      SetDeclInit(VDDerived, copyExpr, /*DirectInit=*/true);
     }
 
     if (isPointerType && derivedVDE) {
@@ -2830,8 +2829,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
         }
       } else {
-        m_Sema.AddInitializerToDecl(VDDerived, initDiff.getExpr_dx(), true);
-        VDDerived->setInitStyle(VarDecl::InitializationStyle::CInit);
+        SetDeclInit(VDDerived, initDiff.getExpr_dx());
       }
     }
 
@@ -2998,15 +2996,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
             }
             inits.push_back(assignment);
-            if (const auto* AT = dyn_cast<ArrayType>(VD->getType())) {
-              m_Sema.AddInitializerToDecl(
-                  decl, Clone(getArraySizeExpr(AT, m_Context, *this)), true);
-              decl->setInitStyle(VarDecl::InitializationStyle::CallInit);
-            } else {
-              m_Sema.AddInitializerToDecl(decl, getZeroInit(VD->getType()),
-                                          /*DirectInit=*/true);
-              decl->setInitStyle(VarDecl::InitializationStyle::CInit);
-            }
+            if (const auto* AT = dyn_cast<ArrayType>(VD->getType()))
+              SetDeclInit(decl, Clone(getArraySizeExpr(AT, m_Context, *this)),
+                          /*DirectInit=*/true);
+            else
+              SetDeclInit(decl, getZeroInit(VD->getType()));
           }
         }
 
@@ -3109,8 +3103,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           auto* declRef = BuildDeclRef(vDecl);
           auto* assignment = BuildOp(BO_Assign, declRef, init);
           addToCurrentBlock(assignment, direction::forward);
-          m_Sema.AddInitializerToDecl(vDecl, getZeroInit(vDecl->getType()),
-                                      /*DirectInit=*/true);
+          SetDeclInit(vDecl, getZeroInit(vDecl->getType()),
+                      /*DirectInit=*/true);
         }
         // Adjoints are initialized with copy-constructors only as a part of
         // the strategy to maintain the structure of the original variable.
@@ -3283,8 +3277,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                      m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
     if (isFnScope) {
       addToCurrentBlock(decl, direction::forward);
-      m_Sema.AddInitializerToDecl(VD, E, /*DirectInit=*/true);
-      VD->setInitStyle(VarDecl::InitializationStyle::CInit);
+      SetDeclInit(VD, E);
     } else {
       addToBlock(decl, m_Globals);
       Expr* Set = BuildOp(BO_Assign, Ref, E);
@@ -3326,8 +3319,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                      m_DiffReq.Mode == DiffMode::reverse_mode_forward_pass;
     if (isFnScope) {
       Store = decl;
-      m_Sema.AddInitializerToDecl(VD, E, /*DirectInit=*/true);
-      VD->setInitStyle(VarDecl::InitializationStyle::CInit);
+      SetDeclInit(VD, E);
     } else {
       addToBlock(decl, m_Globals);
       Store = BuildOp(BO_Assign, Ref, Clone(E));
@@ -3401,8 +3393,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       unsigned lastArg = Push->getNumArgs() - 1;
       Push->setArg(lastArg, V.m_Sema.DefaultLvalueConversion(New).get());
     } else if (isFnScope) {
-      V.m_Sema.AddInitializerToDecl(Declaration, New, true);
-      Declaration->setInitStyle(VarDecl::InitializationStyle::CInit);
+      V.SetDeclInit(Declaration, New);
       V.addToCurrentBlock(V.BuildDeclStmt(Declaration), direction::forward);
     } else {
       V.addToCurrentBlock(V.BuildOp(BO_Assign, Result.getExpr(), New),

@@ -239,8 +239,7 @@ DerivativeAndOverload JacobianModeVisitor::DeriveJacobian() {
       addToCurrentBlock(paramAssignment);
     } else {
       auto* paramDecl = cast<VarDecl>(cast<DeclRefExpr>(paramDiff)->getDecl());
-      m_Sema.AddInitializerToDecl(paramDecl, dVectorParam, true);
-      paramDecl->setInitStyle(VarDecl::InitializationStyle::CInit);
+      SetDeclInit(paramDecl, dVectorParam);
     }
   }
 

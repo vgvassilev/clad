@@ -696,7 +696,7 @@ StmtDiff BaseForwardModeVisitor::VisitForStmt(const ForStmt* FS) {
     if (condVarResult.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(condVarResult.getDecl_dx()));
     auto condInit = condVarClone->getInit();
-    condVarClone->setInit(nullptr);
+    SetDeclInit(condVarClone);
     cond = BuildOp(BO_Assign, BuildDeclRef(condVarClone), condInit);
     addToCurrentBlock(BuildDeclStmt(condVarClone));
   }
@@ -1696,7 +1696,7 @@ StmtDiff BaseForwardModeVisitor::VisitWhileStmt(const WhileStmt* WS) {
     if (condVarRes.getDecl_dx())
       addToCurrentBlock(BuildDeclStmt(condVarRes.getDecl_dx()));
     auto* condInit = condVarClone->getInit();
-    condVarClone->setInit(nullptr);
+    SetDeclInit(condVarClone);
     cond = BuildOp(BO_Assign, BuildDeclRef(condVarClone), condInit);
     addToCurrentBlock(BuildDeclStmt(condVarClone));
   }

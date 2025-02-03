@@ -107,6 +107,28 @@ namespace clad {
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     delete oldScope;
   }
+
+  void VisitorBase::SetDeclInit(VarDecl* VD, Expr* Init, bool DirectInit) {
+    if (!Init) {
+      // Clang sets inits only once. Therefore, ActOnUninitializedDecl does
+      // not reset the init and we have to do it manually.
+      VD->setInit(nullptr);
+      m_Sema.ActOnUninitializedDecl(VD);
+      return;
+    }
+
+    // Clang sets inits only once. Therefore, AddInitializerToDecl does
+    // not reset the declaration style to default and we have to do it manually.
+    VarDecl::InitializationStyle defaultStyle{};
+    VD->setInitStyle(defaultStyle);
+
+    // Clang expects direct inits to be wrapped either in InitListExpr or
+    // ParenListExpr.
+    if (DirectInit && !isa<InitListExpr>(Init) && !isa<ParenListExpr>(Init))
+      Init = m_Sema.ActOnParenListExpr(noLoc, noLoc, Init).get();
+    m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
+  }
+
   VarDecl* VisitorBase::BuildVarDecl(QualType Type, IdentifierInfo* Identifier,
                                      Expr* Init, bool DirectInit,
                                      TypeSourceInfo* TSI) {
@@ -122,15 +144,7 @@ namespace clad {
         m_Context, m_Sema.CurContext, m_DiffReq->getLocation(),
         m_DiffReq->getLocation(), Identifier, Type, TSI, SC_None);
 
-    if (Init) {
-      // Clang expects direct inits to be wrapped either in InitListExpr or
-      // ParenListExpr.
-      if (DirectInit && !isa<InitListExpr>(Init) && !isa<ParenListExpr>(Init))
-        Init = m_Sema.ActOnParenListExpr(noLoc, noLoc, Init).get();
-      m_Sema.AddInitializerToDecl(VD, Init, DirectInit);
-    } else {
-      m_Sema.ActOnUninitializedDecl(VD);
-    }
+    SetDeclInit(VD, Init, DirectInit);
     m_Sema.FinalizeDeclaration(VD);
     // Add the identifier to the scope and IdResolver
     m_Sema.PushOnScopeChains(VD, Scope, /*AddToContext*/ false);
