@@ -30,10 +30,6 @@ jobs:
           echo "deb https://apt.llvm.org/${os_codename}/ llvm-toolchain-${os_codename}-18 main" | sudo tee -a /etc/apt/sources.list
           sudo apt update
           sudo apt install -y clang-format-18
-      - name: Download git-clang-format
-        run: |
-          wget https://raw.githubusercontent.com/llvm/llvm-project/main/clang/tools/clang-format/git-clang-format
-          chmod +x git-clang-format
       - name: Run git-clang-format
         run: |
           PR_BASE=$(git rev-list ${{ github.event.pull_request.head.sha }} ^${{ github.event.pull_request.base.sha }} | tail --lines 1 | xargs -I {} git rev-parse {}~1)

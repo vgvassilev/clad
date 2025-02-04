@@ -4,7 +4,6 @@
 //------------------------------------------------------------------------------
 //
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
-
 #include "clad/Differentiator/StmtClone.h"
 
 #include "clang/Sema/Lookup.h"
