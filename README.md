@@ -286,7 +286,7 @@ Clone the LLVM project and checkout the required LLVM version (Currently support
 git clone https://github.com/llvm/llvm-project.git
 git clone https://github.com/vgvassilev/clad.git
 cd llvm-project
-git checkout llvmorg-18.0.0
+git checkout release/18.x
 ```
 
 Build Clad with Clang and LLVM:
@@ -294,7 +294,6 @@ Build Clad with Clang and LLVM:
 mkdir build && cd build
 cmake -DLLVM_ENABLE_PROJECTS="clang" -DLLVM_EXTERNAL_PROJECTS=clad -DLLVM_EXTERNAL_CLAD_SOURCE_DIR=../../clad -DCMAKE_BUILD_TYPE="Debug" -DLLVM_TARGETS_TO_BUILD=host -DLLVM_INSTALL_UTILS=ON ../llvm
 cmake --build . --target clad --parallel $(nproc --all)
-cd ../..
 ```
 
 Run the Clad tests:
