@@ -372,6 +372,104 @@ CUDA_HOST_DEVICE void clamp_pullback(const T& v, const T& lo, const T& hi,
 }
 #endif
 
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tan_pushforward(T x, dT d_x) {
+  T tanx = ::std::tan(x);
+  return {tanx, (1 + tanx * tanx) * d_x};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE void tan_pullback(T x, T d_y, T* d_x) {
+  T secx = 1 / ::std::cos(x); 
+  *d_x += secx * secx * d_y;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cosh_pushforward(T x, dT d_x) {
+  return {::std::cosh(x), ::std::sinh(x) * d_x};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cosh_pullback(T x, T d_y, T* d_x) {
+  *d_x += ::std::sinh(x) * d_y;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinh_pushforward(T x, dT d_x) {
+  return {::std::sinh(x), ::std::cosh(x) * d_x};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> sinh_pullback(T x, T d_y, T* d_x) {
+  *d_x += ::std::cosh(x) * d_y;
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> asin_pushforward(T x, dT d_x) {
+  return {::std::asin(x), d_x / ::std::sqrt(1 - x * x)};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void asin_pullback(T x, U d_z, T* d_x) {
+  *d_x += d_z / ::std::sqrt(1 - x * x);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan_pushforward(T x, dT d_x) {
+  return {::std::atan(x), d_x / (1 + x * x)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE void atan_pullback(T x, T d_y, T* d_x) {
+  *d_x += d_y / (1 + x * x); 
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pushforward(T x, dT d_x) {
+  return {::std::log10(x), d_x / (x * ::std::log(10.0))};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log10_pullback(T x, T d_y, T* d_x) {
+  *d_x += d_y / (x * ::std::log(10.0));
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pushforward(T x, dT d_x) {
+  return {::std::log2(x), d_x / (x * ::std::log(2.0))};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> log2_pullback(T x, T d_y, T* d_x) {
+  *d_x += d_y / (x * ::std::log(2.0));
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> cbrt_pushforward(T x, dT d_x) {
+  T cbrtx = ::std::cbrt(x);
+  return {cbrtx, d_x / (3 * cbrtx * cbrtx)};
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE void cbrt_pullback(T x, T d_y, T* d_x) {
+  T cbrtx = ::std::cbrt(x);
+  *d_x += d_y / (3 * cbrtx * cbrtx);
+}
+
+template <typename T, typename dT>
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> hypot_pushforward(T x, T y, 
+                                                            dT d_x, dT d_y) {
+  T h = ::std::hypot(x, y);
+  return {h, (x * d_x + y * d_y) / h};
+}
+
+template <typename T, typename U>
+CUDA_HOST_DEVICE void hypot_pullback(T x, T y, U d_z, T* d_x, T* d_y) {
+  T h = ::std::hypot(x, y);
+  *d_x += (x / h) * d_z;
+  *d_y += (y / h) * d_z;
+}
+
 } // namespace std
 
 // NOLINTBEGIN(cppcoreguidelines-no-malloc)
@@ -428,6 +526,24 @@ using std::pow_pullback;
 using std::pow_pushforward;
 using std::sin_pushforward;
 using std::sqrt_pushforward;
+using std::tan_pushforward;
+using std::tan_pullback;
+using std::cosh_pushforward;
+using std::cosh_pullback;
+using std::sinh_pushforward;
+using std::sinh_pullback;
+using std::asin_pushforward;
+using std::asin_pullback;
+using std::atan_pushforward;
+using std::atan_pullback;
+using std::log10_pushforward;
+using std::log10_pullback;
+using std::log2_pushforward;
+using std::log2_pullback;
+using std::cbrt_pushforward;
+using std::cbrt_pullback;
+using std::hypot_pushforward;
+using std::hypot_pullback;
 
 namespace class_functions {
 template <typename T, typename U>
