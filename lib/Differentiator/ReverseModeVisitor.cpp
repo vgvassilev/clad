@@ -1285,8 +1285,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Check DeclRefExpr is a reference to an independent variable.
       auto it = m_Variables.find(VD);
       if (it == std::end(m_Variables)) {
-        // Is not an independent variable, ignored.
-        return StmtDiff(clonedDRE);
+        if (VD->isFileVarDecl() &&
+            !m_DiffReq->hasAttr<clang::CUDAGlobalAttr>()) {
+          Expr* DREDiff = DifferentiateGlobalVarDecl(VD);
+          it = m_Variables.emplace(VD, DREDiff).first;
+        } else
+          // Is not an independent variable, ignored.
+          return StmtDiff(clonedDRE);
       }
       // Create the (_d_param[idx] += dfdx) statement.
       if (dfdx()) {
@@ -1310,6 +1315,40 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
 
     return StmtDiff(clonedDRE);
+  }
+
+  Expr* ReverseModeVisitor::DifferentiateGlobalVarDecl(VarDecl* VD) {
+    assert(VD->isFileVarDecl() && "Must be a global variable");
+    std::string nameDiff_str = "_d_" + VD->getNameAsString();
+    DeclarationName nameDiff = &m_Context.Idents.get(nameDiff_str);
+    DeclContext* DC = VD->getDeclContext();
+
+    // Attempt to find the adjoint of VD in case it has already been created.
+    LookupResult result(m_Sema, nameDiff, noLoc, Sema::LookupOrdinaryName);
+    m_Sema.LookupQualifiedName(result, DC);
+    if (!result.empty()) {
+      // Found, return a reference
+      Expr* foundExpr = m_Sema
+                            .BuildDeclarationNameExpr(CXXScopeSpec{}, result,
+                                                      /*ADL=*/false)
+                            .get();
+      return foundExpr;
+    }
+    // Not found, construct the adjoint and register it.
+    QualType TyDiff = getNonConstType(VD->getType(), m_Context, m_Sema);
+    VarDecl* VDDiff = BuildVarDecl(
+        TyDiff, CreateUniqueIdentifier(nameDiff_str),
+        m_DerivativeFnScope->getParent()->getParent(), DC, getZeroInit(TyDiff));
+
+    DC->addDecl(VDDiff);
+    DC->makeDeclVisibleInContext(VDDiff);
+    plugin::ProcessTopLevelDecl(m_CladPlugin, VDDiff);
+    diag(DiagnosticsEngine::Warning, VD->getLocation(),
+         "The gradient utilizes a global variable '%0' and its adjoint '%1'"
+         ". Please make sure to properly reset '%0' and '%1' before re-running "
+         "the gradient.",
+         {VD->getNameAsString(), nameDiff_str});
+    return BuildDeclRef(VDDiff);
   }
 
   StmtDiff ReverseModeVisitor::VisitIntegerLiteral(const IntegerLiteral* IL) {
