@@ -380,7 +380,7 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> tan_pushforward(T x, dT d_x) {
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE void tan_pullback(T x, T d_y, T* d_x) {
-  T secx = 1 / ::std::cos(x); 
+  T secx = 1 / ::std::cos(x);
   *d_x += secx * secx * d_y;
 }
 
@@ -421,7 +421,7 @@ CUDA_HOST_DEVICE ValueAndPushforward<T, dT> atan_pushforward(T x, dT d_x) {
 
 template <typename T, typename dT>
 CUDA_HOST_DEVICE void atan_pullback(T x, T d_y, T* d_x) {
-  *d_x += d_y / (1 + x * x); 
+  *d_x += d_y / (1 + x * x);
 }
 
 template <typename T, typename dT>
@@ -457,8 +457,8 @@ CUDA_HOST_DEVICE void cbrt_pullback(T x, T d_y, T* d_x) {
 }
 
 template <typename T, typename dT>
-CUDA_HOST_DEVICE ValueAndPushforward<T, dT> hypot_pushforward(T x, T y, 
-                                                            dT d_x, dT d_y) {
+CUDA_HOST_DEVICE ValueAndPushforward<T, dT> hypot_pushforward(T x, T y, dT d_x,
+                                                              dT d_y) {
   T h = ::std::hypot(x, y);
   return {h, (x * d_x + y * d_y) / h};
 }
@@ -508,15 +508,29 @@ CUDA_HOST_DEVICE inline void sqrtf_pullback(float a, float d_y, float* d_a) {
 // defined in global namespace.
 using std::abs_pushforward;
 using std::acos_pushforward;
+using std::asin_pullback;
+using std::asin_pushforward;
 using std::atan2_pullback;
 using std::atan2_pushforward;
+using std::atan_pullback;
+using std::atan_pushforward;
+using std::cbrt_pullback;
+using std::cbrt_pushforward;
 using std::ceil_pushforward;
 using std::cos_pushforward;
+using std::cosh_pullback;
+using std::cosh_pushforward;
 using std::exp_pushforward;
 using std::fabs_pushforward;
 using std::floor_pushforward;
 using std::fma_pullback;
 using std::fma_pushforward;
+using std::hypot_pullback;
+using std::hypot_pushforward;
+using std::log10_pullback;
+using std::log10_pushforward;
+using std::log2_pullback;
+using std::log2_pushforward;
 using std::log_pushforward;
 using std::max_pullback;
 using std::max_pushforward;
@@ -525,25 +539,11 @@ using std::min_pushforward;
 using std::pow_pullback;
 using std::pow_pushforward;
 using std::sin_pushforward;
-using std::sqrt_pushforward;
-using std::tan_pushforward;
-using std::tan_pullback;
-using std::cosh_pushforward;
-using std::cosh_pullback;
-using std::sinh_pushforward;
 using std::sinh_pullback;
-using std::asin_pushforward;
-using std::asin_pullback;
-using std::atan_pushforward;
-using std::atan_pullback;
-using std::log10_pushforward;
-using std::log10_pullback;
-using std::log2_pushforward;
-using std::log2_pullback;
-using std::cbrt_pushforward;
-using std::cbrt_pullback;
-using std::hypot_pushforward;
-using std::hypot_pullback;
+using std::sinh_pushforward;
+using std::sqrt_pushforward;
+using std::tan_pullback;
+using std::tan_pushforward;
 
 namespace class_functions {
 template <typename T, typename U>
