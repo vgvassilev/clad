@@ -323,6 +323,173 @@ extern "C" {
   double f18(double x) { return x * x; }
 }
 
+double f_tan(double x) { return std::tan(x); }
+// CHECK: double f_tan_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}tan_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_cosh(double x) { return std::cosh(x); }
+// CHECK: double f_cosh_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}cosh_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_sinh(double x) { return std::sinh(x); }
+// CHECK: double f_sinh_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}sinh_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_asin(double x) { return std::asin(x); }
+// CHECK: double f_asin_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}asin_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_atan(double x) { return std::atan(x); }
+// CHECK: double f_atan_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}atan_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_log10(double x) { return std::log10(x); }
+// CHECK: double f_log10_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}log10_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_log2(double x) { return std::log2(x); }
+// CHECK: double f_log2_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}log2_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_cbrt(double x) { return std::cbrt(x); }
+// CHECK: double f_cbrt_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}cbrt_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_hypot(double x, double y) { return std::hypot(x, y); }
+// CHECK: double f_hypot_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}hypot_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_fmodf(double x, double y) { return ::fmodf(x, y); }
+// CHECK: double f_fmodf_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fmodf_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_remainder(double x, double y) { return std::remainder(x, y); }
+// CHECK: double f_remainder_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}remainder_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_fmaxf(double x, double y) { return std::fmaxf(x, y); }
+// CHECK: double f_fmaxf_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fmaxf_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_fmin(double x, double y) { return std::fmin(x, y); }
+// CHECK: double f_fmin_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fmin_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_fdim(double x, double y) { return std::fdim(x, y); }
+// CHECK: double f_fdim_darg0(double x, double y) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     double _d_y = 0;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}fdim_pushforward(x, y, _d_x, _d_y);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_exp2f(double x) { return std::exp2f(x); }
+// CHECK: double f_exp2f_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}exp2f_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_expm1l(double x) { return std::expm1l(x); }
+// CHECK: double f_expm1l_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}expm1l_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_log1pl(double x) { return std::log1pl(x); }
+// CHECK: double f_log1pl_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}log1pl_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_tanhl(double x) { return tanhl(x); }
+// CHECK: double f_tanhl_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}tanhl_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_asinhf(double x) { return std::asinhf(x); }
+// CHECK: double f_asinhf_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}asinhf_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_acoshl(double x) { return std::acoshl(x); }
+// CHECK: double f_acoshl_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}acoshl_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_atanhl(double x) { return std::atanhl(x); }
+// CHECK: double f_atanhl_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}atanhl_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_erff(double x) { return std::erff(x); }
+// CHECK: double f_erff_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}erff_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
+double f_erfc(double x) { return std::erfc(x); }
+// CHECK: double f_erfc_darg0(double x) {
+// CHECK-NEXT:     double _d_x = 1;
+// CHECK-NEXT:     {{.*}}ValueAndPushforward<double, double> _t0 = {{.*}}erfc_pushforward(x, _d_x);
+// CHECK-NEXT:     return _t0.pushforward;
+// CHECK-NEXT: }
+
 int main () { //expected-no-diagnostics
   float f_result[2];
   double d_result[2];
@@ -425,5 +592,74 @@ int main () { //expected-no-diagnostics
   auto f18_darg0 = clad::differentiate(f18, 0);
   printf("Result is = %f\n", f18_darg0.execute(1)); // CHECK-EXEC: Result is = 2
 
+  auto d_tan = clad::differentiate(f_tan, 0);
+  printf("Result is = %.6f\n", d_tan.execute(0.5)); // CHECK-EXEC: Result is = 1.298446
+
+  auto d_cosh = clad::differentiate(f_cosh, 0);
+  printf("Result is = %.6f\n", d_cosh.execute(0.5)); // CHECK-EXEC: Result is = 0.521095
+
+  auto d_sinh = clad::differentiate(f_sinh, 0);
+  printf("Result is = %.6f\n", d_sinh.execute(0.5)); // CHECK-EXEC: Result is = 1.127626
+
+  auto d_asin = clad::differentiate(f_asin, 0);
+  printf("Result is = %.6f\n", d_asin.execute(0.5)); // CHECK-EXEC: Result is = 1.154701
+
+  auto d_atan = clad::differentiate(f_atan, 0);
+  printf("Result is = %.6f\n", d_atan.execute(0.5)); // CHECK-EXEC: Result is = 0.800000
+
+  auto d_log10 = clad::differentiate(f_log10, 0);
+  printf("Result is = %.6f\n", d_log10.execute(0.5)); // CHECK-EXEC: Result is = 0.868589
+
+  auto d_log2 = clad::differentiate(f_log2, 0);
+  printf("Result is = %.6f\n", d_log2.execute(0.5)); // CHECK-EXEC: Result is = 2.885390
+
+  auto d_cbrt = clad::differentiate(f_cbrt, 0);
+  printf("Result is = %.6f\n", d_cbrt.execute(0.5)); // CHECK-EXEC: Result is = 0.529134
+
+  auto d_hypot = clad::differentiate(f_hypot, 0);
+  printf("Result is = %.6f\n", d_hypot.execute(0.5, 0.5)); // CHECK-EXEC: Result is = 0.707107
+
+  auto d_fmodf = clad::differentiate(f_fmodf, 0);
+  printf("Result is = %.6f\n", d_fmodf.execute(0.5, 0.5)); // CHECK-EXEC: Result is = 1.000000
+
+  auto d_remainder = clad::differentiate(f_remainder, 0);
+  printf("Result is = %.6f\n", d_remainder.execute(0.5, 0.5)); // CHECK-EXEC: Result is = 1.000000
+
+  auto d_fmaxf = clad::differentiate(f_fmaxf, 0);
+  printf("Result is = %.6f\n", d_fmaxf.execute(1, 0.5)); // CHECK-EXEC: Result is = 1.000000
+
+  auto d_fmin = clad::differentiate(f_fmin, 0);
+  printf("Result is = %.6f\n", d_fmin.execute(0.5, 0.5)); // CHECK-EXEC: Result is = 0.000000
+
+  auto d_fdim = clad::differentiate(f_fdim, 0);
+  printf("Result is = %.6f\n", d_fdim.execute(1, 0.5)); // CHECK-EXEC: Result is = 1.000000
+
+  auto d_exp2f = clad::differentiate(f_exp2f, 0);
+  printf("Result is = %.6f\n", d_exp2f.execute(0.5)); // CHECK-EXEC: Result is = 0.980258
+
+  auto d_expm1l = clad::differentiate(f_expm1l, 0);
+  printf("Result is = %.6f\n", d_expm1l.execute(0.5)); // CHECK-EXEC: Result is = 1.648721
+
+  auto d_log1pl = clad::differentiate(f_log1pl, 0);
+  printf("Result is = %.6f\n", d_log1pl.execute(0.5)); // CHECK-EXEC: Result is = 0.666667
+
+  auto d_tanhl = clad::differentiate(f_tanhl, 0);
+  printf("Result is = %.6f\n", d_tanhl.execute(0.5)); // CHECK-EXEC: Result is = 0.786448
+
+  auto d_asinhf = clad::differentiate(f_asinhf, 0);
+  printf("Result is = %.6f\n", d_asinhf.execute(0.5)); // CHECK-EXEC: Result is = 0.894427
+
+  auto d_acoshl = clad::differentiate(f_acoshl, 0);
+  printf("Result is = %.6f\n", d_acoshl.execute(1.5)); // CHECK-EXEC: Result is = 0.894427
+
+  auto d_atanhl = clad::differentiate(f_atanhl, 0);
+  printf("Result is = %.6f\n", d_atanhl.execute(0.5)); // CHECK-EXEC: Result is = 1.333333
+
+  auto d_erff = clad::differentiate(f_erff, 0);
+  printf("Result is = %.6f\n", d_erff.execute(0.5)); // CHECK-EXEC: Result is = 0.878783
+
+  auto d_erfc = clad::differentiate(f_erfc, 0);
+  printf("Result is = %.6f\n", d_erfc.execute(0.5)); // CHECK-EXEC: Result is = -0.878783
+  
   return 0;
 }
