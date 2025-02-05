@@ -267,9 +267,10 @@ double fn8(double i, double j) {
 // CHECK-NEXT:     modifyArr_pushforward(arr, 5, i * j, _d_arr, 0, _d_i * j + i * _d_j);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_pushforward(arr, 5, _d_arr, 0);
 // CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = check_and_return_pushforward(_t0.value, 'a', _t0.pushforward, 0);
-// CHECK-NEXT:     double &_t2 = _t1.value;
-// CHECK-NEXT:     double _t3 = std::tanh(1.);
-// CHECK-NEXT:     return _t1.pushforward * _t3 + _t2 * 0.;
+// CHECK-NEXT:     ValueAndPushforward<double, double> _t2 = clad::custom_derivatives::std::tanh_pushforward(1., 0.);
+// CHECK-NEXT:     double &_t3 = _t1.value;
+// CHECK-NEXT:     double &_t4 = _t2.value;
+// CHECK-NEXT:     return _t1.pushforward * _t4 + _t3 * _t2.pushforward;
 // CHECK-NEXT: }
 
 double g (double x) { return x; }

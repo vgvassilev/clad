@@ -4,7 +4,7 @@
 
 #include <cmath>
 
-double func(double x) { return std::tanh(x); } // expected-warning 2{{function 'tanh' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+double func(double x) { return std::tgamma(x); } // expected-warning 2{{function 'tgamma' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
 // expected-note@7 2{{fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro}}
 
 //CHECK: double func_darg0(double x) {
