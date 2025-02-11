@@ -330,7 +330,7 @@ However, you know analytical formulas of its derivatives, and you can easily spe
 ```cpp
 namespace clad::custom_derivatives {
   double my_pow_darg0(double x, double y) { return y * my_pow(x, y - 1); }
-  double my_pow_darg1(dobule x, double y) { return my_pow(x, y) * std::log(x); }
+  double my_pow_darg1(double x, double y) { return my_pow(x, y) * std::log(x); }
 }
 ```
 You can also specify a custom gradient:
