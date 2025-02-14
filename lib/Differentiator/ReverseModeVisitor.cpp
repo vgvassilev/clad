@@ -1404,8 +1404,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         if (const auto* DRE = dyn_cast<DeclRefExpr>(Arg->IgnoreImpCasts())) {
           // If the arg is used as independent variable, then we cannot free it
           // as it holds the result to be returned to the user.
-          if (std::find(m_DiffReq.DVI.begin(), m_DiffReq.DVI.end(),
-                        DRE->getDecl()) == m_DiffReq.DVI.end())
+          if (llvm::find(m_DiffReq.DVI, DRE->getDecl()) == m_DiffReq.DVI.end())
             DerivedCallArgs.push_back(ArgDiff.getExpr_dx());
         }
       }
@@ -4343,9 +4342,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       auto* newPVD = CloneParmVarDecl(PVD, PVDII,
                                       /*pushOnScopeChains=*/true,
                                       /*cloneDefaultArg=*/false);
-
-      // Point m_IndependentVars to the argument of the newly created param.
-      m_IndependentVars.push_back(newPVD);
 
       if (!PVD->getDeclName()) // We can't use lookup-based replacements
         m_DeclReplacements[PVD] = newPVD;

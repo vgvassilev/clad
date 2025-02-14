@@ -43,7 +43,6 @@ namespace clad {
     // a separate namespace, as well as add getters/setters function of
     // several private/protected members of the visitor classes.
     friend class ErrorEstimationHandler;
-    llvm::SmallVector<const clang::ValueDecl*, 16> m_IndependentVars;
     /// In addition to a sequence of forward-accumulated Stmts (m_Blocks), in
     /// the reverse mode we also accumulate Stmts for the reverse pass which
     /// will be executed on return.
