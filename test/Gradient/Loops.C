@@ -363,7 +363,7 @@ double f_sum_squares(double *p, int n) {
 // CHECK-NEXT: }
 
 // log-likelihood of n-dimensional gaussian distribution with covariance sigma^2*I
-double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
+double f_log_gaus(const double* x, double* p /*means*/, double n, double sigma) {
   double power = 0;
   for (int i = 0; i < n; i++)
     power += sq(x[i] - p[i]);
@@ -371,7 +371,7 @@ double f_log_gaus(double* x, double* p /*means*/, double n, double sigma) {
   double gaus = 1./std::sqrt(std::pow(2*M_PI, n) * sigma) * std::exp(power);
   return std::log(gaus);
 }
-// CHECK: void f_log_gaus_grad_1(double *x, double *p, double n, double sigma, double *_d_p) {
+// CHECK: void f_log_gaus_grad_1(const double *x, double *p, double n, double sigma, double *_d_p) {
 // CHECK-NEXT:     double _d_n = 0.;
 // CHECK-NEXT:     double _d_sigma = 0.;
 // CHECK-NEXT:     int _d_i = 0;

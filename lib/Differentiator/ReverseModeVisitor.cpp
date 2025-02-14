@@ -39,6 +39,7 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/SaveAndRestore.h"
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
@@ -362,16 +363,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (m_DiffReq.Mode == DiffMode::reverse && !m_ExternalSource) {
       // create derived variables for parameters which are not part of
       // independent variables (args).
-      for (ParmVarDecl* param : m_Derivative->parameters()) {
-        // derived variables are already created for independent variables.
-        if (m_Variables.count(param))
+      for (const ParmVarDecl* param : m_NonIndepParams) {
+        QualType paramTy = param->getType();
+        if (utils::isArrayOrPointerType(paramTy)) {
+          // We cannot initialize derived variable for pointer types because
+          // we do not know the correct size.
+          if (!utils::GetValueType(paramTy).isConstQualified()) {
+            diag(DiagnosticsEngine::Error, param->getLocation(),
+                 "Non-differentiable non-const pointer and array parameters "
+                 "are not supported. Please differentiate w.r.t. '%0' or mark "
+                 "it const.",
+                 {param->getNameAsString()});
+            return;
+          }
           continue;
-        auto VDDerivedType =
-            getNonConstType(param->getType(), m_Context, m_Sema);
-        // We cannot initialize derived variable for pointer types because
-        // we do not know the correct size.
-        if (utils::isArrayOrPointerType(VDDerivedType))
-          continue;
+        }
+        auto VDDerivedType = getNonConstType(paramTy, m_Context, m_Sema);
         auto* VDDerived =
             BuildGlobalVarDecl(VDDerivedType, "_d_" + param->getNameAsString(),
                                getZeroInit(VDDerivedType));
@@ -4417,10 +4424,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         }
       }
 
-      if (!IsSelected)
-        continue;
-
       const ParmVarDecl* PVD = params[i];
+      if (!IsSelected) {
+        m_NonIndepParams.push_back(PVD);
+        continue;
+      }
       IdentifierInfo* II =
           CreateUniqueIdentifier("_d_" + PVD->getNameAsString());
       QualType dPVDTy = FnType->getParamType(p++);

@@ -542,22 +542,22 @@ double fn16(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
-double add(double a, double* b) {
+double add(double a, const double* b) {
     return a + b[0];
 }
 
 
-//CHECK: void add_pullback(double a, double *b, double _d_y, double *_d_a);
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a);
 
-//CHECK: void add_pullback(double a, double *b, double _d_y, double *_d_a, double *_d_b);
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, double *_d_b);
 
-double fn17 (double x, double* y) {
+double fn17 (double x, const double* y) {
     x = add(x, y);
     x = add(x, &x);
     return x;
 }
 
-//CHECK: void fn17_grad_0(double x, double *y, double *_d_x) {
+//CHECK: void fn17_grad_0(double x, const double *y, double *_d_x) {
 //CHECK-NEXT:     double _t0 = x;
 //CHECK-NEXT:     x = add(x, y);
 //CHECK-NEXT:     double _t1 = x;
@@ -1020,11 +1020,11 @@ double sq_defined_later(double x) {
 //CHECK-NEXT:         }
 //CHECK-NEXT: }
 
-//CHECK: void add_pullback(double a, double *b, double _d_y, double *_d_a) {
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a) {
 //CHECK-NEXT:     *_d_a += _d_y;
 //CHECK-NEXT: }
 
-//CHECK: void add_pullback(double a, double *b, double _d_y, double *_d_a, double *_d_b) {
+//CHECK: void add_pullback(double a, const double *b, double _d_y, double *_d_a, double *_d_b) {
 //CHECK-NEXT:     {
 //CHECK-NEXT:         *_d_a += _d_y;
 //CHECK-NEXT:         _d_b[0] += _d_y;
