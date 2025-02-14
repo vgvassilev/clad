@@ -223,6 +223,9 @@ namespace clad {
     /// is neither an array nor a pointer type, then simply returns `T`.
     clang::QualType GetValueType(clang::QualType T);
 
+    /// Returns the same type as GetValueType but without const qualifier.
+    clang::QualType GetNonConstValueType(clang::QualType T);
+
     /// Builds and returns the init expression to initialise `clad::array` and
     /// `clad::array_ref` from a constant array.
     ///

@@ -4244,10 +4244,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   QualType ReverseModeVisitor::GetParameterDerivativeType(QualType Type) {
-
-    QualType ValueType = utils::GetValueType(Type);
-    // derivative variables should always be of non-const type.
-    ValueType.removeLocalConst();
+    QualType ValueType = utils::GetNonConstValueType(Type);
     QualType nonRefValueType = ValueType.getNonReferenceType();
     return m_Context.getPointerType(nonRefValueType);
   }
@@ -4266,8 +4263,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   clang::QualType ReverseModeVisitor::ComputeAdjointType(clang::QualType T) {
     if (T->isReferenceType()) {
-      QualType TValueType = utils::GetValueType(T);
-      TValueType.removeLocalConst();
+      QualType TValueType = utils::GetNonConstValueType(T);
       return m_Context.getPointerType(TValueType);
     }
     T.removeLocalConst();

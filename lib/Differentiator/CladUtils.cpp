@@ -1,4 +1,5 @@
 #include "clad/Differentiator/CladUtils.h"
+#include "clad/Differentiator/Compatibility.h"
 
 #include "ConstantFolder.h"
 
@@ -6,12 +7,14 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
-#include "llvm/ADT/SmallVector.h"
 #include <clang/AST/DeclCXX.h>
-#include "clad/Differentiator/Compatibility.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
 
 using namespace clang;
 namespace clad {
@@ -380,14 +383,17 @@ namespace clad {
         valueType = T->getPointeeType();
       else if (T->isReferenceType())
         valueType = T.getNonReferenceType();
-      // FIXME: `QualType::getPointeeOrArrayElementType` loses type qualifiers.
-      else if (T->isArrayType())
-        valueType =
-            T->getPointeeOrArrayElementType()->getCanonicalTypeInternal();
+      else if (const auto* AT = dyn_cast<clang::ArrayType>(T))
+        valueType = AT->getElementType();
       else if (T->isEnumeralType()) {
         if (const auto* ET = dyn_cast<EnumType>(T))
           valueType = ET->getDecl()->getIntegerType();
       }
+      return valueType;
+    }
+
+    clang::QualType GetNonConstValueType(clang::QualType T) {
+      QualType valueType = GetValueType(T);
       valueType.removeLocalConst();
       return valueType;
     }
