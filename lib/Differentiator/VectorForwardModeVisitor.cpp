@@ -30,7 +30,7 @@ QualType
 VectorForwardModeVisitor::GetPushForwardDerivativeType(QualType ParamType) {
   if (ParamType == m_Context.VoidTy)
     return ParamType;
-  QualType valueType = utils::GetValueType(ParamType);
+  QualType valueType = utils::GetNonConstValueType(ParamType);
   QualType resType;
   if (utils::isArrayOrPointerType(ParamType)) {
     // If the parameter is a pointer or an array, then the derivative will be a
@@ -75,8 +75,7 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
     if (it == std::end(args))
       continue; // This parameter is not in the diff list.
 
-    QualType valueType = utils::GetValueType(PVD->getType());
-    valueType.removeLocalConst();
+    QualType valueType = utils::GetNonConstValueType(PVD->getType());
     QualType dParamType;
     if (utils::isArrayOrPointerType(PVD->getType())) {
       // Generate array reference type for the derivative.
@@ -160,7 +159,7 @@ DerivativeAndOverload VectorForwardModeVisitor::DeriveVectorMode() {
     bool is_array =
         utils::isArrayOrPointerType(m_DiffReq->getParamDecl(i)->getType());
     auto param = params[i];
-    QualType dParamType = clad::utils::GetValueType(param->getType());
+    QualType dParamType = clad::utils::GetNonConstValueType(param->getType());
 
     Expr* dVectorParam = nullptr;
     if (m_IndependentVars.size() > independentVarIndex &&
@@ -503,7 +502,8 @@ StmtDiff VectorForwardModeVisitor::VisitReturnStmt(const ReturnStmt* RS) {
   Expr* derivedRetValE = retValDiff.getExpr_dx();
   // If we are in vector mode, we need to wrap the return value in a
   // vector.
-  QualType cladArrayType = GetCladArrayOfType(utils::GetValueType(retType));
+  QualType cladArrayType =
+      GetCladArrayOfType(utils::GetNonConstValueType(retType));
   VarDecl* dVectorParamDecl = BuildVarDecl(cladArrayType, "_d_vector_return",
                                            derivedRetValE, /*DirectInit=*/true);
   // Create an array of statements to hold the return statement and the
@@ -581,10 +581,10 @@ VectorForwardModeVisitor::DifferentiateVarDecl(const VarDecl* VD) {
   // This may not necessarily be true in the future.
   VarDecl* VDClone = BuildVarDecl(VD->getType(), VD->getNameAsString(),
                                   initDiff.getExpr(), VD->isDirectInit());
-  VarDecl* VDDerived =
-      BuildVarDecl(GetCladArrayOfType(utils::GetValueType(VD->getType())),
-                   "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
-                   /*DirectInit=*/true);
+  VarDecl* VDDerived = BuildVarDecl(
+      GetCladArrayOfType(utils::GetNonConstValueType(VD->getType())),
+      "_d_vector_" + VD->getNameAsString(), initDiff.getExpr_dx(),
+      /*DirectInit=*/true);
 
   m_Variables.emplace(VDClone, BuildDeclRef(VDDerived));
   return DeclDiff<VarDecl>(VDClone, VDDerived);
