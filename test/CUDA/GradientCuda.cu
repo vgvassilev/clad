@@ -19,7 +19,7 @@
 
 #define N 3
 
-__device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
+__device__ __host__ double gauss(const double* x, double* p, double sigma, int dim) {
    double t = 0;
    for (int i = 0; i< dim; i++)
        t += (x[i] - p[i]) * (x[i] - p[i]);
@@ -28,7 +28,7 @@ __device__ __host__ double gauss(double* x, double* p, double sigma, int dim) {
 }
 
 
-// CHECK: __attribute__((device)) __attribute__((host)) void gauss_grad_1(double *x, double *p, double sigma, int dim, double *_d_p) {
+// CHECK: __attribute__((device)) __attribute__((host)) void gauss_grad_1(const double *x, double *p, double sigma, int dim, double *_d_p) {
 //CHECK-NEXT:     double _d_sigma = 0.;
 //CHECK-NEXT:     int _d_dim = 0;
 //CHECK-NEXT:     int _d_i = 0;
