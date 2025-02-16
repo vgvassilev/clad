@@ -95,8 +95,8 @@ Here the array variable stores the hessian matrix.
 
 **The Jacobian Mode**
 
-Clad can produce Jacobian of a function using its reverse mode. It returns the 
-jacobian matrix as a flattened vector with elements arranged in row-major format.
+Clad can produce the jacobian of a function using its reverse mode. It returns the 
+jacobian matrix as a `clad::matrix` for every pointer/array parameter.
 
 .. code-block:: cpp
 
@@ -112,19 +112,16 @@ jacobian matrix as a flattened vector with elements arranged in row-major format
  int main() {
    auto f_jac = clad::jacobian(f);
 
-   double jac[9] = {0};
-   double output[3] = {0};
-   f_jac.execute(3, 4, 5, output, jac);
-   std::cout << jac[0] << " " << jac[1] << std::endl
-             << jac[2] << " " << jac[3] << std::endl
-             << jac[4] << " " << jac[5] << std::endl
-             << jac[6] << " " << jac[7] << std::endl
-             << jac[8] << std::endl;
+   clad::matrix<double> d_output(3, 6);
+   double output[3];
+   f_jac.execute(3, 4, 5, output, &d_output);
+   std::cout << d_output[1][0] << " " << d_output[1][1] << " " << d_output[1][2] << std::endl
+             << d_output[1][0] << " " << d_output[1][1] << " " << d_output[1][2] << std::endl
+             << d_output[2][0] << " " << d_output[2][1] << " " << d_output[2][2] << std::endl;
  }
 
-The jacobian matrix size should be equal to `no. of independent variables times 
-the number of outputs in the original function` in the above example it would be
-an array of size 3x3 = 9.
+The jacobian matrix size should be `the size of the output` x `no. of independent variables`.
+In the above example, it would be 3 x 6 (1+1+1+3)
 
 **Error Estimation API**
 
