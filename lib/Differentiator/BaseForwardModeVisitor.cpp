@@ -946,6 +946,8 @@ BaseForwardModeVisitor::VisitArraySubscriptExpr(const ArraySubscriptExpr* ASE) {
 }
 
 StmtDiff BaseForwardModeVisitor::VisitDeclRefExpr(const DeclRefExpr* DRE) {
+  DifferentiateCallOperatorIfFunctor(DRE->getType());
+
   DeclRefExpr* clonedDRE = nullptr;
   // Check if referenced Decl was "replaced" with another identifier inside
   // the derivative
@@ -1522,6 +1524,7 @@ StmtDiff BaseForwardModeVisitor::VisitDeclStmt(const DeclStmt* DS) {
   // If the DeclStmt is not empty, check the first declaration.
   if (declsBegin != declsEnd && isa<VarDecl>(*declsBegin)) {
     auto* VD = dyn_cast<VarDecl>(*declsBegin);
+    DifferentiateCallOperatorIfFunctor(VD->getType());
     // Check for non-differentiable types.
     QualType QT = VD->getType();
     if (QT->isPointerType())
@@ -1985,8 +1988,65 @@ StmtDiff BaseForwardModeVisitor::VisitBreakStmt(const BreakStmt* stmt) {
   return StmtDiff(Clone(stmt));
 }
 
+void BaseForwardModeVisitor::DifferentiateCallOperatorIfFunctor(
+    clang::QualType QT) {
+  // Identify if the constructed type is a functor. For functors, we need to
+  // differentiate their call operator once an object has been constructed, to
+  // allow user calls to pushforwards inside user-provided custom derivatives.
+  // FIXME: A much more scalable solution would be to create pushforwards once
+  // they're called from user-provided custom derivatives. This could then be
+  // applied to other operators besides operator() to avoid compilation errors
+  // in such cases.
+  if (auto* RD = QT->getAsCXXRecordDecl()) {
+    CXXRecordDecl* constructedType = RD->getDefinition();
+    bool isFunctor = constructedType && !constructedType->isLambda();
+    std::vector<const CXXMethodDecl*> callMethods;
+    if (isFunctor) {
+      for (const auto* method : constructedType->methods()) {
+        if (const auto* cxxMethod = dyn_cast<CXXMethodDecl>(method)) {
+          if (cxxMethod->isOverloadedOperator() &&
+              cxxMethod->getOverloadedOperator() == OO_Call) {
+            callMethods.push_back(cxxMethod);
+          }
+        }
+      }
+      isFunctor = isFunctor && !callMethods.empty();
+    }
+
+    if (isFunctor) {
+      for (const auto* FD : callMethods) {
+        CXXScopeSpec SS;
+        bool hasCustomDerivative =
+            !m_Builder
+                 .LookupCustomDerivativeOrNumericalDiff(
+                     clad::utils::ComputeEffectiveFnName(FD) +
+                         GetPushForwardFunctionSuffix(),
+                     const_cast<DeclContext*>(FD->getDeclContext()), SS)
+                 .empty();
+
+        if (!hasCustomDerivative) {
+          // Request Clad to diff it.
+          DiffRequest pushforwardFnRequest;
+          pushforwardFnRequest.Function = FD;
+          pushforwardFnRequest.Mode = GetPushForwardMode();
+          pushforwardFnRequest.BaseFunctionName =
+              utils::ComputeEffectiveFnName(FD);
+          // Silence diag outputs in nested derivation process.
+          pushforwardFnRequest.VerboseDiags = false;
+
+          // Check if request already derived in DerivedFunctions.
+          m_Builder.HandleNestedDiffRequest(pushforwardFnRequest);
+        }
+      }
+    }
+  }
+}
+
 StmtDiff
 BaseForwardModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+  DifferentiateCallOperatorIfFunctor(CE->getType());
+
+  // Now continue differentiating the constructor itself:
   llvm::SmallVector<Expr*, 4> clonedArgs, derivedArgs;
   for (auto arg : CE->arguments()) {
     auto argDiff = Visit(arg);
