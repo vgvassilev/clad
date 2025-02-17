@@ -1175,9 +1175,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
       return StmtDiff(clonedILE);
     }
-    // Check if type is a CXXRecordDecl and a struct.
+    // Check if type is a CXXRecordDecl
     if (!utils::IsCladValueAndPushforwardType(ILEType) &&
-        ILEType->isRecordType() && ILEType->getAsCXXRecordDecl()->isStruct()) {
+        ILEType->isRecordType()) {
       for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
         // fetch ith field of the struct.
         auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();

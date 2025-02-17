@@ -711,6 +711,36 @@ double fn21(double i, double j) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+class Identity {
+    public:
+    double operator()(double u) { return u + 1; }
+};
+
+// CHECK:  void operator_call_pullback(double u, double _d_y, Identity *_d_this, double *_d_u);
+
+double fn22(double x, double y) {
+    Identity di{};
+    double val = di(x);
+    return val * val;
+}
+
+// CHECK:  void fn22_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      Identity _d_di = {};
+// CHECK-NEXT:      Identity di{};
+// CHECK-NEXT:      Identity _t0 = di;
+// CHECK-NEXT:      double _d_val = 0.;
+// CHECK-NEXT:      double val = di.operator()(x);
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_val += 1 * val;
+// CHECK-NEXT:          _d_val += val * 1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          double _r0 = 0.;
+// CHECK-NEXT:          _t0.operator_call_pullback(x, _d_val, &_d_di, &_r0);
+// CHECK-NEXT:          *_d_x += _r0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -804,6 +834,9 @@ int main() {
     
     INIT_GRADIENT(fn21);
     TEST_GRADIENT(fn21, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);    // CHECK-EXEC: {1.00, 0.00}
+
+    INIT_GRADIENT(fn22);
+    TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
 }
 
 // CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
@@ -1008,4 +1041,8 @@ int main() {
 // CHECK-NEXT:          (*_d_a).x += _d_y;
 // CHECK-NEXT:          *_d_val += _d_y;
 // CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+// CHECK:  void operator_call_pullback(double u, double _d_y, Identity *_d_this, double *_d_u) {
+// CHECK-NEXT:      *_d_u += _d_y;
 // CHECK-NEXT:  }
