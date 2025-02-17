@@ -878,6 +878,28 @@ double constValInput(const double x) {
 //CHECK-NEXT:    *_d_x += 1;
 //CHECK-NEXT:}
 
+double f24(double x, double y) {
+  double sum{x+y};
+  double zero{};
+  return sum + zero * x;
+}
+
+//CHECK: void f24_grad(double x, double y, double *_d_x, double *_d_y) {
+//CHECK-NEXT:    double _d_sum = 0.;
+//CHECK-NEXT:    double sum{x + y};
+//CHECK-NEXT:    double _d_zero = 0.;
+//CHECK-NEXT:    double zero{};
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _d_sum += 1;
+//CHECK-NEXT:        _d_zero += 1 * x;
+//CHECK-NEXT:        *_d_x += zero * 1;
+//CHECK-NEXT:    }
+//CHECK-NEXT:    {
+//CHECK-NEXT:        *_d_x += _d_sum;
+//CHECK-NEXT:        *_d_y += _d_sum;
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 
 #define TEST(F, x, y)                                                          \
   {                                                                            \
@@ -959,4 +981,6 @@ int main() {
   double const_test_input_result = 0;
   const_test_input.execute(3, &const_test_input_result);
   printf("%.2f\n", const_test_input_result); // CHECK-EXEC: 1.00
+
+  TEST(f24, 7, 5); // CHECK-EXEC: {1.00, 1.00}
 }

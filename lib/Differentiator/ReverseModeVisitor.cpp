@@ -173,7 +173,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   Expr* ReverseModeVisitor::CheckAndBuildCallToMemset(Expr* LHS, Expr* RHS) {
     Expr* size = nullptr;
-    if (auto* callExpr = dyn_cast<CallExpr>(RHS))
+    if (auto* callExpr = dyn_cast_or_null<CallExpr>(RHS))
       if (auto* declRef =
               dyn_cast<DeclRefExpr>(callExpr->getCallee()->IgnoreImpCasts()))
         if (auto* FD = dyn_cast<FunctionDecl>(declRef->getDecl())) {
@@ -1156,11 +1156,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitInitListExpr(const InitListExpr* ILE) {
-    if (!dfdx())
-      return StmtDiff(Clone(ILE));
     QualType ILEType = ILE->getType();
     llvm::SmallVector<Expr*, 16> clonedExprs(ILE->getNumInits());
-    if (isArrayOrPointerType(ILEType)) {
+    // Handle basic types like pointers or numericals.
+    if (ILE->getNumInits() &&
+        !(ILEType->isArrayType() || ILEType->isRecordType())) {
+      StmtDiff initDiff = Visit(ILE->getInit(0), dfdx());
+      clonedExprs[0] = initDiff.getExpr();
+      initDiff.updateStmt(
+          m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get());
+      return initDiff;
+    }
+    if (!dfdx())
+      return StmtDiff(Clone(ILE));
+    if (ILEType->isArrayType()) {
       for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
         Expr* I =
             ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, i);
@@ -1176,21 +1185,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(clonedILE);
     }
     // Check if type is a CXXRecordDecl
-#ifndef NDEBUG
-    assert(ILEType->isRecordType() &&
-           "Only InitListExpr that represents array or"
-           "object initialization is supported");
-#endif
-
-    for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
-      // fetch ith field of the struct.
-      auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
-      std::advance(field_iterator, i);
-      Expr* member_acess = utils::BuildMemberExpr(
-          m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
-      clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
+    if (ILEType->isRecordType()) {
+      for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
+        // fetch ith field of the struct.
+        auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
+        std::advance(field_iterator, i);
+        Expr* member_acess = utils::BuildMemberExpr(
+            m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
+        clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
+      }
+      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+      return StmtDiff(clonedILE);
     }
-    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
+
+    Expr* clonedILE = m_Sema.ActOnInitList(noLoc, {}, noLoc).get();
     return StmtDiff(clonedILE);
   }
 
