@@ -1176,47 +1176,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff(clonedILE);
     }
     // Check if type is a CXXRecordDecl
-    if (!utils::IsCladValueAndPushforwardType(ILEType) &&
-        ILEType->isRecordType()) {
-      for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
-        // fetch ith field of the struct.
-        auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
-        std::advance(field_iterator, i);
-        Expr* member_acess = utils::BuildMemberExpr(
-            m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
-        clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
-      }
-      Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
-      return StmtDiff(clonedILE);
-    }
-
-    // FIXME: This is a makeshift arrangement to differentiate an InitListExpr
-    // that represents a ValueAndPushforward type. Ideally this must be
-    // differentiated at VisitCXXConstructExpr
 #ifndef NDEBUG
-    bool isValueAndPushforward = utils::IsCladValueAndPushforwardType(ILEType);
-    assert(isValueAndPushforward &&
-           "Only InitListExpr that represents arrays or ValueAndPushforward "
-           "Object initialization is supported");
+    assert(ILEType->isRecordType() &&
+           "Only InitListExpr that represents array or"
+           "object initialization is supported");
 #endif
 
-    // Here we assume that the adjoint expression of the first element in
-    // InitList is dfdx().value and the adjoint for the second element is
-    // dfdx().pushforward. At this point the top of the Tape must contain a
-    // ValueAndPushforward object that represents derivative of the
-    // ValueAndPushforward object returned by the function whose derivative is
-    // requested.
-    Expr* dValueExpr =
-        utils::BuildMemberExpr(m_Sema, getCurrentScope(), dfdx(), "value");
-    StmtDiff clonedValueEI = Visit(ILE->getInit(0), dValueExpr).getExpr();
-    clonedExprs[0] = clonedValueEI.getExpr();
-
-    Expr* dPushforwardExpr = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
-                                                    dfdx(), "pushforward");
-    Expr* clonedPushforwardEI =
-        Visit(ILE->getInit(1), dPushforwardExpr).getExpr();
-    clonedExprs[1] = clonedPushforwardEI;
-
+    for (unsigned i = 0, e = ILE->getNumInits(); i < e; i++) {
+      // fetch ith field of the struct.
+      auto field_iterator = ILEType->getAsCXXRecordDecl()->field_begin();
+      std::advance(field_iterator, i);
+      Expr* member_acess = utils::BuildMemberExpr(
+          m_Sema, getCurrentScope(), dfdx(), (*field_iterator)->getName());
+      clonedExprs[i] = Visit(ILE->getInit(i), member_acess).getExpr();
+    }
     Expr* clonedILE = m_Sema.ActOnInitList(noLoc, clonedExprs, noLoc).get();
     return StmtDiff(clonedILE);
   }
