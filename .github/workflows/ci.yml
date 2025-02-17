@@ -511,11 +511,6 @@ jobs:
             compiler: clang-16
             clang-runtime: '18'
 
-          - name: ubu24-arm-clang17-runtime19
-            os: ubuntu-24.04-arm
-            compiler: clang-17
-            clang-runtime: '19'
-
     steps:
     - uses: actions/checkout@v4
       with:
