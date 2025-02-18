@@ -288,33 +288,6 @@ Clad can compute the
      // Now, you can access the derivatives with d_res[i][j].
    }
 
-Or for a function of multiple array parameters::
-
-    #include "clad/Differentiator/Differentiator.h"
-
-    void h(double a, double b, double arr[], double* ptr) {
-        arr[0] = a * a * a;
-        ptr[0] = arr[0] + b * b * b;
-        arr[1] = 2 * (a + b);
-    }
-
-    int main() {
-        auto h_jac = clad::jacobian(h);
-
-        // The jacobian matrix size should be
-        // the size of the output x the number of independent variables
-
-        // 3 x (1 + 1 + 2 + 1)
-        clad::matrix<double> d_arr(2, 5);
-        double arr[2] = {0};
-
-        // 1 x (1 + 1 + 2 + 1)
-        clad::matrix<double> d_ptr(1, 5);
-        double ptr[1] = {0};
-
-        h_jac.execute(/*a=*/3, /*b=*/4, arr, ptr, &d_arr, &d_ptr);
-    }
-
  Few important things to note through this example:
 
  - ``clad::jacobian`` supports differentiating w.r.t multiple paramters.
