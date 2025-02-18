@@ -118,9 +118,9 @@ API reference
    `jacobian matrix <https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant>`_
    of the provided function (``fn``) with respect to all
    the arguments specified in ``args``. If no explicit ``args`` argument is specified,
-   then jacbian matrix is computed with respect to all the input parameters.
+   then jacobian is computed with respect to all the input parameters.
    For a function with 3 input parameters and an output array of size 4,
-   the jacobian matrix will contain 12 elements.
+   the jacobian matrix (called `_d_result``) will be 3 x 5.
 
     ::
 
@@ -135,14 +135,18 @@ API reference
         auto fn_jcbn = clad::jacobian(func);
 
         // Creates an empty matrix to store the Jacobian in
-        double matrix[6] = {0};
+        clad::matrix<double> d_res(3, 5);
         double res[3] = {0};
 
-        fn_jcbn.execute(8, 2, res, matrix);
+        fn_jcbn.execute(8, 2, res, &d_res);
 
-        //Result is 48, 64, 4, 32, 2, 8
-        printf("Result is %g, %g, %g, %g, %g, %g \n", matrix[0], matrix[1],
-               matrix[2], matrix[3], matrix[4], matrix[5]);
+        //Result is 32 64
+        //          4 2
+        //          2 8
+        printf("Result is \n %g %g \n %g %g \n %g %g \n",
+               d_res[0][0], d_res[0][1],
+               d_res[1][0], d_res[1][1], 
+               d_res[2][0], d_res[2][1]);
       }
 
 ------------------

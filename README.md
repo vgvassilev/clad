@@ -134,8 +134,7 @@ int main() {
 
 ### Jacobian mode - `clad::jacobian`
 
-Clad can produce the jacobian of a function using its reverse mode. It returns the jacobian matrix as a flattened
-vector in row major format.
+Clad can produce the jacobian of a function using its reverse mode. It returns the jacobian matrix as a `clad::matrix` for every pointer/array parameter.
 
 `clad::jacobian(f, /*optional*/ ARGS)` takes 1 or 2 arguments:
 1. `f` is a pointer to a function or a method to be differentiated
@@ -143,9 +142,9 @@ vector in row major format.
     * not provided, then `f` is differentiated w.r.t. its every argument
     * a string literal with comma-separated names of independent variables (e.g. `"x"` or `"y"` or `"x, y"` or `"y, x"`)
 
-The generated function has `void` return type and same input arguments. The function has an additional argument of
-type `T *`, where `T` is the pointee type of the output (the last variable) of `f`. This variable stores the jacobian 
-matrix. *The caller is responsible for allocating and zeroing-out the jacobian storage*. Example:
+The generated function has `void` return type and same input arguments. For every pointer/array parameter `arr`, the function has an additional argument `_d_vector_arr`. Its
+type is `clad::matrix<T>`, where `T` is the pointee type of `arr`. These variables store their derivatives w.r.t. all inputs.
+*The caller is responsible for allocating the matrices*. Example:
 
 ```cpp
 #include "clad/Differentiator/Differentiator.h"
@@ -158,19 +157,57 @@ void h(double a, double b, double output[]) {
 }
 
 int main() {
-    // This sets all the input variables (i.e a and b) as independent variables 
+    // This sets all the input variables (i.e a, b, and output) as independent variables 
     auto h_jac = clad::jacobian(h);
     
-    // The jacobian matrix size should be the number of 
-    // independent variables * the number of outputs of the original function
-    // In this case it is 2 * 3 = 6
-    double jac[6] = {0};
+    // The jacobian matrix size should be
+    // the size of the output x the number of independent variables
+    // In this case it is 3 x (1 + 1 + 3)
+    clad::matrix<double> d_output(3, 5);
     double output[3] = {0};
-    h_jac.execute(/*a=*/3, /*b=*/4, output, jac);
+    h_jac.execute(/*a=*/3, /*b=*/4, output, &d_output);
+
+    // d_output[i][j] is the derivative of the i-th element of `output` w.r.t. the j-th input
+    std::cout << d_output[0][0] << " " << d_output[0][1] << std::endl
+              << d_output[1][0] << " " << d_output[1][1] << std::endl
+              << d_output[2][0] << " " << d_output[2][1] << std::endl;
+}
+```
+
+Or in the case of multiple array parameters:
+
+```cpp
+#include "clad/Differentiator/Differentiator.h"
+#include <iostream>
+
+void h(double a, double b, double arr[], double* ptr) {
+    arr[0] = a * a * a;
+    ptr[0] = arr[0] + b * b * b;
+    arr[1] = 2 * (a + b);
+}
+
+int main() {
+    auto h_jac = clad::jacobian(h);
+
+    // The jacobian matrix size should be
+    // the size of the output x the number of independent variables
+
+    // 3 x (1 + 1 + 2 + 1)
+    clad::matrix<double> d_arr(2, 5);
+    double arr[2] = {0};
+
+    // 1 x (1 + 1 + 2 + 1)
+    clad::matrix<double> d_ptr(1, 5);
+    double ptr[1] = {0};
+
+    h_jac.execute(/*a=*/3, /*b=*/4, arr, ptr, &d_arr, &d_ptr);
     
-    std::cout << jac[0] << " " << jac[1] << std::endl
-              << jac[2] << " " << jac[3] << std::endl
-              << jac[4] << " " << jac[5] << std::endl;
+    // d_arr[i][j] is the derivative of the i-th element of `arr` w.r.t. the j-th input
+    std::cout << d_arr[0][0] << " " << d_arr[0][1] << std::endl
+              << d_arr[1][0] << " " << d_arr[1][1] << std::endl;
+
+    // Likewise, with `ptr`
+    std::cout << d_ptr[0][0] << " " << d_ptr[0][1] << std::endl;
 }
 ```
 
