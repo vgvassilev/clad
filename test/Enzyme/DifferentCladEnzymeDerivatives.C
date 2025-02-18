@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oDifferentCladEnzymeDerivatives.out | %filecheck %s
 // RUN: ./DifferentCladEnzymeDerivatives.out
 // REQUIRES: Enzyme
 

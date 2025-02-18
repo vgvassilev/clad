@@ -1,6 +1,6 @@
 // RUN: %cladclang %s -I%S/../../include -oTimingsReport.out -ftime-report 2>&1 | %filecheck %s
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -print-stats 2>&1 | %filecheck -check-prefix=CHECK_STATS %s
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -plugin-arg-clad -Xclang -enable-tbr -Xclang -print-stats 2>&1 | %filecheck -check-prefix=CHECK_STATS_TBR %s
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -plugin-arg-clad -Xclang -disable-tbr -Xclang -print-stats 2>&1 | %filecheck -check-prefix=CHECK_STATS %s
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -print-stats 2>&1 | %filecheck -check-prefix=CHECK_STATS_TBR %s
 
 #include "clad/Differentiator/Differentiator.h"
 // CHECK: Timers for Clad Funcs

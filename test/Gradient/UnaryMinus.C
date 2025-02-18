@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -oUnaryMinus.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oUnaryMinus.out 2>&1 | %filecheck %s
 // RUN: ./UnaryMinus.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oUnaryMinus.out
+// RUN: %cladclang %s -I%S/../../include -oUnaryMinus.out
 // RUN: ./UnaryMinus.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

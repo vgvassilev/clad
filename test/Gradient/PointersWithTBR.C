@@ -1,4 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oPointersWithTBR.out
+// RUN: %cladclang %s -I%S/../../include -oPointersWithTBR.out
 // RUN: ./PointersWithTBR.out | %filecheck_exec %s
 // XFAIL: *
 

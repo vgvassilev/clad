@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -oActivity.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out 2>&1 | %filecheck %s
 // RUN: ./Activity.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va %s -I%S/../../include -oActivity.out
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-va -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oActivity.out
 // RUN: ./Activity.out | %filecheck_exec %s
 //CHECK-NOT: {{.*error|warning|note:.*}}
 
