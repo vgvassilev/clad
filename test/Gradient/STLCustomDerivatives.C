@@ -1,7 +1,7 @@
 // XFAIL: asserts
-// RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivatives.out 2>&1 | %filecheck %s
+// RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSTLCustomDerivatives.out 2>&1 | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
-// RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
+// RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
 // RUN: ./STLCustomDerivativesWithTBR.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

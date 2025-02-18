@@ -410,7 +410,7 @@ namespace clad {
       if (DO.EnableTBRAnalysis || DO.DisableTBRAnalysis)
         opts.EnableTBRAnalysis = DO.EnableTBRAnalysis && !DO.DisableTBRAnalysis;
       else
-        opts.EnableTBRAnalysis = false; // Default mode.
+        opts.EnableTBRAnalysis = true; // Default mode.
     }
 
     static void SetActivityAnalysisOptions(const DifferentiationOptions& DO,

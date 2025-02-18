@@ -1,8 +1,8 @@
-// RUN: %cladclang_cuda -I%S/../../include -fsyntax-only \
+// RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include -fsyntax-only \
 // RUN:     --cuda-gpu-arch=%cudaarch --cuda-path=%cudapath  -Xclang -verify \
 // RUN:     %s 2>&1 | %filecheck %s
 //
-// RUN: %cladclang_cuda -I%S/../../include --cuda-path=%cudapath \
+// RUN: %cladclang_cuda -Xclang -plugin-arg-clad -Xclang -disable-tbr -I%S/../../include --cuda-path=%cudapath \
 // RUN:     --cuda-gpu-arch=%cudaarch %cudaldflags -oGradientKernels.out %s
 //
 // RUN: ./GradientKernels.out | %filecheck_exec %s

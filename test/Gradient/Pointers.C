@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oPointers.out 2>&1 | %filecheck %s
 // RUN: ./Pointers.out | %filecheck_exec %s
 
 // FIXME: This test does not work with enable-tbr flag, because the

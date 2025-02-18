@@ -1,6 +1,6 @@
-// RUN: %cladclang %s -I%S/../../include -oLambdas.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oLambdas.out 2>&1 | %filecheck %s
 // RUN: ./Lambdas.out | %filecheck_exec %s
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s -I%S/../../include -oLambdas.out
+// RUN: %cladclang %s -I%S/../../include -oLambdas.out
 // RUN: ./Lambdas.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
