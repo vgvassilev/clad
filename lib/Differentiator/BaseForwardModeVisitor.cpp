@@ -282,11 +282,27 @@ QualType BaseForwardModeVisitor::ComputeDerivativeFunctionType() {
 void BaseForwardModeVisitor::SetupDerivativeParameters(
     llvm::SmallVectorImpl<ParmVarDecl*>& params) {
   const FunctionDecl* FD = m_DiffReq.Function;
-  for (ParmVarDecl* PVD : FD->parameters()) {
+  const FunctionDecl* FDPattern = nullptr;
+  unsigned FDPatternNumParams = 0;
+  if (FD->isTemplateInstantiation()) {
+    FDPattern = FD->getTemplateInstantiationPattern();
+    FDPatternNumParams = FDPattern->getNumParams();
+  }
+  for (unsigned i = 0, n = FD->getNumParams(); i < n; ++i) {
+    const ParmVarDecl* PVD = FD->getParamDecl(i);
     IdentifierInfo* PVDII = PVD->getIdentifier();
     // Implicitly created special member functions have no parameter names.
     if (!PVD->getDeclName())
       PVDII = CreateUniqueIdentifier("param");
+
+    if (FDPattern) {
+      const ParmVarDecl* OrigPVD =
+          i >= FDPatternNumParams
+              ? FDPattern->getParamDecl(FDPatternNumParams - 1)
+              : FDPattern->getParamDecl(i);
+      if (OrigPVD->isParameterPack())
+        PVDII = CreateUniqueIdentifier(PVDII->getName());
+    }
 
     auto* newPVD = CloneParmVarDecl(PVD, PVDII,
                                     /*pushOnScopeChains=*/true,
@@ -296,7 +312,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     if (PVD == m_IndependentVar)
       m_IndependentVar = newPVD;
 
-    if (!PVD->getDeclName()) // We can't use lookup-based replacements
+    if (PVD->getDeclName() !=
+        newPVD->getDeclName()) // We can't use lookup-based replacements
       m_DeclReplacements[PVD] = newPVD;
 
     params.push_back(newPVD);
@@ -1110,6 +1127,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     skipFirstArg = true;
 
   // For f(g(x)) = f'(x) * g'(x)
+  std::size_t numParams = FD->getNumParams();
   Expr* Multiplier = nullptr;
   for (size_t i = skipFirstArg, e = CE->getNumArgs(); i < e; ++i) {
     const Expr* arg = CE->getArg(i);
@@ -1118,7 +1136,11 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
     // If original argument is an RValue and function expects an RValue
     // parameter, then convert the cloned argument and the corresponding
     // derivative to RValue if they are not RValue.
-    QualType paramType = FD->getParamDecl(i - skipFirstArg)->getType();
+    QualType paramType;
+    if (FD->isVariadic() && (i - skipFirstArg) >= numParams)
+      paramType = CE->getArg(i - skipFirstArg)->getType();
+    else
+      paramType = FD->getParamDecl(i - skipFirstArg)->getType();
     if (utils::IsRValue(arg) && paramType->isRValueReferenceType()) {
       if (!utils::IsRValue(argDiff.getExpr())) {
         Expr* castE = utils::BuildStaticCastToRValue(m_Sema, argDiff.getExpr());
