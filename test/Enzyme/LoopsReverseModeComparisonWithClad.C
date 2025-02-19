@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oEnzymeLoops.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oEnzymeLoops.out 2>&1 | %filecheck %s
 // RUN: ./EnzymeLoops.out | %filecheck_exec %s
 // REQUIRES: Enzyme
 

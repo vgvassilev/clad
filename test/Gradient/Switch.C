@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oSwitch.out 2>&1 -lm | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSwitch.out 2>&1 -lm | %filecheck %s
 // RUN: ./Switch.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"

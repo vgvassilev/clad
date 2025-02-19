@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -oNonDifferentiable.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oNonDifferentiable.out 2>&1 | %filecheck %s
 // RUN: ./NonDifferentiable.out | %filecheck_exec %s
 
 #define non_differentiable __attribute__((annotate("another_attribute"), annotate("non_differentiable")))

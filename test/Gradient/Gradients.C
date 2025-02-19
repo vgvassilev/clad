@@ -1,6 +1,6 @@
-// RUN: %cladnumdiffclang %s -std=c++17 -I%S/../../include -oGradients.out 2>&1 | %filecheck %s
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -std=c++17 -I%S/../../include -oGradients.out 2>&1 | %filecheck %s
 // RUN: ./Gradients.out | %filecheck_exec %s
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -enable-tbr %s  -I%S/../../include -oGradients.out
+// RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
