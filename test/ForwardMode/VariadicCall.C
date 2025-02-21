@@ -1,3 +1,6 @@
+// RUN: %cladclang -std=c++17 %s -I%S/../../include -oVariadicCall.out 2>&1 | %filecheck %s
+// RUN: ./VariadicCall.out | %filecheck_exec %s
+
 #include "clad/Differentiator/Differentiator.h"
 
 #include "../TestUtils.h"
