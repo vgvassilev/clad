@@ -40,6 +40,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
@@ -91,11 +92,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   ReverseModeVisitor::CladTapeResult
-  ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix) {
+  ReverseModeVisitor::MakeCladTapeFor(Expr* E, llvm::StringRef prefix,
+                                      clang::QualType type) {
     assert(E && "must be provided");
     E = E->IgnoreImplicit();
+    if (type.isNull())
+      type = E->getType();
     QualType TapeType =
-        GetCladTapeOfType(getNonConstType(E->getType(), m_Context, m_Sema));
+        GetCladTapeOfType(getNonConstType(type, m_Context, m_Sema));
     LookupResult& Push = GetCladTapePush();
     LookupResult& Pop = GetCladTapePop();
     Expr* TapeRef =
@@ -2986,7 +2990,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
             auto* declRef = BuildDeclRef(decl);
             auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
             if (isInsideLoop) {
-              auto pushPop = StoreAndRestore(declRef);
+              auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
+                                             /*moveToTape=*/true);
               if (pushPop.getExpr() != declRef)
                 addToCurrentBlock(pushPop.getExpr_dx(), direction::reverse);
               assignment = BuildOp(BO_Comma, pushPop.getExpr(), assignment);
@@ -3291,12 +3296,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::StoreAndRestore(clang::Expr* E,
-                                               llvm::StringRef prefix) {
+                                               llvm::StringRef prefix,
+                                               bool moveToTape) {
     assert(E && "must be provided");
     auto Type = getNonConstType(E->getType(), m_Context, m_Sema);
 
     if (isInsideLoop) {
-      auto CladTape = MakeCladTapeFor(Clone(E), prefix);
+      Expr* clone = Clone(E);
+      if (moveToTape && E->getType()->isRecordType()) {
+        llvm::SmallVector<Expr*, 1> args = {clone};
+        clone = GetFunctionCall("move", "std", args);
+      }
+      auto CladTape = MakeCladTapeFor(clone, prefix, Type);
       Expr* Push = CladTape.Push;
       Expr* Pop = CladTape.Pop;
       auto* popAssign = BuildOp(BinaryOperatorKind::BO_Assign, Clone(E), Pop);

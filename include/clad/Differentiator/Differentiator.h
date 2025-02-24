@@ -73,7 +73,7 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
   /// Remove the last value from the tape, return it.
   template <typename T>
   CUDA_HOST_DEVICE T pop(tape<T>& to) {
-    T val = to.back();
+    T val = std::move(to.back());
     to.pop_back();
     return val;
   }

@@ -1773,7 +1773,7 @@ double fn21(double x) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, arr) , arr = {1, x, 2};
+// CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {1, x, 2};
 // CHECK-NEXT:         clad::push(_t2, res);
 // CHECK-NEXT:         res += arr[0] + arr[1];
 // CHECK-NEXT:     }
@@ -1825,7 +1825,7 @@ double fn22(double param) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, arr) , arr = {1.};
+// CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {1.};
 // CHECK-NEXT:         clad::push(_t2, out);
 // CHECK-NEXT:         clad::push(_t3, arr[0]);
 // CHECK-NEXT:         out += clad::back(_t3) * param;
