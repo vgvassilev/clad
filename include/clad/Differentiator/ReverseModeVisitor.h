@@ -251,7 +251,8 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false);
-    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t");
+    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
+                             bool moveToTape = false);
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
@@ -314,7 +315,8 @@ namespace clad {
     /// \returns A struct containg necessary call expressions for the built
     /// tape
     CladTapeResult MakeCladTapeFor(clang::Expr* E,
-                                   llvm::StringRef prefix = "_t");
+                                   llvm::StringRef prefix = "_t",
+                                   clang::QualType type = {});
 
     /// A function to get the multi-argument "central_difference"
     /// call expression for the given arguments.

@@ -317,7 +317,7 @@ double func6(double seed) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 //CHECK-NEXT:         _t0++;
-//CHECK-NEXT:         clad::push(_t1, arr) , arr = {seed, seed * i, seed + i};
+//CHECK-NEXT:         clad::push(_t1, std::move(arr)) , arr = {seed, seed * i, seed + i};
 //CHECK-NEXT:         clad::push(_t2, sum);
 //CHECK-NEXT:         sum += addArr(arr, 3);
 //CHECK-NEXT:     }
@@ -377,7 +377,7 @@ double func7(double *params) {
 // CHECK-NEXT:                 break;
 // CHECK-NEXT:         }
 // CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, paramsPrime) , paramsPrime = {params[0]};
+// CHECK-NEXT:         clad::push(_t1, std::move(paramsPrime)) , paramsPrime = {params[0]};
 // CHECK-NEXT:         clad::push(_t2, out);
 // CHECK-NEXT:         out = out + inv_square(paramsPrime);
 // CHECK-NEXT:     }

@@ -927,7 +927,7 @@ int main() {
 // CHECK-NEXT:                  break;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          _t0++;
-// CHECK-NEXT:          clad::push(_t1, ls) , ls = {u, v}, alloc;
+// CHECK-NEXT:          clad::push(_t1, std::move(ls)) , ls = {u, v}, alloc;
 // CHECK-NEXT:          _d_ls = ls;
 // CHECK-NEXT:          clad::zero_init(_d_ls);
 // CHECK-NEXT:          clad::push(_t2, ls);
