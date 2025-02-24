@@ -927,19 +927,20 @@ int main() {
 // CHECK-NEXT:                  break;
 // CHECK-NEXT:          }
 // CHECK-NEXT:          _t0++;
-// CHECK-NEXT:          clad::push(_t1, std::move(ls)) , ls = {u, v}, alloc;
+// CHECK-NEXT:          clad::push(_t1, std::move(_d_ls));
+// CHECK-NEXT:          clad::push(_t2, std::move(ls)) , ls = {u, v}, alloc;
 // CHECK-NEXT:          _d_ls = ls;
 // CHECK-NEXT:          clad::zero_init(_d_ls);
-// CHECK-NEXT:          clad::push(_t2, ls);
-// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t3 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&ls, 1, &_d_ls, {{0U|0UL|0}});
-// CHECK-NEXT:          clad::push(_t4, _t3.value);
-// CHECK-NEXT:          clad::push(_t5, ls);
-// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t6 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&ls, 0, &_d_ls, {{0U|0UL|0}});
-// CHECK-NEXT:          _t3.value += _t6.value;
-// CHECK-NEXT:          clad::push(_t7, u);
-// CHECK-NEXT:          clad::push(_t8, ls);
-// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t9 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&ls, 1, &_d_ls, {{0U|0UL|0}});
-// CHECK-NEXT:          u = _t9.value;
+// CHECK-NEXT:          clad::push(_t3, ls);
+// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t4 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&ls, 1, &_d_ls, {{0U|0UL|0}});
+// CHECK-NEXT:          clad::push(_t5, _t3.value);
+// CHECK-NEXT:          clad::push(_t6, ls);
+// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t7 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&ls, 0, &_d_ls, {{0U|0UL|0}});
+// CHECK-NEXT:          _t4.value += _t7.value;
+// CHECK-NEXT:          clad::push(_t8, u);
+// CHECK-NEXT:          clad::push(_t9, ls);
+// CHECK-NEXT:          clad::ValueAndAdjoint<double &, double &> _t10 = clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&ls, 1, &_d_ls, {{0U|0UL|0}});
+// CHECK-NEXT:          u = _t10.value;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      *_d_u += 1;
 // CHECK-NEXT:      for (;; _t0--) {
@@ -949,30 +950,27 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:          --i;
 // CHECK-NEXT:          {
-// CHECK-NEXT:              u = clad::pop(_t7);
+// CHECK-NEXT:              u = clad::pop(_t8);
 // CHECK-NEXT:              double _r_d1 = *_d_u;
 // CHECK-NEXT:              *_d_u = 0.;
 // CHECK-NEXT:              {{.*}}size_type _r3 = 0{{.*}};
-// CHECK-NEXT:              clad::custom_derivatives::class_functions::operator_subscript_pullback(&clad::back(_t8), 1, _r_d1, &_d_ls, &_r3);
-// CHECK-NEXT:              clad::pop(_t8);
+// CHECK-NEXT:              clad::pop(_t9);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
-// CHECK-NEXT:              _t3.value = clad::pop(_t4);
-// CHECK-NEXT:              double _r_d0 = _t3.adjoint;
+// CHECK-NEXT:              _t4.value = clad::pop(_t5);
+// CHECK-NEXT:              double _r_d0 = _t4.adjoint;
 // CHECK-NEXT:              {{.*}}size_type _r2 = 0{{.*}};
-// CHECK-NEXT:              clad::custom_derivatives::class_functions::operator_subscript_pullback(&clad::back(_t5), 0, _r_d0, &_d_ls, &_r2);
-// CHECK-NEXT:              clad::pop(_t5);
+// CHECK-NEXT:              clad::pop(_t6);
 // CHECK-NEXT:              {{.*}}size_type _r1 = 0{{.*}};
-// CHECK-NEXT:              clad::custom_derivatives::class_functions::operator_subscript_pullback(&clad::back(_t2), 1, 0., &_d_ls, &_r1);
-// CHECK-NEXT:              clad::pop(_t2);
+// CHECK-NEXT:              clad::pop(_t3);
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              clad::array<double> _r0 = {{2U|2UL|2ULL}};
 // CHECK-NEXT:              {{.*}}::class_functions::constructor_pullback(&ls, {u, v}, alloc, &_d_ls, &_r0, &_d_alloc);
 // CHECK-NEXT:              *_d_u += _r0[0];
 // CHECK-NEXT:              *_d_v += _r0[1];
-// CHECK-NEXT:              clad::zero_init(_d_ls);
-// CHECK-NEXT:              ls = clad::pop(_t1);
+// CHECK-NEXT:              _d_ls = clad::pop(_t1);
+// CHECK-NEXT:              ls = clad::pop(_t2);
 // CHECK-NEXT:          }
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
