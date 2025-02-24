@@ -2728,9 +2728,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (VDDerived && isInsideLoop) {
         Stmt* assignToZero = nullptr;
         Expr* declRef = BuildDeclRef(VDDerived);
-        if (isa<ArrayType>(VDDerivedType) || isNonAggrClass)
+        if (isa<ArrayType>(VDDerivedType))
           assignToZero = GetCladZeroInit(declRef);
-        else
+        else if (!isNonAggrClass)
           assignToZero = BuildOp(BinaryOperatorKind::BO_Assign, declRef,
                                  getZeroInit(VDDerivedType));
         if (!keepLocal)
@@ -2793,6 +2793,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (shouldCopyInitialize) {
       Expr* copyExpr = BuildDeclRef(VDClone);
       QualType origTy = VDClone->getType();
+      if (isInsideLoop) {
+        StmtDiff pushPop = StoreAndRestore(
+            BuildDeclRef(VDDerived), /*prefix=*/"_t", /*moveToTape=*/true);
+        addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+      }
       // if VDClone is volatile, we have to use const_cast to be able to use
       // most copy constructors.
       if (origTy.isVolatileQualified()) {
