@@ -6,10 +6,15 @@
 #include "TBRAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/ASTLambda.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CallGraph.h"
+#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Lookup.h"
@@ -691,6 +696,7 @@ namespace clad {
       std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
       for (auto index : CUDAGlobalArgsIndexes)
         name += "_" + std::to_string(index);
+
       return name;
     }
 
@@ -749,6 +755,22 @@ namespace clad {
       s = std::to_string(CurrentDerivativeOrder);
 
     return BaseFunctionName + "_d" + s + "arg" + argInfo;
+  }
+
+  bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
+    // FIXME: We store the original function's params in DVI and here we need to
+    // compare with the cloned ones by name. We can compare the pointers instead
+    // of strings if we built the function cloning in the DiffRequest.
+    for (const DiffInputVarInfo& dParam : DVI) {
+      if (PVD->getName() == dParam.param->getNameAsString())
+        return true;
+
+      // FIXME: Gross hack to handle shouldUseCudaAtomicOps...
+      std::string pName = "_d_" + dParam.param->getNameAsString();
+      if (pName == PVD->getName())
+        return true;
+    }
+    return false;
   }
 
   ///\returns true on error.
@@ -990,6 +1012,14 @@ namespace clad {
       request.CallUpdateRequired = true;
 
       request.Args = E->getArg(1);
+      // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
+      // in the DiffRequest we have the move away from pointer comparisons of
+      // the ParmVarDecls (of the DVI).
+      if (request.Function->hasAttr<CUDAGlobalAttr>()) {
+        request.UpdateDiffParamsInfo(m_Sema);
+        for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
+          request.CUDAGlobalArgsIndexes.push_back(i);
+      }
       m_TopMostReq = &request;
     } else {
       // Don't build propagators for calls that do not contribute in
@@ -1009,18 +1039,33 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
-      // propagatorReq.CUDAGlobalArgsIndexes = globalCallArgs;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
-      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-        // if (MD && isLambdaCallOperator(MD)) {
-        if (const auto* paramDecl = FD->getParamDecl(i))
+      if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
+        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+          // if (MD && isLambdaCallOperator(MD)) {
+          const auto* paramDecl = FD->getParamDecl(i);
           request.DVI.push_back(paramDecl);
-        //}
-        // FIXME:
-        // else if (DerivedCallOutputArgs[i + (bool)MD]) {
-        //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
-        //}
+
+          //}
+          // FIXME: The following code is also part of the decision making in
+          // case the pullbacks are built on demand. We need to check if it is
+          // still needed.
+          // else if (DerivedCallOutputArgs[i + (bool)MD]) {
+          //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
+          //}
+        }
+      } else { // CUDA device function call in global kernel gradient
+        for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
+          // Try to match it against the global arguments
+          Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
+            const auto* PVD = cast<ParmVarDecl>(DRE->getDecl());
+            request.DVI.push_back(PVD);
+            if (m_TopMostReq->HasIndependentParameter(PVD))
+              request.CUDAGlobalArgsIndexes.push_back(i);
+          }
+        }
       }
     }
 
