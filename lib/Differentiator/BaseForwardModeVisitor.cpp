@@ -1036,7 +1036,7 @@ StmtDiff BaseForwardModeVisitor::VisitCallExpr(const CallExpr* CE) {
   bool isLambda = isLambdaCallOperator(FD);
 
   Expr* CUDAExecConfig = nullptr;
-  if (auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
+  if (const auto* KCE = dyn_cast<CUDAKernelCallExpr>(CE))
     CUDAExecConfig = Clone(KCE->getConfig());
 
   // If the function is non_differentiable, return zero derivative.
