@@ -129,12 +129,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
-    // Same as checking whether this is a function executed by the GPU
-    if (!m_CUDAGlobalArgs.empty())
-      if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
-        if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-          // Check whether this param is in the global memory of the GPU
-          return m_CUDAGlobalArgs.find(PVD) != m_CUDAGlobalArgs.end();
+    if (!m_Context.getLangOpts().CUDA)
+      return false;
+
+    if (!m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+      return false;
+
+    if (!isa<DeclRefExpr>(E))
+      return false;
+
+    const auto* DRE = cast<DeclRefExpr>(E);
+
+    // Check whether this param is in the global memory of the GPU
+    if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
+      return m_DiffReq.HasIndependentParameter(PVD);
 
     return false;
   }
@@ -297,17 +305,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
     m_Derivative->setParams(params);
-    // Match the global arguments of the call to the device function to the
-    // pullback function's parameters.
-    if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
-      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
-        m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
-    // if the function is a global kernel, all the adjoint parameters reside in
-    // the global memory of the GPU. To facilitate the process, all the params
-    // of the kernel are added to the set.
-    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-      for (auto* param : params)
-        m_CUDAGlobalArgs.emplace(param);
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
@@ -1239,15 +1236,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     result = BuildArraySubscript(target, reverseIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      if (shouldUseCudaAtomicOps(target)) {
-        Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
-        // Add it to the body statements.
-        addToCurrentBlock(atomicCall, direction::reverse);
-      } else {
-        auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
-        // Add it to the body statements.
-        addToCurrentBlock(add_assign, direction::reverse);
-      }
+      Expr* add_assign = nullptr;
+      if (shouldUseCudaAtomicOps(target))
+        add_assign = BuildCallToCudaAtomicAdd(result, dfdx());
+      else
+        add_assign = BuildOp(BO_AddAssign, result, dfdx());
+
+      addToCurrentBlock(add_assign, direction::reverse);
     }
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
@@ -1290,14 +1285,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Expr* base = it->second;
           if (auto* UO = dyn_cast<UnaryOperator>(it->second))
             base = UO->getSubExpr()->IgnoreImpCasts();
-          if (shouldUseCudaAtomicOps(base)) {
-            Expr* atomicCall = BuildCallToCudaAtomicAdd(it->second, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(atomicCall, direction::reverse);
-          } else {
-            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-            addToCurrentBlock(add_assign, direction::reverse);
-          }
+          Expr* add_assign = nullptr;
+          if (shouldUseCudaAtomicOps(base))
+            add_assign = BuildCallToCudaAtomicAdd(it->second, dfdx());
+          else
+            add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+
+          addToCurrentBlock(add_assign, direction::reverse);
         }
       }
       return StmtDiff(clonedDRE, it->second);
@@ -1697,7 +1691,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* baseExpr = nullptr;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
-    std::vector<size_t> globalCallArgs;
     if (!OverloadedDerivedFn) {
       size_t idx = 0;
 
@@ -1779,19 +1772,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     static_cast<int>(isMethodOperatorCall),
                                 pullback);
 
-      // Try to find it in builtin derivatives
+      // Try to find it in builtin derivatives.
+      // FIXME: resort to ComputeDerivativeName somehow.
       std::string customPullback =
           clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
       // Add the indexes of the global args to the custom pullback name
-      if (!m_CUDAGlobalArgs.empty())
+      if (m_Context.getLangOpts().CUDA)
         for (size_t i = 0; i < pullbackCallArgs.size(); i++)
           if (auto* DRE = dyn_cast<DeclRefExpr>(pullbackCallArgs[i]))
-            if (auto* param = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-              if (m_CUDAGlobalArgs.find(param) != m_CUDAGlobalArgs.end()) {
+            if (auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
+              if (m_DiffReq.HasIndependentParameter(PVD))
                 customPullback += "_" + std::to_string(i);
-                globalCallArgs.emplace_back(i);
-              }
-
       if (Expr* Base = baseDiff.getExpr())
         pullbackCallArgs.insert(pullbackCallArgs.begin(), Base);
 
@@ -1814,10 +1805,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // derive the called function.
       DiffRequest pullbackRequest{};
       pullbackRequest.Function = FD;
-
-      // Mark the indexes of the global args. Necessary if the argument of the
-      // call has a different name than the function's signature parameter.
-      pullbackRequest.CUDAGlobalArgsIndexes = globalCallArgs;
 
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
@@ -2159,15 +2146,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
         if (dfdx() && derivedE) {
-          if (shouldUseCudaAtomicOps(diff_dx)) {
-            Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(atomicCall, direction::reverse);
-          } else {
-            auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(add_assign, direction::reverse);
-          }
+          Expr* add_assign = nullptr;
+          if (shouldUseCudaAtomicOps(diff_dx))
+            add_assign = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
+          else
+            add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
+
+          addToCurrentBlock(add_assign, direction::reverse);
         }
       }
       return {cloneE, derivedE};

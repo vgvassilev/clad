@@ -689,8 +689,14 @@ namespace clad {
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
         Mode != DiffMode::vector_forward_mode) {
       std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
-      for (auto index : CUDAGlobalArgsIndexes)
-        name += "_" + std::to_string(index);
+      if (!Function->hasAttr<clang::CUDAGlobalAttr>())
+        return name;
+
+      // CUDA
+      for (unsigned i = 0, e = Function->getNumParams(); i < e; ++i)
+        if (HasIndependentParameter(Function->getParamDecl(i)))
+          name += "_" + std::to_string(i);
+
       return name;
     }
 
@@ -749,6 +755,22 @@ namespace clad {
       s = std::to_string(CurrentDerivativeOrder);
 
     return BaseFunctionName + "_d" + s + "arg" + argInfo;
+  }
+
+  bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
+    // FIXME: We store the original function's params in DVI and here we need to
+    // compare with the cloned ones by name. We can compare the pointers instead
+    // of strings if we built the function cloning in the DiffRequest.
+    for (const DiffInputVarInfo& dParam : DVI) {
+      if (PVD->getName() == dParam.param->getNameAsString())
+        return true;
+
+      // FIXME: Gross hack to handle shouldUseCudaAtomicOps...
+      std::string pName = "_d_" + dParam.param->getNameAsString();
+      if (pName == PVD->getName())
+        return true;
+    }
+    return false;
   }
 
   ///\returns true on error.
