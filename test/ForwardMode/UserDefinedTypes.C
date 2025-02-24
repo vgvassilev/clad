@@ -551,7 +551,7 @@ complexD fn9(double i, complexD c) {
 // CHECK-NEXT:     return _d_r;
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<complex<double> &, complex<double> &> operator_plus_equal_pushforward(const complex<double> &__z, std::complex<double> *_d_this, const complex<double> &_d___z);
+// CHECK: clad::ValueAndPushforward<complex<double> &, complex<double> &> operator_plus_equal_pushforward(const complex<double> &__[[PARAM:.*]], std::complex<double> *_d_this, const complex<double> &_d___[[PARAM]]){{.*}};
 
 std::complex<double> fn10(double i, double j) {
   std::complex<double> c1, c2;

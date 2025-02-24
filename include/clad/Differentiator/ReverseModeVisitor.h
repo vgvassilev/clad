@@ -60,8 +60,6 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
-    /// Global GPU args of the function.
-    std::unordered_set<const clang::ParmVarDecl*> m_CUDAGlobalArgs;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function

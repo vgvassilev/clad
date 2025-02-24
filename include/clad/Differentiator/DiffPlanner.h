@@ -151,6 +151,7 @@ public:
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
   std::string ComputeDerivativeName() const;
+  bool HasIndependentParameter(const clang::ParmVarDecl* PVD) const;
 };
 
   using DiffInterval = std::vector<clang::SourceRange>;
