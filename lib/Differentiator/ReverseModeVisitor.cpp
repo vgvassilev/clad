@@ -1939,7 +1939,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (!utils::isNonConstReferenceType(returnType) &&
           !returnType->isPointerType())
         return StmtDiff{customForwardPassCE};
-      auto* callRes = StoreAndRef(customForwardPassCE);
+      Expr* callRes = nullptr;
+      if (isInsideLoop)
+        callRes = GlobalStoreAndRef(customForwardPassCE, /*prefix=*/"_t",
+                                    /*force=*/true);
+      else
+        callRes = StoreAndRef(customForwardPassCE);
       auto* resValue =
           utils::BuildMemberExpr(m_Sema, getCurrentScope(), callRes, "value");
       auto* resAdjoint =
