@@ -208,6 +208,16 @@ double fn24(double d, double e) {
   return *up;
 }
 
+double fn25(double u, double v) {
+    std::vector<double>::allocator_type alloc;
+    double prod = 1;
+    for (int i = 3; i >= 1; --i) {
+        std::vector<double> vec(i, v + u, alloc);
+        prod *= vec[i - 1];
+    }
+    return prod;
+}
+
 int main() {
     double d_i, d_j;
     INIT_GRADIENT(fn10);
@@ -225,6 +235,7 @@ int main() {
     INIT_GRADIENT(fn22);
     INIT_GRADIENT(fn23);
     INIT_GRADIENT(fn24);
+    INIT_GRADIENT(fn25);
 
     TEST_GRADIENT(fn10, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 1.00}
     TEST_GRADIENT(fn11, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {2.00, 1.00}
@@ -241,6 +252,7 @@ int main() {
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 4, &d_i, &d_j);  // CHECK-EXEC: {-2.00, 1.00}
     TEST_GRADIENT(fn23, /*numOfDerivativeArgs=*/2, 1, 1, &d_i, &d_j);  // CHECK-EXEC: {1.00, 3.00}
     TEST_GRADIENT(fn24, /*NumOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {1.00, 5.00}
+    TEST_GRADIENT(fn25, /*NumOfDerivativeArgs=*/2, 3, 1, &d_i, &d_j);  // CHECK-EXEC: {48.00, 48.00}
 }
 
 // CHECK: void fn10_grad(double u, double v, double *_d_u, double *_d_v) {
@@ -1007,4 +1019,64 @@ int main() {
 // CHECK-NEXT:         {{.*}}class_functions::operator_star_pullback(&up, 0., &_d_up);
 // CHECK-NEXT:     }
 // CHECK-NEXT:     *_d_d += *_d_p;
+// CHECK-NEXT: }
+
+// CHECK-NEXT: void fn25_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<std::vector<double> > _t1 = {};
+// CHECK-NEXT:     clad::tape<std::vector<double> > _t2 = {};
+// CHECK-NEXT:     std::vector<double> vec = {};
+// CHECK-NEXT:     std::vector<double> _d_vec{};
+// CHECK-NEXT:     clad::tape<double> _t3 = {};
+// CHECK-NEXT:     clad::tape<std::vector<double> > _t4 = {};
+// CHECK-NEXT:     clad::tape<clad::ValueAndAdjoint<double &, double &> > _t5 = {};
+// CHECK-NEXT:     {{.*}}allocator_type alloc;
+// CHECK-NEXT:     {{.*}}allocator_type _d_alloc = {};
+// CHECK-NEXT:     clad::zero_init(_d_alloc);
+// CHECK-NEXT:     double _d_prod = 0.;
+// CHECK-NEXT:     double prod = 1;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 3; ; --i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i >= 1))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, std::move(_d_vec));
+// CHECK-NEXT:         clad::push(_t2, std::move(vec)) , vec = i, v + u, alloc;
+// CHECK-NEXT:         _d_vec = vec;
+// CHECK-NEXT:         clad::zero_init(_d_vec);
+// CHECK-NEXT:         clad::push(_t3, prod);
+// CHECK-NEXT:         clad::push(_t4, vec);
+// CHECK-NEXT:         clad::push(_t5, clad::custom_derivatives::class_functions::operator_subscript_reverse_forw(&vec, i - 1, &_d_vec, {{0U|0UL|0}}));
+// CHECK-NEXT:         prod *= clad::back(_t5).value;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_prod += 1;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         ++i;
+// CHECK-NEXT:         {
+// CHECK-NEXT:             prod = clad::pop(_t3);
+// CHECK-NEXT:             double _r_d0 = _d_prod;
+// CHECK-NEXT:             _d_prod = 0.;
+// CHECK-NEXT:             _d_prod += _r_d0 * clad::back(_t5).value;
+// CHECK-NEXT:             {{.*}}size_type _r1 = 0{{.*}};
+// CHECK-NEXT:             clad::custom_derivatives::class_functions::operator_subscript_pullback(&clad::back(_t4), i - 1, prod * _r_d0, &_d_vec, &_r1);
+// CHECK-NEXT:             _d_i += _r1;
+// CHECK-NEXT:             clad::pop(_t4);
+// CHECK-NEXT:             clad::pop(_t5);
+// CHECK-NEXT:         }
+// CHECK-NEXT:         {
+// CHECK-NEXT:             {{.*}}value_type _r0 = 0.;
+// CHECK-NEXT:             clad::custom_derivatives::class_functions::constructor_pullback(&vec, i, v + u, alloc, &_d_vec, &_d_i, &_r0, &_d_alloc);
+// CHECK-NEXT:             *_d_v += _r0;
+// CHECK-NEXT:             *_d_u += _r0;
+// CHECK-NEXT:             _d_vec = clad::pop(_t1);
+// CHECK-NEXT:             vec = clad::pop(_t2);
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
 // CHECK-NEXT: }
