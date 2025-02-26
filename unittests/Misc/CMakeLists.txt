@@ -1,5 +1,4 @@
 add_clad_unittest(MiscTests
-  main.cpp
   CallDeclOnly.cpp
   Defs.cpp
   DynamicGraph.cpp
@@ -9,4 +8,3 @@ add_clad_unittest(MiscTests
 ADD_CLAD_LIBRARY(Defs Defs.cpp)
 # Link the library to the test
 target_link_libraries(MiscTests PRIVATE Defs)
-set_property(TARGET MiscTests PROPERTY CXX_STANDARD 11)
