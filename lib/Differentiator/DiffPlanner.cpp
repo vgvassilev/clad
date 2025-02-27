@@ -690,6 +690,29 @@ namespace clad {
     return found != m_ActivityRunInfo.ToBeRecorded.end();
   }
 
+  bool DiffRequest::isVaried(const Expr* E) const {
+    // FIXME: We should consider removing pullback requests from the
+    // diff graph.
+    class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
+      const DiffRequest& m_Request;
+
+    public:
+      VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
+      bool isVariedE(const clang::Expr* E) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        return !TraverseStmt(const_cast<clang::Expr*>(E));
+      }
+      bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
+        if (!isa<VarDecl>(DRE->getDecl()))
+          return true;
+        if (m_Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
+          return false;
+        return true;
+      }
+    } analyzer(*this);
+    return analyzer.isVariedE(E);
+  }
+
   std::string DiffRequest::ComputeDerivativeName() const {
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
         Mode != DiffMode::vector_forward_mode) {
@@ -951,16 +974,10 @@ namespace clad {
     return !Found.empty();
   }
 
-  // FIXME: Add varied analysis.
-  static bool allArgumentsAreLiterals(const CallExpr* CE) {
+  static bool allArgumentsAreLiterals(const CallExpr* CE,
+                                      const DiffRequest* request) {
     for (const Expr* A : CE->arguments()) {
-      A = A->IgnoreImpCasts();
-      if (!isa<CXXNullPtrLiteralExpr>(A) && !isa<CharacterLiteral>(A) &&
-          !isa<CXXBoolLiteralExpr>(A) && !isa<FixedPointLiteral>(A) &&
-          !isa<ImaginaryLiteral>(A) && !isa<IntegerLiteral>(A) &&
-          !isa<ObjCBoolLiteralExpr>(A) && !isa<ObjCStringLiteral>(A) &&
-          !isa<FloatingLiteral>(A) && !isa<ObjCArrayLiteral>(A) &&
-          !isa<StringLiteral>(A) && !isa<CompoundLiteralExpr>(A))
+      if (request->isVaried(A))
         return false; // non-constant found.
     }
     return true; // all constants.
@@ -1025,7 +1042,7 @@ namespace clad {
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
-          allArgumentsAreLiterals(E))
+          allArgumentsAreLiterals(E, m_ParentReq))
         return true;
 
       request.Function = FD;
@@ -1074,6 +1091,7 @@ namespace clad {
     request.CallContext = E;
     request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
 
+    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
     // Recurse into call graph.
     TraverseFunctionDeclOnce(request.Function);
     if (!HasCustomDerivativeForDiffReq(m_Sema, request))
