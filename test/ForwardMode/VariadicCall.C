@@ -1,10 +1,7 @@
-// RUN: %cladclang -std=c++17 %s -I%S/../../include -oVariadicCall.out 2>&1 | %filecheck %s
+// RUN: %cladclang -std=c++17 %s -I%S/../../include -oVariadicCall.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./VariadicCall.out | %filecheck_exec %s
 
 #include "clad/Differentiator/Differentiator.h"
-
-// CHECK: warning: function 'printf' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'
-// CHECK: note: fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro; considering 'printf' as 0   
 
 template <typename... T>
 double fn1(double x, T... y) {
@@ -12,7 +9,8 @@ double fn1(double x, T... y) {
 }
 
 double fn2(double x, double y) {
-    printf("x is %f, y is %f\n", x, y);
+    printf("x is %f, y is %f\n", x, y); // expected-warning {{function 'printf' was not differentiated because clad failed to differentiate it and no suitable overload was found in namespace 'custom_derivatives'}}
+                                        // expected-note@-1 {{fallback to numerical differentiation is disabled by the 'CLAD_NO_NUM_DIFF' macro; considering 'printf' as 0}}
     return fn1(x, y);
 }
 
