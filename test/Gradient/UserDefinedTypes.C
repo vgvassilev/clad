@@ -201,14 +201,6 @@ double fn4(double i, double j) {
 // CHECK-NEXT:         _d_q.second += 1 * j;
 // CHECK-NEXT:         *_d_j += q.second * 1;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _r2 = 0;
-// CHECK-NEXT:         int _r3 = 0;
-// CHECK-NEXT:     }
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _r0 = 0;
-// CHECK-NEXT:         int _r1 = 0;
-// CHECK-NEXT:     }
 // CHECK-NEXT: }
 
 // CHECK: void someMemFn_grad(double i, double j, Tangent *_d_this, double *_d_i, double *_d_j) {
@@ -642,16 +634,6 @@ double fn16(double i, double j) {
 // CHECK-NEXT:        *_d_j += _r5;
 // CHECK-NEXT:        _t0.operator_plus_pullback(obj2, _r6, &_d_obj1, &_d_obj2);
 // CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        double _r2 = 0.;
-// CHECK-NEXT:        double _r3 = 0.;
-// CHECK-NEXT:        clad::custom_derivatives::class_functions::constructor_pullback(3, 5, &_d_obj2, &_r2, &_r3);
-// CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        clad::custom_derivatives::class_functions::constructor_pullback(2, 3, &_d_obj1, &_r0, &_r1);
-// CHECK-NEXT:    }
 // CHECK-NEXT:}
 
 // CHECK: void mem_fn_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j);
@@ -672,11 +654,6 @@ double fn17(double i, double j) {
 // CHECK-NEXT:        _t0.mem_fn_pullback(i, j, 1, &_d_sf, &_r2, &_r3);
 // CHECK-NEXT:        *_d_i += _r2;
 // CHECK-NEXT:        *_d_j += _r3;
-// CHECK-NEXT:    }
-// CHECK-NEXT:    {
-// CHECK-NEXT:        double _r0 = 0.;
-// CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        clad::custom_derivatives::class_functions::constructor_pullback(3, 5, &_d_sf, &_r0, &_r1);
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
@@ -733,11 +710,6 @@ double fn19(double i, double j) {
 // CHECK-NEXT:          _t0.operator_star_pullback(sf2, _r4, &_d_sf1, &_d_sf2);
 // CHECK-NEXT:      }
 // CHECK-NEXT:      clad::custom_derivatives::class_functions::constructor_pullback(i, j, &_d_sf2, &*_d_i, &*_d_j);
-// CHECK-NEXT:      {
-// CHECK-NEXT:          double _r0 = 0.;
-// CHECK-NEXT:          double _r1 = 0.;
-// CHECK-NEXT:          clad::custom_derivatives::class_functions::constructor_pullback(3, 5, &_d_sf1, &_r0, &_r1);
-// CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
 void fn20(MyStruct s) {

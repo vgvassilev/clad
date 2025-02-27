@@ -147,10 +147,6 @@ int main() {
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
     // CHECK: void fn_s1_field_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -162,10 +158,6 @@ int main() {
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
     // CHECK: void fn_s1_field_pointer_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -176,10 +168,6 @@ int main() {
     // CHECK-NEXT:         *_d_obj.x_pointer += 1 * *obj.y_pointer;
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
-    // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
 

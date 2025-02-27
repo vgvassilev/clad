@@ -233,10 +233,6 @@ int main() {
   // CHECK-NEXT:         *_d_i += _r2;
   // CHECK-NEXT:         *_d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0.;
-  // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
   // testing differentiating a function calling operator() on a functor
@@ -285,10 +281,6 @@ int main() {
   // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r2, &_r3, &_r4);
   // CHECK-NEXT:         *_d_i += _r3;
   // CHECK-NEXT:         *_d_j += _r4;
-  // CHECK-NEXT:     }
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:      double _r0 = 0.;
-  // CHECK-NEXT:      double _r1 = 0.;
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
