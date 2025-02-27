@@ -1443,6 +1443,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff();
     }
 
+    // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
 
     // If the result does not depend on the result of the call, just clone
@@ -1460,39 +1461,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // the gradient.
     if (!nonDiff && !isa<CXXMemberCallExpr>(CE) &&
         !isa<CXXOperatorCallExpr>(CE)) {
-      bool allArgsAreConstant = true;
+      nonDiff = true;
       for (const Expr* arg : CE->arguments()) {
-        // if it's of type MaterializeTemporaryExpr, then check its
-        // subexpression.
-        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
-          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
-        // FIXME: We should consider moving this code in the VariedAnalysis
-        // where we could decide to remove pullback requests from the
-        // diff graph.
-        class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
-          const DiffRequest& Request;
-
-        public:
-          VariedChecker(const DiffRequest& DR) : Request(DR) {}
-          bool isVariedE(const clang::Expr* E) {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-            return !TraverseStmt(const_cast<clang::Expr*>(E));
-          }
-          bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
-            if (!isa<VarDecl>(DRE->getDecl()))
-              return true;
-            if (Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
-              return false;
-            return true;
-          }
-        } analyzer(m_DiffReq);
-        if (analyzer.isVariedE(arg)) {
-          allArgsAreConstant = false;
+        if (m_DiffReq.isVaried(arg)) {
+          nonDiff = false;
           break;
         }
       }
-      if (allArgsAreConstant)
-        nonDiff = true;
     }
 
     if (nonDiff) {
