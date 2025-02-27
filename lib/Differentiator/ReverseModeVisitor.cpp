@@ -4022,6 +4022,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+    CXXConstructorDecl* CD = CE->getConstructor();
     llvm::SmallVector<Expr*, 4> primalArgs;
     llvm::SmallVector<Expr*, 4> adjointArgs;
     llvm::SmallVector<Expr*, 4> reverseForwAdjointArgs;
@@ -4081,24 +4082,49 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       primalArgs.push_back(argDiff.getExpr());
     }
 
-    // Try to create a pullback constructor call
-    llvm::SmallVector<Expr*, 4> pullbackArgs;
-    const CXXRecordDecl* RD = CE->getConstructor()->getParent();
+    const CXXRecordDecl* RD = CD->getParent();
     QualType recordType = m_Context.getRecordType(RD);
     QualType recordPointerType = m_Context.getPointerType(recordType);
-    // dThisE = adjoint of the object being created by this constructor call.
-    //
-    // We cannot fill this arg yet because the object has not yet been
-    // created. The caller which triggers 'VisitCXXConstructExpr' is
-    // responsible for updating this arg.
-    Expr* dThisE = nullptr;
-    if (m_TrackConstructorPullbackInfo)
-      dThisE = getZeroInit(recordPointerType);
-    else if (dfdx())
-      dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
-                       m_DiffReq->getLocation());
 
-    if (dThisE) {
+    // FIXME: consider moving non-diff analysis to DiffPlanner.
+    bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
+
+    // If the result does not depend on the result of the call, just clone
+    // the call and visit arguments (since they may contain side-effects like
+    // f(x = y))
+    // If the callee function takes arguments by reference then it can affect
+    // derivatives even if there is no `dfdx()` and thus we should call the
+    // derived function.
+    if (!nonDiff && !(dfdx() || m_TrackConstructorPullbackInfo))
+      nonDiff = true;
+
+    // If all arguments are constant literals, then this does not contribute to
+    // the gradient.
+    if (!nonDiff) {
+      nonDiff = true;
+      for (const Expr* arg : CE->arguments()) {
+        if (m_DiffReq.isVaried(arg)) {
+          nonDiff = false;
+          break;
+        }
+      }
+    }
+
+    if (!nonDiff) {
+      // Try to create a pullback constructor call
+      llvm::SmallVector<Expr*, 4> pullbackArgs;
+      // dThisE = adjoint of the object being created by this constructor call.
+      //
+      // We cannot fill this arg yet because the object has not yet been
+      // created. The caller which triggers 'VisitCXXConstructExpr' is
+      // responsible for updating this arg.
+      Expr* dThisE = nullptr;
+      if (m_TrackConstructorPullbackInfo)
+        dThisE = getZeroInit(recordPointerType);
+      else
+        dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
+                         m_DiffReq->getLocation());
+
       pullbackArgs.append(primalArgs.begin(), primalArgs.end());
       pullbackArgs.push_back(dThisE);
       pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
