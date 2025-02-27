@@ -678,6 +678,29 @@ namespace clad {
     return found != m_ActivityRunInfo.ToBeRecorded.end();
   }
 
+  bool DiffRequest::isVaried(const Expr* E) const {
+    // FIXME: We should consider removing pullback requests from the
+    // diff graph.
+    class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
+      const DiffRequest m_Request;
+
+    public:
+      VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
+      bool isVariedE(const clang::Expr* E) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        return !TraverseStmt(const_cast<clang::Expr*>(E));
+      }
+      bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
+        if (!isa<VarDecl>(DRE->getDecl()))
+          return true;
+        if (m_Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
+          return false;
+        return true;
+      }
+    } analyzer(*this);
+    return analyzer.isVariedE(E);
+  }
+
   std::string DiffRequest::ComputeDerivativeName() const {
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
         Mode != DiffMode::vector_forward_mode) {
