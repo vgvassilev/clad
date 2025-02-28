@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.7.0)
 
+if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
+  project(clad)
+endif()
+
 enable_language(CXX)
 set(CMAKE_CXX_EXTENSIONS NO)
 
@@ -44,8 +48,6 @@ set(LLVM_VERSION_UPPER_BOUND 19.2.0)
 # standalone project, using LLVM as an external library:
 if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(CLAD_BUILT_STANDALONE 1)
-
-  project(clad)
 
   if (NOT DEFINED Clang_DIR)
     set(Clang_DIR ${LLVM_DIR})
