@@ -689,13 +689,8 @@ namespace clad {
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
         Mode != DiffMode::vector_forward_mode) {
       std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
-      if (!Function->hasAttr<clang::CUDAGlobalAttr>())
-        return name;
-
-      // CUDA
-      for (unsigned i = 0, e = Function->getNumParams(); i < e; ++i)
-        if (HasIndependentParameter(Function->getParamDecl(i)))
-          name += "_" + std::to_string(i);
+      for (auto index : CUDAGlobalArgsIndexes)
+        name += "_" + std::to_string(index);
 
       return name;
     }
@@ -1012,6 +1007,17 @@ namespace clad {
       request.CallUpdateRequired = true;
 
       request.Args = E->getArg(1);
+      // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
+      // in the DiffRequest we have the move away from pointer comparisons of
+      // the ParmVarDecls (of the DVI).
+      if (request.Function->hasAttr<CUDAGlobalAttr>()) {
+        request.UpdateDiffParamsInfo(m_Sema);
+        for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i) {
+          const ParmVarDecl* PVD = request.Function->getParamDecl(i);
+          if (request.HasIndependentParameter(PVD))
+            request.CUDAGlobalArgsIndexes.push_back(i);
+        }
+      }
       m_TopMostReq = &request;
     } else {
       // Don't build propagators for calls that do not contribute in
@@ -1031,13 +1037,16 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
-      // propagatorReq.CUDAGlobalArgsIndexes = globalCallArgs;
+      //request.CUDAGlobalArgsIndexes = m_TopMostReq->CUDAGlobalArgsIndexes;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
         // if (MD && isLambdaCallOperator(MD)) {
-        if (const auto* paramDecl = FD->getParamDecl(i))
-          request.DVI.push_back(paramDecl);
+        const auto* paramDecl = FD->getParamDecl(i);
+        request.DVI.push_back(paramDecl);
+        if (!m_TopMostReq->CUDAGlobalArgsIndexes.empty() && m_TopMostReq->HasIndependentParameter(paramDecl))
+          request.CUDAGlobalArgsIndexes.push_back(i);
+
         //}
         // FIXME:
         // else if (DerivedCallOutputArgs[i + (bool)MD]) {

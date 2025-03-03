@@ -1777,12 +1777,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       std::string customPullback =
           clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
       // Add the indexes of the global args to the custom pullback name
-      if (m_Context.getLangOpts().CUDA)
-        for (size_t i = 0; i < pullbackCallArgs.size(); i++)
-          if (auto* DRE = dyn_cast<DeclRefExpr>(pullbackCallArgs[i]))
-            if (auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-              if (m_DiffReq.HasIndependentParameter(PVD))
-                customPullback += "_" + std::to_string(i);
+      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
+        customPullback += "_" + std::to_string(index);
+
       if (Expr* Base = baseDiff.getExpr())
         pullbackCallArgs.insert(pullbackCallArgs.begin(), Base);
 
@@ -1809,16 +1806,22 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
       pullbackRequest.Mode = DiffMode::experimental_pullback;
+
       // Silence diag outputs in nested derivation process.
       pullbackRequest.VerboseDiags = false;
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
+      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+        const auto* PVD = FD->getParamDecl(i);
         if (MD && isLambdaCallOperator(MD)) {
-          if (const auto* paramDecl = FD->getParamDecl(i))
-            pullbackRequest.DVI.push_back(paramDecl);
-        } else if (DerivedCallOutputArgs[i + (bool)MD])
-          pullbackRequest.DVI.push_back(FD->getParamDecl(i));
+          pullbackRequest.DVI.push_back(PVD);
+        } else if (DerivedCallOutputArgs[i + (bool)MD]) {
+          if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
+              m_DiffReq.HasIndependentParameter(PVD))
+            pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+          pullbackRequest.DVI.push_back(PVD);
+        }
+      }
 
       FunctionDecl* pullbackFD = nullptr;
       if (m_ExternalSource)
