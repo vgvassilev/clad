@@ -1040,19 +1040,30 @@ namespace clad {
       //request.CUDAGlobalArgsIndexes = m_TopMostReq->CUDAGlobalArgsIndexes;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
-      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
-        // if (MD && isLambdaCallOperator(MD)) {
-        const auto* paramDecl = FD->getParamDecl(i);
-        request.DVI.push_back(paramDecl);
-        if (!m_TopMostReq->CUDAGlobalArgsIndexes.empty() && m_TopMostReq->HasIndependentParameter(paramDecl))
-          request.CUDAGlobalArgsIndexes.push_back(i);
+      if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
+        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+          // if (MD && isLambdaCallOperator(MD)) {
+          const auto* paramDecl = FD->getParamDecl(i);
+          request.DVI.push_back(paramDecl);
 
-        //}
-        // FIXME:
-        // else if (DerivedCallOutputArgs[i + (bool)MD]) {
-        //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
-        //}
-      }
+          //}
+          // FIXME:
+          // else if (DerivedCallOutputArgs[i + (bool)MD]) {
+          //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
+          //}
+        }
+      } else { // CUDA global function call
+        for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
+          // Try to match it against the global arguments
+          Expr *ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+          if (const auto *DRE = dyn_cast<DeclRefExpr>(ArgE)) {
+            const ParmVarDecl *PVD = cast<ParmVarDecl>(DRE->getDecl());
+            request.DVI.push_back(PVD);
+            if (m_TopMostReq->HasIndependentParameter(PVD))
+              request.CUDAGlobalArgsIndexes.push_back(i);
+          }
+        }
+       }
     }
 
     if (isCallOperator(m_Sema.getASTContext(), request.Function))
