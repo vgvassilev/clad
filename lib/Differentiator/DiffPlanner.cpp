@@ -1061,7 +1061,7 @@ namespace clad {
               request.CUDAGlobalArgsIndexes.push_back(i);
           }
         }
-       }
+      }
     }
 
     if (isCallOperator(m_Sema.getASTContext(), request.Function))

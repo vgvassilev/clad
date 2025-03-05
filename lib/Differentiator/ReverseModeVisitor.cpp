@@ -138,16 +138,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const auto* DRE = cast<DeclRefExpr>(E);
 
     if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
-        if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-            // Check whether this param is in the global memory of the GPU
-            return m_DiffReq.HasIndependentParameter(PVD);
-        else if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) 
-          for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
-            auto PVDOrig = m_DiffReq->getParamDecl(index);
-            if ("_d_" + PVDOrig->getNameAsString() ==
-                    PVD->getNameAsString() && (utils::isArrayOrPointerType(PVDOrig->getType()) || PVDOrig->getType()->isReferenceType()))
-              return true;
-          }
+      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+        // Check whether this param is in the global memory of the GPU
+        return m_DiffReq.HasIndependentParameter(PVD);
+      else if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>())
+        for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
+          auto PVDOrig = m_DiffReq->getParamDecl(index);
+          if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
+              (utils::isArrayOrPointerType(PVDOrig->getType()) ||
+               PVDOrig->getType()->isReferenceType()))
+            return true;
+        }
     }
 
     return false;
