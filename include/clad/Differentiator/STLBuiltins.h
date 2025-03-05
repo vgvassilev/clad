@@ -454,37 +454,36 @@ void at_pullback(::std::vector<T>* vec,
 }
 
 template <typename T, typename S, typename U>
-void constructor_pullback(::std::vector<T>* v, S count, U val,
+void constructor_pullback(S count, U val,
                           typename ::std::vector<T>::allocator_type alloc,
-                          ::std::vector<T>* d_v, S* d_count, U* d_val,
+                          ::std::vector<T>* d_this, S* d_count, U* d_val,
                           typename ::std::vector<T>::allocator_type* d_alloc) {
   for (unsigned i = 0; i < count; ++i)
-    *d_val += (*d_v)[i];
-  d_v->clear();
+    *d_val += (*d_this)[i];
+  d_this->clear();
 }
 
 // A specialization for std::initializer_list (which is replaced with
 // clad::array).
 template <typename T>
 void constructor_pullback(
-    ::std::vector<T>* v, clad::array<T> init,
-    const typename ::std::vector<T>::allocator_type& alloc,
-    ::std::vector<T>* d_v, clad::array<T>* d_init,
+    clad::array<T> init, const typename ::std::vector<T>::allocator_type& alloc,
+    ::std::vector<T>* d_this, clad::array<T>* d_init,
     const typename ::std::vector<T>::allocator_type* d_alloc) {
   for (unsigned i = 0; i < init.size(); ++i) {
-    (*d_init)[i] += (*d_v)[i];
-    (*d_v)[i] = 0;
+    (*d_init)[i] += (*d_this)[i];
+    (*d_this)[i] = 0;
   }
 }
 
 // A specialization for std::initializer_list (which is replaced with
 // clad::array).
 template <typename T>
-void constructor_pullback(::std::vector<T>* v, clad::array<T> init,
-                          ::std::vector<T>* d_v, clad::array<T>* d_init) {
+void constructor_pullback(clad::array<T> init, ::std::vector<T>* d_this,
+                          clad::array<T>* d_init) {
   for (unsigned i = 0; i < init.size(); ++i) {
-    (*d_init)[i] += (*d_v)[i];
-    (*d_v)[i] = 0;
+    (*d_init)[i] += (*d_this)[i];
+    (*d_this)[i] = 0;
   }
 }
 
@@ -600,10 +599,11 @@ template <typename T, ::std::size_t N, typename U>
 void size_pullback(::std::array<T, N>* /*a*/, U /*d_y*/,
                    ::std::array<T, N>* /*d_a*/) noexcept {}
 template <typename T, ::std::size_t N>
-void constructor_pullback(::std::array<T, N>* a, const ::std::array<T, N>& arr,
-                          ::std::array<T, N>* d_a, ::std::array<T, N>* d_arr) {
+void constructor_pullback(const ::std::array<T, N>& arr,
+                          ::std::array<T, N>* d_this,
+                          ::std::array<T, N>* d_arr) {
   for (size_t i = 0; i < N; ++i)
-    (*d_arr)[i] += (*d_a)[i];
+    (*d_arr)[i] += (*d_this)[i];
 }
 
 // tuple forward mode

@@ -196,7 +196,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r3 = {0.F, 0.F};
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(&_t10, {{.*}}cos_pushforward(x, _d_x0), &_d__t1, &_r3);
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback({{.*}}cos_pushforward(x, _d_x0), &_d__t1, &_r3);
 // CHECK-NEXT:         float _r4 = 0.F;
 // CHECK-NEXT:         float _r5 = 0.F;
 // CHECK-NEXT:         cos_pushforward_pullback(x, _d_x0, _r3, &_r4, &_r5);
@@ -205,7 +205,7 @@ int main() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r0 = {0.F, 0.F};
-// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback(&_t00, {{.*}}sin_pushforward(x, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         clad::custom_derivatives::class_functions::constructor_pullback({{.*}}sin_pushforward(x, _d_x0), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         sin_pushforward_pullback(x, _d_x0, _r0, &_r1, &_r2);
@@ -230,7 +230,7 @@ int main() {
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, {{.*}}exp_pushforward(x, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}exp_pushforward(x, _d_x0), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         exp_pushforward_pullback(x, _d_x0, _r0, &_r1, &_r2);
@@ -255,7 +255,7 @@ int main() {
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<float, float> _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, {{.*}}log_pushforward(x, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}log_pushforward(x, _d_x0), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         log_pushforward_pullback(x, _d_x0, _r0, &_r1, &_r2);
@@ -280,7 +280,7 @@ int main() {
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, {{.*}}pow_pushforward(x, 4.F, _d_x0, 0.F), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(x, 4.F, _d_x0, 0.F), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
@@ -305,7 +305,7 @@ int main() {
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, {{.*}}pow_pushforward(2.F, x, 0.F, _d_x0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(2.F, x, 0.F, _d_x0), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
@@ -333,7 +333,7 @@ int main() {
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, {{.*}}pow_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
@@ -363,7 +363,7 @@ int main() {
 // CHECK-NEXT:     _d__t0.pushforward += 1;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}} _r0 = {0.F, 0.F};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, {{.*}}pow_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback({{.*}}pow_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         float _r1 = 0.F;
 // CHECK-NEXT:         float _r2 = 0.F;
 // CHECK-NEXT:         float _r3 = 0.F;
