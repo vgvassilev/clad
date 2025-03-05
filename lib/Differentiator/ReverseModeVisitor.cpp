@@ -2838,11 +2838,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_DeclReplacements[VD] = VDClone;
 
     if (!constructorPullbackInfo.empty()) {
-      Expr* thisE =
-          BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(VDClone));
       Expr* dThisE =
           BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(VDDerived));
-      constructorPullbackInfo.updateThisParmArgs(thisE, dThisE);
+      constructorPullbackInfo.updateDThisParm(dThisE);
     }
     return DeclDiff<VarDecl>(VDClone, VDDerived);
   }
@@ -4113,13 +4111,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const CXXRecordDecl* RD = CE->getConstructor()->getParent();
     QualType recordType = m_Context.getRecordType(RD);
     QualType recordPointerType = m_Context.getPointerType(recordType);
-    // thisE = object being created by this constructor call.
     // dThisE = adjoint of the object being created by this constructor call.
     //
-    // We cannot fill these args yet because these objects have not yet been
+    // We cannot fill this arg yet because the object has not yet been
     // created. The caller which triggers 'VisitCXXConstructExpr' is
-    // responsible for updating these args.
-    Expr* thisE = getZeroInit(recordPointerType);
+    // responsible for updating this arg.
     Expr* dThisE = nullptr;
     if (m_TrackConstructorPullbackInfo)
       dThisE = getZeroInit(recordPointerType);
@@ -4128,7 +4124,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                        m_DiffReq->getLocation());
 
     if (dThisE) {
-      pullbackArgs.push_back(thisE);
       pullbackArgs.append(primalArgs.begin(), primalArgs.end());
       pullbackArgs.push_back(dThisE);
       pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
@@ -4145,7 +4140,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         curRevBlock.insert(it, customPullbackCall);
         if (m_TrackConstructorPullbackInfo) {
           setConstructorPullbackCallInfo(
-              llvm::cast<CallExpr>(customPullbackCall), primalArgs.size() + 1);
+              llvm::cast<CallExpr>(customPullbackCall), primalArgs.size());
         }
       }
     }
@@ -4497,9 +4492,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return customForwPassCE;
   }
 
-  void ReverseModeVisitor::ConstructorPullbackCallInfo::updateThisParmArgs(
-      Expr* thisE, Expr* dThisE) const {
-    pullbackCE->setArg(0, thisE);
+  void ReverseModeVisitor::ConstructorPullbackCallInfo::updateDThisParm(
+      Expr* dThisE) const {
     pullbackCE->setArg(thisAdjointArgIdx, dThisE);
   }
 } // end namespace clad

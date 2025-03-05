@@ -703,7 +703,7 @@ namespace clad {
     struct ConstructorPullbackCallInfo {
       clang::CallExpr* pullbackCE = nullptr;
       size_t thisAdjointArgIdx = std::numeric_limits<size_t>::max();
-      void updateThisParmArgs(clang::Expr* thisE, clang::Expr* dThisE) const;
+      void updateDThisParm(clang::Expr* dThisE) const;
       ConstructorPullbackCallInfo() = default;
       ConstructorPullbackCallInfo(clang::CallExpr* pPullbackCE,
                                   size_t pThisAdjointArgIdx)
