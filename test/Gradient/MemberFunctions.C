@@ -510,7 +510,7 @@ namespace class_functions {
         return {SafeTestClass(), SafeTestClass()};
     }
 
-    void constructor_pullback(SafeTestClass *c, double x, double* y, SafeTestClass *d_c, double* d_x, double* d_y) {
+    void constructor_pullback(double x, double* y, SafeTestClass *d_this, double* d_x, double* d_y) {
         *d_x += *d_y;
         *d_y = 0;
     }
@@ -537,7 +537,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass s3(_t2.value);
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
-// CHECK-NEXT:      {{.*}}constructor_pullback(&s2, u, &v, &_d_s2, &*_d_u, &*_d_v);
+// CHECK-NEXT:      {{.*}}constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
 // CHECK-NEXT:  }
 
 
