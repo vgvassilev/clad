@@ -1013,9 +1013,7 @@ namespace clad {
       if (request.Function->hasAttr<CUDAGlobalAttr>()) {
         request.UpdateDiffParamsInfo(m_Sema);
         for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i) {
-          const ParmVarDecl* PVD = request.Function->getParamDecl(i);
-          if (request.HasIndependentParameter(PVD))
-            request.CUDAGlobalArgsIndexes.push_back(i);
+          request.CUDAGlobalArgsIndexes.push_back(i);
         }
       }
       m_TopMostReq = &request;
@@ -1052,7 +1050,7 @@ namespace clad {
           //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
           //}
         }
-      } else { // CUDA global function call
+      } else { // CUDA device function call in global kernel gradient
         for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
           // Try to match it against the global arguments
           Expr *ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();

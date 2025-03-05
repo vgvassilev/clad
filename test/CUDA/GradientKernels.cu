@@ -354,7 +354,7 @@ __global__ void dup_kernel_with_device_call_2(double *out, const double *in, dou
 //CHECK-NEXT:        double _r_d0 = _d_out[index0];
 //CHECK-NEXT:        _d_out[index0] = 0.;
 //CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_fn_2_pullback_0_1_3(in, val, _r_d0, _d_in, &_r0);
+//CHECK-NEXT:        device_fn_2_pullback_0(in, val, _r_d0, _d_in, &_r0);
 //CHECK-NEXT:        _d_val += _r0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -378,7 +378,7 @@ __global__ void kernel_with_device_call_3(double *out, double *in, double *val) 
 //CHECK-NEXT:        out[index0] = _t0;
 //CHECK-NEXT:        double _r_d0 = _d_out[index0];
 //CHECK-NEXT:        _d_out[index0] = 0.;
-//CHECK-NEXT:        device_fn_3_pullback_0_1_3_4(in, val, _r_d0, _d_in, _d_val);
+//CHECK-NEXT:        device_fn_3_pullback_0_1(in, val, _r_d0, _d_in, _d_val);
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
@@ -407,7 +407,7 @@ __global__ void kernel_with_nested_device_call(double *out, double *in, double v
 //CHECK-NEXT:       double _r_d0 = _d_out[index0];
 //CHECK-NEXT:        _d_out[index0] = 0.;
 //CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_with_device_call_pullback_0_1_3(in, val, _r_d0, _d_in, &_r0);
+//CHECK-NEXT:        device_with_device_call_pullback_0(in, val, _r_d0, _d_in, &_r0);
 //CHECK-NEXT:        _d_val += _r0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
@@ -520,6 +520,66 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
   cudaFree(out_dev);
 }
 
+// CHECK: __attribute__((global)) void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N) {
+//CHECK-NEXT:    bool _cond0;
+//CHECK-NEXT:    int _d_sum = 0;
+//CHECK-NEXT:    int sum = 0;
+//CHECK-NEXT:    unsigned long _t2;
+//CHECK-NEXT:    int _d_i = 0;
+//CHECK-NEXT:    int i = 0;
+//CHECK-NEXT:    clad::tape<int> _t3 = {};
+//CHECK-NEXT:    clad::tape<int> _t4 = {};
+//CHECK-NEXT:    int _t5;
+//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
+//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
+//CHECK-NEXT:    int _d_index = 0;
+//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
+//CHECK-NEXT:    {
+//CHECK-NEXT:        _cond0 = index0 < N;
+//CHECK-NEXT:        if (_cond0) {
+//CHECK-NEXT:            sum = 0;
+//CHECK-NEXT:            _t2 = 0UL;
+//CHECK-NEXT:            for (i = index0; ; clad::push(_t3, i) , (i += warpSize)) {
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    if (!(i < N))
+//CHECK-NEXT:                        break;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                _t2++;
+//CHECK-NEXT:                clad::push(_t4, sum);
+//CHECK-NEXT:                sum += in[i];
+//CHECK-NEXT:            }
+//CHECK-NEXT:            _t5 = out[index0];
+//CHECK-NEXT:            out[index0] = sum;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:    if (_cond0) {
+//CHECK-NEXT:        {
+//CHECK-NEXT:            out[index0] = _t5;
+//CHECK-NEXT:            int _r_d2 = _d_out[index0];
+//CHECK-NEXT:            _d_out[index0] = 0;
+//CHECK-NEXT:            _d_sum += _r_d2;
+//CHECK-NEXT:        }
+//CHECK-NEXT:        {
+//CHECK-NEXT:            for (;; _t2--) {
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    if (!_t2)
+//CHECK-NEXT:                        break;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    i = clad::pop(_t3);
+//CHECK-NEXT:                    int _r_d0 = _d_i;
+//CHECK-NEXT:                }
+//CHECK-NEXT:                {
+//CHECK-NEXT:                    sum = clad::pop(_t4);
+//CHECK-NEXT:                    int _r_d1 = _d_sum;
+//CHECK-NEXT:                    atomicAdd(&_d_in[i], _r_d1);
+//CHECK-NEXT:                }
+//CHECK-NEXT:            }
+//CHECK-NEXT:            _d_index += _d_i;
+//CHECK-NEXT:        }
+//CHECK-NEXT:    }
+//CHECK-NEXT:}
+
 // CHECK: void launch_add_kernel_4_grad_0_1(int *out, int *in, const int N, int *_d_out, int *_d_in) {
 //CHECK-NEXT:    int _d_N = 0;
 //CHECK-NEXT:    int *_d_in_dev = nullptr;
@@ -585,7 +645,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    *_d_val += _d_y;
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((device)) void device_fn_2_pullback_0_1_3(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) void device_fn_2_pullback_0(const double *in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
 //CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
@@ -596,7 +656,7 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((device)) void device_fn_3_pullback_0_1_3_4(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) void device_fn_3_pullback_0_1(double *in, double *val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
 //CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
@@ -607,75 +667,15 @@ void launch_add_kernel_4(int *out, int *in, const int N) {
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((device)) void device_with_device_call_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) void device_with_device_call_pullback_0(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    {
 //CHECK-NEXT:        double _r0 = 0.;
-//CHECK-NEXT:        device_fn_4_pullback_0_1_3(in, val, _d_y, _d_in, &_r0);
+//CHECK-NEXT:        device_fn_4_pullback_0_1(in, val, _d_y, _d_in, &_r0);
 //CHECK-NEXT:        *_d_val += _r0;
 //CHECK-NEXT:    }
 //CHECK-NEXT:}
 
-// CHECK: __attribute__((global)) void add_kernel_4_pullback(int *out, int *in, int N, int *_d_out, int *_d_in, int *_d_N)  {
-//CHECK-NEXT:    bool _cond0;
-//CHECK-NEXT:    int _d_sum = 0;
-//CHECK-NEXT:    int sum = 0;
-//CHECK-NEXT:    unsigned long _t2;
-//CHECK-NEXT:    int _d_i = 0;
-//CHECK-NEXT:    int i = 0;
-//CHECK-NEXT:    clad::tape<int> _t3 = {};
-//CHECK-NEXT:    clad::tape<int> _t4 = {};
-//CHECK-NEXT:    int _t5;
-//CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
-//CHECK-NEXT:    unsigned int _t0 = blockDim.x;
-//CHECK-NEXT:    int _d_index = 0;
-//CHECK-NEXT:    int index0 = threadIdx.x + _t1 * _t0;
-//CHECK-NEXT:    {
-//CHECK-NEXT:        _cond0 = index0 < N;
-//CHECK-NEXT:        if (_cond0) {
-//CHECK-NEXT:            sum = 0;
-//CHECK-NEXT:            _t2 = 0UL;
-//CHECK-NEXT:            for (i = index0; ; clad::push(_t3, i) , (i += warpSize)) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!(i < N))
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                _t2++;
-//CHECK-NEXT:                clad::push(_t4, sum);
-//CHECK-NEXT:                sum += in[i];
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _t5 = out[index0];
-//CHECK-NEXT:            out[index0] = sum;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:    if (_cond0) {
-//CHECK-NEXT:        {
-//CHECK-NEXT:            out[index0] = _t5;
-//CHECK-NEXT:            int _r_d2 = _d_out[index0];
-//CHECK-NEXT:            _d_out[index0] = 0;
-//CHECK-NEXT:            _d_sum += _r_d2;
-//CHECK-NEXT:        }
-//CHECK-NEXT:        {
-//CHECK-NEXT:            for (;; _t2--) {
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    if (!_t2)
-//CHECK-NEXT:                        break;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    i = clad::pop(_t3);
-//CHECK-NEXT:                    int _r_d0 = _d_i;
-//CHECK-NEXT:                }
-//CHECK-NEXT:                {
-//CHECK-NEXT:                    sum = clad::pop(_t4);
-//CHECK-NEXT:                    int _r_d1 = _d_sum;
-//CHECK-NEXT:                    atomicAdd(&_d_in[i], _r_d1);
-//CHECK-NEXT:                }
-//CHECK-NEXT:            }
-//CHECK-NEXT:            _d_index += _d_i;
-//CHECK-NEXT:        }
-//CHECK-NEXT:    }
-//CHECK-NEXT:}
-
-// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1_3(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
+// CHECK: __attribute__((device)) void device_fn_4_pullback_0_1(double *in, double val, double _d_y, double *_d_in, double *_d_val) {
 //CHECK-NEXT:    unsigned int _t1 = blockIdx.x;
 //CHECK-NEXT:    unsigned int _t0 = blockDim.x;
 //CHECK-NEXT:    int _d_index = 0;
