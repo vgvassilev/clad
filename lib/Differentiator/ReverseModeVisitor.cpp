@@ -2616,20 +2616,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!VDDerivedInit)
       VDDerivedInit = getZeroInit(VDType);
 
-    // `specialThisDiffCase` is only required for correctly differentiating
-    // the following code:
-    // ```
-    // Class _d_this_obj;
-    // Class* _d_this = &_d_this_obj;
-    // ```
-    // Computation of hessian requires this code to be correctly
-    // differentiated.
-    bool specialThisDiffCase = false;
-    if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
-      if (VDDerivedType->isPointerType() && MD->isInstance())
-        specialThisDiffCase = true;
-    }
-
     if (isRefType) {
       initDiff = Visit(VD->getInit());
       if (!initDiff.getStmt_dx()) {
@@ -2654,21 +2640,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       }
     }
 
-    // FIXME: Remove the special cases introduced by `specialThisDiffCase`
-    // once reverse mode supports pointers. `specialThisDiffCase` is only
-    // required for correctly differentiating the following code:
-    // ```
-    // Class _d_this_obj;
-    // Class* _d_this = &_d_this_obj;
-    // ```
-    // Computation of hessian requires this code to be correctly
-    // differentiated.
-    if (specialThisDiffCase && VD->getNameAsString() == "_d_this") {
-      VDDerivedType = getNonConstType(VDDerivedType, m_Context, m_Sema);
-      initDiff = Visit(VD->getInit());
-      if (initDiff.getExpr_dx())
-        VDDerivedInit = initDiff.getExpr_dx();
-    }
     // if VD is a pointer type, then the initial value is set to the derived
     // expression of the corresponding pointer type.
     else if (isPointerType) {
