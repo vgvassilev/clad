@@ -36,6 +36,7 @@
 #include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <string>
 
 #include "clad/Differentiator/CladUtils.h"
@@ -391,10 +392,6 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
 
   clang::FunctionDecl*
   DerivativeBuilder::HandleNestedDiffRequest(DiffRequest& request) {
-    // assert(request.Mode == DiffMode::forward ||
-    //        request.Mode == DiffMode::reverse ||
-    //        request.Mode == DiffMode::experimental_pushforward ||
-    //        request.Mode == DiffMode::experimental_pullback || 0);
     // FIXME: Find a way to do this without accessing plugin namespace functions
     bool alreadyDerived = true;
     FunctionDecl* derivative = this->FindDerivedFunction(request);

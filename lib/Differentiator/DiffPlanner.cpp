@@ -898,7 +898,7 @@ namespace clad {
     return false;
   }
 
-  static bool HasCustomDerivativeForDecl(Sema& S, const DiffRequest& R) {
+  static bool HasCustomDerivativeForDiffReq(Sema& S, const DiffRequest& R) {
     NamespaceDecl* cladNS = utils::LookupNSD(S, "clad", /*shouldExist=*/true);
     NamespaceDecl* customDerNS = utils::LookupNSD(
         S, "custom_derivatives", /*shouldExist=*/false, cladNS);
@@ -1070,7 +1070,7 @@ namespace clad {
 
     // Recurse into call graph.
     TraverseFunctionDeclOnce(request.Function);
-    if (!HasCustomDerivativeForDecl(m_Sema, request))
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
       m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     if (m_IsTraversingTopLevelDecl)
