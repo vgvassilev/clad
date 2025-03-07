@@ -2551,7 +2551,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VDType->isPointerType();
     bool isInitializedByNewExpr = false;
-    bool initializeDerivedVar = true;
+    bool initializeDerivedVar = m_DiffReq.shouldHaveAdjoint(VD) &&
+                                !clad::utils::hasNonDifferentiableAttribute(VD);
 
     if (Expr* size = getStdInitListSizeExpr(VD->getInit()))
       VDDerivedInit = size;
@@ -2641,9 +2642,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit);
 
-    if (!m_DiffReq.shouldHaveAdjoint(VD))
-      VDDerived = nullptr;
-
     // If `VD` is a reference to a local variable, then it is already
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
@@ -2651,7 +2649,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!isRefType && (!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
 
-      if (VDDerived && !clad::utils::hasNonDifferentiableAttribute(VD)) {
+      if (VDDerived) {
         derivedE = BuildDeclRef(VDDerived);
         if (isInitializedByNewExpr)
           derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
@@ -2688,7 +2686,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
-    if (VDDerived && m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD)))
+    if (VDDerived)
       derivedVDE = BuildDeclRef(VDDerived);
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
