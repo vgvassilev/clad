@@ -1633,11 +1633,10 @@ using std::sqrt_pushforward;
 
 namespace class_functions {
 template <typename T, typename U>
-void constructor_pullback(ValueAndPushforward<T, U>* lhs,
-                          ValueAndPushforward<T, U> rhs,
-                          ValueAndPushforward<T, U>* d_lhs,
+void constructor_pullback(ValueAndPushforward<T, U> rhs,
+                          ValueAndPushforward<T, U>* d_this,
                           ValueAndPushforward<T, U>* d_rhs) {
-  d_rhs->pushforward += d_lhs->pushforward;
+  d_rhs->pushforward += d_this->pushforward;
 }
 } // namespace class_functions
 } // namespace custom_derivatives

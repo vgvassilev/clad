@@ -54,7 +54,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {0., 0.};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback(f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _r2 = 0.;
 // CHECK-NEXT:         double _r3 = 0.;
@@ -92,7 +92,7 @@ double f2(double x, double y){
 // CHECK-NEXT:     _d__t0.pushforward += _d__d_ans;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         {{.*}}ValueAndPushforward<double, double> _r0 = {0., 0.};
-// CHECK-NEXT:         {{.*}}constructor_pullback(&_t00, f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
+// CHECK-NEXT:         {{.*}}constructor_pullback(f_pushforward(x, y, _d_x0, _d_y0), &_d__t0, &_r0);
 // CHECK-NEXT:         double _r1 = 0.;
 // CHECK-NEXT:         double _r2 = 0.;
 // CHECK-NEXT:         double _r3 = 0.;

@@ -1,4 +1,3 @@
-// XFAIL: asserts
 // RUN: %cladclang -std=c++14 -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oSTLCustomDerivatives.out 2>&1 | %filecheck %s
 // RUN: ./STLCustomDerivatives.out | %filecheck_exec %s
 // RUN: %cladclang -std=c++14 %s -I%S/../../include -oSTLCustomDerivativesWithTBR.out
@@ -516,7 +515,7 @@ int main() {
 // CHECK-NEXT:             {{.*}} _r2 = {{0U|0UL}};
 // CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t4, 2, 1, &_d_vec, &_r2);
 // CHECK-NEXT:         }
-// CHECK-NEXT:         {{.*}}constructor_pullback(&vec, count, u, allocator, &_d_vec, &_d_count, &*_d_u, &_d_allocator);
+// CHECK-NEXT:         {{.*}}constructor_pullback(count, u, allocator, &_d_vec, &_d_count, &*_d_u, &_d_allocator);
 // CHECK-NEXT:        *_d_u += _d_res;
 // CHECK-NEXT:     }
 
@@ -645,7 +644,7 @@ int main() {
 // CHECK-NEXT:             {{.*}}size_type _r6 = {{0U|0UL}};
 // CHECK-NEXT:             {{.*}}operator_subscript_pullback(&_t21, 1, 1, &_d_b, &_r6);
 // CHECK-NEXT:         }
-// CHECK-NEXT:         {{.*}}constructor_pullback(&b, _b0, &_d_b, &_d__b);
+// CHECK-NEXT:         {{.*}}constructor_pullback(_b0, &_d_b, &_d__b);
 // CHECK-NEXT:         {
 // CHECK-NEXT:             _t13.value = _t14;
 // CHECK-NEXT:             double _r_d4 = _t13.adjoint;
@@ -927,7 +926,7 @@ int main() {
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
 // CHECK-NEXT:          clad::array<double> _r0 = {{2U|2UL|2ULL}};
-// CHECK-NEXT:          {{.*}}::class_functions::constructor_pullback(&ls, {{.*u, v.*}}, alloc, &_d_ls, &_r0, &_d_alloc);
+// CHECK-NEXT:          {{.*}}::class_functions::constructor_pullback({{.*u, v.*}}, alloc, &_d_ls, &_r0, &_d_alloc);
 // CHECK-NEXT:          *_d_u += _r0[0];
 // CHECK-NEXT:          *_d_v += _r0[1];
 // CHECK-NEXT:      }
@@ -1003,7 +1002,7 @@ int main() {
 // CHECK-NEXT:          }
 // CHECK-NEXT:          {
 // CHECK-NEXT:              clad::array<double> _r0 = {{2U|2UL|2ULL}};
-// CHECK-NEXT:              {{.*}}::class_functions::constructor_pullback(&ls, {u, v}, alloc, &_d_ls, &_r0, &_d_alloc);
+// CHECK-NEXT:              {{.*}}::class_functions::constructor_pullback({u, v}, alloc, &_d_ls, &_r0, &_d_alloc);
 // CHECK-NEXT:              *_d_u += _r0[0];
 // CHECK-NEXT:              *_d_v += _r0[1];
 // CHECK-NEXT:              _d_ls = clad::pop(_t1);
@@ -1083,7 +1082,7 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             {{.*}}value_type _r0 = 0.;
-// CHECK-NEXT:             clad::custom_derivatives::class_functions::constructor_pullback(&vec, i, v + u, alloc, &_d_vec, &_d_i, &_r0, &_d_alloc);
+// CHECK-NEXT:             clad::custom_derivatives::class_functions::constructor_pullback(i, v + u, alloc, &_d_vec, &_d_i, &_r0, &_d_alloc);
 // CHECK-NEXT:             *_d_v += _r0;
 // CHECK-NEXT:             *_d_u += _r0;
 // CHECK-NEXT:             _d_vec = clad::pop(_t1);
@@ -1161,7 +1160,7 @@ int main() {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         {
 // CHECK-NEXT:             clad::array<double> _r0 = {{2U|2UL|2ULL}};
-// CHECK:                  clad::custom_derivatives::class_functions::constructor_pullback(&ls, {u, v},{{.*}} &_d_ls, &_r0{{.*}});
+// CHECK:                  clad::custom_derivatives::class_functions::constructor_pullback({u, v},{{.*}} &_d_ls, &_r0{{.*}});
 // CHECK-NEXT:             *_d_u += _r0[0];
 // CHECK-NEXT:             *_d_v += _r0[1];
 // CHECK-NEXT:             _d_ls = clad::pop(_t1);
