@@ -180,9 +180,7 @@ int main() {
     // CHECK-NEXT: }
 
     // CHECK: void fn_non_diff_var_grad(double i, double j, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     double _d_k = 0.;
     // CHECK-NEXT:     double k = i * i * j;
-    // CHECK-NEXT:     _d_k += 1;
     // CHECK-NEXT: }
     
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
