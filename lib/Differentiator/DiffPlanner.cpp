@@ -1034,7 +1034,6 @@ namespace clad {
       request.VerboseDiags = false;
       request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
       request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
-      // request.CUDAGlobalArgsIndexes = m_TopMostReq->CUDAGlobalArgsIndexes;
 
       // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
       if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
