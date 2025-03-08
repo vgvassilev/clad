@@ -88,7 +88,9 @@ double sum_of_squares(double u, double v) {
   return u*u + v*v;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> sum_of_squares_pushforward(double u, double v, double _d_u, double _d_v);
+// CHECK: clad::ValueAndPushforward<double, double> sum_of_squares_pushforward(double u, double v, double _d_u, double _d_v) {
+// CHECK-NEXT:     return {u * u + v * v, _d_u * u + u * _d_u + _d_v * v + v * _d_v};
+// CHECK-NEXT: }
 
 double fn1(double i, double j) {
   double res = sum_of_squares(i, j);
@@ -108,13 +110,23 @@ double fn1(double i, double j) {
 // CHECK-NEXT:     return _d_res;
 // CHECK-NEXT: }
 
-// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double i, double j, double _d_i, double _d_j);
+// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double i, double j, double _d_i, double _d_j) {
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_of_squares_pushforward(i, j, _d_i, _d_j);
+// CHECK-NEXT:     double _d_res = _t0.pushforward;
+// CHECK-NEXT:     double res = _t0.value;
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = sum_of_squares_pushforward(j, i, _d_j, _d_i);
+// CHECK-NEXT:     _d_res += _t1.pushforward;
+// CHECK-NEXT:     res += _t1.value;
+// CHECK-NEXT:     return {res, _d_res};
+// CHECK-NEXT: }
 
 double sum_of_pairwise_product(double u, double v, double w) {
   return u*v + v*w + w*u;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> sum_of_pairwise_product_pushforward(double u, double v, double w, double _d_u, double _d_v, double _d_w);
+// CHECK: clad::ValueAndPushforward<double, double> sum_of_pairwise_product_pushforward(double u, double v, double w, double _d_u, double _d_v, double _d_w) {
+// CHECK-NEXT:     return {u * v + v * w + w * u, _d_u * v + u * _d_v + _d_v * w + v * _d_w + _d_w * u + w * _d_u};
+// CHECK-NEXT: }
 
 double fn2(double i, double j) {
   double res = fn1(i, j);
@@ -138,7 +150,10 @@ void square_inplace(double& u) {
   u = u*u;
 }
 
-// CHECK: void square_inplace_pushforward(double &u, double &_d_u);
+// CHECK: void square_inplace_pushforward(double &u, double &_d_u) {
+// CHECK-NEXT:     _d_u = _d_u * u + u * _d_u;
+// CHECK-NEXT:     u = u * u;
+// CHECK-NEXT: }
 
 double fn3(double i, double j) {
   square_inplace(i);
@@ -182,7 +197,13 @@ double fn5(double i, double j) {
   return fn5(0, i);
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> fn5_pushforward(double i, double j, double _d_i, double _d_j);
+// CHECK: clad::ValueAndPushforward<double, double> fn5_pushforward(double i, double j, double _d_i, double _d_j) {
+// CHECK-NEXT:     if (i < 2) {
+// CHECK-NEXT:         return {j, _d_j};
+// CHECK-NEXT:     }
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = fn5_pushforward(0, i, 0, _d_i);
+// CHECK-NEXT:     return {_t0.value, _t0.pushforward};
+// CHECK-NEXT: }
 
 // CHECK: double fn5_darg0(double i, double j) {
 // CHECK-NEXT:     double _d_i = 1;
@@ -200,7 +221,12 @@ double fn6(double i, double j, double k) {
   return i+j+k + fn6(i-1, j-1, k-1);
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> fn6_pushforward(double i, double j, double k, double _d_i, double _d_j, double _d_k);
+// CHECK: clad::ValueAndPushforward<double, double> fn6_pushforward(double i, double j, double k, double _d_i, double _d_j, double _d_k) {
+// CHECK-NEXT:     if (i < 0.5)
+// CHECK-NEXT:         return {(double)0, (double)0};
+// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = fn6_pushforward(i - 1, j - 1, k - 1, _d_i - 0, _d_j - 0, _d_k - 0);
+// CHECK-NEXT:     return {i + j + k + _t0.value, _d_i + _d_j + _d_k + _t0.pushforward};
+// CHECK-NEXT: }
 
 // CHECK: double fn6_darg0(double i, double j, double k) {
 // CHECK-NEXT:     double _d_i = 1;
@@ -216,7 +242,9 @@ double helperFn(double&& i, double&& j) {
   return i+j;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> helperFn_pushforward(double &&i, double &&j, double &&_d_i, double &&_d_j);
+// CHECK: clad::ValueAndPushforward<double, double> helperFn_pushforward(double &&i, double &&j, double &&_d_i, double &&_d_j) {
+// CHECK-NEXT:     return {i + j, _d_i + _d_j};
+// CHECK-NEXT: }
 
 double fn7(double i, double j) {
   return helperFn(helperFn(7*i, 9*j), i+j);
@@ -235,7 +263,15 @@ void modifyArr(double* arr, int n, double val) {
     arr[i] = val;
 }
 
-// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, int _d_n, double _d_val);
+// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, int _d_n, double _d_val) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:             _d_arr[i] = _d_val;
+// CHECK-NEXT:             arr[i] = val;
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double sum(double* arr, int n) {
   double val = 0;
@@ -244,14 +280,30 @@ double sum(double* arr, int n) {
   return val;
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n);
+// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c) {
+// CHECK-NEXT:   if (c == 'a')
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT:   return {(double)1, (double)0};
+// CHECK-NEXT: }
+
+// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n) {
+// CHECK-NEXT:     double _d_val = 0;
+// CHECK-NEXT:     double val = 0;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         int _d_i = 0;
+// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
+// CHECK-NEXT:             _d_val += _d_arr[i];
+// CHECK-NEXT:             val += arr[i];
+// CHECK-NEXT:         }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return {val, _d_val};
+// CHECK-NEXT: }
 
 double check_and_return(double x, char c) {
   if (c == 'a')
     return x;
   return 1;
 }
-// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c);
 
 double fn8(double i, double j) {
   double arr[5] = {};
@@ -275,7 +327,9 @@ double fn8(double i, double j) {
 
 double g (double x) { return x; }
 
-// CHECK: clad::ValueAndPushforward<double, double> g_pushforward(double x, double _d_x);
+// CHECK: clad::ValueAndPushforward<double, double> g_pushforward(double x, double _d_x) {
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT: }
 
 double fn9 (double i, double j) {
   const int k = 1;
@@ -355,79 +409,4 @@ int main () {
   TEST(fn9, 3, 5);    // CHECK-EXEC: {5.00}
   TEST(fn10, 3);      // CHECK-EXEC: {1.00}
   return 0;
-
-// CHECK: clad::ValueAndPushforward<double, double> sum_of_squares_pushforward(double u, double v, double _d_u, double _d_v) {
-// CHECK-NEXT:     return {u * u + v * v, _d_u * u + u * _d_u + _d_v * v + v * _d_v};
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double i, double j, double _d_i, double _d_j) {
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = sum_of_squares_pushforward(i, j, _d_i, _d_j);
-// CHECK-NEXT:     double _d_res = _t0.pushforward;
-// CHECK-NEXT:     double res = _t0.value;
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t1 = sum_of_squares_pushforward(j, i, _d_j, _d_i);
-// CHECK-NEXT:     _d_res += _t1.pushforward;
-// CHECK-NEXT:     res += _t1.value;
-// CHECK-NEXT:     return {res, _d_res};
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> sum_of_pairwise_product_pushforward(double u, double v, double w, double _d_u, double _d_v, double _d_w) {
-// CHECK-NEXT:     return {u * v + v * w + w * u, _d_u * v + u * _d_v + _d_v * w + v * _d_w + _d_w * u + w * _d_u};
-// CHECK-NEXT: }
-
-// CHECK: void square_inplace_pushforward(double &u, double &_d_u) {
-// CHECK-NEXT:     _d_u = _d_u * u + u * _d_u;
-// CHECK-NEXT:     u = u * u;
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> fn5_pushforward(double i, double j, double _d_i, double _d_j) {
-// CHECK-NEXT:     if (i < 2) {
-// CHECK-NEXT:         return {j, _d_j};
-// CHECK-NEXT:     }
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = fn5_pushforward(0, i, 0, _d_i);
-// CHECK-NEXT:     return {_t0.value, _t0.pushforward};
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> fn6_pushforward(double i, double j, double k, double _d_i, double _d_j, double _d_k) {
-// CHECK-NEXT:     if (i < 0.5)
-// CHECK-NEXT:         return {(double)0, (double)0};
-// CHECK-NEXT:     clad::ValueAndPushforward<double, double> _t0 = fn6_pushforward(i - 1, j - 1, k - 1, _d_i - 0, _d_j - 0, _d_k - 0);
-// CHECK-NEXT:     return {i + j + k + _t0.value, _d_i + _d_j + _d_k + _t0.pushforward};
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> helperFn_pushforward(double &&i, double &&j, double &&_d_i, double &&_d_j) {
-// CHECK-NEXT:     return {i + j, _d_i + _d_j};
-// CHECK-NEXT: }
-
-// CHECK: void modifyArr_pushforward(double *arr, int n, double val, double *_d_arr, int _d_n, double _d_val) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
-// CHECK-NEXT:             _d_arr[i] = _d_val;
-// CHECK-NEXT:             arr[i] = val;
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> sum_pushforward(double *arr, int n, double *_d_arr, int _d_n) {
-// CHECK-NEXT:     double _d_val = 0;
-// CHECK-NEXT:     double val = 0;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         int _d_i = 0;
-// CHECK-NEXT:         for (int i = 0; i < n; ++i) {
-// CHECK-NEXT:             _d_val += _d_arr[i];
-// CHECK-NEXT:             val += arr[i];
-// CHECK-NEXT:         }
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return {val, _d_val};
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> check_and_return_pushforward(double x, char c, double _d_x, char _d_c) {
-// CHECK-NEXT:   if (c == 'a')
-// CHECK-NEXT:     return {x, _d_x};
-// CHECK-NEXT:   return {(double)1, (double)0};
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> g_pushforward(double x, double _d_x) {
-// CHECK-NEXT:     return {x, _d_x};
-// CHECK-NEXT: }
 }

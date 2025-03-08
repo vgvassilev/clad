@@ -158,9 +158,9 @@ namespace clad {
       ASTContext& C = semaRef.getASTContext();
 
       if (auto ND = dyn_cast<NamespaceDecl>(DC)) {
-        CSS.Extend(C, ND,
-                   /*NamespaceLoc=*/utils::GetValidSLoc(semaRef),
-                   /*ColonColonLoc=*/utils::GetValidSLoc(semaRef));
+        if (!ND->isInline())
+          CSS.Extend(C, ND, /*NamespaceLoc=*/utils::GetValidSLoc(semaRef),
+                     /*ColonColonLoc=*/utils::GetValidSLoc(semaRef));
       } else if (auto RD = dyn_cast<CXXRecordDecl>(DC)) {
         auto RDQType = RD->getTypeForDecl()->getCanonicalTypeInternal();
         auto RDTypeSourceInfo = C.getTrivialTypeSourceInfo(RDQType);
@@ -263,6 +263,10 @@ namespace clad {
       if (!DC)
         DC = C.getTranslationUnitDecl();
       S.LookupQualifiedName(Result, DC);
+
+      if (auto* CXXRD = dyn_cast<CXXRecordDecl>(DC))
+        Result.setNamingClass(CXXRD);
+
       return Result;
     }
 

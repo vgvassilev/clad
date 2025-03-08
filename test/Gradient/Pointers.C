@@ -472,7 +472,17 @@ double* ptrValFn (double* x, int n) {
   return x;
 }
 
-// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n);
+// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         x = _t0;
+// CHECK-NEXT:         _d_x = _t1;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 // CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n);
 
 double nestedPtrFn (double x, double y) {
@@ -516,6 +526,14 @@ double listInitPtrFn (double x, double y) {
 // CHECK-NEXT:          *_d_y += _r_d0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
+
+// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
+// CHECK-NEXT:     double *_t0 = x;
+// CHECK-NEXT:     double *_t1 = _d_x;
+// CHECK-NEXT:     _d_x += n;
+// CHECK-NEXT:     x += n;
+// CHECK-NEXT:     return {x, _d_x};
+// CHECK-NEXT: }
 
 #define NON_MEM_FN_TEST(var)\
 res[0]=0;\
@@ -635,22 +653,3 @@ int main() {
   d_listInitPtrFn.execute(5, 7, &d_i, &d_j);
   printf("%.2f %.2f\n", d_i, d_j); // CHECK-EXEC: 1.00 1.00
 }
-
-// CHECK: void ptrValFn_pullback(double *x, int n, double *_d_x, int *_d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
-// CHECK-NEXT:     _d_x += n;
-// CHECK-NEXT:     x += n;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         x = _t0;
-// CHECK-NEXT:         _d_x = _t1;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndAdjoint<double *, double *> ptrValFn_forw(double *x, int n, double *_d_x, int _d_n) {
-// CHECK-NEXT:     double *_t0 = x;
-// CHECK-NEXT:     double *_t1 = _d_x;
-// CHECK-NEXT:     _d_x += n;
-// CHECK-NEXT:     x += n;
-// CHECK-NEXT:     return {x, _d_x};
-// CHECK-NEXT: }

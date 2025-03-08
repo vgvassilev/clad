@@ -52,7 +52,34 @@ double sum(Tangent& t) {
     return res;
 }
 
-// CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t);
+// CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 5))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, res);
+// CHECK-NEXT:         res += t.data[i];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_res += _d_y;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         res = clad::pop(_t1);
+// CHECK-NEXT:         double _r_d0 = _d_res;
+// CHECK-NEXT:         (*_d_t).data[i] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double sum(double *data) {
     double res = 0;
@@ -61,7 +88,34 @@ double sum(double *data) {
     return res;
 }
 
-// CHECK: void sum_pullback(double *data, double _d_y, double *_d_data);
+// CHECK: void sum_pullback(double *data, double _d_y, double *_d_data) {
+// CHECK-NEXT:     int _d_i = 0;
+// CHECK-NEXT:     int i = 0;
+// CHECK-NEXT:     clad::tape<double> _t1 = {};
+// CHECK-NEXT:     double _d_res = 0.;
+// CHECK-NEXT:     double res = 0;
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
+// CHECK-NEXT:     for (i = 0; ; ++i) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!(i < 5))
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         _t0++;
+// CHECK-NEXT:         clad::push(_t1, res);
+// CHECK-NEXT:         res += data[i];
+// CHECK-NEXT:     }
+// CHECK-NEXT:     _d_res += _d_y;
+// CHECK-NEXT:     for (;; _t0--) {
+// CHECK-NEXT:         {
+// CHECK-NEXT:             if (!_t0)
+// CHECK-NEXT:                 break;
+// CHECK-NEXT:         }
+// CHECK-NEXT:         --i;
+// CHECK-NEXT:         res = clad::pop(_t1);
+// CHECK-NEXT:         double _r_d0 = _d_res;
+// CHECK-NEXT:         _d_data[i] += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double fn2(Tangent t, double i) {
     double res = sum(t);
@@ -363,7 +417,12 @@ double operator+(const double& x, const Tangent& t) {
   return x + t.data[0];
 }
 
-// CHECK: void operator_plus_pullback(const double &x, const Tangent &t, double _d_y, double *_d_x, Tangent *_d_t);
+// CHECK: void operator_plus_pullback(const double &x, const Tangent &t, double _d_y, double *_d_x, Tangent *_d_t) {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_x += _d_y;
+// CHECK-NEXT:         (*_d_t).data[0] += _d_y;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
 
 double fn11(double x, double y) {
   Tangent t;
@@ -696,7 +755,12 @@ void fn20(MyStruct s) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
 
-// CHECK: void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a);
+// CHECK:  void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_a).x += _d_y;
+// CHECK-NEXT:          *_d_val += _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
 
 double fn21(double i, double j) {
     return 2 + SimpleFunctions1(i);
@@ -839,64 +903,6 @@ int main() {
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
 }
 
-// CHECK: void sum_pullback(Tangent &t, double _d_y, Tangent *_d_t) {
-// CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 5))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, res);
-// CHECK-NEXT:         res += t.data[i];
-// CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += _d_y;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         --i;
-// CHECK-NEXT:         res = clad::pop(_t1);
-// CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         (*_d_t).data[i] += _r_d0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: void sum_pullback(double *data, double _d_y, double *_d_data) {
-// CHECK-NEXT:     int _d_i = 0;
-// CHECK-NEXT:     int i = 0;
-// CHECK-NEXT:     clad::tape<double> _t1 = {};
-// CHECK-NEXT:     double _d_res = 0.;
-// CHECK-NEXT:     double res = 0;
-// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
-// CHECK-NEXT:     for (i = 0; ; ++i) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!(i < 5))
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         _t0++;
-// CHECK-NEXT:         clad::push(_t1, res);
-// CHECK-NEXT:         res += data[i];
-// CHECK-NEXT:     }
-// CHECK-NEXT:     _d_res += _d_y;
-// CHECK-NEXT:     for (;; _t0--) {
-// CHECK-NEXT:         {
-// CHECK-NEXT:             if (!_t0)
-// CHECK-NEXT:                 break;
-// CHECK-NEXT:         }
-// CHECK-NEXT:         --i;
-// CHECK-NEXT:         res = clad::pop(_t1);
-// CHECK-NEXT:         double _r_d0 = _d_res;
-// CHECK-NEXT:         _d_data[i] += _r_d0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const {
 // CHECK-NEXT:     {
 // CHECK-NEXT:         (*_d_this).data[0] += _d_y * i;
@@ -950,13 +956,6 @@ int main() {
 // CHECK-NEXT:         double _r_d0 = (*_d_this).data[i];
 // CHECK-NEXT:         (*_d_this).data[i] = 0.;
 // CHECK-NEXT:         *_d_d += _r_d0;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }
-
-// CHECK: void operator_plus_pullback(const double &x, const Tangent &t, double _d_y, double *_d_x, Tangent *_d_t) {
-// CHECK-NEXT:     {
-// CHECK-NEXT:         *_d_x += _d_y;
-// CHECK-NEXT:         (*_d_t).data[0] += _d_y;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
@@ -1035,14 +1034,3 @@ int main() {
 // CHECK-NEXT:        (*_d_rhs).y += this->y * _r1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
-
-// CHECK:  void operator_plus_pullback(const double &val, const SimpleFunctions1 &a, double _d_y, double *_d_val, SimpleFunctions1 *_d_a) {
-// CHECK-NEXT:      {
-// CHECK-NEXT:          (*_d_a).x += _d_y;
-// CHECK-NEXT:          *_d_val += _d_y;
-// CHECK-NEXT:      }
-// CHECK-NEXT:  }
-
-// CHECK:  void operator_call_pullback(double u, double _d_y, Identity *_d_this, double *_d_u) {
-// CHECK-NEXT:      *_d_u += _d_y;
-// CHECK-NEXT:  }

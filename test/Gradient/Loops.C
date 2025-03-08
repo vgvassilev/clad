@@ -321,7 +321,12 @@ double f_sum(double *p, int n) {
 // CHECK-NEXT: }
 
 double sq(double x) { return x * x; }
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x);
+//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
+//CHECK-NEXT:       {
+//CHECK-NEXT:           *_d_x += _d_y * x;
+//CHECK-NEXT:           *_d_x += x * _d_y;
+//CHECK-NEXT:       }
+//CHECK-NEXT:   }
 
 double f_sum_squares(double *p, int n) {
   double s = 0;
@@ -3351,10 +3356,3 @@ int main() {
   TEST_2(fn40, 2, 3); // CHECK-EXEC: {14.00, 0.00}
   TEST_2(fn41, 2, 3); // CHECK-EXEC: {1.00, 0.00}
 }
-
-//CHECK:   void sq_pullback(double x, double _d_y, double *_d_x) {
-//CHECK-NEXT:       {
-//CHECK-NEXT:           *_d_x += _d_y * x;
-//CHECK-NEXT:           *_d_x += x * _d_y;
-//CHECK-NEXT:       }
-//CHECK-NEXT:   }
