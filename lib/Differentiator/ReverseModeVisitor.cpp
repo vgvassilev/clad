@@ -18,24 +18,26 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h" // for clang::isa
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
-#include <clang/AST/DeclCXX.h>
-#include <clang/AST/ExprCXX.h>
-#include <clang/AST/OperationKinds.h>
-#include <clang/Basic/SourceLocation.h>
-#include <clang/Sema/Ownership.h>
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -141,14 +143,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
         // Check whether this param is in the global memory of the GPU
         return m_DiffReq.HasIndependentParameter(PVD);
-      else if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>())
+      if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
         for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
-          auto PVDOrig = m_DiffReq->getParamDecl(index);
+          const auto* PVDOrig = m_DiffReq->getParamDecl(index);
           if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
               (utils::isArrayOrPointerType(PVDOrig->getType()) ||
                PVDOrig->getType()->isReferenceType()))
             return true;
         }
+      }
     }
 
     return false;

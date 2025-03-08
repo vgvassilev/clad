@@ -11,10 +11,12 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
@@ -343,13 +345,14 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
           Member.setIdentifier(&m_Context.Idents.get(Name), Loc);
           bool isArrow = Base->getType()->isPointerType();
           // FIXME: update SS here?
-          auto ME = m_Sema
-                        .ActOnMemberAccessExpr(S, Base, Loc,
-                                               isArrow ? tok::TokenKind::arrow
-                                                       : tok::TokenKind::period,
-                                               SS, noLoc, Member,
-                                               /*ObjCImpDecl=*/nullptr)
-                        .get();
+          auto* ME =
+              m_Sema
+                  .ActOnMemberAccessExpr(S, Base, Loc,
+                                         isArrow ? tok::TokenKind::arrow
+                                                 : tok::TokenKind::period,
+                                         SS, noLoc, Member,
+                                         /*ObjCImpDecl=*/nullptr)
+                  .get();
           if (noOverloadExists(ME, MARargs.drop_front()))
             return nullptr;
 

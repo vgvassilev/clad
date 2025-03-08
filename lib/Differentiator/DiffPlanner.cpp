@@ -6,10 +6,13 @@
 #include "TBRAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/ASTLambda.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CallGraph.h"
+#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Lookup.h"
@@ -1053,7 +1056,7 @@ namespace clad {
           // Try to match it against the global arguments
           Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
           if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
-            const ParmVarDecl* PVD = cast<ParmVarDecl>(DRE->getDecl());
+            const auto* PVD = cast<ParmVarDecl>(DRE->getDecl());
             request.DVI.push_back(PVD);
             if (m_TopMostReq->HasIndependentParameter(PVD))
               request.CUDAGlobalArgsIndexes.push_back(i);
