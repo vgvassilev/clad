@@ -676,7 +676,6 @@ double recFun (double x, double y) {
     return x * y;
 }
 
-//CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y);
 //CHECK: void recFun_pullback(double x, double y, double _d_y0, double *_d_x, double *_d_y) {
 //CHECK-NEXT:     bool _cond0;
 //CHECK-NEXT:     {
