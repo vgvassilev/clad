@@ -2832,7 +2832,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDDerivedInit = BuildOp(UO_Deref, dummy);
     }
 
-    bool isDirectInit = VD->isDirectInit();
     // If VD is a reference to a local variable, then the initial value is set
     // to the derived variable of the corresponding local variable.
     // If VD is a reference to a non-local variable (global variable, struct
@@ -2933,23 +2932,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
+    // FIXME: Sometimes, the derivative of `x` is not `_d_x` but `*_d_x`. We
+    // should handle this in VisitDeclRefExpr
+    Expr* valueDx = nullptr;
     if (VDDerived)
       derivedVDE = BuildDeclRef(VDDerived);
-    // FIXME: Add extra parantheses if derived variable pointer is pointing to a
-    // class type object.
-    if (isRefType && promoteToFnScope) {
-      Expr* assignDerivativeE =
-          BuildOp(BinaryOperatorKind::BO_Assign, derivedVDE,
-                  BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr_dx()));
-      addToCurrentBlock(assignDerivativeE);
-      if (isInsideLoop) {
-        StmtDiff pushPop = StoreAndRestore(derivedVDE);
-        if (!keepLocal)
-          addToCurrentBlock(pushPop.getStmt(), direction::forward);
-        m_LoopBlock.back().push_back(pushPop.getStmt_dx());
-      }
-      derivedVDE = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
-    }
 
     // If a ref-type declaration is promoted to function global scope,
     // it's replaced with a pointer and should be initialized with the
@@ -2958,14 +2945,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // ->
     // double* ref;
     // ref = &x;
-    if (isRefType && promoteToFnScope)
-      VDClone = BuildGlobalVarDecl(
-          VDCloneType, VD->getNameAsString(),
-          BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
-          isDirectInit);
-    else
-      VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
-                                   initDiff.getExpr(), isDirectInit);
+    if (isRefType && promoteToFnScope) {
+      // FIXME: Add extra parantheses if derived variable pointer is pointing to
+      // a class type object.
+      initDiff = {BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr()),
+                  BuildOp(UnaryOperatorKind::UO_AddrOf, initDiff.getExpr_dx())};
+      valueDx = BuildOp(UnaryOperatorKind::UO_Deref, derivedVDE);
+      isPointerType = true;
+    }
+
+    VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
+                                 initDiff.getExpr(), VD->isDirectInit());
 
     // FIXME: In principle, we can handle all type adjoints here.
     if (VDDerived && !VDDerived->getType()->isBuiltinType() &&
@@ -3010,19 +3000,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                         derivedVDE, initDiff.getExpr_dx());
       addToCurrentBlock(assignDerivativeE, direction::forward);
       if (isInsideLoop) {
-        auto tape = MakeCladTapeFor(derivedVDE);
+        StmtDiff pushPop = StoreAndRestore(derivedVDE);
         if (!keepLocal)
-          addToCurrentBlock(tape.Push);
-        auto* reverseSweepDerivativePointerE =
-            BuildVarDecl(derivedVDE->getType(), "_t", tape.Pop);
-        m_LoopBlock.back().push_back(
-            BuildDeclStmt(reverseSweepDerivativePointerE));
-        derivedVDE = BuildDeclRef(reverseSweepDerivativePointerE);
+          addToCurrentBlock(pushPop.getStmt(), direction::forward);
+        m_LoopBlock.back().push_back(pushPop.getStmt_dx());
       }
     }
 
-    if (derivedVDE)
-      m_Variables.emplace(VDClone, derivedVDE);
+    if (!valueDx)
+      valueDx = derivedVDE;
+    if (valueDx)
+      m_Variables.emplace(VDClone, valueDx);
 
     // Check if decl's name is the same as before. The name may be changed
     // if decl name collides with something in the derivative body.
