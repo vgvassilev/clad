@@ -42,8 +42,7 @@ void copy_with_return_value_stored(const thrust::device_vector<double>& src,
 // CHECK: void copy_with_return_value_stored_grad(const thrust::device_vector<double> &src, thrust::device_vector<double> &dst, thrust::device_vector<double> *_d_src, thrust::device_vector<double> *_d_dst) {
 // CHECK-NEXT:     clad::ValueAndAdjoint<{{.*}}> _t0 = {{.*}}thrust::copy_reverse_forw(std::begin(src), std::end(src), std::begin(dst), std::begin((*_d_src)), std::end((*_d_src)), std::begin((*_d_dst)));
 // CHECK-NEXT:     thrust::detail::normal_iterator<device_ptr<double> > it = _t0.value;
-// CHECK-NEXT:     thrust::detail::normal_iterator<device_ptr<double> > _d_it = {};
-// CHECK-NEXT:     clad::zero_init(_d_it);
+// CHECK-NEXT:     thrust::detail::normal_iterator<device_ptr<double> > _d_it = _t0.adjoint;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         const_iterator _r0 = std::begin((*_d_src));
 // CHECK-NEXT:         const_iterator _r1 = std::end((*_d_src));
