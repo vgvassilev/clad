@@ -148,6 +148,7 @@ public:
 
   bool shouldBeRecorded(clang::Expr* E) const;
   bool shouldHaveAdjoint(const clang::VarDecl* VD) const;
+  bool isVaried(const clang::Expr* E) const;
   std::string ComputeDerivativeName() const;
 };
 
