@@ -9,6 +9,7 @@
 // CHECK_STATS-NEXT: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"']: #1 (source), (done)
 // CHECK_STATS-NEXT: <double nested2(double z)>[name=nested2, order=1, mode=pullback, args='z']: #2 (source), (done)
 // CHECK_STATS-NEXT: <double test2(double a, double b)>[name=test2, order=1, mode=reverse, args='']: #3 (source), (done)
+// CHECK_STATS-NEXT: <double addArr(double *arr)>[name=addArr, order=1, mode=reverse, args='"arr[0:1]"']: #4 (source), (done)
 
 // CHECK_STATS_TBR: <double test1(double x, double y)>[name=test1, order=1, mode=forward, args='"x"', tbr]: #1 (source), (done)
 
@@ -28,6 +29,10 @@ double test2(double a, double b) {
   return 3*a*a + b * nested2(a) + a * b;
 }
 
+double addArr(double *arr) {
+  return arr[0] + arr[1] + arr[2] + arr[3];
+}
+
 int main() {
   auto d_fn_1 = clad::differentiate(test1, "x");
   double dp = -1, dq = -1;
@@ -35,5 +40,6 @@ int main() {
   f_grad.execute(3, 4, &dp, &dq);
   printf("Result is = %f\n", d_fn_1.execute(3,4));
   printf("Result is = %f %f\n", dp, dq);
+  clad::gradient(addArr, "arr[0:1]");
   return 0;
 }
