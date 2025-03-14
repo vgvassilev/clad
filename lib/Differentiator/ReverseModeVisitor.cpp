@@ -2566,6 +2566,30 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
     bool isNonAggrClass = RD && !RD->isAggregate();
 
+    // We initialize adjoints with original variables as part of
+    // the strategy to maintain the structure of the original variable.
+    // After that, we'll zero-initialize the adjoint. e.g.
+    // ```
+    // std::vector<...> v{x, y, z};
+    // std::vector<...> _d_v{v}; // The length of the vector is preserved
+    // clad::zero_init(_d_v);
+    // ```
+    // Also, if the original is initialized with a zero-constructor, it can be
+    // used for the adjoint as well.
+    bool shouldCopyInitialize =
+        isConstructInit && isNonAggrClass &&
+        cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
+        utils::isCopyable(VDType->getAsCXXRecordDecl());
+
+    // Temporarily initialize the object with `*nullptr` to avoid
+    // a potential error because of non-existing default constructor.
+    if (!VDDerivedInit && shouldCopyInitialize) {
+      QualType ptrType =
+          m_Context.getPointerType(VDDerivedType.getUnqualifiedType());
+      Expr* dummy = getZeroInit(ptrType);
+      VDDerivedInit = BuildOp(UO_Deref, dummy);
+    }
+
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
     if (promoteToFnScope)
@@ -2709,21 +2733,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                    initDiff.getExpr(), VD->isDirectInit());
 
     if (isConstructInit) {
-      // We initialize adjoints with original variables as part of
-      // the strategy to maintain the structure of the original variable.
-      // After that, we'll zero-initialize the adjoint. e.g.
-      // ```
-      // std::vector<...> v{x, y, z};
-      // std::vector<...> _d_v{v}; // The length of the vector is preserved
-      // clad::zero_init(_d_v);
-      // ```
-      // Also, if the original is initialized with a zero-constructor, it can be
-      // used for the adjoint as well.
-      bool shouldCopyInitialize =
-          isNonAggrClass &&
-          cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())
-              ->getNumArgs() &&
-          utils::isCopyable(VDType->getAsCXXRecordDecl());
       if (initDiff.getStmt_dx()) {
         SetDeclInit(VDDerived, initDiff.getExpr_dx());
       } else if (shouldCopyInitialize) {
