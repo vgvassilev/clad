@@ -5,13 +5,14 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Lookup.h"
-#include <clang/AST/DeclCXX.h>
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
@@ -800,6 +801,16 @@ namespace clad {
           return S.ActOnInitList(noLoc, adjParams, noLoc).get();
         }
       return S.ActOnInitList(noLoc, {}, noLoc).get();
+    }
+
+    clang::Expr* BuildImpCastToType(clang::Sema& S, clang::Expr* E,
+                                    QualType targetTy) {
+      ExprResult exprRes{E};
+      CastKind kind = S.PrepareScalarCast(exprRes, targetTy);
+      // CK_NoOp casts trigger an assertion on debug Clang
+      if (kind == CK_NoOp)
+        return E;
+      return S.ImpCastExprToType(E, targetTy, kind).get();
     }
   } // namespace utils
 } // namespace clad
