@@ -189,6 +189,10 @@ namespace clad {
                                        clang::Expr* base,
                                        llvm::StringRef memberName);
 
+    /// Builds implicit cast of `E` to the type `targetTy`.
+    clang::Expr* BuildImpCastToType(clang::Sema& S, clang::Expr* E,
+                                    clang::QualType targetTy);
+
     /// Returns a valid `SourceLocation` to be used in places where clang
     /// requires a valid `SourceLocation`.
     clang::SourceLocation GetValidSLoc(clang::Sema& semaRef);
