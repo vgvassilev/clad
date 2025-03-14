@@ -165,10 +165,8 @@ namespace clad {
       const FunctionDecl* FD = request.Function;
       ASTContext& C = S.getASTContext();
       clang::PrintingPolicy Policy = C.getPrintingPolicy();
-#if CLANG_VERSION_MAJOR > 10
       // Our testsuite expects 'a<b<c> >' rather than 'a<b<c>>'.
       Policy.SplitTemplateClosers = true;
-#endif
       // if enabled, print source code of the original functions
       if (m_DO.DumpSourceFn) {
         FD->print(llvm::outs(), Policy);
@@ -359,12 +357,10 @@ namespace clad {
           m_Multiplexer->CompleteTentativeDefinition(
               cast<VarDecl>(D.getSingleDecl()));
           break;
-#if CLANG_VERSION_MAJOR > 9
         case CallKind::CompleteExternalDeclaration:
           m_Multiplexer->CompleteExternalDeclaration(
               cast<VarDecl>(D.getSingleDecl()));
           break;
-#endif
         case CallKind::AssignInheritanceModel:
           m_Multiplexer->AssignInheritanceModel(
               cast<CXXRecordDecl>(D.getSingleDecl()));
@@ -500,11 +496,9 @@ namespace clad {
         case CallKind::CompleteTentativeDefinition:
           llvm::errs() << "CompleteTentativeDefinition";
           break;
-#if CLANG_VERSION_MAJOR > 9
         case CallKind::CompleteExternalDeclaration:
           llvm::errs() << "CompleteExternalDeclaration";
           break;
-#endif
         case CallKind::AssignInheritanceModel:
           llvm::errs() << "AssignInheritanceModel";
           break;

@@ -482,9 +482,8 @@ namespace clad {
     void PerformImplicitConversionAndAssign(clang::VarDecl* VD,
                                             clang::Expr* Init) {
       // Implicitly convert Init into the type of VD
-      clang::ActionResult<clang::Expr*> ICAR = m_Sema
-          .PerformImplicitConversion(Init, VD->getType(),
-                                     clang::Sema::AA_Casting);
+      clang::ActionResult<clang::Expr*> ICAR = m_Sema.PerformImplicitConversion(
+          Init, VD->getType(), CLAD_COMPAT_CLANG20_SemaAACasting);
       assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
       SetDeclInit(VD, ICAR.get());

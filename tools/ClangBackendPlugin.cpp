@@ -11,13 +11,14 @@
 #include "llvm/Passes/PassBuilder.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Config/llvm-config.h" // for CLANG_VERSION_MAJOR
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 
-#if CLANG_VERSION_MAJOR >= 10 && CLANG_VERSION_MAJOR < 16
+#if CLANG_VERSION_MAJOR < 16
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#endif // CLANG_VERSION_MAJOR >= 10 && CLANG_VERSION_MAJOR < 16
+#endif // CLANG_VERSION_MAJOR < 16
 
 namespace clad {
 using namespace llvm;
@@ -34,7 +35,7 @@ void ClangBackendPluginPass::registerCallbacks(PassBuilder& PB) {
 }
 } // namespace clad
 
-#if LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
+#if LLVM_VERSION_MAJOR < 16
 
 static void loadEnzymePass(const llvm::PassManagerBuilder& Builder,
                            llvm::legacy::PassManagerBase& PM) {
@@ -70,4 +71,4 @@ static llvm::RegisterStandardPasses
     nvvmPassLoader_OEarly(llvm::PassManagerBuilder::EP_EarlyAsPossible,
                           loadNVVMPass);
 
-#endif // LLVM_VERSION_MAJOR >= 10 && LLVM_VERSION_MAJOR < 16
+#endif // LLVM_VERSION_MAJOR < 16
