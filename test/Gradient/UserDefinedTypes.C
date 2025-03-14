@@ -777,6 +777,22 @@ double fn22(double x, double y) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
+struct StructNoDefConstr {
+  StructNoDefConstr(int){}
+};
+
+double fn23(double x){
+  StructNoDefConstr t{0};
+  return x;
+}
+
+// CHECK:  void fn23_grad(double x, double *_d_x) {
+// CHECK-NEXT:      StructNoDefConstr t(0);
+// CHECK-NEXT:      StructNoDefConstr _d_t(t);
+// CHECK-NEXT:      clad::zero_init(_d_t);
+// CHECK-NEXT:      *_d_x += 1;
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -873,6 +889,8 @@ int main() {
 
     INIT_GRADIENT(fn22);
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
+
+    INIT_GRADIENT(fn23);
 }
 
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const {
