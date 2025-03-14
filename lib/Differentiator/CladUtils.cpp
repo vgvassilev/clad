@@ -753,5 +753,15 @@ namespace clad {
       }
       return true;
     }
+
+    clang::Expr* BuildImpCastToType(clang::Sema& S, clang::Expr* E,
+                                    QualType targetTy) {
+      ExprResult exprRes{E};
+      CastKind kind = S.PrepareScalarCast(exprRes, targetTy);
+      // CK_NoOp casts trigger an assertion on debug Clang
+      if (kind == CK_NoOp)
+        return E;
+      return S.ImpCastExprToType(E, targetTy, kind).get();
+    }
   } // namespace utils
 } // namespace clad

@@ -3316,14 +3316,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (S == placeholder) {
             // Since we are manually replacing the statement, implicit casts are
             // not generated automatically.
-            ExprResult newExprRes{newExpr};
-            QualType targetTy = cast<Expr>(S)->getType();
-            CastKind kind = m_Sema.PrepareScalarCast(newExprRes, targetTy);
-            // CK_NoOp casts trigger an assertion on debug Clang
-            if (kind == CK_NoOp)
-              S = newExpr;
-            else
-              S = m_Sema.ImpCastExprToType(newExpr, targetTy, kind).get();
+            S = utils::BuildImpCastToType(m_Sema, newExpr,
+                                          cast<Expr>(S)->getType());
           }
         return true;
       }
