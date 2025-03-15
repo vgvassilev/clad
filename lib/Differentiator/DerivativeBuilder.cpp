@@ -131,6 +131,51 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
                   FD->getTrailingRequiresClause()));
 
       returnedFD->setAccess(FD->getAccess());
+
+      // Check if we're dealing with a template specialization
+      if (FD->isFunctionTemplateSpecialization()) {
+        const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
+        if (TAL && TAL->size() > 0) {
+          FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
+          TemplateParameterList* TemplateParams =
+              OriginalFTD->getTemplateParameters();
+
+          // Check if we already have a template with this name in the current
+          // context
+          DeclContext::lookup_result Lookup =
+              m_Sema.CurContext->lookup(name.getName());
+
+          FunctionTemplateDecl* ExistingFTD = nullptr;
+
+          // Look for an existing template declaration with the same name
+          for (NamedDecl* ND : Lookup) {
+            if (FunctionTemplateDecl* FTD =
+                    dyn_cast<FunctionTemplateDecl>(ND)) {
+              ExistingFTD = FTD;
+              break;
+            }
+          }
+
+          FunctionTemplateDecl* NewFTD = nullptr;
+
+          if (ExistingFTD) {
+            // Use existing template declaration
+            NewFTD = ExistingFTD;
+          } else {
+            // Create a new template declaration
+            NewFTD = FunctionTemplateDecl::Create(m_Context, m_Sema.CurContext,
+                                                  noLoc, name.getName(),
+                                                  TemplateParams, returnedFD);
+          }
+
+          returnedFD->setDescribedFunctionTemplate(NewFTD);
+
+          TemplateArgumentList* TALCopy =
+              TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+          returnedFD->setFunctionTemplateSpecialization(
+              NewFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
+        }
+      }
     }
     returnedFD->setImplicitlyInline(FD->isInlined());
 
