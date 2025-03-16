@@ -398,6 +398,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToBlock(BuildDeclStmt(VDDerived), m_Globals);
       }
     }
+
+    // If we the differentiated function is a constructor, generate `this`
+    // object and differentiate its inits.
+    Stmts initsDiff;
+    if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
+      StmtDiff thisObj;
+      // Constructors with only linear operations do not require
+      // `_this` in the reverse sweep.
+      // FIXME: remove this check when our analysis is powerful enough.
+      if (!utils::isLinearConstructor(CD, m_Context)) {
+        QualType thisTy = CD->getThisType();
+        thisObj = BuildThisExpr(thisTy);
+        initsDiff.push_back(thisObj.getStmt_dx());
+      }
+
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
+        addToCurrentBlock(CI_diff.getStmt(), direction::forward);
+        initsDiff.push_back(CI_diff.getStmt_dx());
+      }
+    }
+
     // Start the visitation process which outputs the statements in the
     // current block.
     StmtDiff BodyDiff = Visit(m_DiffReq->getBody());
@@ -419,17 +441,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Reverse, direction::forward);
-
-    // If we the differentiated function is a constructor, differentiate its
-    // inits.
-    if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
-      for (auto CI = CD->init_rbegin(), CI_end = CD->init_rend(); CI != CI_end;
-           ++CI) {
-        Stmt* CI_diff = DifferentiateCtorInit(*CI);
-        addToCurrentBlock(CI_diff, direction::forward);
-      }
-    }
-
+    for (auto S = initsDiff.rbegin(), S_end = initsDiff.rend(); S != S_end; ++S)
+      addToCurrentBlock(*S, direction::forward);
     // Add delete statements present in m_DeallocExprs to the current block.
     for (auto* S : m_DeallocExprs)
       if (auto* CS = dyn_cast<CompoundStmt>(S))
@@ -442,7 +455,30 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_ExternalSource->ActOnEndOfDerivedFnBody();
   }
 
-  Stmt* ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI) {
+  StmtDiff ReverseModeVisitor::BuildThisExpr(QualType thisTy) {
+    QualType recordTy = thisTy->getPointeeType();
+
+    // Build `sizeof(T)`
+    TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(recordTy, noLoc);
+    Expr* size = new (m_Context) UnaryExprOrTypeTraitExpr(
+        UETT_SizeOf, TSI, m_Context.getSizeType(), noLoc, noLoc);
+
+    // Build `malloc(sizeof(T))`
+    llvm::SmallVector<clang::Expr*, 1> param{size};
+    Expr* init = GetFunctionCall("malloc", "", param);
+    init = utils::BuildImpCastToType(m_Sema, init, thisTy);
+
+    // Build T* _this = malloc(sizeof(T));
+    VarDecl* thisDecl = BuildGlobalVarDecl(thisTy, "_this", init);
+    addToCurrentBlock(BuildDeclStmt(thisDecl), direction::forward);
+
+    param[0] = BuildDeclRef(thisDecl);
+    Expr* freeCall = GetFunctionCall("free", "", param);
+    return {BuildDeclRef(thisDecl), freeCall};
+  }
+
+  StmtDiff ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI,
+                                                     Expr* thisExpr) {
     llvm::StringRef fieldName = CI->getMember()->getName();
     Expr* memberDiff = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
                                               m_ThisExprDerivative, fieldName);
@@ -456,7 +492,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     }
     StmtDiff initDiff = Visit(CI->getInit(), memberDiff);
     addToCurrentBlock(initDiff.getStmt_dx(), direction::reverse);
-    return endBlock(direction::reverse);
+    Stmt* init = nullptr;
+    if (thisExpr) {
+      Expr* member = utils::BuildMemberExpr(m_Sema, getCurrentScope(), thisExpr,
+                                            fieldName);
+      init = BuildOp(BO_Assign, member, initDiff.getExpr());
+    }
+    return {init, endBlock(direction::reverse)};
   }
 
   void ReverseModeVisitor::DifferentiateWithEnzyme() {
@@ -3970,9 +4012,20 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXThisExpr(const CXXThisExpr* CTE) {
-    assert(!isa<CXXConstructorDecl>(m_DiffReq.Function) &&
-           "Constructors with body are not differentiated yet.");
-    Expr* clonedCTE = Clone(CTE);
+    Expr* clonedCTE = nullptr;
+    if (!isa<CXXConstructorDecl>(m_DiffReq.Function)) {
+      clonedCTE = Clone(CTE);
+    } else {
+      // In constructor pullbacks, `this` is not taken as a parameter
+      // and is built in the pullback body. Perform a lookup.
+      IdentifierInfo* name = &m_Context.Idents.get("_this");
+      LookupResult R(m_Sema, DeclarationName(name), noLoc,
+                     Sema::LookupOrdinaryName);
+      m_Sema.LookupName(R, getCurrentScope(), /*AllowBuiltinCreation*/ false);
+      assert(!R.empty() && "_this was not found.");
+      auto* thisDecl = cast<VarDecl>(R.getFoundDecl());
+      clonedCTE = BuildDeclRef(thisDecl);
+    }
     return {clonedCTE, m_ThisExprDerivative};
   }
 
@@ -4150,10 +4203,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       std::string customPullbackName = "constructor_pullback";
       pullbackCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
           customPullbackName, pullbackArgs, getCurrentScope(), CE);
-      // FIXME: Support all constructors.
       // Overloaded derivative was not found, request the CladPlugin to
       // derive the called constructor.
-      if (!pullbackCall && utils::isLinearConstructor(CD, m_Context)) {
+      if (!pullbackCall) {
         DiffRequest pullbackRequest{};
         pullbackRequest.Function = CD;
 
