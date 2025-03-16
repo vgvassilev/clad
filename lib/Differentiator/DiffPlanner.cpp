@@ -1312,14 +1312,9 @@ DeclRefExpr* getArgFunction(CallExpr* call, Sema& SemaRef) {
     if (m_Sema.isStdInitializerList(recordTy, /*elemType=*/nullptr))
       return true;
 
-    if (!LookupCustomDerivativeDecl(request)) {
-      // FIXME: For now, only linear constructors are supported.
-      if (!utils::isLinearConstructor(CD, m_Sema.getASTContext()))
-        return true;
-
+    if (!LookupCustomDerivativeDecl(request))
       // Recurse into call graph.
       TraverseFunctionDeclOnce(request.Function);
-    }
     m_DiffRequestGraph.addNode(request, /*isSource=*/true);
 
     return true;
