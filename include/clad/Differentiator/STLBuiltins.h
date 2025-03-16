@@ -512,10 +512,6 @@ template <typename T>
 void size_pullback(::std::vector<T>* /*v*/,
                    ::std::vector<T>* /*d_v*/) noexcept {}
 
-template <typename T>
-void capacity_pullback(::std::vector<T>* /*v*/,
-                       ::std::vector<T>* /*d_v*/) noexcept {}
-
 template <typename T, typename U>
 void size_pullback(::std::vector<T>* /*v*/, U /*d_y*/,
                    ::std::vector<T>* /*d_v*/) noexcept {}
@@ -636,6 +632,26 @@ operator_star_reverse_forw(::std::unique_ptr<T>* u, ::std::unique_ptr<T>* d_u) {
 template <typename T, typename U>
 void operator_star_pullback(::std::unique_ptr<T>* u, U pullback,
                             ::std::unique_ptr<T>* d_u) {
+  **d_u += pullback;
+}
+
+// std::shared_ptr<T> custom derivatives...
+template <typename T, typename U>
+clad::ValueAndAdjoint<::std::shared_ptr<T>, ::std::shared_ptr<T>>
+constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::shared_ptr<T>>,
+                         U* p, U* d_p) {
+  return {::std::shared_ptr<T>(p), ::std::shared_ptr<T>(d_p)};
+}
+
+template <typename T>
+clad::ValueAndAdjoint<T&, T&>
+operator_star_reverse_forw(::std::shared_ptr<T>* u, ::std::shared_ptr<T>* d_u) {
+  return {**u, **d_u};
+}
+
+template <typename T, typename U>
+void operator_star_pullback(::std::shared_ptr<T>* u, U pullback,
+                            ::std::shared_ptr<T>* d_u) {
   **d_u += pullback;
 }
 
