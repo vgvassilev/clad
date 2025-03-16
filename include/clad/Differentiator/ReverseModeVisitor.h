@@ -414,18 +414,29 @@ namespace clad {
     VisitMaterializeTemporaryExpr(const clang::MaterializeTemporaryExpr* MTE);
     StmtDiff VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* SCE);
     StmtDiff VisitCXXConstCastExpr(const clang::CXXConstCastExpr* CCE);
+    StmtDiff VisitCXXDefaultInitExpr(const clang::CXXDefaultInitExpr* DIE);
     StmtDiff VisitSwitchStmt(const clang::SwitchStmt* SS);
     StmtDiff VisitCaseStmt(const clang::CaseStmt* CS);
     StmtDiff VisitDefaultStmt(const clang::DefaultStmt* DS);
     DeclDiff<clang::VarDecl> DifferentiateVarDecl(const clang::VarDecl* VD,
                                                   bool keepLocal = false);
+    StmtDiff DifferentiateCtorInit(clang::CXXCtorInitializer* CI,
+                                   clang::Expr* thisExpr);
     StmtDiff VisitSubstNonTypeTemplateParmExpr(
         const clang::SubstNonTypeTemplateParmExpr* NTTP);
     StmtDiff
     VisitCXXNullPtrLiteralExpr(const clang::CXXNullPtrLiteralExpr* NPE);
     StmtDiff VisitNullStmt(const clang::NullStmt* NS) {
       return StmtDiff{Clone(NS), Clone(NS)};
-    };
+    }
+
+    /// Helper function that builds `T* _this = malloc(sifeof(T));`
+    /// and `free(_this)`.
+    ///
+    /// \param[in] thisTy `this` type.
+    ///
+    /// \returns {_this, free(_this)}
+    StmtDiff BuildThisExpr(clang::QualType thisTy);
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU

@@ -524,6 +524,8 @@ double fn6(double u, double v) {
     return v;
 }
 
+// CHECK:  static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x);
+
 // CHECK: void fn6_grad(double u, double v, double *_d_u, double *_d_v) {
 // CHECK-NEXT:      double &_d_w = *_d_u;
 // CHECK-NEXT:      double &w = u;
@@ -537,6 +539,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass s3(_t2.value);
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
+// CHECK-NEXT:      constructor_pullback(w, &_d_s3, &_d_w);
 // CHECK-NEXT:      {{.*}}constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
 // CHECK-NEXT:  }
 
@@ -643,6 +646,7 @@ int main() {
 // CHECK-NEXT:             *_d_i += _r0;
 // CHECK-NEXT:             *_d_j += _r1;
 // CHECK-NEXT:         }
+// CHECK-NEXT:     constructor_pullback(x, y, &_d_sf, &_d_x, &_d_y);
 // CHECK-NEXT:     }
 
 
@@ -703,5 +707,25 @@ int main() {
 // CHECK-NEXT:     double _t0 = this->x;
 // CHECK-NEXT:     this->x += 1.;
 // CHECK-NEXT:     return {*this, (*_d_this)};
+// CHECK-NEXT: }
+
+// CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
+// CHECK-NEXT:     SafeTestClass *_this = malloc(sizeof(SafeTestClass));
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT: }
+
+// CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
+// CHECK-NEXT:     SimpleFunctions *_this = malloc(sizeof(SimpleFunctions));
+// CHECK-NEXT:     _this->x = p_x;
+// CHECK-NEXT:     _this->y = p_y;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p_y += (*_d_this).y;
+// CHECK-NEXT:         (*_d_this).y = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *_d_p_x += (*_d_this).x;
+// CHECK-NEXT:         (*_d_this).x = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     free(_this);
 // CHECK-NEXT: }
 }
