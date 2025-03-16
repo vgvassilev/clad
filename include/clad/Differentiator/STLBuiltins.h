@@ -664,6 +664,9 @@ constructor_reverse_forw(clad::ConstructorReverseForwTag<::std::unique_ptr<T>>,
 }
 
 template <typename T>
+void constructor_pullback(T* p, ::std::unique_ptr<T>* dthis, T* dp) noexcept {};
+
+template <typename T>
 clad::ValueAndAdjoint<T&, T&>
 operator_star_reverse_forw(::std::unique_ptr<T>* u, ::std::unique_ptr<T>* d_u) {
   return {**u, **d_u};

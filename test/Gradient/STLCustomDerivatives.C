@@ -1110,8 +1110,8 @@ int main() {
 // CHECK-NEXT:         *_d_e += 5 * _r_d0;
 // CHECK-NEXT:         {{.*}}class_functions::operator_star_pullback(&up, 0., &_d_up);
 // CHECK-NEXT:     }
-// Not check next because on some implementations the unique_ptr ctor is trivial and we generate a pullback.
-// CHECK:     *_d_d += *_d_p;
+// CHECK-NEXT:     {{.*}}class_functions::constructor_pullback(p, &_d_up, _d_p);
+// CHECK-NEXT:     *_d_d += *_d_p;
 // CHECK-NEXT: }
 
 // CHECK-NEXT: void fn16_grad(double u, double v, double *_d_u, double *_d_v) {

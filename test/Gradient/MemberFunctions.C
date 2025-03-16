@@ -557,10 +557,6 @@ namespace class_functions {
     constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>) {
         return {SafeTestClass(), SafeTestClass()};
     }
-    void constructor_pullback(double x, double* y, SafeTestClass *d_this, double* d_x, double* d_y) {
-        *d_x += *d_y;
-        *d_y = 0;
-    }
 }}}
 
 double fn6(double u, double v) {
@@ -570,6 +566,19 @@ double fn6(double u, double v) {
     SafeTestClass s3(w);
     return v;
 }
+
+// CHECK: static void constructor_pullback(double x, double *y, SafeTestClass *_d_this, double *_d_x, double *_d_y) {
+// CHECK-NEXT:     SafeTestClass *_this = (SafeTestClass *)malloc(sizeof(SafeTestClass));
+// CHECK-NEXT:     double _t0 = *y;
+// CHECK-NEXT:     *y = x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         *y = _t0;
+// CHECK-NEXT:         double _r_d0 = *_d_y;
+// CHECK-NEXT:         *_d_y = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     free(_this);
+// CHECK-NEXT: }
 
 // CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
 // CHECK-NEXT: }
@@ -590,7 +599,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;  
-// CHECK-NEXT:          {{.*}}constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);
+// CHECK-NEXT:          SafeTestClass::constructor_pullback(u, &v, &_d_s2, &_r0, &*_d_v);
 // CHECK-NEXT:          *_d_u += _r0;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }

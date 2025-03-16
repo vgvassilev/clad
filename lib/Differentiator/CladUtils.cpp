@@ -493,6 +493,12 @@ namespace clad {
     /// type.
     clang::QualType getNonConstType(clang::QualType T, clang::Sema& S) {
       bool isLValueRefType = T->isLValueReferenceType();
+      if (const auto* CAT = llvm::dyn_cast<clang::ConstantArrayType>(T)) {
+        QualType elemType = GetNonConstValueType(T);
+        T = S.getASTContext().getConstantArrayType(
+            elemType, CAT->getSize(), CAT->getSizeExpr(),
+            CAT->getSizeModifier(), CAT->getIndexTypeCVRQualifiers());
+      }
       T = T.getNonReferenceType();
       clang::Qualifiers quals(T.getQualifiers());
       quals.removeConst();
