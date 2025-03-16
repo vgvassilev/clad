@@ -793,6 +793,60 @@ double fn23(double x){
 // CHECK-NEXT:      *_d_x += 1;
 // CHECK-NEXT:  }
 
+class B {
+public:
+  double data = 0;
+};
+
+double add(B b, double u) {
+    return b.data + u;
+}
+
+// CHECK:  void add_pullback(B b, double u, double _d_y, B *_d_b, double *_d_u) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_b).data += _d_y;
+// CHECK-NEXT:          *_d_u += _d_y;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+double fn24(double u, double v) {
+    B b;
+    b.data = v;
+    double res = 0;
+    res = add(b, u);
+    return res;
+}
+
+// CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept;
+
+// CHECK:  void fn24_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      B _d_b = {0.};
+// CHECK-NEXT:      B b;
+// CHECK-NEXT:      double _t0 = b.data;
+// CHECK-NEXT:      b.data = v;
+// CHECK-NEXT:      double _d_res = 0.;
+// CHECK-NEXT:      double res = 0;
+// CHECK-NEXT:      double _t1 = res;
+// CHECK-NEXT:      res = add(b, u);
+// CHECK-NEXT:      _d_res += 1;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          res = _t1;
+// CHECK-NEXT:          double _r_d1 = _d_res;
+// CHECK-NEXT:          _d_res = 0.;
+// CHECK-NEXT:          B _r0 = {0.};
+// CHECK-NEXT:          double _r1 = 0.;
+// CHECK-NEXT:          add_pullback(b, u, _r_d1, &_r0, &_r1);
+// CHECK-NEXT:          constructor_pullback(b, &_r0, &_d_b);
+// CHECK-NEXT:          *_d_u += _r1;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          b.data = _t0;
+// CHECK-NEXT:          double _r_d0 = _d_b.data;
+// CHECK-NEXT:          _d_b.data = 0.;
+// CHECK-NEXT:          *_d_v += _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
 void print(const Tangent& t) {
   for (int i = 0; i < 5; ++i) {
     printf("%.2f", t.data[i]);
@@ -891,6 +945,9 @@ int main() {
     TEST_GRADIENT(fn22, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {8.00, 0.00}
 
     INIT_GRADIENT(fn23);
+
+    INIT_GRADIENT(fn24);
+    TEST_GRADIENT(fn24, /*numOfDerivativeArgs=*/2, 3, 2, &d_i, &d_j);    // CHECK-EXEC: {1.00, 1.00}
 }
 
 // CHECK: void someMemFn2_pullback(double i, double j, double _d_y, Tangent *_d_this, double *_d_i, double *_d_j) const {
@@ -1024,3 +1081,13 @@ int main() {
 // CHECK-NEXT:        (*_d_rhs).y += this->y * _r1;
 // CHECK-NEXT:    }
 // CHECK-NEXT:}
+
+// CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept {
+// CHECK-NEXT:      B *_this = malloc(sizeof(B));
+// CHECK-NEXT:      _this->data = arg.data;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          (*_d_arg).data += (*_d_this).data;
+// CHECK-NEXT:          (*_d_this).data = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:  }
