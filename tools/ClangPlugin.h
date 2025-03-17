@@ -118,9 +118,7 @@ public:
       HandleTopLevelDeclInObjCContainer,
       HandleImplicitImportDecl,
       CompleteTentativeDefinition,
-#if CLANG_VERSION_MAJOR > 9
       CompleteExternalDeclaration,
-#endif
       AssignInheritanceModel,
       HandleVTable,
       InitializeSema,
@@ -210,7 +208,6 @@ public:
     void CompleteTentativeDefinition(clang::VarDecl* D) override {
       AppendDelayed({CallKind::CompleteTentativeDefinition, D});
     }
-#if CLANG_VERSION_MAJOR > 9
 #if CLANG_VERSION_MAJOR < 19
     void CompleteExternalDeclaration(clang::VarDecl* D) override {
       AppendDelayed({CallKind::CompleteExternalDeclaration, D});
@@ -220,7 +217,6 @@ public:
       AppendDelayed({CallKind::CompleteExternalDeclaration, D});
     }
 #endif
-#endif // CLANG_VERSION_MAJOR > 9
     void AssignInheritanceModel(clang::CXXRecordDecl* D) override {
       AppendDelayed({CallKind::AssignInheritanceModel, D});
     }
