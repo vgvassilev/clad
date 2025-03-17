@@ -838,14 +838,14 @@ double fn24(double u, double v) {
 struct S1{
   double p;
   double d;
-  S1(double x) : p(x), d([](){return 12.;}()) {}
+  S1(double x) : p(x), d([](){return 12.;}()) {} // expected-warning {{Direct lambda calls are not supported, ignored.}}
 };
 
 struct S2{
   double p;
   double i;
   double d;
-  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {}
+  S2(double x) : p(x), i(1.), d([&](){i *= 32; return 12.;}()) {} // expected-warning {{Direct lambda calls are not supported, ignored.}}
 };
 
 struct S3{
@@ -864,7 +864,7 @@ struct S4{
 struct S5{
   double i;
   S5(double x) 
-    try { 
+    try { // expected-warning {{Try statements are not supported, ignored.}}
       i = x;
     } catch(...) {
       printf("caught\n");
@@ -879,10 +879,29 @@ double fn25(double u, double v) {
   return 1;
 }
 
-// CHECK-NOT: void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
-// CHECK-NOT: void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
-// CHECK-NOT: void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
-// CHECK-NOT: void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
+// CHECK:  static void constructor_pullback(double x, S1 *_d_this, double *_d_x);
+// CHECK:  static void constructor_pullback(double x, S2 *_d_this, double *_d_x);
+// CHECK:  static void constructor_pullback(double x, S3 *_d_this, double *_d_x);
+// CHECK:  static void constructor_pullback(double x, S5 *_d_this, double *_d_x);
+
+// CHECK:  void fn25_grad(double u, double v, double *_d_u, double *_d_v) {
+// CHECK-NEXT:      S1 s1(u);
+// CHECK-NEXT:      S1 _d_s1(s1);
+// CHECK-NEXT:      clad::zero_init(_d_s1);
+// CHECK-NEXT:      S2 s2(v);
+// CHECK-NEXT:      S2 _d_s2(s2);
+// CHECK-NEXT:      clad::zero_init(_d_s2);
+// CHECK-NEXT:      S3 s3(v);
+// CHECK-NEXT:      S3 _d_s3(s3);
+// CHECK-NEXT:      clad::zero_init(_d_s3);
+// CHECK-NEXT:      S5 s5(u);
+// CHECK-NEXT:      S5 _d_s5(s5);
+// CHECK-NEXT:      clad::zero_init(_d_s5);
+// CHECK-NEXT:      S5::constructor_pullback(u, &_d_s5, &*_d_u);
+// CHECK-NEXT:      S3::constructor_pullback(v, &_d_s3, &*_d_v);
+// CHECK-NEXT:      S2::constructor_pullback(v, &_d_s2, &*_d_v);
+// CHECK-NEXT:      S1::constructor_pullback(u, &_d_s1, &*_d_u);
+// CHECK-NEXT:  }
 
 double fn26(double u, double v) {
   S4 s(u);
@@ -1232,6 +1251,68 @@ int main() {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          (*_d_arg).data += _d_this->data;
 // CHECK-NEXT:          _d_this->data = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:  }
+
+
+// CHECK:  static void constructor_pullback(double x, S1 *_d_this, double *_d_x) {
+// CHECK-NEXT:      S1 *_this = malloc(sizeof(S1));
+// CHECK-NEXT:      _this->p = x;
+// CHECK-NEXT:      _this->d = 0.;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->d = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_this->p;
+// CHECK-NEXT:          _d_this->p = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:  }
+
+// CHECK:  static void constructor_pullback(double x, S2 *_d_this, double *_d_x) {
+// CHECK-NEXT:      S2 *_this = malloc(sizeof(S2));
+// CHECK-NEXT:      _this->p = x;
+// CHECK-NEXT:      _this->i = 1.;
+// CHECK-NEXT:      _this->d = 0.;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->d = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->i = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_this->p;
+// CHECK-NEXT:          _d_this->p = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:  }
+
+// CHECK:  static void constructor_pullback(double x, S3 *_d_this, double *_d_x) {
+// CHECK-NEXT:      S3 *_this = malloc(sizeof(S3));
+// CHECK-NEXT:      double _t0 = _this->p;
+// CHECK-NEXT:      _this->p = x * x;
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _this->p = _t0;
+// CHECK-NEXT:          double _r_d0 = _d_this->p;
+// CHECK-NEXT:          _d_this->p = 0.;
+// CHECK-NEXT:          *_d_x += _r_d0 * x;
+// CHECK-NEXT:          *_d_x += x * _r_d0;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:  }
+
+// CHECK:  static void constructor_pullback(double x, S5 *_d_this, double *_d_x) {
+// CHECK-NEXT:      S5 *_this = malloc(sizeof(S5));
+// CHECK-NEXT:      free(_this);
+// CHECK-NEXT:  }
+
+// CHECK:  static void constructor_pullback(double x, S4 *_d_this, double *_d_x) {
+// CHECK-NEXT:      {
+// CHECK-NEXT:          *_d_x += _d_this->p;
+// CHECK-NEXT:          _d_this->p = 0.;
+// CHECK-NEXT:      }
+// CHECK-NEXT:      {
+// CHECK-NEXT:          _d_this->i = 0.;
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
