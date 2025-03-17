@@ -6,6 +6,8 @@
 // File originates from the Scout project (http://scout.zih.tu-dresden.de/)
 #include "clad/Differentiator/StmtClone.h"
 
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/Sema/Lookup.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -99,7 +101,12 @@ DEFINE_CLONE_EXPR(ArraySubscriptExpr,
                   (Clone(Node->getLHS()), Clone(Node->getRHS()),
                    CloneType(Node->getType()), Node->getValueKind(),
                    Node->getObjectKind(), Node->getRBracketLoc()))
-DEFINE_CREATE_EXPR(CXXDefaultArgExpr, (Ctx, SourceLocation(), Node->getParam() CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node) CLAD_COMPAT_CLANG9_CXXDefaultArgExpr_getUsedContext_Param(Node)))
+DEFINE_CREATE_EXPR(
+    CXXDefaultArgExpr,
+    (Ctx, SourceLocation(),
+     Node->getParam()
+         CLAD_COMPAT_CLANG16_CXXDefaultArgExpr_getRewrittenExpr_Param(Node),
+     Node->getUsedContext()))
 
 Stmt* StmtClone::VisitMemberExpr(MemberExpr* Node) {
   TemplateArgumentListInfo TemplateArgs;
@@ -184,7 +191,7 @@ DEFINE_CLONE_EXPR_CO(
 
 DEFINE_CLONE_EXPR(MaterializeTemporaryExpr,
                   (CloneType(Node->getType()),
-                   CLAD_COMPAT_CLANG10_GetTemporaryExpr(Node),
+                   Node->getSubExpr() ? Clone(Node->getSubExpr()) : nullptr,
                    Node->isBoundToLvalueReference()))
 DEFINE_CLONE_EXPR_CO11(
     CompoundAssignOperator,
@@ -202,11 +209,9 @@ DEFINE_CLONE_EXPR(ConditionalOperator,
                    Node->getValueKind(), Node->getObjectKind()))
 DEFINE_CLONE_EXPR(AddrLabelExpr, (Node->getAmpAmpLoc(), Node->getLabelLoc(),
                                   Node->getLabel(), CloneType(Node->getType())))
-DEFINE_CLONE_EXPR(StmtExpr,
-                  (Clone(Node->getSubStmt()), CloneType(Node->getType()),
-                   Node->getLParenLoc(),
-                   Node->getRParenLoc()
-                       CLAD_COMPAT_CLANG10_StmtExpr_Create_ExtraParams))
+DEFINE_CLONE_EXPR(StmtExpr, (Clone(Node->getSubStmt()),
+                             CloneType(Node->getType()), Node->getLParenLoc(),
+                             Node->getRParenLoc(), Node->getTemplateDepth()))
 DEFINE_CLONE_EXPR(ChooseExpr,
                   (Node->getBuiltinLoc(), Clone(Node->getCond()),
                    Clone(Node->getLHS()), Clone(Node->getRHS()),
