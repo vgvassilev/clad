@@ -534,8 +534,8 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass s3(_t2.value);
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
-// CHECK-NEXT:      constructor_pullback(w, &_d_s3, &_d_w);
-// CHECK-NEXT:      constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
+// CHECK-NEXT:      SafeTestClass::constructor_pullback(w, &_d_s3, &_d_w);
+// CHECK-NEXT:      SafeTestClass::constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
 // CHECK-NEXT:  }
 
 
@@ -641,7 +641,7 @@ int main() {
 // CHECK-NEXT:             *_d_i += _r0;
 // CHECK-NEXT:             *_d_j += _r1;
 // CHECK-NEXT:         }
-// CHECK-NEXT:     constructor_pullback(x, y, &_d_sf, &_d_x, &_d_y);
+// CHECK-NEXT:     SimpleFunctions::constructor_pullback(x, y, &_d_sf, &_d_x, &_d_y);
 // CHECK-NEXT:     }
 
 

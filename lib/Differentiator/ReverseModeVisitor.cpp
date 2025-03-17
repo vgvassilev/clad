@@ -4224,10 +4224,15 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         FunctionDecl* pullbackFD =
             m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
+        // FIXME: Remove once BuildDeclRef can automatically deduce class
+        // namespace specifiers.
+        IdentifierInfo* II = &m_Context.Idents.get(RD->getNameAsString());
+        NestedNameSpecifier* NNS = NestedNameSpecifier::Create(m_Context, II);
         if (pullbackFD) {
           pullbackCall =
               m_Sema
-                  .ActOnCallExpr(getCurrentScope(), BuildDeclRef(pullbackFD),
+                  .ActOnCallExpr(getCurrentScope(),
+                                 BuildDeclRef(pullbackFD, NNS),
                                  m_DiffReq->getLocation(), pullbackArgs,
                                  m_DiffReq->getLocation())
                   .get();

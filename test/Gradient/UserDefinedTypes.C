@@ -663,7 +663,7 @@ double fn18(double i, double j) {
 // CHECK-NEXT:      {
 // CHECK-NEXT:          double _r0 = 0.;
 // CHECK-NEXT:          double _r1 = 0.;
-// CHECK-NEXT:          constructor_pullback(3 * i, 5 * j, &_d_sf, &_r0, &_r1);
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(3 * i, 5 * j, &_d_sf, &_r0, &_r1);
 // CHECK-NEXT:          *_d_i += 3 * _r0;
 // CHECK-NEXT:          *_d_j += 5 * _r1;
 // CHECK-NEXT:      }
@@ -695,7 +695,7 @@ double fn19(double i, double j) {
 // CHECK-NEXT:          *_d_j += _r3;
 // CHECK-NEXT:          _t0.operator_star_pullback(sf2, _r4, &_d_sf1, &_d_sf2);
 // CHECK-NEXT:      }
-// CHECK-NEXT:      constructor_pullback(i, j, &_d_sf2, &*_d_i, &*_d_j);
+// CHECK-NEXT:      SimpleFunctions1::constructor_pullback(i, j, &_d_sf2, &*_d_i, &*_d_j);
 // CHECK-NEXT:  }
 
 void fn20(MyStruct s) {
@@ -731,7 +731,7 @@ double fn21(double i, double j) {
 // CHECK-NEXT:          double _r0 = 0.;
 // CHECK-NEXT:          SimpleFunctions1 _r1 = {};
 // CHECK-NEXT:          operator_plus_pullback(2, SimpleFunctions1(i), 1, &_r0, &_r1);
-// CHECK-NEXT:          constructor_pullback(i, &_r1, &*_d_i);
+// CHECK-NEXT:          SimpleFunctions1::constructor_pullback(i, &_r1, &*_d_i);
 // CHECK-NEXT:      }
 // CHECK-NEXT:  }
 
@@ -824,7 +824,7 @@ double fn24(double u, double v) {
 // CHECK-NEXT:          B _r0 = {0.};
 // CHECK-NEXT:          double _r1 = 0.;
 // CHECK-NEXT:          add_pullback(b, u, _r_d1, &_r0, &_r1);
-// CHECK-NEXT:          constructor_pullback(b, &_r0, &_d_b);
+// CHECK-NEXT:          B::constructor_pullback(b, &_r0, &_d_b);
 // CHECK-NEXT:          *_d_u += _r1;
 // CHECK-NEXT:      }
 // CHECK-NEXT:      {
@@ -1027,11 +1027,11 @@ int main() {
 // CHECK-NEXT:    SimpleFunctions1 res(this->x + other.x, this->y + other.y);
 // CHECK-NEXT:    SimpleFunctions1 _d_res(res);
 // CHECK-NEXT:    clad::zero_init(_d_res);
-// CHECK-NEXT:    constructor_pullback(std::move(res), &_d_y, &_d_res);
+// CHECK-NEXT:    SimpleFunctions1::constructor_pullback(std::move(res), &_d_y, &_d_res);
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        constructor_pullback(this->x + other.x, this->y + other.y, &_d_res, &_r0, &_r1);
+// CHECK-NEXT:        SimpleFunctions1::constructor_pullback(this->x + other.x, this->y + other.y, &_d_res, &_r0, &_r1);
 // CHECK-NEXT:        (*_d_this).x += _r0;
 // CHECK-NEXT:        (*_d_other).x += _r0;
 // CHECK-NEXT:        (*_d_this).y += _r1;
@@ -1064,7 +1064,7 @@ int main() {
 // CHECK-NEXT:    {
 // CHECK-NEXT:        double _r0 = 0.;
 // CHECK-NEXT:        double _r1 = 0.;
-// CHECK-NEXT:        constructor_pullback(this->x * rhs.x, this->y * rhs.y, &_d_y, &_r0, &_r1);
+// CHECK-NEXT:        SimpleFunctions1::constructor_pullback(this->x * rhs.x, this->y * rhs.y, &_d_y, &_r0, &_r1);
 // CHECK-NEXT:        (*_d_this).x += _r0 * rhs.x;
 // CHECK-NEXT:        (*_d_rhs).x += this->x * _r0;
 // CHECK-NEXT:        (*_d_this).y += _r1 * rhs.y;
