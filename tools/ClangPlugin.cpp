@@ -384,12 +384,10 @@ namespace clad {
           m_Multiplexer->CompleteTentativeDefinition(
               cast<VarDecl>(D.getSingleDecl()));
           break;
-#if CLANG_VERSION_MAJOR > 9
         case CallKind::CompleteExternalDeclaration:
           m_Multiplexer->CompleteExternalDeclaration(
               cast<VarDecl>(D.getSingleDecl()));
           break;
-#endif
         case CallKind::AssignInheritanceModel:
           m_Multiplexer->AssignInheritanceModel(
               cast<CXXRecordDecl>(D.getSingleDecl()));
@@ -543,11 +541,9 @@ namespace clad {
         case CallKind::CompleteTentativeDefinition:
           llvm::errs() << "CompleteTentativeDefinition";
           break;
-#if CLANG_VERSION_MAJOR > 9
         case CallKind::CompleteExternalDeclaration:
           llvm::errs() << "CompleteExternalDeclaration";
           break;
-#endif
         case CallKind::AssignInheritanceModel:
           llvm::errs() << "AssignInheritanceModel";
           break;

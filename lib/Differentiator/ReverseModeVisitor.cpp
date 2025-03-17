@@ -4322,7 +4322,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       const clang::MaterializeTemporaryExpr* MTE) {
     // `MaterializeTemporaryExpr` node will be created automatically if it is
     // required by `ActOn`/`Build` Sema functions.
-    StmtDiff MTEDiff = Visit(clad_compat::GetSubExpr(MTE), dfdx());
+    StmtDiff MTEDiff = Visit(MTE->getSubExpr(), dfdx());
     return MTEDiff;
   }
 

@@ -7,8 +7,6 @@
 #ifndef CLANG_BACKEND_PLUGIN_H
 #define CLANG_BACKEND_PLUGIN_H
 
-#include "llvm/Config/llvm-config.h" // for CLANG_VERSION_MAJOR
-
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassPlugin.h"
 
