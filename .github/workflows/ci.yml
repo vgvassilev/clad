@@ -130,9 +130,9 @@ jobs:
             clang-runtime: '11'
             coverity: true
 
-          - name: ubu20-gcc10-runtime10
+          - name: ubu20-gcc8-runtime10
             os: ubuntu-20.04
-            compiler: gcc-10
+            compiler: gcc-8
             clang-runtime: '10'
 
           - name: ubu20-gcc9-runtime10
@@ -439,7 +439,7 @@ jobs:
 
           - name: ubu22-clang17-runtime20
             os: ubuntu-22.04
-            compiler: clang-17
+            compiler: clang-18
             clang-runtime: '20'
 
           - name: ubu24-arm-clang16-runtime17
