@@ -109,7 +109,7 @@ double m_11(double x) {
   return x*m;
 }
 
-// CHECK: template<> double m_11_darg0<{{64ULL|64UL|64U}}>(double x) {
+// CHECK: template<> double m_11_darg0<{{64ULL|64UL|64U|64}}>(double x) {
 // CHECK-NEXT:   double _d_x = 1;
 // CHECK-NEXT:   const size_t _d_maxN = 0;
 // CHECK-NEXT:   const size_t maxN = 53;
