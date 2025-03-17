@@ -4144,7 +4144,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         adjointArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, adjointArg,
                                       m_DiffReq->getLocation()));
       }
-      primalArgs.push_back(argDiff.getExpr());
+      // If a function returns an object by value, there
+      // are an implicit move constructor and an implicit
+      // cast to XValue. However, when providing arguments,
+      // we have to cast explicitly with std::move.
+      if (arg->isXValue() && argDiff.getExpr()->isLValue()) {
+        llvm::SmallVector<Expr*, 1> moveArg = {argDiff.getExpr()};
+        Expr* moveCall = GetFunctionCall("move", "std", moveArg);
+        primalArgs.push_back(moveCall);
+      } else {
+        primalArgs.push_back(argDiff.getExpr());
+      }
     }
 
     const CXXRecordDecl* RD = CD->getParent();
