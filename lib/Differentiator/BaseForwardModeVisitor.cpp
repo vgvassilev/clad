@@ -312,8 +312,8 @@ void BaseForwardModeVisitor::SetupDerivativeParameters(
     if (PVD == m_IndependentVar)
       m_IndependentVar = newPVD;
 
-    if (PVD->getDeclName() !=
-        newPVD->getDeclName()) // We can't use lookup-based replacements
+    // We can't use lookup-based replacements
+    if (PVD->getDeclName() != newPVD->getDeclName())
       m_DeclReplacements[PVD] = newPVD;
 
     params.push_back(newPVD);
