@@ -443,7 +443,7 @@ jobs:
 
           - name: ubu22-clang17-runtime20
             os: ubuntu-22.04
-            compiler: clang-18
+            compiler: clang-17
             clang-runtime: '20'
 
           - name: ubu24-arm-clang16-runtime17
@@ -627,15 +627,35 @@ jobs:
         fi
 
         if [[ ${{ matrix.clang-runtime }} -gt 11 ]]; then
-          brew install llvm@${{ matrix.clang-runtime }}
+          # If the version of clang is in brew then install it.
+          if [[ $(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }}) ]]; then
+            echo "!!!BREW INSTALL"
+            brew install llvm@${{ matrix.clang-runtime }}
+            PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
+          else
+            # FIXME: Make this generic.
+            echo "!!!GITHUB INSTALL"
+            sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.1.0/LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
+            if [[ $(uname -p) == "arm" ]]; then
+              export PATH_TO_LLVM_BUILD=/opt/homebrew/llvm@${{ matrix.clang-runtime }}/
+            else
+              export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
+            fi
+            sudo mv LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64 $PATH_TO_LLVM_BUILD
+            echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
+            ${PATH_TO_LLVM_BUILD}bin/clang --version
+          fi
         else
           # Remove the c++ headers that come with the llvm package from homebrew
           # allowing clang to work with system's SDK.
           sudo rm -fr /usr/local/opt/llvm*/include/c++
         fi
-        
-        PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
-        
+        echo "!!!INSTALL DEBUG:"
+        clang --version
+        export PATH=${PATH_TO_LLVM_BUILD}bin:$PATH
+        echo "PATH=$PATH"
+        clang --version
+
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
         # We need headers in correct place
@@ -836,6 +856,10 @@ jobs:
       if: ${{ matrix.coverity == false && runner.os != 'windows' }}
       run: |
         cd obj
+        # Packages downloaded and unzipped require setting the SDKROOT.
+        if [[ "runner.os" == "macOS" ]]; then
+          export SDKROOT=`xcrun --show-sdk-path`
+        fi
         cmake --build . --target check-clad -- -j4
     - name: Test Clad on Windows
       if: ${{ matrix.coverity == false && runner.os == 'windows' }}
