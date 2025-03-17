@@ -509,11 +509,6 @@ namespace class_functions {
     constructor_reverse_forw(clad::ConstructorReverseForwTag<SafeTestClass>) {
         return {SafeTestClass(), SafeTestClass()};
     }
-
-    void constructor_pullback(double x, double* y, SafeTestClass *d_this, double* d_x, double* d_y) {
-        *d_x += *d_y;
-        *d_y = 0;
-    }
 }}}
 
 double fn6(double u, double v) {
@@ -540,7 +535,7 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      SafeTestClass _d_s3 = _t2.adjoint;
 // CHECK-NEXT:      *_d_v += 1;
 // CHECK-NEXT:      constructor_pullback(w, &_d_s3, &_d_w);
-// CHECK-NEXT:      {{.*}}constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
+// CHECK-NEXT:      constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
 // CHECK-NEXT:  }
 
 
