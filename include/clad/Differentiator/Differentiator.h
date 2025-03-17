@@ -129,12 +129,6 @@ CUDA_HOST_DEVICE T push(tape<T>& to, ArgsT... val) {
       zero_init(x);
   }
 
-  // std::pair<T1, T2> is almost trivially copyable. Specialize it.
-  template <class T1, class T2> void zero_init(std::pair<T1, T2>& p) {
-    zero_init(p.first);
-    zero_init(p.second);
-  }
-
   template <class T> CUDA_HOST_DEVICE void zero_init(T& t) { zero_impl(t); }
 
   /// Initialize a const sized array.

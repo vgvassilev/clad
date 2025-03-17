@@ -15,6 +15,7 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -500,9 +501,8 @@ namespace clad {
     void PerformImplicitConversionAndAssign(clang::VarDecl* VD,
                                             clang::Expr* Init) {
       // Implicitly convert Init into the type of VD
-      clang::ActionResult<clang::Expr*> ICAR = m_Sema
-          .PerformImplicitConversion(Init, VD->getType(),
-                                     clang::Sema::AA_Casting);
+      clang::ActionResult<clang::Expr*> ICAR = m_Sema.PerformImplicitConversion(
+          Init, VD->getType(), CLAD_COMPAT_CLANG20_SemaAACasting);
       assert(!ICAR.isInvalid() && "Invalid implicit conversion!");
       // Assign the resulting expression to the variable declaration
       SetDeclInit(VD, ICAR.get());
