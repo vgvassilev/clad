@@ -424,7 +424,7 @@ jobs:
 
           - name: ubu22-clang17-runtime20
             os: ubuntu-22.04
-            compiler: clang-18
+            compiler: clang-17
             clang-runtime: '20'
 
           - name: ubu24-arm-clang16-runtime17
