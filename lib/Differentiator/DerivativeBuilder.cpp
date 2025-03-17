@@ -170,10 +170,12 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
 
           returnedFD->setDescribedFunctionTemplate(NewFTD);
 
-          TemplateArgumentList* TALCopy =
-              TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
-          returnedFD->setFunctionTemplateSpecialization(
-              NewFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
+          if (!returnedFD->isFunctionTemplateSpecialization()) {
+            TemplateArgumentList* TALCopy =
+                TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+            returnedFD->setFunctionTemplateSpecialization(
+                NewFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
+          }
         }
       }
     }
