@@ -147,10 +147,6 @@ int main() {
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
     // CHECK: void fn_s1_field_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -161,10 +157,6 @@ int main() {
     // CHECK-NEXT:         _d_obj.x += 1 * obj.y;
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
-    // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
     // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
@@ -177,10 +169,6 @@ int main() {
     // CHECK-NEXT:         *_d_i += 1 * j;
     // CHECK-NEXT:         *_d_j += i * 1;
     // CHECK-NEXT:     }
-    // CHECK-NEXT:     {
-    // CHECK-NEXT:         double _r0 = 0.;
-    // CHECK-NEXT:         double _r1 = 0.;
-    // CHECK-NEXT:     }
     // CHECK-NEXT: }
 
     // CHECK: void fn_s2_mem_fn_grad(double i, double j, double *_d_i, double *_d_j) {
@@ -192,9 +180,7 @@ int main() {
     // CHECK-NEXT: }
 
     // CHECK: void fn_non_diff_var_grad(double i, double j, double *_d_i, double *_d_j) {
-    // CHECK-NEXT:     double _d_k = 0.;
     // CHECK-NEXT:     double k = i * i * j;
-    // CHECK-NEXT:     _d_k += 1;
     // CHECK-NEXT: }
     
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {

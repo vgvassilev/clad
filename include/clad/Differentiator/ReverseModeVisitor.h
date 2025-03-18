@@ -60,8 +60,6 @@ namespace clad {
     /// that will be put immediately in the beginning of derivative function
     /// block.
     Stmts m_Globals;
-    /// Global GPU args of the function.
-    std::unordered_set<const clang::ParmVarDecl*> m_CUDAGlobalArgs;
     /// A flag indicating if the Stmt we are currently visiting is inside loop.
     bool isInsideLoop = false;
     /// Output variable of vector-valued function
@@ -702,34 +700,15 @@ namespace clad {
 
     void PopSwitchStmtInfo() { m_SwitchStmtsData.pop_back(); }
 
-    struct ConstructorPullbackCallInfo {
-      clang::CallExpr* pullbackCE = nullptr;
-      size_t thisAdjointArgIdx = std::numeric_limits<size_t>::max();
-      void updateThisParmArgs(clang::Expr* thisE, clang::Expr* dThisE) const;
-      ConstructorPullbackCallInfo() = default;
-      ConstructorPullbackCallInfo(clang::CallExpr* pPullbackCE,
-                                  size_t pThisAdjointArgIdx)
-          : pullbackCE(pPullbackCE), thisAdjointArgIdx(pThisAdjointArgIdx) {}
-
-      bool empty() const { return !pullbackCE; }
-    };
-
-    void setConstructorPullbackCallInfo(clang::CallExpr* pullbackCE,
-                                        size_t thisAdjointArgIdx) {
-      m_ConstructorPullbackCallInfo = {pullbackCE, thisAdjointArgIdx};
-    }
-
-    ConstructorPullbackCallInfo getConstructorPullbackCallInfo() {
-      return m_ConstructorPullbackCallInfo;
-    }
-
-    void resetConstructorPullbackCallInfo() {
-      m_ConstructorPullbackCallInfo = ConstructorPullbackCallInfo{};
-    }
-
   private:
-    ConstructorPullbackCallInfo m_ConstructorPullbackCallInfo;
-    bool m_TrackConstructorPullbackInfo = false;
+    // FIXME: This variable is used to track
+    // whether we're currently visiting an init of a var decl.
+    // This is only necessary because we don't create constructors
+    // explicitly, instead we create a ParenListExpr and expect clang to
+    // build the constructor. However, this only works as var decl inits. In
+    // other cases, we have to use InitListExpr and change the constructor
+    // style. Remove this once we generate constructors explicitly.
+    bool m_TrackVarDeclConstructor = false;
   };
 } // end namespace clad
 

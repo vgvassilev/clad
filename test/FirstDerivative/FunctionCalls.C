@@ -123,7 +123,10 @@ double test_7(double i, double j) {
   return res;
 }
 
-// CHECK: void increment_pushforward(int &i, int &_d_i);
+// CHECK: void increment_pushforward(int &i, int &_d_i) {
+// CHECK-NEXT: ++i;
+// CHECK-NEXT: }
+
 
 // CHECK: double test_7_darg0(double i, double j) {
 // CHECK-NEXT: double _d_i = 1;
@@ -150,7 +153,9 @@ double test_8(double x) {
   return func_with_enum(x, e);
 }
 
-// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x);
+// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x) {
+// CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
+// CHECK-NEXT: }
 
 // CHECK: double test_8_darg0(double x) {
 // CHECK-NEXT: double _d_x = 1;
@@ -213,13 +218,6 @@ int main () {
   clad::differentiate(test_10);
   return 0;
 
-// CHECK: void increment_pushforward(int &i, int &_d_i) {
-// CHECK-NEXT: ++i;
-// CHECK-NEXT: }
-
-// CHECK: clad::ValueAndPushforward<double, double> func_with_enum_pushforward(double x, E e, double _d_x) {
-// CHECK-NEXT: return {x * x, _d_x * x + x * _d_x};
-// CHECK-NEXT: }
 
 // CHECK: static clad::ValueAndPushforward<double, double> static_method_pushforward(double x, double _d_x) {
 // CHECK-NEXT: return {x, _d_x};

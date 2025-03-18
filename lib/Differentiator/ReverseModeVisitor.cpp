@@ -18,24 +18,26 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/LLVM.h" // for clang::isa
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
-#include <clang/AST/DeclCXX.h>
-#include <clang/AST/ExprCXX.h>
-#include <clang/AST/OperationKinds.h>
-#include <clang/Basic/SourceLocation.h>
-#include <clang/Sema/Ownership.h>
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -129,12 +131,28 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   bool ReverseModeVisitor::shouldUseCudaAtomicOps(const Expr* E) {
-    // Same as checking whether this is a function executed by the GPU
-    if (!m_CUDAGlobalArgs.empty())
-      if (const auto* DRE = dyn_cast<DeclRefExpr>(E))
-        if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-          // Check whether this param is in the global memory of the GPU
-          return m_CUDAGlobalArgs.find(PVD) != m_CUDAGlobalArgs.end();
+    if (!m_Context.getLangOpts().CUDA)
+      return false;
+
+    if (!isa<DeclRefExpr>(E))
+      return false;
+
+    const auto* DRE = cast<DeclRefExpr>(E);
+
+    if (const auto* PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
+      if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
+        // Check whether this param is in the global memory of the GPU
+        return m_DiffReq.HasIndependentParameter(PVD);
+      if (m_DiffReq->hasAttr<clang::CUDADeviceAttr>()) {
+        for (auto index : m_DiffReq.CUDAGlobalArgsIndexes) {
+          const auto* PVDOrig = m_DiffReq->getParamDecl(index);
+          if ("_d_" + PVDOrig->getNameAsString() == PVD->getNameAsString() &&
+              (utils::isArrayOrPointerType(PVDOrig->getType()) ||
+               PVDOrig->getType()->isReferenceType()))
+            return true;
+        }
+      }
+    }
 
     return false;
   }
@@ -297,17 +315,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_ExternalSource->ActAfterCreatingDerivedFnParams(params);
 
     m_Derivative->setParams(params);
-    // Match the global arguments of the call to the device function to the
-    // pullback function's parameters.
-    if (!m_DiffReq.CUDAGlobalArgsIndexes.empty())
-      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
-        m_CUDAGlobalArgs.emplace(m_Derivative->getParamDecl(index));
-    // if the function is a global kernel, all the adjoint parameters reside in
-    // the global memory of the GPU. To facilitate the process, all the params
-    // of the kernel are added to the set.
-    else if (m_DiffReq->hasAttr<clang::CUDAGlobalAttr>())
-      for (auto* param : params)
-        m_CUDAGlobalArgs.emplace(param);
     m_Derivative->setBody(nullptr);
 
     if (!m_DiffReq.DeclarationOnly) {
@@ -1239,15 +1246,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     result = BuildArraySubscript(target, reverseIndices);
     // Create the (target += dfdx) statement.
     if (dfdx()) {
-      if (shouldUseCudaAtomicOps(target)) {
-        Expr* atomicCall = BuildCallToCudaAtomicAdd(result, dfdx());
-        // Add it to the body statements.
-        addToCurrentBlock(atomicCall, direction::reverse);
-      } else {
-        auto* add_assign = BuildOp(BO_AddAssign, result, dfdx());
-        // Add it to the body statements.
-        addToCurrentBlock(add_assign, direction::reverse);
-      }
+      Expr* add_assign = nullptr;
+      if (shouldUseCudaAtomicOps(target))
+        add_assign = BuildCallToCudaAtomicAdd(result, dfdx());
+      else
+        add_assign = BuildOp(BO_AddAssign, result, dfdx());
+
+      addToCurrentBlock(add_assign, direction::reverse);
     }
     if (m_ExternalSource)
       m_ExternalSource->ActAfterProcessingArraySubscriptExpr(valueForRevSweep);
@@ -1290,14 +1295,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           Expr* base = it->second;
           if (auto* UO = dyn_cast<UnaryOperator>(it->second))
             base = UO->getSubExpr()->IgnoreImpCasts();
-          if (shouldUseCudaAtomicOps(base)) {
-            Expr* atomicCall = BuildCallToCudaAtomicAdd(it->second, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(atomicCall, direction::reverse);
-          } else {
-            auto* add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
-            addToCurrentBlock(add_assign, direction::reverse);
-          }
+          Expr* add_assign = nullptr;
+          if (shouldUseCudaAtomicOps(base))
+            add_assign = BuildCallToCudaAtomicAdd(it->second, dfdx());
+          else
+            add_assign = BuildOp(BO_AddAssign, it->second, dfdx());
+
+          addToCurrentBlock(add_assign, direction::reverse);
         }
       }
       return StmtDiff(clonedDRE, it->second);
@@ -1439,6 +1443,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       return StmtDiff();
     }
 
+    // FIXME: consider moving non-diff analysis to DiffPlanner.
     bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
 
     // If the result does not depend on the result of the call, just clone
@@ -1456,39 +1461,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     // the gradient.
     if (!nonDiff && !isa<CXXMemberCallExpr>(CE) &&
         !isa<CXXOperatorCallExpr>(CE)) {
-      bool allArgsAreConstant = true;
+      nonDiff = true;
       for (const Expr* arg : CE->arguments()) {
-        // if it's of type MaterializeTemporaryExpr, then check its
-        // subexpression.
-        if (const auto* MTE = dyn_cast<MaterializeTemporaryExpr>(arg))
-          arg = clad_compat::GetSubExpr(MTE)->IgnoreImpCasts();
-        // FIXME: We should consider moving this code in the VariedAnalysis
-        // where we could decide to remove pullback requests from the
-        // diff graph.
-        class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
-          const DiffRequest& Request;
-
-        public:
-          VariedChecker(const DiffRequest& DR) : Request(DR) {}
-          bool isVariedE(const clang::Expr* E) {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-            return !TraverseStmt(const_cast<clang::Expr*>(E));
-          }
-          bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
-            if (!isa<VarDecl>(DRE->getDecl()))
-              return true;
-            if (Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
-              return false;
-            return true;
-          }
-        } analyzer(m_DiffReq);
-        if (analyzer.isVariedE(arg)) {
-          allArgsAreConstant = false;
+        if (m_DiffReq.isVaried(arg)) {
+          nonDiff = false;
           break;
         }
       }
-      if (allArgsAreConstant)
-        nonDiff = true;
     }
 
     if (nonDiff) {
@@ -1697,7 +1676,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Expr* baseExpr = nullptr;
     // If it has more args or f_darg0 was not found, we look for its pullback
     // function.
-    std::vector<size_t> globalCallArgs;
     if (!OverloadedDerivedFn) {
       size_t idx = 0;
 
@@ -1779,23 +1757,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
                                     static_cast<int>(isMethodOperatorCall),
                                 pullback);
 
-      // Try to find it in builtin derivatives
+      // Try to find it in builtin derivatives.
+      // FIXME: resort to ComputeDerivativeName somehow.
       std::string customPullback =
           clad::utils::ComputeEffectiveFnName(FD) + "_pullback";
       // Add the indexes of the global args to the custom pullback name
-      if (!m_CUDAGlobalArgs.empty())
-        for (size_t i = 0; i < pullbackCallArgs.size(); i++)
-          if (auto* DRE = dyn_cast<DeclRefExpr>(pullbackCallArgs[i]))
-            if (auto* param = dyn_cast<ParmVarDecl>(DRE->getDecl()))
-              if (m_CUDAGlobalArgs.find(param) != m_CUDAGlobalArgs.end()) {
-                customPullback += "_" + std::to_string(i);
-                globalCallArgs.emplace_back(i);
-              }
+      for (auto index : m_DiffReq.CUDAGlobalArgsIndexes)
+        customPullback += "_" + std::to_string(index);
 
-      if (baseDiff.getExpr())
-        pullbackCallArgs.insert(
-            pullbackCallArgs.begin(),
-            BuildOp(UnaryOperatorKind::UO_AddrOf, baseDiff.getExpr()));
+      if (Expr* Base = baseDiff.getExpr())
+        pullbackCallArgs.insert(pullbackCallArgs.begin(), Base);
 
       OverloadedDerivedFn =
           m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
@@ -1817,23 +1788,25 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       DiffRequest pullbackRequest{};
       pullbackRequest.Function = FD;
 
-      // Mark the indexes of the global args. Necessary if the argument of the
-      // call has a different name than the function's signature parameter.
-      pullbackRequest.CUDAGlobalArgsIndexes = globalCallArgs;
-
       pullbackRequest.BaseFunctionName =
           clad::utils::ComputeEffectiveFnName(FD);
       pullbackRequest.Mode = DiffMode::experimental_pullback;
+
       // Silence diag outputs in nested derivation process.
       pullbackRequest.VerboseDiags = false;
       pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
-      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i)
+      for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+        const auto* PVD = FD->getParamDecl(i);
         if (MD && isLambdaCallOperator(MD)) {
-          if (const auto* paramDecl = FD->getParamDecl(i))
-            pullbackRequest.DVI.push_back(paramDecl);
-        } else if (DerivedCallOutputArgs[i + (bool)MD])
-          pullbackRequest.DVI.push_back(FD->getParamDecl(i));
+          pullbackRequest.DVI.push_back(PVD);
+        } else if (DerivedCallOutputArgs[i + (bool)MD]) {
+          if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
+              m_DiffReq.HasIndependentParameter(PVD))
+            pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
+          pullbackRequest.DVI.push_back(PVD);
+        }
+      }
 
       FunctionDecl* pullbackFD = nullptr;
       if (m_ExternalSource)
@@ -2161,15 +2134,13 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
         // Create the (target += dfdx) statement.
         if (dfdx() && derivedE) {
-          if (shouldUseCudaAtomicOps(diff_dx)) {
-            Expr* atomicCall = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(atomicCall, direction::reverse);
-          } else {
-            auto* add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
-            // Add it to the body statements.
-            addToCurrentBlock(add_assign, direction::reverse);
-          }
+          Expr* add_assign = nullptr;
+          if (shouldUseCudaAtomicOps(diff_dx))
+            add_assign = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
+          else
+            add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
+
+          addToCurrentBlock(add_assign, direction::reverse);
         }
       }
       return {cloneE, derivedE};
@@ -2180,7 +2151,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // discontinuity in the function space.
         // FIXME: We should support boolean differentiation or ignore it
         // completely
-        unsupportedOpWarn(UnOp->getEndLoc());
+        unsupportedOpWarn(UnOp->getOperatorLoc());
       diff = Visit(E);
       ResultRef = diff.getExpr_dx();
     }
@@ -2496,7 +2467,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // FIXME: We should support boolean differentiation or ignore it
       // completely
       if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
-        unsupportedOpWarn(BinOp->getEndLoc());
+        unsupportedOpWarn(BinOp->getOperatorLoc());
 
       return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     }
@@ -2580,7 +2551,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     VarDecl* VDDerived = nullptr;
     bool isPointerType = VDType->isPointerType();
     bool isInitializedByNewExpr = false;
-    bool initializeDerivedVar = true;
+    bool initializeDerivedVar = m_DiffReq.shouldHaveAdjoint(VD) &&
+                                !clad::utils::hasNonDifferentiableAttribute(VD);
 
     if (Expr* size = getStdInitListSizeExpr(VD->getInit()))
       VDDerivedInit = size;
@@ -2589,13 +2561,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (isPointerType && VD->getInit() && isa<CXXNewExpr>(VD->getInit()))
       isInitializedByNewExpr = true;
 
-    ConstructorPullbackCallInfo constructorPullbackInfo;
-
     bool isConstructInit =
         VD->getInit() && isa<CXXConstructExpr>(VD->getInit()->IgnoreImplicit());
     const CXXRecordDecl* RD = VD->getType()->getAsCXXRecordDecl();
     bool isNonAggrClass = RD && !RD->isAggregate();
-    bool emptyInitListInit = isNonAggrClass;
+
+    // We initialize adjoints with original variables as part of
+    // the strategy to maintain the structure of the original variable.
+    // After that, we'll zero-initialize the adjoint. e.g.
+    // ```
+    // std::vector<...> v{x, y, z};
+    // std::vector<...> _d_v{v}; // The length of the vector is preserved
+    // clad::zero_init(_d_v);
+    // ```
+    // Also, if the original is initialized with a zero-constructor, it can be
+    // used for the adjoint as well.
+    bool shouldCopyInitialize =
+        isConstructInit && isNonAggrClass &&
+        cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs() &&
+        utils::isCopyable(VDType->getAsCXXRecordDecl());
+
+    // Temporarily initialize the object with `*nullptr` to avoid
+    // a potential error because of non-existing default constructor.
+    if (!VDDerivedInit && shouldCopyInitialize) {
+      QualType ptrType =
+          m_Context.getPointerType(VDDerivedType.getUnqualifiedType());
+      Expr* dummy = getZeroInit(ptrType);
+      VDDerivedInit = BuildOp(UO_Deref, dummy);
+    }
 
     // VDDerivedInit now serves two purposes -- as the initial derivative value
     // or the size of the derivative array -- depending on the primal type.
@@ -2628,18 +2621,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         VDDerivedInit = initDiff.getExpr_dx();
     }
 
-    if (isConstructInit) {
-      m_TrackConstructorPullbackInfo = true;
-      initDiff = Visit(VD->getInit());
-      m_TrackConstructorPullbackInfo = false;
-      constructorPullbackInfo = getConstructorPullbackCallInfo();
-      resetConstructorPullbackCallInfo();
-      if (initDiff.getExpr_dx()) {
-        VDDerivedInit = initDiff.getExpr_dx();
-        emptyInitListInit = false;
-      }
-    }
-
     // if VD is a pointer type, then the initial value is set to the derived
     // expression of the corresponding pointer type.
     else if (isPointerType) {
@@ -2670,9 +2651,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDDerived = BuildGlobalVarDecl(
           VDDerivedType, "_d_" + VD->getNameAsString(), VDDerivedInit);
 
-    if (!m_DiffReq.shouldHaveAdjoint(VD))
-      VDDerived = nullptr;
-
     // If `VD` is a reference to a local variable, then it is already
     // differentiated and should not be differentiated again.
     // If `VD` is a reference to a non-local variable then also there's no
@@ -2680,14 +2658,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     if (!isRefType && (!isPointerType || isInitializedByNewExpr)) {
       Expr* derivedE = nullptr;
 
-      if (VDDerived && !clad::utils::hasNonDifferentiableAttribute(VD)) {
+      if (VDDerived) {
         derivedE = BuildDeclRef(VDDerived);
         if (isInitializedByNewExpr)
           derivedE = BuildOp(UnaryOperatorKind::UO_Deref, derivedE);
       }
 
-      if (VD->getInit() && !isConstructInit)
+      if (VD->getInit()) {
+        llvm::SaveAndRestore<bool> saveTrackVarDecl(m_TrackVarDeclConstructor,
+                                                    true);
         initDiff = Visit(VD->getInit(), derivedE);
+      }
 
       // If we are differentiating `VarDecl` corresponding to a local variable
       // inside a loop, then we need to reset it to 0 at each iteration.
@@ -2717,7 +2698,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     VarDecl* VDClone = nullptr;
     Expr* derivedVDE = nullptr;
-    if (VDDerived && m_DiffReq.shouldHaveAdjoint(const_cast<VarDecl*>(VD)))
+    if (VDDerived)
       derivedVDE = BuildDeclRef(VDDerived);
     // FIXME: Add extra parantheses if derived variable pointer is pointing to a
     // class type object.
@@ -2751,49 +2732,37 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       VDClone = BuildGlobalVarDecl(VDCloneType, VD->getNameAsString(),
                                    initDiff.getExpr(), VD->isDirectInit());
 
-    // We initialize adjoints with original variables as part of
-    // the strategy to maintain the structure of the original variable.
-    // After that, we'll zero-initialize the adjoint. e.g.
-    // ```
-    // std::vector<...> v{x, y, z};
-    // std::vector<...> _d_v{v}; // The length of the vector is preserved
-    // clad::zero_init(_d_v);
-    // ```
-    // Also, if the original is initialized with a zero-constructor, it can be
-    // used for the adjoint as well.
-    bool shouldCopyInitialize =
-        isConstructInit && emptyInitListInit &&
-        cast<CXXConstructExpr>(VD->getInit()->IgnoreImplicit())->getNumArgs();
-    shouldCopyInitialize = shouldCopyInitialize &&
-                           (VDType->getAsCXXRecordDecl() &&
-                            utils::isCopyable(VDType->getAsCXXRecordDecl()));
-    if (shouldCopyInitialize) {
-      Expr* copyExpr = BuildDeclRef(VDClone);
-      QualType origTy = VDClone->getType();
-      if (isInsideLoop) {
-        StmtDiff pushPop = StoreAndRestore(
-            BuildDeclRef(VDDerived), /*prefix=*/"_t", /*moveToTape=*/true);
-        addToCurrentBlock(pushPop.getStmt(), direction::forward);
-        addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+    if (isConstructInit) {
+      if (initDiff.getStmt_dx()) {
+        SetDeclInit(VDDerived, initDiff.getExpr_dx());
+      } else if (shouldCopyInitialize) {
+        Expr* copyExpr = BuildDeclRef(VDClone);
+        QualType origTy = VDClone->getType();
+        if (isInsideLoop) {
+          StmtDiff pushPop = StoreAndRestore(
+              BuildDeclRef(VDDerived), /*prefix=*/"_t", /*moveToTape=*/true);
+          addToCurrentBlock(pushPop.getStmt(), direction::forward);
+          addToCurrentBlock(pushPop.getStmt_dx(), direction::reverse);
+        }
+        // if VDClone is volatile, we have to use const_cast to be able to use
+        // most copy constructors.
+        if (origTy.isVolatileQualified()) {
+          Qualifiers quals(origTy.getQualifiers());
+          quals.removeVolatile();
+          QualType castTy = m_Sema.BuildQualifiedType(
+              origTy.getUnqualifiedType(), noLoc, quals);
+          castTy = m_Context.getLValueReferenceType(castTy);
+          SourceRange range = utils::GetValidSRange(m_Sema);
+          copyExpr =
+              m_Sema
+                  .BuildCXXNamedCast(noLoc, tok::kw_const_cast,
+                                     m_Context.getTrivialTypeSourceInfo(
+                                         castTy, utils::GetValidSLoc(m_Sema)),
+                                     copyExpr, range, range)
+                  .get();
+        }
+        SetDeclInit(VDDerived, copyExpr, /*DirectInit=*/true);
       }
-      // if VDClone is volatile, we have to use const_cast to be able to use
-      // most copy constructors.
-      if (origTy.isVolatileQualified()) {
-        Qualifiers quals(origTy.getQualifiers());
-        quals.removeVolatile();
-        QualType castTy = m_Sema.BuildQualifiedType(origTy.getUnqualifiedType(),
-                                                    noLoc, quals);
-        castTy = m_Context.getLValueReferenceType(castTy);
-        SourceRange range = utils::GetValidSRange(m_Sema);
-        copyExpr =
-            m_Sema
-                .BuildCXXNamedCast(noLoc, tok::kw_const_cast,
-                                   m_Context.getTrivialTypeSourceInfo(
-                                       castTy, utils::GetValidSLoc(m_Sema)),
-                                   copyExpr, range, range)
-                .get();
-      }
-      SetDeclInit(VDDerived, copyExpr, /*DirectInit=*/true);
     }
 
     if (isPointerType && derivedVDE) {
@@ -2841,13 +2810,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
          VDType != VDClone->getType()))
       m_DeclReplacements[VD] = VDClone;
 
-    if (!constructorPullbackInfo.empty()) {
-      Expr* thisE =
-          BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(VDClone));
-      Expr* dThisE =
-          BuildOp(UnaryOperatorKind::UO_AddrOf, BuildDeclRef(VDDerived));
-      constructorPullbackInfo.updateThisParmArgs(thisE, dThisE);
-    }
     return DeclDiff<VarDecl>(VDClone, VDDerived);
   }
 
@@ -4053,6 +4015,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff
   ReverseModeVisitor::VisitCXXConstructExpr(const CXXConstructExpr* CE) {
+    CXXConstructorDecl* CD = CE->getConstructor();
     llvm::SmallVector<Expr*, 4> primalArgs;
     llvm::SmallVector<Expr*, 4> adjointArgs;
     llvm::SmallVector<Expr*, 4> reverseForwAdjointArgs;
@@ -4112,27 +4075,37 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       primalArgs.push_back(argDiff.getExpr());
     }
 
-    // Try to create a pullback constructor call
-    llvm::SmallVector<Expr*, 4> pullbackArgs;
-    const CXXRecordDecl* RD = CE->getConstructor()->getParent();
-    QualType recordType = m_Context.getRecordType(RD);
-    QualType recordPointerType = m_Context.getPointerType(recordType);
-    // thisE = object being created by this constructor call.
-    // dThisE = adjoint of the object being created by this constructor call.
-    //
-    // We cannot fill these args yet because these objects have not yet been
-    // created. The caller which triggers 'VisitCXXConstructExpr' is
-    // responsible for updating these args.
-    Expr* thisE = getZeroInit(recordPointerType);
-    Expr* dThisE = nullptr;
-    if (m_TrackConstructorPullbackInfo)
-      dThisE = getZeroInit(recordPointerType);
-    else if (dfdx())
-      dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
-                       m_DiffReq->getLocation());
+    const CXXRecordDecl* RD = CD->getParent();
 
-    if (dThisE) {
-      pullbackArgs.push_back(thisE);
+    // FIXME: consider moving non-diff analysis to DiffPlanner.
+    bool nonDiff = clad::utils::hasNonDifferentiableAttribute(CE);
+
+    // If the result does not depend on the result of the call, just clone
+    // the call and visit arguments (since they may contain side-effects like
+    // f(x = y))
+    // If the callee function takes arguments by reference then it can affect
+    // derivatives even if there is no `dfdx()` and thus we should call the
+    // derived function.
+    if (!nonDiff && !dfdx())
+      nonDiff = true;
+
+    // If all arguments are constant literals, then this does not contribute to
+    // the gradient.
+    if (!nonDiff) {
+      nonDiff = true;
+      for (const Expr* arg : CE->arguments()) {
+        if (m_DiffReq.isVaried(arg)) {
+          nonDiff = false;
+          break;
+        }
+      }
+    }
+
+    if (!nonDiff) {
+      // Try to create a pullback constructor call
+      llvm::SmallVector<Expr*, 4> pullbackArgs;
+      Expr* dThisE = BuildOp(UnaryOperatorKind::UO_AddrOf, dfdx(),
+                             m_DiffReq->getLocation());
       pullbackArgs.append(primalArgs.begin(), primalArgs.end());
       pullbackArgs.push_back(dThisE);
       pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
@@ -4147,10 +4120,6 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
                   customPullbackName, pullbackArgs, getCurrentScope(), CE)) {
         curRevBlock.insert(it, customPullbackCall);
-        if (m_TrackConstructorPullbackInfo) {
-          setConstructorPullbackCallInfo(
-              llvm::cast<CallExpr>(customPullbackCall), primalArgs.size() + 1);
-        }
       }
     }
     // FIXME: If no compatible custom constructor pullback is found then try
@@ -4216,7 +4185,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // ReturnStmt. However, to support member exprs/calls of constructors, we
       // need to explicitly generate a constructor and not rely on higher level
       // Sema functions.
-      if (CE->isListInitialization() || !m_TrackConstructorPullbackInfo) {
+      if (CE->isListInitialization() || !m_TrackVarDeclConstructor) {
         clonedArgsE = m_Sema.ActOnInitList(noLoc, primalArgs, noLoc).get();
       } else {
         if (CE->getNumArgs() == 0) {
@@ -4499,11 +4468,5 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
             forwPassFnName, args, getCurrentScope(), callSite);
     return customForwPassCE;
-  }
-
-  void ReverseModeVisitor::ConstructorPullbackCallInfo::updateThisParmArgs(
-      Expr* thisE, Expr* dThisE) const {
-    pullbackCE->setArg(0, thisE);
-    pullbackCE->setArg(thisAdjointArgIdx, dThisE);
   }
 } // end namespace clad

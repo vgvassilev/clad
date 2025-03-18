@@ -233,10 +233,6 @@ int main() {
   // CHECK-NEXT:         *_d_i += _r2;
   // CHECK-NEXT:         *_d_j += _r3;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:         double _r0 = 0.;
-  // CHECK-NEXT:         double _r1 = 0.;
-  // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
   // testing differentiating a function calling operator() on a functor
@@ -263,7 +259,16 @@ int main() {
   FunctorAsArg_grad.execute(E_temp, 7, 9, &dE_temp, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
-  // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j);
+  // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
+  // CHECK-NEXT:     Experiment _t0 = fn;
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         double _r0 = 0.;
+  // CHECK-NEXT:         double _r1 = 0.;
+  // CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
+  // CHECK-NEXT:         *_d_i += _r0;
+  // CHECK-NEXT:         *_d_j += _r1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
 
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment E(3, 5);
@@ -277,10 +282,6 @@ int main() {
   // CHECK-NEXT:         *_d_i += _r3;
   // CHECK-NEXT:         *_d_j += _r4;
   // CHECK-NEXT:     }
-  // CHECK-NEXT:     {
-  // CHECK-NEXT:      double _r0 = 0.;
-  // CHECK-NEXT:      double _r1 = 0.;
-  // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
   // testing differentiating a wrapper for function taking functor as an argument
@@ -289,14 +290,3 @@ int main() {
   FunctorAsArgWrapper_grad.execute(7, 9, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 }
-
-// CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     Experiment _t0 = fn;
-// CHECK-NEXT:     {
-// CHECK-NEXT:         double _r0 = 0.;
-// CHECK-NEXT:         double _r1 = 0.;
-// CHECK-NEXT:         _t0.operator_call_pullback(i, j, _d_y, &(*_d_fn), &_r0, &_r1);
-// CHECK-NEXT:         *_d_i += _r0;
-// CHECK-NEXT:         *_d_j += _r1;
-// CHECK-NEXT:     }
-// CHECK-NEXT: }

@@ -6,16 +6,21 @@
 #include "TBRAnalyzer.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Analysis/CallGraph.h"
+#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h" // isa, dyn_cast
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TemplateDeduction.h"
-
-#include "llvm/Support/SaveAndRestore.h"
 
 #include "clad/Differentiator/CladConfig.h"
 #include "clad/Differentiator/CladUtils.h"
@@ -279,9 +284,11 @@ namespace clad {
     if (Interval.empty())
       return;
 
+    assert(!m_TopMostReq && "Traversal already in flight!");
     for (Decl* D : DGR) {
       TraverseDecl(D);
     }
+    m_TopMostReq = nullptr;
   }
 
   /// Returns true if `FD` is a call operator; otherwise returns false.
@@ -290,7 +297,7 @@ namespace clad {
       DeclarationName
           callOperatorDeclName = Context.DeclarationNames.getCXXOperatorName(
               OverloadedOperatorKind::OO_Call);
-      return method->getNameInfo().getName() == callOperatorDeclName;              
+      return method->getNameInfo().getName() == callOperatorDeclName;
     }
     return false;
   }
@@ -618,6 +625,11 @@ namespace clad {
         << "args='";
     if (Args)
       Args->printPretty(Out, /*Helper=*/nullptr, P);
+    for (unsigned i = 0, e = DVI.size(); i < e; i++) {
+      DVI[i].print(Out);
+      if (i != e - 1)
+        Out << ',';
+    }
     Out << "'";
     if (EnableTBRAnalysis)
       Out << ", tbr";
@@ -678,12 +690,36 @@ namespace clad {
     return found != m_ActivityRunInfo.ToBeRecorded.end();
   }
 
+  bool DiffRequest::isVaried(const Expr* E) const {
+    // FIXME: We should consider removing pullback requests from the
+    // diff graph.
+    class VariedChecker : public RecursiveASTVisitor<VariedChecker> {
+      const DiffRequest& m_Request;
+
+    public:
+      VariedChecker(const DiffRequest& DR) : m_Request(DR) {}
+      bool isVariedE(const clang::Expr* E) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        return !TraverseStmt(const_cast<clang::Expr*>(E));
+      }
+      bool VisitDeclRefExpr(const clang::DeclRefExpr* DRE) {
+        if (!isa<VarDecl>(DRE->getDecl()))
+          return true;
+        if (m_Request.shouldHaveAdjoint(cast<VarDecl>(DRE->getDecl())))
+          return false;
+        return true;
+      }
+    } analyzer(*this);
+    return analyzer.isVariedE(E);
+  }
+
   std::string DiffRequest::ComputeDerivativeName() const {
     if (Mode != DiffMode::forward && Mode != DiffMode::reverse &&
         Mode != DiffMode::vector_forward_mode) {
       std::string name = BaseFunctionName + "_" + DiffModeToString(Mode);
       for (auto index : CUDAGlobalArgsIndexes)
         name += "_" + std::to_string(index);
+
       return name;
     }
 
@@ -742,6 +778,22 @@ namespace clad {
       s = std::to_string(CurrentDerivativeOrder);
 
     return BaseFunctionName + "_d" + s + "arg" + argInfo;
+  }
+
+  bool DiffRequest::HasIndependentParameter(const ParmVarDecl* PVD) const {
+    // FIXME: We store the original function's params in DVI and here we need to
+    // compare with the cloned ones by name. We can compare the pointers instead
+    // of strings if we built the function cloning in the DiffRequest.
+    for (const DiffInputVarInfo& dParam : DVI) {
+      if (PVD->getName() == dParam.param->getNameAsString())
+        return true;
+
+      // FIXME: Gross hack to handle shouldUseCudaAtomicOps...
+      std::string pName = "_d_" + dParam.param->getNameAsString();
+      if (pName == PVD->getName())
+        return true;
+    }
+    return false;
   }
 
   ///\returns true on error.
@@ -874,62 +926,180 @@ namespace clad {
     return false;
   }
 
+  static bool HasCustomDerivativeForDiffReq(Sema& S, const DiffRequest& R) {
+    NamespaceDecl* cladNS = utils::LookupNSD(S, "clad", /*shouldExist=*/true);
+    NamespaceDecl* customDerNS = utils::LookupNSD(
+        S, "custom_derivatives", /*shouldExist=*/false, cladNS);
+    if (!customDerNS)
+      return false;
+
+    const Expr* callSite = R.CallContext;
+    const DeclContext* originalFnDC = nullptr;
+    // Check if the callSite is not associated with a shadow declaration.
+    if (const auto* ME = dyn_cast<CXXMemberCallExpr>(callSite)) {
+      originalFnDC = ME->getMethodDecl()->getParent();
+    } else if (const auto* CE = dyn_cast<CallExpr>(callSite)) {
+      const Expr* Callee = CE->getCallee()->IgnoreParenCasts();
+      if (const auto* DRE = dyn_cast<DeclRefExpr>(Callee))
+        originalFnDC = DRE->getFoundDecl()->getDeclContext();
+      else if (const auto* MemberE = dyn_cast<MemberExpr>(Callee))
+        originalFnDC = MemberE->getFoundDecl().getDecl()->getDeclContext();
+    } else if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(callSite)) {
+      originalFnDC = CtorExpr->getConstructor()->getDeclContext();
+    }
+
+    DeclContext* DC = customDerNS;
+
+    if (isa<RecordDecl>(originalFnDC)) {
+      return true;
+      // FIXME: Re-enable
+      // DC = utils::LookupNSD(S, "class_functions", /*shouldExist=*/false, DC);
+    } else
+      DC = utils::FindDeclContext(S, DC, originalFnDC);
+
+    if (!DC)
+      return false;
+
+    std::string Name = R.BaseFunctionName;
+    if (R.Mode == DiffMode::experimental_pullback && R->getNumParams() > 1)
+      Name += "_pullback";
+    else // if (Mode == DiffMode::experimental_pullback)
+      Name += "_pushforward";
+
+    IdentifierInfo* II = &S.getASTContext().Idents.get(Name);
+    DeclarationNameInfo DNInfo(II, utils::GetValidSLoc(S));
+    LookupResult Found(S, DNInfo, Sema::LookupOrdinaryName);
+    S.LookupQualifiedName(Found, DC);
+
+    return !Found.empty();
+  }
+
+  static bool allArgumentsAreLiterals(const CallExpr* CE,
+                                      const DiffRequest* request) {
+    for (const Expr* A : CE->arguments()) {
+      if (request->isVaried(A))
+        return false; // non-constant found.
+    }
+    return true; // all constants.
+  }
+
   bool DiffCollector::VisitCallExpr(CallExpr* E) {
     // Check if we should look into this.
-    // FIXME: Generated code does not usually have valid source locations.
-    // In that case we should ask the enclosing ast nodes for a source
-    // location and check if it is within range.
-    SourceLocation endLoc = E->getEndLoc();
-    if (endLoc.isInvalid() || !isInInterval(endLoc))
-        return true;
+    DiffRequest request;
 
     FunctionDecl* FD = E->getDirectCallee();
     if (!FD)
       return true;
 
-    // We need to find our 'special' diff annotated such:
-    // clad::differentiate(...) __attribute__((annotate("D")))
-    // TODO: why not check for its name? clad::differentiate/gradient?
-    const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
-    if (!A)
-      return true;
-    std::string Annotation = A->getAnnotation().str();
-    if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
-        Annotation != "J" && Annotation != "E")
-      return true;
+    // FIXME: We might want to support nested calls to differentiate/gradient
+    // inside differentiated functions.
+    if (!m_TopMostReq) {
+      // FIXME: Generated code does not usually have valid source locations.
+      // In that case we should ask the enclosing ast nodes for a source
+      // location and check if it is within range.
+      SourceLocation endLoc = E->getEndLoc();
+      if (endLoc.isInvalid() || !isInInterval(endLoc))
+        return true;
 
-    // A call to clad::differentiate or clad::gradient was found.
-    DeclRefExpr* DRE = getArgFunction(E, m_Sema);
-    if (!DRE)
-      return true;
+      // We need to find our 'special' diff annotated such:
+      // clad::differentiate(...) __attribute__((annotate("D")))
+      // TODO: why not check for its name? clad::differentiate/gradient?
+      const AnnotateAttr* A = FD->getAttr<AnnotateAttr>();
 
-    DiffRequest request;
+      if (!A)
+        return true;
 
-    if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
-      return true;
+      std::string Annotation = A->getAnnotation().str();
+      if (Annotation != "D" && Annotation != "G" && Annotation != "H" &&
+          Annotation != "J" && Annotation != "E")
+        return true;
 
-    request.CallContext = E;
-    request.CallUpdateRequired = true;
-    request.VerboseDiags = true;
-    request.Args = E->getArg(1);
-    auto* derivedFD = cast<FunctionDecl>(DRE->getDecl());
-    request.Function = derivedFD;
-    request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
+      // A call to clad::differentiate or clad::gradient was found.
+      if (DeclRefExpr* DRE = getArgFunction(E, m_Sema))
+        request.Function = cast<FunctionDecl>(DRE->getDecl());
+      else
+        return true;
+
+      if (ProcessInvocationArgs(m_Sema, endLoc, m_Options, FD, request))
+        return true;
+
+      request.VerboseDiags = true;
+      // The root of the differentiation request graph should update the
+      // CladFunction object with the generated call.
+      request.CallUpdateRequired = true;
+
+      request.Args = E->getArg(1);
+      // FIXME: We should call UpdateDiffParamsInfo unconditionally, however,
+      // in the DiffRequest we have the move away from pointer comparisons of
+      // the ParmVarDecls (of the DVI).
+      if (request.Function->hasAttr<CUDAGlobalAttr>()) {
+        request.UpdateDiffParamsInfo(m_Sema);
+        for (size_t i = 0, e = request.Function->getNumParams(); i < e; ++i)
+          request.CUDAGlobalArgsIndexes.push_back(i);
+      }
+      m_TopMostReq = &request;
+    } else {
+      // Don't build propagators for calls that do not contribute in
+      // differentiable way to the result.
+      if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
+          allArgumentsAreLiterals(E, m_ParentReq))
+        return true;
+
+      request.Function = FD;
+      if (m_TopMostReq->Mode == DiffMode::forward)
+        request.Mode = DiffMode::experimental_pushforward;
+      else if (m_TopMostReq->Mode == DiffMode::reverse)
+        request.Mode = DiffMode::experimental_pullback;
+      else {
+        // propagatorReq.Mode = request.Mode;
+      }
+      request.VerboseDiags = false;
+      request.EnableTBRAnalysis = m_TopMostReq->EnableTBRAnalysis;
+      request.EnableVariedAnalysis = m_TopMostReq->EnableVariedAnalysis;
+
+      // const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+      if (m_TopMostReq->CUDAGlobalArgsIndexes.empty()) {
+        for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
+          // if (MD && isLambdaCallOperator(MD)) {
+          const auto* paramDecl = FD->getParamDecl(i);
+          request.DVI.push_back(paramDecl);
+
+          //}
+          // FIXME: The following code is also part of the decision making in
+          // case the pullbacks are built on demand. We need to check if it is
+          // still needed.
+          // else if (DerivedCallOutputArgs[i + (bool)MD]) {
+          //  propagatorReq.DVI.push_back(FD->getParamDecl(i));
+          //}
+        }
+      } else { // CUDA device function call in global kernel gradient
+        for (size_t i = 0, e = E->getNumArgs(); i < e; i++) {
+          // Try to match it against the global arguments
+          Expr* ArgE = E->getArg(i)->IgnoreParens()->IgnoreParenCasts();
+          if (const auto* DRE = dyn_cast<DeclRefExpr>(ArgE)) {
+            const auto* PVD = cast<ParmVarDecl>(DRE->getDecl());
+            request.DVI.push_back(PVD);
+            if (m_TopMostReq->HasIndependentParameter(PVD))
+              request.CUDAGlobalArgsIndexes.push_back(i);
+          }
+        }
+      }
+    }
 
     if (isCallOperator(m_Sema.getASTContext(), request.Function))
       request.Functor = cast<CXXMethodDecl>(request.Function)->getParent();
-    // FIXME: add support for nested calls to clad::differentiate/gradient
-    // inside differentiated functions
-    assert(!m_TopMostFD &&
-           "nested clad::differentiate/gradient are not yet supported");
-    llvm::SaveAndRestore<const FunctionDecl*> saveTopMost = m_TopMostFD;
-    m_TopMostFD = FD;
-    TraverseDecl(derivedFD);
-    m_DiffRequestGraph.addNode(request, /*isSource=*/true);
-    /*else if (m_TopMostFD) {
-      // If another function is called inside differentiated function,
-      // this will be handled by Forward/ReverseModeVisitor::Derive.
-    }*/
-    return true;     // return false to abort visiting.
+    request.CallContext = E;
+    request.BaseFunctionName = utils::ComputeEffectiveFnName(request.Function);
+
+    llvm::SaveAndRestore<const DiffRequest*> Saved(m_ParentReq, &request);
+    // Recurse into call graph.
+    TraverseFunctionDeclOnce(request.Function);
+    if (!HasCustomDerivativeForDiffReq(m_Sema, request))
+      m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+
+    if (m_IsTraversingTopLevelDecl)
+      m_TopMostReq = nullptr;
+
+    return true;
   }
 } // end namespace
