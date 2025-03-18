@@ -430,13 +430,13 @@ namespace clad {
       return StmtDiff{Clone(NS), Clone(NS)};
     }
 
-    /// Helper function that builds `T* _this = malloc(sifeof(T));`
-    /// and `free(_this)`.
+    /// Helper function that builds `char _temp[sizeof(T)] = {0}`
+    /// and `T* _this = reinterpret_cast(_temp);`
     ///
     /// \param[in] thisTy `this` type.
     ///
-    /// \returns {_this, free(_this)}
-    StmtDiff BuildThisExpr(clang::QualType thisTy);
+    /// \returns a DeclRefExpt to `_this`
+    clang::Expr* BuildThisExpr(clang::QualType thisTy);
 
     /// Helper function that checks whether the function to be derived
     /// is meant to be executed only by the GPU

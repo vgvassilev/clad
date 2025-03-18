@@ -404,11 +404,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     Stmts initsDiff;
     if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
       QualType thisTy = CD->getThisType();
-      StmtDiff thisObj = BuildThisExpr(thisTy);
-      initsDiff.push_back(thisObj.getStmt_dx());
+      Expr* thisObj = BuildThisExpr(thisTy);
 
       for (CXXCtorInitializer* CI : CD->inits()) {
-        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj.getExpr());
+        StmtDiff CI_diff = DifferentiateCtorInit(CI, thisObj);
         addToCurrentBlock(CI_diff.getStmt(), direction::forward);
         initsDiff.push_back(CI_diff.getStmt_dx());
       }
@@ -449,26 +448,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_ExternalSource->ActOnEndOfDerivedFnBody();
   }
 
-  StmtDiff ReverseModeVisitor::BuildThisExpr(QualType thisTy) {
+  Expr* ReverseModeVisitor::BuildThisExpr(QualType thisTy) {
     QualType recordTy = thisTy->getPointeeType();
 
     // Build `sizeof(T)`
-    TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(recordTy, noLoc);
-    Expr* size = new (m_Context) UnaryExprOrTypeTraitExpr(
-        UETT_SizeOf, TSI, m_Context.getSizeType(), noLoc, noLoc);
+    std::size_t size = m_Context.getTypeSize(recordTy) / 8;
+    Expr* sizeExpr =
+        ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, size);
 
-    // Build `malloc(sizeof(T))`
-    llvm::SmallVector<clang::Expr*, 1> param{size};
-    Expr* init = GetFunctionCall("malloc", "", param);
-    init = utils::BuildImpCastToType(m_Sema, init, thisTy);
+    // Build `char[sizeof(T)]`
+    QualType arrTy = clad_compat::getConstantArrayType(
+        m_Context, m_Context.CharTy, llvm::APInt(32, size), sizeExpr,
+        /*ASM=*/clad_compat::ArraySizeModifier_Normal,
+        /*IndexTypeQuals*/ 0);
 
+    // Build `char _temp[sizeof(T)]`
+    VarDecl* arrDecl = BuildGlobalVarDecl(arrTy, "_temp", getZeroInit(arrTy));
+    addToCurrentBlock(BuildDeclStmt(arrDecl), direction::forward);
+    TypeSourceInfo* typeInfo = m_Context.getTrivialTypeSourceInfo(thisTy);
+    Expr* init =
+        m_Sema
+            .BuildCXXNamedCast(noLoc, tok::kw_reinterpret_cast, typeInfo,
+                               BuildDeclRef(arrDecl), SourceRange(noLoc, noLoc),
+                               SourceRange(noLoc, noLoc))
+            .get();
     // Build T* _this = malloc(sizeof(T));
     VarDecl* thisDecl = BuildGlobalVarDecl(thisTy, "_this", init);
     addToCurrentBlock(BuildDeclStmt(thisDecl), direction::forward);
-
-    param[0] = BuildDeclRef(thisDecl);
-    Expr* freeCall = GetFunctionCall("free", "", param);
-    return {BuildDeclRef(thisDecl), freeCall};
+    return BuildDeclRef(thisDecl);
   }
 
   StmtDiff ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI,

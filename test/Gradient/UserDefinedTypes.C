@@ -1073,7 +1073,8 @@ int main() {
 // CHECK-NEXT:}
 
 // CHECK:  static void constructor_pullback(double px, SimpleFunctions1 *_d_this, double *_d_px) {
-// CHECK-NEXT:      SimpleFunctions1 *_this = malloc(sizeof(SimpleFunctions1));
+// CHECK-NEXT:      char _temp0[16] = {0};
+// CHECK-NEXT:      SimpleFunctions1 *_this = reinterpret_cast<SimpleFunctions1 *>(_temp0); 
 // CHECK-NEXT:      _this->x = px;
 // CHECK-NEXT:      _this->y = 0;
 // CHECK-NEXT:      {
@@ -1083,21 +1084,21 @@ int main() {
 // CHECK-NEXT:          *_d_px += (*_d_this).x;
 // CHECK-NEXT:          (*_d_this).x = 0.;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
 // CHECK:  static inline constexpr void constructor_pullback(const B &arg, B *_d_this, B *_d_arg) noexcept {
-// CHECK-NEXT:      B *_this = malloc(sizeof(B));
+// CHECK-NEXT:      char _temp0[8] = {0};
+// CHECK-NEXT:      B *_this = reinterpret_cast<B *>(_temp0);
 // CHECK-NEXT:      _this->data = arg.data;
 // CHECK-NEXT:      {
 // CHECK-NEXT:          (*_d_arg).data += (*_d_this).data;
 // CHECK-NEXT:          (*_d_this).data = 0.;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }
 
 // CHECK:  static inline constexpr void constructor_pullback(SimpleFunctions1 &&arg, SimpleFunctions1 *_d_this, SimpleFunctions1 *_d_arg) noexcept {
-// CHECK-NEXT:      SimpleFunctions1 *_this = malloc(sizeof(SimpleFunctions1));
+// CHECK-NEXT:      char _temp0[16] = {0};
+// CHECK-NEXT:      SimpleFunctions1 *_this = reinterpret_cast<SimpleFunctions1 *>(_temp0); 
 // CHECK-NEXT:      _this->x = arg.x;
 // CHECK-NEXT:      _this->y = arg.y;
 // CHECK-NEXT:      {
@@ -1108,5 +1109,4 @@ int main() {
 // CHECK-NEXT:          (*_d_arg).x += (*_d_this).x;
 // CHECK-NEXT:          (*_d_this).x = 0.;
 // CHECK-NEXT:      }
-// CHECK-NEXT:      free(_this);
 // CHECK-NEXT:  }

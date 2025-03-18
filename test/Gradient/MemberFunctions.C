@@ -705,12 +705,13 @@ int main() {
 // CHECK-NEXT: }
 
 // CHECK: static void constructor_pullback(double &x, SafeTestClass *_d_this, double *_d_x) {
-// CHECK-NEXT:     SafeTestClass *_this = malloc(sizeof(SafeTestClass));
-// CHECK-NEXT:     free(_this);
+// CHECK-NEXT:     char _temp0[1] = {0};
+// CHECK-NEXT:     SafeTestClass *_this = reinterpret_cast<SafeTestClass *>(_temp0);
 // CHECK-NEXT: }
 
 // CHECK: static void constructor_pullback(double p_x, double p_y, SimpleFunctions *_d_this, double *_d_p_x, double *_d_p_y) {
-// CHECK-NEXT:     SimpleFunctions *_this = malloc(sizeof(SimpleFunctions));
+// CHECK-NEXT:     char _temp0[16] = {0};
+// CHECK-NEXT:     SimpleFunctions *_this = reinterpret_cast<SimpleFunctions *>(_temp0);
 // CHECK-NEXT:     _this->x = p_x;
 // CHECK-NEXT:     _this->y = p_y;
 // CHECK-NEXT:     {
@@ -721,6 +722,5 @@ int main() {
 // CHECK-NEXT:         *_d_p_x += (*_d_this).x;
 // CHECK-NEXT:         (*_d_this).x = 0.;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     free(_this);
 // CHECK-NEXT: }
 }

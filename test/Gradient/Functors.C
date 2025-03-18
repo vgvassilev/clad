@@ -295,7 +295,8 @@ int main() {
 }
 
 // CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept {
-// CHECK-NEXT:     Experiment *_this = malloc(sizeof(Experiment));
+// CHECK-NEXT:     char _temp0[16] = {0};
+// CHECK-NEXT:     Experiment *_this = reinterpret_cast<Experiment *>(_temp0);
 // CHECK-NEXT:     _this->x = arg.x;
 // CHECK-NEXT:     _this->y = arg.y;
 // CHECK-NEXT:     {
@@ -306,5 +307,4 @@ int main() {
 // CHECK-NEXT:         (*_d_arg).x += (*_d_this).x;
 // CHECK-NEXT:         (*_d_this).x = 0.;
 // CHECK-NEXT:     }
-// CHECK-NEXT:     free(_this);
 // CHECK-NEXT: }
