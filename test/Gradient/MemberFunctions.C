@@ -372,6 +372,16 @@ public:
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
+
+  static double static_mem_fn(double u, double v) { return u + v; }
+  
+  // CHECK: static void static_mem_fn_grad(double u, double v, double *_d_u, double *_d_v) {
+  // CHECK-NEXT:     {
+  // CHECK-NEXT:         *_d_u += 1;
+  // CHECK-NEXT:         *_d_v += 1;
+  // CHECK-NEXT:     }
+  // CHECK-NEXT: }
+
   double& ref_mem_fn(double i) {
     x = +i;
     x = -i;
@@ -542,6 +552,9 @@ double fn6(double u, double v) {
 // CHECK-NEXT:      {{.*}}constructor_pullback(u, &v, &_d_s2, &*_d_u, &*_d_v);
 // CHECK-NEXT:  }
 
+double fn7(double u, double v) {
+  return SimpleFunctions::static_mem_fn(u, v);
+}
 
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
@@ -569,6 +582,7 @@ int main() {
   auto d_volatile_rval_ref_noexcept_mem_fn = clad::gradient(&SimpleFunctions::volatile_rval_ref_noexcept_mem_fn);
   auto d_const_volatile_rval_ref_noexcept_mem_fn = clad::gradient(&SimpleFunctions::const_volatile_rval_ref_noexcept_mem_fn);
   auto d_partial_mem_fn = clad::gradient(&SimpleFunctions::partial_mem_fn, "i");
+  auto d_static_mem_fn = clad::gradient(&SimpleFunctions::static_mem_fn);
 
   auto d_fn = clad::gradient(fn);
   double result[2] = {};
@@ -597,7 +611,13 @@ int main() {
   d_fn6.execute(3, 5, &dx, &dy);
   printf("%.2f", dx); //CHECK-EXEC: 1.00
   printf("%.2f", dy); //CHECK-EXEC: 0.00
-
+  
+  double du = 0, dv = 0;
+  auto d_fn7 = clad::gradient(fn7);
+  d_fn7.execute(3, 5, &du, &dv);
+  printf("%.2f", du); //CHECK-EXEC: 1.00
+  printf("%.2f", dv); //CHECK-EXEC: 1.00
+  
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
   // CHECK:   void const_volatile_lval_ref_mem_fn_grad_0(double i, double j, volatile SimpleFunctions *_d_this, double *_d_i) const volatile & {

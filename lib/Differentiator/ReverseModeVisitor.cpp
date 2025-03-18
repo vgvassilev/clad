@@ -1826,9 +1826,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
         const auto* PVD = FD->getParamDecl(i);
+        // static member function doesn't have `this` pointer
+        size_t offset = (bool)MD && MD->isInstance();
         if (MD && isLambdaCallOperator(MD)) {
           pullbackRequest.DVI.push_back(PVD);
-        } else if (DerivedCallOutputArgs[i + (bool)MD]) {
+        } else if (DerivedCallOutputArgs[i + offset]) {
           if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
               m_DiffReq.HasIndependentParameter(PVD))
             pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
@@ -1847,7 +1849,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
       if (pullbackFD) {
-        if (MD) {
+        if (MD && MD->isInstance()) {
           Expr* baseE = baseDiff.getExpr();
           OverloadedDerivedFn = BuildCallExprToMemFn(
               baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
