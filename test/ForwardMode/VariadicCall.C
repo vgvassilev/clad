@@ -14,6 +14,10 @@ double fn2(double x, double y) {
     return fn1(x, y);
 }
 
+// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double x, double y, double _d_x, double _d_y) {
+// CHECK-NEXT:    return {x * y, _d_x * y + x * _d_y};
+// CHECK-NEXT:}
+
 // CHECK: double fn2_darg0(double x, double y) {
 // CHECK-NEXT:     double _d_x = 1;
 // CHECK-NEXT:     double _d_y = 0;
@@ -25,6 +29,11 @@ double fn2(double x, double y) {
 double fn3(double x, double y) {
     return fn1(x, y, y);
 }
+
+// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double x, double y, double y2, double _d_x, double _d_y, double _d_y2) {
+// CHECK-NEXT:    double _t0 = x * y;
+// CHECK-NEXT:    return {_t0 * y2, (_d_x * y + x * _d_y) * y2 + _t0 * _d_y2};
+// CHECK-NEXT:}
 
 // CHECK: double fn3_darg0(double x, double y) {
 // CHECK-NEXT:     double _d_x = 1;
@@ -41,12 +50,3 @@ int main() {
     printf("{%.2f}\n", d_fn3.execute(1.0, 2.0)); // CHECK-EXEC: {4.00}
     return 0;
 }
-
-// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double x, double y, double _d_x, double _d_y) {
-// CHECK-NEXT:    return {x * y, _d_x * y + x * _d_y};
-// CHECK-NEXT:}
-
-// CHECK: clad::ValueAndPushforward<double, double> fn1_pushforward(double x, double y, double y2, double _d_x, double _d_y, double _d_y2) {
-// CHECK-NEXT:    double _t0 = x * y;
-// CHECK-NEXT:    return {_t0 * y2, (_d_x * y + x * _d_y) * y2 + _t0 * _d_y2};
-// CHECK-NEXT:}
