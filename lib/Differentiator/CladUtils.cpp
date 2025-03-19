@@ -327,8 +327,7 @@ namespace clad {
       // The argument is passed by reference if it's passed as an L-value.
       // However, if arg is a MaterializeTemporaryExpr, then arg is a
       // temporary variable passed as a const reference.
-      bool isRefType = arg->isLValue() && !isa<MaterializeTemporaryExpr>(arg) &&
-                       !isa<CXXDefaultArgExpr>(arg);
+      bool isRefType = arg->isLValue() && arg->IgnoreImplicit()->isLValue();
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 
@@ -752,6 +751,16 @@ namespace clad {
           return false;
       }
       return true;
+    }
+
+    clang::Expr* BuildImpCastToType(clang::Sema& S, clang::Expr* E,
+                                    QualType targetTy) {
+      ExprResult exprRes{E};
+      CastKind kind = S.PrepareScalarCast(exprRes, targetTy);
+      // CK_NoOp casts trigger an assertion on debug Clang
+      if (kind == CK_NoOp)
+        return E;
+      return S.ImpCastExprToType(E, targetTy, kind).get();
     }
   } // namespace utils
 } // namespace clad

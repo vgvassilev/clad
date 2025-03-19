@@ -1028,6 +1028,7 @@ int main() {
 // CHECK-NEXT:         *_d_e += 5 * _r_d0;
 // CHECK-NEXT:         {{.*}}class_functions::operator_star_pullback(&up, 0., &_d_up);
 // CHECK-NEXT:     }
+// CHECK-NEXT:     {{.*}}class_functions::constructor_pullback(p, &_d_up, _d_p);
 // CHECK-NEXT:     *_d_d += *_d_p;
 // CHECK-NEXT: }
 
