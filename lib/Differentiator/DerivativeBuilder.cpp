@@ -162,14 +162,13 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
             NewFTD = FunctionTemplateDecl::Create(m_Context, m_Sema.CurContext,
                                                   noLoc, name.getName(),
                                                   TemplateParams, returnedFD);
+            returnedFD->setDescribedFunctionTemplate(NewFTD);
           }
 
-          returnedFD->setDescribedFunctionTemplate(NewFTD);
-
-            TemplateArgumentList* TALCopy =
-                TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
-            returnedFD->setFunctionTemplateSpecialization(
-                NewFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
+          TemplateArgumentList* TALCopy =
+              TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+          returnedFD->setFunctionTemplateSpecialization(
+              NewFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
         }
       }
     }
