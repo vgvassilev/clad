@@ -181,7 +181,7 @@ double f4(double x){
 // CHECK-NEXT:     *_d_u += 2 * _d_k;
 // CHECK-NEXT: }
 
-// CHECK: void f4_grad(double x, double *_d_x) {
+// CHECK-NEXT: void f4_grad(double x, double *_d_x) {
 // CHECK-NEXT:     double _d_c = 0.;
 // CHECK-NEXT:     double c = f4_1(x, 1);
 // CHECK-NEXT:     _d_c += 1;
@@ -277,7 +277,7 @@ double f8(double x){
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-double fn9(double x, double const *obs)
+double f9(double x, double const *obs)
 {
    double res = 0.0;
    for (int loopIdx0 = 0; loopIdx0 < 2; loopIdx0++) {
@@ -286,12 +286,12 @@ double fn9(double x, double const *obs)
    return res;
 }
 
-// CHECK: void fn9_grad(double x, const double *obs, double *_d_x, double *_d_obs) {
+// CHECK: void f9_grad_0(double x, const double *obs, double *_d_x) {
 // CHECK-NEXT:     int loopIdx0 = 0;
 // CHECK-NEXT:     clad::tape<double> _t1 = {};
 // CHECK-NEXT:     double _d_res = 0.;
 // CHECK-NEXT:     double res = 0.;
-// CHECK-NEXT:     unsigned {{int|long}} _t0 = {{0U|0UL}};
+// CHECK-NEXT:     unsigned {{int|long|long long}} _t0 = {{0U|0UL|0ULL}};
 // CHECK-NEXT:     for (loopIdx0 = 0; ; loopIdx0++) {
 // CHECK-NEXT:         {
 // CHECK-NEXT:             if (!(loopIdx0 < 2))
@@ -317,6 +317,77 @@ double fn9(double x, double const *obs)
 // CHECK-NEXT: }
 
 
+void f10_1(double x, double* t){
+    t[0] = x;
+}
+
+double f10(double x){
+    double t[3];
+    f10_1(x, t);
+    return t[0];
+}
+
+
+// CHECK: void f10_1_pullback(double x, double *t, double *_d_x, double *_d_t) {
+// CHECK-NEXT:     double _t0 = t[0];
+// CHECK-NEXT:     t[0] = x;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         t[0] = _t0;
+// CHECK-NEXT:         double _r_d0 = _d_t[0];
+// CHECK-NEXT:         _d_t[0] = 0.;
+// CHECK-NEXT:         *_d_x += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+// CHECK-NEXT: void f10_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_t[3] = {0};
+// CHECK-NEXT:     double t[3];
+// CHECK-NEXT:     f10_1(x, t);
+// CHECK-NEXT:     _d_t[0] += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f10_1_pullback(x, t, &_r0, _d_t);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
+double f11_1(double v, double& u){
+  u = v;
+  return u;
+}
+
+double f11(double x){
+  double y;
+  double c = f11_1(x, y);
+  return y;
+}
+
+// CHECK: void f11_1_pullback(double v, double &u, double _d_y, double *_d_v, double *_d_u) {
+// CHECK-NEXT:     double _t0 = u;
+// CHECK-NEXT:     u = v;
+// CHECK-NEXT:     *_d_u += _d_y;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         u = _t0;
+// CHECK-NEXT:         double _r_d0 = *_d_u;
+// CHECK-NEXT:         *_d_u = 0.;
+// CHECK-NEXT:         *_d_v += _r_d0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+// CHECK-NEXT: void f11_grad(double x, double *_d_x) {
+// CHECK-NEXT:     double _d_y = 0.;
+// CHECK-NEXT:     double y;
+// CHECK-NEXT:     double _t0 = y;
+// CHECK-NEXT:     double _d_c = 0.;
+// CHECK-NEXT:     double c = f11_1(x, y);
+// CHECK-NEXT:     _d_y += 1;
+// CHECK-NEXT:     {
+// CHECK-NEXT:         y = _t0;
+// CHECK-NEXT:         double _r0 = 0.;
+// CHECK-NEXT:         f11_1_pullback(x, _t0, _d_c, &_r0, &_d_y);
+// CHECK-NEXT:         *_d_x += _r0;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
+
 #define TEST(F, x) { \
   result[0] = 0; \
   auto F##grad = clad::gradient<clad::opts::enable_va>(F);\
@@ -328,7 +399,7 @@ int main(){
     double arr[] = {1,2,3,4,5};
     double darr[] = {0,0,0,0,0};
     double result[3] = {};
-    double dx;
+    double dx = 0;
     TEST(f1, 3);// CHECK-EXEC: {6.00}
     TEST(f2, 3);// CHECK-EXEC: {6.00}
     TEST(f3, 3);// CHECK-EXEC: {0.00}
@@ -337,7 +408,9 @@ int main(){
     TEST(f6, 3);// CHECK-EXEC: {0.00}
     TEST(f7, 3);// CHECK-EXEC: {1.00}
     TEST(f8, 3);// CHECK-EXEC: {1.00}
-    auto grad = clad::gradient<clad::opts::enable_va>(fn9);
+    auto grad = clad::gradient<clad::opts::enable_va>(f9, "x");
     grad.execute(3, arr, &dx, darr);
     printf("%.2f\n", dx);// CHECK-EXEC: 2.00
+    TEST(f10, 3);// CHECK-EXEC: {1.00}
+    TEST(f11, 3);// CHECK-EXEC: {1.00}
 }
