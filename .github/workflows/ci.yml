@@ -680,11 +680,16 @@ jobs:
           sudo rm -fr /usr/local/opt/llvm*/include/c++
         fi
         echo "!!!INSTALL DEBUG:"
-        ls -R /usr/local/opt
+        /bin/arch
         clang --version
-        #/usr/local/opt/llvm@${{ matrix.clang-runtime }}/bin/clang --version
         whereis clang
         echo "PATH=$PATH"
+        echo "!!!/usr/local-----------------"
+        ls -R /usr/local
+        echo "!!!/opt/homebrew-----------------"
+        ls -R /opt/homebrew
+        echo "!!!-----------------"
+        #/usr/local/opt/llvm@${{ matrix.clang-runtime }}/bin/clang --version
 
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
