@@ -315,6 +315,9 @@ if (CLAD_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()
 
+set(CLAD_INCLUDE_FILES
+  include/clad/Differentiator/UnusedPullbacks.h
+)
 
 if (NOT CLAD_BUILD_STATIC_ONLY)
   include(AddClad)

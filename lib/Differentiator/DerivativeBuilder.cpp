@@ -34,6 +34,7 @@
 #include "clad/Differentiator/StmtClone.h"
 #include "clad/Differentiator/VectorForwardModeVisitor.h"
 #include "clad/Differentiator/VectorPushForwardModeVisitor.h"
+#include "clad/Differentiator/UnusedPullbacks.h"
 
 #include "llvm/Support/SaveAndRestore.h"
 
@@ -576,5 +577,25 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
   void DerivativeBuilder::AddEdgeToGraph(const DiffRequest& request,
                                          bool alreadyDerived /*=false*/) {
     m_DiffRequestGraph.addEdgeToCurrentNode(request, alreadyDerived);
+  }
+
+  bool DerivativeBuilder::IsUsedInGradient(const FunctionDecl* FD) {
+    if (!FD)
+      return false;
+    // Check if function is used in any gradient computation
+    for (const auto& call : m_CallExprQueue) {
+      if (call->getDirectCallee() == FD)
+        return true;
+    }
+    return false;
+  }
+
+  void DerivativeBuilder::HandlePullbackDecl(FunctionDecl* FD) {
+    if (!IsUsedInGradient(FD)) {
+      // Generate empty definition
+      std::string EmptyDefn = "void " + FD->getNameAsString() + 
+                             "(" + GetParamString(FD) + ") {}";
+      InsertTextAfter(FD->getLocation(), EmptyDefn);
+    }
   }
 }// end namespace clad
