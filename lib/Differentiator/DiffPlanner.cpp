@@ -1040,6 +1040,12 @@ namespace clad {
       }
       m_TopMostReq = &request;
     } else {
+      // If the function contains annotation of non_differentiable, then Clad
+      // should not produce any derivative expression for that function call,
+      // and the function call in the primal should be used as it is.
+      if (clad::utils::hasNonDifferentiableAttribute(E))
+        return true;
+
       // Don't build propagators for calls that do not contribute in
       // differentiable way to the result.
       if (!isa<CXXMemberCallExpr>(E) && !isa<CXXOperatorCallExpr>(E) &&
