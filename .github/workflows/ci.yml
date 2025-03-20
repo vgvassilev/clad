@@ -680,7 +680,7 @@ jobs:
           sudo rm -fr /usr/local/opt/llvm*/include/c++
         fi
         echo "!!!INSTALL DEBUG:"
-        /bin/arch
+        uname -p
         clang --version
         whereis clang
         echo "PATH=$PATH"
