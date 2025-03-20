@@ -670,9 +670,13 @@ jobs:
           else
             # FIXME: Make this generic.
             echo "!!!GITHUB INSTALL"
-            sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.0/LLVM-20.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
-            sudo mv LLVM-20.1.0-macOS-ARM64 /usr/local/opt/llvm@20/
-            PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@20/
+            sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.1.0/LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
+            if [[ $(uname -p) -imatch "arm" ]]; then
+              PATH_TO_LLVM_BUILD=/opt/homebrew/llvm@${{ matrix.clang-runtime }}/
+            else
+              PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
+            fi
+            sudo mv LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64 PATH_TO_LLVM_BUILD
           fi
         else
           # Remove the c++ headers that come with the llvm package from homebrew
@@ -680,16 +684,10 @@ jobs:
           sudo rm -fr /usr/local/opt/llvm*/include/c++
         fi
         echo "!!!INSTALL DEBUG:"
-        uname -p
         clang --version
-        whereis clang
+        export PATH=${PATH_TO_LLVM_BUILD}bin:$PATH
         echo "PATH=$PATH"
-        echo "!!!/usr/local-----------------"
-        ls -R /usr/local
-        echo "!!!/opt/homebrew-----------------"
-        ls -R /opt/homebrew
-        echo "!!!-----------------"
-        #/usr/local/opt/llvm@${{ matrix.clang-runtime }}/bin/clang --version
+        clang --version
 
         pip3 install lit # LLVM lit is not part of the llvm releases...
 
