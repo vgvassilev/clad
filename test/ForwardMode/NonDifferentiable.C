@@ -67,6 +67,15 @@ double fn_s2_operator(double i, double j) {
   return (obj1 + obj2).mem_fn(i, j);
 }
 
+non_differentiable
+double fn_non_diff(double i, double j) {
+  return i * j;
+}
+
+double fn_non_diff_call(double i, double j) {
+  return fn_non_diff(i, j) + i * j;
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -108,6 +117,8 @@ int main() {
   TEST_FUNC(fn_s2_field, 3, 5) // CHECK-EXEC: 5.00
 
   TEST_FUNC(fn_s2_operator, 3, 5) // CHECK-EXEC: 0.00
+
+  TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00
 
   // CHECK: double mem_fn_1_darg0(double i, double j) {
   // CHECK-NEXT:     double _d_i = 1;
@@ -207,6 +218,12 @@ int main() {
   // CHECK-NEXT:     return 0;
   // CHECK-NEXT: }
 
+  // CHECK: double fn_non_diff_call_darg0(double i, double j) {
+  // CHECK-NEXT:     double _d_i = 1;
+  // CHECK-NEXT:     double _d_j = 0;
+  // CHECK-NEXT:     return 0 + _d_i * j + i * _d_j;
+  // CHECK-NEXT: }
+
   // CHECK: clad::ValueAndPushforward<double, double> mem_fn_1_pushforward(double i, double j, SimpleFunctions1 *_d_this, double _d_i, double _d_j) {
   // CHECK-NEXT:     double _t0 = (this->x + this->y);
   // CHECK-NEXT:     double _t1 = i * j;
@@ -216,5 +233,4 @@ int main() {
   // CHECK: clad::ValueAndPushforward<SimpleFunctions1, SimpleFunctions1> operator_plus_pushforward(const SimpleFunctions1 &other, const SimpleFunctions1 *_d_this, const SimpleFunctions1 &_d_other) const {
   // CHECK-NEXT:     return {SimpleFunctions1(this->x + other.x, this->y + other.y), SimpleFunctions1(_d_this->x + _d_other.x, 0. + 0.)};
   // CHECK-NEXT: }
-
 }
