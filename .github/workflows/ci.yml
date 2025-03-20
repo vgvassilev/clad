@@ -664,10 +664,12 @@ jobs:
         if [[ ${{ matrix.clang-runtime }} -gt 11 ]]; then
           # If the version of clang is in brew then install it.
           if [[ $(brew info --json llvm | jq -r '.[].aliases[],.[].versioned_formulae[]' | grep llvm@${{ matrix.clang-runtime }}) ]]; then
+            echo "!!!BREW INSTALL"
             brew install llvm@${{ matrix.clang-runtime }}
             PATH_TO_LLVM_BUILD=$(brew --prefix llvm@${{ matrix.clang-runtime }})
           else
             # FIXME: Make this generic.
+            echo "!!!GITHUB INSTALL"
             sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.0/LLVM-20.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
             sudo mv LLVM-20.1.0-macOS-ARM64 /usr/local/opt/llvm@20/
             PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@20/
