@@ -1347,6 +1347,43 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   StmtDiff ReverseModeVisitor::VisitFloatingLiteral(const FloatingLiteral* FL) {
     return StmtDiff(Clone(FL));
   }
+    bool ReverseModeVisitor::isUsedInReturnComputation(const CallExpr* CE) {
+    //const FunctionDecl* ParentFD = dyn_cast<FunctionDecl>(CurrentFunction);
+    const clang::FunctionDecl* ParentFD = CE->getDirectCallee();
+
+    if (!ParentFD) return false; // Not inside a function
+
+    const Stmt* ReturnStmt = findReturnStmt(ParentFD);
+    if (!ReturnStmt) return false; // No return statement found
+
+    return containsExpr(ReturnStmt, CE);
+}
+const Stmt* ReverseModeVisitor::findReturnStmt(const FunctionDecl* FD) {
+    if (!FD || !FD->hasBody()) return nullptr;
+
+    const Stmt* Body = FD->getBody();
+    for (const Stmt* S : Body->children()) {
+        if (isa<ReturnStmt>(S)) {
+            return S; // Found return statement
+        }
+    }
+    return nullptr; // No return statement found
+}
+bool ReverseModeVisitor::containsExpr(const Stmt* S, const Expr* E) {
+    if (!S) return false;
+
+    for (const Stmt* Child : S->children()) {
+        if (const Expr* ChildExpr = dyn_cast<Expr>(Child)) {
+            if (ChildExpr == E) {
+                return true; // Found the expression
+            }
+        }
+        if (containsExpr(Child, E)) {
+            return true; // Recursively check child statements
+        }
+    }
+    return false;
+}
 
   StmtDiff ReverseModeVisitor::VisitCallExpr(const CallExpr* CE) {
     const FunctionDecl* FD = CE->getDirectCallee();
@@ -1355,6 +1392,12 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
            CE->getEndLoc(),
            "Differentiation of only direct calls is supported. Ignored");
       return StmtDiff(Clone(CE));
+    }
+     std::string funcName = FD->getNameAsString();
+
+    // Ignore std::acos if it's not used in return computation
+    if (funcName == "acos" && !isUsedInReturnComputation(CE)) {
+        return StmtDiff(); // Skip differentiation
     }
 
     // FIXME: Revisit this when variadic functions are supported.

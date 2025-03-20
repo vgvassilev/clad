@@ -341,6 +341,10 @@ namespace clad {
         llvm::SmallVectorImpl<clang::Expr*>& args,
         llvm::SmallVectorImpl<clang::Expr*>& outputArgs,
         clang::Expr* CUDAExecConfig = nullptr);
+         private:
+    bool isUsedInReturnComputation(const clang::CallExpr* CE);
+    const clang::Stmt* findReturnStmt(const clang::FunctionDecl* FD);
+    bool containsExpr(const clang::Stmt* S, const clang::Expr* E);
 
   public:
     ReverseModeVisitor(DerivativeBuilder& builder, const DiffRequest& request);
