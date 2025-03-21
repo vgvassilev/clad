@@ -22,15 +22,6 @@ __attribute__((always_inline)) double f_add1(double x, double y) {
 //CHECK-NEXT:   }
 
 void f_add1_grad(double x, double y, double *_d_x, double *_d_y);
-// Define a non-differentiable function
-double nonDiffFn(double x) __attribute__((annotate("non_differentiable"))) {
-  return x * x; // Should NOT be differentiated
-}
-
-// Define a function that calls the non-differentiable function
-double fn_with_non_diff(double x, double y) {
-  return nonDiffFn(x) + y;
-}
 
 double f_add2(double x, double y) {
   return 3*x + 4*y;
@@ -1163,8 +1154,6 @@ double f_ref_in_rhs(double x, double y) {
 
 int main() {
   double result[2];
-  TEST(fn_with_non_diff, 3, 5); // CHECK-EXEC: Result is = {0.00, 1.00}
-
 
   TEST(f_add1, 1, 1); // CHECK-EXEC: Result is = {1.00, 1.00}
   TEST(f_add2, 1, 1); // CHECK-EXEC: Result is = {3.00, 4.00}

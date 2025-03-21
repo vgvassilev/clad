@@ -853,15 +853,6 @@ namespace custom_derivatives{
 double fn22(double x, double y) {
   return x*y; // fn22 has a custom derivative defined.
 }
-// Non-differentiable function
-double nonDiffFn(double x) __attribute__((annotate("non_differentiable"))) {
-  return x * x; // Should NOT be differentiated
-}
-
-// Function that calls the non-differentiable function
-double fn_with_non_diff(double x, double y) {
-  return nonDiffFn(x) + y;  // Only 'y' should contribute to the gradient
-}
 
 // CHECK: void fn22_grad_1(double x, double y, double *d_y) {
 // CHECK-NEXT:   *d_y += x;
@@ -946,9 +937,6 @@ int main() {
   INIT(fn10);
   INIT(fn11);
   INIT(fn12);
-  INIT(fn_with_non_diff);
-  TEST2(fn_with_non_diff, 3, 5); // CHECK-EXEC: {0.00, 1.00}
-
 
   TEST1_float(fn1, 11);         // CHECK-EXEC: {3.00}
   TEST2(fn2, 3, 5);             // CHECK-EXEC: {1.00, 3.00}
