@@ -1,4 +1,4 @@
-// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oFunctors.out 2>&1 | %filecheck %s
+// RUN: %cladclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -I%S/../../include -oFunctors.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Functors.out | %filecheck_exec %s
 // RUN: %cladclang %s -I%S/../../include -oFunctors.out
 // RUN: ./Functors.out | %filecheck_exec %s
@@ -145,7 +145,7 @@ double FunctorAsArgWrapper(double i, double j) {
   E##Ref_grad.execute(7, 9, &res[0], &res[1]);                                 \
   printf("%.2f %.2f\n", res[0], res[1]);
 
-double x = 3;
+double x = 3;  // expected-warning {{The gradient utilizes a global variable 'x'. Please make sure to properly reset 'x' before re-running the gradient.}}
 
 int main() {
   Experiment E(3, 5), d_E, d_E_Const;
@@ -165,9 +165,13 @@ int main() {
   // CHECK-NEXT: }
 
   auto lambdaWithCapture = [&](double ii, double j) { return x * ii * j; };
+  
+  // CHECK: double _d_x = 0.;
 
   // CHECK: inline void operator_call_grad(double ii, double j, double *_d_ii, double *_d_j) const {
+  // CHECK-NEXT:     _d_x = 0.;
   // CHECK-NEXT:     {
+  // CHECK-NEXT:         _d_x += 1 * j * ii;
   // CHECK-NEXT:         *_d_ii += x * 1 * j;
   // CHECK-NEXT:         *_d_j += x * ii * 1;
   // CHECK-NEXT:     }

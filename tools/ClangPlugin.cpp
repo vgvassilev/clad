@@ -185,6 +185,15 @@ namespace clad {
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
+      if (request.Global) {
+        auto deriveResult = m_DerivativeBuilder->Derive(request);
+        auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
+        ProcessTopLevelDecl(VDDiff);
+        // Dump the declaration if requested.
+        printDerivative(VDDiff, request.DeclarationOnly, m_DO);
+        return nullptr;
+      }
+
       // Required due to custom derivatives function templates that might be
       // used in the function that we need to derive.
       // FIXME: Remove the call to PerformPendingInstantiations().
@@ -260,7 +269,7 @@ namespace clad {
                                 request.BaseFunctionName);
 
           auto deriveResult = m_DerivativeBuilder->Derive(request);
-          DerivativeDecl = deriveResult.derivative;
+          DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
           if (WantTiming)
             m_CTG.StopTimer();
@@ -451,7 +460,7 @@ namespace clad {
         // HandleTopLevelDecl can be called recursively in non-standard
         // setup for code generation.
         DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
-        while (request.Function) {
+        while (request.Function || request.Global) {
           m_DiffRequestGraph.setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
           m_DiffRequestGraph.markCurrentNodeProcessed();
