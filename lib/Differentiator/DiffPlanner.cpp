@@ -1125,6 +1125,7 @@ namespace clad {
     if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
       if (VD->isFileVarDecl() && !VD->getType().isConstQualified()) {
         DiffRequest request;
+        request.DeclarationOnly = true;
         request.Global = VD;
         m_DiffRequestGraph.addNode(request, /*isSource=*/true);
       }
