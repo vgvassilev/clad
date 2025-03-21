@@ -46,6 +46,12 @@
 
 using namespace clang;
 
+// Declaration for this file only.
+// Used in cloneFunction.
+bool templatesAreEquivalent(const FunctionTemplateDecl* FTD1,
+                            const FunctionTemplateDecl* FTD2,
+                            ASTContext& Context);
+
 namespace clad {
 
 DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
@@ -141,39 +147,46 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
         const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
         if (TAL && TAL->size() > 0) {
           FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
-          TemplateParameterList* TemplateParams =
-              OriginalFTD->getTemplateParameters();
 
-          // Check if we already have a template with this name in the current
-          // context
-          DeclContext::lookup_result Lookup =
-              m_Sema.CurContext->lookup(name.getName());
+          // Check if returnedFD is already associated with a template
+          if (!returnedFD->getDescribedFunctionTemplate() &&
+              !returnedFD->isFunctionTemplateSpecialization()) {
 
-          FunctionTemplateDecl* NewFTD = nullptr;
+            // Look for existing template in current context
+            FunctionTemplateDecl* ExistingFTD = nullptr;
+            DeclContext::lookup_result Lookup =
+                m_Sema.CurContext->lookup(name.getName());
 
-          // Look for an existing template declaration with the same name
-          for (NamedDecl* ND : Lookup) {
-            if (FunctionTemplateDecl* FTD =
-                    dyn_cast<FunctionTemplateDecl>(ND)) {
-              NewFTD = FTD;
-              break;
+            for (NamedDecl* ND : Lookup) {
+              if (FunctionTemplateDecl* FTD =
+                      dyn_cast<FunctionTemplateDecl>(ND)) {
+                // Check if this template matches what we need
+                if (templatesAreEquivalent(FTD, OriginalFTD, m_Context)) {
+                  ExistingFTD = FTD;
+                  break;
+                }
+              }
             }
-          }
 
-          if (NewFTD == nullptr) {
-            // Create a new template declaration
-            NewFTD = FunctionTemplateDecl::Create(m_Context, m_Sema.CurContext,
-                                                  noLoc, name.getName(),
-                                                  TemplateParams, returnedFD);
-          }
+            // Create a template declaration only if needed
+            if (!ExistingFTD) {
+              TemplateParameterList* TemplateParams =
+                  OriginalFTD->getTemplateParameters();
 
-          returnedFD->setDescribedFunctionTemplate(NewFTD);
+              ExistingFTD = FunctionTemplateDecl::Create(
+                  m_Context, m_Sema.CurContext, noLoc, name.getName(),
+                  TemplateParams, returnedFD);
 
-          if (!returnedFD->isFunctionTemplateSpecialization()) {
+              // Add to context to make it findable
+              m_Sema.CurContext->addDecl(ExistingFTD);
+            }
+
+            // Now specialize the function correctly
             TemplateArgumentList* TALCopy =
                 TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+
             returnedFD->setFunctionTemplateSpecialization(
-                NewFTD, TALCopy, nullptr,
+                ExistingFTD, TALCopy, nullptr,
                 FD->getTemplateSpecializationKindForInstantiation());
           }
         }
@@ -625,3 +638,99 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
     m_DiffRequestGraph.addEdgeToCurrentNode(request, alreadyDerived);
   }
 }// end namespace clad
+
+// Function used only in cloneFunction.
+// Localized to this file
+bool templatesAreEquivalent(const FunctionTemplateDecl* FTD1,
+                            const FunctionTemplateDecl* FTD2,
+                            ASTContext& Context) {
+  // Check for null pointers
+  if (!FTD1 || !FTD2)
+    return false;
+
+  // Compare template parameter lists
+  TemplateParameterList* TPL1 = FTD1->getTemplateParameters();
+  TemplateParameterList* TPL2 = FTD2->getTemplateParameters();
+
+  // Check if parameter counts match
+  if (TPL1->size() != TPL2->size())
+    return false;
+
+  // Compare each template parameter
+  for (unsigned i = 0; i < TPL1->size(); ++i) {
+    NamedDecl* ND1 = TPL1->getParam(i);
+    NamedDecl* ND2 = TPL2->getParam(i);
+
+    // Only handle type parameters and non-type parameters for now
+    if (auto* TTP1 = dyn_cast<TemplateTypeParmDecl>(ND1)) {
+      // Make sure second parameter is also a type parameter
+      if (!isa<TemplateTypeParmDecl>(ND2))
+        return false;
+
+      auto* TTP2 = cast<TemplateTypeParmDecl>(ND2);
+
+      // For type parameters, just compare depth and index
+      // (position in the template parameter list)
+      if (TTP1->getDepth() != TTP2->getDepth() ||
+          TTP1->getIndex() != TTP2->getIndex())
+        return false;
+    } else if (auto* NTTP1 = dyn_cast<NonTypeTemplateParmDecl>(ND1)) {
+      // Make sure second parameter is also a non-type parameter
+      if (!isa<NonTypeTemplateParmDecl>(ND2))
+        return false;
+
+      auto* NTTP2 = cast<NonTypeTemplateParmDecl>(ND2);
+
+      // For integral values, check if both types are integral
+      QualType Type1 = NTTP1->getType();
+      QualType Type2 = NTTP2->getType();
+
+      if (Type1->isIntegralType(Context) && Type2->isIntegralType(Context)) {
+        // For integral types, we can be a bit more lenient
+        // Just check if both are integral - don't require exact match
+
+        // Still check depth and index though
+        if (NTTP1->getDepth() != NTTP2->getDepth() ||
+            NTTP1->getIndex() != NTTP2->getIndex())
+          return false;
+      } else {
+        // For non-integral types, require exact type match
+        if (!Context.hasSameType(Type1, Type2))
+          return false;
+
+        // Check depth and index
+        if (NTTP1->getDepth() != NTTP2->getDepth() ||
+            NTTP1->getIndex() != NTTP2->getIndex())
+          return false;
+      }
+    } else {
+      // Template template parameters not implemented
+      // Just check if kinds match for now
+      if (ND1->getKind() != ND2->getKind())
+        return false;
+    }
+  }
+
+  // Compare function signatures
+  FunctionDecl* FD1 = FTD1->getTemplatedDecl();
+  FunctionDecl* FD2 = FTD2->getTemplatedDecl();
+
+  // Compare return types
+  if (!Context.hasSameType(FD1->getReturnType(), FD2->getReturnType()))
+    return false;
+
+  // Compare parameter counts
+  if (FD1->param_size() != FD2->param_size())
+    return false;
+
+  // Compare each parameter type
+  for (unsigned i = 0; i < FD1->param_size(); ++i) {
+    ParmVarDecl* PVD1 = FD1->getParamDecl(i);
+    ParmVarDecl* PVD2 = FD2->getParamDecl(i);
+
+    if (!Context.hasSameType(PVD1->getType(), PVD2->getType()))
+      return false;
+  }
+
+  return true;
+}
