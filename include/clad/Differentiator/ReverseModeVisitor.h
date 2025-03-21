@@ -251,8 +251,116 @@ namespace clad {
     clang::Expr* GlobalStoreAndRef(clang::Expr* E,
                                    llvm::StringRef prefix = "_t",
                                    bool force = false);
-    StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix = "_t",
-                             bool moveToTape = false);
+     clang::Expr* GlobalStoreAndRef(clang::Expr* E, clang::QualType Type,
+                                    llvm::StringRef prefix, bool force) {
+// For class types, ensure we're making a proper copy.
+if (Type->isRecordType()) {
+// Create a global variable to hold the value.
+clang::VarDecl* VD = GlobalStoreImpl(Type, prefix, nullptr);
+
+// If an expression E is provided, generate an assignment: VD = E.
+if (E) {
+// Create a DeclRefExpr for the left-hand side (variable VD).
+clang::Expr* LHS = new (m_Context) clang::DeclRefExpr(
+clang::NestedNameSpecifierLoc(), // Adjust if you have a nested specifier.
+SourceLocation(),                 // Use an appropriate source location.
+VD,
+false,                            // Not implicit.
+VD->getType(),
+clang::ExprValueKind::VK_LValue);
+
+// Build the copy-assignment expression using BuildOp.
+clang::Expr* CopyAssign = BuildOp(clang::BO_Assign, LHS, E);
+
+// Wrap the assignment in an expression statement.
+clang::Stmt* AssignStmt = new (m_Context) clang::ExprStmt(CopyAssign);
+
+// Add the assignment statement to the current forward block.
+addToCurrentBlock(AssignStmt);
+}
+
+// Return a DeclRefExpr that refers to the global variable.
+clang::Expr* RefExpr = new (m_Context) clang::DeclRefExpr(
+clang::NestedNameSpecifierLoc(), // Adjust if needed.
+SourceLocation(),                 // Use an appropriate source location.
+VD,
+false,
+VD->getType(),
+clang::ExprValueKind::VK_LValue);
+return RefExpr;
+} else {
+// Existing handling for primitive (or non-class) types.
+// If you have an existing implementation, you can call it here.
+// For example, if the version accepting a QualType is the original one:
+return VisitorBase::GlobalStoreAndRef(E, Type, prefix, force);
+}
+}
+               
+  StmtDiff StoreAndRestore(clang::Expr* E, llvm::StringRef prefix, bool moveToTape) {
+                                    // Check if the expression's type is a record (class/struct) type.
+                                    bool isClassType = E->getType()->isRecordType();
+                                    
+                                    clang::Expr* Stored = nullptr;
+                                    clang::Expr* Restore = nullptr;
+                                    
+                                    if (isClassType) {
+                                      // Remove const qualifiers if any.
+                                      clang::QualType Type = getNonConstType(E->getType(), m_Context, m_Sema);
+                                      
+                                      if (moveToTape) {
+                                        // For loop contexts: use the tape mechanism.
+                                        auto Tape = MakeCladTapeFor(E, prefix, Type);
+                                        addToCurrentBlock(Tape.Push);
+                                        Stored = Tape.Ref;
+                                        Restore = BuildOp(clang::BO_Assign, Clone(E), Tape.Last());
+                                        addToCurrentBlock(Tape.Pop, direction::reverse);
+                                      } else {
+                                        // For non-loop contexts: create a temporary global variable for the class type.
+                                        clang::VarDecl* VD = GlobalStoreImpl(Type, prefix, nullptr);
+                                        
+                                        // Create a DeclRefExpr for the temporary variable.
+                                        Stored = new (m_Context) clang::DeclRefExpr(
+                                            clang::NestedNameSpecifierLoc(),  // Empty nested-name-specifier.
+                                            SourceLocation(),                  // Use an appropriate source location.
+                                            VD,
+                                            false,                             // Not implicit.
+                                            VD->getType(),
+                                            clang::ExprValueKind::VK_LValue);
+                                        
+                                        // Forward pass: perform a copy assignment (VD = E)
+                                        clang::Expr* ForwardDeclRef = new (m_Context) clang::DeclRefExpr(
+                                            clang::NestedNameSpecifierLoc(),
+                                            SourceLocation(),
+                                            VD,
+                                            false,
+                                            VD->getType(),
+                                            clang::ExprValueKind::VK_LValue);
+                                        clang::Expr* CopyAssign = BuildOp(clang::BO_Assign, ForwardDeclRef, E);
+                                        // Wrap the assignment in an expression statement.
+                                        clang::Stmt* ForwardStmt = new (m_Context) clang::ExprStmt(CopyAssign);
+                                        addToCurrentBlock(ForwardStmt);
+                                        
+                                        // Reverse pass: restore using a copy assignment (Clone(E) = VD)
+                                        clang::Expr* ReverseDeclRef = new (m_Context) clang::DeclRefExpr(
+                                            clang::NestedNameSpecifierLoc(),
+                                            SourceLocation(),
+                                            VD,
+                                            false,
+                                            VD->getType(),
+                                            clang::ExprValueKind::VK_LValue);
+                                        Restore = BuildOp(clang::BO_Assign, Clone(E), ReverseDeclRef);
+                                        clang::Stmt* ReverseStmt = new (m_Context) clang::ExprStmt(Restore);
+                                        addToCurrentBlock(ReverseStmt, direction::reverse);
+                                      }
+                                    } else {
+                                      // Existing handling for non-class (primitive) types.
+                                      Stored = Clone(E);
+                                      Restore = Clone(E);
+                                    }
+                                    
+                                    return StmtDiff(Stored, Restore);
+                                  }
+                                  
 
     //// A type returned by DelayedGlobalStoreAndRef
     /// .Result is a reference to the created (yet uninitialized) global
