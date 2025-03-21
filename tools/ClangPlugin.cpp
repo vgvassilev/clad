@@ -155,6 +155,49 @@ namespace clad {
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
+      if (const VarDecl* VD = request.Global) {
+        // The request represents a global variable, construct the adjoint and
+        // register it.
+        ASTContext& C = S.getASTContext();
+        QualType type = VD->getType();
+
+        // add namespace specifier in variable declaration if needed.
+        type = utils::AddNamespaceSpecifier(S, C, type);
+        IdentifierInfo* II = &C.Idents.get("_d_" + VD->getNameAsString());
+        auto* DC = const_cast<DeclContext*>(VD->getDeclContext());
+        auto* VDDiff =
+            VarDecl::Create(C, DC, VD->getLocation(), VD->getLocation(), II,
+                            type, /*TSI=*/nullptr, SC_None);
+
+        S.AddInitializerToDecl(VDDiff, utils::getZeroInit(type, S),
+                               /*DirectInit=*/false);
+        S.FinalizeDeclaration(VDDiff);
+        // Add the identifier to the scope and IdResolver
+        S.PushOnScopeChains(VDDiff, S.TUScope, /*AddToContext*/ false);
+        DC->addDecl(VDDiff);
+        DC->makeDeclVisibleInContext(VDDiff);
+        ProcessTopLevelDecl(VDDiff);
+
+        // Dump the declaration if requested.
+        if (m_DO.DumpDerivedFn) {
+          clang::LangOptions LangOpts;
+          LangOpts.CPlusPlus = true;
+          clang::PrintingPolicy Policy(LangOpts);
+          Policy.Bool = true;
+          VDDiff->print(llvm::outs(), Policy);
+          llvm::outs() << ";\n";
+        }
+
+        // Warn the user about the usage of global variables.
+        auto diagId = S.Diags.getCustomDiagID(
+            DiagnosticsEngine::Warning,
+            "The gradient utilizes a global variable '%0'"
+            ". Please make sure to properly reset '%0' before re-running "
+            "the gradient.");
+        S.Diag(VD->getLocation(), diagId) << VD->getName();
+        return nullptr;
+      }
+
       // Required due to custom derivatives function templates that might be
       // used in the function that we need to derive.
       // FIXME: Remove the call to PerformPendingInstantiations().
@@ -442,7 +485,7 @@ namespace clad {
         // HandleTopLevelDecl can be called recursively in non-standard
         // setup for code generation.
         DiffRequest request = m_DiffRequestGraph.getNextToProcessNode();
-        while (request.Function) {
+        while (request.Function || request.Global) {
           m_DiffRequestGraph.setCurrentProcessingNode(request);
           ProcessDiffRequest(request);
           m_DiffRequestGraph.markCurrentNodeProcessed();

@@ -1312,8 +1312,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // Check DeclRefExpr is a reference to an independent variable.
       auto it = m_Variables.find(VD);
       if (it == std::end(m_Variables)) {
-        // Is not an independent variable, ignored.
-        return StmtDiff(clonedDRE);
+        if (VD->isFileVarDecl() && !VD->getType().isConstQualified()) {
+          // VD is a global variable, attempt to find its adjoint.
+          std::string nameDiff_str = "_d_" + VD->getNameAsString();
+          DeclarationName nameDiff = &m_Context.Idents.get(nameDiff_str);
+          DeclContext* DC = VD->getDeclContext();
+          LookupResult result(m_Sema, nameDiff, noLoc,
+                              Sema::LookupOrdinaryName);
+          m_Sema.LookupQualifiedName(result, DC);
+          // If not found, consider non-differentiable.
+          if (result.empty())
+            return StmtDiff(clonedDRE);
+          // Found, return a reference
+          Expr* foundExpr =
+              m_Sema
+                  .BuildDeclarationNameExpr(CXXScopeSpec{}, result,
+                                            /*ADL=*/false)
+                  .get();
+          it = m_Variables.emplace(VD, foundExpr).first;
+          // On the start of computing every derivative, we have to reset the
+          // global adjoint to zero in case it was used by another gradient.
+          if (m_DiffReq.Mode == DiffMode::reverse) {
+            Expr* assignToZero = BuildOp(BO_Assign, Clone(foundExpr),
+                                         getZeroInit(foundExpr->getType()));
+            addToBlock(assignToZero, m_Globals);
+          }
+        } else
+          // Is not an independent variable, ignored.
+          return StmtDiff(clonedDRE);
       }
       // Create the (_d_param[idx] += dfdx) statement.
       if (dfdx()) {
