@@ -153,6 +153,36 @@ namespace clad {
         FinalizeTranslationUnit();
     }
 
+    static void printDerivative(clang::Decl* D, bool DeclarationOnly,
+                                const DifferentiationOptions& DO) {
+      clang::LangOptions LangOpts;
+      LangOpts.CPlusPlus = true;
+      clang::PrintingPolicy Policy(LangOpts);
+      Policy.Bool = true;
+
+      // if enabled, print source code of the derivatives
+      if (DO.DumpDerivedFn) {
+        D->print(llvm::outs(), Policy);
+        if (DeclarationOnly)
+          llvm::outs() << ";\n";
+      }
+
+      // if enabled, print ASTs of the derivatives
+      if (DO.DumpDerivedAST)
+        D->dumpColor();
+
+      // if enabled, print the derivatives in a file
+      if (DO.GenerateSourceFile) {
+        std::error_code err;
+        llvm::raw_fd_ostream f("Derivatives.cpp", err,
+                               CLAD_COMPAT_llvm_sys_fs_Append);
+        D->print(f, Policy);
+        if (DeclarationOnly)
+          f << ";\n";
+        f.flush();
+      }
+    }
+
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
       // Required due to custom derivatives function templates that might be
@@ -242,28 +272,7 @@ namespace clad {
           m_DFC.Add(
               DerivedFnInfo(request, DerivativeDecl, OverloadedDerivativeDecl));
 
-          // if enabled, print source code of the derived functions
-          if (m_DO.DumpDerivedFn) {
-            DerivativeDecl->print(llvm::outs(), Policy);
-            if (request.DeclarationOnly)
-              llvm::outs() << ";\n";
-          }
-
-          // if enabled, print ASTs of the derived functions
-          if (m_DO.DumpDerivedAST) {
-            DerivativeDecl->dumpColor();
-          }
-
-          // if enabled, print the derivatives in a file.
-          if (m_DO.GenerateSourceFile) {
-            std::error_code err;
-            llvm::raw_fd_ostream f("Derivatives.cpp", err,
-                                   CLAD_COMPAT_llvm_sys_fs_Append);
-            DerivativeDecl->print(f, Policy);
-            if (request.DeclarationOnly)
-              f << ";\n";
-            f.flush();
-          }
+          printDerivative(DerivativeDecl, request.DeclarationOnly, m_DO);
 
           S.MarkFunctionReferenced(SourceLocation(), DerivativeDecl);
           if (OverloadedDerivativeDecl)
