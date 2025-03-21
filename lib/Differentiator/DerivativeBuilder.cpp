@@ -133,8 +133,7 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
       returnedFD->setAccess(FD->getAccess());
 
       // Check if we're dealing with a template specialization
-      if (FD->isFunctionTemplateSpecialization() &&
-          !returnedFD->isFunctionTemplateSpecialization()) {
+      if (FD->isFunctionTemplateSpecialization()) {
         const TemplateArgumentList* TAL = FD->getTemplateSpecializationArgs();
         if (TAL && TAL->size() > 0) {
           FunctionTemplateDecl* OriginalFTD = FD->getPrimaryTemplate();
@@ -162,13 +161,17 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
             NewFTD = FunctionTemplateDecl::Create(m_Context, m_Sema.CurContext,
                                                   noLoc, name.getName(),
                                                   TemplateParams, returnedFD);
-            returnedFD->setDescribedFunctionTemplate(NewFTD);
           }
 
-          TemplateArgumentList* TALCopy =
-              TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
-          returnedFD->setFunctionTemplateSpecialization(
-              NewFTD, TALCopy, nullptr, FD->getTemplateSpecializationKind());
+          returnedFD->setDescribedFunctionTemplate(NewFTD);
+
+          if (!returnedFD->isFunctionTemplateSpecialization()) {
+            TemplateArgumentList* TALCopy =
+                TemplateArgumentList::CreateCopy(m_Context, TAL->asArray());
+            returnedFD->setFunctionTemplateSpecialization(
+                NewFTD, TALCopy, nullptr,
+                FD->getTemplateSpecializationKindForInstantiation());
+          }
         }
       }
     }
