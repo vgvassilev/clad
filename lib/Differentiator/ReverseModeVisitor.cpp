@@ -419,6 +419,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         addToCurrentBlock(S, direction::forward);
     else
       addToCurrentBlock(Reverse, direction::forward);
+
+    // If we the differentiated function is a constructor, differentiate its
+    // inits.
+    if (const auto* CD = dyn_cast<CXXConstructorDecl>(m_DiffReq.Function)) {
+      for (auto CI = CD->init_rbegin(), CI_end = CD->init_rend(); CI != CI_end;
+           ++CI) {
+        Stmt* CI_diff = DifferentiateCtorInit(*CI);
+        addToCurrentBlock(CI_diff, direction::forward);
+      }
+    }
+
     // Add delete statements present in m_DeallocExprs to the current block.
     for (auto* S : m_DeallocExprs)
       if (auto* CS = dyn_cast<CompoundStmt>(S))
@@ -429,6 +440,23 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     if (m_ExternalSource)
       m_ExternalSource->ActOnEndOfDerivedFnBody();
+  }
+
+  Stmt* ReverseModeVisitor::DifferentiateCtorInit(CXXCtorInitializer* CI) {
+    llvm::StringRef fieldName = CI->getMember()->getName();
+    Expr* memberDiff = utils::BuildMemberExpr(m_Sema, getCurrentScope(),
+                                              m_ThisExprDerivative, fieldName);
+
+    beginBlock(direction::reverse);
+    QualType memberTy = CI->getMember()->getType();
+    if (memberTy->isRealType()) {
+      Stmt* assign_zero =
+          BuildOp(BO_Assign, memberDiff, getZeroInit(memberDiff->getType()));
+      addToCurrentBlock(assign_zero, direction::reverse);
+    }
+    StmtDiff initDiff = Visit(CI->getInit(), memberDiff);
+    addToCurrentBlock(initDiff.getStmt_dx(), direction::reverse);
+    return endBlock(direction::reverse);
   }
 
   void ReverseModeVisitor::DifferentiateWithEnzyme() {
@@ -3110,6 +3138,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return {Clone(POE), Clone(POE)};
   }
 
+  StmtDiff
+  ReverseModeVisitor::VisitCXXDefaultInitExpr(const CXXDefaultInitExpr* DIE) {
+    return Visit(DIE->getExpr(), dfdx());
+  }
+
   StmtDiff ReverseModeVisitor::VisitMemberExpr(const MemberExpr* ME) {
     auto baseDiff = Visit(ME->getBase());
     auto* field = ME->getMemberDecl();
@@ -3951,6 +3984,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXThisExpr(const CXXThisExpr* CTE) {
+    assert(!isa<CXXConstructorDecl>(m_DiffReq.Function) &&
+           "Constructors with body are not differentiated yet.");
     Expr* clonedCTE = Clone(CTE);
     return {clonedCTE, m_ThisExprDerivative};
   }
@@ -4072,7 +4107,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         adjointArgs.push_back(BuildOp(UnaryOperatorKind::UO_AddrOf, adjointArg,
                                       m_DiffReq->getLocation()));
       }
-      primalArgs.push_back(argDiff.getExpr());
+      // If a function returns an object by value, there
+      // are an implicit move constructor and an implicit
+      // cast to XValue. However, when providing arguments,
+      // we have to cast explicitly with std::move.
+      if (arg->isXValue() && argDiff.getExpr()->isLValue()) {
+        llvm::SmallVector<Expr*, 1> moveArg = {argDiff.getExpr()};
+        Expr* moveCall = GetFunctionCall("move", "std", moveArg);
+        primalArgs.push_back(moveCall);
+      } else {
+        primalArgs.push_back(argDiff.getExpr());
+      }
     }
 
     const CXXRecordDecl* RD = CD->getParent();
@@ -4110,20 +4155,56 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       pullbackArgs.push_back(dThisE);
       pullbackArgs.append(adjointArgs.begin(), adjointArgs.end());
 
+      Expr* pullbackCall = nullptr;
       Stmts& curRevBlock = getCurrentBlock(direction::reverse);
       Stmts::iterator it = std::begin(curRevBlock) + insertionPoint;
       curRevBlock.insert(it, prePullbackCallStmts.begin(),
                          prePullbackCallStmts.end());
       it += prePullbackCallStmts.size();
       std::string customPullbackName = "constructor_pullback";
-      if (Expr* customPullbackCall =
-              m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
-                  customPullbackName, pullbackArgs, getCurrentScope(), CE)) {
-        curRevBlock.insert(it, customPullbackCall);
+      pullbackCall = m_Builder.BuildCallToCustomDerivativeOrNumericalDiff(
+          customPullbackName, pullbackArgs, getCurrentScope(), CE);
+      // FIXME: Support all constructors.
+      // Overloaded derivative was not found, request the CladPlugin to
+      // derive the called constructor.
+      if (!pullbackCall && utils::isLinearConstructor(CD, m_Context)) {
+        DiffRequest pullbackRequest{};
+        pullbackRequest.Function = CD;
+
+        // Mark the indexes of the global args. Necessary if the argument of the
+        // call has a different name than the function's signature parameter.
+        // pullbackRequest.CUDAGlobalArgsIndexes = globalCallArgs;
+
+        pullbackRequest.BaseFunctionName = "constructor";
+        pullbackRequest.Mode = DiffMode::experimental_pullback;
+        // Silence diag outputs in nested derivation process.
+        pullbackRequest.VerboseDiags = false;
+        pullbackRequest.EnableTBRAnalysis = m_DiffReq.EnableTBRAnalysis;
+        pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
+        for (size_t i = 0, e = CD->getNumParams(); i < e; ++i)
+          if (adjointArgs[i])
+            pullbackRequest.DVI.push_back(CD->getParamDecl(i));
+
+        FunctionDecl* pullbackFD =
+            m_Builder.HandleNestedDiffRequest(pullbackRequest);
+
+        // FIXME: Remove once BuildDeclRef can automatically deduce class
+        // namespace specifiers.
+        IdentifierInfo* II = &m_Context.Idents.get(RD->getNameAsString());
+        NestedNameSpecifier* NNS = NestedNameSpecifier::Create(m_Context, II);
+        if (pullbackFD) {
+          pullbackCall =
+              m_Sema
+                  .ActOnCallExpr(getCurrentScope(),
+                                 BuildDeclRef(pullbackFD, NNS),
+                                 m_DiffReq->getLocation(), pullbackArgs,
+                                 m_DiffReq->getLocation())
+                  .get();
+        }
       }
+      if (pullbackCall)
+        curRevBlock.insert(it, pullbackCall);
     }
-    // FIXME: If no compatible custom constructor pullback is found then try
-    // to automatically differentiate the constructor.
 
     // Create the constructor call in the forward-pass, or creates
     // 'constructor_forw' call if possible.

@@ -270,6 +270,8 @@ int main() {
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
+  // CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept;
+
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     Experiment _d_E(E);
@@ -279,6 +281,7 @@ int main() {
   // CHECK-NEXT:         double _r3 = 0.;
   // CHECK-NEXT:         double _r4 = 0.;
   // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r2, &_r3, &_r4);
+  // CHECK-NEXT:         Experiment::constructor_pullback(E, &_r2, &_d_E);
   // CHECK-NEXT:         *_d_i += _r3;
   // CHECK-NEXT:         *_d_j += _r4;
   // CHECK-NEXT:     }
@@ -290,3 +293,14 @@ int main() {
   FunctorAsArgWrapper_grad.execute(7, 9, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 }
+
+// CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_arg).y += (*_d_this).y;
+// CHECK-NEXT:         (*_d_this).y = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_arg).x += (*_d_this).x;
+// CHECK-NEXT:         (*_d_this).x = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }
