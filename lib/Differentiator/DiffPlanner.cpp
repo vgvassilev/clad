@@ -1103,4 +1103,34 @@ namespace clad {
 
     return true;
   }
+
+  bool DiffCollector::VisitDeclRefExpr(DeclRefExpr* DRE) {
+    if (!m_ParentReq)
+      return true;
+    // FIXME: Add support for globals in other modes.
+    if (m_ParentReq->Mode != DiffMode::reverse &&
+        m_ParentReq->Mode != DiffMode::experimental_pullback)
+      return true;
+
+    // FIXME: In some cases, custom overloads are not found by DiffPlanner and
+    // clad starts traversing builtin functions. This leads to some unnecessary
+    // global adjoints being built and produces warnings in files where it's
+    // impossible to expect them by tests. Because of this, global adjoints
+    // are only created in the same file as the differentiated function for now.
+    const clang::SourceManager& SM = m_Sema.getASTContext().getSourceManager();
+    SourceLocation parentLoc = (*m_ParentReq)->getLocation();
+    SourceLocation topMostLoc = (*m_TopMostReq)->getLocation();
+    if (SM.getFileID(parentLoc) != SM.getFileID(topMostLoc))
+      return true;
+
+    if (const auto* VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      if (VD->isFileVarDecl() && !VD->getType().isConstQualified()) {
+        DiffRequest request;
+        request.DeclarationOnly = true;
+        request.Global = VD;
+        m_DiffRequestGraph.addNode(request, /*isSource=*/true);
+      }
+    }
+    return true;
+  }
 } // end namespace

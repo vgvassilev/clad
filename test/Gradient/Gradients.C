@@ -1,4 +1,4 @@
-// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -std=c++17 -I%S/../../include -oGradients.out 2>&1 | %filecheck %s
+// RUN: %cladnumdiffclang -Xclang -plugin-arg-clad -Xclang -disable-tbr %s -std=c++17 -I%S/../../include -oGradients.out -Xclang -verify 2>&1 | %filecheck %s
 // RUN: ./Gradients.out | %filecheck_exec %s
 // RUN: %cladnumdiffclang %s  -I%S/../../include -oGradients.out
 // RUN: ./Gradients.out | %filecheck_exec %s
@@ -665,7 +665,8 @@ float running_sum(float* p, int n) {
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
 
-double global = 7;
+double global = 7; // expected-warning {{The gradient utilizes a global variable 'global'. Please make sure to properly reset 'global' before re-running the gradient.}}
+// CHECK: double _d_global = 0.;
 
 double fn_global_var_use(double i, double j) {
   double& ref = global;
@@ -673,7 +674,8 @@ double fn_global_var_use(double i, double j) {
 }
 
 // CHECK: void fn_global_var_use_grad(double i, double j, double *_d_i, double *_d_j) {
-// CHECK-NEXT:     double _d_ref = 0.;
+// CHECK-NEXT:     _d_global = 0.;
+// CHECK-NEXT:     double &_d_ref = _d_global;
 // CHECK-NEXT:     double &ref = global;
 // CHECK-NEXT:     {
 // CHECK-NEXT:         _d_ref += 1 * i;
@@ -1143,6 +1145,58 @@ double f_ref_in_rhs(double x, double y) {
 //CHECK-NEXT:     }
 //CHECK-NEXT: }
 
+double glob1 = 5; // expected-warning {{The gradient utilizes a global variable 'glob1'. Please make sure to properly reset 'glob1' before re-running the gradient.}}
+//CHECK: double _d_glob1 = 0.;
+
+double g(double a, double b) {
+    glob1 = b;
+    return a;
+}
+
+//CHECK: void g_pullback(double a, double b, double _d_y, double *_d_a, double *_d_b) {
+//CHECK-NEXT:     double _t0 = glob1;
+//CHECK-NEXT:     glob1 = b;
+//CHECK-NEXT:     *_d_a += _d_y;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         glob1 = _t0;
+//CHECK-NEXT:         double _r_d0 = _d_glob1;
+//CHECK-NEXT:         _d_glob1 = 0.;
+//CHECK-NEXT:         *_d_b += _r_d0;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
+double f_reuse_global(double x, double t) {
+    t = g(t, x);
+    glob1 *= t;
+    return -glob1;
+} // -x * t
+
+//CHECK: void f_reuse_global_grad(double x, double t, double *_d_x, double *_d_t) {
+//CHECK-NEXT:     _d_glob1 = 0.;
+//CHECK-NEXT:     double _t0 = t;
+//CHECK-NEXT:     t = g(t, x);
+//CHECK-NEXT:     double _t1 = glob1;
+//CHECK-NEXT:     glob1 *= t;
+//CHECK-NEXT:     _d_glob1 += -1;
+//CHECK-NEXT:     {
+//CHECK-NEXT:         glob1 = _t1;
+//CHECK-NEXT:         double _r_d1 = _d_glob1;
+//CHECK-NEXT:         _d_glob1 = 0.;
+//CHECK-NEXT:         _d_glob1 += _r_d1 * t;
+//CHECK-NEXT:         *_d_t += glob1 * _r_d1;
+//CHECK-NEXT:     }
+//CHECK-NEXT:     {
+//CHECK-NEXT:         t = _t0;
+//CHECK-NEXT:         double _r_d0 = *_d_t;
+//CHECK-NEXT:         *_d_t = 0.;
+//CHECK-NEXT:         double _r0 = 0.;
+//CHECK-NEXT:         double _r1 = 0.;
+//CHECK-NEXT:         g_pullback(t, x, _r_d0, &_r0, &_r1);
+//CHECK-NEXT:         *_d_t += _r0;
+//CHECK-NEXT:         *_d_x += _r1;
+//CHECK-NEXT:     }
+//CHECK-NEXT: }
+
 #define TEST(F, x, y)                                                          \
   {                                                                            \
     result[0] = 0;                                                             \
@@ -1239,4 +1293,7 @@ int main() {
 
   INIT_GRADIENT(f_ref_in_rhs);
   TEST_GRADIENT(f_ref_in_rhs, /*numOfDerivativeArgs=*/2, 3, 5, &d_i, &d_j);  // CHECK-EXEC: {5.00, 13.00}
+
+  INIT_GRADIENT(f_reuse_global);
+  TEST_GRADIENT(f_reuse_global, /*numOfDerivativeArgs=*/2, -3, 4, &d_i, &d_j);  // CHECK-EXEC: {-4.00, 3.00}
 }
