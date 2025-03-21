@@ -86,6 +86,14 @@ double fn_non_diff_var(double i, double j) {
     return k;
 }
 
+double nonDiffFn(double x) __attribute__((annotate("non_differentiable"))) {
+  return x * x; // Should not be differentiated
+}
+
+double fn_non_diff_call(double x) {
+  return nonDiffFn(x) + 2.0;
+}
+
 #define INIT_EXPR(classname)                                                   \
   classname expr_1(2, 3);                                                      \
   classname expr_2(3, 5);
@@ -114,6 +122,7 @@ int main() {
   /*TEST_CLASS(SimpleFunctions1, mem_fn_4, 3, 5)*/
   
   /*TEST_CLASS(SimpleFunctions1, mem_fn_5, 3, 5)*/
+  TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 11.00 0.00
 
   TEST_FUNC(fn_s1_mem_fn, 3, 5) // CHECK-EXEC: 35.00 33.00
 
