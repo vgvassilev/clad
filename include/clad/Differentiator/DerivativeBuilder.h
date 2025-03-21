@@ -214,6 +214,9 @@ namespace clad {
     /// \param[in] Request The request to be processed.
     /// \returns The derivative function if found, nullptr otherwise.
     clang::FunctionDecl* HandleNestedDiffRequest(DiffRequest& request);
+
+    static void registerDerivative(clang::Decl* D, clang::Sema& S,
+                                   const DiffRequest& R);
   };
 
 } // end namespace clad

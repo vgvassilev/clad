@@ -58,40 +58,46 @@ DerivativeBuilder::DerivativeBuilder(clang::Sema& S, plugin::CladPlugin& P,
 
 DerivativeBuilder::~DerivativeBuilder() {}
 
-static void registerDerivative(FunctionDecl* dFD, Sema& S,
-                               const DiffRequest& R) {
-  DeclContext* DC = dFD->getLexicalDeclContext();
-  LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
-  // Template instantiations of function templates should not be considered
-  // redeclarations.
-  // FIXME: Currently we produce a FunctionDecl per instantiation, however, we
-  // should follow closer what clang does, namely building a
-  // FunctionTemplateDecl and then we should instantiate it with the particular
-  // template parameters.
-  if (R.Function && !R.Function->getPrimaryTemplate())
-    S.LookupQualifiedName(Previous, dFD->getParent());
+void DerivativeBuilder::registerDerivative(Decl* D, Sema& S,
+                                           const DiffRequest& R) {
+  DeclContext* DC = D->getLexicalDeclContext();
+  if (auto* dFD = dyn_cast<FunctionDecl>(D)) {
+    LookupResult Previous(S, dFD->getNameInfo(), Sema::LookupOrdinaryName);
+    // Template instantiations of function templates should not be considered
+    // redeclarations.
+    // FIXME: Currently we produce a FunctionDecl per instantiation, however, we
+    // should follow closer what clang does, namely building a
+    // FunctionTemplateDecl and then we should instantiate it with the
+    // particular template parameters.
+    if (R.Function && !R.Function->getPrimaryTemplate())
+      S.LookupQualifiedName(Previous, dFD->getParent());
 
-  // Check if we created a top-level decl with the same name for another class.
-  // FIXME: This case should be addressed by providing proper names and function
-  // implementation that does not rely on accessing private data from the class.
-  bool IsBrokenDecl = isa<RecordDecl>(DC);
-  if (!IsBrokenDecl) {
-    S.CheckFunctionDeclaration(
-        /*Scope=*/nullptr, dFD, Previous,
-        /*IsMemberSpecialization=*/
-        false
-        /*DeclIsDefn*/
-        CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(dFD));
-  } else if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder) {
-    // Size >= current derivative order means that there exists a declaration
-    // or prototype for the currently derived function.
-    dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
-  }
+    // Check if we created a top-level decl with the same name for another
+    // class.
+    // FIXME: This case should be addressed by providing proper names and
+    // function implementation that does not rely on accessing private data from
+    // the class.
+    bool IsBrokenDecl = isa<RecordDecl>(DC);
+    if (!IsBrokenDecl) {
+      S.CheckFunctionDeclaration(
+          /*Scope=*/nullptr, dFD, Previous,
+          /*IsMemberSpecialization=*/
+          false
+          /*DeclIsDefn*/
+          CLAD_COMPAT_CheckFunctionDeclaration_DeclIsDefn_ExtraParam(dFD));
+    } else if (R.DerivedFDPrototypes.size() >= R.CurrentDerivativeOrder) {
+      // Size >= current derivative order means that there exists a declaration
+      // or prototype for the currently derived function.
+      dFD->setPreviousDecl(R.DerivedFDPrototypes[R.CurrentDerivativeOrder - 1]);
+    }
+  } else if (auto* dVD = dyn_cast<VarDecl>(D))
+    // Add the identifier to the scope and IdResolver
+    S.PushOnScopeChains(dVD, S.TUScope, /*AddToContext*/ false);
 
-  if (dFD->isInvalidDecl())
+  if (D->isInvalidDecl())
     return; // CheckFunctionDeclaration was unhappy about derivedFD
 
-  DC->addDecl(dFD);
+  DC->addDecl(D);
 }
 
   static bool hasAttribute(const Decl *D, attr::Kind Kind) {

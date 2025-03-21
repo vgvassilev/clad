@@ -168,14 +168,10 @@ namespace clad {
         auto* VDDiff =
             VarDecl::Create(C, DC, VD->getLocation(), VD->getLocation(), II,
                             type, /*TSI=*/nullptr, SC_None);
-
         S.AddInitializerToDecl(VDDiff, utils::getZeroInit(type, S),
                                /*DirectInit=*/false);
         S.FinalizeDeclaration(VDDiff);
-        // Add the identifier to the scope and IdResolver
-        S.PushOnScopeChains(VDDiff, S.TUScope, /*AddToContext*/ false);
-        DC->addDecl(VDDiff);
-        DC->makeDeclVisibleInContext(VDDiff);
+        DerivativeBuilder::registerDerivative(VDDiff, S, request);
         ProcessTopLevelDecl(VDDiff);
 
         // Dump the declaration if requested.
