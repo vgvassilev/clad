@@ -326,6 +326,8 @@ namespace clad {
     void GetInnermostReturnExpr(const clang::Expr* E,
                                 llvm::SmallVectorImpl<clang::Expr*>& Exprs);
 
+    clang::Expr* getZeroInit(clang::QualType T, clang::Sema& S);
+
     bool ContainsFunctionCalls(const clang::Stmt* E);
 
     void SetSwitchCaseSubStmt(clang::SwitchCase* SC, clang::Stmt* subStmt);

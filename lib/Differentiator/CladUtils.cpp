@@ -777,5 +777,27 @@ namespace clad {
       }
       return true;
     }
+
+    Expr* getZeroInit(QualType T, Sema& S) {
+      // FIXME: Consolidate other uses of synthesizeLiteral for creation 0 or 1.
+      if (T->isVoidType() || isa<VariableArrayType>(T))
+        return nullptr;
+      if ((T->isScalarType() || T->isPointerType()) && !T->isReferenceType())
+        return ConstantFolder::synthesizeLiteral(T, S.getASTContext(),
+                                                 /*val=*/0);
+      if (isa<ConstantArrayType>(T)) {
+        Expr* zero =
+            ConstantFolder::synthesizeLiteral(T, S.getASTContext(), /*val=*/0);
+        return S.ActOnInitList(noLoc, {zero}, noLoc).get();
+      }
+      if (const auto* RD = T->getAsCXXRecordDecl())
+        if (RD->hasDefinition() && !RD->isUnion() && RD->isAggregate()) {
+          llvm::SmallVector<Expr*, 4> adjParams;
+          for (const FieldDecl* FD : RD->fields())
+            adjParams.push_back(getZeroInit(FD->getType(), S));
+          return S.ActOnInitList(noLoc, adjParams, noLoc).get();
+        }
+      return S.ActOnInitList(noLoc, {}, noLoc).get();
+    }
   } // namespace utils
 } // namespace clad

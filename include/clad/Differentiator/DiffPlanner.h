@@ -85,6 +85,11 @@ public:
   /// order derivatives.
   const clang::CXXRecordDecl* Functor = nullptr;
 
+  /// Global VarDecl to differentiate, if any.
+  ///
+  /// DiffRequests are also used to differentiate global variables.
+  const clang::VarDecl* Global = nullptr;
+
   /// Stores differentiation parameters information. Stored information
   /// includes info on indices range for array parameters, and nested data
   /// member information for record (class) type parameters.
@@ -133,7 +138,7 @@ public:
            EnableTBRAnalysis == other.EnableTBRAnalysis &&
            EnableVariedAnalysis == other.EnableVariedAnalysis &&
            DVI == other.DVI && use_enzyme == other.use_enzyme &&
-           DeclarationOnly == other.DeclarationOnly;
+           DeclarationOnly == other.DeclarationOnly && Global == other.Global;
   }
 
   const clang::FunctionDecl* operator->() const { return Function; }
@@ -192,6 +197,7 @@ public:
                   clad::DynamicGraph<DiffRequest>& requestGraph, clang::Sema& S,
                   RequestOptions& opts);
     bool VisitCallExpr(clang::CallExpr* E);
+    bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool TraverseFunctionDeclOnce(const clang::FunctionDecl* FD) {
       llvm::SaveAndRestore<bool> Saved(m_IsTraversingTopLevelDecl, false);
       if (m_Traversed.count(FD))
@@ -208,11 +214,16 @@ public:
 // Define the hash function for DiffRequest.
 template <> struct std::hash<clad::DiffRequest> {
     std::size_t operator()(const clad::DiffRequest& DR) const {
+      const clang::Decl* D = nullptr;
+      if (DR.Function)
+        D = DR.Function;
+      else
+        D = DR.Global;
       // Use the function pointer as the hash of the DiffRequest, it
       // is sufficient to break a reasonable number of collisions.
-      if (DR.Function->getPreviousDecl())
-        return std::hash<const void*>{}(DR.Function->getPreviousDecl());
-      return std::hash<const void*>{}(DR.Function);
+      if (D->getPreviousDecl())
+        return std::hash<const void*>{}(D->getPreviousDecl());
+      return std::hash<const void*>{}(D);
     }
 };
 
