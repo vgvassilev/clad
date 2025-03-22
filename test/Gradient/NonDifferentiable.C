@@ -82,8 +82,17 @@ double fn_s2_operator(double i, double j) {
 }
 
 double fn_non_diff_var(double i, double j) {
-    non_differentiable double k = i * i * j;
-    return k;
+  non_differentiable double k = i * i * j;
+  return k;
+}
+
+non_differentiable
+double fn_non_diff(double i, double j) {
+  return i * j;
+}
+
+double fn_non_diff_call(double i, double j) {
+  return fn_non_diff(i, j) + i * j;
 }
 
 #define INIT_EXPR(classname)                                                   \
@@ -130,6 +139,8 @@ int main() {
   /*TEST_FUNC(fn_s2_operator, 3, 5)*/
 
   TEST_FUNC(fn_non_diff_var, 3, 5) // CHECK-EXEC: 0.00 0.00
+
+  TEST_FUNC(fn_non_diff_call, 3, 5) // CHECK-EXEC: 5.00 3.00
 
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j);
 
@@ -181,6 +192,13 @@ int main() {
 
     // CHECK: void fn_non_diff_var_grad(double i, double j, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     double k = i * i * j;
+    // CHECK-NEXT: }
+  
+    // CHECK: void fn_non_diff_call_grad(double i, double j, double *_d_i, double *_d_j) {
+    // CHECK-NEXT:     {
+    // CHECK-NEXT:         *_d_i += 1 * j;
+    // CHECK-NEXT:         *_d_j += i * 1;
+    // CHECK-NEXT:     }
     // CHECK-NEXT: }
     
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
