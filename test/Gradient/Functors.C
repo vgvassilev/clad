@@ -15,7 +15,7 @@ struct Experiment {
 
   // CHECK: void operator_call_grad(double i, double j, Experiment *_d_this, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += this->x * i * 1;
   // CHECK-NEXT:     }
@@ -31,7 +31,7 @@ struct ExperimentConst {
   ExperimentConst& operator=(const ExperimentConst& E) = default;
   // CHECK: void operator_call_grad(double i, double j, ExperimentConst *_d_this, double *_d_i, double *_d_j) const {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += this->x * i * 1;
   // CHECK-NEXT:     }
@@ -54,7 +54,7 @@ struct ExperimentVolatile {
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentVolatile *_d_this, double *_d_i, double *_d_j) volatile {
   // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += _t0 * 1;
   // CHECK-NEXT:     }
@@ -77,7 +77,7 @@ struct ExperimentConstVolatile {
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile *_d_this, double *_d_i, double *_d_j) const volatile {
   // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += _t0 * 1;
   // CHECK-NEXT:     }
@@ -96,7 +96,7 @@ struct ExperimentNNS {
 
   // CHECK: void operator_call_grad(double i, double j, outer::inner::ExperimentNNS *_d_this, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += this->x * i * 1;
   // CHECK-NEXT:     }
@@ -296,11 +296,11 @@ int main() {
 
 // CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept {
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (*_d_arg).y += (*_d_this).y;
-// CHECK-NEXT:         (*_d_this).y = 0.;
+// CHECK-NEXT:         (*_d_arg).y += _d_this->y;
+// CHECK-NEXT:         _d_this->y = 0.;
 // CHECK-NEXT:     }
 // CHECK-NEXT:     {
-// CHECK-NEXT:         (*_d_arg).x += (*_d_this).x;
-// CHECK-NEXT:         (*_d_this).x = 0.;
+// CHECK-NEXT:         (*_d_arg).x += _d_this->x;
+// CHECK-NEXT:         _d_this->x = 0.;
 // CHECK-NEXT:     }
 // CHECK-NEXT: }
