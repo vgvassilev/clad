@@ -130,9 +130,10 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
           FD->getCanonicalDecl()->getStorageClass()
               CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->hasWrittenPrototype(),
-          FD->getConstexprKind()
-              CLAD_COMPAT_CLANG10_FunctionDecl_Create_ExtraParams(
-                  FD->getTrailingRequiresClause()));
+          FD->getConstexprKind(),
+          FD->getTrailingRequiresClause()
+              ? VB.Clone(FD->getTrailingRequiresClause())
+              : nullptr);
 
       returnedFD->setAccess(FD->getAccess());
     }
