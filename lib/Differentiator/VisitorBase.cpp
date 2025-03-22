@@ -717,8 +717,9 @@ namespace clad {
                                        llvm::MutableArrayRef<Expr*> argExprs,
                                        bool useRefQualifiedThisObj /*=false*/) {
     Expr* call = nullptr;
-    if (auto derMethod = dyn_cast<CXXMethodDecl>(FD)) {
-      call = BuildCallExprToMemFn(derMethod, argExprs, useRefQualifiedThisObj);
+    if (auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
+      if (MD->isInstance())
+        call = BuildCallExprToMemFn(MD, argExprs, useRefQualifiedThisObj);
     } else {
       Expr* exprFunc = BuildDeclRef(FD);
       call = m_Sema

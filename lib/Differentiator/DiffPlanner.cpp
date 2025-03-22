@@ -240,8 +240,9 @@ namespace clad {
     // lvalue. However, due to an inconsistency of the expression classfication
     // in clang we need to change it to an r-value to avoid an assertion when
     // building a unary op. See llvm/llvm-project#53958.
-    if (isa<CXXMethodDecl>(DRE->getDecl()))
-      DRE->setValueKind(CLAD_COMPAT_ExprValueKind_R_or_PR_Value);
+    if (const auto* MD = dyn_cast<CXXMethodDecl>(DRE->getDecl()))
+      if (MD->isInstance())
+        DRE->setValueKind(CLAD_COMPAT_ExprValueKind_R_or_PR_Value);
 
     if (derivedFnArgIdx != -1) {
       // Add the "&" operator
