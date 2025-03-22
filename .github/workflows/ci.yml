@@ -471,7 +471,7 @@ jobs:
 
           - name: ubu22-clang17-runtime20
             os: ubuntu-22.04
-            compiler: clang-18
+            compiler: clang-17
             clang-runtime: '20'
 
           - name: ubu24-arm-clang16-runtime17
@@ -672,11 +672,13 @@ jobs:
             echo "!!!GITHUB INSTALL"
             sudo curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ matrix.clang-runtime }}.1.0/LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64.tar.xz | sudo xz -d -c | sudo tar -x
             if [[ $(uname -p) == "arm" ]]; then
-              PATH_TO_LLVM_BUILD=/opt/homebrew/llvm@${{ matrix.clang-runtime }}/
+              export PATH_TO_LLVM_BUILD=/opt/homebrew/llvm@${{ matrix.clang-runtime }}/
             else
-              PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
+              export PATH_TO_LLVM_BUILD=/usr/local/opt/llvm@${{ matrix.clang-runtime }}/
             fi
-            sudo mv LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64 PATH_TO_LLVM_BUILD
+            sudo mv LLVM-${{ matrix.clang-runtime }}.1.0-macOS-ARM64 $PATH_TO_LLVM_BUILD
+            echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD"
+            ${PATH_TO_LLVM_BUILD}bin/clang --version
           fi
         else
           # Remove the c++ headers that come with the llvm package from homebrew
