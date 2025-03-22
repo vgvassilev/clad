@@ -185,34 +185,12 @@ namespace clad {
 
     FunctionDecl* CladPlugin::ProcessDiffRequest(DiffRequest& request) {
       Sema& S = m_CI.getSema();
-      if (const VarDecl* VD = request.Global) {
-        // The request represents a global variable, construct the adjoint and
-        // register it.
-        ASTContext& C = S.getASTContext();
-        QualType type = VD->getType();
-
-        // add namespace specifier in variable declaration if needed.
-        type = utils::AddNamespaceSpecifier(S, C, type);
-        IdentifierInfo* II = &C.Idents.get("_d_" + VD->getNameAsString());
-        auto* DC = const_cast<DeclContext*>(VD->getDeclContext());
-        auto* VDDiff =
-            VarDecl::Create(C, DC, VD->getLocation(), VD->getLocation(), II,
-                            type, /*TSI=*/nullptr, SC_None);
-        S.AddInitializerToDecl(VDDiff, utils::getZeroInit(type, S),
-                               /*DirectInit=*/false);
-        S.FinalizeDeclaration(VDDiff);
-        DerivativeBuilder::registerDerivative(VDDiff, S, request);
+      if (request.Global) {
+        auto deriveResult = m_DerivativeBuilder->Derive(request);
+        auto* VDDiff = cast_or_null<VarDecl>(deriveResult.derivative);
         ProcessTopLevelDecl(VDDiff);
-
         // Dump the declaration if requested.
         printDerivative(VDDiff, request.DeclarationOnly, m_DO);
-        // Warn the user about the usage of global variables.
-        auto diagId = S.Diags.getCustomDiagID(
-            DiagnosticsEngine::Warning,
-            "The gradient utilizes a global variable '%0'"
-            ". Please make sure to properly reset '%0' before re-running "
-            "the gradient.");
-        S.Diag(VD->getLocation(), diagId) << VD->getName();
         return nullptr;
       }
 
@@ -291,7 +269,7 @@ namespace clad {
                                 request.BaseFunctionName);
 
           auto deriveResult = m_DerivativeBuilder->Derive(request);
-          DerivativeDecl = deriveResult.derivative;
+          DerivativeDecl = cast_or_null<FunctionDecl>(deriveResult.derivative);
           OverloadedDerivativeDecl = deriveResult.overload;
           if (WantTiming)
             m_CTG.StopTimer();

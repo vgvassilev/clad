@@ -470,51 +470,61 @@ void DerivativeBuilder::registerDerivative(Decl* D, Sema& S,
 
   DerivativeAndOverload
   DerivativeBuilder::Derive(const DiffRequest& request) {
-    const FunctionDecl* FD = request.Function;
-    //m_Sema.CurContext = m_Context.getTranslationUnitDecl();
-    assert(FD && "Must not be null.");
-    // If FD is only a declaration, try to find its definition.
-    if (!FD->getDefinition()) {
-      // If only declaration is requested, allow this for clad-generated
-      // functions or custom derivatives.
-      if (!request.DeclarationOnly ||
-          !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
-        if (request.VerboseDiags)
-          diag(DiagnosticsEngine::Error,
-               request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
-               "attempted differentiation of function '%0', which does not "
-               "have a "
-               "definition",
-               {FD->getNameAsString()});
-        return {};
+    if (const FunctionDecl* FD = request.Function) {
+      // Perform diagnostics for functions
+      // If FD is only a declaration, try to find its definition.
+      if (!FD->getDefinition()) {
+        // If only declaration is requested, allow this for clad-generated
+        // functions or custom derivatives.
+        if (!request.DeclarationOnly ||
+            !(m_DFC.IsCladDerivative(FD) || m_DFC.IsCustomDerivative(FD))) {
+          if (request.VerboseDiags)
+            diag(DiagnosticsEngine::Error,
+                 request.CallContext ? request.CallContext->getBeginLoc()
+                                     : noLoc,
+                 "attempted differentiation of function '%0', which does not "
+                 "have a "
+                 "definition",
+                 {FD->getNameAsString()});
+          return {};
+        }
       }
-    }
 
-    if (!request.DeclarationOnly)
-      FD = FD->getDefinition();
+      if (!request.DeclarationOnly)
+        FD = FD->getDefinition();
 
-    // check if the function is non-differentiable.
-    if (clad::utils::hasNonDifferentiableAttribute(FD)) {
-      diag(DiagnosticsEngine::Error,
-           request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
-           "attempted differentiation of function '%0', which is marked as "
-           "non-differentiable",
-           {FD->getNameAsString()});
-      return {};
-    }
-
-    // If the function is a method of a class, check if the class is
-    // non-differentiable.
-    if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
-      const CXXRecordDecl* CD = MD->getParent();
-      if (clad::utils::hasNonDifferentiableAttribute(CD)) {
-        diag(DiagnosticsEngine::Error, MD->getLocation(),
-             "attempted differentiation of method '%0' in class '%1', which is "
-             "marked as "
+      // check if the function is non-differentiable.
+      if (clad::utils::hasNonDifferentiableAttribute(FD)) {
+        diag(DiagnosticsEngine::Error,
+             request.CallContext ? request.CallContext->getBeginLoc() : noLoc,
+             "attempted differentiation of function '%0', which is marked as "
              "non-differentiable",
-             {MD->getNameAsString(), CD->getNameAsString()});
+             {FD->getNameAsString()});
         return {};
       }
+
+      // If the function is a method of a class, check if the class is
+      // non-differentiable.
+      if (const CXXMethodDecl* MD = dyn_cast<CXXMethodDecl>(FD)) {
+        const CXXRecordDecl* CD = MD->getParent();
+        if (clad::utils::hasNonDifferentiableAttribute(CD)) {
+          diag(DiagnosticsEngine::Error, MD->getLocation(),
+               "attempted differentiation of method '%0' in class '%1', which "
+               "is "
+               "marked as "
+               "non-differentiable",
+               {MD->getNameAsString(), CD->getNameAsString()});
+          return {};
+        }
+      }
+    } else if (const VarDecl* VD = request.Global) {
+      // Warn the user about the usage of global variables.
+      auto diagId = m_Sema.Diags.getCustomDiagID(
+          DiagnosticsEngine::Warning,
+          "The gradient utilizes a global variable '%0'"
+          ". Please make sure to properly reset '%0' before re-running "
+          "the gradient.");
+      m_Sema.Diag(VD->getLocation(), diagId) << VD->getName();
     }
 
     DerivativeAndOverload result{};
@@ -561,11 +571,29 @@ void DerivativeBuilder::registerDerivative(Decl* D, Sema& S,
       // Once we are done, we want to clear the model for any further
       // calls to estimate_error.
       CleanupErrorEstimation(m_ErrorEstHandler, m_EstModel);
+    } else if (const VarDecl* VD = request.Global) {
+      // The request represents a global variable, construct the adjoint and
+      // register it.
+      QualType type = VD->getType();
+      // add namespace specifier in variable declaration if needed.
+      type = utils::AddNamespaceSpecifier(m_Sema, m_Context, type);
+      IdentifierInfo* II = &m_Context.Idents.get("_d_" + VD->getNameAsString());
+      auto* DC = const_cast<DeclContext*>(VD->getDeclContext());
+      auto* VDDiff =
+          VarDecl::Create(m_Context, DC, VD->getLocation(), VD->getLocation(),
+                          II, type, /*TSI=*/nullptr, SC_None);
+      m_Sema.AddInitializerToDecl(VDDiff, utils::getZeroInit(type, m_Sema),
+                                  /*DirectInit=*/false);
+      m_Sema.FinalizeDeclaration(VDDiff);
+      result = VDDiff;
     }
 
     // FIXME: if the derivatives aren't registered in this order and the
     //   derivative is a member function it goes into an infinite loop
-    if (!m_DFC.IsCustomDerivative(result.derivative)) {
+    bool isCustomDerivative = false;
+    if (auto* FD = dyn_cast_or_null<FunctionDecl>(result.derivative))
+      isCustomDerivative = m_DFC.IsCustomDerivative(FD);
+    if (!isCustomDerivative) {
       if (auto* FD = result.derivative)
         registerDerivative(FD, m_Sema, request);
       if (auto* OFD = result.overload)

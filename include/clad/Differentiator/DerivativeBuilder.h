@@ -55,9 +55,9 @@ namespace clad {
   /// Stores derivative and the corresponding overload. If no overload exist
   /// then `second` data member should be `nullptr`.
   struct DerivativeAndOverload {
-    clang::FunctionDecl* derivative = nullptr;
+    clang::Decl* derivative = nullptr;
     clang::FunctionDecl* overload = nullptr;
-    DerivativeAndOverload(clang::FunctionDecl* p_derivative = nullptr,
+    DerivativeAndOverload(clang::Decl* p_derivative = nullptr,
                           clang::FunctionDecl* p_overload = nullptr)
         : derivative(p_derivative), overload(p_overload) {}
   };
