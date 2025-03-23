@@ -179,14 +179,31 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
                 if (!ParamsMatch)
                   continue;
 
-                // Compare template parameters using
-                // Sema::isSameTemplateParameterList
-                if (m_Context.isSameTemplateParameterList(
-                        FTD->getTemplateParameters(),
-                        OriginalFTD->getTemplateParameters())) {
-                  ExistingFTD = FTD;
-                  break;
+                // Compare template parameters using Sema::IsSameTemplateParam
+                TemplateParameterList* TPL1 = FTD->getTemplateParameters();
+                TemplateParameterList* TPL2 =
+                    OriginalFTD->getTemplateParameters();
+
+                if (TPL1->size() != TPL2->size())
+                  continue;
+
+                bool TemplateParamsMatch = true;
+                for (unsigned i = 0; i < TPL1->size(); ++i) {
+                  NamedDecl* Param1 = TPL1->getParam(i);
+                  NamedDecl* Param2 = TPL2->getParam(i);
+
+                  if (!m_Context.isSameTemplateParameter(Param1, Param2)) {
+                    TemplateParamsMatch = false;
+                    break;
+                  }
                 }
+
+                if (!TemplateParamsMatch)
+                  continue;
+
+                // If we reach here, the templates are equivalent
+                ExistingFTD = FTD;
+                break;
               }
             }
 
