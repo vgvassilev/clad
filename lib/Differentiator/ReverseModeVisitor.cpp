@@ -1826,9 +1826,11 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       pullbackRequest.EnableVariedAnalysis = m_DiffReq.EnableVariedAnalysis;
       for (size_t i = 0, e = FD->getNumParams(); i < e; ++i) {
         const auto* PVD = FD->getParamDecl(i);
+        // static member function doesn't have `this` pointer
+        size_t offset = (bool)MD && MD->isInstance();
         if (MD && isLambdaCallOperator(MD)) {
           pullbackRequest.DVI.push_back(PVD);
-        } else if (DerivedCallOutputArgs[i + (bool)MD]) {
+        } else if (DerivedCallOutputArgs[i + offset]) {
           if (!m_DiffReq.CUDAGlobalArgsIndexes.empty() &&
               m_DiffReq.HasIndependentParameter(PVD))
             pullbackRequest.CUDAGlobalArgsIndexes.push_back(i);
@@ -1847,7 +1849,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         pullbackFD = m_Builder.HandleNestedDiffRequest(pullbackRequest);
 
       if (pullbackFD) {
-        if (MD) {
+        if (MD && MD->isInstance()) {
           Expr* baseE = baseDiff.getExpr();
           OverloadedDerivedFn = BuildCallExprToMemFn(
               baseE, pullbackFD->getName(), pullbackCallArgs, Loc);
@@ -2150,26 +2152,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           return {cloneE};
 
       Expr* diff_dx = diff.getExpr_dx();
-      bool specialDThisCase = false;
-      Expr* derivedE = nullptr;
-      if (const auto* MD = dyn_cast<CXXMethodDecl>(m_DiffReq.Function)) {
-        if (MD->isInstance() && !diff_dx->getType()->isPointerType())
-          specialDThisCase = true; // _d_this is already dereferenced.
-      }
-      if (specialDThisCase)
-        derivedE = diff_dx;
-      else {
-        derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
-        // Create the (target += dfdx) statement.
-        if (dfdx() && derivedE) {
-          Expr* add_assign = nullptr;
-          if (shouldUseCudaAtomicOps(diff_dx))
-            add_assign = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
-          else
-            add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
+      Expr* derivedE = BuildOp(UnaryOperatorKind::UO_Deref, diff_dx);
+      // Create the (target += dfdx) statement.
+      if (dfdx() && derivedE && !derivedE->getType()->isRecordType()) {
+        Expr* add_assign = nullptr;
+        if (shouldUseCudaAtomicOps(diff_dx))
+          add_assign = BuildCallToCudaAtomicAdd(diff_dx, dfdx());
+        else
+          add_assign = BuildOp(BO_AddAssign, derivedE, dfdx());
 
-          addToCurrentBlock(add_assign, direction::reverse);
-        }
+        addToCurrentBlock(add_assign, direction::reverse);
       }
       return {cloneE, derivedE};
     } else {
@@ -4458,11 +4450,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       m_Sema.PushOnScopeChains(dPVD, getCurrentScope(), /*AddToContext=*/false);
       params.push_back(dPVD);
       // FIXME: Replace m_ThisExprDerivative in favor of lookups of _d_this.
-      // This can instantiate an array_ref and needs a fake source location.
-      SourceLocation fakeLoc = utils::GetValidSLoc(m_Sema);
-      Expr* deref =
-          BuildOp(UnaryOperatorKind::UO_Deref, BuildDeclRef(dPVD), fakeLoc);
-      m_ThisExprDerivative = utils::BuildParenExpr(m_Sema, deref);
+      m_ThisExprDerivative = BuildDeclRef(dPVD);
     }
 
     const auto* FnType = cast<FunctionProtoType>(m_Derivative->getType());
