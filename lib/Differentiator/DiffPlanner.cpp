@@ -29,10 +29,15 @@
 #include <algorithm>
 #include <string>
 
+#include "clang/AST/StmtCXX.h"
+
 using namespace clang;
 
 namespace clad {
   static SourceLocation noLoc;
+
+  // Forward declare the helper function
+  static void EnsurePullbackDefinition(DiffRequest& request, Sema& S);
 
   /// Returns `DeclRefExpr` node corresponding to the function, method or
   /// functor argument which is to be differentiated.
@@ -923,6 +928,11 @@ namespace clad {
       }
     }
 
+    if (request.Mode == DiffMode::reverse) {
+      // Ensure any needed pullback functions have definitions
+      EnsurePullbackDefinition(request, S);
+    }
+
     return false;
   }
 
@@ -1048,9 +1058,11 @@ namespace clad {
       request.Function = FD;
       if (m_TopMostReq->Mode == DiffMode::forward)
         request.Mode = DiffMode::experimental_pushforward;
-      else if (m_TopMostReq->Mode == DiffMode::reverse)
+      else if (m_TopMostReq->Mode == DiffMode::reverse) {
         request.Mode = DiffMode::experimental_pullback;
-      else {
+        // Ensure pullback definition exists
+        EnsurePullbackDefinition(request, m_Sema);
+      } else {
         // propagatorReq.Mode = request.Mode;
       }
       request.VerboseDiags = false;
@@ -1101,5 +1113,30 @@ namespace clad {
       m_TopMostReq = nullptr;
 
     return true;
+  }
+
+  // Add the implementation before ProcessInvocationArgs
+  static void EnsurePullbackDefinition(DiffRequest& request, Sema& S) {
+    if (request.Mode != DiffMode::experimental_pullback)
+        return;
+
+    // Check if function already has a body
+    if (request.Function && request.Function->hasBody())
+        return;
+
+    // Create empty function body using Create factory method
+    CompoundStmt* emptyBody = CompoundStmt::Create(
+        S.Context,             // ASTContext
+        llvm::ArrayRef<Stmt*>{}, // Empty statement list
+        FPOptionsOverride(),   // Default FP options
+        SourceLocation(),      // Begin location
+        SourceLocation()       // End location
+    );
+    
+    // Cast away constness to allow body modification
+    if (request.Function) {
+        FunctionDecl* mutableFn = const_cast<FunctionDecl*>(request.Function);
+        mutableFn->setBody(emptyBody);
+    }
   }
 } // end namespace
