@@ -307,6 +307,29 @@ namespace clad {
       return QT->isArrayType() || QT->isPointerType();
     }
 
+    bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
+                             const clang::ASTContext& C) {
+      // Trivial constructors are linear
+      if (CD->isTrivial())
+        return true;
+      // If the body is not empty, the constructor is not considered linear
+      if (!isa<CompoundStmt>(CD->getBody()))
+        return false;
+      auto* CS = cast<CompoundStmt>(CD->getBody());
+      if (!CS->body_empty())
+        return false;
+      // If some of the inits is non-linear, the constructor is not
+      for (CXXCtorInitializer* CI : CD->inits()) {
+        Expr* init = CI->getInit()->IgnoreImplicit();
+        Expr::EvalResult dummy;
+        if (!(isa<DeclRefExpr>(init) ||
+              clad_compat::Expr_EvaluateAsConstantExpr(init, dummy, C)))
+          return false;
+      }
+      // The constructor is linear
+      return true;
+    }
+
     clang::DeclarationNameInfo BuildDeclarationNameInfo(clang::Sema& S,
                                                         llvm::StringRef name) {
       ASTContext& C = S.getASTContext();
@@ -324,11 +347,12 @@ namespace clad {
     }
 
     bool IsReferenceOrPointerArg(const Expr* arg) {
-      // The argument is passed by reference if it's passed as an L-value.
-      // However, if arg is a MaterializeTemporaryExpr, then arg is a
-      // temporary variable passed as a const reference.
-      bool isRefType = arg->isLValue() && !isa<MaterializeTemporaryExpr>(arg) &&
-                       !isa<CXXDefaultArgExpr>(arg);
+      // The argument is passed by reference if it's an L-value
+      // and the parameter type is L-value too.
+      const Expr* subExpr = arg->IgnoreImplicit();
+      if (const auto* DAE = dyn_cast<CXXDefaultArgExpr>(subExpr))
+        subExpr = DAE->getExpr()->IgnoreImplicit();
+      bool isRefType = arg->isLValue() && subExpr->isLValue();
       return isRefType || isArrayOrPointerType(arg->getType());
     }
 

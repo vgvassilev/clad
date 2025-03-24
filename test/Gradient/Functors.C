@@ -15,7 +15,7 @@ struct Experiment {
 
   // CHECK: void operator_call_grad(double i, double j, Experiment *_d_this, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += this->x * i * 1;
   // CHECK-NEXT:     }
@@ -31,7 +31,7 @@ struct ExperimentConst {
   ExperimentConst& operator=(const ExperimentConst& E) = default;
   // CHECK: void operator_call_grad(double i, double j, ExperimentConst *_d_this, double *_d_i, double *_d_j) const {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += this->x * i * 1;
   // CHECK-NEXT:     }
@@ -54,7 +54,7 @@ struct ExperimentVolatile {
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentVolatile *_d_this, double *_d_i, double *_d_j) volatile {
   // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += _t0 * 1;
   // CHECK-NEXT:     }
@@ -77,7 +77,7 @@ struct ExperimentConstVolatile {
   // CHECK: void operator_call_grad(double i, double j, volatile ExperimentConstVolatile *_d_this, double *_d_i, double *_d_j) const volatile {
   // CHECK-NEXT:     double _t0 = this->x * i;
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += _t0 * 1;
   // CHECK-NEXT:     }
@@ -96,7 +96,7 @@ struct ExperimentNNS {
 
   // CHECK: void operator_call_grad(double i, double j, outer::inner::ExperimentNNS *_d_this, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     {
-  // CHECK-NEXT:         (*_d_this).x += 1 * j * i;
+  // CHECK-NEXT:         _d_this->x += 1 * j * i;
   // CHECK-NEXT:         *_d_i += this->x * 1 * j;
   // CHECK-NEXT:         *_d_j += this->x * i * 1;
   // CHECK-NEXT:     }
@@ -270,6 +270,8 @@ int main() {
   // CHECK-NEXT:     }
   // CHECK-NEXT: }
 
+  // CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept;
+
   // CHECK: void FunctorAsArgWrapper_grad(double i, double j, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment E(3, 5);
   // CHECK-NEXT:     Experiment _d_E(E);
@@ -279,6 +281,7 @@ int main() {
   // CHECK-NEXT:         double _r3 = 0.;
   // CHECK-NEXT:         double _r4 = 0.;
   // CHECK-NEXT:         FunctorAsArg_pullback(E, i, j, 1, &_r2, &_r3, &_r4);
+  // CHECK-NEXT:         Experiment::constructor_pullback(E, &_r2, &_d_E);
   // CHECK-NEXT:         *_d_i += _r3;
   // CHECK-NEXT:         *_d_j += _r4;
   // CHECK-NEXT:     }
@@ -290,3 +293,14 @@ int main() {
   FunctorAsArgWrapper_grad.execute(7, 9, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 }
+
+// CHECK: static inline constexpr void constructor_pullback(const Experiment &arg, Experiment *_d_this, Experiment *_d_arg) noexcept {
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_arg).y += _d_this->y;
+// CHECK-NEXT:         _d_this->y = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT:     {
+// CHECK-NEXT:         (*_d_arg).x += _d_this->x;
+// CHECK-NEXT:         _d_this->x = 0.;
+// CHECK-NEXT:     }
+// CHECK-NEXT: }

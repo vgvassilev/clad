@@ -341,6 +341,9 @@ namespace clad {
 
     bool isCopyable(const clang::CXXRecordDecl* RD);
 
+    bool isLinearConstructor(const clang::CXXConstructorDecl* CD,
+                             const clang::ASTContext& C);
+
     } // namespace utils
     } // namespace clad
 

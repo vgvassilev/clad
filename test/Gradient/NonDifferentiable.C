@@ -185,7 +185,7 @@ int main() {
     
     // CHECK: void mem_fn_1_pullback(double i, double j, double _d_y, SimpleFunctions1 *_d_this, double *_d_i, double *_d_j) {
     // CHECK-NEXT:     {
-    // CHECK-NEXT:         (*_d_this).x += _d_y * i;
+    // CHECK-NEXT:         _d_this->x += _d_y * i;
     // CHECK-NEXT:         *_d_i += (this->x + this->y) * _d_y;
     // CHECK-NEXT:         *_d_i += _d_y * j * j;
     // CHECK-NEXT:         *_d_j += i * _d_y * j;

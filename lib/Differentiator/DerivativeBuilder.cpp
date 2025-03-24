@@ -110,10 +110,14 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
     TypeSourceInfo* TSI = m_Context.getTrivialTypeSourceInfo(functionType);
     if (isa<CXXMethodDecl>(FD)) {
       CXXRecordDecl* CXXRD = cast<CXXRecordDecl>(DC);
+      // For constructor derivatives, `this` object is not provided.
+      // Therefore, we need to make the derivative static.
+      StorageClass SC = isa<CXXConstructorDecl>(FD)
+                            ? SC_Static
+                            : FD->getCanonicalDecl()->getStorageClass();
       returnedFD = CXXMethodDecl::Create(
           m_Context, CXXRD, noLoc, name, functionType, TSI,
-          FD->getCanonicalDecl()->getStorageClass()
-              CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
+          SC CLAD_COMPAT_FunctionDecl_UsesFPIntrin_Param(FD),
           FD->isInlineSpecified(), FD->getConstexprKind(), noLoc);
       // Generated member function should be called outside of class definitions
       // even if their original function had different access specifier.
