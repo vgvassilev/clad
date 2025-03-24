@@ -155,8 +155,32 @@ static void registerDerivative(FunctionDecl* dFD, Sema& S,
               if (FunctionTemplateDecl* FTD =
                       dyn_cast<FunctionTemplateDecl>(ND)) {
                 // Check if this template matches what we need
-                if (clad_compat::templatesAreEquivalent(FTD, OriginalFTD,
-                                                        m_Context)) {
+                FunctionDecl* FD1 = FTD->getTemplatedDecl();
+                FunctionDecl* FD2 = OriginalFTD->getTemplatedDecl();
+
+                // Compare return types
+                if (!m_Context.hasSameType(FD1->getReturnType(),
+                                           FD2->getReturnType()))
+                  continue;
+
+                // Compare parameter types
+                if (FD1->getNumParams() != FD2->getNumParams())
+                  continue;
+
+                bool ParamsMatch = true;
+                for (unsigned i = 0; i < FD1->getNumParams(); ++i) {
+                  if (!m_Context.hasSameType(FD1->getParamDecl(i)->getType(),
+                                             FD2->getParamDecl(i)->getType())) {
+                    ParamsMatch = false;
+                    break;
+                  }
+                }
+                if (!ParamsMatch)
+                  continue;
+                // Check if this template matches what we need
+                if (clad_compat::isSameTemplateParameterList(
+                        FTD->getTemplateParameters(),
+                        OriginalFTD->getTemplateParameters(), m_Context)) {
                   ExistingFTD = FTD;
                   break;
                 }

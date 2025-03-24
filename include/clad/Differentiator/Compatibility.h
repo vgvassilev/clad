@@ -664,17 +664,10 @@ static inline const DeclSpec& Sema_ActOnStartOfLambdaDefinition_ScopeOrDeclSpec(
 // Clang 14. Used in clad::DerivativeBuilder::cloneFunction
 
 #if CLANG_VERSION_MAJOR < 14
-static inline bool templatesAreEquivalent(const FunctionTemplateDecl* FTD1,
-                                          const FunctionTemplateDecl* FTD2,
-                                          ASTContext& Context) {
-  // Check for null pointers
-  if (!FTD1 || !FTD2)
-    return false;
-
-  // Compare template parameter lists
-  TemplateParameterList* TPL1 = FTD1->getTemplateParameters();
-  TemplateParameterList* TPL2 = FTD2->getTemplateParameters();
-
+static inline bool
+isSameTemplateParameterList(const TemplateParameterList* TPL1,
+                            const TemplateParameterList* TPL2,
+                            ASTContext& Context) {
   // Check if parameter counts match
   if (TPL1->size() != TPL2->size())
     return false;
@@ -733,58 +726,13 @@ static inline bool templatesAreEquivalent(const FunctionTemplateDecl* FTD1,
         return false;
     }
   }
-
-  // Compare function signatures
-  FunctionDecl* FD1 = FTD1->getTemplatedDecl();
-  FunctionDecl* FD2 = FTD2->getTemplatedDecl();
-
-  // Compare return types
-  if (!Context.hasSameType(FD1->getReturnType(), FD2->getReturnType()))
-    return false;
-
-  // Compare parameter counts
-  if (FD1->param_size() != FD2->param_size())
-    return false;
-
-  // Compare each parameter type
-  for (unsigned i = 0; i < FD1->param_size(); ++i) {
-    ParmVarDecl* PVD1 = FD1->getParamDecl(i);
-    ParmVarDecl* PVD2 = FD2->getParamDecl(i);
-
-    if (!Context.hasSameType(PVD1->getType(), PVD2->getType()))
-      return false;
-  }
-
-  return true;
 }
 #elif CLANG_VERSION_MAJOR >= 14
-static inline bool templatesAreEquivalent(const FunctionTemplateDecl* FTD1,
-                                          const FunctionTemplateDecl* FTD2,
-                                          ASTContext& Context) {
-  // Check if this template matches what we need
-  FunctionDecl* FD1 = FTD1->getTemplatedDecl();
-  FunctionDecl* FD2 = FTD2->getTemplatedDecl();
-
-  // Compare return types
-  if (!Context.hasSameType(FD1->getReturnType(), FD2->getReturnType()))
-    return false;
-
-  // Compare parameter types
-  if (FD1->getNumParams() != FD2->getNumParams())
-    return false;
-
-  bool ParamsMatch = true;
-  for (unsigned i = 0; i < FD1->getNumParams(); ++i) {
-    if (!Context.hasSameType(FD1->getParamDecl(i)->getType(),
-                             FD2->getParamDecl(i)->getType())) {
-      ParamsMatch = false;
-      break;
-    }
-  }
-
-  return ParamsMatch &&
-         Context.isSameTemplateParameterList(FTD1->getTemplateParameters(),
-                                             FTD2->getTemplateParameters());
+static inline bool
+isSameTemplateParameterList(const TemplateParameterList* TPL1,
+                            const TemplateParameterList* TPL2,
+                            ASTContext& Context) {
+  return Context.isSameTemplateParameterList(TPL1, TPL2);
 }
 #endif
 
