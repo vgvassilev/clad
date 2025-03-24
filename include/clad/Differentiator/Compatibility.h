@@ -674,28 +674,28 @@ isSameTemplateParameterList(const TemplateParameterList* TPL1,
 
   // Compare each template parameter
   for (unsigned i = 0; i < TPL1->size(); ++i) {
-    NamedDecl* ND1 = TPL1->getParam(i);
-    NamedDecl* ND2 = TPL2->getParam(i);
+    const NamedDecl* ND1 = TPL1->getParam(i);
+    const NamedDecl* ND2 = TPL2->getParam(i);
 
     // Only handle type parameters and non-type parameters for now
-    if (auto* TTP1 = dyn_cast<TemplateTypeParmDecl>(ND1)) {
+    if (const auto* TTP1 = dyn_cast<TemplateTypeParmDecl>(ND1)) {
       // Make sure second parameter is also a type parameter
       if (!isa<TemplateTypeParmDecl>(ND2))
         return false;
 
-      auto* TTP2 = cast<TemplateTypeParmDecl>(ND2);
+      const auto* TTP2 = cast<TemplateTypeParmDecl>(ND2);
 
       // For type parameters, just compare depth and index
       // (position in the template parameter list)
       if (TTP1->getDepth() != TTP2->getDepth() ||
           TTP1->getIndex() != TTP2->getIndex())
         return false;
-    } else if (auto* NTTP1 = dyn_cast<NonTypeTemplateParmDecl>(ND1)) {
+    } else if (const auto* NTTP1 = dyn_cast<NonTypeTemplateParmDecl>(ND1)) {
       // Make sure second parameter is also a non-type parameter
       if (!isa<NonTypeTemplateParmDecl>(ND2))
         return false;
 
-      auto* NTTP2 = cast<NonTypeTemplateParmDecl>(ND2);
+      const auto* NTTP2 = cast<NonTypeTemplateParmDecl>(ND2);
 
       // For integral values, check if both types are integral
       QualType Type1 = NTTP1->getType();
