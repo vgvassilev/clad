@@ -4372,6 +4372,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
     QualType oRetTy = FD->getReturnType();
     QualType dRetTy = oRetTy.getNonReferenceType();
+    dRetTy = getNonConstType(dRetTy, m_Context, m_Sema);
 
     // FIXME: We ignore the pointer return type for pullbacks.
     bool HasRet = false;
@@ -4431,6 +4432,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     bool HasRet = false;
     // FIXME: We ignore the pointer return type for pullbacks.
     QualType dRetTy = FD->getReturnType().getNonReferenceType();
+    dRetTy = getNonConstType(dRetTy, m_Context, m_Sema);
     if (m_DiffReq.Mode == DiffMode::experimental_pullback &&
         !dRetTy->isVoidType() && !dRetTy->isPointerType()) {
       auto paramNameExists = [&params](llvm::StringRef name) {
