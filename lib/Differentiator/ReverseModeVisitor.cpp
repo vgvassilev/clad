@@ -1760,7 +1760,8 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
               StmtDiff(Clone(dyn_cast<CXXOperatorCallExpr>(CE)->getArg(0)),
                        new (m_Context) CXXNullPtrLiteralExpr(ptrType, Loc));
         } else if (MD->isInstance()) {
-          if (baseOriginalE->isXValue()) {
+          bool isPassedByRef = utils::IsReferenceOrPointerArg(baseOriginalE);
+          if (!isPassedByRef) {
             QualType dBaseTy =
                 getNonConstType(baseOriginalE->getType(), m_Context, m_Sema);
             VarDecl* dBaseDecl =
@@ -1780,7 +1781,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           if (shouldStore) {
             Expr* baseDiffStore =
                 GlobalStoreAndRef(baseDiff.getExpr(), "_t", /*force=*/true);
-            if (baseOriginalE->isXValue())
+            if (!isPassedByRef)
               baseExpr = baseDiffStore;
             baseDiff.updateStmt(baseDiffStore);
           }
