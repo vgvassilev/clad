@@ -245,7 +245,7 @@ int main() {
   CallFunctor_grad.execute(7, 9, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
-  // CHECK: void FunctorAsArg_grad(Experiment fn, double i, double j, Experiment *_d_fn, double *_d_i, double *_d_j) {
+  // CHECK: template<> void FunctorAsArg_grad<Experiment>(Experiment fn, double i, double j, Experiment *_d_fn, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _t0 = fn;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
@@ -263,7 +263,7 @@ int main() {
   FunctorAsArg_grad.execute(E_temp, 7, 9, &dE_temp, &di, &dj);
   printf("%.2f %.2f\n", di, dj);              // CHECK-EXEC: 27.00 21.00
 
-  // CHECK: void FunctorAsArg_pullback(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
+  // CHECK: template<> void FunctorAsArg_pullback<Experiment>(Experiment fn, double i, double j, double _d_y, Experiment *_d_fn, double *_d_i, double *_d_j) {
   // CHECK-NEXT:     Experiment _t0 = fn;
   // CHECK-NEXT:     {
   // CHECK-NEXT:         double _r0 = 0.;
