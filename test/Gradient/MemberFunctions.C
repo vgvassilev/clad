@@ -556,6 +556,33 @@ double fn7(double u, double v) {
   return SimpleFunctions::static_mem_fn(u, v);
 }
 
+struct S {
+  double val;
+  bool cond;
+  bool Cond(const double& t) const {
+    return t > 0 || cond;
+  }
+};
+
+double fn8(double x, double y) {
+  S s = {x, false};
+  if (s.Cond(y))
+    return 0;
+  return y;
+}
+
+// CHECK:  void fn8_grad(double x, double y, double *_d_x, double *_d_y) {
+// CHECK-NEXT:      S _d_s = {0., false};
+// CHECK-NEXT:      S s = {x, false};
+// CHECK-NEXT:      if (s.Cond(y))
+// CHECK-NEXT:          goto _label0;
+// CHECK-NEXT:      *_d_y += 1;
+// CHECK-NEXT:      if (s.Cond(y))
+// CHECK-NEXT:        _label0:
+// CHECK-NEXT:          ;
+// CHECK-NEXT:      *_d_x += _d_s.val;
+// CHECK-NEXT:  }
+
 int main() {
   auto d_mem_fn = clad::gradient(&SimpleFunctions::mem_fn);
   auto d_const_mem_fn = clad::gradient(&SimpleFunctions::const_mem_fn);
@@ -617,6 +644,12 @@ int main() {
   d_fn7.execute(3, 5, &du, &dv);
   printf("%.2f", du); //CHECK-EXEC: 1.00
   printf("%.2f", dv); //CHECK-EXEC: 1.00
+
+  dx = 0, dy = 0;
+  auto d_fn8 = clad::gradient(fn8);
+  d_fn8.execute(3, -5, &dx, &dy);
+  printf("%.2f", dx); //CHECK-EXEC: 0.00
+  printf("%.2f", dy); //CHECK-EXEC: 1.00
   
   auto d_const_volatile_lval_ref_mem_fn_i = clad::gradient(&SimpleFunctions::const_volatile_lval_ref_mem_fn, "i");
 
