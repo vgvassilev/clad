@@ -708,7 +708,7 @@ double fn_template_non_type(double x) {
   return x*m;
 }
 
-// CHECK: void fn_template_non_type_grad(double x, double *_d_x) {
+// CHECK: template<> void fn_template_non_type_grad<{{15ULL|15UL|15U|15}}>(double x, double *_d_x) {
 // CHECK-NEXT:     size_t _d_maxN = {{0U|0UL}};
 // CHECK-NEXT:     const size_t maxN = 53;
 // CHECK-NEXT:     bool _cond0 = maxN < {{15U|15UL|15ULL}};
