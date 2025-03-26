@@ -1772,7 +1772,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
           } else
             baseDiff = Visit(baseOriginalE);
           baseExpr = baseDiff.getExpr();
-          CXXRecordDecl* baseRD = baseExpr->getType()->getAsCXXRecordDecl();
+          QualType baseTy = baseExpr->getType();
+          if (baseTy->isPointerType())
+            baseTy = baseTy->getPointeeType();
+          CXXRecordDecl* baseRD = baseTy->getAsCXXRecordDecl();
           bool shouldStore = utils::isCopyable(baseRD);
           if (shouldStore) {
             Expr* baseDiffStore =
