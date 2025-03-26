@@ -2931,9 +2931,34 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         // ...
         if (promoteToFnScope) {
           auto* decl = VDDiff.getDecl();
-          if (VD->getInit()) {
+          if (VD->getInit()) { 
+            Expr* initExpr = decl->getInit();
+            
+            // Here, we check if the initiator is an implicit constructor.
+            // In the case of an uninitialized struct
+            // clang would provide an implicit default constructor
+            // which cant be used as an expression, resulting in an error:
+            // e.g.
+            // typedef struct { int a } Struct; 
+            // while (cond) {
+            //   Struct s;
+            // ...
+            // ->
+            // Struct s = {0.};
+            // while (cond) {
+            //  clad::push(_t1, std::move(s)) , s = ;     <--(error)
+            // ...
+            auto* constrExpr = dyn_cast<CXXConstructExpr>(VD->getInit());
+            if (constrExpr) {
+              if (constrExpr->getConstructor()->isImplicit()) {
+                Expr* zeroInit = 
+                    FloatingLiteral::Create(m_Context, llvm::APFloat(0.), true,
+                                            m_Context.DoubleTy, noLoc);
+                initExpr = m_Sema.ActOnInitList(noLoc, { zeroInit }, noLoc).get();
+              }
+            }
             auto* declRef = BuildDeclRef(decl);
-            auto* assignment = BuildOp(BO_Assign, declRef, decl->getInit());
+            auto* assignment = BuildOp(BO_Assign, declRef, initExpr);
             if (isInsideLoop) {
               auto pushPop = StoreAndRestore(declRef, /*prefix=*/"_t",
                                              /*moveToTape=*/true);
